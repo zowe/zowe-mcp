@@ -1,0 +1,40 @@
+{
+  "name": "zowe-mcp-server",
+  "version": "0.1.0",
+  "description": "Zowe MCP Server - Model Context Protocol server providing tools for z/OS",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "zowe-mcp-server": "dist/index.js"
+  },
+  "files": [
+    "dist/"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "format": "prettier --write \"**/*.{ts,js,mjs,json,jsonc}\"",
+    "check-format": "prettier --check \"**/*.{ts,js,mjs,json,jsonc}\""
+  },
+  "keywords": [
+    "zowe",
+    "mcp",
+    "model-context-protocol",
+    "z/OS",
+    "mainframe"
+  ],
+  "license": "EPL-2.0",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.26.0",
+    "express": "^5.1.0",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.0.0",
+    "vitest": "^3.0.0"
+  }
+}

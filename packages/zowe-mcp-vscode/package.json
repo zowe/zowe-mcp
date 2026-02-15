@@ -1,0 +1,64 @@
+{
+  "name": "zowe-mcp-vscode",
+  "displayName": "Zowe MCP",
+  "description": "Zowe MCP Server for z/OS - provides AI tools for data sets, jobs, and UNIX System Services",
+  "version": "0.1.0",
+  "publisher": "Zowe",
+  "author": "Zowe",
+  "license": "EPL-2.0",
+  "icon": "resources/icon.png",
+  "engines": {
+    "vscode": "^1.101.0"
+  },
+  "categories": [
+    "AI",
+    "Other"
+  ],
+  "keywords": [
+    "zowe",
+    "mcp",
+    "z/OS",
+    "mainframe",
+    "model-context-protocol"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "mcpServerDefinitionProviders": [
+      {
+        "id": "zoweMcpServer",
+        "label": "Zowe MCP Server"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run build:all",
+    "build": "tsc -p ./",
+    "build:server": "npm run build -w zowe-mcp-server && npm run bundle:server",
+    "bundle:server": "node scripts/bundle-server.js",
+    "build:all": "npm run build:server && npm run build",
+    "dev": "tsc -watch -p ./",
+    "test": "vscode-test",
+    "package": "vsce package --no-dependencies --allow-missing-repository",
+    "install-extension": "node scripts/install-extension.js",
+    "build-and-install": "npm run package && npm run install-extension",
+    "download-api": "npx @vscode/dts dev",
+    "postdownload-api": "npx @vscode/dts main",
+    "format": "prettier --write \"**/*.{ts,js,mjs,json,jsonc}\"",
+    "check-format": "prettier --check \"**/*.{ts,js,mjs,json,jsonc}\"",
+    "postinstall": "npm run download-api"
+  },
+  "dependencies": {
+    "zowe-mcp-server": "0.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@vscode/dts": "^0.4.1",
+    "@vscode/vsce": "^3.0.0",
+    "@vscode/test-cli": "^0.0.10",
+    "@vscode/test-electron": "^2.5.2",
+    "typescript": "^5.9.2"
+  }
+}

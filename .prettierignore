@@ -1,0 +1,54 @@
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Build outputs
+dist/
+out/
+build/
+*.tsbuildinfo
+
+# Logs
+*.log
+npm-debug.log*
+
+# Coverage
+coverage/
+*.lcov
+.nyc_output
+
+# Output of 'npm pack'
+*.tgz
+
+# dotenv environment variables file
+.env
+.env.*
+
+# Stores VSCode versions used for testing VSCode extensions
+.vscode-test
+
+# Generated files
+*.map
+*.d.ts.map
+
+# OS generated files
+.DS_Store
+
+# IDE files
+.vscode/
+.idea/
+
+# Temporary files
+*.tmp
+*.temp
+temp/
+tmp/
+
+# Documentation (formatted by markdownlint instead)
+*.md
+
+# VS Code extension generated types
+packages/zowe-mcp-vscode/vscode.d.ts
+
+# VSIX packages
+*.vsix

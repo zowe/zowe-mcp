@@ -1,0 +1,35 @@
+{
+  "name": "zowe-mcp",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Zowe MCP - Model Context Protocol server and VS Code extension for z/OS",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces",
+    "test": "npm run test -w packages/zowe-mcp-server",
+    "test:all": "npm run test --workspaces",
+    "test:server": "npm run test -w packages/zowe-mcp-server",
+    "test:vscode": "npm run test -w packages/zowe-mcp-vscode",
+    "call-tool": "npx tsx packages/zowe-mcp-server/scripts/call-tool.ts",
+    "inspector": "npx @modelcontextprotocol/inspector node packages/zowe-mcp-server/dist/index.js --stdio",
+    "build-and-install": "npm run build-and-install -w packages/zowe-mcp-vscode",
+    "lint": "eslint \"packages/**/*.ts\"",
+    "lint:fix": "eslint --fix \"packages/**/*.ts\"",
+    "format": "prettier --write \"**/*.{ts,js,mjs,json,jsonc}\"",
+    "check-format": "prettier --check \"**/*.{ts,js,mjs,json,jsonc}\"",
+    "markdownlint": "markdownlint-cli2 --fix"
+  },
+  "devDependencies": {
+    "eslint": "^9.39.2",
+    "eslint-plugin-headers": "^1.3.4",
+    "eslint-plugin-vitest": "^0.5.4",
+    "markdownlint-cli2": "^0.19.1",
+    "prettier": "^3.8.1",
+    "prettier-plugin-organize-imports": "^4.3.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.9.2",
+    "typescript-eslint": "^8.55.0"
+  }
+}

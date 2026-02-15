@@ -1,0 +1,95 @@
+---
+description: Guide agents to automatically update AGENTS.md with important architectural decisions and patterns
+alwaysApply: true
+---
+
+# AGENTS.md Update Rule
+
+## When to Update
+
+Update `AGENTS.md` when:
+
+1. **Architectural decisions are made**: New patterns, conventions, technology choices, design patterns, or structural changes
+2. **Important patterns are established**: Code organization, naming conventions, error handling, testing approaches, API design patterns
+3. **Gotchas or important notes are discovered**: Common mistakes, special considerations, dependencies, constraints, performance considerations
+4. **Significant changes occur**: Major refactorings, migrations, breaking changes, version upgrades
+
+## How to Update
+
+### Update Format
+
+1. **Update relevant sections** (Architectural Decisions, Patterns, etc.) if the change affects them
+2. **Be concise but informative** - include enough context for future sessions
+3. **Use clear, actionable language**
+
+### Structure
+
+```markdown
+## Key Architectural Decisions
+- [Decision name]: [Description and rationale]
+
+## Common Patterns
+- [Pattern name]: [How to use it, when to use it]
+
+## Things to Remember
+- [Important notes and gotchas]
+```
+
+### Examples
+
+**After implementing a new authentication pattern:**
+
+```markdown
+## Key Architectural Decisions
+- Authentication: Use JWT tokens stored in httpOnly cookies (better security than localStorage, works with SSR)
+
+## Common Patterns
+- Authentication: Use `validateJWT()` middleware from `@/lib/auth` for protected routes
+```
+
+**After establishing a new code organization pattern:**
+
+```markdown
+## Key Architectural Decisions
+- File Organization: Organize by feature, not by file type (better scalability and code discoverability)
+
+## Common Patterns
+- File Organization: Use feature-based structure: `features/[name]/components/`, `features/[name]/hooks/`, `features/[name]/utils/`
+```
+
+## Nested AGENTS.md Support
+
+Cursor supports nested `AGENTS.md` files in subdirectories. Instructions from nested files are automatically combined with parent directories, with more specific instructions taking precedence.
+
+### When to Use Nested AGENTS.md
+
+Create nested `AGENTS.md` files when:
+
+- **Area-specific patterns**: Different parts of the codebase have distinct patterns (e.g., frontend vs backend)
+- **Domain-specific instructions**: Specific directories need specialized guidance (e.g., API routes, components, services)
+- **Technology-specific rules**: Different subdirectories use different frameworks or libraries
+
+### Structure Example
+
+```bash
+project/
+  AGENTS.md              # Global instructions
+  frontend/
+    AGENTS.md            # Frontend-specific instructions
+    components/
+      AGENTS.md          # Component-specific instructions
+  backend/
+    AGENTS.md            # Backend-specific instructions
+```
+
+### Update Strategy
+
+- **Global changes**: Update root `AGENTS.md` for project-wide patterns and decisions
+- **Area-specific changes**: Update the relevant nested `AGENTS.md` (e.g., `frontend/AGENTS.md` for frontend patterns)
+- **Scope appropriately**: Place instructions at the most specific level where they apply
+
+## Workflow
+
+- **After completing significant work**: Update AGENTS.md with new patterns, decisions, gotchas, and things to remember
+- **On explicit request**: Update immediately with all relevant context
+- **Proactively**: Update when making significant architectural decisions or establishing reusable patterns, even if not explicitly asked

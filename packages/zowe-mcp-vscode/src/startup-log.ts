@@ -15,6 +15,8 @@
  * - VS Code version
  * - GitHub Copilot Chat extension version and status
  * - Zowe Explorer extension version and status
+ * - Available language models (name, vendor, family, version, maxInputTokens)
+ * - Registered language model tools
  */
 
 import * as vscode from 'vscode';
@@ -43,9 +45,46 @@ function getExtensionStatus(extensionId: string): ExtensionStatus {
 }
 
 /**
- * Logs startup environment information to the "Zowe MCP" output channel.
+ * Logs the list of available language models to the output channel.
  */
-export function logStartupInfo(context: vscode.ExtensionContext): void {
+export function logLanguageModels(models: vscode.LanguageModelChat[]): void {
+  const log = getLog();
+  if (models.length === 0) {
+    log.info('Language models: none available');
+    return;
+  }
+  log.info(`Language models: ${String(models.length)} available`);
+  for (const model of models) {
+    log.info(
+      `  ${model.name} (${model.id}) — vendor: ${model.vendor}, family: ${model.family}, version: ${model.version}, maxInputTokens: ${String(model.maxInputTokens)}`
+    );
+  }
+}
+
+/**
+ * Logs the list of registered language model tools to the output channel.
+ */
+function logLanguageModelTools(): void {
+  const log = getLog();
+  const tools = vscode.lm.tools;
+  if (tools.length === 0) {
+    log.info('Language model tools: none registered');
+    return;
+  }
+  log.info(`Language model tools: ${String(tools.length)} registered`);
+  for (const tool of tools) {
+    const tags = tool.tags.length > 0 ? ` [${tool.tags.join(', ')}]` : '';
+    log.info(`  ${tool.name}${tags} — ${tool.description}`);
+  }
+}
+
+/**
+ * Logs startup environment information to the output channel.
+ *
+ * This function is async because querying available language models
+ * requires an async call to `vscode.lm.selectChatModels()`.
+ */
+export async function logStartupInfo(context: vscode.ExtensionContext): Promise<void> {
   const log = getLog();
   const extVersion = (context.extension.packageJSON as { version: string }).version;
 
@@ -57,4 +96,13 @@ export function logStartupInfo(context: vscode.ExtensionContext): void {
 
   const zoweExplorer = getExtensionStatus(ZOWE_EXPLORER_EXTENSION_ID);
   log.info(`Zowe Explorer: v${zoweExplorer.version} (${zoweExplorer.status})`);
+
+  try {
+    const models = await vscode.lm.selectChatModels();
+    logLanguageModels(models);
+  } catch (err) {
+    log.warn(`Failed to query language models: ${String(err)}`);
+  }
+
+  logLanguageModelTools();
 }

@@ -19,11 +19,13 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { getDisplayName, getLog, initLog } from './log';
-import { logStartupInfo } from './startup-log';
+import { logLanguageModels, logStartupInfo } from './startup-log';
 
 export function activate(context: vscode.ExtensionContext): void {
-  initLog(context);
-  logStartupInfo(context);
+  const log = initLog(context);
+
+  // Fire-and-forget: startup logging is non-critical and includes async model queries
+  void logStartupInfo(context);
 
   const serverModule = resolveServerPath(context);
 
@@ -35,7 +37,29 @@ export function activate(context: vscode.ExtensionContext): void {
     })
   );
 
-  getLog().info(`${getDisplayName()} extension activated`);
+  // Log when the set of available language models changes (e.g. Copilot signs in/out)
+  context.subscriptions.push(
+    vscode.lm.onDidChangeChatModels(() => {
+      void refreshLanguageModels();
+    })
+  );
+
+  log.info(`${getDisplayName()} extension activated`);
+}
+
+/**
+ * Re-queries and logs the available language models.
+ * Called when the set of models changes at runtime.
+ */
+async function refreshLanguageModels(): Promise<void> {
+  const log = getLog();
+  log.info('Language models changed, refreshing...');
+  try {
+    const models = await vscode.lm.selectChatModels();
+    logLanguageModels(models);
+  } catch (err) {
+    log.warn(`Failed to query language models after change: ${String(err)}`);
+  }
 }
 
 /**

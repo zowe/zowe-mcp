@@ -18,7 +18,7 @@
 
 import * as assert from 'assert';
 import * as vscode from 'vscode';
-import { getLog } from '../log';
+import { getDisplayName, getLog } from '../log';
 
 /**
  * Finds the Zowe MCP extension from the installed extensions list.
@@ -55,7 +55,12 @@ suite('Zowe MCP VS Code Extension', () => {
     test('Log output channel should be initialized after activation', () => {
       const log = getLog();
       assert.ok(log, 'getLog() should return a LogOutputChannel');
-      assert.strictEqual(log.name, 'Zowe MCP', 'Output channel should be named "Zowe MCP"');
+      const expectedName = getDisplayName();
+      assert.strictEqual(
+        log.name,
+        expectedName,
+        `Output channel should be named "${expectedName}"`
+      );
     });
 
     test('Log output channel should support all log levels', () => {

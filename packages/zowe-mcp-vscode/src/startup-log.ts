@@ -74,7 +74,8 @@ function logLanguageModelTools(): void {
   log.info(`Language model tools: ${String(tools.length)} registered`);
   for (const tool of tools) {
     const tags = tool.tags.length > 0 ? ` [${tool.tags.join(', ')}]` : '';
-    log.info(`  ${tool.name}${tags} — ${tool.description}`);
+    const firstLine = tool.description.split('\n')[0];
+    log.debug(`  ${tool.name}${tags} — ${firstLine}`);
   }
 }
 

@@ -20,7 +20,7 @@
  *   --port N  Port for HTTP transport (default: 3000)
  */
 
-import { createServer } from './server.js';
+import { createServer, getLogger } from './server.js';
 import { startHttp } from './transports/http.js';
 import { startStdio } from './transports/stdio.js';
 
@@ -37,7 +37,7 @@ function parseArgs(): { transport: 'stdio' | 'http'; port: number } {
     } else if (args[i] === '--port' && i + 1 < args.length) {
       port = parseInt(args[++i], 10);
       if (isNaN(port)) {
-        console.error('Invalid port number');
+        getLogger().error('Invalid port number');
         process.exit(1);
       }
     }
@@ -48,16 +48,17 @@ function parseArgs(): { transport: 'stdio' | 'http'; port: number } {
 
 async function main(): Promise<void> {
   const { transport, port } = parseArgs();
+  const logger = getLogger();
 
   if (transport === 'stdio') {
     const server = createServer();
-    await startStdio(server);
+    await startStdio(server, logger);
   } else {
-    await startHttp(createServer, port);
+    await startHttp(createServer, port, logger);
   }
 }
 
 main().catch((error: unknown) => {
-  console.error('Fatal error:', error);
+  getLogger().emergency('Fatal error', error);
   process.exit(1);
 });

@@ -16,6 +16,7 @@
  */
 
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import type { Logger } from '../../log.js';
 
 export interface ZoweInfoResponse {
   name: string;
@@ -29,13 +30,17 @@ export interface ZoweInfoResponse {
  *
  * @param server - The McpServer instance to register tools on.
  * @param version - The server version (from package.json).
+ * @param logger - Logger instance for diagnostic messages.
  */
-export function registerCoreTools(server: McpServer, version: string): void {
+export function registerCoreTools(server: McpServer, version: string, logger: Logger): void {
+  const log = logger.child('core');
+
   server.tool(
     'zowe_info',
     'Provides information about the Zowe MCP server and its version',
     {},
     () => {
+      log.debug('zowe_info tool called');
       const info: ZoweInfoResponse = {
         name: 'Zowe MCP Server',
         version,

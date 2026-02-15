@@ -22,6 +22,7 @@ This is an npm workspaces monorepo with two packages:
 - **Code formatting via Cursor hooks**: All TypeScript, JavaScript, and JSON files are formatted with Prettier (`.prettierrc.json` + `prettier-plugin-organize-imports`). Markdown files are formatted with markdownlint-cli2. A Cursor hook (`.cursor/hooks/format.sh`) auto-formats all file types after every Agent and Tab edit.
 - **ESLint with type-checked rules**: ESLint is configured with `typescript-eslint`'s `recommendedTypeChecked` + `stylisticTypeChecked` rulesets, `eslint-plugin-headers` for license headers, and `eslint-plugin-vitest` for test hygiene (server tests only — VS Code extension tests use Mocha). Config is in `eslint.config.mjs`. Each package has a `tsconfig.eslint.json` that includes all lintable files (src, tests, scripts). The Cursor format hook automatically runs `eslint --fix` on `.ts` files.
 - **License header enforcement**: All `.ts` files must start with the EPL-2.0 license header. Enforced by `eslint-plugin-headers` via `eslint.config.mjs`. The Cursor format hook automatically inserts missing headers on save. Run `npm run lint` to check all files, `npm run lint:fix` to auto-fix.
+- **Structured logging (MCP server)**: The server uses a custom `Logger` class (`src/log.ts`) that writes human-readable messages to stderr and forwards them to the MCP client via `sendLoggingMessage()`. Log levels follow RFC 5424 (debug, info, notice, warning, error, critical, alert, emergency). The `logging` capability is declared in `server.ts` so the SDK allows protocol-level log notifications. No external logging library (pino, winston) is used — the MCP SDK provides the protocol transport, and stderr handles local diagnostics.
 
 ## Common Patterns
 
@@ -61,6 +62,16 @@ Server tests are organized into **common** (parameterized) and **transport-speci
 - **Config**: `.prettierrc.json` at the repo root. Uses `prettier-plugin-organize-imports` to auto-sort imports. `eslint.config.mjs` at the repo root for license header enforcement.
 - **Ignored files**: See `.prettierignore`. Markdown files are excluded from Prettier (handled by markdownlint instead). Build artifacts (`.vscode-test/`, `dist/`, `out/`, `server/`) are excluded from ESLint.
 
+### Logging (MCP Server)
+
+- **Logger class**: `packages/zowe-mcp-server/src/log.ts` exports a `Logger` class with dual output: stderr (always) and MCP protocol notifications (when connected). Created as a singleton via `getLogger()` in `server.ts`.
+- **Log levels**: RFC 5424 syslog levels — `debug`, `info`, `notice`, `warning`, `error`, `critical`, `alert`, `emergency`. Default is `info`, overridden by the `ZOWE_MCP_LOG_LEVEL` environment variable.
+- **Child loggers**: Use `logger.child('name')` to create a named child logger that shares the parent's server attachment and level. Each component/transport should create its own child (e.g., `logger.child('http')`, `logger.child('core')`).
+- **Usage in tools**: Tool registration functions receive a `Logger` parameter from `server.ts`. Create a child logger and use it for diagnostic messages (e.g., `log.debug('tool called')`).
+- **Usage in transports**: Transport functions (`startStdio`, `startHttp`) receive a `Logger` parameter. Create a child logger named after the transport.
+- **Do not use `console.log` or `console.error`**: Always use the `Logger` class. For stdio transport, writing to stdout corrupts the JSON-RPC protocol.
+- **Stderr format**: `YYYY-MM-DDTHH:mm:ss.sssZ [LEVEL] [name] message {data}`
+
 ### Logging (VS Code Extension)
 
 - **Output channel**: The extension creates a `LogOutputChannel` named "Zowe MCP" (visible in the VS Code Output panel). It is initialized in `src/log.ts` via `initLog(context)` and accessed elsewhere via `getLog()`.
@@ -89,6 +100,8 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 - Express v5 is used for the HTTP transport.
 - ESLint uses type-checked rules (`recommendedTypeChecked` + `stylisticTypeChecked`). Avoid `any` — use `as` type assertions on `JSON.parse()` and `require()` results. Prefer `T[]` over `Array<T>`, `interface` over `type` alias, and `??` over `||` for nullish values. Each package has a `tsconfig.eslint.json` that covers all lintable files (src, tests, scripts, config).
 - Vitest test rules (`eslint-plugin-vitest`) apply only to `packages/zowe-mcp-server/__tests__/`. VS Code extension tests use Mocha (not Vitest) and are excluded from vitest rules.
+- Never use `console.log` or `console.error` in the MCP server — use the `Logger` class from `src/log.ts`. For stdio transport, stdout is reserved for JSON-RPC protocol messages.
+- The `logging` capability must be declared in the `McpServer` constructor options for `sendLoggingMessage()` to work. This is done in `server.ts`.
 
 ## Scripts Reference
 

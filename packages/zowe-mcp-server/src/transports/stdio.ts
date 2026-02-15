@@ -18,12 +18,18 @@
 
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import type { Logger } from '../log.js';
 
 /**
  * Starts the MCP server using the stdio transport.
  * The server will read JSON-RPC messages from stdin and write responses to stdout.
+ *
+ * @param server - The McpServer instance to connect.
+ * @param logger - Logger instance for diagnostic messages.
  */
-export async function startStdio(server: McpServer): Promise<void> {
+export async function startStdio(server: McpServer, logger: Logger): Promise<void> {
+  const log = logger.child('stdio');
   const transport = new StdioServerTransport();
   await server.connect(transport);
+  log.info('Zowe MCP Server (stdio) connected');
 }

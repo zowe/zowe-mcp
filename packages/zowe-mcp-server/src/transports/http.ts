@@ -23,6 +23,7 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
 import express, { type Request, type Response } from 'express';
 import { randomUUID } from 'node:crypto';
+import type { Logger } from '../log.js';
 
 /**
  * Starts the MCP HTTP server with multi-session support.
@@ -34,8 +35,14 @@ import { randomUUID } from 'node:crypto';
  *
  * @param createServer - Factory that returns a fully-configured McpServer.
  * @param port - The port to listen on (default: 3000).
+ * @param logger - Logger instance for diagnostic messages.
  */
-export async function startHttp(createServer: () => McpServer, port = 3000): Promise<void> {
+export async function startHttp(
+  createServer: () => McpServer,
+  port = 3000,
+  logger: Logger
+): Promise<void> {
+  const log = logger.child('http');
   const app = express();
   app.use(express.json());
 
@@ -88,7 +95,7 @@ export async function startHttp(createServer: () => McpServer, port = 3000): Pro
 
       await transport.handleRequest(req, res, req.body);
     } catch (error) {
-      console.error('Error handling MCP request:', error);
+      log.error('Error handling MCP request', error);
       if (!res.headersSent) {
         res.status(500).json({
           jsonrpc: '2.0',
@@ -123,7 +130,7 @@ export async function startHttp(createServer: () => McpServer, port = 3000): Pro
     try {
       await transports[sessionId].handleRequest(req, res);
     } catch (error) {
-      console.error('Error handling session termination:', error);
+      log.error('Error handling session termination', error);
       if (!res.headersSent) {
         res.status(500).send('Error processing session termination');
       }
@@ -132,7 +139,7 @@ export async function startHttp(createServer: () => McpServer, port = 3000): Pro
 
   return new Promise<void>(resolve => {
     app.listen(port, () => {
-      console.error(`Zowe MCP Server (HTTP) listening on port ${port}`);
+      log.info(`Zowe MCP Server (HTTP) listening on port ${port}`);
       resolve();
     });
   });

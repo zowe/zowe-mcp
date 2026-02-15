@@ -76,5 +76,10 @@ for (const createProvider of allProviders) {
       const info = JSON.parse(content[0].text) as { version: string };
       expect(info.version).toBe(packageJson.version);
     });
+
+    it('should advertise the logging capability', async () => {
+      const capabilities = client.getServerCapabilities();
+      expect(capabilities?.logging).toBeDefined();
+    });
   });
 }

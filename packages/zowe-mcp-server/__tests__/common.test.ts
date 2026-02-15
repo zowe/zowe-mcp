@@ -77,7 +77,7 @@ for (const createProvider of allProviders) {
       expect(info.version).toBe(packageJson.version);
     });
 
-    it('should advertise the logging capability', async () => {
+    it('should advertise the logging capability', () => {
       const capabilities = client.getServerCapabilities();
       expect(capabilities?.logging).toBeDefined();
     });

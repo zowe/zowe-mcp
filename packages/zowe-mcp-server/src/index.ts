@@ -20,6 +20,7 @@
  *   --port N  Port for HTTP transport (default: 3000)
  */
 
+import { connectExtensionClient } from './extension-client.js';
 import { createServer, getLogger, SERVER_VERSION } from './server.js';
 import { startHttp } from './transports/http.js';
 import { startStdio } from './transports/stdio.js';
@@ -49,6 +50,21 @@ function parseArgs(): { transport: 'stdio' | 'http'; port: number } {
 async function main(): Promise<void> {
   const { transport, port } = parseArgs();
   const logger = getLogger();
+
+  // Connect to VS Code extension pipe (if env vars are set)
+  const extensionClient = await connectExtensionClient(logger);
+  if (extensionClient) {
+    logger.attachExtension(extensionClient);
+
+    // Handle log-level events from the extension
+    extensionClient.onEvent(event => {
+      if (event.type === 'log-level') {
+        const { level } = event.data;
+        logger.info(`Log level changed to "${level}" by VS Code extension`);
+        logger.setLevel(level);
+      }
+    });
+  }
 
   logger.info(`Starting Zowe MCP Server v${SERVER_VERSION}`, {
     transport,

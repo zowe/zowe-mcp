@@ -13,14 +13,20 @@
  * Structured logging for the Zowe MCP Server.
  *
  * Provides a {@link Logger} class that writes human-readable messages to
- * stderr (always available, even before a transport connects) and forwards
- * them to the MCP client via `sendLoggingMessage()` when a server is
- * attached and connected.
+ * up to three destinations:
+ *
+ * 1. **stderr** — always available, even before a transport connects.
+ * 2. **MCP protocol** — forwarded to the MCP client via `sendLoggingMessage()`
+ *    when an {@link McpServer} is attached and connected.
+ * 3. **Extension pipe** — forwarded to the VS Code extension as `log` events
+ *    when an {@link ExtensionClient} is attached and connected.
  *
  * Log levels follow RFC 5424 (syslog) as required by the MCP specification.
  */
 
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import type { LogEvent } from './events.js';
+import type { ExtensionClient } from './extension-client.js';
 
 /**
  * RFC 5424 syslog severity levels used by the MCP logging specification,
@@ -71,18 +77,22 @@ export interface LoggerOptions {
 }
 
 /**
- * Lightweight, dual-destination logger for the MCP server.
+ * Lightweight, triple-destination logger for the MCP server.
  *
  * - **stderr**: Always writes a human-readable line so that operators can
  *   observe the server regardless of transport.
  * - **MCP protocol**: When an {@link McpServer} is attached (via {@link attach})
  *   and connected, each message is also forwarded to the client as a
  *   `notifications/message` notification.
+ * - **Extension pipe**: When an {@link ExtensionClient} is attached (via
+ *   {@link attachExtension}) and connected, each message is forwarded as a
+ *   `log` event to the VS Code Output panel.
  */
 export class Logger {
   private _level: LogLevel;
   private _name: string | undefined;
   private _server: McpServer | undefined;
+  private _extensionClient: ExtensionClient | undefined;
 
   constructor(options?: LoggerOptions) {
     const defaultLevel = options?.level ?? 'info';
@@ -90,7 +100,7 @@ export class Logger {
     this._name = options?.name;
   }
 
-  // -- Public API: attach / child ------------------------------------------
+  // -- Public API: attach / child / setLevel --------------------------------
 
   /**
    * Attaches an {@link McpServer} so that log messages are also forwarded
@@ -101,12 +111,29 @@ export class Logger {
   }
 
   /**
-   * Creates a child logger that shares the same server reference and level
-   * but uses a different logger name.
+   * Attaches an {@link ExtensionClient} so that log messages are also
+   * forwarded to the VS Code extension as `log` events over the named pipe.
+   */
+  attachExtension(client: ExtensionClient): void {
+    this._extensionClient = client;
+  }
+
+  /**
+   * Dynamically changes the minimum severity level at runtime.
+   * Called when a `log-level` event arrives from the VS Code extension.
+   */
+  setLevel(level: LogLevel): void {
+    this._level = level;
+  }
+
+  /**
+   * Creates a child logger that shares the same server and extension client
+   * references and level but uses a different logger name.
    */
   child(name: string): Logger {
     const child = new Logger({ level: this._level, name });
     child._server = this._server;
+    child._extensionClient = this._extensionClient;
     return child;
   }
 
@@ -165,6 +192,16 @@ export class Logger {
         logger: this._name,
         data: data !== undefined ? data : message,
       });
+    }
+
+    // 3. Forward to VS Code extension when attached and connected
+    if (this._extensionClient?.connected) {
+      const logEvent: LogEvent = {
+        type: 'log',
+        data: { level, logger: this._name, message, data },
+        timestamp: Date.now(),
+      };
+      this._extensionClient.sendEvent(logEvent);
     }
   }
 }

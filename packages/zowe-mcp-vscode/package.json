@@ -31,7 +31,37 @@
         "id": "zowe",
         "label": "Zowe"
       }
-    ]
+    ],
+    "configuration": {
+      "title": "Zowe MCP",
+      "properties": {
+        "zowe-mcp.logLevel": {
+          "type": "string",
+          "default": "info",
+          "enum": [
+            "debug",
+            "info",
+            "notice",
+            "warning",
+            "error",
+            "critical",
+            "alert",
+            "emergency"
+          ],
+          "enumDescriptions": [
+            "Verbose debug messages",
+            "Informational messages",
+            "Normal but significant conditions",
+            "Warning conditions",
+            "Error conditions",
+            "Critical conditions",
+            "Action must be taken immediately",
+            "System is unusable"
+          ],
+          "description": "Minimum log level for the Zowe MCP Server. Changes take effect immediately without restarting."
+        }
+      }
+    }
   },
   "scripts": {
     "vscode:prepublish": "npm run build:all",

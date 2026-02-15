@@ -24,6 +24,8 @@ This is an npm workspaces monorepo with two packages:
 - **ESLint with type-checked rules**: ESLint is configured with `typescript-eslint`'s `recommendedTypeChecked` + `stylisticTypeChecked` rulesets, `eslint-plugin-headers` for license headers, and `eslint-plugin-vitest` for test hygiene (server tests only — VS Code extension tests use Mocha). Config is in `eslint.config.mjs`. Each package has a `tsconfig.eslint.json` that includes all lintable files (src, tests, scripts). The Cursor format hook automatically runs `eslint --fix` on `.ts` files.
 - **License header enforcement**: All `.ts` files must start with the EPL-2.0 license header. Enforced by `eslint-plugin-headers` via `eslint.config.mjs`. The Cursor format hook automatically inserts missing headers on save. Run `npm run lint` to check all files, `npm run lint:fix` to auto-fix.
 - **Structured logging (MCP server)**: The server uses a custom `Logger` class (`src/log.ts`) that writes human-readable messages to stderr and forwards them to the MCP client via `sendLoggingMessage()`. Log levels follow RFC 5424 (debug, info, notice, warning, error, critical, alert, emergency). The `logging` capability is declared in `server.ts` so the SDK allows protocol-level log notifications. No external logging library (pino, winston) is used — the MCP SDK provides the protocol transport, and stderr handles local diagnostics.
+- **Event-based extension communication**: The MCP server and VS Code extension communicate bidirectionally over a named pipe (Unix socket / Windows named pipe). The extension creates a per-workspace pipe server on activation and writes a discovery file to `context.globalStorageUri`. The MCP server reads the discovery file (via `MCP_DISCOVERY_DIR` + `WORKSPACE_ID` env vars) and connects. Events are framed as newline-delimited JSON (NDJSON). Event types are defined in `src/events.ts` and split into `ServerToExtensionEvent` (e.g. `log`) and `ExtensionToServerEvent` (e.g. `log-level`). When the env vars are absent (standalone mode), the pipe client is not created and the server operates identically to before.
+- **Dynamic log level from VS Code**: The `zowe-mcp.logLevel` VS Code setting controls the MCP server's log verbosity at runtime. Changes are sent as `log-level` events over the named pipe and take effect immediately without restarting the server. The initial level is sent when the server first connects.
 
 ## Common Patterns
 
@@ -65,13 +67,22 @@ Server tests are organized into **common** (parameterized) and **transport-speci
 
 ### Logging (MCP Server)
 
-- **Logger class**: `packages/zowe-mcp-server/src/log.ts` exports a `Logger` class with dual output: stderr (always) and MCP protocol notifications (when connected). Created as a singleton via `getLogger()` in `server.ts`.
-- **Log levels**: RFC 5424 syslog levels — `debug`, `info`, `notice`, `warning`, `error`, `critical`, `alert`, `emergency`. Default is `info`, overridden by the `ZOWE_MCP_LOG_LEVEL` environment variable.
-- **Child loggers**: Use `logger.child('name')` to create a named child logger that shares the parent's server attachment and level. Each component/transport should create its own child (e.g., `logger.child('http')`, `logger.child('core')`).
+- **Logger class**: `packages/zowe-mcp-server/src/log.ts` exports a `Logger` class with triple output: stderr (always), MCP protocol notifications (when connected), and VS Code extension pipe (when connected). Created as a singleton via `getLogger()` in `server.ts`.
+- **Log levels**: RFC 5424 syslog levels — `debug`, `info`, `notice`, `warning`, `error`, `critical`, `alert`, `emergency`. Default is `info`, overridden by the `ZOWE_MCP_LOG_LEVEL` environment variable or dynamically via `log-level` events from the VS Code extension.
+- **Child loggers**: Use `logger.child('name')` to create a named child logger that shares the parent's server attachment, extension client, and level. Each component/transport should create its own child (e.g., `logger.child('http')`, `logger.child('core')`).
 - **Usage in tools**: Tool registration functions receive a `Logger` parameter from `server.ts`. Create a child logger and use it for diagnostic messages (e.g., `log.debug('tool called')`).
 - **Usage in transports**: Transport functions (`startStdio`, `startHttp`) receive a `Logger` parameter. Create a child logger named after the transport.
 - **Do not use `console.log` or `console.error`**: Always use the `Logger` class. For stdio transport, writing to stdout corrupts the JSON-RPC protocol.
 - **Stderr format**: `YYYY-MM-DDTHH:mm:ss.sssZ [LEVEL] [name] message {data}`
+
+### Extension Communication (Named Pipe)
+
+- **Pipe server**: `packages/zowe-mcp-vscode/src/pipe-server.ts` creates a `net.Server` on a per-workspace named pipe. The pipe path is `/tmp/zowe-mcp-<workspaceId>.sock` (Unix) or `\\.\pipe\zowe-mcp-<workspaceId>` (Windows). A discovery JSON file is written to `context.globalStorageUri`.
+- **Extension client**: `packages/zowe-mcp-server/src/extension-client.ts` reads the discovery file and connects to the pipe. Uses retry logic (up to 10 attempts, 1s delay). Returns `undefined` in standalone mode (env vars absent).
+- **Event types**: Defined in `packages/zowe-mcp-server/src/events.ts`. The `McpEvent<T, D>` generic envelope carries a `type`, `data`, and `timestamp`. `ServerToExtensionEvent` includes `log`; `ExtensionToServerEvent` includes `log-level`.
+- **Event handler**: `packages/zowe-mcp-vscode/src/event-handler.ts` dispatches incoming server events to VS Code APIs (e.g. `log` events → `LogOutputChannel`).
+- **Adding a new event type**: (1) Add the event data interface and type alias to `events.ts`. (2) Add it to the appropriate union (`ServerToExtensionEvent` or `ExtensionToServerEvent`). (3) Handle it in `event-handler.ts` (server→extension) or register a handler via `extensionClient.onEvent()` (extension→server).
+- **Env vars**: `MCP_DISCOVERY_DIR` and `WORKSPACE_ID` are passed to the MCP server via `McpStdioServerDefinition`'s `env` parameter. They are set automatically by the extension — no manual configuration needed.
 
 ### Logging (VS Code Extension)
 
@@ -103,6 +114,8 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 - Vitest test rules (`eslint-plugin-vitest`) apply only to `packages/zowe-mcp-server/__tests__/`. VS Code extension tests use Mocha (not Vitest) and are excluded from vitest rules.
 - Never use `console.log` or `console.error` in the MCP server — use the `Logger` class from `src/log.ts`. For stdio transport, stdout is reserved for JSON-RPC protocol messages.
 - The `logging` capability must be declared in the `McpServer` constructor options for `sendLoggingMessage()` to work. This is done in `server.ts`.
+- The extension pipe tests (`__tests__/extension-client.test.ts`) create real Unix sockets in `/tmp/`. The "missing discovery file" test takes ~9s due to retry logic (10 attempts × 1s delay).
+- Event types are defined in the server package (`src/events.ts`) and imported by the VS Code extension from `zowe-mcp-server/dist/events.js`. The server must be built before the extension can compile.
 
 ## Scripts Reference
 

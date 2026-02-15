@@ -25,6 +25,9 @@ const packageJson: { version: string } = require('../package.json') as {
   version: string;
 };
 
+/** The server version from package.json. */
+export const SERVER_VERSION: string = packageJson.version;
+
 /** Shared root logger for the MCP server process. */
 let rootLogger: Logger | undefined;
 
@@ -40,6 +43,32 @@ export function getLogger(): Logger {
 }
 
 /**
+ * Prefixes of environment variable names that are relevant to the MCP server.
+ * Variables matching these prefixes are included in the startup log.
+ * Anything containing "SECRET", "TOKEN", "PASSWORD", or "KEY" is redacted.
+ */
+const ENV_PREFIXES = ['ZOWE_', 'MCP_', 'NODE_', 'VSCODE_'];
+
+/** Substrings that indicate a variable contains sensitive data. */
+const SENSITIVE_SUBSTRINGS = ['SECRET', 'TOKEN', 'PASSWORD', 'KEY', 'CREDENTIAL'];
+
+/**
+ * Returns a filtered snapshot of environment variables relevant to the server.
+ * Sensitive values are redacted to avoid leaking credentials into logs.
+ */
+function getRelevantEnv(): Record<string, string> {
+  const result: Record<string, string> = {};
+  for (const [name, value] of Object.entries(process.env)) {
+    if (value === undefined) continue;
+    const upper = name.toUpperCase();
+    if (!ENV_PREFIXES.some(prefix => upper.startsWith(prefix))) continue;
+    const isSensitive = SENSITIVE_SUBSTRINGS.some(s => upper.includes(s));
+    result[name] = isSensitive ? '***' : value;
+  }
+  return result;
+}
+
+/**
  * Creates and returns a fully configured McpServer with all tools registered.
  * The server is transport-agnostic — connect it to any transport after creation.
  *
@@ -47,12 +76,21 @@ export function getLogger(): Logger {
  * forward structured log messages to the connected MCP client.
  */
 export function createServer(): McpServer {
-  const version = packageJson.version;
+  const logger = getLogger();
+
+  logger.info('Creating Zowe MCP Server', {
+    version: SERVER_VERSION,
+    nodeVersion: process.version,
+    platform: process.platform,
+    arch: process.arch,
+    pid: process.pid,
+    env: getRelevantEnv(),
+  });
 
   const server = new McpServer(
     {
       name: 'zowe-mcp-server',
-      version,
+      version: SERVER_VERSION,
     },
     {
       capabilities: {
@@ -61,10 +99,22 @@ export function createServer(): McpServer {
     }
   );
 
-  const logger = getLogger();
   logger.attach(server);
 
-  registerCoreTools(server, version, logger);
+  // Log when a client completes initialization
+  server.server.oninitialized = () => {
+    const clientInfo = server.server.getClientVersion();
+    const clientCaps = server.server.getClientCapabilities();
+    logger.info('Client connected', {
+      clientName: clientInfo?.name,
+      clientVersion: clientInfo?.version,
+      capabilities: clientCaps ? Object.keys(clientCaps) : [],
+    });
+  };
+
+  registerCoreTools(server, SERVER_VERSION, logger);
+
+  logger.info('Server created, tools registered');
 
   return server;
 }

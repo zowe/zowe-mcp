@@ -38,8 +38,14 @@ export function registerCoreTools(server: McpServer, version: string, logger: Lo
   server.registerTool(
     'info',
     { description: 'Provides information about the Zowe MCP server and its version' },
-    () => {
-      log.debug('info tool called');
+    extra => {
+      const clientInfo = server.server.getClientVersion();
+      log.info('info tool called', {
+        clientName: clientInfo?.name,
+        clientVersion: clientInfo?.version,
+        sessionId: extra.sessionId,
+      });
+
       const info: ZoweInfoResponse = {
         name: 'Zowe MCP Server',
         version,

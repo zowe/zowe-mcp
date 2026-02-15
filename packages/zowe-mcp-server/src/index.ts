@@ -20,7 +20,7 @@
  *   --port N  Port for HTTP transport (default: 3000)
  */
 
-import { createServer, getLogger } from './server.js';
+import { createServer, getLogger, SERVER_VERSION } from './server.js';
 import { startHttp } from './transports/http.js';
 import { startStdio } from './transports/stdio.js';
 
@@ -50,12 +50,21 @@ async function main(): Promise<void> {
   const { transport, port } = parseArgs();
   const logger = getLogger();
 
+  logger.info(`Starting Zowe MCP Server v${SERVER_VERSION}`, {
+    transport,
+    ...(transport === 'http' ? { port } : {}),
+    cwd: process.cwd(),
+    argv: process.argv,
+  });
+
   if (transport === 'stdio') {
     const server = createServer();
     await startStdio(server, logger);
   } else {
     await startHttp(createServer, port, logger);
   }
+
+  logger.info(`Zowe MCP Server started successfully`, { transport });
 }
 
 main().catch((error: unknown) => {

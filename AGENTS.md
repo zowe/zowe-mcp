@@ -16,7 +16,7 @@ This is an npm workspaces monorepo with two packages:
 - **Monorepo with npm workspaces**: Two packages share a root `package.json`. The VS Code extension depends on the server package via workspace linking.
 - **Transport separation**: Server logic (`server.ts`) is transport-agnostic. Transport implementations live in `src/transports/` (stdio and HTTP Streamable). The entry point (`index.ts`) selects the transport based on CLI args.
 - **HTTP multi-session**: The HTTP transport creates a new `McpServer` + `StreamableHTTPServerTransport` per client session. `startHttp` accepts a server factory (`() => McpServer`) rather than a single server instance. Sessions are tracked by `mcp-session-id` header and cleaned up on close.
-- **Component-based tools**: Tools are organized under `src/tools/<component>/`. Each component registers its tools via a function that takes an `McpServer` instance. Currently only `core` exists; future components include `datasets`, `jobs`, `uss`. Use `server.registerTool(name, config, cb)` — the older `server.tool(...)` overloads are deprecated.
+- **Component-based tools**: Tools are organized under `src/tools/<component>/`. Each component registers its tools via a function that takes an `McpServer` instance. Components: `core` (server info), `context` (system/prefix management), `datasets` (dataset CRUD). Future: `jobs`, `uss`. Use `server.registerTool(name, config, cb)` — the older `server.tool(...)` overloads are deprecated.
 - **Tool naming for Copilot**: VS Code Copilot prefixes MCP tool names with `mcp_<providerId>_`. The VS Code extension provider ID is `zowe`, so a tool named `info` appears as `mcp_zowe_info` in Copilot. Keep tool names short and avoid redundant `zowe_` prefixes — the provider ID already provides the namespace.
 - **ESM for server, CJS for extension**: The MCP SDK requires ESM. VS Code extensions use CommonJS. Each package has its own `tsconfig.json`.
 - **Version from package.json**: The server reads its version from `package.json` at runtime using `createRequire`. Keep the version in `package.json` as the single source of truth.
@@ -25,23 +25,74 @@ This is an npm workspaces monorepo with two packages:
 - **License header enforcement**: All `.ts` files must start with the EPL-2.0 license header. Enforced by `eslint-plugin-headers` via `eslint.config.mjs`. The Cursor format hook automatically inserts missing headers on save. Run `npm run lint` to check all files, `npm run lint:fix` to auto-fix.
 - **Structured logging (MCP server)**: The server uses a custom `Logger` class (`src/log.ts`) that writes human-readable messages to stderr and forwards them to the MCP client via `sendLoggingMessage()`. Log levels follow RFC 5424 (debug, info, notice, warning, error, critical, alert, emergency). The `logging` capability is declared in `server.ts` so the SDK allows protocol-level log notifications. No external logging library (pino, winston) is used — the MCP SDK provides the protocol transport, and stderr handles local diagnostics.
 - **Event-based extension communication**: The MCP server and VS Code extension communicate bidirectionally over a named pipe (Unix socket / Windows named pipe). The extension creates a per-workspace pipe server on activation and writes a discovery file to `context.globalStorageUri`. The MCP server reads the discovery file (via `MCP_DISCOVERY_DIR` + `WORKSPACE_ID` env vars) and connects. Events are framed as newline-delimited JSON (NDJSON). Event types are defined in `src/events.ts` and split into `ServerToExtensionEvent` (e.g. `log`) and `ExtensionToServerEvent` (e.g. `log-level`). When the env vars are absent (standalone mode), the pipe client is not created and the server operates identically to before.
+- **Mock mode via extension setting**: The `zowe-mcp.mockDataDir` VS Code setting specifies an absolute path to a mock data directory. When set, the extension passes `--mock <dir>` to the server process args, enabling the full set of z/OS tools. When empty (default), the server starts without a backend and only the `info` tool is available. Changes require restarting the MCP server.
+- **Generate Mock Data command**: The `zowe-mcp.initMockData` VS Code command (palette: "Zowe MCP: Generate Mock Data") runs the bundled server's `init-mock` script. It prompts for an output folder, generates mock data, offers to set `zowe-mcp.mockDataDir`, and offers to reload the window. This is the primary way for extension users to create mock data (they cannot use `npx zowe-mcp-server` since the server is bundled inside the extension).
 - **Dynamic log level from VS Code**: The `zowe-mcp.logLevel` VS Code setting controls the MCP server's log verbosity at runtime. Changes are sent as `log-level` events over the named pipe and take effect immediately without restarting the server. The initial level is sent when the server first connects.
+- **ZosBackend interface**: All z/OS dataset operations go through the `ZosBackend` interface (`src/zos/backend.ts`). This abstraction boundary decouples tools/resources from the actual z/OS API. Any backend (z/OSMF, Zowe SDK, mock filesystem) can be plugged in. The tool and resource layer is completely backend-agnostic.
+- **Per-system working context**: Each z/OS system maintains its own `SystemContext` (user ID, DSN prefix) in a `SessionState` (`src/zos/session.ts`). Switching systems restores that system's context — like separate terminal sessions per machine. The DSN prefix defaults to the active user's ID (standard z/OS HLQ convention).
+- **DSN resolution (single-quote convention)**: Dataset names follow the standard TSO/ISPF convention. Unquoted names are relative to the DSN prefix; single-quoted names (`'SYS1.PROCLIB'`) are absolute. The `resolveDsn()` function in `src/zos/dsn.ts` handles resolution, validation (44-char limit, 8-char qualifiers), and case normalization to uppercase.
+- **Mock mode**: The server supports a filesystem-backed mock mode (`--mock <dir>` or `ZOWE_MCP_MOCK_DIR` env var). The `FilesystemMockBackend` (`src/zos/mock/`) implements `ZosBackend` using a DSFS-inspired directory layout. Mock data is generated by `init-mock` CLI (`npx zowe-mcp-server init-mock --output ./mock-data`). ETags use file mtime.
+- **Tool annotations**: Read-only tools use `readOnlyHint: true` (skips VS Code confirmation dialog). Destructive tools (`delete_dataset`) use `destructiveHint: true`. This follows VS Code MCP best practices.
+- **Prompt naming**: MCP prompts use `camelCase` names per VS Code conventions (e.g. `reviewJcl`, `explainDataset`, `compareMembers`). They appear as `/mcp.zowe.<name>` slash commands.
+- **Resource URI scheme**: Dataset resources use `zos-ds://{system}/{dsn}` and `zos-ds://{system}/{dsn}({member})` URI templates with optional `?volser=` for uncataloged datasets.
+- **No default user on system**: `ZosSystem` does not have a `defaultUser` property. The default user for a system is determined by the `CredentialProvider` (e.g. the first credential entry in mock mode, or the logged-in user from Zowe config). The `set_system` tool calls `credentialProvider.getCredentials(systemId)` to get the default user when first connecting.
+- **Auto-activation of single system**: When only one system is configured, `createServer()` automatically activates it (calls `setActiveSystem` with the default user from the credential provider). This means the LLM can skip `set_system` and jump straight to dataset tools in single-system setups.
+- **Lazy context initialization**: Dataset tools lazily initialize the system context via `ensureContext()` when the LLM passes an explicit `system` parameter without first calling `set_system`. This prevents empty results caused by a missing DSN prefix. The `DatasetToolDeps` interface includes `credentialProvider` for this purpose.
+- **ISPF-style pattern matching**: The mock backend's `matchPattern()` function treats a trailing lone `*` as `**` (match across any number of qualifiers), following the standard ISPF 3.4 convention. So `IBMUSER.*` matches `IBMUSER.SRC.COBOL`, `IBMUSER.JCL.CNTL`, etc. A `*` in a non-trailing position still matches within a single qualifier only.
+- **Response envelope pattern**: All dataset tool responses are wrapped in a `ToolResponseEnvelope` (`src/tools/response.ts`) with `_context` (resolution metadata), `_result` (summary/pagination/windowing metadata), and `data` (the actual payload). The underscore prefix signals metadata. Resolved values (`resolvedPattern`, `resolvedDsn`, `resolvedTargetDsn`) are always fully-qualified, absolute, and single-quoted (e.g. `'IBMUSER.SRC.COBOL'`). The `dsnPrefix` field is present when a relative name was resolved, absent for absolute inputs.
+- **Pagination for list operations**: `list_datasets` and `list_members` support `offset` (0-based, default 0) and `limit` (default 500, max 1000) parameters. The backend returns the full list; the tool layer slices it. `_result` includes `count`, `totalAvailable`, `offset`, and `hasMore`. Constants: `DEFAULT_LIST_LIMIT = 500`, `MAX_LIST_LIMIT = 1000`.
+- **Line windowing for read operations**: `read_dataset` supports `startLine` (1-based, default 1) and `lineCount` parameters. Large files are auto-truncated to `MAX_READ_LINES = 2000` lines when no explicit window is requested. `_result` includes `totalLines`, `startLine`, `returnedLines`, `contentLength`, and `mimeType`. The ETag always reflects the full content, not the window.
 
 ## Common Patterns
 
 ### Adding a New Tool
 
 1. Create a file under `packages/zowe-mcp-server/src/tools/<component>/`
-2. Export a `register<Component>Tools(server: McpServer)` function
+2. Export a `register<Component>Tools(server: McpServer, deps, logger)` function
 3. Import and call it from `packages/zowe-mcp-server/src/server.ts`
-4. Add tests in `packages/zowe-mcp-server/__tests__/`
+4. For dataset tools, accept `DatasetToolDeps` (backend, systemRegistry, sessionState, credentialProvider). For context tools, accept `ContextToolDeps` (systemRegistry, sessionState, credentialProvider).
+5. Use `readOnlyHint: true` annotation for read-only tools, `destructiveHint: true` for destructive ones.
+6. Add tests in `packages/zowe-mcp-server/__tests__/`
 
 ### Adding a New Component
 
 1. Create a new directory under `packages/zowe-mcp-server/src/tools/<component>/`
-2. Follow the pattern in `src/tools/core/zowe-info.ts`
-3. Register in `server.ts`
+2. Follow the pattern in `src/tools/datasets/dataset-tools.ts` (for z/OS tools) or `src/tools/core/zowe-info.ts` (for simple tools)
+3. Register in `server.ts` — z/OS tools go inside the `if (options?.backend)` block
 4. Update the `components` array in the `info` tool response
+
+### Response Envelope for Dataset Tools
+
+All dataset tool responses use the envelope from `src/tools/response.ts`:
+
+- **Types**: `ToolResponseEnvelope<T>`, `ResponseContext`, `ListResultMeta`, `ReadResultMeta`, `MutationResultMeta`
+- **Helpers**: `buildContext()`, `formatResolved()`, `paginateList()`, `windowContent()`, `wrapResponse()`
+- **Constants**: `DEFAULT_LIST_LIMIT` (500), `MAX_LIST_LIMIT` (1000), `MAX_READ_LINES` (2000)
+
+When adding a new dataset tool:
+
+1. Use `buildContext(systemId, prefix, { resolvedDsn: formatResolved(dsn) })` to build `_context`
+2. Set `dsnPrefix` to `undefined` for absolute inputs (use `wasAbsolute` from `resolveDsn()`)
+3. Use `paginateList()` for list tools, `windowContent()` for read tools
+4. Use `wrapResponse(ctx, meta, data)` to assemble the final MCP response
+5. For mutation tools, use `MutationResultMeta` with `{ success: true }`
+
+The `resolvedPattern` field is for list tools (`list_datasets`); `resolvedDsn` is for CRUD tools; `resolvedTargetDsn` is for copy/rename operations.
+
+### z/OS Domain Model
+
+- **System identity**: `SystemId` (hostname string) in `src/zos/system.ts`. `SystemRegistry` manages known systems.
+- **Credentials**: `CredentialProvider` interface in `src/zos/credentials.ts`. Implementations: `MockCredentialProvider` (reads `systems.json`), future: `ZoweTeamConfigProvider`, `OAuthTokenProvider`.
+- **Session state**: `SessionState` in `src/zos/session.ts`. Tracks active system and per-system `SystemContext` (userId, dsnPrefix).
+- **DSN utilities**: `src/zos/dsn.ts` — `resolveDsn()`, `validateDsn()`, `validateMember()`, `buildDsUri()`, `inferMimeType()`. Use `dsn` (not `dsname`) as the variable name for dataset names throughout the codebase.
+- **Backend**: `ZosBackend` interface in `src/zos/backend.ts`. Implementations: `FilesystemMockBackend` (mock), future: real z/OS backends.
+
+### Mock Mode
+
+- **Starting**: `npx zowe-mcp-server --stdio --mock ./mock-data` or `ZOWE_MCP_MOCK_DIR=./mock-data`
+- **Generating data**: `npx zowe-mcp-server init-mock --output ./mock-data [--preset minimal|default|large]`
+- **Directory layout**: DSFS-inspired — `mock-data/{system}/{HLQ}/{dataset-qualifiers}/` with `_meta.json` for attributes
+- **Adding mock systems**: Edit `systems.json` in the mock data directory. Each system has `host`, `port`, `description`, optional `defaultUser`, and `credentials` array. If `defaultUser` is omitted, the first credential entry is used as the default.
 
 ### Testing
 
@@ -79,8 +130,8 @@ Server tests are organized into **common** (parameterized) and **transport-speci
 
 - **Pipe server**: `packages/zowe-mcp-vscode/src/pipe-server.ts` creates a `net.Server` on a per-workspace named pipe. The pipe path is `/tmp/zowe-mcp-<workspaceId>.sock` (Unix) or `\\.\pipe\zowe-mcp-<workspaceId>` (Windows). A discovery JSON file is written to `context.globalStorageUri`.
 - **Extension client**: `packages/zowe-mcp-server/src/extension-client.ts` reads the discovery file and connects to the pipe. Uses retry logic (up to 10 attempts, 1s delay). Returns `undefined` in standalone mode (env vars absent).
-- **Event types**: Defined in `packages/zowe-mcp-server/src/events.ts`. The `McpEvent<T, D>` generic envelope carries a `type`, `data`, and `timestamp`. `ServerToExtensionEvent` includes `log`; `ExtensionToServerEvent` includes `log-level`.
-- **Event handler**: `packages/zowe-mcp-vscode/src/event-handler.ts` dispatches incoming server events to VS Code APIs (e.g. `log` events → `LogOutputChannel`).
+- **Event types**: Defined in `packages/zowe-mcp-server/src/events.ts`. The `McpEvent<T, D>` generic envelope carries a `type`, `data`, and `timestamp`. `ServerToExtensionEvent` includes `log` and `notification`; `ExtensionToServerEvent` includes `log-level`.
+- **Event handler**: `packages/zowe-mcp-vscode/src/event-handler.ts` dispatches incoming server events to VS Code APIs (e.g. `log` events → `LogOutputChannel`, `notification` events → `vscode.window.showWarningMessage` / `showErrorMessage` / `showInformationMessage` with an "Open Settings" button).
 - **Adding a new event type**: (1) Add the event data interface and type alias to `events.ts`. (2) Add it to the appropriate union (`ServerToExtensionEvent` or `ExtensionToServerEvent`). (3) Handle it in `event-handler.ts` (server→extension) or register a handler via `extensionClient.onEvent()` (extension→server).
 - **Env vars**: `MCP_DISCOVERY_DIR` and `WORKSPACE_ID` are passed to the MCP server via `McpStdioServerDefinition`'s `env` parameter. They are set automatically by the extension — no manual configuration needed.
 
@@ -116,6 +167,15 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 - The `logging` capability must be declared in the `McpServer` constructor options for `sendLoggingMessage()` to work. This is done in `server.ts`.
 - The extension pipe tests (`__tests__/extension-client.test.ts`) create real Unix sockets in `/tmp/`. The "missing discovery file" test takes ~9s due to retry logic (10 attempts × 1s delay).
 - Event types are defined in the server package (`src/events.ts`) and imported by the VS Code extension from `zowe-mcp-server/dist/events.js`. The server must be built before the extension can compile.
+- The `createServer()` function in `server.ts` accepts optional `CreateServerOptions` with `backend` and `systemRegistry`. When no backend is provided, only core tools (info) are registered and a warning is logged. When a backend is provided, all z/OS tools, resources, and prompts are registered. The `info` tool response includes `backendConnected` status and a `notice` field explaining how to configure a backend when none is present.
+- When the server starts without a backend and the extension pipe is connected, it sends a `notification` event that causes VS Code to show a warning dialog with an "Open Settings" button pointing to `zowe-mcp.mockDataDir`.
+- Dataset tools resolve names using the z/OS single-quote convention via `resolveDsn()`. Always test with both relative names (e.g. `"SRC.COBOL"`) and absolute names (e.g. `"'SYS1.PROCLIB'"`).
+- All resolved values in tool responses (`resolvedPattern`, `resolvedDsn`, `resolvedTargetDsn`) are always fully-qualified, absolute, and wrapped in single quotes. This is the z/OS convention. The `dsnPrefix` field in `_context` indicates whether a prefix was applied (present = relative input, absent = absolute input).
+- Tool descriptions for `list_datasets`, `list_members`, and `read_dataset` mention pagination/windowing limits so the LLM agent knows upfront that results may be partial and how to request more.
+- Parameter descriptions for all dataset/pattern inputs explicitly document the single-quote convention with examples (e.g. `"SRC.COBOL"` for relative, `"'IBMUSER.SRC.COBOL'"` for absolute).
+- The mock backend stores files as UTF-8 and ignores the `codepage` parameter. Real backends must handle EBCDIC-to-UTF-8 conversion.
+- Mock ETags are derived from file modification timestamps (`mtime`). Real backends should use the ETag mechanism provided by their API (e.g. z/OSMF `ETag` header).
+- The `init-mock` CLI supports presets (`minimal`, `default`, `large`) and custom scale parameters (`--systems`, `--users-per-system`, `--datasets-per-user`, `--members-per-pds`).
 
 ## Scripts Reference
 
@@ -132,3 +192,4 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 | `npm run format` | Format all TS/JS/JSON files with Prettier |
 | `npm run check-format` | Check formatting without modifying files |
 | `npm run markdownlint <file>` | Fix markdown lint issues |
+| `npx zowe-mcp-server init-mock --output <dir>` | Generate mock data directory |

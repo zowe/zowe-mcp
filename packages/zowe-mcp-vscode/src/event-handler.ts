@@ -14,9 +14,10 @@
  *
  * Currently handles:
  * - `log` events → VS Code LogOutputChannel
+ * - `notification` events → VS Code information/warning/error message dialogs
  */
 
-import type * as vscode from 'vscode';
+import * as vscode from 'vscode';
 import type { ServerToExtensionEvent } from 'zowe-mcp-server/dist/events.js';
 
 /**
@@ -56,6 +57,35 @@ function logToOutputChannel(log: vscode.LogOutputChannel, event: ServerToExtensi
 }
 
 /**
+ * Shows a VS Code notification message dialog based on the event severity.
+ *
+ * Offers "Generate Mock Data" and "Open Settings" buttons so the user
+ * can quickly resolve the missing backend configuration.
+ */
+function showNotification(event: ServerToExtensionEvent): void {
+  if (event.type !== 'notification') return;
+
+  const { severity, message } = event.data;
+  const generateMock = 'Generate Mock Data';
+  const openSettings = 'Open Settings';
+
+  const showFn =
+    severity === 'error'
+      ? vscode.window.showErrorMessage
+      : severity === 'warning'
+        ? vscode.window.showWarningMessage
+        : vscode.window.showInformationMessage;
+
+  void showFn(message, generateMock, openSettings).then(choice => {
+    if (choice === generateMock) {
+      void vscode.commands.executeCommand('zowe-mcp.initMockData');
+    } else if (choice === openSettings) {
+      void vscode.commands.executeCommand('workbench.action.openSettings', 'zowe-mcp.mockDataDir');
+    }
+  });
+}
+
+/**
  * Handles a single event received from the MCP server over the named pipe.
  */
 export function handleServerEvent(
@@ -65,6 +95,9 @@ export function handleServerEvent(
   switch (event.type) {
     case 'log':
       logToOutputChannel(log, event);
+      break;
+    case 'notification':
+      showNotification(event);
       break;
     default:
       log.warn(`Unknown event type from MCP server: ${(event as { type: string }).type}`);

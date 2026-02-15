@@ -12,13 +12,22 @@
 /**
  * Zowe MCP Server factory.
  *
- * Creates a transport-agnostic McpServer instance with all tools registered.
+ * Creates a transport-agnostic McpServer instance with all tools,
+ * resources, and prompts registered.
  */
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { createRequire } from 'node:module';
 import { Logger } from './log.js';
+import { registerDatasetPrompts } from './prompts/dataset-prompts.js';
+import { registerDatasetResources } from './resources/dataset-resources.js';
+import { registerContextTools } from './tools/context/context-tools.js';
 import { registerCoreTools } from './tools/core/zowe-info.js';
+import { registerDatasetTools } from './tools/datasets/dataset-tools.js';
+import type { ZosBackend } from './zos/backend.js';
+import type { CredentialProvider } from './zos/credentials.js';
+import { SessionState } from './zos/session.js';
+import { SystemRegistry } from './zos/system.js';
 
 const require = createRequire(import.meta.url);
 const packageJson: { version: string } = require('../package.json') as {
@@ -68,14 +77,26 @@ function getRelevantEnv(): Record<string, string> {
   return result;
 }
 
+/** Options for creating the MCP server. */
+export interface CreateServerOptions {
+  /** z/OS backend implementation (mock or real). */
+  backend?: ZosBackend;
+  /** System registry with known z/OS systems. */
+  systemRegistry?: SystemRegistry;
+  /** Credential provider for resolving user identities. */
+  credentialProvider?: CredentialProvider;
+}
+
 /**
- * Creates and returns a fully configured McpServer with all tools registered.
+ * Creates and returns a fully configured McpServer with all tools,
+ * resources, and prompts registered.
+ *
  * The server is transport-agnostic — connect it to any transport after creation.
  *
  * The logging capability is declared so that `sendLoggingMessage()` can
  * forward structured log messages to the connected MCP client.
  */
-export function createServer(): McpServer {
+export function createServer(options?: CreateServerOptions): McpServer {
   const logger = getLogger();
 
   logger.info('Creating Zowe MCP Server', {
@@ -85,6 +106,7 @@ export function createServer(): McpServer {
     arch: process.arch,
     pid: process.pid,
     env: getRelevantEnv(),
+    mockMode: !!options?.backend,
   });
 
   const server = new McpServer(
@@ -112,7 +134,50 @@ export function createServer(): McpServer {
     });
   };
 
-  registerCoreTools(server, SERVER_VERSION, logger);
+  const backendConnected = !!(options?.backend && options.credentialProvider);
+
+  // Register core tools (info) — always available
+  registerCoreTools(server, SERVER_VERSION, logger, { backendConnected });
+
+  // Register z/OS tools, resources, and prompts if a backend is provided
+  if (backendConnected) {
+    const backend = options.backend!;
+    const systemRegistry = options.systemRegistry ?? new SystemRegistry();
+    const credentialProvider = options.credentialProvider!;
+    const sessionState = new SessionState();
+
+    registerContextTools(server, { systemRegistry, sessionState, credentialProvider }, logger);
+    registerDatasetTools(
+      server,
+      { backend, systemRegistry, sessionState, credentialProvider },
+      logger
+    );
+    registerDatasetResources(server, { backend }, logger);
+    registerDatasetPrompts(server, { backend, sessionState }, logger);
+
+    // Auto-activate the system when there is exactly one configured
+    const systems = systemRegistry.list();
+    if (systems.length === 1) {
+      const singleSystem = systems[0];
+      void credentialProvider.getCredentials(singleSystem).then(creds => {
+        sessionState.setActiveSystem(singleSystem, creds.user);
+        logger.info('Auto-activated single system', {
+          system: singleSystem,
+          userId: creds.user,
+        });
+      });
+    }
+
+    logger.info('z/OS dataset tools, resources, and prompts registered', {
+      systems,
+    });
+  } else {
+    logger.warning(
+      'No z/OS backend configured — only the "info" tool is available. ' +
+        'To enable all z/OS tools: in VS Code run "Zowe MCP: Generate Mock Data" from the Command Palette, ' +
+        'or use --mock <dir> / ZOWE_MCP_MOCK_DIR for standalone mode.'
+    );
+  }
 
   logger.info('Server created, tools registered');
 

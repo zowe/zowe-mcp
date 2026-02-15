@@ -47,6 +47,20 @@ export interface LogEventData {
 /** Forwards a server log message to the VS Code Output panel. */
 export type LogEvent = McpEvent<'log', LogEventData>;
 
+/** Severity level for a notification displayed to the user. */
+export type NotificationSeverity = 'info' | 'warning' | 'error';
+
+/** Payload for a `notification` event (server → extension). */
+export interface NotificationEventData {
+  /** Severity controls which VS Code API is used (showInformationMessage, showWarningMessage, showErrorMessage). */
+  severity: NotificationSeverity;
+  /** The message to display. */
+  message: string;
+}
+
+/** Displays a notification message in the VS Code UI. */
+export type NotificationEvent = McpEvent<'notification', NotificationEventData>;
+
 // ---------------------------------------------------------------------------
 // Extension → Server events
 // ---------------------------------------------------------------------------
@@ -64,7 +78,7 @@ export type LogLevelEvent = McpEvent<'log-level', LogLevelEventData>;
 // ---------------------------------------------------------------------------
 
 /** Events that flow from the MCP server to the VS Code extension. */
-export type ServerToExtensionEvent = LogEvent;
+export type ServerToExtensionEvent = LogEvent | NotificationEvent;
 
 /** Events that flow from the VS Code extension to the MCP server. */
 export type ExtensionToServerEvent = LogLevelEvent;

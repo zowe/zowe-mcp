@@ -32,9 +32,22 @@
         "label": "Zowe"
       }
     ],
+    "commands": [
+      {
+        "command": "zowe-mcp.initMockData",
+        "title": "Zowe MCP: Generate Mock Data",
+        "category": "Zowe MCP"
+      }
+    ],
     "configuration": {
       "title": "Zowe MCP",
       "properties": {
+        "zowe-mcp.mockDataDir": {
+          "type": "string",
+          "default": "",
+          "description": "Absolute path to a mock data directory. When set, the MCP server starts in mock mode using a filesystem-backed z/OS backend instead of connecting to a real mainframe. Use the 'Zowe MCP: Generate Mock Data' command to create one. Leave empty to disable mock mode. Changes require restarting the MCP server.",
+          "order": 1
+        },
         "zowe-mcp.logLevel": {
           "type": "string",
           "default": "info",
@@ -58,7 +71,8 @@
             "Action must be taken immediately",
             "System is unusable"
           ],
-          "description": "Minimum log level for the Zowe MCP Server. Changes take effect immediately without restarting."
+          "description": "Minimum log level for the Zowe MCP Server. Changes take effect immediately without restarting.",
+          "order": 2
         }
       }
     }

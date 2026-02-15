@@ -61,6 +61,12 @@ Server tests are organized into **common** (parameterized) and **transport-speci
 - **Config**: `.prettierrc.json` at the repo root. Uses `prettier-plugin-organize-imports` to auto-sort imports. `eslint.config.mjs` at the repo root for license header enforcement.
 - **Ignored files**: See `.prettierignore`. Markdown files are excluded from Prettier (handled by markdownlint instead). Build artifacts (`.vscode-test/`, `dist/`, `out/`, `server/`) are excluded from ESLint.
 
+### Logging (VS Code Extension)
+
+- **Output channel**: The extension creates a `LogOutputChannel` named "Zowe MCP" (visible in the VS Code Output panel). It is initialized in `src/log.ts` via `initLog(context)` and accessed elsewhere via `getLog()`.
+- **Startup log**: `src/startup-log.ts` logs environment info at activation: extension version, VS Code version, GitHub Copilot Chat status (`GitHub.copilot-chat`), and Zowe Explorer status (`Zowe.vscode-extension-for-zowe`).
+- **Usage**: Import `getLog()` from `./log` and call `.info()`, `.warn()`, `.error()`, `.debug()`, or `.trace()`. Do not use `console.log` in the extension.
+
 ### MCP SDK Import Paths
 
 Always use the full subpath imports from the SDK:

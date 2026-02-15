@@ -18,26 +18,63 @@
 
 import * as assert from 'assert';
 import * as vscode from 'vscode';
+import { getLog } from '../log';
+
+/**
+ * Finds the Zowe MCP extension from the installed extensions list.
+ */
+function findZoweMcpExtension(): vscode.Extension<unknown> | undefined {
+  return vscode.extensions.all.find(
+    ext => ext.id.includes('zowe-mcp-vscode') || ext.id.includes('zowe-mcp')
+  );
+}
 
 suite('Zowe MCP VS Code Extension', () => {
   test('Extension should be present', () => {
-    // In development, the publisher may differ; check by name pattern
-    const allExtensions = vscode.extensions.all;
-    const zoweMcp = allExtensions.find(
-      ext => ext.id.includes('zowe-mcp-vscode') || ext.id.includes('zowe-mcp')
-    );
+    const zoweMcp = findZoweMcpExtension();
     assert.ok(zoweMcp !== undefined, 'Zowe MCP extension should be installed');
   });
 
   test('Extension should activate', async () => {
-    const allExtensions = vscode.extensions.all;
-    const zoweMcp = allExtensions.find(
-      ext => ext.id.includes('zowe-mcp-vscode') || ext.id.includes('zowe-mcp')
-    );
+    const zoweMcp = findZoweMcpExtension();
 
     if (zoweMcp) {
       await zoweMcp.activate();
       assert.ok(zoweMcp.isActive, 'Extension should be active after activation');
     }
+  });
+
+  suite('Output channel', () => {
+    suiteSetup(async () => {
+      const zoweMcp = findZoweMcpExtension();
+      if (zoweMcp && !zoweMcp.isActive) {
+        await zoweMcp.activate();
+      }
+    });
+
+    test('Log output channel should be initialized after activation', () => {
+      const log = getLog();
+      assert.ok(log, 'getLog() should return a LogOutputChannel');
+      assert.strictEqual(log.name, 'Zowe MCP', 'Output channel should be named "Zowe MCP"');
+    });
+
+    test('Log output channel should support all log levels', () => {
+      const log = getLog();
+      // Verify the LogOutputChannel interface methods exist and are callable
+      assert.strictEqual(typeof log.info, 'function', 'info() should be available');
+      assert.strictEqual(typeof log.warn, 'function', 'warn() should be available');
+      assert.strictEqual(typeof log.error, 'function', 'error() should be available');
+      assert.strictEqual(typeof log.debug, 'function', 'debug() should be available');
+      assert.strictEqual(typeof log.trace, 'function', 'trace() should be available');
+    });
+
+    test('Log output channel should accept messages without throwing', () => {
+      const log = getLog();
+      assert.doesNotThrow(() => {
+        log.info('Integration test: info message');
+        log.warn('Integration test: warn message');
+        log.debug('Integration test: debug message');
+      }, 'Writing to the log output channel should not throw');
+    });
   });
 });

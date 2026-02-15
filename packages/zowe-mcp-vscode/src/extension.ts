@@ -18,8 +18,13 @@
 
 import * as path from 'path';
 import * as vscode from 'vscode';
+import { getDisplayName, getLog, initLog } from './log';
+import { logStartupInfo } from './startup-log';
 
 export function activate(context: vscode.ExtensionContext): void {
+  initLog(context);
+  logStartupInfo(context);
+
   const serverModule = resolveServerPath(context);
 
   context.subscriptions.push(
@@ -29,6 +34,8 @@ export function activate(context: vscode.ExtensionContext): void {
       ],
     })
   );
+
+  getLog().info(`${getDisplayName()} extension activated`);
 }
 
 /**

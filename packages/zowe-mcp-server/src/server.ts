@@ -35,9 +35,7 @@ let rootLogger: Logger | undefined;
  * share the same configuration and MCP server attachment.
  */
 export function getLogger(): Logger {
-  if (!rootLogger) {
-    rootLogger = new Logger({ name: 'server' });
-  }
+  rootLogger ??= new Logger({ name: 'server' });
   return rootLogger;
 }
 

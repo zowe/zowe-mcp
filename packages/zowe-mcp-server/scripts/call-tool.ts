@@ -18,8 +18,8 @@
  *   npx tsx scripts/call-tool.ts <tool-name> [json-args]
  *
  * Examples:
- *   npx tsx scripts/call-tool.ts zowe_info
- *   npx tsx scripts/call-tool.ts zowe_info '{}'
+ *   npx tsx scripts/call-tool.ts info
+ *   npx tsx scripts/call-tool.ts info '{}'
  *
  * Without arguments, lists all available tools.
  */

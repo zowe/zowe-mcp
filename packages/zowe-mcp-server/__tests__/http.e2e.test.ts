@@ -119,8 +119,8 @@ describe('Zowe MCP Server (HTTP-specific)', () => {
 
     // Both clients should be able to call tools independently
     const [result1, result2] = await Promise.all([
-      client1.callTool({ name: 'zowe_info', arguments: {} }),
-      client2.callTool({ name: 'zowe_info', arguments: {} }),
+      client1.callTool({ name: 'info', arguments: {} }),
+      client2.callTool({ name: 'info', arguments: {} }),
     ]);
 
     const content1 = result1.content as { type: string; text: string }[];

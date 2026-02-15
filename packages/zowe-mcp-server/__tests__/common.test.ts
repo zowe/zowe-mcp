@@ -40,19 +40,19 @@ for (const createProvider of allProviders) {
       await provider.teardown();
     });
 
-    it('should list the zowe_info tool', async () => {
+    it('should list the info tool', async () => {
       const { tools } = await client.listTools();
       expect(tools).toHaveLength(1);
-      expect(tools[0].name).toBe('zowe_info');
+      expect(tools[0].name).toBe('info');
     });
 
-    it('should have a description for zowe_info', async () => {
+    it('should have a description for info', async () => {
       const { tools } = await client.listTools();
       expect(tools[0].description).toContain('Zowe MCP server');
     });
 
-    it('should call zowe_info and return server information', async () => {
-      const result = await client.callTool({ name: 'zowe_info', arguments: {} });
+    it('should call info and return server information', async () => {
+      const result = await client.callTool({ name: 'info', arguments: {} });
       expect(result.content).toHaveLength(1);
 
       const content = result.content as { type: string; text: string }[];
@@ -71,7 +71,7 @@ for (const createProvider of allProviders) {
     });
 
     it('should return version matching package.json', async () => {
-      const result = await client.callTool({ name: 'zowe_info', arguments: {} });
+      const result = await client.callTool({ name: 'info', arguments: {} });
       const content = result.content as { type: string; text: string }[];
       const info = JSON.parse(content[0].text) as { version: string };
       expect(info.version).toBe(packageJson.version);

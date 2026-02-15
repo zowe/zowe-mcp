@@ -28,8 +28,8 @@
   "contributes": {
     "mcpServerDefinitionProviders": [
       {
-        "id": "zoweMcpServer",
-        "label": "Zowe MCP Server"
+        "id": "zowe",
+        "label": "Zowe"
       }
     ]
   },
@@ -40,6 +40,7 @@
     "bundle:server": "node scripts/bundle-server.js",
     "build:all": "npm run build:server && npm run build",
     "dev": "tsc -watch -p ./",
+    "pretest": "npm run build:all",
     "test": "vscode-test",
     "package": "vsce package --no-dependencies --allow-missing-repository",
     "install-extension": "node scripts/install-extension.js",

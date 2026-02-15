@@ -12,7 +12,7 @@
 /**
  * Core tools for the Zowe MCP Server.
  *
- * Provides the `zowe_info` tool that returns metadata about the server.
+ * Provides the `info` tool that returns metadata about the server.
  */
 
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
@@ -35,12 +35,11 @@ export interface ZoweInfoResponse {
 export function registerCoreTools(server: McpServer, version: string, logger: Logger): void {
   const log = logger.child('core');
 
-  server.tool(
-    'zowe_info',
-    'Provides information about the Zowe MCP server and its version',
-    {},
+  server.registerTool(
+    'info',
+    { description: 'Provides information about the Zowe MCP server and its version' },
     () => {
-      log.debug('zowe_info tool called');
+      log.debug('info tool called');
       const info: ZoweInfoResponse = {
         name: 'Zowe MCP Server',
         version,

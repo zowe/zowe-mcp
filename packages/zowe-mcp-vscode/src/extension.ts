@@ -30,9 +30,9 @@ export function activate(context: vscode.ExtensionContext): void {
   const serverModule = resolveServerPath(context);
 
   context.subscriptions.push(
-    vscode.lm.registerMcpServerDefinitionProvider('zoweMcpServer', {
+    vscode.lm.registerMcpServerDefinitionProvider('zowe', {
       provideMcpServerDefinitions: () => [
-        new vscode.McpStdioServerDefinition('Zowe MCP Server', 'node', [serverModule, '--stdio']),
+        new vscode.McpStdioServerDefinition('Zowe', 'node', [serverModule, '--stdio']),
       ],
     })
   );

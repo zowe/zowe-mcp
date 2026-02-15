@@ -16,7 +16,8 @@ This is an npm workspaces monorepo with two packages:
 - **Monorepo with npm workspaces**: Two packages share a root `package.json`. The VS Code extension depends on the server package via workspace linking.
 - **Transport separation**: Server logic (`server.ts`) is transport-agnostic. Transport implementations live in `src/transports/` (stdio and HTTP Streamable). The entry point (`index.ts`) selects the transport based on CLI args.
 - **HTTP multi-session**: The HTTP transport creates a new `McpServer` + `StreamableHTTPServerTransport` per client session. `startHttp` accepts a server factory (`() => McpServer`) rather than a single server instance. Sessions are tracked by `mcp-session-id` header and cleaned up on close.
-- **Component-based tools**: Tools are organized under `src/tools/<component>/`. Each component registers its tools via a function that takes an `McpServer` instance. Currently only `core` exists; future components include `datasets`, `jobs`, `uss`.
+- **Component-based tools**: Tools are organized under `src/tools/<component>/`. Each component registers its tools via a function that takes an `McpServer` instance. Currently only `core` exists; future components include `datasets`, `jobs`, `uss`. Use `server.registerTool(name, config, cb)` — the older `server.tool(...)` overloads are deprecated.
+- **Tool naming for Copilot**: VS Code Copilot prefixes MCP tool names with `mcp_<providerId>_`. The VS Code extension provider ID is `zowe`, so a tool named `info` appears as `mcp_zowe_info` in Copilot. Keep tool names short and avoid redundant `zowe_` prefixes — the provider ID already provides the namespace.
 - **ESM for server, CJS for extension**: The MCP SDK requires ESM. VS Code extensions use CommonJS. Each package has its own `tsconfig.json`.
 - **Version from package.json**: The server reads its version from `package.json` at runtime using `createRequire`. Keep the version in `package.json` as the single source of truth.
 - **Code formatting via Cursor hooks**: All TypeScript, JavaScript, and JSON files are formatted with Prettier (`.prettierrc.json` + `prettier-plugin-organize-imports`). Markdown files are formatted with markdownlint-cli2. A Cursor hook (`.cursor/hooks/format.sh`) auto-formats all file types after every Agent and Tab edit.
@@ -38,7 +39,7 @@ This is an npm workspaces monorepo with two packages:
 1. Create a new directory under `packages/zowe-mcp-server/src/tools/<component>/`
 2. Follow the pattern in `src/tools/core/zowe-info.ts`
 3. Register in `server.ts`
-4. Update the `components` array in the `zowe_info` tool response
+4. Update the `components` array in the `info` tool response
 
 ### Testing
 
@@ -109,7 +110,8 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 | --- | --- |
 | `npm run build` | Build all packages |
 | `npm test` | Run server tests (Vitest) |
-| `npm run test:vscode` | Run VS Code extension tests |
+| `npm run test:all` | Run all tests (server + VS Code extension) |
+| `npm run test:vscode` | Run VS Code extension tests (auto-builds first via `pretest`) |
 | `npm run call-tool -- <name>` | Call a tool from CLI |
 | `npm run inspector` | Launch MCP Inspector |
 | `npm run lint` | Run ESLint (type-checked rules + license headers) |

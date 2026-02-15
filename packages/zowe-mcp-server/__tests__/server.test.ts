@@ -54,8 +54,8 @@ describe('Zowe MCP Server (in-memory specific)', () => {
 
   it('should handle multiple sequential tool calls on the same connection', async () => {
     // In-memory transport keeps the connection alive — verify repeated calls work
-    const result1 = await client.callTool({ name: 'zowe_info', arguments: {} });
-    const result2 = await client.callTool({ name: 'zowe_info', arguments: {} });
+    const result1 = await client.callTool({ name: 'info', arguments: {} });
+    const result2 = await client.callTool({ name: 'info', arguments: {} });
 
     const content1 = result1.content as { type: string; text: string }[];
     const content2 = result2.content as { type: string; text: string }[];

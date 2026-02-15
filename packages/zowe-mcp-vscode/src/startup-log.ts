@@ -75,7 +75,8 @@ function logLanguageModelTools(): void {
   for (const tool of tools) {
     const tags = tool.tags.length > 0 ? ` [${tool.tags.join(', ')}]` : '';
     const firstLine = tool.description.split('\n')[0];
-    log.debug(`  ${tool.name}${tags} — ${firstLine}`);
+    const level = tool.name.startsWith('mcp_zowe_') ? 'info' : 'debug';
+    log[level](`  ${tool.name}${tags} — ${firstLine}`);
   }
 }
 

@@ -333,7 +333,7 @@ describe('Dataset tools with mock backend', () => {
     it('should wrap listDatasets response in envelope with _context and _result', async () => {
       const result = await client.callTool({
         name: 'listDatasets',
-        arguments: { pattern: '*' },
+        arguments: { dsnPattern: '*' },
       });
 
       const envelope = parseEnvelope<{ dsn: string }[]>(result);
@@ -383,7 +383,7 @@ describe('Dataset tools with mock backend', () => {
     it('should omit dsnPrefix for absolute input', async () => {
       const result = await client.callTool({
         name: 'listDatasets',
-        arguments: { pattern: "'TESTUSER.*'" },
+        arguments: { dsnPattern: "'TESTUSER.*'" },
       });
 
       const envelope = parseEnvelope<unknown[]>(result);
@@ -399,7 +399,7 @@ describe('Dataset tools with mock backend', () => {
     it('should single-quote resolvedPattern for relative pattern', async () => {
       const result = await client.callTool({
         name: 'listDatasets',
-        arguments: { pattern: '*' },
+        arguments: { dsnPattern: '*' },
       });
 
       const ctx = parseEnvelope<unknown>(result)._context;
@@ -409,7 +409,7 @@ describe('Dataset tools with mock backend', () => {
     it('should single-quote resolvedPattern for absolute pattern', async () => {
       const result = await client.callTool({
         name: 'listDatasets',
-        arguments: { pattern: "'TESTUSER.SRC.*'" },
+        arguments: { dsnPattern: "'TESTUSER.SRC.*'" },
       });
 
       const ctx = parseEnvelope<unknown>(result)._context;
@@ -455,7 +455,7 @@ describe('Dataset tools with mock backend', () => {
     it('should list datasets with relative pattern "*" (resolved to TESTUSER.*)', async () => {
       const result = await client.callTool({
         name: 'listDatasets',
-        arguments: { pattern: '*' },
+        arguments: { dsnPattern: '*' },
       });
 
       const data = parseData<{ dsn: string }[]>(result);
@@ -470,7 +470,7 @@ describe('Dataset tools with mock backend', () => {
     it('should list datasets with absolute pattern "\'TESTUSER.*\'"', async () => {
       const result = await client.callTool({
         name: 'listDatasets',
-        arguments: { pattern: "'TESTUSER.*'" },
+        arguments: { dsnPattern: "'TESTUSER.*'" },
       });
 
       const data = parseData<{ dsn: string }[]>(result);
@@ -484,7 +484,7 @@ describe('Dataset tools with mock backend', () => {
     it('should include 2-qualifier datasets in trailing * results', async () => {
       const result = await client.callTool({
         name: 'listDatasets',
-        arguments: { pattern: "'TESTUSER.*'" },
+        arguments: { dsnPattern: "'TESTUSER.*'" },
       });
 
       const data = parseData<{ dsn: string }[]>(result);
@@ -495,7 +495,7 @@ describe('Dataset tools with mock backend', () => {
     it('should match specific qualifier patterns', async () => {
       const result = await client.callTool({
         name: 'listDatasets',
-        arguments: { pattern: 'SRC.*' },
+        arguments: { dsnPattern: 'SRC.*' },
       });
 
       const data = parseData<{ dsn: string }[]>(result);
@@ -507,7 +507,7 @@ describe('Dataset tools with mock backend', () => {
     it('should return empty data array for non-matching pattern', async () => {
       const result = await client.callTool({
         name: 'listDatasets',
-        arguments: { pattern: "'NONEXIST.*'" },
+        arguments: { dsnPattern: "'NONEXIST.*'" },
       });
 
       const envelope = parseEnvelope<{ dsn: string }[]>(result);
@@ -521,7 +521,7 @@ describe('Dataset tools with mock backend', () => {
     it('should include resource_link in results', async () => {
       const result = await client.callTool({
         name: 'listDatasets',
-        arguments: { pattern: '*' },
+        arguments: { dsnPattern: '*' },
       });
 
       const data = parseData<{ dsn: string; resourceLink: string }[]>(result);
@@ -539,7 +539,7 @@ describe('Dataset tools with mock backend', () => {
     it('should respect limit parameter for listDatasets', async () => {
       const result = await client.callTool({
         name: 'listDatasets',
-        arguments: { pattern: '*', limit: 2 },
+        arguments: { dsnPattern: '*', limit: 2 },
       });
 
       const envelope = parseEnvelope<{ dsn: string }[]>(result);
@@ -555,14 +555,14 @@ describe('Dataset tools with mock backend', () => {
       // First get all datasets
       const allResult = await client.callTool({
         name: 'listDatasets',
-        arguments: { pattern: '*' },
+        arguments: { dsnPattern: '*' },
       });
       const allData = parseData<{ dsn: string }[]>(allResult);
 
       // Now get with offset=2
       const result = await client.callTool({
         name: 'listDatasets',
-        arguments: { pattern: '*', offset: 2, limit: 2 },
+        arguments: { dsnPattern: '*', offset: 2, limit: 2 },
       });
 
       const envelope = parseEnvelope<{ dsn: string }[]>(result);
@@ -579,7 +579,7 @@ describe('Dataset tools with mock backend', () => {
     it('should return hasMore=false when all items fit in one page', async () => {
       const result = await client.callTool({
         name: 'listDatasets',
-        arguments: { pattern: '*', limit: 1000 },
+        arguments: { dsnPattern: '*', limit: 1000 },
       });
 
       const meta = parseEnvelope<unknown>(result)._result as ListResultMeta;
@@ -696,7 +696,7 @@ describe('Dataset tools with mock backend', () => {
     it('should work with explicit system parameter without prior setSystem', async () => {
       const result = await client.callTool({
         name: 'listDatasets',
-        arguments: { pattern: "'TESTUSER.*'", system: SYSTEM_HOST },
+        arguments: { dsnPattern: "'TESTUSER.*'", system: SYSTEM_HOST },
       });
 
       const data = parseData<{ dsn: string }[]>(result);
@@ -749,7 +749,7 @@ describe('Dataset tools with mock backend', () => {
     it('should fail listDatasets without system when no system is active', async () => {
       const multiResult = await multiClient.callTool({
         name: 'listDatasets',
-        arguments: { pattern: '*' },
+        arguments: { dsnPattern: '*' },
       });
 
       const text = getResultText(multiResult);
@@ -759,7 +759,7 @@ describe('Dataset tools with mock backend', () => {
     it('should lazily initialize context when explicit system is provided in multi-system setup', async () => {
       const result = await multiClient.callTool({
         name: 'listDatasets',
-        arguments: { pattern: "'USER1.*'", system: 'sys1.example.com' },
+        arguments: { dsnPattern: "'USER1.*'", system: 'sys1.example.com' },
       });
 
       const data = parseData<{ dsn: string }[]>(result);
@@ -769,7 +769,7 @@ describe('Dataset tools with mock backend', () => {
     it('should set active system after lazy initialization', async () => {
       await multiClient.callTool({
         name: 'listDatasets',
-        arguments: { pattern: "'USER1.*'", system: 'sys1.example.com' },
+        arguments: { dsnPattern: "'USER1.*'", system: 'sys1.example.com' },
       });
 
       const ctxResult = await multiClient.callTool({
@@ -794,7 +794,7 @@ describe('Dataset tools with mock backend', () => {
     it('should match ** explicitly across qualifiers', async () => {
       const result = await client.callTool({
         name: 'listDatasets',
-        arguments: { pattern: "'TESTUSER.**'" },
+        arguments: { dsnPattern: "'TESTUSER.**'" },
       });
 
       const data = parseData<{ dsn: string }[]>(result);
@@ -804,7 +804,7 @@ describe('Dataset tools with mock backend', () => {
     it('should match partial qualifier with *', async () => {
       const result = await client.callTool({
         name: 'listDatasets',
-        arguments: { pattern: "'TESTUSER.SRC.*'" },
+        arguments: { dsnPattern: "'TESTUSER.SRC.*'" },
       });
 
       const data = parseData<{ dsn: string }[]>(result);
@@ -816,7 +816,7 @@ describe('Dataset tools with mock backend', () => {
     it('should match with wildcard in middle qualifier', async () => {
       const result = await client.callTool({
         name: 'listDatasets',
-        arguments: { pattern: "'TESTUSER.*.COBOL'" },
+        arguments: { dsnPattern: "'TESTUSER.*.COBOL'" },
       });
 
       const data = parseData<{ dsn: string }[]>(result);
@@ -829,7 +829,7 @@ describe('Dataset tools with mock backend', () => {
     it('should handle case-insensitive pattern matching', async () => {
       const result = await client.callTool({
         name: 'listDatasets',
-        arguments: { pattern: "'testuser.*'" },
+        arguments: { dsnPattern: "'testuser.*'" },
       });
 
       const data = parseData<{ dsn: string }[]>(result);

@@ -116,7 +116,7 @@ export function registerDatasetTools(
         "Pattern: if in single quotes (e.g. 'USER.*'), it is absolute; otherwise relative and the DSN prefix is prepended with a trailing dot. Use * within a qualifier and ** across qualifiers.",
       annotations: { readOnlyHint: true },
       inputSchema: {
-        pattern: z
+        dsnPattern: z
           .string()
           .describe(
             "Dataset name pattern (required). If in single quotes (e.g. 'USER.*'), it is absolute; otherwise relative and the DSN prefix is prepended with a trailing dot. Use * within a qualifier and ** across qualifiers."
@@ -141,15 +141,15 @@ export function registerDatasetTools(
           .describe('Maximum number of items to return. Default: 500. Max: 1000.'),
       },
     },
-    async ({ pattern, system, volser, offset, limit }) => {
-      log.info('listDatasets called', { pattern, system, volser, offset, limit });
+    async ({ dsnPattern, system, volser, offset, limit }) => {
+      log.info('listDatasets called', { dsnPattern, system, volser, offset, limit });
 
       try {
         const systemId = deps.sessionState.requireSystem(system);
         await ensureContext(deps, systemId);
         const prefix = deps.sessionState.getDsnPrefix(systemId);
 
-        const { resolved: resolvedPattern, wasAbsolute } = resolveWithPrefix(pattern, prefix);
+        const { resolved: resolvedPattern, wasAbsolute } = resolveWithPrefix(dsnPattern, prefix);
 
         log.debug('listDatasets resolved', {
           systemId,

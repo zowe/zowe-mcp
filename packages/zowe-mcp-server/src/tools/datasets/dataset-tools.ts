@@ -196,7 +196,7 @@ export function registerDatasetTools(
           .describe(
             "Dataset name: use a relative name (e.g. SRC.COBOL), or an absolute name in single quotes (e.g. 'SYS1.PROCLIB'). Relative names are prefixed with the current DSN prefix."
           ),
-        pattern: z
+        memberPattern: z
           .string()
           .optional()
           .describe('Optional member name filter pattern (e.g. "ABC*").'),
@@ -219,8 +219,8 @@ export function registerDatasetTools(
           .describe('Maximum number of items to return. Default: 500. Max: 1000.'),
       },
     },
-    async ({ dsn, pattern, system, offset, limit }) => {
-      log.info('listMembers called', { dsn, pattern, system, offset, limit });
+    async ({ dsn, memberPattern, system, offset, limit }) => {
+      log.info('listMembers called', { dsn, memberPattern, system, offset, limit });
 
       try {
         const {
@@ -229,7 +229,7 @@ export function registerDatasetTools(
           wasAbsolute,
         } = await resolveInput(deps, dsn, undefined, system, log);
         const prefix = deps.sessionState.getDsnPrefix(systemId);
-        const members = await deps.backend.listMembers(systemId, resolvedDsn, pattern);
+        const members = await deps.backend.listMembers(systemId, resolvedDsn, memberPattern);
 
         // Paginate and map name -> member for response
         const { data: rawData, meta } = paginateList(

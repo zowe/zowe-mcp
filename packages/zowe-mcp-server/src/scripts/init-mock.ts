@@ -228,12 +228,12 @@ function generateJcl(jobName: string, hlq: string, programName: string): string 
 //  PARM='LIST,XREF,LET,RENT'
 //SYSLIB   DD DSN=CEE.SCEELKED,DISP=SHR
 //SYSLIN   DD DSN=&&LOADSET,DISP=(OLD,DELETE)
-//SYSLMOD  DD DSN=${hlq}.LOAD.MODULE,DISP=SHR
+//SYSLMOD  DD DSN=${hlq}.LOADLIB,DISP=SHR
 //SYSPRINT DD SYSOUT=*
 //SYSUT1   DD UNIT=SYSDA,SPACE=(CYL,(1,1))
 //*
 //RUN     EXEC PGM=${programName},COND=(4,LT)
-//STEPLIB  DD DSN=${hlq}.LOAD.MODULE,DISP=SHR
+//STEPLIB  DD DSN=${hlq}.LOADLIB,DISP=SHR
 //INDD     DD DSN=${hlq}.DATA.INPUT,DISP=SHR
 //OUTDD    DD DSN=${hlq}.LOG.OUTPUT,DISP=SHR
 //SYSOUT   DD SYSOUT=*
@@ -422,8 +422,16 @@ async function generateUserDatasets(
     await fs.writeFile(path.join(jclDir, `${job}.jcl`), generateJcl(job, hlq, pgm), 'utf-8');
   }
 
+  // LOADLIB as PDS/E (load library: RECFM=U, LRECL=0, BLKSIZE=32760)
+  const loadlibDir = path.join(hlqDir, 'LOADLIB');
+  await fs.mkdir(loadlibDir, { recursive: true });
+  await writeMeta(loadlibDir, `${hlq}.LOADLIB`, 'PO-E', {
+    recfm: 'U',
+    lrecl: 0,
+    blksz: 32760,
+  });
+
   // Sequential datasets
-  await fs.writeFile(path.join(hlqDir, 'LOAD.MODULE'), '', 'utf-8');
   await fs.writeFile(path.join(hlqDir, 'DATA.INPUT'), generateSequentialData('input'), 'utf-8');
   await fs.writeFile(path.join(hlqDir, 'LOG.OUTPUT'), generateSequentialData('log'), 'utf-8');
   await fs.writeFile(
@@ -433,7 +441,7 @@ async function generateUserDatasets(
   );
 
   // Generate additional datasets if requested
-  let extraCount = datasetsPerUser - 7; // 7 = 3 PDS + 4 sequential above
+  let extraCount = datasetsPerUser - 7; // 7 = 4 PDS (SRC.COBOL, SRC.COPYBOOK, JCL.CNTL, LOADLIB) + 3 sequential above
   for (let i = 1; extraCount > 0 && i <= 20; i++, extraCount--) {
     if (i % 2 === 0) {
       // Extra PDS

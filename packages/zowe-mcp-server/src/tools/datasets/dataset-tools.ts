@@ -724,7 +724,7 @@ export function registerDatasetTools(
           .describe(
             "Dataset name: use a relative name (e.g. SRC.COBOL), or an absolute name in single quotes (e.g. 'SYS1.PROCLIB'). Relative names are prefixed with the current DSN prefix."
           ),
-        newName: z
+        newDsn: z
           .string()
           .describe(
             "New dataset name: use a relative name (e.g. SRC.NEW), or an absolute name in single quotes (e.g. 'SYS1.PROCLIB'). Relative names are prefixed with the current DSN prefix."
@@ -733,22 +733,22 @@ export function registerDatasetTools(
           .string()
           .optional()
           .describe('Current member name (for renaming a member within a PDS/PDSE).'),
-        newMemberName: z.string().optional().describe('New member name.'),
+        newMember: z.string().optional().describe('New member name.'),
         system: z
           .string()
           .optional()
           .describe('Target z/OS system hostname. Defaults to the active system.'),
       },
     },
-    async ({ dsn, newName, member, newMemberName, system }) => {
-      log.info('rename_dataset called', { dsn, newName, member, newMemberName, system });
+    async ({ dsn, newDsn, member, newMember, system }) => {
+      log.info('rename_dataset called', { dsn, newDsn, member, newMember, system });
 
       try {
         const systemId = deps.sessionState.requireSystem(system);
         await ensureContext(deps, systemId);
         const prefix = deps.sessionState.getDsnPrefix(systemId);
         const resolvedOld = resolveDsn(dsn, prefix, member);
-        const resolvedNew = resolveDsn(newName, prefix, newMemberName);
+        const resolvedNew = resolveDsn(newDsn, prefix, newMember);
         log.debug('rename_dataset resolved', {
           systemId,
           prefix,

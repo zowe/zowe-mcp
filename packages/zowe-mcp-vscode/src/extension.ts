@@ -135,7 +135,7 @@ async function initMockData(
     return; // User cancelled
   }
 
-  const outputDir = path.join(folders[0].fsPath, 'mock-data');
+  const outputDir = path.join(folders[0].fsPath, 'zowe-mcp-mock-data');
   log.info(`Generating mock data in: ${outputDir}`);
 
   // Show progress while generating

@@ -30,7 +30,7 @@ npm install
 npm run build
 
 # 3. Generate mock z/OS data
-npx zowe-mcp-server init-mock --output ./mock-data
+npx zowe-mcp-server init-mock --output ./zowe-mcp-mock-data
 
 # 4. Build and install the VS Code extension
 npm run build-and-install
@@ -85,23 +85,23 @@ and test without a real mainframe.
 
 ```bash
 # Default preset (2 systems, 2 users each, ~8 datasets per user)
-npx zowe-mcp-server init-mock --output ./mock-data
+npx zowe-mcp-server init-mock --output ./zowe-mcp-mock-data
 
 # Minimal (1 system, 1 user, 5 datasets)
-npx zowe-mcp-server init-mock --output ./mock-data --preset minimal
+npx zowe-mcp-server init-mock --output ./zowe-mcp-mock-data --preset minimal
 
 # Large (5 systems, 3 users each, 20 datasets per user)
-npx zowe-mcp-server init-mock --output ./mock-data --preset large
+npx zowe-mcp-server init-mock --output ./zowe-mcp-mock-data --preset large
 
 # Custom scale
-npx zowe-mcp-server init-mock --output ./mock-data \
+npx zowe-mcp-server init-mock --output ./zowe-mcp-mock-data \
   --systems 3 --users-per-system 2 --datasets-per-user 10 --members-per-pds 8
 ```
 
 The generated directory looks like:
 
 ```text
-mock-data/
+zowe-mcp-mock-data/
   systems.json                          # System definitions + credentials
   mainframe-dev.example.com/            # One directory per system
     IBMUSER/                            # HLQ directory
@@ -115,10 +115,10 @@ mock-data/
 
 ```bash
 # Via CLI flag
-npx zowe-mcp-server --stdio --mock ./mock-data
+npx zowe-mcp-server --stdio --mock ./zowe-mcp-mock-data
 
 # Via environment variable
-ZOWE_MCP_MOCK_DIR=./mock-data npx zowe-mcp-server --stdio
+ZOWE_MCP_MOCK_DIR=./zowe-mcp-mock-data npx zowe-mcp-server --stdio
 ```
 
 ## Configuring VS Code Copilot
@@ -168,7 +168,7 @@ Or add this to your `settings.json`:
 
 ```jsonc
 {
-  "zowe-mcp.mockDataDir": "/absolute/path/to/mock-data"
+  "zowe-mcp.mockDataDir": "/absolute/path/to/zowe-mcp-mock-data"
 }
 ```
 
@@ -190,7 +190,7 @@ your VS Code `settings.json` (user or workspace):
         "/absolute/path/to/zowe-mcp/packages/zowe-mcp-server/dist/index.js",
         "--stdio",
         "--mock",
-        "/absolute/path/to/zowe-mcp/mock-data"
+        "/absolute/path/to/zowe-mcp/zowe-mcp-mock-data"
       ]
     }
   }
@@ -199,7 +199,7 @@ your VS Code `settings.json` (user or workspace):
 
 Replace the paths with the actual absolute paths on your machine. For
 example, if you cloned the repo to `~/workspace/zowe-mcp` and generated mock
-data in `~/workspace/zowe-mcp/mock-data`:
+data in `~/workspace/zowe-mcp/zowe-mcp-mock-data`:
 
 ```jsonc
 {
@@ -211,7 +211,7 @@ data in `~/workspace/zowe-mcp/mock-data`:
         "/Users/me/workspace/zowe-mcp/packages/zowe-mcp-server/dist/index.js",
         "--stdio",
         "--mock",
-        "/Users/me/workspace/zowe-mcp/mock-data"
+        "/Users/me/workspace/zowe-mcp/zowe-mcp-mock-data"
       ]
     }
   }
@@ -231,7 +231,7 @@ You can also use the environment variable form:
         "--stdio"
       ],
       "env": {
-        "ZOWE_MCP_MOCK_DIR": "/absolute/path/to/zowe-mcp/mock-data"
+        "ZOWE_MCP_MOCK_DIR": "/absolute/path/to/zowe-mcp/zowe-mcp-mock-data"
       }
     }
   }

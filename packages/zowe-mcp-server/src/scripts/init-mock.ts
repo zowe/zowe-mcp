@@ -15,9 +15,9 @@
  * CLI script to generate a realistic mock data directory.
  *
  * Usage:
- *   npx zowe-mcp-server init-mock --output ./mock-data
- *   npx zowe-mcp-server init-mock --output ./mock-data --preset minimal
- *   npx zowe-mcp-server init-mock --output ./mock-data --systems 5 --users-per-system 3
+ *   npx zowe-mcp-server init-mock --output ./zowe-mcp-mock-data
+ *   npx zowe-mcp-server init-mock --output ./zowe-mcp-mock-data --preset minimal
+ *   npx zowe-mcp-server init-mock --output ./zowe-mcp-mock-data --systems 5 --users-per-system 3
  */
 
 import * as fs from 'node:fs/promises';
@@ -505,7 +505,7 @@ interface CliArgs {
 
 function parseCliArgs(): CliArgs {
   const args = process.argv.slice(2);
-  let output = './mock-data';
+  let output = './zowe-mcp-mock-data';
   let preset: MockPreset = PRESETS.default;
 
   for (let i = 0; i < args.length; i++) {

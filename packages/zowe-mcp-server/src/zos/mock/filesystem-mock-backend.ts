@@ -16,7 +16,7 @@
  * a DSFS-inspired layout:
  *
  * ```
- * mock-data/
+ * zowe-mcp-mock-data/
  *   systems.json
  *   sys1.example.com/
  *     IBMUSER/                     # HLQ directory

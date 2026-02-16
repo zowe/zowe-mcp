@@ -33,7 +33,9 @@ import { createHash } from 'node:crypto';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import type {
+  CreateDatasetApplied,
   CreateDatasetOptions,
+  CreateDatasetResult,
   DatasetAttributes,
   DatasetEntry,
   DatasetOrg,
@@ -344,7 +346,7 @@ export class FilesystemMockBackend implements ZosBackend {
     systemId: SystemId,
     dsn: string,
     options: CreateDatasetOptions
-  ): Promise<void> {
+  ): Promise<CreateDatasetResult> {
     const dsPath = this.datasetPath(systemId, dsn);
 
     if (await pathExists(dsPath)) {
@@ -354,23 +356,54 @@ export class FilesystemMockBackend implements ZosBackend {
       );
     }
 
+    const DEFAULT_RECFM: RecordFormat = 'FB';
+    const DEFAULT_LRECL = 80;
+    const DEFAULT_BLKSZ = 27920;
+    const MOCK_VOLSER = 'VOL001';
+    const DEFAULT_DIRBLK = 5;
+
+    const appliedRecfm = options.recfm ?? DEFAULT_RECFM;
+    const appliedLrecl = options.lrecl ?? DEFAULT_LRECL;
+    const appliedBlksz = options.blksz ?? DEFAULT_BLKSZ;
+    const appliedDirblk =
+      options.type === 'PO' || options.type === 'PO-E'
+        ? (options.dirblk ?? DEFAULT_DIRBLK)
+        : undefined;
+
+    const messages: string[] = [];
+    if (options.recfm === undefined) {
+      messages.push(`recfm defaulted to ${appliedRecfm}.`);
+    }
+    if (options.lrecl === undefined) {
+      messages.push(`lrecl defaulted to ${appliedLrecl}.`);
+    }
+    if (options.blksz === undefined) {
+      messages.push(`blksz defaulted to ${appliedBlksz}.`);
+    }
+    messages.push(`Volume ${MOCK_VOLSER} assigned by storage.`);
     if (options.type === 'PO' || options.type === 'PO-E') {
-      // Create directory for PDS/PDSE
+      if (options.dirblk === undefined) {
+        messages.push(`dirblk defaulted to ${appliedDirblk} for partitioned dataset.`);
+      }
+    }
+    if (options.primary !== undefined || options.secondary !== undefined) {
+      messages.push('Primary/secondary space request not applied in mock (filesystem layout).');
+    }
+
+    if (options.type === 'PO' || options.type === 'PO-E') {
       await fs.mkdir(dsPath, { recursive: true });
     } else {
-      // Create empty file for sequential dataset
       await fs.mkdir(path.dirname(dsPath), { recursive: true });
       await fs.writeFile(dsPath, '', 'utf-8');
     }
 
-    // Write metadata
     const meta: MockDatasetMeta = {
       dsn,
       dsorg: options.type,
-      recfm: options.recfm ?? 'FB',
-      lrecl: options.lrecl ?? 80,
-      blksz: options.blksz ?? 27920,
-      volser: 'VOL001',
+      recfm: appliedRecfm,
+      lrecl: appliedLrecl,
+      blksz: appliedBlksz,
+      volser: MOCK_VOLSER,
       creationDate: new Date().toISOString().slice(0, 10),
     };
 
@@ -380,6 +413,20 @@ export class FilesystemMockBackend implements ZosBackend {
         : path.join(path.dirname(dsPath), `${path.basename(dsPath)}_meta.json`);
 
     await fs.writeFile(metaPath, JSON.stringify(meta, null, 2), 'utf-8');
+
+    const primaryTracks: number | undefined = options.primary;
+    const secondaryTracks: number | undefined = options.secondary;
+    const applied: CreateDatasetApplied = {
+      dsorg: options.type,
+      recfm: appliedRecfm,
+      lrecl: appliedLrecl,
+      blksz: appliedBlksz,
+      volser: MOCK_VOLSER,
+      dirblk: appliedDirblk,
+      ...(primaryTracks !== undefined && { primary: primaryTracks }),
+      ...(secondaryTracks !== undefined && { secondary: secondaryTracks }),
+    };
+    return { applied, messages };
   }
 
   async deleteDataset(systemId: SystemId, dsn: string, member?: string): Promise<void> {

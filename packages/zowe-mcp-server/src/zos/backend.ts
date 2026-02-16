@@ -123,6 +123,36 @@ export interface CreateDatasetOptions {
   dirblk?: number;
 }
 
+/** Attributes actually applied when a dataset is created (may differ from requested due to defaults or SMS). */
+export interface CreateDatasetApplied {
+  /** Dataset organization applied. */
+  dsorg: DatasetOrg;
+  /** Record format applied. */
+  recfm: RecordFormat;
+  /** Logical record length applied. */
+  lrecl: number;
+  /** Block size applied. */
+  blksz: number;
+  /** Volume serial assigned (e.g. by SMS or storage). */
+  volser?: string;
+  /** Primary space (tracks) applied. */
+  primary?: number;
+  /** Secondary space (tracks) applied. */
+  secondary?: number;
+  /** Directory blocks applied (PDS/PDSE). */
+  dirblk?: number;
+  /** SMS classes applied (if SMS managed). */
+  smsClass?: SmsClasses;
+}
+
+/** Result of creating a dataset: applied attributes and allocation messages. */
+export interface CreateDatasetResult {
+  /** Attributes actually used for the allocation (defaults and SMS may have changed requested values). */
+  applied: CreateDatasetApplied;
+  /** Messages describing defaults used, SMS decisions, or differences from the request. */
+  messages: string[];
+}
+
 // ---------------------------------------------------------------------------
 // Backend interface
 // ---------------------------------------------------------------------------
@@ -200,11 +230,18 @@ export interface ZosBackend {
   /**
    * Create a new dataset.
    *
+   * Returns the attributes actually applied (which may differ from the request
+   * due to defaults or SMS) and messages describing any defaults or SMS decisions.
+   *
    * @param systemId - Target z/OS system.
    * @param dsn - Fully-qualified dataset name.
    * @param options - Dataset creation options (type, recfm, lrecl, etc.).
    */
-  createDataset(systemId: SystemId, dsn: string, options: CreateDatasetOptions): Promise<void>;
+  createDataset(
+    systemId: SystemId,
+    dsn: string,
+    options: CreateDatasetOptions
+  ): Promise<CreateDatasetResult>;
 
   /**
    * Delete a dataset or a specific PDS/PDSE member.

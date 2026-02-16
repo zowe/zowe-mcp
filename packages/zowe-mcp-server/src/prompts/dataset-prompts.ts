@@ -50,9 +50,11 @@ export function registerDatasetPrompts(
         'Read a JCL member and analyze it for common issues, ' +
         'suggest improvements, and explain what the job does.',
       argsSchema: {
-        dataset: z
+        dsn: z
           .string()
-          .describe('JCL dataset name (relative or absolute with single quotes).'),
+          .describe(
+            "Dataset name: use a relative name (e.g. SRC.COBOL), or an absolute name in single quotes (e.g. 'SYS1.PROCLIB'). Relative names are prefixed with the current DSN prefix."
+          ),
         member: z.string().optional().describe('JCL member name (for PDS/PDSE datasets).'),
         system: z
           .string()
@@ -60,12 +62,12 @@ export function registerDatasetPrompts(
           .describe('Target z/OS system hostname. Defaults to the active system.'),
       },
     },
-    async ({ dataset, member, system }) => {
-      log.info('reviewJcl prompt called', { dataset, member, system });
+    async ({ dsn, member, system }) => {
+      log.info('reviewJcl prompt called', { dsn, member, system });
 
       const systemId = deps.sessionState.requireSystem(system);
       const prefix = deps.sessionState.getDsnPrefix(systemId);
-      const resolved = resolveDsn(dataset, prefix, member);
+      const resolved = resolveDsn(dsn, prefix, member);
 
       const result = await deps.backend.readDataset(systemId, resolved.dsn, resolved.member);
 
@@ -106,19 +108,23 @@ export function registerDatasetPrompts(
         'Get attributes and sample content of a dataset, then explain ' +
         'its purpose, structure, and how it fits into the system.',
       argsSchema: {
-        dataset: z.string().describe('Dataset name (relative or absolute with single quotes).'),
+        dsn: z
+          .string()
+          .describe(
+            "Dataset name: use a relative name (e.g. SRC.COBOL), or an absolute name in single quotes (e.g. 'SYS1.PROCLIB'). Relative names are prefixed with the current DSN prefix."
+          ),
         system: z
           .string()
           .optional()
           .describe('Target z/OS system hostname. Defaults to the active system.'),
       },
     },
-    async ({ dataset, system }) => {
-      log.info('explainDataset prompt called', { dataset, system });
+    async ({ dsn, system }) => {
+      log.info('explainDataset prompt called', { dsn, system });
 
       const systemId = deps.sessionState.requireSystem(system);
       const prefix = deps.sessionState.getDsnPrefix(systemId);
-      const resolved = resolveDsn(dataset, prefix);
+      const resolved = resolveDsn(dsn, prefix);
 
       const attrs = await deps.backend.getAttributes(systemId, resolved.dsn);
 
@@ -190,9 +196,11 @@ export function registerDatasetPrompts(
         'Read two PDS/PDSE members and compare them, explaining ' +
         'the differences and their significance.',
       argsSchema: {
-        dataset: z
+        dsn: z
           .string()
-          .describe('PDS/PDSE dataset name (relative or absolute with single quotes).'),
+          .describe(
+            "Dataset name: use a relative name (e.g. SRC.COBOL), or an absolute name in single quotes (e.g. 'SYS1.PROCLIB'). Relative names are prefixed with the current DSN prefix."
+          ),
         member1: z.string().describe('First member name to compare.'),
         member2: z.string().describe('Second member name to compare.'),
         system: z
@@ -201,12 +209,12 @@ export function registerDatasetPrompts(
           .describe('Target z/OS system hostname. Defaults to the active system.'),
       },
     },
-    async ({ dataset, member1, member2, system }) => {
-      log.info('compareMembers prompt called', { dataset, member1, member2, system });
+    async ({ dsn, member1, member2, system }) => {
+      log.info('compareMembers prompt called', { dsn, member1, member2, system });
 
       const systemId = deps.sessionState.requireSystem(system);
       const prefix = deps.sessionState.getDsnPrefix(systemId);
-      const resolved = resolveDsn(dataset, prefix);
+      const resolved = resolveDsn(dsn, prefix);
 
       const [content1, content2] = await Promise.all([
         deps.backend.readDataset(systemId, resolved.dsn, member1.toUpperCase()),

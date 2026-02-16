@@ -68,6 +68,50 @@ export interface ResolvedDsn {
 // Public API
 // ---------------------------------------------------------------------------
 
+/** Result of resolveWithPrefix (no validation; usable for patterns). */
+export interface ResolvedWithPrefix {
+  resolved: string;
+  wasAbsolute: boolean;
+}
+
+/**
+ * Resolve a dataset name or pattern using the z/OS single-quote convention.
+ * Does not validate the result (so patterns like IBMUSER.* are allowed).
+ * Use this for list_datasets pattern resolution; use resolveDsn for full DSN validation.
+ *
+ * @param input - Dataset name or pattern as provided by the agent.
+ * @param prefix - The current DSN prefix (required when input is relative).
+ * @returns The resolved string and whether the input was absolute.
+ * @throws {DsnError} if input is empty or relative and prefix is undefined.
+ */
+export function resolveWithPrefix(input: string, prefix: string | undefined): ResolvedWithPrefix {
+  const trimmed = input.trim();
+  if (trimmed.length === 0) {
+    throw new DsnError('Dataset name must not be empty');
+  }
+
+  // Single-quote convention: 'FULLY.QUALIFIED.NAME' is absolute
+  if (trimmed.startsWith("'") && trimmed.endsWith("'")) {
+    return {
+      resolved: trimmed.slice(1, -1).toUpperCase(),
+      wasAbsolute: true,
+    };
+  }
+
+  // Relative — prefix is required
+  if (prefix === undefined || prefix === '') {
+    throw new DsnError(
+      'No DSN prefix set; relative name or pattern requires a prefix. Use set_system or set_dsn_prefix first, or use an absolute name in single quotes.'
+    );
+  }
+
+  const upper = trimmed.toUpperCase();
+  return {
+    resolved: `${prefix.toUpperCase()}.${upper}`,
+    wasAbsolute: false,
+  };
+}
+
 /**
  * Resolve a dataset name from agent input using the z/OS single-quote
  * convention.
@@ -83,29 +127,7 @@ export function resolveDsn(
   prefix: string | undefined,
   member?: string
 ): ResolvedDsn {
-  const trimmed = input.trim();
-  if (trimmed.length === 0) {
-    throw new DsnError('Dataset name must not be empty');
-  }
-
-  let dsn: string;
-  let wasAbsolute: boolean;
-
-  // Single-quote convention: 'FULLY.QUALIFIED.NAME' is absolute
-  if (trimmed.startsWith("'") && trimmed.endsWith("'")) {
-    dsn = trimmed.slice(1, -1).toUpperCase();
-    wasAbsolute = true;
-  } else {
-    // Relative name — prepend prefix
-    const upper = trimmed.toUpperCase();
-    if (prefix) {
-      dsn = `${prefix.toUpperCase()}.${upper}`;
-    } else {
-      dsn = upper;
-    }
-    wasAbsolute = false;
-  }
-
+  const { resolved: dsn, wasAbsolute } = resolveWithPrefix(input, prefix);
   validateDsn(dsn);
 
   const resolvedMember = member?.trim().toUpperCase();

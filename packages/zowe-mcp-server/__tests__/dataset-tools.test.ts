@@ -285,6 +285,48 @@ describe('Dataset tools with mock backend', () => {
   });
 
   // -----------------------------------------------------------------------
+  // set_dsn_prefix and set_system behavior
+  // -----------------------------------------------------------------------
+  describe('set_dsn_prefix and set_system', () => {
+    it('should strip trailing dot from set_dsn_prefix and return message', async () => {
+      const result = await client.callTool({
+        name: 'set_dsn_prefix',
+        arguments: { prefix: 'IBMUSER.' },
+      });
+      const body = JSON.parse(getResultText(result)) as {
+        dsnPrefix: string;
+        messages: string[];
+      };
+      expect(body.dsnPrefix).toBe('IBMUSER');
+      expect(body.messages).toEqual([
+        'Trailing dot removed from DSN prefix. DSN prefix can be only full DSN segments.',
+      ]);
+    });
+
+    it('should not add message when set_dsn_prefix has no trailing dot', async () => {
+      const result = await client.callTool({
+        name: 'set_dsn_prefix',
+        arguments: { prefix: 'IBMUSER' },
+      });
+      const body = JSON.parse(getResultText(result)) as { messages: string[] };
+      expect(body.messages).toEqual([]);
+    });
+
+    it('should resolve unqualified hostname in set_system when unambiguous', async () => {
+      const result = await client.callTool({
+        name: 'set_system',
+        arguments: { system: 'test-system' },
+      });
+      const body = JSON.parse(getResultText(result)) as {
+        activeSystem: string;
+        messages: string[];
+      };
+      expect(body.activeSystem).toBe(SYSTEM_HOST);
+      expect(body.messages).toEqual(["System resolved from unqualified name 'test-system'."]);
+    });
+  });
+
+  // -----------------------------------------------------------------------
   // Response envelope structure
   // -----------------------------------------------------------------------
   describe('response envelope structure', () => {
@@ -318,10 +360,10 @@ describe('Dataset tools with mock backend', () => {
     it('should use resolvedDsn for list_members envelope', async () => {
       const result = await client.callTool({
         name: 'list_members',
-        arguments: { dataset: 'SRC.COBOL' },
+        arguments: { dsn: 'SRC.COBOL' },
       });
 
-      const envelope = parseEnvelope<{ name: string }[]>(result);
+      const envelope = parseEnvelope<{ member: string }[]>(result);
       expect(envelope._context.resolvedDsn).toBe("'TESTUSER.SRC.COBOL'");
       expect(envelope._context.dsnPrefix).toBe(DEFAULT_USER);
       expect(envelope._context.resolvedPattern).toBeUndefined();
@@ -330,7 +372,7 @@ describe('Dataset tools with mock backend', () => {
     it('should use resolvedDsn for read_dataset envelope', async () => {
       const result = await client.callTool({
         name: 'read_dataset',
-        arguments: { dataset: 'DATA.INPUT' },
+        arguments: { dsn: 'DATA.INPUT' },
       });
 
       const envelope = parseEnvelope<{ text: string }>(result);
@@ -377,7 +419,7 @@ describe('Dataset tools with mock backend', () => {
     it('should single-quote resolvedDsn for relative dataset name', async () => {
       const result = await client.callTool({
         name: 'list_members',
-        arguments: { dataset: 'SRC.COBOL' },
+        arguments: { dsn: 'SRC.COBOL' },
       });
 
       const ctx = parseEnvelope<unknown>(result)._context;
@@ -387,7 +429,7 @@ describe('Dataset tools with mock backend', () => {
     it('should single-quote resolvedDsn for absolute dataset name', async () => {
       const result = await client.callTool({
         name: 'list_members',
-        arguments: { dataset: "'TESTUSER.SRC.COBOL'" },
+        arguments: { dsn: "'TESTUSER.SRC.COBOL'" },
       });
 
       const ctx = parseEnvelope<unknown>(result)._context;
@@ -398,7 +440,7 @@ describe('Dataset tools with mock backend', () => {
     it('should single-quote resolvedDsn with member for read_dataset', async () => {
       const result = await client.callTool({
         name: 'read_dataset',
-        arguments: { dataset: 'SRC.COBOL', member: 'MAIN' },
+        arguments: { dsn: 'SRC.COBOL', member: 'MAIN' },
       });
 
       const ctx = parseEnvelope<unknown>(result)._context;
@@ -548,10 +590,10 @@ describe('Dataset tools with mock backend', () => {
     it('should paginate list_members', async () => {
       const result = await client.callTool({
         name: 'list_members',
-        arguments: { dataset: 'SRC.COBOL', limit: 1 },
+        arguments: { dsn: 'SRC.COBOL', limit: 1 },
       });
 
-      const envelope = parseEnvelope<{ name: string }[]>(result);
+      const envelope = parseEnvelope<{ member: string }[]>(result);
       const meta = envelope._result as ListResultMeta;
       expect(envelope.data.length).toBe(1);
       expect(meta.count).toBe(1);
@@ -562,10 +604,10 @@ describe('Dataset tools with mock backend', () => {
     it('should return second page of list_members', async () => {
       const result = await client.callTool({
         name: 'list_members',
-        arguments: { dataset: 'SRC.COBOL', offset: 1, limit: 1 },
+        arguments: { dsn: 'SRC.COBOL', offset: 1, limit: 1 },
       });
 
-      const envelope = parseEnvelope<{ name: string }[]>(result);
+      const envelope = parseEnvelope<{ member: string }[]>(result);
       const meta = envelope._result as ListResultMeta;
       expect(envelope.data.length).toBe(1);
       expect(meta.offset).toBe(1);
@@ -580,7 +622,7 @@ describe('Dataset tools with mock backend', () => {
     it('should return full content for small files', async () => {
       const result = await client.callTool({
         name: 'read_dataset',
-        arguments: { dataset: 'DATA.INPUT' },
+        arguments: { dsn: 'DATA.INPUT' },
       });
 
       const envelope = parseEnvelope<{ text: string; etag: string; codepage: string }>(result);
@@ -598,7 +640,7 @@ describe('Dataset tools with mock backend', () => {
     it('should support startLine parameter', async () => {
       const result = await client.callTool({
         name: 'read_dataset',
-        arguments: { dataset: 'LARGE.DATA', startLine: 10, lineCount: 5 },
+        arguments: { dsn: 'LARGE.DATA', startLine: 10, lineCount: 5 },
       });
 
       const envelope = parseEnvelope<{ text: string }>(result);
@@ -614,7 +656,7 @@ describe('Dataset tools with mock backend', () => {
     it('should support lineCount parameter', async () => {
       const result = await client.callTool({
         name: 'read_dataset',
-        arguments: { dataset: 'LARGE.DATA', lineCount: 3 },
+        arguments: { dsn: 'LARGE.DATA', lineCount: 3 },
       });
 
       const envelope = parseEnvelope<{ text: string }>(result);
@@ -627,7 +669,7 @@ describe('Dataset tools with mock backend', () => {
     it('should include mimeType in read result', async () => {
       const result = await client.callTool({
         name: 'read_dataset',
-        arguments: { dataset: 'SRC.COBOL', member: 'MAIN' },
+        arguments: { dsn: 'SRC.COBOL', member: 'MAIN' },
       });
 
       const meta = parseEnvelope<unknown>(result)._result as ReadResultMeta;
@@ -638,7 +680,7 @@ describe('Dataset tools with mock backend', () => {
     it('should return correct contentLength', async () => {
       const result = await client.callTool({
         name: 'read_dataset',
-        arguments: { dataset: 'LARGE.DATA', startLine: 1, lineCount: 5 },
+        arguments: { dsn: 'LARGE.DATA', startLine: 1, lineCount: 5 },
       });
 
       const envelope = parseEnvelope<{ text: string }>(result);
@@ -664,7 +706,7 @@ describe('Dataset tools with mock backend', () => {
     it('should lazily initialize context for read_dataset with explicit system', async () => {
       const result = await client.callTool({
         name: 'read_dataset',
-        arguments: { dataset: "'TESTUSER.DATA.INPUT'", system: SYSTEM_HOST },
+        arguments: { dsn: "'TESTUSER.DATA.INPUT'", system: SYSTEM_HOST },
       });
 
       const envelope = parseEnvelope<{ text: string }>(result);
@@ -675,13 +717,13 @@ describe('Dataset tools with mock backend', () => {
     it('should lazily initialize context for list_members with explicit system', async () => {
       const result = await client.callTool({
         name: 'list_members',
-        arguments: { dataset: "'TESTUSER.SRC.COBOL'", system: SYSTEM_HOST },
+        arguments: { dsn: "'TESTUSER.SRC.COBOL'", system: SYSTEM_HOST },
       });
 
-      const data = parseData<{ name: string }[]>(result);
-      const names = data.map(m => m.name);
-      expect(names).toContain('MAIN');
-      expect(names).toContain('UTIL');
+      const data = parseData<{ member: string }[]>(result);
+      const members = data.map(m => m.member);
+      expect(members).toContain('MAIN');
+      expect(members).toContain('UTIL');
     });
   });
 
@@ -796,22 +838,73 @@ describe('Dataset tools with mock backend', () => {
   });
 
   // -----------------------------------------------------------------------
+  // create_dataset allocation and messages
+  // -----------------------------------------------------------------------
+  describe('create_dataset allocation', () => {
+    it('should return applied allocation attributes and messages for defaults', async () => {
+      const result = await client.callTool({
+        name: 'create_dataset',
+        arguments: { dsn: 'NEW.PS.DATA', type: 'PS' },
+      });
+
+      const envelope = parseEnvelope<{
+        dsn: string;
+        type: string;
+        allocation: { applied: Record<string, unknown>; messages: string[] };
+      }>(result);
+      expect(envelope._context.resolvedDsn).toBe("'TESTUSER.NEW.PS.DATA'");
+      expect(envelope.data.dsn).toBe("'TESTUSER.NEW.PS.DATA'");
+      expect(envelope.data.type).toBe('PS');
+      expect(envelope.data.allocation).toBeDefined();
+      expect(envelope.data.allocation.applied).toBeDefined();
+      expect(envelope.data.allocation.applied.dsorg).toBe('PS');
+      expect(envelope.data.allocation.applied.recfm).toBe('FB');
+      expect(envelope.data.allocation.applied.lrecl).toBe(80);
+      expect(envelope.data.allocation.applied.blksz).toBe(27920);
+      expect(envelope.data.allocation.applied.volser).toBe('VOL001');
+      expect(envelope.data.allocation.messages).toContain('recfm defaulted to FB.');
+      expect(envelope.data.allocation.messages).toContain('lrecl defaulted to 80.');
+      expect(envelope.data.allocation.messages).toContain('blksz defaulted to 27920.');
+      expect(envelope.data.allocation.messages).toContain('Volume VOL001 assigned by storage.');
+      expect(envelope.messages).toEqual(envelope.data.allocation.messages);
+    });
+
+    it('should describe dirblk default for PDS and include allocation in response', async () => {
+      const result = await client.callTool({
+        name: 'create_dataset',
+        arguments: { dsn: 'NEW.PDS.LIB', type: 'PO' },
+      });
+
+      const envelope = parseEnvelope<{
+        dsn: string;
+        type: string;
+        allocation: { applied: Record<string, unknown>; messages: string[] };
+      }>(result);
+      expect(envelope.data.allocation.applied.dsorg).toBe('PO');
+      expect(envelope.data.allocation.applied.dirblk).toBe(5);
+      expect(envelope.data.allocation.messages).toContain(
+        'dirblk defaulted to 5 for partitioned dataset.'
+      );
+    });
+  });
+
+  // -----------------------------------------------------------------------
   // get_dataset_attributes envelope
   // -----------------------------------------------------------------------
   describe('get_dataset_attributes envelope', () => {
     it('should wrap attributes in envelope with _context and no _result', async () => {
       const result = await client.callTool({
         name: 'get_dataset_attributes',
-        arguments: { dataset: 'SRC.COBOL' },
+        arguments: { dsn: 'SRC.COBOL' },
       });
 
-      const envelope = parseEnvelope<{ dsn: string; dsorg: string }>(result);
+      const envelope = parseEnvelope<{ dsn: string; type: string }>(result);
       expect(envelope._context.system).toBe(SYSTEM_HOST);
       expect(envelope._context.resolvedDsn).toBe("'TESTUSER.SRC.COBOL'");
       expect(envelope._context.dsnPrefix).toBe(DEFAULT_USER);
       expect(envelope._result).toBeUndefined();
-      expect(envelope.data.dsn).toBe('TESTUSER.SRC.COBOL');
-      expect(envelope.data.dsorg).toBe('PO-E');
+      expect(envelope.data.dsn).toBe("'TESTUSER.SRC.COBOL'");
+      expect(envelope.data.type).toBe('PO-E');
     });
   });
 });

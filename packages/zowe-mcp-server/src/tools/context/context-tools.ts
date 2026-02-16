@@ -66,7 +66,7 @@ export function registerContextTools(
         content: [
           {
             type: 'text' as const,
-            text: JSON.stringify(result, null, 2),
+            text: JSON.stringify({ systems: result, messages: [] as string[] }, null, 2),
           },
         ],
       };
@@ -82,17 +82,20 @@ export function registerContextTools(
       description:
         'Set the active z/OS system. This restores the per-system context ' +
         '(DSN prefix, user ID) if the system was previously used. ' +
-        'On first connection, the DSN prefix defaults to the user ID.',
+        'On first connection, the DSN prefix defaults to the user ID. ' +
+        'Hostname can be fully qualified (e.g. sys1.example.com) or unqualified when unambiguous (e.g. sys1, SYS1).',
       inputSchema: {
         system: z
           .string()
-          .describe('Hostname of the z/OS system to activate (e.g. "sys1.example.com")'),
+          .describe(
+            'Hostname of the z/OS system to activate (e.g. "sys1.example.com" or "sys1" when unambiguous).'
+          ),
       },
     },
     async ({ system }) => {
       log.info('set_system called', { system });
 
-      const sysInfo = systemRegistry.get(system);
+      const sysInfo = systemRegistry.getOrResolve(system);
       if (!sysInfo) {
         const available = systemRegistry.list().join(', ');
         return {
@@ -108,9 +111,14 @@ export function registerContextTools(
         };
       }
 
-      // Get the default user from the credential provider
-      const creds = await credentialProvider.getCredentials(system);
-      const ctx = sessionState.setActiveSystem(system, creds.user);
+      const resolvedHost = sysInfo.host;
+      const resolvedFromShortName = resolvedHost.toLowerCase() !== system.toLowerCase();
+      const messages = resolvedFromShortName
+        ? [`System resolved from unqualified name '${system}'.`]
+        : [];
+
+      const creds = await credentialProvider.getCredentials(resolvedHost);
+      const ctx = sessionState.setActiveSystem(resolvedHost, creds.user);
 
       return {
         content: [
@@ -118,10 +126,11 @@ export function registerContextTools(
             type: 'text' as const,
             text: JSON.stringify(
               {
-                activeSystem: system,
+                activeSystem: resolvedHost,
                 userId: ctx.userId,
                 dsnPrefix: ctx.dsnPrefix,
                 description: sysInfo.description,
+                messages,
               },
               null,
               2
@@ -140,9 +149,9 @@ export function registerContextTools(
     {
       description:
         'Set the DSN prefix for the current active z/OS system. ' +
-        'The prefix acts like a working directory — relative dataset names ' +
-        'are resolved against it. For example, with prefix "IBMUSER", ' +
-        'the name "SRC.COBOL" resolves to "IBMUSER.SRC.COBOL".',
+        'The prefix is one or more full DSN segments (e.g. "IBMUSER" or "IBMUSER.SRC"). ' +
+        'Relative dataset names are resolved against it. If the prefix ends with a dot, ' +
+        'the dot is removed and a message is returned.',
       inputSchema: {
         prefix: z.string().describe('DSN prefix to set (e.g. "IBMUSER" or "IBMUSER.SRC")'),
       },
@@ -151,8 +160,16 @@ export function registerContextTools(
       log.info('set_dsn_prefix called', { prefix });
 
       try {
-        const ctx = sessionState.setDsnPrefix(prefix);
+        let normalized = prefix.trim();
+        const hadTrailingDot = normalized.endsWith('.');
+        if (hadTrailingDot) {
+          normalized = normalized.slice(0, -1);
+        }
+        const ctx = sessionState.setDsnPrefix(normalized);
         const activeSystem = sessionState.getActiveSystem();
+        const messages = hadTrailingDot
+          ? ['Trailing dot removed from DSN prefix. DSN prefix can be only full DSN segments.']
+          : [];
 
         return {
           content: [
@@ -163,6 +180,7 @@ export function registerContextTools(
                   activeSystem,
                   userId: ctx.userId,
                   dsnPrefix: ctx.dsnPrefix,
+                  messages,
                 },
                 null,
                 2
@@ -229,6 +247,7 @@ export function registerContextTools(
                 activeSystem,
                 allSystems,
                 recentlyUsedSystems: recentlyUsed,
+                messages: [] as string[],
               },
               null,
               2

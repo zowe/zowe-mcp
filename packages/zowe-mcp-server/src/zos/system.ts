@@ -68,6 +68,34 @@ export class SystemRegistry {
     return this.systems.get(systemId);
   }
 
+  /**
+   * Resolve a system by exact host or by unqualified hostname when unambiguous.
+   * Tries exact match first, then case-insensitive match on full host or on
+   * the first hostname segment (part before the first '.'). Returns the system
+   * only when exactly one match is found; returns undefined if not found or ambiguous.
+   */
+  getOrResolve(systemId: SystemId): ZosSystem | undefined {
+    const exact = this.systems.get(systemId);
+    if (exact) return exact;
+
+    const inputLower = systemId.toLowerCase();
+    const matches: ZosSystem[] = [];
+
+    for (const system of this.systems.values()) {
+      const hostLower = system.host.toLowerCase();
+      if (hostLower === inputLower) {
+        matches.push(system);
+        continue;
+      }
+      const firstSegment = system.host.split('.')[0]?.toLowerCase() ?? '';
+      if (firstSegment === inputLower) {
+        matches.push(system);
+      }
+    }
+
+    return matches.length === 1 ? matches[0] : undefined;
+  }
+
   /** Return all registered system IDs. */
   list(): SystemId[] {
     return [...this.systems.keys()];

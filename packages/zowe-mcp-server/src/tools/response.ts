@@ -94,6 +94,8 @@ export type ResultMeta = ListResultMeta | ReadResultMeta | MutationResultMeta;
 export interface ToolResponseEnvelope<T> {
   _context: ResponseContext;
   _result?: ResultMeta;
+  /** Operational messages (e.g. normalization, resolution notes). */
+  messages: string[];
   data: T;
 }
 
@@ -212,14 +214,18 @@ export function windowContent(
 
 /**
  * Assemble the final envelope and return it as MCP `content` array.
+ *
+ * @param messages - Optional list of operational messages (default empty array).
  */
 export function wrapResponse<T>(
   context: ResponseContext,
   result: ResultMeta | undefined,
-  data: T
+  data: T,
+  messages: string[] = []
 ): { content: { type: 'text'; text: string }[] } {
   const envelope: ToolResponseEnvelope<T> = {
     _context: context,
+    messages,
     data,
   };
   if (result !== undefined) {

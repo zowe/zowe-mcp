@@ -22,6 +22,7 @@ import {
   DsnError,
   inferMimeType,
   resolveDsn,
+  resolveWithPrefix,
   validateDsn,
   validateMember,
 } from '../src/zos/dsn.js';
@@ -482,6 +483,63 @@ describe('inferMimeType', () => {
 });
 
 // ---------------------------------------------------------------------------
+// resolveWithPrefix — pattern/name resolution (no validation)
+// ---------------------------------------------------------------------------
+
+describe('resolveWithPrefix', () => {
+  it('absolute: single-quoted with undefined prefix returns resolved, wasAbsolute true', () => {
+    const r = resolveWithPrefix("'SYS1.PROCLIB'", undefined);
+    expect(r.resolved).toBe('SYS1.PROCLIB');
+    expect(r.wasAbsolute).toBe(true);
+  });
+
+  it('absolute: single-quoted with prefix returns resolved, wasAbsolute true', () => {
+    const r = resolveWithPrefix("'SYS1.PROCLIB'", 'IBMUSER');
+    expect(r.resolved).toBe('SYS1.PROCLIB');
+    expect(r.wasAbsolute).toBe(true);
+  });
+
+  it('relative with prefix: prepends prefix', () => {
+    const r = resolveWithPrefix('SRC.COBOL', 'IBMUSER');
+    expect(r.resolved).toBe('IBMUSER.SRC.COBOL');
+    expect(r.wasAbsolute).toBe(false);
+  });
+
+  it('relative with prefix: trims input', () => {
+    const r = resolveWithPrefix('  SRC.COBOL  ', 'IBMUSER');
+    expect(r.resolved).toBe('IBMUSER.SRC.COBOL');
+    expect(r.wasAbsolute).toBe(false);
+  });
+
+  it('relative pattern with prefix: SRC.*', () => {
+    const r = resolveWithPrefix('SRC.*', 'IBMUSER');
+    expect(r.resolved).toBe('IBMUSER.SRC.*');
+    expect(r.wasAbsolute).toBe(false);
+  });
+
+  it('relative pattern with prefix: *', () => {
+    const r = resolveWithPrefix('*', 'IBMUSER');
+    expect(r.resolved).toBe('IBMUSER.*');
+    expect(r.wasAbsolute).toBe(false);
+  });
+
+  it('relative with undefined prefix throws', () => {
+    expect(() => resolveWithPrefix('JCL.CNTL', undefined)).toThrow(DsnError);
+  });
+
+  it('absolute pattern with prefix: single-quoted', () => {
+    const r = resolveWithPrefix("'IBMUSER.SRC.*'", 'OTHER');
+    expect(r.resolved).toBe('IBMUSER.SRC.*');
+    expect(r.wasAbsolute).toBe(true);
+  });
+
+  it('throws for empty input', () => {
+    expect(() => resolveWithPrefix('', 'IBMUSER')).toThrow(DsnError);
+    expect(() => resolveWithPrefix('   ', 'IBMUSER')).toThrow(DsnError);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // resolveDsn — dataset name resolution
 // ---------------------------------------------------------------------------
 
@@ -498,10 +556,9 @@ describe('resolveDsn', () => {
       expect(result.dsn).toBe('IBMUSER.SRC.COBOL');
     });
 
-    it('should use name as-is when no prefix', () => {
-      const result = resolveDsn('IBMUSER.SRC.COBOL', undefined);
-      expect(result.dsn).toBe('IBMUSER.SRC.COBOL');
-      expect(result.wasAbsolute).toBe(false);
+    it('should throw when relative name and no prefix', () => {
+      expect(() => resolveDsn('IBMUSER.SRC.COBOL', undefined)).toThrow(DsnError);
+      expect(() => resolveDsn('JCL.CNTL', undefined)).toThrow(DsnError);
     });
   });
 

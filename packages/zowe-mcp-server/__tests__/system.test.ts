@@ -79,4 +79,53 @@ describe('SystemRegistry', () => {
     expect(sys?.basePath).toBeUndefined();
     expect(sys?.description).toBeUndefined();
   });
+
+  describe('getOrResolve', () => {
+    it('returns exact match when host matches', () => {
+      const reg = new SystemRegistry();
+      reg.register({ host: 'sys1.example.com', port: 443 });
+      expect(reg.getOrResolve('sys1.example.com')?.host).toBe('sys1.example.com');
+    });
+
+    it('resolves unqualified name when single match', () => {
+      const reg = new SystemRegistry();
+      reg.register({ host: 'sys1.example.com', port: 443 });
+      expect(reg.getOrResolve('sys1')?.host).toBe('sys1.example.com');
+      expect(reg.getOrResolve('SYS1')?.host).toBe('sys1.example.com');
+      expect(reg.getOrResolve('Sys1')?.host).toBe('sys1.example.com');
+    });
+
+    it('resolves by first segment when host has different casing', () => {
+      const reg = new SystemRegistry();
+      reg.register({ host: 'SYS1.OTHER.COM', port: 443 });
+      expect(reg.getOrResolve('sys1')?.host).toBe('SYS1.OTHER.COM');
+    });
+
+    it('resolves sys1 when two systems and input is sys1', () => {
+      const reg = new SystemRegistry();
+      reg.register({ host: 'sys1.example.com', port: 443 });
+      reg.register({ host: 'sys2.example.com', port: 443 });
+      expect(reg.getOrResolve('sys1')?.host).toBe('sys1.example.com');
+    });
+
+    it('returns undefined when unqualified name not found', () => {
+      const reg = new SystemRegistry();
+      reg.register({ host: 'sys1.example.com', port: 443 });
+      reg.register({ host: 'sys2.example.com', port: 443 });
+      expect(reg.getOrResolve('sys3')).toBeUndefined();
+    });
+
+    it('returns undefined when unqualified name is ambiguous', () => {
+      const reg = new SystemRegistry();
+      reg.register({ host: 'sys1.example.com', port: 443 });
+      reg.register({ host: 'sys1.other.com', port: 443 });
+      expect(reg.getOrResolve('sys1')).toBeUndefined();
+    });
+
+    it('returns exact match for unqualified-looking host that is full hostname', () => {
+      const reg = new SystemRegistry();
+      reg.register({ host: 'mysys', port: 443 });
+      expect(reg.getOrResolve('mysys')?.host).toBe('mysys');
+    });
+  });
 });

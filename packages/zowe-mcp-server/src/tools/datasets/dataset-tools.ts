@@ -25,7 +25,7 @@ import { z } from 'zod';
 import type { Logger } from '../../log.js';
 import type { ZosBackend } from '../../zos/backend.js';
 import type { CredentialProvider } from '../../zos/credentials.js';
-import { buildDsUri, DsnError, resolveDsn } from '../../zos/dsn.js';
+import { buildDsUri, DsnError, resolveDsn, resolveWithPrefix } from '../../zos/dsn.js';
 import type { SessionState } from '../../zos/session.js';
 import type { SystemRegistry } from '../../zos/system.js';
 import type { MutationResultMeta } from '../response.js';
@@ -68,7 +68,7 @@ async function ensureContext(deps: DatasetToolDeps, systemId: string): Promise<v
  */
 async function resolveInput(
   deps: DatasetToolDeps,
-  dataset: string,
+  dsn: string,
   member: string | undefined,
   system: string | undefined,
   log: Logger
@@ -76,7 +76,7 @@ async function resolveInput(
   const systemId = deps.sessionState.requireSystem(system);
   await ensureContext(deps, systemId);
   const prefix = deps.sessionState.getDsnPrefix(systemId);
-  const resolved = resolveDsn(dataset, prefix, member);
+  const resolved = resolveDsn(dsn, prefix, member);
   log.debug('resolved input', {
     systemId,
     prefix,
@@ -113,15 +113,13 @@ export function registerDatasetTools(
       description:
         'List datasets matching a pattern. Returns the first page of results (default 500, max 1000). ' +
         'Use offset and limit to page through large result sets. ' +
-        'The pattern is resolved against the current DSN prefix. ' +
-        "Use single quotes for absolute patterns (e.g. 'IBMUSER.*').",
+        "Pattern: if in single quotes (e.g. 'IBMUSER.*'), it is absolute; otherwise relative and the DSN prefix is prepended with a trailing dot. Use * within a qualifier and ** across qualifiers.",
       annotations: { readOnlyHint: true },
       inputSchema: {
         pattern: z
           .string()
           .describe(
-            'Dataset name pattern (e.g. "SRC.*" for relative, or "\'IBMUSER.*\'" for absolute). ' +
-              'Use * to match within a qualifier, ** to match across qualifiers.'
+            "Dataset name pattern (required). If in single quotes (e.g. 'IBMUSER.*'), it is absolute; otherwise relative and the DSN prefix is prepended with a trailing dot. Use * within a qualifier and ** across qualifiers."
           ),
         system: z
           .string()
@@ -151,23 +149,7 @@ export function registerDatasetTools(
         await ensureContext(deps, systemId);
         const prefix = deps.sessionState.getDsnPrefix(systemId);
 
-        // Resolve the pattern using DSN prefix
-        let resolvedPattern: string;
-        let wasAbsolute = false;
-        const trimmed = pattern.trim();
-        if (trimmed.startsWith("'") && trimmed.endsWith("'")) {
-          resolvedPattern = trimmed.slice(1, -1).toUpperCase();
-          wasAbsolute = true;
-        } else if (prefix) {
-          resolvedPattern = `${prefix.toUpperCase()}.${trimmed.toUpperCase()}`;
-        } else {
-          resolvedPattern = trimmed.toUpperCase();
-          log.warning(
-            'No DSN prefix set — relative pattern used as-is. ' +
-              'Use set_system or set_dsn_prefix first, or use an absolute pattern (single-quoted).',
-            { pattern: resolvedPattern }
-          );
-        }
+        const { resolved: resolvedPattern, wasAbsolute } = resolveWithPrefix(pattern, prefix);
 
         log.debug('list_datasets resolved', {
           systemId,
@@ -190,7 +172,7 @@ export function registerDatasetTools(
           resolvedPattern: formatResolved(resolvedPattern),
         });
 
-        return wrapResponse(ctx, meta, data);
+        return wrapResponse(ctx, meta, data, []);
       } catch (err) {
         return errorResult((err as Error).message);
       }
@@ -206,15 +188,13 @@ export function registerDatasetTools(
       description:
         'List members of a PDS/PDSE dataset. Returns the first page of results (default 500, max 1000). ' +
         'Use offset and limit to page through large result sets. ' +
-        'The dataset name is resolved against the current DSN prefix. ' +
-        'Use single quotes for absolute dataset names.',
+        "Dataset name: use a relative name (e.g. SRC.COBOL), or an absolute name in single quotes (e.g. 'SYS1.PROCLIB'). Relative names are prefixed with the current DSN prefix.",
       annotations: { readOnlyHint: true },
       inputSchema: {
-        dataset: z
+        dsn: z
           .string()
           .describe(
-            'PDS/PDSE dataset name. Relative names (e.g. "SRC.COBOL") are prefixed with the active DSN prefix. ' +
-              'Absolute names must be single-quoted (e.g. "\'IBMUSER.SRC.COBOL\'").'
+            "Dataset name: use a relative name (e.g. SRC.COBOL), or an absolute name in single quotes (e.g. 'SYS1.PROCLIB'). Relative names are prefixed with the current DSN prefix."
           ),
         pattern: z
           .string()
@@ -239,28 +219,30 @@ export function registerDatasetTools(
           .describe('Maximum number of items to return. Default: 500. Max: 1000.'),
       },
     },
-    async ({ dataset, pattern, system, offset, limit }) => {
-      log.info('list_members called', { dataset, pattern, system, offset, limit });
+    async ({ dsn, pattern, system, offset, limit }) => {
+      log.info('list_members called', { dsn, pattern, system, offset, limit });
 
       try {
-        const { systemId, dsn, wasAbsolute } = await resolveInput(
-          deps,
-          dataset,
-          undefined,
-          system,
-          log
-        );
+        const {
+          systemId,
+          dsn: resolvedDsn,
+          wasAbsolute,
+        } = await resolveInput(deps, dsn, undefined, system, log);
         const prefix = deps.sessionState.getDsnPrefix(systemId);
-        const members = await deps.backend.listMembers(systemId, dsn, pattern);
+        const members = await deps.backend.listMembers(systemId, resolvedDsn, pattern);
 
-        // Paginate
-        const { data, meta } = paginateList(members, offset ?? 0, limit ?? DEFAULT_LIST_LIMIT);
+        // Paginate and map name -> member for response
+        const { data: rawData, meta } = paginateList(
+          members.map(m => ({ member: m.name })),
+          offset ?? 0,
+          limit ?? DEFAULT_LIST_LIMIT
+        );
 
         const ctx = buildContext(systemId, wasAbsolute ? undefined : prefix, {
-          resolvedDsn: formatResolved(dsn),
+          resolvedDsn: formatResolved(resolvedDsn),
         });
 
-        return wrapResponse(ctx, meta, data);
+        return wrapResponse(ctx, meta, rawData, []);
       } catch (err) {
         if (err instanceof DsnError) {
           return errorResult(err.message);
@@ -278,14 +260,14 @@ export function registerDatasetTools(
     {
       description:
         'Get detailed attributes of a dataset: organization, record format, ' +
-        'record length, block size, volume, SMS classes, dates, and more.',
+        'record length, block size, volume, SMS classes, dates, and more. ' +
+        "Dataset name: use a relative name (e.g. SRC.COBOL), or an absolute name in single quotes (e.g. 'SYS1.PROCLIB'). Relative names are prefixed with the current DSN prefix.",
       annotations: { readOnlyHint: true },
       inputSchema: {
-        dataset: z
+        dsn: z
           .string()
           .describe(
-            'Dataset name. Relative names (e.g. "SRC.COBOL") are prefixed with the active DSN prefix. ' +
-              'Absolute names must be single-quoted (e.g. "\'IBMUSER.SRC.COBOL\'").'
+            "Dataset name: use a relative name (e.g. SRC.COBOL), or an absolute name in single quotes (e.g. 'SYS1.PROCLIB'). Relative names are prefixed with the current DSN prefix."
           ),
         system: z
           .string()
@@ -293,25 +275,41 @@ export function registerDatasetTools(
           .describe('Target z/OS system hostname. Defaults to the active system.'),
       },
     },
-    async ({ dataset, system }) => {
-      log.info('get_dataset_attributes called', { dataset, system });
+    async ({ dsn, system }) => {
+      log.info('get_dataset_attributes called', { dsn, system });
 
       try {
-        const { systemId, dsn, wasAbsolute } = await resolveInput(
-          deps,
-          dataset,
-          undefined,
-          system,
-          log
-        );
+        const {
+          systemId,
+          dsn: resolvedDsn,
+          wasAbsolute,
+        } = await resolveInput(deps, dsn, undefined, system, log);
         const prefix = deps.sessionState.getDsnPrefix(systemId);
-        const attrs = await deps.backend.getAttributes(systemId, dsn);
+        const attrs = await deps.backend.getAttributes(systemId, resolvedDsn);
 
         const ctx = buildContext(systemId, wasAbsolute ? undefined : prefix, {
-          resolvedDsn: formatResolved(dsn),
+          resolvedDsn: formatResolved(resolvedDsn),
         });
 
-        return wrapResponse(ctx, undefined, attrs);
+        const createCompatibleType =
+          attrs.dsorg === 'PS' || attrs.dsorg === 'PO' || attrs.dsorg === 'PO-E'
+            ? attrs.dsorg
+            : undefined;
+        const data = {
+          dsn: formatResolved(attrs.dsn),
+          ...(createCompatibleType !== undefined && { type: createCompatibleType }),
+          recfm: attrs.recfm,
+          lrecl: attrs.lrecl,
+          blksz: attrs.blksz,
+          volser: attrs.volser,
+          creationDate: attrs.creationDate,
+          referenceDate: attrs.referenceDate,
+          smsClass: attrs.smsClass,
+          usedTracks: attrs.usedTracks,
+          usedExtents: attrs.usedExtents,
+        };
+
+        return wrapResponse(ctx, undefined, data, []);
       } catch (err) {
         if (err instanceof DsnError) {
           return errorResult(err.message);
@@ -335,11 +333,10 @@ export function registerDatasetTools(
         'Pass the ETag to write_dataset to prevent overwriting concurrent changes.',
       annotations: { readOnlyHint: true },
       inputSchema: {
-        dataset: z
+        dsn: z
           .string()
           .describe(
-            'Dataset name. Relative names (e.g. "SRC.COBOL") are prefixed with the active DSN prefix. ' +
-              'Absolute names must be single-quoted (e.g. "\'IBMUSER.SRC.COBOL\'").'
+            "Dataset name: use a relative name (e.g. SRC.COBOL), or an absolute name in single quotes (e.g. 'SYS1.PROCLIB'). Relative names are prefixed with the current DSN prefix."
           ),
         member: z.string().optional().describe('Member name for PDS/PDSE datasets.'),
         system: z
@@ -366,11 +363,11 @@ export function registerDatasetTools(
           ),
       },
     },
-    async ({ dataset, member, system, codepage, startLine, lineCount }) => {
-      log.info('read_dataset called', { dataset, member, system, codepage, startLine, lineCount });
+    async ({ dsn, member, system, codepage, startLine, lineCount }) => {
+      log.info('read_dataset called', { dsn, member, system, codepage, startLine, lineCount });
 
       try {
-        const resolved = await resolveInput(deps, dataset, member, system, log);
+        const resolved = await resolveInput(deps, dsn, member, system, log);
         const prefix = deps.sessionState.getDsnPrefix(resolved.systemId);
         const result = await deps.backend.readDataset(
           resolved.systemId,
@@ -389,11 +386,16 @@ export function registerDatasetTools(
           resolvedDsn: formatResolved(fullDsn),
         });
 
-        return wrapResponse(ctx, windowed.meta, {
-          text: windowed.text,
-          etag: result.etag,
-          codepage: result.codepage,
-        });
+        return wrapResponse(
+          ctx,
+          windowed.meta,
+          {
+            text: windowed.text,
+            etag: result.etag,
+            codepage: result.codepage,
+          },
+          []
+        );
       } catch (err) {
         if (err instanceof DsnError) {
           return errorResult(err.message);
@@ -415,11 +417,10 @@ export function registerDatasetTools(
         'fails if the dataset was modified since the read — preventing overwrites. ' +
         'Returns a new ETag for the written content.',
       inputSchema: {
-        dataset: z
+        dsn: z
           .string()
           .describe(
-            'Dataset name. Relative names (e.g. "SRC.COBOL") are prefixed with the active DSN prefix. ' +
-              'Absolute names must be single-quoted (e.g. "\'IBMUSER.SRC.COBOL\'").'
+            "Dataset name: use a relative name (e.g. SRC.COBOL), or an absolute name in single quotes (e.g. 'SYS1.PROCLIB'). Relative names are prefixed with the current DSN prefix."
           ),
         content: z.string().describe('UTF-8 text content to write.'),
         member: z.string().optional().describe('Member name for PDS/PDSE datasets.'),
@@ -437,11 +438,11 @@ export function registerDatasetTools(
           .describe('Target codepage for UTF-8-to-EBCDIC conversion (default: "IBM-1047").'),
       },
     },
-    async ({ dataset, content, member, system, etag, codepage }) => {
-      log.info('write_dataset called', { dataset, member, system, hasEtag: !!etag, codepage });
+    async ({ dsn, content, member, system, etag, codepage }) => {
+      log.info('write_dataset called', { dsn, member, system, hasEtag: !!etag, codepage });
 
       try {
-        const resolved = await resolveInput(deps, dataset, member, system, log);
+        const resolved = await resolveInput(deps, dsn, member, system, log);
         const prefix = deps.sessionState.getDsnPrefix(resolved.systemId);
         const result = await deps.backend.writeDataset(
           resolved.systemId,
@@ -459,7 +460,7 @@ export function registerDatasetTools(
         });
 
         const mutationMeta: MutationResultMeta = { success: true };
-        return wrapResponse(ctx, mutationMeta, { etag: result.etag });
+        return wrapResponse(ctx, mutationMeta, { etag: result.etag }, []);
       } catch (err) {
         if (err instanceof DsnError) {
           return errorResult(err.message);
@@ -477,22 +478,26 @@ export function registerDatasetTools(
     {
       description:
         'Create a new sequential or partitioned dataset. Specify the type ' +
-        '(PS for sequential, PO for PDS, PO-E for PDSE) and optional attributes.',
+        '(PS/SEQUENTIAL, PO/PDS, PO-E/PDSE/LIBRARY) and optional attributes.',
       inputSchema: {
-        dataset: z
+        dsn: z
           .string()
           .describe(
-            'Dataset name. Relative names (e.g. "SRC.COBOL") are prefixed with the active DSN prefix. ' +
-              'Absolute names must be single-quoted (e.g. "\'IBMUSER.SRC.COBOL\'").'
+            "Dataset name: use a relative name (e.g. SRC.COBOL), or an absolute name in single quotes (e.g. 'SYS1.PROCLIB'). Relative names are prefixed with the current DSN prefix."
           ),
         type: z
-          .enum(['PS', 'PO', 'PO-E'])
-          .describe('Dataset type: PS (sequential), PO (PDS), or PO-E (PDSE).'),
+          .enum(['PS', 'PO', 'PO-E', 'SEQUENTIAL', 'PDS', 'PDSE', 'LIBRARY'])
+          .describe(
+            'Dataset type: PS or SEQUENTIAL (sequential), PO or PDS (PDS), PO-E or PDSE or LIBRARY (PDSE).'
+          ),
         system: z
           .string()
           .optional()
           .describe('Target z/OS system hostname. Defaults to the active system.'),
-        recfm: z.string().optional().describe('Record format (e.g. "FB", "VB"). Default: "FB".'),
+        recfm: z
+          .string()
+          .optional()
+          .describe('Record format. Supported: F, FB, V, VB, U, FBA, VBA. Default: FB.'),
         lrecl: z.number().optional().describe('Logical record length. Default: 80.'),
         blksz: z.number().optional().describe('Block size. Default: 27920.'),
         primary: z.number().optional().describe('Primary space allocation in tracks.'),
@@ -500,20 +505,27 @@ export function registerDatasetTools(
         dirblk: z.number().optional().describe('Directory blocks (PDS only).'),
       },
     },
-    async ({ dataset, type, system, recfm, lrecl, blksz, primary, secondary, dirblk }) => {
-      log.info('create_dataset called', { dataset, type, system });
+    async ({ dsn, type, system, recfm, lrecl, blksz, primary, secondary, dirblk }) => {
+      log.info('create_dataset called', { dsn, type, system });
+
+      const canonicalType: CreateDatasetOptions['type'] =
+        type === 'SEQUENTIAL'
+          ? 'PS'
+          : type === 'PDS'
+            ? 'PO'
+            : type === 'PDSE' || type === 'LIBRARY'
+              ? 'PO-E'
+              : type;
 
       try {
-        const { systemId, dsn, wasAbsolute } = await resolveInput(
-          deps,
-          dataset,
-          undefined,
-          system,
-          log
-        );
+        const {
+          systemId,
+          dsn: resolvedDsn,
+          wasAbsolute,
+        } = await resolveInput(deps, dsn, undefined, system, log);
         const prefix = deps.sessionState.getDsnPrefix(systemId);
-        await deps.backend.createDataset(systemId, dsn, {
-          type,
+        const result = await deps.backend.createDataset(systemId, resolvedDsn, {
+          type: canonicalType,
           recfm: recfm as CreateDatasetOptions['recfm'],
           lrecl,
           blksz,
@@ -523,11 +535,23 @@ export function registerDatasetTools(
         });
 
         const ctx = buildContext(systemId, wasAbsolute ? undefined : prefix, {
-          resolvedDsn: formatResolved(dsn),
+          resolvedDsn: formatResolved(resolvedDsn),
         });
 
         const mutationMeta: MutationResultMeta = { success: true };
-        return wrapResponse(ctx, mutationMeta, { dsn, type });
+        return wrapResponse(
+          ctx,
+          mutationMeta,
+          {
+            dsn: formatResolved(resolvedDsn),
+            type: canonicalType,
+            allocation: {
+              applied: result.applied,
+              messages: result.messages,
+            },
+          },
+          result.messages
+        );
       } catch (err) {
         if (err instanceof DsnError) {
           return errorResult(err.message);
@@ -548,11 +572,10 @@ export function registerDatasetTools(
         'This is a destructive operation that cannot be undone.',
       annotations: { destructiveHint: true },
       inputSchema: {
-        dataset: z
+        dsn: z
           .string()
           .describe(
-            'Dataset name. Relative names (e.g. "SRC.COBOL") are prefixed with the active DSN prefix. ' +
-              'Absolute names must be single-quoted (e.g. "\'IBMUSER.SRC.COBOL\'").'
+            "Dataset name: use a relative name (e.g. SRC.COBOL), or an absolute name in single quotes (e.g. 'SYS1.PROCLIB'). Relative names are prefixed with the current DSN prefix."
           ),
         member: z
           .string()
@@ -564,11 +587,11 @@ export function registerDatasetTools(
           .describe('Target z/OS system hostname. Defaults to the active system.'),
       },
     },
-    async ({ dataset, member, system }) => {
-      log.info('delete_dataset called', { dataset, member, system });
+    async ({ dsn, member, system }) => {
+      log.info('delete_dataset called', { dsn, member, system });
 
       try {
-        const resolved = await resolveInput(deps, dataset, member, system, log);
+        const resolved = await resolveInput(deps, dsn, member, system, log);
         const prefix = deps.sessionState.getDsnPrefix(resolved.systemId);
         await deps.backend.deleteDataset(resolved.systemId, resolved.dsn, resolved.member);
 
@@ -579,9 +602,14 @@ export function registerDatasetTools(
         });
 
         const mutationMeta: MutationResultMeta = { success: true };
-        return wrapResponse(ctx, mutationMeta, {
-          deleted: fullDsn,
-        });
+        return wrapResponse(
+          ctx,
+          mutationMeta,
+          {
+            deletedDsn: formatResolved(fullDsn),
+          },
+          []
+        );
       } catch (err) {
         if (err instanceof DsnError) {
           return errorResult(err.message);
@@ -599,19 +627,17 @@ export function registerDatasetTools(
     {
       description: 'Copy a dataset or PDS/PDSE member within a single z/OS system.',
       inputSchema: {
-        source: z
+        sourceDsn: z
           .string()
           .describe(
-            'Source dataset name. Relative names (e.g. "SRC.COBOL") are prefixed with the active DSN prefix. ' +
-              'Absolute names must be single-quoted (e.g. "\'IBMUSER.SRC.COBOL\'").'
+            "Dataset name: use a relative name (e.g. SRC.COBOL), or an absolute name in single quotes (e.g. 'SYS1.PROCLIB'). Relative names are prefixed with the current DSN prefix."
           ),
-        target: z
+        targetDsn: z
           .string()
           .describe(
-            'Target dataset name. Relative names (e.g. "SRC.BACKUP") are prefixed with the active DSN prefix. ' +
-              'Absolute names must be single-quoted (e.g. "\'IBMUSER.SRC.BACKUP\'").'
+            "Dataset name: use a relative name (e.g. SRC.BACKUP), or an absolute name in single quotes (e.g. 'SYS1.PROCLIB'). Relative names are prefixed with the current DSN prefix."
           ),
-        member: z
+        sourceMember: z
           .string()
           .optional()
           .describe('Source member name (for copying a single member).'),
@@ -625,15 +651,21 @@ export function registerDatasetTools(
           .describe('Target z/OS system hostname. Defaults to the active system.'),
       },
     },
-    async ({ source, target, member, targetMember, system }) => {
-      log.info('copy_dataset called', { source, target, member, targetMember, system });
+    async ({ sourceDsn, targetDsn, sourceMember, targetMember, system }) => {
+      log.info('copy_dataset called', {
+        sourceDsn,
+        targetDsn,
+        sourceMember,
+        targetMember,
+        system,
+      });
 
       try {
         const systemId = deps.sessionState.requireSystem(system);
         await ensureContext(deps, systemId);
         const prefix = deps.sessionState.getDsnPrefix(systemId);
-        const resolvedSource = resolveDsn(source, prefix, member);
-        const resolvedTarget = resolveDsn(target, prefix, targetMember);
+        const resolvedSource = resolveDsn(sourceDsn, prefix, sourceMember);
+        const resolvedTarget = resolveDsn(targetDsn, prefix, targetMember);
         log.debug('copy_dataset resolved', {
           systemId,
           prefix,
@@ -661,10 +693,15 @@ export function registerDatasetTools(
         });
 
         const mutationMeta: MutationResultMeta = { success: true };
-        return wrapResponse(ctx, mutationMeta, {
-          source: resolvedSource.dsn,
-          target: resolvedTarget.dsn,
-        });
+        return wrapResponse(
+          ctx,
+          mutationMeta,
+          {
+            sourceDsn: formatResolved(resolvedSource.dsn),
+            targetDsn: formatResolved(resolvedTarget.dsn),
+          },
+          []
+        );
       } catch (err) {
         if (err instanceof DsnError) {
           return errorResult(err.message);
@@ -682,17 +719,15 @@ export function registerDatasetTools(
     {
       description: 'Rename a dataset or PDS/PDSE member.',
       inputSchema: {
-        dataset: z
+        dsn: z
           .string()
           .describe(
-            'Current dataset name. Relative names (e.g. "SRC.COBOL") are prefixed with the active DSN prefix. ' +
-              'Absolute names must be single-quoted (e.g. "\'IBMUSER.SRC.COBOL\'").'
+            "Dataset name: use a relative name (e.g. SRC.COBOL), or an absolute name in single quotes (e.g. 'SYS1.PROCLIB'). Relative names are prefixed with the current DSN prefix."
           ),
         newName: z
           .string()
           .describe(
-            'New dataset name. Relative names (e.g. "SRC.NEW") are prefixed with the active DSN prefix. ' +
-              'Absolute names must be single-quoted (e.g. "\'IBMUSER.SRC.NEW\'").'
+            "New dataset name: use a relative name (e.g. SRC.NEW), or an absolute name in single quotes (e.g. 'SYS1.PROCLIB'). Relative names are prefixed with the current DSN prefix."
           ),
         member: z
           .string()
@@ -705,14 +740,14 @@ export function registerDatasetTools(
           .describe('Target z/OS system hostname. Defaults to the active system.'),
       },
     },
-    async ({ dataset, newName, member, newMemberName, system }) => {
-      log.info('rename_dataset called', { dataset, newName, member, newMemberName, system });
+    async ({ dsn, newName, member, newMemberName, system }) => {
+      log.info('rename_dataset called', { dsn, newName, member, newMemberName, system });
 
       try {
         const systemId = deps.sessionState.requireSystem(system);
         await ensureContext(deps, systemId);
         const prefix = deps.sessionState.getDsnPrefix(systemId);
-        const resolvedOld = resolveDsn(dataset, prefix, member);
+        const resolvedOld = resolveDsn(dsn, prefix, member);
         const resolvedNew = resolveDsn(newName, prefix, newMemberName);
         log.debug('rename_dataset resolved', {
           systemId,
@@ -741,10 +776,15 @@ export function registerDatasetTools(
         });
 
         const mutationMeta: MutationResultMeta = { success: true };
-        return wrapResponse(ctx, mutationMeta, {
-          oldName: resolvedOld.dsn,
-          newName: resolvedNew.dsn,
-        });
+        return wrapResponse(
+          ctx,
+          mutationMeta,
+          {
+            oldName: resolvedOld.dsn,
+            newName: resolvedNew.dsn,
+          },
+          []
+        );
       } catch (err) {
         if (err instanceof DsnError) {
           return errorResult(err.message);

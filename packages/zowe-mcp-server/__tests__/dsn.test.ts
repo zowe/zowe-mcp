@@ -494,32 +494,32 @@ describe('resolveWithPrefix', () => {
   });
 
   it('absolute: single-quoted with prefix returns resolved, wasAbsolute true', () => {
-    const r = resolveWithPrefix("'SYS1.PROCLIB'", 'IBMUSER');
+    const r = resolveWithPrefix("'SYS1.PROCLIB'", 'USER');
     expect(r.resolved).toBe('SYS1.PROCLIB');
     expect(r.wasAbsolute).toBe(true);
   });
 
   it('relative with prefix: prepends prefix', () => {
-    const r = resolveWithPrefix('SRC.COBOL', 'IBMUSER');
-    expect(r.resolved).toBe('IBMUSER.SRC.COBOL');
+    const r = resolveWithPrefix('SRC.COBOL', 'USER');
+    expect(r.resolved).toBe('USER.SRC.COBOL');
     expect(r.wasAbsolute).toBe(false);
   });
 
   it('relative with prefix: trims input', () => {
-    const r = resolveWithPrefix('  SRC.COBOL  ', 'IBMUSER');
-    expect(r.resolved).toBe('IBMUSER.SRC.COBOL');
+    const r = resolveWithPrefix('  SRC.COBOL  ', 'USER');
+    expect(r.resolved).toBe('USER.SRC.COBOL');
     expect(r.wasAbsolute).toBe(false);
   });
 
   it('relative pattern with prefix: SRC.*', () => {
-    const r = resolveWithPrefix('SRC.*', 'IBMUSER');
-    expect(r.resolved).toBe('IBMUSER.SRC.*');
+    const r = resolveWithPrefix('SRC.*', 'USER');
+    expect(r.resolved).toBe('USER.SRC.*');
     expect(r.wasAbsolute).toBe(false);
   });
 
   it('relative pattern with prefix: *', () => {
-    const r = resolveWithPrefix('*', 'IBMUSER');
-    expect(r.resolved).toBe('IBMUSER.*');
+    const r = resolveWithPrefix('*', 'USER');
+    expect(r.resolved).toBe('USER.*');
     expect(r.wasAbsolute).toBe(false);
   });
 
@@ -528,14 +528,14 @@ describe('resolveWithPrefix', () => {
   });
 
   it('absolute pattern with prefix: single-quoted', () => {
-    const r = resolveWithPrefix("'IBMUSER.SRC.*'", 'OTHER');
-    expect(r.resolved).toBe('IBMUSER.SRC.*');
+    const r = resolveWithPrefix("'USER.SRC.*'", 'OTHER');
+    expect(r.resolved).toBe('USER.SRC.*');
     expect(r.wasAbsolute).toBe(true);
   });
 
   it('throws for empty input', () => {
-    expect(() => resolveWithPrefix('', 'IBMUSER')).toThrow(DsnError);
-    expect(() => resolveWithPrefix('   ', 'IBMUSER')).toThrow(DsnError);
+    expect(() => resolveWithPrefix('', 'USER')).toThrow(DsnError);
+    expect(() => resolveWithPrefix('   ', 'USER')).toThrow(DsnError);
   });
 });
 
@@ -546,71 +546,71 @@ describe('resolveWithPrefix', () => {
 describe('resolveDsn', () => {
   describe('relative names (no quotes)', () => {
     it('should prepend prefix to relative name', () => {
-      const result = resolveDsn('SRC.COBOL', 'IBMUSER');
-      expect(result.dsn).toBe('IBMUSER.SRC.COBOL');
+      const result = resolveDsn('SRC.COBOL', 'USER');
+      expect(result.dsn).toBe('USER.SRC.COBOL');
       expect(result.wasAbsolute).toBe(false);
     });
 
     it('should uppercase relative name', () => {
-      const result = resolveDsn('src.cobol', 'IBMUSER');
-      expect(result.dsn).toBe('IBMUSER.SRC.COBOL');
+      const result = resolveDsn('src.cobol', 'USER');
+      expect(result.dsn).toBe('USER.SRC.COBOL');
     });
 
     it('should throw when relative name and no prefix', () => {
-      expect(() => resolveDsn('IBMUSER.SRC.COBOL', undefined)).toThrow(DsnError);
+      expect(() => resolveDsn('USER.SRC.COBOL', undefined)).toThrow(DsnError);
       expect(() => resolveDsn('JCL.CNTL', undefined)).toThrow(DsnError);
     });
   });
 
   describe('absolute names (single-quoted)', () => {
     it('should strip quotes and use as-is', () => {
-      const result = resolveDsn("'SYS1.PROCLIB'", 'IBMUSER');
+      const result = resolveDsn("'SYS1.PROCLIB'", 'USER');
       expect(result.dsn).toBe('SYS1.PROCLIB');
       expect(result.wasAbsolute).toBe(true);
     });
 
     it('should uppercase absolute name', () => {
-      const result = resolveDsn("'sys1.proclib'", 'IBMUSER');
+      const result = resolveDsn("'sys1.proclib'", 'USER');
       expect(result.dsn).toBe('SYS1.PROCLIB');
     });
 
     it('should ignore prefix for absolute names', () => {
-      const result = resolveDsn("'SYS1.PROCLIB'", 'IBMUSER');
+      const result = resolveDsn("'SYS1.PROCLIB'", 'USER');
       expect(result.dsn).toBe('SYS1.PROCLIB');
     });
   });
 
   describe('member resolution', () => {
     it('should include member when provided', () => {
-      const result = resolveDsn('SRC.COBOL', 'IBMUSER', 'HELLO');
-      expect(result.dsn).toBe('IBMUSER.SRC.COBOL');
+      const result = resolveDsn('SRC.COBOL', 'USER', 'HELLO');
+      expect(result.dsn).toBe('USER.SRC.COBOL');
       expect(result.member).toBe('HELLO');
     });
 
     it('should uppercase member name', () => {
-      const result = resolveDsn('SRC.COBOL', 'IBMUSER', 'hello');
+      const result = resolveDsn('SRC.COBOL', 'USER', 'hello');
       expect(result.member).toBe('HELLO');
     });
 
     it('should return undefined member when not provided', () => {
-      const result = resolveDsn('SRC.COBOL', 'IBMUSER');
+      const result = resolveDsn('SRC.COBOL', 'USER');
       expect(result.member).toBeUndefined();
     });
 
     it('should return undefined member for empty string', () => {
-      const result = resolveDsn('SRC.COBOL', 'IBMUSER', '');
+      const result = resolveDsn('SRC.COBOL', 'USER', '');
       expect(result.member).toBeUndefined();
     });
 
     it('should return undefined member for whitespace-only', () => {
-      const result = resolveDsn('SRC.COBOL', 'IBMUSER', '   ');
+      const result = resolveDsn('SRC.COBOL', 'USER', '   ');
       expect(result.member).toBeUndefined();
     });
   });
 
   describe('validation', () => {
     it('should throw for empty input', () => {
-      expect(() => resolveDsn('', 'IBMUSER')).toThrow(DsnError);
+      expect(() => resolveDsn('', 'USER')).toThrow(DsnError);
     });
 
     it('should throw for name exceeding 44 characters', () => {
@@ -621,18 +621,18 @@ describe('resolveDsn', () => {
     });
 
     it('should throw for invalid member name', () => {
-      expect(() => resolveDsn('SRC.COBOL', 'IBMUSER', '123BAD')).toThrow(DsnError);
+      expect(() => resolveDsn('SRC.COBOL', 'USER', '123BAD')).toThrow(DsnError);
     });
   });
 
   describe('whitespace handling', () => {
     it('should trim leading/trailing whitespace', () => {
-      const result = resolveDsn('  SRC.COBOL  ', 'IBMUSER');
-      expect(result.dsn).toBe('IBMUSER.SRC.COBOL');
+      const result = resolveDsn('  SRC.COBOL  ', 'USER');
+      expect(result.dsn).toBe('USER.SRC.COBOL');
     });
 
     it('should trim whitespace from quoted names', () => {
-      const result = resolveDsn("  'SYS1.PROCLIB'  ", 'IBMUSER');
+      const result = resolveDsn("  'SYS1.PROCLIB'  ", 'USER');
       expect(result.dsn).toBe('SYS1.PROCLIB');
     });
   });
@@ -644,11 +644,11 @@ describe('resolveDsn', () => {
 
 describe('validateDsn', () => {
   it('should accept a valid simple name', () => {
-    expect(() => validateDsn('IBMUSER')).not.toThrow();
+    expect(() => validateDsn('USER')).not.toThrow();
   });
 
   it('should accept a valid multi-qualifier name', () => {
-    expect(() => validateDsn('IBMUSER.SRC.COBOL')).not.toThrow();
+    expect(() => validateDsn('USER.SRC.COBOL')).not.toThrow();
   });
 
   it('should accept national characters (#, @, $)', () => {
@@ -681,27 +681,27 @@ describe('validateDsn', () => {
   });
 
   it('should reject name starting with a dot', () => {
-    expect(() => validateDsn('.IBMUSER')).toThrow(DsnError);
+    expect(() => validateDsn('.USER')).toThrow(DsnError);
   });
 
   it('should reject name ending with a dot', () => {
-    expect(() => validateDsn('IBMUSER.')).toThrow(DsnError);
+    expect(() => validateDsn('USER.')).toThrow(DsnError);
   });
 
   it('should reject consecutive dots', () => {
-    expect(() => validateDsn('IBMUSER..DATA')).toThrow(DsnError);
+    expect(() => validateDsn('USER..DATA')).toThrow(DsnError);
   });
 
   it('should reject qualifier longer than 8 characters', () => {
-    expect(() => validateDsn('IBMUSER.TOOLONGQU')).toThrow(DsnError);
+    expect(() => validateDsn('USER.TOOLONGQU')).toThrow(DsnError);
   });
 
   it('should reject qualifier starting with a digit', () => {
-    expect(() => validateDsn('IBMUSER.1BAD')).toThrow(DsnError);
+    expect(() => validateDsn('USER.1BAD')).toThrow(DsnError);
   });
 
   it('should reject qualifier with invalid characters', () => {
-    expect(() => validateDsn('IBMUSER.BAD!NAME')).toThrow(DsnError);
+    expect(() => validateDsn('USER.BAD!NAME')).toThrow(DsnError);
   });
 });
 
@@ -751,36 +751,36 @@ describe('validateMember', () => {
 
 describe('buildDsUri', () => {
   it('should build a basic dataset URI', () => {
-    expect(buildDsUri('sys1.example.com', 'IBMUSER.SRC.COBOL')).toBe(
-      'zos-ds://sys1.example.com/IBMUSER.SRC.COBOL'
+    expect(buildDsUri('sys1.example.com', 'USER.SRC.COBOL')).toBe(
+      'zos-ds://sys1.example.com/USER.SRC.COBOL'
     );
   });
 
   it('should include member in parentheses', () => {
-    expect(buildDsUri('sys1.example.com', 'IBMUSER.SRC.COBOL', 'HELLO')).toBe(
-      'zos-ds://sys1.example.com/IBMUSER.SRC.COBOL(HELLO)'
+    expect(buildDsUri('sys1.example.com', 'USER.SRC.COBOL', 'HELLO')).toBe(
+      'zos-ds://sys1.example.com/USER.SRC.COBOL(HELLO)'
     );
   });
 
   it('should include volser as query parameter', () => {
-    expect(buildDsUri('sys1.example.com', 'IBMUSER.DATA', undefined, 'VOL001')).toBe(
-      'zos-ds://sys1.example.com/IBMUSER.DATA?volser=VOL001'
+    expect(buildDsUri('sys1.example.com', 'USER.DATA', undefined, 'VOL001')).toBe(
+      'zos-ds://sys1.example.com/USER.DATA?volser=VOL001'
     );
   });
 
   it('should include both member and volser', () => {
-    expect(buildDsUri('sys1.example.com', 'IBMUSER.SRC.COBOL', 'HELLO', 'VOL001')).toBe(
-      'zos-ds://sys1.example.com/IBMUSER.SRC.COBOL(HELLO)?volser=VOL001'
+    expect(buildDsUri('sys1.example.com', 'USER.SRC.COBOL', 'HELLO', 'VOL001')).toBe(
+      'zos-ds://sys1.example.com/USER.SRC.COBOL(HELLO)?volser=VOL001'
     );
   });
 
   it('should omit member when undefined', () => {
-    const uri = buildDsUri('sys1.example.com', 'IBMUSER.DATA');
+    const uri = buildDsUri('sys1.example.com', 'USER.DATA');
     expect(uri).not.toContain('(');
   });
 
   it('should omit volser when undefined', () => {
-    const uri = buildDsUri('sys1.example.com', 'IBMUSER.DATA');
+    const uri = buildDsUri('sys1.example.com', 'USER.DATA');
     expect(uri).not.toContain('?');
   });
 });

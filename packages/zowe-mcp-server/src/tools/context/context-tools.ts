@@ -42,18 +42,18 @@ export function registerContextTools(
   const { systemRegistry, sessionState, credentialProvider } = deps;
 
   // -----------------------------------------------------------------------
-  // list_systems
+  // listSystems
   // -----------------------------------------------------------------------
   server.registerTool(
-    'list_systems',
+    'listSystems',
     {
       description:
         'List all configured z/OS systems with their descriptions. ' +
-        'Use this to discover available systems before connecting with set_system.',
+        'Use this to discover available systems before connecting with setSystem.',
       annotations: { readOnlyHint: true },
     },
     () => {
-      log.debug('list_systems called');
+      log.debug('listSystems called');
       const systems = systemRegistry.listInfo();
       const activeSystem = sessionState.getActiveSystem();
 
@@ -74,10 +74,10 @@ export function registerContextTools(
   );
 
   // -----------------------------------------------------------------------
-  // set_system
+  // setSystem
   // -----------------------------------------------------------------------
   server.registerTool(
-    'set_system',
+    'setSystem',
     {
       description:
         'Set the active z/OS system. This restores the per-system context ' +
@@ -93,7 +93,7 @@ export function registerContextTools(
       },
     },
     async ({ system }) => {
-      log.info('set_system called', { system });
+      log.info('setSystem called', { system });
 
       const sysInfo = systemRegistry.getOrResolve(system);
       if (!sysInfo) {
@@ -104,7 +104,7 @@ export function registerContextTools(
               type: 'text' as const,
               text:
                 `System '${system}' not found. Available systems: ${available}. ` +
-                'Use list_systems to see all configured systems.',
+                'Use listSystems to see all configured systems.',
             },
           ],
           isError: true,
@@ -117,8 +117,8 @@ export function registerContextTools(
         ? [`System resolved from unqualified name '${system}'.`]
         : [];
 
-      const creds = await credentialProvider.getCredentials(resolvedHost);
-      const ctx = sessionState.setActiveSystem(resolvedHost, creds.user);
+      const credentials = await credentialProvider.getCredentials(resolvedHost);
+      const ctx = sessionState.setActiveSystem(resolvedHost, credentials.user);
 
       return {
         content: [
@@ -142,22 +142,22 @@ export function registerContextTools(
   );
 
   // -----------------------------------------------------------------------
-  // set_dsn_prefix
+  // setDsnPrefix
   // -----------------------------------------------------------------------
   server.registerTool(
-    'set_dsn_prefix',
+    'setDsnPrefix',
     {
       description:
         'Set the DSN prefix for the current active z/OS system. ' +
-        'The prefix is one or more full DSN segments (e.g. "IBMUSER" or "IBMUSER.SRC"). ' +
+        'The prefix is one or more full DSN segments (e.g. "USER" or "USER.SRC"). ' +
         'Relative dataset names are resolved against it. If the prefix ends with a dot, ' +
         'the dot is removed and a message is returned.',
       inputSchema: {
-        prefix: z.string().describe('DSN prefix to set (e.g. "IBMUSER" or "IBMUSER.SRC")'),
+        prefix: z.string().describe('DSN prefix to set (e.g. "USER" or "USER.SRC")'),
       },
     },
     ({ prefix }) => {
-      log.info('set_dsn_prefix called', { prefix });
+      log.info('setDsnPrefix called', { prefix });
 
       try {
         let normalized = prefix.trim();
@@ -203,10 +203,10 @@ export function registerContextTools(
   );
 
   // -----------------------------------------------------------------------
-  // get_context
+  // getContext
   // -----------------------------------------------------------------------
   server.registerTool(
-    'get_context',
+    'getContext',
     {
       description:
         'Return the current session context: active system, DSN prefix, ' +
@@ -214,7 +214,7 @@ export function registerContextTools(
       annotations: { readOnlyHint: true },
     },
     () => {
-      log.debug('get_context called');
+      log.debug('getContext called');
 
       const activeSystemId = sessionState.getActiveSystem();
       const allConfigured = systemRegistry.listInfo();

@@ -53,7 +53,7 @@ const SYSTEM_TEMPLATES = [
   { host: 'mainframe-sandbox.example.com', description: 'Sandbox LPAR' },
 ];
 
-const USER_TEMPLATES = ['IBMUSER', 'DEVUSR1', 'DEVUSR2', 'SYSPROG', 'QAUSER1', 'PRODMGR'];
+const USER_TEMPLATES = ['USER', 'DEVUSR1', 'DEVUSR2', 'SYSPROG', 'QAUSER1', 'PRODMGR'];
 
 // ---------------------------------------------------------------------------
 // Content generators

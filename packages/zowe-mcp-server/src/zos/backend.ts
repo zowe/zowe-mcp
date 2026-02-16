@@ -173,7 +173,7 @@ export interface ZosBackend {
    * - `**` matches any number of qualifiers
    *
    * @param systemId - Target z/OS system.
-   * @param pattern - Dataset name pattern (e.g. `"IBMUSER.*"`).
+   * @param pattern - Dataset name pattern (e.g. `"USER.*"`).
    * @param volser - Optional volume serial for uncataloged datasets.
    */
   listDatasets(systemId: SystemId, pattern: string, volser?: string): Promise<DatasetEntry[]>;

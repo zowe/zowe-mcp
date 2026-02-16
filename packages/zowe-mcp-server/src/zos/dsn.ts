@@ -16,7 +16,7 @@
  * dataset names, case normalization, and validation rules.
  *
  * - A name **without** single quotes is relative — the current DSN prefix
- *   is prepended (e.g. `"JCL.CNTL"` with prefix `"IBMUSER"` → `"IBMUSER.JCL.CNTL"`).
+ *   is prepended (e.g. `"JCL.CNTL"` with prefix `"USER"` → `"USER.JCL.CNTL"`).
  * - A name **wrapped in single quotes** is fully qualified (absolute) —
  *   used as-is with quotes stripped (e.g. `"'SYS1.PROCLIB'"` → `"SYS1.PROCLIB"`).
  * - All names are normalized to uppercase.
@@ -76,8 +76,8 @@ export interface ResolvedWithPrefix {
 
 /**
  * Resolve a dataset name or pattern using the z/OS single-quote convention.
- * Does not validate the result (so patterns like IBMUSER.* are allowed).
- * Use this for list_datasets pattern resolution; use resolveDsn for full DSN validation.
+ * Does not validate the result (so patterns like USER.* are allowed).
+ * Use this for listDatasets pattern resolution; use resolveDsn for full DSN validation.
  *
  * @param input - Dataset name or pattern as provided by the agent.
  * @param prefix - The current DSN prefix (required when input is relative).
@@ -101,7 +101,7 @@ export function resolveWithPrefix(input: string, prefix: string | undefined): Re
   // Relative — prefix is required
   if (prefix === undefined || prefix === '') {
     throw new DsnError(
-      'No DSN prefix set; relative name or pattern requires a prefix. Use set_system or set_dsn_prefix first, or use an absolute name in single quotes.'
+      'No DSN prefix set; relative name or pattern requires a prefix. Use setSystem or setDsnPrefix first, or use an absolute name in single quotes.'
     );
   }
 

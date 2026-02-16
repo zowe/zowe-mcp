@@ -24,9 +24,9 @@ function makeConfig(overrides?: Partial<MockSystemsConfig>): MockSystemsConfig {
       {
         host: 'sys1.example.com',
         port: 443,
-        defaultUser: 'IBMUSER',
+        defaultUser: 'USER',
         credentials: [
-          { user: 'IBMUSER', password: 'secret1' },
+          { user: 'USER', password: 'secret1' },
           { user: 'DEVUSER', password: 'secret2' },
         ],
       },
@@ -39,20 +39,20 @@ describe('MockCredentialProvider', () => {
   describe('getCredentials', () => {
     it('should return credentials for the default user when no userId given', async () => {
       const provider = new MockCredentialProvider(makeConfig());
-      const creds = await provider.getCredentials('sys1.example.com');
-      expect(creds).toEqual({ user: 'IBMUSER', password: 'secret1' });
+      const credentials = await provider.getCredentials('sys1.example.com');
+      expect(credentials).toEqual({ user: 'USER', password: 'secret1' });
     });
 
     it('should return credentials for a specific user', async () => {
       const provider = new MockCredentialProvider(makeConfig());
-      const creds = await provider.getCredentials('sys1.example.com', 'DEVUSER');
-      expect(creds).toEqual({ user: 'DEVUSER', password: 'secret2' });
+      const credentials = await provider.getCredentials('sys1.example.com', 'DEVUSER');
+      expect(credentials).toEqual({ user: 'DEVUSER', password: 'secret2' });
     });
 
     it('should perform case-insensitive user lookup', async () => {
       const provider = new MockCredentialProvider(makeConfig());
-      const creds = await provider.getCredentials('sys1.example.com', 'ibmuser');
-      expect(creds).toEqual({ user: 'IBMUSER', password: 'secret1' });
+      const credentials = await provider.getCredentials('sys1.example.com', 'user');
+      expect(credentials).toEqual({ user: 'USER', password: 'secret1' });
     });
 
     it('should reject for unknown system', async () => {
@@ -72,7 +72,7 @@ describe('MockCredentialProvider', () => {
     it('should list available users in error message for unknown user', async () => {
       const provider = new MockCredentialProvider(makeConfig());
       await expect(provider.getCredentials('sys1.example.com', 'NOBODY')).rejects.toThrow(
-        'IBMUSER, DEVUSER'
+        'USER, DEVUSER'
       );
     });
 
@@ -91,8 +91,8 @@ describe('MockCredentialProvider', () => {
         ],
       };
       const provider = new MockCredentialProvider(config);
-      const creds = await provider.getCredentials('sys-no-default.example.com');
-      expect(creds).toEqual({ user: 'FIRSTUSER', password: 'pass1' });
+      const credentials = await provider.getCredentials('sys-no-default.example.com');
+      expect(credentials).toEqual({ user: 'FIRSTUSER', password: 'pass1' });
     });
 
     it('should reject when system has no credentials at all', async () => {
@@ -140,7 +140,7 @@ describe('MockCredentialProvider', () => {
     it('should list all users for a system', async () => {
       const provider = new MockCredentialProvider(makeConfig());
       const users = await provider.listUsers('sys1.example.com');
-      expect(users).toEqual(['IBMUSER', 'DEVUSER']);
+      expect(users).toEqual(['USER', 'DEVUSER']);
     });
 
     it('should reject for unknown system', async () => {

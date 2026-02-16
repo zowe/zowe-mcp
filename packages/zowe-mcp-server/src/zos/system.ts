@@ -39,7 +39,7 @@ export interface ZosSystem {
   description?: string;
 }
 
-/** Summary information returned to agents by `list_systems`. */
+/** Summary information returned to agents by `listSystems`. */
 export interface SystemInfo {
   host: string;
   description?: string;

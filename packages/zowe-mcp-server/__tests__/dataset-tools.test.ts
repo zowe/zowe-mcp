@@ -14,8 +14,8 @@
  *
  * These tests verify:
  * - Auto-activation of a single system at server creation
- * - Lazy context initialization when the LLM skips `set_system`
- * - Pattern matching for `list_datasets` (trailing `*` → `**`)
+ * - Lazy context initialization when the LLM skips `setSystem`
+ * - Pattern matching for `listDatasets` (trailing `*` → `**`)
  * - Correct DSN prefix resolution from auto-initialized context
  * - Response envelope structure (_context, _result, data)
  * - Pagination for list operations (offset, limit, hasMore)
@@ -222,8 +222,8 @@ describe('Dataset tools with mock backend', () => {
   // Auto-activation of single system
   // -----------------------------------------------------------------------
   describe('auto-activation of single system', () => {
-    it('should auto-activate the only system so set_system is not required', async () => {
-      const result = await client.callTool({ name: 'get_context', arguments: {} });
+    it('should auto-activate the only system so setSystem is not required', async () => {
+      const result = await client.callTool({ name: 'getContext', arguments: {} });
       const ctx = JSON.parse(getResultText(result)) as {
         activeSystem: { system: string; userId: string; dsnPrefix: string } | null;
       };
@@ -239,11 +239,11 @@ describe('Dataset tools with mock backend', () => {
       const toolNames = tools.map(t => t.name);
 
       expect(toolNames).toContain('info');
-      expect(toolNames).toContain('list_datasets');
-      expect(toolNames).toContain('list_members');
-      expect(toolNames).toContain('read_dataset');
-      expect(toolNames).toContain('set_system');
-      expect(toolNames).toContain('get_context');
+      expect(toolNames).toContain('listDatasets');
+      expect(toolNames).toContain('listMembers');
+      expect(toolNames).toContain('readDataset');
+      expect(toolNames).toContain('setSystem');
+      expect(toolNames).toContain('getContext');
     });
 
     it('should NOT auto-activate when multiple systems are configured', async () => {
@@ -251,7 +251,7 @@ describe('Dataset tools with mock backend', () => {
 
       try {
         const result = await twoSysClient.client.callTool({
-          name: 'get_context',
+          name: 'getContext',
           arguments: {},
         });
         const ctx = JSON.parse(getResultText(result)) as {
@@ -266,7 +266,7 @@ describe('Dataset tools with mock backend', () => {
     });
 
     it('should return allSystems from registry and recentlyUsedSystems with context', async () => {
-      const result = await client.callTool({ name: 'get_context', arguments: {} });
+      const result = await client.callTool({ name: 'getContext', arguments: {} });
       const ctx = JSON.parse(getResultText(result)) as {
         activeSystem: { system: string; userId: string; dsnPrefix: string } | null;
         allSystems: { host: string; description?: string; active: boolean }[];
@@ -285,36 +285,36 @@ describe('Dataset tools with mock backend', () => {
   });
 
   // -----------------------------------------------------------------------
-  // set_dsn_prefix and set_system behavior
+  // setDsnPrefix and setSystem behavior
   // -----------------------------------------------------------------------
-  describe('set_dsn_prefix and set_system', () => {
-    it('should strip trailing dot from set_dsn_prefix and return message', async () => {
+  describe('setDsnPrefix and setSystem', () => {
+    it('should strip trailing dot from setDsnPrefix and return message', async () => {
       const result = await client.callTool({
-        name: 'set_dsn_prefix',
-        arguments: { prefix: 'IBMUSER.' },
+        name: 'setDsnPrefix',
+        arguments: { prefix: 'USER.' },
       });
       const body = JSON.parse(getResultText(result)) as {
         dsnPrefix: string;
         messages: string[];
       };
-      expect(body.dsnPrefix).toBe('IBMUSER');
+      expect(body.dsnPrefix).toBe('USER');
       expect(body.messages).toEqual([
         'Trailing dot removed from DSN prefix. DSN prefix can be only full DSN segments.',
       ]);
     });
 
-    it('should not add message when set_dsn_prefix has no trailing dot', async () => {
+    it('should not add message when setDsnPrefix has no trailing dot', async () => {
       const result = await client.callTool({
-        name: 'set_dsn_prefix',
-        arguments: { prefix: 'IBMUSER' },
+        name: 'setDsnPrefix',
+        arguments: { prefix: 'USER' },
       });
       const body = JSON.parse(getResultText(result)) as { messages: string[] };
       expect(body.messages).toEqual([]);
     });
 
-    it('should resolve unqualified hostname in set_system when unambiguous', async () => {
+    it('should resolve unqualified hostname in setSystem when unambiguous', async () => {
       const result = await client.callTool({
-        name: 'set_system',
+        name: 'setSystem',
         arguments: { system: 'test-system' },
       });
       const body = JSON.parse(getResultText(result)) as {
@@ -330,9 +330,9 @@ describe('Dataset tools with mock backend', () => {
   // Response envelope structure
   // -----------------------------------------------------------------------
   describe('response envelope structure', () => {
-    it('should wrap list_datasets response in envelope with _context and _result', async () => {
+    it('should wrap listDatasets response in envelope with _context and _result', async () => {
       const result = await client.callTool({
-        name: 'list_datasets',
+        name: 'listDatasets',
         arguments: { pattern: '*' },
       });
 
@@ -357,9 +357,9 @@ describe('Dataset tools with mock backend', () => {
       expect(envelope.data.length).toBe(meta.count);
     });
 
-    it('should use resolvedDsn for list_members envelope', async () => {
+    it('should use resolvedDsn for listMembers envelope', async () => {
       const result = await client.callTool({
-        name: 'list_members',
+        name: 'listMembers',
         arguments: { dsn: 'SRC.COBOL' },
       });
 
@@ -369,9 +369,9 @@ describe('Dataset tools with mock backend', () => {
       expect(envelope._context.resolvedPattern).toBeUndefined();
     });
 
-    it('should use resolvedDsn for read_dataset envelope', async () => {
+    it('should use resolvedDsn for readDataset envelope', async () => {
       const result = await client.callTool({
-        name: 'read_dataset',
+        name: 'readDataset',
         arguments: { dsn: 'DATA.INPUT' },
       });
 
@@ -382,7 +382,7 @@ describe('Dataset tools with mock backend', () => {
 
     it('should omit dsnPrefix for absolute input', async () => {
       const result = await client.callTool({
-        name: 'list_datasets',
+        name: 'listDatasets',
         arguments: { pattern: "'TESTUSER.*'" },
       });
 
@@ -398,7 +398,7 @@ describe('Dataset tools with mock backend', () => {
   describe('single-quote convention', () => {
     it('should single-quote resolvedPattern for relative pattern', async () => {
       const result = await client.callTool({
-        name: 'list_datasets',
+        name: 'listDatasets',
         arguments: { pattern: '*' },
       });
 
@@ -408,7 +408,7 @@ describe('Dataset tools with mock backend', () => {
 
     it('should single-quote resolvedPattern for absolute pattern', async () => {
       const result = await client.callTool({
-        name: 'list_datasets',
+        name: 'listDatasets',
         arguments: { pattern: "'TESTUSER.SRC.*'" },
       });
 
@@ -418,7 +418,7 @@ describe('Dataset tools with mock backend', () => {
 
     it('should single-quote resolvedDsn for relative dataset name', async () => {
       const result = await client.callTool({
-        name: 'list_members',
+        name: 'listMembers',
         arguments: { dsn: 'SRC.COBOL' },
       });
 
@@ -428,7 +428,7 @@ describe('Dataset tools with mock backend', () => {
 
     it('should single-quote resolvedDsn for absolute dataset name', async () => {
       const result = await client.callTool({
-        name: 'list_members',
+        name: 'listMembers',
         arguments: { dsn: "'TESTUSER.SRC.COBOL'" },
       });
 
@@ -437,9 +437,9 @@ describe('Dataset tools with mock backend', () => {
       expect(ctx.dsnPrefix).toBeUndefined();
     });
 
-    it('should single-quote resolvedDsn with member for read_dataset', async () => {
+    it('should single-quote resolvedDsn with member for readDataset', async () => {
       const result = await client.callTool({
-        name: 'read_dataset',
+        name: 'readDataset',
         arguments: { dsn: 'SRC.COBOL', member: 'MAIN' },
       });
 
@@ -449,12 +449,12 @@ describe('Dataset tools with mock backend', () => {
   });
 
   // -----------------------------------------------------------------------
-  // list_datasets with auto-activated system
+  // listDatasets with auto-activated system
   // -----------------------------------------------------------------------
-  describe('list_datasets with auto-activated system', () => {
+  describe('listDatasets with auto-activated system', () => {
     it('should list datasets with relative pattern "*" (resolved to TESTUSER.*)', async () => {
       const result = await client.callTool({
-        name: 'list_datasets',
+        name: 'listDatasets',
         arguments: { pattern: '*' },
       });
 
@@ -469,7 +469,7 @@ describe('Dataset tools with mock backend', () => {
 
     it('should list datasets with absolute pattern "\'TESTUSER.*\'"', async () => {
       const result = await client.callTool({
-        name: 'list_datasets',
+        name: 'listDatasets',
         arguments: { pattern: "'TESTUSER.*'" },
       });
 
@@ -483,7 +483,7 @@ describe('Dataset tools with mock backend', () => {
 
     it('should include 2-qualifier datasets in trailing * results', async () => {
       const result = await client.callTool({
-        name: 'list_datasets',
+        name: 'listDatasets',
         arguments: { pattern: "'TESTUSER.*'" },
       });
 
@@ -494,7 +494,7 @@ describe('Dataset tools with mock backend', () => {
 
     it('should match specific qualifier patterns', async () => {
       const result = await client.callTool({
-        name: 'list_datasets',
+        name: 'listDatasets',
         arguments: { pattern: 'SRC.*' },
       });
 
@@ -506,7 +506,7 @@ describe('Dataset tools with mock backend', () => {
 
     it('should return empty data array for non-matching pattern', async () => {
       const result = await client.callTool({
-        name: 'list_datasets',
+        name: 'listDatasets',
         arguments: { pattern: "'NONEXIST.*'" },
       });
 
@@ -520,7 +520,7 @@ describe('Dataset tools with mock backend', () => {
 
     it('should include resource_link in results', async () => {
       const result = await client.callTool({
-        name: 'list_datasets',
+        name: 'listDatasets',
         arguments: { pattern: '*' },
       });
 
@@ -536,9 +536,9 @@ describe('Dataset tools with mock backend', () => {
   // Pagination for list operations
   // -----------------------------------------------------------------------
   describe('pagination', () => {
-    it('should respect limit parameter for list_datasets', async () => {
+    it('should respect limit parameter for listDatasets', async () => {
       const result = await client.callTool({
-        name: 'list_datasets',
+        name: 'listDatasets',
         arguments: { pattern: '*', limit: 2 },
       });
 
@@ -551,17 +551,17 @@ describe('Dataset tools with mock backend', () => {
       expect(meta.hasMore).toBe(true);
     });
 
-    it('should respect offset parameter for list_datasets', async () => {
+    it('should respect offset parameter for listDatasets', async () => {
       // First get all datasets
       const allResult = await client.callTool({
-        name: 'list_datasets',
+        name: 'listDatasets',
         arguments: { pattern: '*' },
       });
       const allData = parseData<{ dsn: string }[]>(allResult);
 
       // Now get with offset=2
       const result = await client.callTool({
-        name: 'list_datasets',
+        name: 'listDatasets',
         arguments: { pattern: '*', offset: 2, limit: 2 },
       });
 
@@ -578,7 +578,7 @@ describe('Dataset tools with mock backend', () => {
 
     it('should return hasMore=false when all items fit in one page', async () => {
       const result = await client.callTool({
-        name: 'list_datasets',
+        name: 'listDatasets',
         arguments: { pattern: '*', limit: 1000 },
       });
 
@@ -587,9 +587,9 @@ describe('Dataset tools with mock backend', () => {
       expect(meta.count).toBe(meta.totalAvailable);
     });
 
-    it('should paginate list_members', async () => {
+    it('should paginate listMembers', async () => {
       const result = await client.callTool({
-        name: 'list_members',
+        name: 'listMembers',
         arguments: { dsn: 'SRC.COBOL', limit: 1 },
       });
 
@@ -601,9 +601,9 @@ describe('Dataset tools with mock backend', () => {
       expect(meta.hasMore).toBe(true);
     });
 
-    it('should return second page of list_members', async () => {
+    it('should return second page of listMembers', async () => {
       const result = await client.callTool({
-        name: 'list_members',
+        name: 'listMembers',
         arguments: { dsn: 'SRC.COBOL', offset: 1, limit: 1 },
       });
 
@@ -616,12 +616,12 @@ describe('Dataset tools with mock backend', () => {
   });
 
   // -----------------------------------------------------------------------
-  // Line windowing for read_dataset
+  // Line windowing for readDataset
   // -----------------------------------------------------------------------
   describe('line windowing', () => {
     it('should return full content for small files', async () => {
       const result = await client.callTool({
-        name: 'read_dataset',
+        name: 'readDataset',
         arguments: { dsn: 'DATA.INPUT' },
       });
 
@@ -639,7 +639,7 @@ describe('Dataset tools with mock backend', () => {
 
     it('should support startLine parameter', async () => {
       const result = await client.callTool({
-        name: 'read_dataset',
+        name: 'readDataset',
         arguments: { dsn: 'LARGE.DATA', startLine: 10, lineCount: 5 },
       });
 
@@ -655,7 +655,7 @@ describe('Dataset tools with mock backend', () => {
 
     it('should support lineCount parameter', async () => {
       const result = await client.callTool({
-        name: 'read_dataset',
+        name: 'readDataset',
         arguments: { dsn: 'LARGE.DATA', lineCount: 3 },
       });
 
@@ -668,7 +668,7 @@ describe('Dataset tools with mock backend', () => {
 
     it('should include mimeType in read result', async () => {
       const result = await client.callTool({
-        name: 'read_dataset',
+        name: 'readDataset',
         arguments: { dsn: 'SRC.COBOL', member: 'MAIN' },
       });
 
@@ -679,7 +679,7 @@ describe('Dataset tools with mock backend', () => {
 
     it('should return correct contentLength', async () => {
       const result = await client.callTool({
-        name: 'read_dataset',
+        name: 'readDataset',
         arguments: { dsn: 'LARGE.DATA', startLine: 1, lineCount: 5 },
       });
 
@@ -693,9 +693,9 @@ describe('Dataset tools with mock backend', () => {
   // Lazy context initialization with explicit system parameter
   // -----------------------------------------------------------------------
   describe('lazy context initialization', () => {
-    it('should work with explicit system parameter without prior set_system', async () => {
+    it('should work with explicit system parameter without prior setSystem', async () => {
       const result = await client.callTool({
-        name: 'list_datasets',
+        name: 'listDatasets',
         arguments: { pattern: "'TESTUSER.*'", system: SYSTEM_HOST },
       });
 
@@ -703,9 +703,9 @@ describe('Dataset tools with mock backend', () => {
       expect(data.length).toBeGreaterThanOrEqual(3);
     });
 
-    it('should lazily initialize context for read_dataset with explicit system', async () => {
+    it('should lazily initialize context for readDataset with explicit system', async () => {
       const result = await client.callTool({
-        name: 'read_dataset',
+        name: 'readDataset',
         arguments: { dsn: "'TESTUSER.DATA.INPUT'", system: SYSTEM_HOST },
       });
 
@@ -714,9 +714,9 @@ describe('Dataset tools with mock backend', () => {
       expect(envelope._context.system).toBe(SYSTEM_HOST);
     });
 
-    it('should lazily initialize context for list_members with explicit system', async () => {
+    it('should lazily initialize context for listMembers with explicit system', async () => {
       const result = await client.callTool({
-        name: 'list_members',
+        name: 'listMembers',
         arguments: { dsn: "'TESTUSER.SRC.COBOL'", system: SYSTEM_HOST },
       });
 
@@ -746,9 +746,9 @@ describe('Dataset tools with mock backend', () => {
       await multiServer.close();
     });
 
-    it('should fail list_datasets without system when no system is active', async () => {
+    it('should fail listDatasets without system when no system is active', async () => {
       const multiResult = await multiClient.callTool({
-        name: 'list_datasets',
+        name: 'listDatasets',
         arguments: { pattern: '*' },
       });
 
@@ -758,7 +758,7 @@ describe('Dataset tools with mock backend', () => {
 
     it('should lazily initialize context when explicit system is provided in multi-system setup', async () => {
       const result = await multiClient.callTool({
-        name: 'list_datasets',
+        name: 'listDatasets',
         arguments: { pattern: "'USER1.*'", system: 'sys1.example.com' },
       });
 
@@ -768,12 +768,12 @@ describe('Dataset tools with mock backend', () => {
 
     it('should set active system after lazy initialization', async () => {
       await multiClient.callTool({
-        name: 'list_datasets',
+        name: 'listDatasets',
         arguments: { pattern: "'USER1.*'", system: 'sys1.example.com' },
       });
 
       const ctxResult = await multiClient.callTool({
-        name: 'get_context',
+        name: 'getContext',
         arguments: {},
       });
       const ctx = JSON.parse(getResultText(ctxResult)) as {
@@ -793,7 +793,7 @@ describe('Dataset tools with mock backend', () => {
   describe('pattern matching integration', () => {
     it('should match ** explicitly across qualifiers', async () => {
       const result = await client.callTool({
-        name: 'list_datasets',
+        name: 'listDatasets',
         arguments: { pattern: "'TESTUSER.**'" },
       });
 
@@ -803,7 +803,7 @@ describe('Dataset tools with mock backend', () => {
 
     it('should match partial qualifier with *', async () => {
       const result = await client.callTool({
-        name: 'list_datasets',
+        name: 'listDatasets',
         arguments: { pattern: "'TESTUSER.SRC.*'" },
       });
 
@@ -815,7 +815,7 @@ describe('Dataset tools with mock backend', () => {
 
     it('should match with wildcard in middle qualifier', async () => {
       const result = await client.callTool({
-        name: 'list_datasets',
+        name: 'listDatasets',
         arguments: { pattern: "'TESTUSER.*.COBOL'" },
       });
 
@@ -828,7 +828,7 @@ describe('Dataset tools with mock backend', () => {
 
     it('should handle case-insensitive pattern matching', async () => {
       const result = await client.callTool({
-        name: 'list_datasets',
+        name: 'listDatasets',
         arguments: { pattern: "'testuser.*'" },
       });
 
@@ -838,12 +838,12 @@ describe('Dataset tools with mock backend', () => {
   });
 
   // -----------------------------------------------------------------------
-  // create_dataset allocation and messages
+  // createDataset allocation and messages
   // -----------------------------------------------------------------------
-  describe('create_dataset allocation', () => {
+  describe('createDataset allocation', () => {
     it('should return applied allocation attributes and messages for defaults', async () => {
       const result = await client.callTool({
-        name: 'create_dataset',
+        name: 'createDataset',
         arguments: { dsn: 'NEW.PS.DATA', type: 'PS' },
       });
 
@@ -871,7 +871,7 @@ describe('Dataset tools with mock backend', () => {
 
     it('should describe dirblk default for PDS and include allocation in response', async () => {
       const result = await client.callTool({
-        name: 'create_dataset',
+        name: 'createDataset',
         arguments: { dsn: 'NEW.PDS.LIB', type: 'PO' },
       });
 
@@ -889,12 +889,12 @@ describe('Dataset tools with mock backend', () => {
   });
 
   // -----------------------------------------------------------------------
-  // get_dataset_attributes envelope
+  // getDatasetAttributes envelope
   // -----------------------------------------------------------------------
-  describe('get_dataset_attributes envelope', () => {
+  describe('getDatasetAttributes envelope', () => {
     it('should wrap attributes in envelope with _context and no _result', async () => {
       const result = await client.callTool({
-        name: 'get_dataset_attributes',
+        name: 'getDatasetAttributes',
         arguments: { dsn: 'SRC.COBOL' },
       });
 

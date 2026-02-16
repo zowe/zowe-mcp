@@ -22,107 +22,107 @@ describe('matchPattern', () => {
   // Exact matches
   // -----------------------------------------------------------------------
   it('matches an exact dataset name', () => {
-    expect(matchPattern('IBMUSER.SRC.COBOL', 'IBMUSER.SRC.COBOL')).toBe(true);
+    expect(matchPattern('USER.SRC.COBOL', 'USER.SRC.COBOL')).toBe(true);
   });
 
   it('is case-insensitive', () => {
-    expect(matchPattern('IBMUSER.SRC.COBOL', 'ibmuser.src.cobol')).toBe(true);
-    expect(matchPattern('ibmuser.src.cobol', 'IBMUSER.SRC.COBOL')).toBe(true);
+    expect(matchPattern('USER.SRC.COBOL', 'user.src.cobol')).toBe(true);
+    expect(matchPattern('user.src.cobol', 'USER.SRC.COBOL')).toBe(true);
   });
 
   it('rejects a non-matching exact name', () => {
-    expect(matchPattern('IBMUSER.SRC.COBOL', 'IBMUSER.SRC.JCL')).toBe(false);
+    expect(matchPattern('USER.SRC.COBOL', 'USER.SRC.JCL')).toBe(false);
   });
 
   // -----------------------------------------------------------------------
   // Single * within a qualifier
   // -----------------------------------------------------------------------
   it('matches * within a middle qualifier', () => {
-    expect(matchPattern('IBMUSER.SRC.COBOL', 'IBMUSER.S*.COBOL')).toBe(true);
-    expect(matchPattern('IBMUSER.SRC.COBOL', 'IBMUSER.X*.COBOL')).toBe(false);
+    expect(matchPattern('USER.SRC.COBOL', 'USER.S*.COBOL')).toBe(true);
+    expect(matchPattern('USER.SRC.COBOL', 'USER.X*.COBOL')).toBe(false);
   });
 
   it('matches * at the end of a qualifier', () => {
-    expect(matchPattern('IBMUSER.SRC.COBOL', 'IBMUSER.SRC.COB*')).toBe(true);
-    expect(matchPattern('IBMUSER.SRC.COBOL', 'IBMUSER.SRC.JCL*')).toBe(false);
+    expect(matchPattern('USER.SRC.COBOL', 'USER.SRC.COB*')).toBe(true);
+    expect(matchPattern('USER.SRC.COBOL', 'USER.SRC.JCL*')).toBe(false);
   });
 
   it('matches * at the beginning of a qualifier', () => {
-    expect(matchPattern('IBMUSER.SRC.COBOL', 'IBMUSER.SRC.*BOL')).toBe(true);
-    expect(matchPattern('IBMUSER.SRC.COBOL', 'IBMUSER.SRC.*JCL')).toBe(false);
+    expect(matchPattern('USER.SRC.COBOL', 'USER.SRC.*BOL')).toBe(true);
+    expect(matchPattern('USER.SRC.COBOL', 'USER.SRC.*JCL')).toBe(false);
   });
 
   it('single * does not cross qualifier boundaries in middle position', () => {
-    // IBMUSER.* with 3 qualifiers should NOT match when * is not the last qualifier
-    expect(matchPattern('IBMUSER.SRC.COBOL', 'IBMUSER.*.COBOL')).toBe(true);
-    expect(matchPattern('IBMUSER.SRC.COBOL', 'IBMUSER.*.JCL')).toBe(false);
+    // USER.* with 3 qualifiers should NOT match when * is not the last qualifier
+    expect(matchPattern('USER.SRC.COBOL', 'USER.*.COBOL')).toBe(true);
+    expect(matchPattern('USER.SRC.COBOL', 'USER.*.JCL')).toBe(false);
   });
 
   // -----------------------------------------------------------------------
   // Trailing * (ISPF 3.4 convention: trailing * acts as **)
   // -----------------------------------------------------------------------
   it('trailing * matches datasets with more qualifiers (ISPF convention)', () => {
-    expect(matchPattern('IBMUSER.SRC.COBOL', 'IBMUSER.*')).toBe(true);
-    expect(matchPattern('IBMUSER.JCL.CNTL', 'IBMUSER.*')).toBe(true);
-    expect(matchPattern('IBMUSER.LOAD', 'IBMUSER.*')).toBe(true);
+    expect(matchPattern('USER.SRC.COBOL', 'USER.*')).toBe(true);
+    expect(matchPattern('USER.JCL.CNTL', 'USER.*')).toBe(true);
+    expect(matchPattern('USER.LOAD', 'USER.*')).toBe(true);
   });
 
   it('trailing * does not match unrelated HLQ', () => {
-    expect(matchPattern('SYS1.PROCLIB', 'IBMUSER.*')).toBe(false);
+    expect(matchPattern('SYS1.PROCLIB', 'USER.*')).toBe(false);
   });
 
   it('trailing * matches deeply nested qualifiers', () => {
-    expect(matchPattern('IBMUSER.A.B.C.D', 'IBMUSER.*')).toBe(true);
+    expect(matchPattern('USER.A.B.C.D', 'USER.*')).toBe(true);
   });
 
   it('trailing * with partial prefix qualifier', () => {
-    // IBMUSER.S* as last qualifier → treated as ** but with prefix S
-    // This becomes IBMUSER.S** which is "IBMUSER" then "S.*"
+    // USER.S* as last qualifier → treated as ** but with prefix S
+    // This becomes USER.S** which is "USER" then "S.*"
     // Actually, only a lone * gets promoted to **
-    expect(matchPattern('IBMUSER.SRC', 'IBMUSER.S*')).toBe(true);
-    expect(matchPattern('IBMUSER.SRC.COBOL', 'IBMUSER.S*')).toBe(false);
+    expect(matchPattern('USER.SRC', 'USER.S*')).toBe(true);
+    expect(matchPattern('USER.SRC.COBOL', 'USER.S*')).toBe(false);
   });
 
   // -----------------------------------------------------------------------
   // Explicit ** (match across qualifiers)
   // -----------------------------------------------------------------------
   it('** matches any number of qualifiers', () => {
-    expect(matchPattern('IBMUSER.SRC.COBOL', 'IBMUSER.**')).toBe(true);
-    expect(matchPattern('IBMUSER.A.B.C.D.E', 'IBMUSER.**')).toBe(true);
-    expect(matchPattern('IBMUSER.LOAD', 'IBMUSER.**')).toBe(true);
+    expect(matchPattern('USER.SRC.COBOL', 'USER.**')).toBe(true);
+    expect(matchPattern('USER.A.B.C.D.E', 'USER.**')).toBe(true);
+    expect(matchPattern('USER.LOAD', 'USER.**')).toBe(true);
   });
 
   it('** in the middle matches across qualifiers', () => {
-    expect(matchPattern('IBMUSER.A.B.C.COBOL', 'IBMUSER.**.COBOL')).toBe(true);
-    expect(matchPattern('IBMUSER.SRC.COBOL', 'IBMUSER.**.COBOL')).toBe(true);
+    expect(matchPattern('USER.A.B.C.COBOL', 'USER.**.COBOL')).toBe(true);
+    expect(matchPattern('USER.SRC.COBOL', 'USER.**.COBOL')).toBe(true);
   });
 
   it('** does not match unrelated prefix', () => {
-    expect(matchPattern('SYS1.PROCLIB', 'IBMUSER.**')).toBe(false);
+    expect(matchPattern('SYS1.PROCLIB', 'USER.**')).toBe(false);
   });
 
   // -----------------------------------------------------------------------
   // Edge cases
   // -----------------------------------------------------------------------
   it('single qualifier pattern matches single qualifier name', () => {
-    expect(matchPattern('IBMUSER', 'IBMUSER')).toBe(true);
-    expect(matchPattern('IBMUSER', '*')).toBe(true);
+    expect(matchPattern('USER', 'USER')).toBe(true);
+    expect(matchPattern('USER', '*')).toBe(true);
   });
 
   it('lone * as entire pattern matches any single qualifier', () => {
     // A lone * is the only qualifier, so there's nothing "trailing" about it
     // (qualifiers.length < 2), so it stays as * = single qualifier match
-    expect(matchPattern('IBMUSER', '*')).toBe(true);
-    expect(matchPattern('IBMUSER.SRC', '*')).toBe(false);
+    expect(matchPattern('USER', '*')).toBe(true);
+    expect(matchPattern('USER.SRC', '*')).toBe(false);
   });
 
   it('empty pattern does not match', () => {
-    expect(matchPattern('IBMUSER.SRC', '')).toBe(false);
+    expect(matchPattern('USER.SRC', '')).toBe(false);
   });
 
   it('pattern with multiple * in one qualifier', () => {
-    expect(matchPattern('IBMUSER.ABCDEF', 'IBMUSER.A*F')).toBe(true);
-    expect(matchPattern('IBMUSER.ABCDEF', 'IBMUSER.A*D*F')).toBe(true);
-    expect(matchPattern('IBMUSER.ABCDEF', 'IBMUSER.X*F')).toBe(false);
+    expect(matchPattern('USER.ABCDEF', 'USER.A*F')).toBe(true);
+    expect(matchPattern('USER.ABCDEF', 'USER.A*D*F')).toBe(true);
+    expect(matchPattern('USER.ABCDEF', 'USER.X*F')).toBe(false);
   });
 });

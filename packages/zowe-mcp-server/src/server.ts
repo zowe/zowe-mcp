@@ -159,11 +159,11 @@ export function createServer(options?: CreateServerOptions): McpServer {
     const systems = systemRegistry.list();
     if (systems.length === 1) {
       const singleSystem = systems[0];
-      void credentialProvider.getCredentials(singleSystem).then(creds => {
-        sessionState.setActiveSystem(singleSystem, creds.user);
+      void credentialProvider.getCredentials(singleSystem).then(credentials => {
+        sessionState.setActiveSystem(singleSystem, credentials.user);
         logger.info('Auto-activated single system', {
           system: singleSystem,
-          userId: creds.user,
+          userId: credentials.user,
         });
       });
     }

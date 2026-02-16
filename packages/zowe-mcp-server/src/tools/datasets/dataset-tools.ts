@@ -50,21 +50,21 @@ export interface DatasetToolDeps {
  * Ensure a system context exists for the given system ID.
  *
  * When the LLM passes an explicit `system` parameter to a dataset tool
- * without first calling `set_system`, no context (userId / dsnPrefix)
- * exists yet. This helper lazily initialises the context using the
- * credential provider, mirroring what `set_system` does.
+ * without first calling `setSystem`, no context (userId / dsnPrefix)
+ * exists yet. This helper lazily initializes the context using the
+ * credential provider, mirroring what `setSystem` does.
  */
 async function ensureContext(deps: DatasetToolDeps, systemId: string): Promise<void> {
   if (deps.sessionState.getContext(systemId)) return;
-  const creds = await deps.credentialProvider.getCredentials(systemId);
-  deps.sessionState.setActiveSystem(systemId, creds.user);
+  const credentials = await deps.credentialProvider.getCredentials(systemId);
+  deps.sessionState.setActiveSystem(systemId, credentials.user);
 }
 
 /**
  * Helper to resolve a dataset name and system from tool input.
  * Returns the resolved system ID, dsn, and optional member.
  *
- * Lazily initialises the system context if it doesn't exist yet.
+ * Lazily initializes the system context if it doesn't exist yet.
  */
 async function resolveInput(
   deps: DatasetToolDeps,
@@ -105,21 +105,21 @@ export function registerDatasetTools(
   const log = logger.child('datasets');
 
   // -----------------------------------------------------------------------
-  // list_datasets
+  // listDatasets
   // -----------------------------------------------------------------------
   server.registerTool(
-    'list_datasets',
+    'listDatasets',
     {
       description:
         'List datasets matching a pattern. Returns the first page of results (default 500, max 1000). ' +
         'Use offset and limit to page through large result sets. ' +
-        "Pattern: if in single quotes (e.g. 'IBMUSER.*'), it is absolute; otherwise relative and the DSN prefix is prepended with a trailing dot. Use * within a qualifier and ** across qualifiers.",
+        "Pattern: if in single quotes (e.g. 'USER.*'), it is absolute; otherwise relative and the DSN prefix is prepended with a trailing dot. Use * within a qualifier and ** across qualifiers.",
       annotations: { readOnlyHint: true },
       inputSchema: {
         pattern: z
           .string()
           .describe(
-            "Dataset name pattern (required). If in single quotes (e.g. 'IBMUSER.*'), it is absolute; otherwise relative and the DSN prefix is prepended with a trailing dot. Use * within a qualifier and ** across qualifiers."
+            "Dataset name pattern (required). If in single quotes (e.g. 'USER.*'), it is absolute; otherwise relative and the DSN prefix is prepended with a trailing dot. Use * within a qualifier and ** across qualifiers."
           ),
         system: z
           .string()
@@ -142,7 +142,7 @@ export function registerDatasetTools(
       },
     },
     async ({ pattern, system, volser, offset, limit }) => {
-      log.info('list_datasets called', { pattern, system, volser, offset, limit });
+      log.info('listDatasets called', { pattern, system, volser, offset, limit });
 
       try {
         const systemId = deps.sessionState.requireSystem(system);
@@ -151,7 +151,7 @@ export function registerDatasetTools(
 
         const { resolved: resolvedPattern, wasAbsolute } = resolveWithPrefix(pattern, prefix);
 
-        log.debug('list_datasets resolved', {
+        log.debug('listDatasets resolved', {
           systemId,
           prefix,
           resolvedPattern,
@@ -180,10 +180,10 @@ export function registerDatasetTools(
   );
 
   // -----------------------------------------------------------------------
-  // list_members
+  // listMembers
   // -----------------------------------------------------------------------
   server.registerTool(
-    'list_members',
+    'listMembers',
     {
       description:
         'List members of a PDS/PDSE dataset. Returns the first page of results (default 500, max 1000). ' +
@@ -199,7 +199,7 @@ export function registerDatasetTools(
         pattern: z
           .string()
           .optional()
-          .describe('Optional member name filter pattern (e.g. "CUST*").'),
+          .describe('Optional member name filter pattern (e.g. "ABC*").'),
         system: z
           .string()
           .optional()
@@ -220,7 +220,7 @@ export function registerDatasetTools(
       },
     },
     async ({ dsn, pattern, system, offset, limit }) => {
-      log.info('list_members called', { dsn, pattern, system, offset, limit });
+      log.info('listMembers called', { dsn, pattern, system, offset, limit });
 
       try {
         const {
@@ -253,10 +253,10 @@ export function registerDatasetTools(
   );
 
   // -----------------------------------------------------------------------
-  // get_dataset_attributes
+  // getDatasetAttributes
   // -----------------------------------------------------------------------
   server.registerTool(
-    'get_dataset_attributes',
+    'getDatasetAttributes',
     {
       description:
         'Get detailed attributes of a dataset: organization, record format, ' +
@@ -276,7 +276,7 @@ export function registerDatasetTools(
       },
     },
     async ({ dsn, system }) => {
-      log.info('get_dataset_attributes called', { dsn, system });
+      log.info('getDatasetAttributes called', { dsn, system });
 
       try {
         const {
@@ -320,17 +320,17 @@ export function registerDatasetTools(
   );
 
   // -----------------------------------------------------------------------
-  // read_dataset
+  // readDataset
   // -----------------------------------------------------------------------
   server.registerTool(
-    'read_dataset',
+    'readDataset',
     {
       description:
         'Read the content of a sequential dataset or PDS/PDSE member. ' +
         'Large files are automatically truncated to the first 2000 lines. ' +
         'Use startLine and lineCount to read specific sections. ' +
         'Returns UTF-8 text, an ETag for optimistic locking, and the source codepage. ' +
-        'Pass the ETag to write_dataset to prevent overwriting concurrent changes.',
+        'Pass the ETag to writeDataset to prevent overwriting concurrent changes.',
       annotations: { readOnlyHint: true },
       inputSchema: {
         dsn: z
@@ -364,7 +364,7 @@ export function registerDatasetTools(
       },
     },
     async ({ dsn, member, system, codepage, startLine, lineCount }) => {
-      log.info('read_dataset called', { dsn, member, system, codepage, startLine, lineCount });
+      log.info('readDataset called', { dsn, member, system, codepage, startLine, lineCount });
 
       try {
         const resolved = await resolveInput(deps, dsn, member, system, log);
@@ -406,14 +406,14 @@ export function registerDatasetTools(
   );
 
   // -----------------------------------------------------------------------
-  // write_dataset
+  // writeDataset
   // -----------------------------------------------------------------------
   server.registerTool(
-    'write_dataset',
+    'writeDataset',
     {
       description:
         'Write UTF-8 content to a sequential dataset or PDS/PDSE member. ' +
-        'If an ETag is provided (from a previous read_dataset call), the write ' +
+        'If an ETag is provided (from a previous readDataset call), the write ' +
         'fails if the dataset was modified since the read — preventing overwrites. ' +
         'Returns a new ETag for the written content.',
       inputSchema: {
@@ -431,7 +431,7 @@ export function registerDatasetTools(
         etag: z
           .string()
           .optional()
-          .describe('ETag from a previous read_dataset call for optimistic locking.'),
+          .describe('ETag from a previous readDataset call for optimistic locking.'),
         codepage: z
           .string()
           .optional()
@@ -439,7 +439,7 @@ export function registerDatasetTools(
       },
     },
     async ({ dsn, content, member, system, etag, codepage }) => {
-      log.info('write_dataset called', { dsn, member, system, hasEtag: !!etag, codepage });
+      log.info('writeDataset called', { dsn, member, system, hasEtag: !!etag, codepage });
 
       try {
         const resolved = await resolveInput(deps, dsn, member, system, log);
@@ -471,10 +471,10 @@ export function registerDatasetTools(
   );
 
   // -----------------------------------------------------------------------
-  // create_dataset
+  // createDataset
   // -----------------------------------------------------------------------
   server.registerTool(
-    'create_dataset',
+    'createDataset',
     {
       description:
         'Create a new sequential or partitioned dataset. Specify the type ' +
@@ -506,7 +506,7 @@ export function registerDatasetTools(
       },
     },
     async ({ dsn, type, system, recfm, lrecl, blksz, primary, secondary, dirblk }) => {
-      log.info('create_dataset called', { dsn, type, system });
+      log.info('createDataset called', { dsn, type, system });
 
       const canonicalType: CreateDatasetOptions['type'] =
         type === 'SEQUENTIAL'
@@ -562,10 +562,10 @@ export function registerDatasetTools(
   );
 
   // -----------------------------------------------------------------------
-  // delete_dataset
+  // deleteDataset
   // -----------------------------------------------------------------------
   server.registerTool(
-    'delete_dataset',
+    'deleteDataset',
     {
       description:
         'Delete a dataset or a specific PDS/PDSE member. ' +
@@ -588,7 +588,7 @@ export function registerDatasetTools(
       },
     },
     async ({ dsn, member, system }) => {
-      log.info('delete_dataset called', { dsn, member, system });
+      log.info('deleteDataset called', { dsn, member, system });
 
       try {
         const resolved = await resolveInput(deps, dsn, member, system, log);
@@ -620,10 +620,10 @@ export function registerDatasetTools(
   );
 
   // -----------------------------------------------------------------------
-  // copy_dataset
+  // copyDataset
   // -----------------------------------------------------------------------
   server.registerTool(
-    'copy_dataset',
+    'copyDataset',
     {
       description: 'Copy a dataset or PDS/PDSE member within a single z/OS system.',
       inputSchema: {
@@ -652,7 +652,7 @@ export function registerDatasetTools(
       },
     },
     async ({ sourceDsn, targetDsn, sourceMember, targetMember, system }) => {
-      log.info('copy_dataset called', {
+      log.info('copyDataset called', {
         sourceDsn,
         targetDsn,
         sourceMember,
@@ -666,7 +666,7 @@ export function registerDatasetTools(
         const prefix = deps.sessionState.getDsnPrefix(systemId);
         const resolvedSource = resolveDsn(sourceDsn, prefix, sourceMember);
         const resolvedTarget = resolveDsn(targetDsn, prefix, targetMember);
-        log.debug('copy_dataset resolved', {
+        log.debug('copyDataset resolved', {
           systemId,
           prefix,
           source: resolvedSource.dsn,
@@ -712,10 +712,10 @@ export function registerDatasetTools(
   );
 
   // -----------------------------------------------------------------------
-  // rename_dataset
+  // renameDataset
   // -----------------------------------------------------------------------
   server.registerTool(
-    'rename_dataset',
+    'renameDataset',
     {
       description: 'Rename a dataset or PDS/PDSE member.',
       inputSchema: {
@@ -741,7 +741,7 @@ export function registerDatasetTools(
       },
     },
     async ({ dsn, newDsn, member, newMember, system }) => {
-      log.info('rename_dataset called', { dsn, newDsn, member, newMember, system });
+      log.info('renameDataset called', { dsn, newDsn, member, newMember, system });
 
       try {
         const systemId = deps.sessionState.requireSystem(system);
@@ -749,7 +749,7 @@ export function registerDatasetTools(
         const prefix = deps.sessionState.getDsnPrefix(systemId);
         const resolvedOld = resolveDsn(dsn, prefix, member);
         const resolvedNew = resolveDsn(newDsn, prefix, newMember);
-        log.debug('rename_dataset resolved', {
+        log.debug('renameDataset resolved', {
           systemId,
           prefix,
           oldDsn: resolvedOld.dsn,
@@ -795,5 +795,5 @@ export function registerDatasetTools(
   );
 }
 
-// Re-export the type for use in create_dataset
+// Re-export the type for use in createDataset
 import type { CreateDatasetOptions } from '../../zos/backend.js';

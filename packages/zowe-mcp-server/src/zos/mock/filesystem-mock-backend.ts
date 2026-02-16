@@ -19,7 +19,7 @@
  * zowe-mcp-mock-data/
  *   systems.json
  *   sys1.example.com/
- *     IBMUSER/                     # HLQ directory
+ *     USER/                     # HLQ directory
  *       SRC.COBOL/                 # PDS/PDSE → directory
  *         HELLO.cbl               # member → file
  *       LOAD.JCL                  # sequential dataset → file
@@ -56,7 +56,7 @@ import type { MockDatasetMeta } from './mock-types.js';
  * Convert a fully-qualified dataset name to a filesystem path relative
  * to the system directory.
  *
- * `IBMUSER.SRC.COBOL` → `IBMUSER/SRC.COBOL`
+ * `USER.SRC.COBOL` → `USER/SRC.COBOL`
  *
  * The first qualifier (HLQ) becomes a directory; the remaining qualifiers
  * stay dot-separated as the file/directory name within the HLQ directory.
@@ -113,10 +113,10 @@ async function pathExists(p: string): Promise<boolean> {
  *
  * - `*` matches any characters within a single qualifier
  * - `**` matches any number of qualifiers
- * - A trailing `*` as the last qualifier (e.g. `IBMUSER.*`) is treated
+ * - A trailing `*` as the last qualifier (e.g. `USER.*`) is treated
  *   as `**` — matching across any number of remaining qualifiers.
- *   This follows the standard ISPF 3.4 convention where `IBMUSER.*`
- *   lists all datasets under the IBMUSER HLQ.
+ *   This follows the standard ISPF 3.4 convention where `USER.*`
+ *   lists all datasets under the USER HLQ.
  */
 export function matchPattern(dsn: string, pattern: string): boolean {
   const qualifiers = pattern.split('.');
@@ -248,7 +248,7 @@ export class FilesystemMockBackend implements ZosBackend {
       if (!found) {
         throw new Error(
           `Member '${member}' not found in dataset '${dsn}' on ${systemId}. ` +
-            'Use list_members to see available members.'
+            'Use listMembers to see available members.'
         );
       }
       filePath = found;
@@ -257,13 +257,13 @@ export class FilesystemMockBackend implements ZosBackend {
       if (await isDirectory(dsPath)) {
         throw new Error(
           `Dataset '${dsn}' is a PDS/PDSE on ${systemId}. ` +
-            'Specify a member name to read, or use list_members to see available members.'
+            'Specify a member name to read, or use listMembers to see available members.'
         );
       }
       if (!(await pathExists(dsPath))) {
         throw new Error(
           `Dataset '${dsn}' not found on ${systemId}. ` +
-            'Use list_datasets to see available datasets.'
+            'Use listDatasets to see available datasets.'
         );
       }
       filePath = dsPath;
@@ -296,7 +296,7 @@ export class FilesystemMockBackend implements ZosBackend {
       if (!(await pathExists(dsPath))) {
         throw new Error(
           `Dataset '${dsn}' not found on ${systemId}. ` +
-            'Create the dataset first with create_dataset.'
+            'Create the dataset first with createDataset.'
         );
       }
       const found = await this.findMemberFile(dsPath, member);
@@ -461,7 +461,7 @@ export class FilesystemMockBackend implements ZosBackend {
     if (!(await pathExists(dsPath))) {
       throw new Error(
         `Dataset '${dsn}' not found on ${systemId}. ` +
-          'Use list_datasets to see available datasets.'
+          'Use listDatasets to see available datasets.'
       );
     }
 

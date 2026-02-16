@@ -29,7 +29,7 @@ import type { SystemId } from './system.js';
 
 /** Working context for a single z/OS system. */
 export interface SystemContext {
-  /** Active user ID on this system (e.g. `"IBMUSER"`). */
+  /** Active user ID on this system (e.g. `"USER"`). */
   userId: string;
   /** DSN prefix — defaults to `userId`. Like `cwd` in the dataset tree. */
   dsnPrefix: string;
@@ -87,7 +87,7 @@ export class SessionState {
    */
   getActiveContext(): SystemContext {
     if (this.activeSystemId === undefined) {
-      throw new Error('No active z/OS system. Use set_system to select a system first.');
+      throw new Error('No active z/OS system. Use setSystem to select a system first.');
     }
     const ctx = this.contexts.get(this.activeSystemId);
     if (!ctx) {
@@ -110,7 +110,7 @@ export class SessionState {
     if (systemId) return systemId;
     if (this.activeSystemId) return this.activeSystemId;
     throw new Error(
-      'No active z/OS system. Use set_system to select a system, or pass the "system" parameter explicitly.'
+      'No active z/OS system. Use setSystem to select a system, or pass the "system" parameter explicitly.'
     );
   }
 

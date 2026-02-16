@@ -37,30 +37,30 @@ describe('SessionState', () => {
   describe('setActiveSystem', () => {
     it('should set the active system and create context with user ID as prefix', () => {
       const state = new SessionState();
-      const ctx = state.setActiveSystem('sys1', 'IBMUSER');
+      const ctx = state.setActiveSystem('sys1', 'USER');
       expect(state.getActiveSystem()).toBe('sys1');
-      expect(ctx.userId).toBe('IBMUSER');
-      expect(ctx.dsnPrefix).toBe('IBMUSER');
+      expect(ctx.userId).toBe('USER');
+      expect(ctx.dsnPrefix).toBe('USER');
     });
 
     it('should preserve context when switching back to a previously used system', () => {
       const state = new SessionState();
-      state.setActiveSystem('sys1', 'IBMUSER');
-      state.setDsnPrefix('IBMUSER.DEV');
+      state.setActiveSystem('sys1', 'USER');
+      state.setDsnPrefix('USER.DEV');
       state.setActiveSystem('sys2', 'DEVUSER');
       // Switch back to sys1
-      const ctx = state.setActiveSystem('sys1', 'IBMUSER');
-      expect(ctx.dsnPrefix).toBe('IBMUSER.DEV'); // preserved, not reset
-      expect(ctx.userId).toBe('IBMUSER');
+      const ctx = state.setActiveSystem('sys1', 'USER');
+      expect(ctx.dsnPrefix).toBe('USER.DEV'); // preserved, not reset
+      expect(ctx.userId).toBe('USER');
     });
 
     it('should not overwrite existing context on re-activation', () => {
       const state = new SessionState();
-      state.setActiveSystem('sys1', 'IBMUSER');
+      state.setActiveSystem('sys1', 'USER');
       state.setDsnPrefix('CUSTOM.PREFIX');
       // Re-activate with a different defaultUserId — should NOT reset
       const ctx = state.setActiveSystem('sys1', 'OTHERUSER');
-      expect(ctx.userId).toBe('IBMUSER'); // original, not OTHERUSER
+      expect(ctx.userId).toBe('USER'); // original, not OTHERUSER
       expect(ctx.dsnPrefix).toBe('CUSTOM.PREFIX');
     });
   });
@@ -73,9 +73,9 @@ describe('SessionState', () => {
 
     it('should return context for the active system', () => {
       const state = new SessionState();
-      state.setActiveSystem('sys1', 'IBMUSER');
+      state.setActiveSystem('sys1', 'USER');
       const ctx = state.getActiveContext();
-      expect(ctx.userId).toBe('IBMUSER');
+      expect(ctx.userId).toBe('USER');
     });
   });
 
@@ -87,13 +87,13 @@ describe('SessionState', () => {
 
     it('should return active system when no explicit ID', () => {
       const state = new SessionState();
-      state.setActiveSystem('sys1', 'IBMUSER');
+      state.setActiveSystem('sys1', 'USER');
       expect(state.requireSystem()).toBe('sys1');
     });
 
     it('should prefer explicit ID over active system', () => {
       const state = new SessionState();
-      state.setActiveSystem('sys1', 'IBMUSER');
+      state.setActiveSystem('sys1', 'USER');
       expect(state.requireSystem('sys2')).toBe('sys2');
     });
 
@@ -106,15 +106,15 @@ describe('SessionState', () => {
   describe('DSN prefix management', () => {
     it('should default prefix to user ID', () => {
       const state = new SessionState();
-      state.setActiveSystem('sys1', 'IBMUSER');
-      expect(state.getDsnPrefix()).toBe('IBMUSER');
+      state.setActiveSystem('sys1', 'USER');
+      expect(state.getDsnPrefix()).toBe('USER');
     });
 
     it('should update prefix and uppercase it', () => {
       const state = new SessionState();
-      state.setActiveSystem('sys1', 'IBMUSER');
-      const ctx = state.setDsnPrefix('ibmuser.dev.src');
-      expect(ctx.dsnPrefix).toBe('IBMUSER.DEV.SRC');
+      state.setActiveSystem('sys1', 'USER');
+      const ctx = state.setDsnPrefix('user.dev.src');
+      expect(ctx.dsnPrefix).toBe('USER.DEV.SRC');
     });
 
     it('should throw when setting prefix with no active system', () => {
@@ -124,9 +124,9 @@ describe('SessionState', () => {
 
     it('should get prefix for a specific system', () => {
       const state = new SessionState();
-      state.setActiveSystem('sys1', 'IBMUSER');
+      state.setActiveSystem('sys1', 'USER');
       state.setActiveSystem('sys2', 'DEVUSER');
-      expect(state.getDsnPrefix('sys1')).toBe('IBMUSER');
+      expect(state.getDsnPrefix('sys1')).toBe('USER');
       expect(state.getDsnPrefix('sys2')).toBe('DEVUSER');
     });
 
@@ -137,11 +137,11 @@ describe('SessionState', () => {
 
     it('should isolate prefixes between systems', () => {
       const state = new SessionState();
-      state.setActiveSystem('sys1', 'IBMUSER');
-      state.setDsnPrefix('IBMUSER.PROD');
+      state.setActiveSystem('sys1', 'USER');
+      state.setDsnPrefix('USER.PROD');
       state.setActiveSystem('sys2', 'DEVUSER');
       state.setDsnPrefix('DEVUSER.TEST');
-      expect(state.getDsnPrefix('sys1')).toBe('IBMUSER.PROD');
+      expect(state.getDsnPrefix('sys1')).toBe('USER.PROD');
       expect(state.getDsnPrefix('sys2')).toBe('DEVUSER.TEST');
     });
   });
@@ -149,11 +149,11 @@ describe('SessionState', () => {
   describe('getAllContexts', () => {
     it('should return summaries for all systems', () => {
       const state = new SessionState();
-      state.setActiveSystem('sys1', 'IBMUSER');
+      state.setActiveSystem('sys1', 'USER');
       state.setActiveSystem('sys2', 'DEVUSER');
       const contexts = state.getAllContexts();
       expect(contexts).toHaveLength(2);
-      expect(contexts).toContainEqual({ system: 'sys1', userId: 'IBMUSER', dsnPrefix: 'IBMUSER' });
+      expect(contexts).toContainEqual({ system: 'sys1', userId: 'USER', dsnPrefix: 'USER' });
       expect(contexts).toContainEqual({ system: 'sys2', userId: 'DEVUSER', dsnPrefix: 'DEVUSER' });
     });
   });
@@ -161,8 +161,8 @@ describe('SessionState', () => {
   describe('getContext', () => {
     it('should return context for a known system', () => {
       const state = new SessionState();
-      state.setActiveSystem('sys1', 'IBMUSER');
-      expect(state.getContext('sys1')).toEqual({ userId: 'IBMUSER', dsnPrefix: 'IBMUSER' });
+      state.setActiveSystem('sys1', 'USER');
+      expect(state.getContext('sys1')).toEqual({ userId: 'USER', dsnPrefix: 'USER' });
     });
 
     it('should return undefined for unknown system', () => {

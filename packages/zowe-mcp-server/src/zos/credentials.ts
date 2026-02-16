@@ -25,7 +25,7 @@ import type { SystemId } from './system.js';
 
 /** Credentials for authenticating to a z/OS system. */
 export interface Credentials {
-  /** z/OS user ID (e.g. `"IBMUSER"`). */
+  /** z/OS user ID (e.g. `"USER"`). */
   user: string;
   /** Password or passphrase. */
   password: string;

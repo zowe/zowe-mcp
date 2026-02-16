@@ -35,7 +35,7 @@ export const DEFAULT_LIST_LIMIT = 500;
 /** Maximum allowed page size for list operations. */
 export const MAX_LIST_LIMIT = 1000;
 
-/** Auto-truncation limit for read_dataset when no window is requested. */
+/** Auto-truncation limit for readDataset when no window is requested. */
 export const MAX_READ_LINES = 2000;
 
 // ---------------------------------------------------------------------------

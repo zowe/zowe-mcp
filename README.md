@@ -104,7 +104,7 @@ The generated directory looks like:
 zowe-mcp-mock-data/
   systems.json                          # System definitions + credentials
   mainframe-dev.example.com/            # One directory per system
-    IBMUSER/                            # HLQ directory
+    USER/                            # HLQ directory
       SRC.COBOL/                        # PDS — directory with members
         HELLO.cbl                       # Member file
         _meta.json                      # Dataset attributes
@@ -256,11 +256,11 @@ List the available z/OS systems.
 ```
 
 ```text
-Set the active system to mainframe-dev.example.com and list datasets matching IBMUSER.**
+Set the active system to mainframe-dev.example.com and list datasets matching USER.**
 ```
 
-The tool names in Copilot are prefixed with `mcp_zowe_` (e.g.
-`mcp_zowe_info`, `mcp_zowe_list_datasets`, `mcp_zowe_set_system`).
+Tool names use camelCase; in Copilot they appear prefixed with `mcp_zowe_` (e.g.
+`mcp_zowe_info`, `mcp_zowe_listDatasets`, `mcp_zowe_setSystem`).
 
 ## Testing
 
@@ -280,7 +280,7 @@ npm run test:vscode
 ```bash
 # Call a tool directly
 npm run call-tool -- info
-npm run call-tool -- list_systems
+npm run call-tool -- listSystems
 ```
 
 ### MCP Inspector

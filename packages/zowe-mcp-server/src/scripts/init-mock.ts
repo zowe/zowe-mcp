@@ -235,13 +235,46 @@ function generateJcl(jobName: string, hlq: string, programName: string): string 
 //RUN     EXEC PGM=${programName},COND=(4,LT)
 //STEPLIB  DD DSN=${hlq}.LOADLIB,DISP=SHR
 //INDD     DD DSN=${hlq}.DATA.INPUT,DISP=SHR
-//OUTDD    DD DSN=${hlq}.LOG.OUTPUT,DISP=SHR
+//OUTDD    DD DSN=${hlq}.LISTING,DISP=SHR
 //SYSOUT   DD SYSOUT=*
 //SYSPRINT DD SYSOUT=*
 `;
 }
 
-function generateSequentialData(type: 'input' | 'log' | 'results'): string {
+/**
+ * Pad a line to LRECL 133 for FBA; first character is ASA carriage control.
+ * ASA: ' ' = single space, '0' = double space, '1' = skip to channel 1 (new page),
+ * '-' = triple space, '+' = overprint (see IBM machine code / ASA printer control).
+ */
+function fba133(control: string, line: string): string {
+  const rest = line.slice(0, 132).padEnd(132, ' ');
+  return control.slice(0, 1) + rest;
+}
+
+/**
+ * Generate FBA 133 listing content with ASA control characters in column 1.
+ */
+function generateListingData(hlq: string): string {
+  const lines = [
+    fba133('1', `${hlq} - APPLICATION LISTING - PAGE 1`.padEnd(132)),
+    fba133(' ', ''),
+    fba133(' ', '2024-03-15 10:00:00 INFO  Application started'),
+    fba133(' ', '2024-03-15 10:00:01 INFO  Opening input file'),
+    fba133(' ', '2024-03-15 10:00:01 INFO  Processing records'),
+    fba133('0', ''),
+    fba133(' ', '2024-03-15 10:00:02 INFO  Record 1 processed successfully'),
+    fba133(' ', '2024-03-15 10:00:02 INFO  Record 2 processed successfully'),
+    fba133(' ', '2024-03-15 10:00:03 WARN  Record 3 - field validation warning'),
+    fba133(' ', '2024-03-15 10:00:03 INFO  Record 3 processed with warnings'),
+    fba133('0', ''),
+    fba133(' ', '2024-03-15 10:00:04 INFO  Processing complete'),
+    fba133(' ', '2024-03-15 10:00:04 INFO  Total records: 3, Errors: 0, Warnings: 1'),
+    fba133(' ', '2024-03-15 10:00:04 INFO  Application ended RC=0'),
+  ];
+  return lines.join('\n') + '\n';
+}
+
+function generateSequentialData(type: 'input' | 'results'): string {
   if (type === 'input') {
     const records: string[] = [];
     for (let i = 1; i <= 10; i++) {
@@ -250,19 +283,6 @@ function generateSequentialData(type: 'input' | 'log' | 'results'): string {
       );
     }
     return records.join('\n') + '\n';
-  }
-  if (type === 'log') {
-    return `2024-03-15 10:00:00 INFO  Application started
-2024-03-15 10:00:01 INFO  Opening input file
-2024-03-15 10:00:01 INFO  Processing records
-2024-03-15 10:00:02 INFO  Record 1 processed successfully
-2024-03-15 10:00:02 INFO  Record 2 processed successfully
-2024-03-15 10:00:03 WARN  Record 3 - field validation warning
-2024-03-15 10:00:03 INFO  Record 3 processed with warnings
-2024-03-15 10:00:04 INFO  Processing complete
-2024-03-15 10:00:04 INFO  Total records: 3, Errors: 0, Warnings: 1
-2024-03-15 10:00:04 INFO  Application ended RC=0
-`;
   }
   // results
   return `TEST RESULTS REPORT
@@ -433,7 +453,26 @@ async function generateUserDatasets(
 
   // Sequential datasets
   await fs.writeFile(path.join(hlqDir, 'DATA.INPUT'), generateSequentialData('input'), 'utf-8');
-  await fs.writeFile(path.join(hlqDir, 'LOG.OUTPUT'), generateSequentialData('log'), 'utf-8');
+
+  // LISTING: FBA 133 with ASA printer control in column 1 (see IBM machine code printer control)
+  const listingPath = path.join(hlqDir, 'LISTING');
+  await fs.writeFile(listingPath, generateListingData(hlq), 'utf-8');
+  const listingMeta: MockDatasetMeta = {
+    dsn: `${hlq}.LISTING`,
+    dsorg: 'PS',
+    recfm: 'FBA',
+    lrecl: 133,
+    blksz: 27920,
+    volser: 'VOL001',
+    creationDate: '2024-03-15',
+    smsClass: { data: 'STANDARD', storage: 'PRIMARY', management: 'DEFAULT' },
+  };
+  await fs.writeFile(
+    path.join(hlqDir, 'LISTING_meta.json'),
+    JSON.stringify(listingMeta, null, 2),
+    'utf-8'
+  );
+
   await fs.writeFile(
     path.join(hlqDir, 'TEST.RESULTS'),
     generateSequentialData('results'),

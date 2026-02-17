@@ -157,7 +157,13 @@ export function registerDatasetTools(
           resolvedPattern,
         });
 
-        const datasets = await deps.backend.listDatasets(systemId, resolvedPattern, volser);
+        const userId = deps.sessionState.getContext(systemId)?.userId;
+        const datasets = await deps.backend.listDatasets(
+          systemId,
+          resolvedPattern,
+          volser,
+          userId
+        );
 
         // Add resource links
         const enriched = datasets.map(ds => ({

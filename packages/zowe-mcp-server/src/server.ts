@@ -87,6 +87,17 @@ export interface CreateServerOptions {
   credentialProvider?: CredentialProvider;
 }
 
+/** Known backend kind names for the info tool. */
+const BACKEND_KIND_NAMES: Record<string, string> = {
+  FilesystemMockBackend: 'mock',
+  NativeBackend: 'native',
+};
+
+function getBackendKind(backend: ZosBackend): string {
+  const name = backend.constructor.name;
+  return BACKEND_KIND_NAMES[name] ?? name;
+}
+
 /**
  * Creates and returns a fully configured McpServer with all tools,
  * resources, and prompts registered.
@@ -134,13 +145,14 @@ export function createServer(options?: CreateServerOptions): McpServer {
     });
   };
 
-  const backendConnected = !!(options?.backend && options.credentialProvider);
+  const hasBackend = !!(options?.backend && options.credentialProvider);
+  const backendKind = hasBackend ? getBackendKind(options.backend!) : null;
 
   // Register core tools (info) — always available
-  registerCoreTools(server, SERVER_VERSION, logger, { backendConnected });
+  registerCoreTools(server, SERVER_VERSION, logger, { backend: backendKind });
 
   // Register z/OS tools, resources, and prompts if a backend is provided
-  if (backendConnected) {
+  if (hasBackend) {
     const backend = options.backend!;
     const systemRegistry = options.systemRegistry ?? new SystemRegistry();
     const credentialProvider = options.credentialProvider!;

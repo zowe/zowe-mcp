@@ -12,13 +12,19 @@
 /**
  * Dispatches incoming MCP server events to the appropriate VS Code APIs.
  *
- * Currently handles:
+ * Handles:
  * - `log` events → VS Code LogOutputChannel
  * - `notification` events → VS Code information/warning/error message dialogs
+ * - `request-password` → get from SecretStorage or prompt, send password event
+ * - `password-invalid` → delete secret for that user@host
  */
 
 import * as vscode from 'vscode';
-import type { ServerToExtensionEvent } from 'zowe-mcp-server/dist/events.js';
+import type {
+  ExtensionToServerEvent,
+  ServerToExtensionEvent,
+} from 'zowe-mcp-server/dist/events.js';
+import { getNativePasswordKey } from './secrets';
 
 /**
  * Maps RFC 5424 syslog levels to VS Code LogOutputChannel methods.
@@ -85,12 +91,66 @@ function showNotification(event: ServerToExtensionEvent): void {
   });
 }
 
+/** Options for native (SSH) credential handling. */
+export interface NativeSecretsOptions {
+  context: vscode.ExtensionContext;
+  sendEventToServers: (event: ExtensionToServerEvent) => void;
+}
+
+/**
+ * Handles request-password: read from SecretStorage or prompt, then send password event.
+ */
+async function handleRequestPassword(
+  log: vscode.LogOutputChannel,
+  event: ServerToExtensionEvent,
+  options: NativeSecretsOptions
+): Promise<void> {
+  if (event.type !== 'request-password') return;
+  const { user, host, port } = event.data;
+  const key = getNativePasswordKey(user, host);
+  let password = await options.context.secrets.get(key);
+  if (!password) {
+    password = await vscode.window.showInputBox({
+      title: `Zowe MCP: Password for ${user}@${host}`,
+      prompt: `Enter password for ${user}@${host}`,
+      password: true,
+      ignoreFocusOut: true,
+    });
+    if (!password) {
+      log.warn(`User cancelled password input for ${user}@${host}`);
+      return;
+    }
+    await options.context.secrets.store(key, password);
+  }
+  options.sendEventToServers({
+    type: 'password',
+    data: { user, host, port, password },
+    timestamp: Date.now(),
+  });
+}
+
+/**
+ * Handles password-invalid: delete the secret so it is not reused.
+ */
+async function handlePasswordInvalid(
+  event: ServerToExtensionEvent,
+  options: NativeSecretsOptions
+): Promise<void> {
+  if (event.type !== 'password-invalid') return;
+  const { user, host } = event.data;
+  const key = getNativePasswordKey(user, host);
+  await options.context.secrets.delete(key);
+}
+
 /**
  * Handles a single event received from the MCP server over the named pipe.
+ *
+ * @param options - When provided, enables request-password and password-invalid handling (native mode).
  */
 export function handleServerEvent(
   log: vscode.LogOutputChannel,
-  event: ServerToExtensionEvent
+  event: ServerToExtensionEvent,
+  options?: NativeSecretsOptions
 ): void {
   switch (event.type) {
     case 'log':
@@ -98,6 +158,12 @@ export function handleServerEvent(
       break;
     case 'notification':
       showNotification(event);
+      break;
+    case 'request-password':
+      if (options) void handleRequestPassword(log, event, options);
+      break;
+    case 'password-invalid':
+      if (options) void handlePasswordInvalid(event, options);
       break;
     default:
       log.warn(`Unknown event type from MCP server: ${(event as { type: string }).type}`);

@@ -29,8 +29,11 @@
   "license": "EPL-2.0",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.26.0",
+    "@zowe/imperative": "^8.11.0",
+    "@zowe/zos-uss-for-zowe-sdk": "^8.11.0",
     "express": "^5.1.0",
-    "zod": "^3.25.0"
+    "zod": "^3.25.0",
+    "zowe-native-proto-sdk": "file:../../bin/zowe-native-proto-sdk-0.2.3.tgz"
   },
   "devDependencies": {
     "@types/express": "^5.0.0",

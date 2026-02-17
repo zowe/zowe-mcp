@@ -19,7 +19,7 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { getDisplayName, getLog, initLog } from './log';
-import { sendLogLevelEvent, startPipeServer } from './pipe-server';
+import { sendLogLevelEvent, sendSystemsUpdateEvent, startPipeServer } from './pipe-server';
 import { logLanguageModels, logStartupInfo } from './startup-log';
 
 export function activate(context: vscode.ExtensionContext): void {
@@ -38,13 +38,26 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.lm.registerMcpServerDefinitionProvider('zowe', {
       provideMcpServerDefinitions: () => {
         const args = [serverModule, '--stdio'];
-
-        // Pass --mock if a mock data directory is configured
         const config = vscode.workspace.getConfiguration('zowe-mcp');
         const mockDataDir = config.get<string>('mockDataDir', '').trim();
-        if (mockDataDir) {
+        const nativeSystems = config.get<string[]>('nativeSystems', []) ?? [];
+
+        if (mockDataDir && nativeSystems.length > 0) {
+          log.warn(
+            'Both mockDataDir and nativeSystems are set; using nativeSystems (native mode).'
+          );
+        }
+        if (mockDataDir && nativeSystems.length === 0) {
           args.push('--mock', mockDataDir);
           log.info(`Mock mode enabled: ${mockDataDir}`);
+        } else if (nativeSystems.length > 0) {
+          args.push('--native');
+          for (const spec of nativeSystems) {
+            if (typeof spec === 'string' && spec.trim()) {
+              args.push('--system', spec.trim());
+            }
+          }
+          log.info(`Native (SSH) mode enabled: ${nativeSystems.length} system(s)`);
         }
 
         return [
@@ -64,7 +77,7 @@ export function activate(context: vscode.ExtensionContext): void {
     )
   );
 
-  // Watch for log-level setting changes and forward to connected MCP servers
+  // Watch for setting changes and forward to connected MCP servers
   context.subscriptions.push(
     vscode.workspace.onDidChangeConfiguration(e => {
       if (e.affectsConfiguration('zowe-mcp.logLevel')) {
@@ -72,6 +85,10 @@ export function activate(context: vscode.ExtensionContext): void {
         const level = config.get<string>('logLevel', 'info');
         log.info(`Log level setting changed to "${level}", forwarding to MCP servers`);
         sendLogLevelEvent(level);
+      }
+      if (e.affectsConfiguration('zowe-mcp.nativeSystems')) {
+        log.info('Native systems setting changed, forwarding to MCP servers');
+        sendSystemsUpdateEvent();
       }
     })
   );

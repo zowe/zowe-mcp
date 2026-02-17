@@ -96,20 +96,22 @@ export function startPipeServer(context: vscode.ExtensionContext): PipeServerInf
     log.info(`MCP server connected to extension pipe`);
     connectedClients.push(socket);
 
-    // Send the current log-level setting to the newly connected server
     sendInitialLogLevel();
+    sendInitialSystems();
 
     let buffer = '';
     socket.on('data', (data: Buffer) => {
       buffer += data.toString();
       const lines = buffer.split('\n');
-      // Keep the last (possibly incomplete) chunk in the buffer
       buffer = lines.pop() ?? '';
       for (const line of lines) {
         if (line.trim().length === 0) continue;
         try {
           const event = JSON.parse(line) as ServerToExtensionEvent;
-          handleServerEvent(log, event);
+          handleServerEvent(log, event, {
+            context,
+            sendEventToServers,
+          });
         } catch (e) {
           log.warn(`Failed to parse event from MCP server: ${String(e)}`);
         }
@@ -194,11 +196,9 @@ export function startPipeServer(context: vscode.ExtensionContext): PipeServerInf
 export function sendLogLevelEvent(level: string): void {
   sendEventToServers({
     type: 'log-level',
-    data: {
-      level: level as ExtensionToServerEvent['data']['level'],
-    },
+    data: { level },
     timestamp: Date.now(),
-  });
+  } as ExtensionToServerEvent);
 }
 
 /**
@@ -209,4 +209,30 @@ function sendInitialLogLevel(): void {
   const config = vscode.workspace.getConfiguration('zowe-mcp');
   const level = config.get<string>('logLevel', 'info');
   sendLogLevelEvent(level);
+}
+
+/**
+ * Sends the current nativeSystems setting to all connected servers.
+ * Called when a new server connects.
+ */
+function sendInitialSystems(): void {
+  const config = vscode.workspace.getConfiguration('zowe-mcp');
+  const systems = (config.get<string[]>('nativeSystems', []) ?? []).filter(
+    (s): s is string => typeof s === 'string' && s.trim().length > 0
+  );
+  if (systems.length > 0) {
+    sendEventToServers({
+      type: 'systems-update',
+      data: { systems },
+      timestamp: Date.now(),
+    });
+  }
+}
+
+/**
+ * Sends a systems-update event to all connected MCP server instances.
+ * Call when zowe-mcp.nativeSystems configuration changes.
+ */
+export function sendSystemsUpdateEvent(): void {
+  sendInitialSystems();
 }

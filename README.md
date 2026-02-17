@@ -121,6 +121,66 @@ npx zowe-mcp-server --stdio --mock ./zowe-mcp-mock-data
 ZOWE_MCP_MOCK_DIR=./zowe-mcp-mock-data npx zowe-mcp-server --stdio
 ```
 
+## Native (SSH) backend
+
+The server can connect to real z/OS systems over SSH using the Zowe Native Proto
+SDK. Only **listDatasets** is implemented in this backend; other dataset tools
+are planned.
+
+Connection format is `user@hostname` or `user@hostname:port` (default port 22),
+same as SSH.
+
+### Standalone mode
+
+Systems come from a config file or CLI:
+
+```bash
+# Config file (JSON with "systems" array)
+npx zowe-mcp-server --stdio --native --config ./native-config.json
+
+# CLI (repeatable)
+npx zowe-mcp-server --stdio --native --system USERID@sys1.example.com
+```
+
+Config file format:
+
+```json
+{
+  "systems": [
+    "user1@host1.example.com",
+    "user2@host2.example.com:22"
+  ]
+}
+```
+
+Passwords are read from environment variables:
+`ZOWE_MCP_PASSWORD_<USER>_<HOST>` (user and host uppercase, dots in host
+replaced by `_`). Example for `USERID@sys1.example.com`:
+
+```bash
+export ZOWE_MCP_PASSWORD_USERID_SYS1_EXAMPLE_COM=yourpassword
+npx zowe-mcp-server --stdio --native --system USERID@sys1.example.com
+```
+
+If a password is invalid, the server will not retry it for the rest of the
+process.
+
+### VS Code extension
+
+1. Open Settings and search for **Zowe MCP**
+2. Set **Native Systems** to an array of connection specs, e.g.
+   `["USERID@sys1.example.com"]`
+3. Reload the window so the MCP server restarts with `--native`
+
+When the server needs a password it sends a request to the extension; the
+extension prompts (or reads from VS Code Secret Storage) and sends the password
+back. Passwords are stored under the shared Zowe OSS key
+`zowe.ssh.password.<user>.<hostNormalized>` so other Zowe extensions can reuse
+them. If a password is invalid the extension deletes it from storage.
+
+You cannot use both mock mode and native mode; if both are configured, native
+wins.
+
 ## Configuring VS Code Copilot
 
 There are two ways to use Zowe MCP with GitHub Copilot in VS Code:
@@ -286,11 +346,19 @@ npm run call-tool -- listSystems
 ### MCP Inspector
 
 The [MCP Inspector](https://github.com/modelcontextprotocol/inspector)
-provides a web UI for interacting with the server:
+provides a web UI for interacting with the server (opens at <http://localhost:6274>).
+Use the script that matches how you want to run the server:
+
+| Script | Backend | Use when |
+| --- | --- | --- |
+| `npm run inspector` | None | Quick check: only core tools (e.g. `info`) are available; no z/OS systems. |
+| `npm run inspector:mock` | Mock (filesystem) | Try dataset tools without a real z/OS: uses `./zowe-mcp-mock-data`. Generate mock data first with `npx zowe-mcp-server init-mock --output ./zowe-mcp-mock-data`. |
+| `npm run inspector:native` | Native (SSH) | Connect to real z/OS via SSH. Needs `native-config.json` (systems) and `.env` (passwords). Copy `native-config.example.json` → `native-config.json` and `.env.example` → `.env`, then set `ZOWE_MCP_PASSWORD_<USER>_<HOST>` (see [Standalone mode](#standalone-mode)). |
 
 ```bash
-npm run inspector
-# Opens at http://localhost:6274
+npm run inspector          # no backend
+npm run inspector:mock     # mock data in ./zowe-mcp-mock-data
+npm run inspector:native   # SSH via native-config.json + .env
 ```
 
 ## Linting and formatting
@@ -312,7 +380,9 @@ npm run check-format  # Check formatting without modifying files
 | `npm run test:vscode` | Run VS Code extension tests |
 | `npm run build-and-install` | Package and install the VS Code extension |
 | `npm run call-tool -- <name>` | Call a tool from the CLI |
-| `npm run inspector` | Launch MCP Inspector |
+| `npm run inspector` | Launch MCP Inspector (no backend) |
+| `npm run inspector:mock` | Launch MCP Inspector with mock data (`./zowe-mcp-mock-data`) |
+| `npm run inspector:native` | Launch MCP Inspector with native SSH (`native-config.json` + `.env`) |
 | `npm run lint` | Run ESLint |
 | `npm run lint:fix` | Auto-fix ESLint issues |
 | `npm run format` | Format all files with Prettier |

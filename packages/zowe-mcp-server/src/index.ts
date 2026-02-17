@@ -19,11 +19,15 @@
  *   --http    Start with HTTP Streamable transport
  *   --port N  Port for HTTP transport (default: 3000)
  *   --mock <dir>  Start in mock mode with the given data directory
+ *   --native  Start with Zowe Native (SSH) backend
+ *   --config <path>  JSON file with { "systems": ["user@host", ...] } (used with --native)
+ *   --system <spec>  Connection spec user@host or user@host:port (repeatable, used with --native)
  *
  * Subcommands:
  *   init-mock  Generate a mock data directory (delegates to init-mock script)
  */
 
+import { readFileSync } from 'node:fs';
 import { connectExtensionClient } from './extension-client.js';
 import type { CreateServerOptions } from './server.js';
 import { createServer, getLogger, SERVER_VERSION } from './server.js';
@@ -34,6 +38,9 @@ interface ParsedArgs {
   transport: 'stdio' | 'http';
   port: number;
   mockDir?: string;
+  native?: boolean;
+  configPath?: string;
+  systemSpecs: string[];
   subcommand?: string;
 }
 
@@ -42,12 +49,15 @@ function parseArgs(): ParsedArgs {
   let transport: 'stdio' | 'http' = 'stdio';
   let port = 3000;
   let mockDir: string | undefined;
+  let native = false;
+  let configPath: string | undefined;
+  const systemSpecs: string[] = [];
   let subcommand: string | undefined;
 
   // Check for subcommand (first non-flag argument)
   if (args.length > 0 && !args[0].startsWith('-')) {
     subcommand = args[0];
-    return { transport, port, mockDir, subcommand };
+    return { transport, port, mockDir, native, configPath, systemSpecs, subcommand };
   }
 
   for (let i = 0; i < args.length; i++) {
@@ -63,6 +73,12 @@ function parseArgs(): ParsedArgs {
       }
     } else if (args[i] === '--mock' && i + 1 < args.length) {
       mockDir = args[++i];
+    } else if (args[i] === '--native') {
+      native = true;
+    } else if (args[i] === '--config' && i + 1 < args.length) {
+      configPath = args[++i];
+    } else if (args[i] === '--system' && i + 1 < args.length) {
+      systemSpecs.push(args[++i]);
     }
   }
 
@@ -71,7 +87,16 @@ function parseArgs(): ParsedArgs {
     mockDir = process.env.ZOWE_MCP_MOCK_DIR;
   }
 
-  return { transport, port, mockDir, subcommand };
+  return { transport, port, mockDir, native, configPath, systemSpecs, subcommand };
+}
+
+function loadSystemsFromConfig(configPath: string): string[] {
+  const raw = readFileSync(configPath, 'utf-8');
+  const config = JSON.parse(raw) as { systems?: string[] };
+  if (!Array.isArray(config.systems)) {
+    throw new Error(`Config file ${configPath} must have a "systems" array`);
+  }
+  return config.systems;
 }
 
 async function main(): Promise<void> {
@@ -93,8 +118,13 @@ async function main(): Promise<void> {
     return;
   }
 
-  const { transport, port, mockDir } = parsed;
+  const { transport, port, mockDir, native, configPath, systemSpecs } = parsed;
   const logger = getLogger();
+
+  if (mockDir && native) {
+    logger.error('Cannot use both --mock and --native. Choose one.');
+    process.exit(1);
+  }
 
   // Connect to VS Code extension pipe (if env vars are set)
   const extensionClient = await connectExtensionClient(logger);
@@ -115,6 +145,7 @@ async function main(): Promise<void> {
     transport,
     ...(transport === 'http' ? { port } : {}),
     ...(mockDir ? { mockDir } : {}),
+    ...(native ? { native: true } : {}),
     cwd: process.cwd(),
     argv: process.argv,
   });
@@ -132,6 +163,74 @@ async function main(): Promise<void> {
     logger.info('Mock mode enabled', {
       mockDir,
       systems: mock.systemRegistry.list(),
+    });
+  } else if (native) {
+    let systems: string[] = [...systemSpecs];
+    if (configPath) {
+      try {
+        const fromConfig = loadSystemsFromConfig(configPath);
+        systems = [...fromConfig, ...systemSpecs];
+      } catch (err) {
+        logger.error('Failed to load native config', err);
+        process.exit(1);
+      }
+    }
+    if (systems.length === 0) {
+      logger.error(
+        'Native mode requires at least one system. Use --config <path> (JSON with "systems" array) or --system user@host (repeatable).'
+      );
+      process.exit(1);
+    }
+    const { WaitablePasswordStore } = await import('./zos/native/password-store.js');
+    const { loadNative } = await import('./zos/native/load-native.js');
+    const { cacheKey } = await import('./zos/native/ssh-client-cache.js');
+    const nativePasswordStore = extensionClient?.connected
+      ? new WaitablePasswordStore()
+      : undefined;
+    const nativeSetup = loadNative({
+      systems,
+      useEnvForPassword: !extensionClient?.connected,
+      passwordStore: nativePasswordStore,
+      requestPasswordCallback: extensionClient?.connected
+        ? (user, host, port) => {
+            extensionClient.sendEvent({
+              type: 'request-password',
+              data: { user, host, port },
+              timestamp: Date.now(),
+            });
+          }
+        : undefined,
+      onPasswordInvalid: extensionClient?.connected
+        ? (user, host, port) => {
+            extensionClient.sendEvent({
+              type: 'password-invalid',
+              data: { user, host, port },
+              timestamp: Date.now(),
+            });
+          }
+        : undefined,
+    });
+    serverOptions = {
+      backend: nativeSetup.backend,
+      systemRegistry: nativeSetup.systemRegistry,
+      credentialProvider: nativeSetup.credentialProvider,
+    };
+    if (extensionClient?.connected && nativePasswordStore) {
+      extensionClient.onEvent(event => {
+        if (event.type === 'password') {
+          const { user, host, port, password } = event.data;
+          const key = cacheKey({
+            user,
+            host,
+            port: port ?? 22,
+          });
+          nativePasswordStore.set(key, password);
+          // Any getCredentials() waiting on waitFor(key) will now resolve.
+        }
+      });
+    }
+    logger.info('Native (SSH) mode enabled', {
+      systems: nativeSetup.systemRegistry.list(),
     });
   }
 

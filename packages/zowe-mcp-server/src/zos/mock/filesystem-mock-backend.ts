@@ -156,7 +156,13 @@ export class FilesystemMockBackend implements ZosBackend {
     return path.join(this.systemDir(systemId), dsnToRelPath(dsn));
   }
 
-  async listDatasets(systemId: SystemId, pattern: string): Promise<DatasetEntry[]> {
+  async listDatasets(
+    systemId: SystemId,
+    pattern: string,
+    volser?: string,
+    userId?: string
+  ): Promise<DatasetEntry[]> {
+    void [volser, userId];
     const sysDir = this.systemDir(systemId);
     if (!(await pathExists(sysDir))) {
       return [];

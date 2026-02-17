@@ -14,6 +14,8 @@
     "test:vscode": "npm run test -w packages/zowe-mcp-vscode",
     "call-tool": "npx tsx packages/zowe-mcp-server/scripts/call-tool.ts",
     "inspector": "npx @modelcontextprotocol/inspector node packages/zowe-mcp-server/dist/index.js --stdio",
+    "inspector:mock": "npx @modelcontextprotocol/inspector node packages/zowe-mcp-server/dist/index.js --stdio --mock ./zowe-mcp-mock-data",
+    "inspector:native": "dotenv -e .env -- npx @modelcontextprotocol/inspector node packages/zowe-mcp-server/dist/index.js -- --stdio --native --config native-config.json",
     "build-and-install": "npm run build-and-install -w packages/zowe-mcp-vscode",
     "lint": "eslint \"packages/**/*.ts\"",
     "lint:fix": "eslint --fix \"packages/**/*.ts\"",
@@ -22,6 +24,7 @@
     "markdownlint": "markdownlint-cli2 --fix"
   },
   "devDependencies": {
+    "dotenv-cli": "^7.4.2",
     "eslint": "^9.39.2",
     "eslint-plugin-headers": "^1.3.4",
     "eslint-plugin-vitest": "^0.5.4",

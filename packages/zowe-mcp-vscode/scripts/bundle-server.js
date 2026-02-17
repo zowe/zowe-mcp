@@ -24,9 +24,11 @@ const { execSync } = require('child_process');
 
 const extDir = path.resolve(__dirname, '..');
 const serverPkg = path.resolve(extDir, '..', 'zowe-mcp-server');
+const repoRoot = path.resolve(extDir, '..', '..');
 const targetDir = path.join(extDir, 'server');
 const cacheDir = path.join(extDir, '.server-deps-cache');
 const cacheHashFile = path.join(cacheDir, '.deps-hash');
+const binDir = path.join(repoRoot, 'bin');
 
 /**
  * Compute a hash of the server's production dependencies
@@ -48,6 +50,34 @@ function isCacheValid(currentHash) {
   return cachedHash === currentHash;
 }
 
+/**
+ * Copy any file:../../bin/*.tgz dependencies into server/.tgz/ and rewrite
+ * package.json so "npm install" from server/ can resolve them.
+ */
+function prepareFileDepsForBundle(targetPackageJsonPath) {
+  const pkg = JSON.parse(fs.readFileSync(targetPackageJsonPath, 'utf-8'));
+  const deps = pkg.dependencies || {};
+  let changed = false;
+  for (const [name, spec] of Object.entries(deps)) {
+    const match =
+      typeof spec === 'string' && spec.startsWith('file:../../bin/') && spec.endsWith('.tgz');
+    if (!match) continue;
+    const tgzName = path.basename(spec.replace(/^file:/, ''));
+    const srcTgz = path.join(binDir, tgzName);
+    if (!fs.existsSync(srcTgz)) {
+      throw new Error(`Server dependency ${name} points to ${spec} but ${srcTgz} does not exist.`);
+    }
+    const tgzDir = path.join(targetDir, '.tgz');
+    fs.mkdirSync(tgzDir, { recursive: true });
+    fs.copyFileSync(srcTgz, path.join(tgzDir, tgzName));
+    deps[name] = `file:.tgz/${tgzName}`;
+    changed = true;
+  }
+  if (changed) {
+    fs.writeFileSync(targetPackageJsonPath, JSON.stringify(pkg, null, 2));
+  }
+}
+
 // --- Main ---
 
 const depsHash = computeDepsHash();
@@ -63,7 +93,12 @@ fs.mkdirSync(targetDir, { recursive: true });
 fs.cpSync(path.join(serverPkg, 'dist'), targetDir, { recursive: true });
 
 // Copy server package.json (needed for version resolution at runtime)
-fs.cpSync(path.join(serverPkg, 'package.json'), path.join(targetDir, 'package.json'));
+const targetPackageJson = path.join(targetDir, 'package.json');
+fs.cpSync(path.join(serverPkg, 'package.json'), targetPackageJson);
+
+// Rewrite file:../../bin/*.tgz deps to file:.tgz/*.tgz and copy tgz into bundle
+// so "npm install" from server/ can resolve them
+prepareFileDepsForBundle(targetPackageJson);
 
 if (cacheHit) {
   // Cache hit — copy cached node_modules

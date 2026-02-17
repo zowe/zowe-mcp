@@ -40,6 +40,8 @@ npm-debug.log*
 .env
 .env.local
 .env.*
+# Local native systems (copy from native-config.example.json)
+native-config.json
 
 # Coverage
 coverage/

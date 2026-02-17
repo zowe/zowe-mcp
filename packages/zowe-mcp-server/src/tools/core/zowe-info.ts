@@ -23,14 +23,15 @@ export interface ZoweInfoResponse {
   version: string;
   description: string;
   components: string[];
-  backendConnected: boolean;
+  /** Backend type when connected (e.g. "mock", "native") or null when none. */
+  backend: string | null;
   notice?: string;
 }
 
 /** Options for configuring core tool registration. */
 export interface CoreToolOptions {
-  /** Whether a z/OS backend is connected (mock or real). */
-  backendConnected: boolean;
+  /** Backend type when connected (e.g. "mock", "native") or null when none. */
+  backend: string | null;
 }
 
 /**
@@ -48,15 +49,19 @@ export function registerCoreTools(
   options?: CoreToolOptions
 ): void {
   const log = logger.child('core');
-  const backendConnected = options?.backendConnected ?? false;
+  const backend = options?.backend ?? null;
+  const hasBackend = backend !== null;
+  const backendDescription = hasBackend
+    ? ''
+    : 'When no z/OS backend is configured, only this tool is available. ' +
+      'Configure a backend to enable z/OS tools: mock (VS Code "zowe-mcp.mockDataDir" or standalone --mock / ZOWE_MCP_MOCK_DIR) or native SSH (VS Code "zowe-mcp.nativeSystems" or standalone --native --system user@host).';
 
   server.registerTool(
     'info',
     {
       description:
         'Provides information about the Zowe MCP server, its version, and backend connection status. ' +
-        'When no z/OS backend is configured, only this tool is available. ' +
-        'Configure a backend (e.g. set the "zowe-mcp.mockDataDir" VS Code setting) to enable z/OS tools.',
+        backendDescription,
       annotations: { readOnlyHint: true },
     },
     extra => {
@@ -72,17 +77,18 @@ export function registerCoreTools(
         version,
         description:
           'MCP server providing tools for z/OS systems including data sets, jobs, and UNIX System Services',
-        components: backendConnected ? ['core', 'context', 'datasets'] : ['core'],
-        backendConnected,
+        components: hasBackend ? ['core', 'context', 'datasets'] : ['core'],
+        backend,
       };
 
-      if (!backendConnected) {
+      if (!hasBackend) {
         info.notice =
           'No z/OS backend is configured. Only the "info" tool is available. ' +
           'To enable all z/OS tools, configure a backend:\n' +
-          '  - VS Code: run "Zowe MCP: Generate Mock Data" from the Command Palette, ' +
-          'or set "zowe-mcp.mockDataDir" in Settings to an existing mock data directory\n' +
-          '  - Standalone: use --mock <dir> or set ZOWE_MCP_MOCK_DIR environment variable';
+          '  - Mock: VS Code — run "Zowe MCP: Generate Mock Data" or set "zowe-mcp.mockDataDir"; ' +
+          'Standalone — --mock <dir> or ZOWE_MCP_MOCK_DIR\n' +
+          '  - Native (SSH): VS Code — set "zowe-mcp.nativeSystems" (e.g. ["user@host"]); ' +
+          'Standalone — --native --system user@host (or --config <path>)';
       }
 
       return {

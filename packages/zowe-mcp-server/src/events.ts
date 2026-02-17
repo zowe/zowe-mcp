@@ -61,6 +61,26 @@ export interface NotificationEventData {
 /** Displays a notification message in the VS Code UI. */
 export type NotificationEvent = McpEvent<'notification', NotificationEventData>;
 
+/** Payload for a `request-password` event (server → extension). */
+export interface RequestPasswordEventData {
+  user: string;
+  host: string;
+  port?: number;
+}
+
+/** Asks the extension to provide a password for user@host (from SecretStorage or prompt). */
+export type RequestPasswordEvent = McpEvent<'request-password', RequestPasswordEventData>;
+
+/** Payload for a `password-invalid` event (server → extension). */
+export interface PasswordInvalidEventData {
+  user: string;
+  host: string;
+  port?: number;
+}
+
+/** Tells the extension to delete the stored password for that user@host. */
+export type PasswordInvalidEvent = McpEvent<'password-invalid', PasswordInvalidEventData>;
+
 // ---------------------------------------------------------------------------
 // Extension → Server events
 // ---------------------------------------------------------------------------
@@ -73,15 +93,38 @@ export interface LogLevelEventData {
 /** Dynamically changes the server's log verbosity at runtime. */
 export type LogLevelEvent = McpEvent<'log-level', LogLevelEventData>;
 
+/** Payload for a `password` event (extension → server). */
+export interface PasswordEventData {
+  user: string;
+  host: string;
+  port?: number;
+  password: string;
+}
+
+/** Supplies a password for user@host (after request-password or from SecretStorage). */
+export type PasswordEvent = McpEvent<'password', PasswordEventData>;
+
+/** Payload for a `systems-update` event (extension → server). */
+export interface SystemsUpdateEventData {
+  systems: string[];
+}
+
+/** Updates the list of connection specs (user@host) for native mode. */
+export type SystemsUpdateEvent = McpEvent<'systems-update', SystemsUpdateEventData>;
+
 // ---------------------------------------------------------------------------
 // Union types
 // ---------------------------------------------------------------------------
 
 /** Events that flow from the MCP server to the VS Code extension. */
-export type ServerToExtensionEvent = LogEvent | NotificationEvent;
+export type ServerToExtensionEvent =
+  | LogEvent
+  | NotificationEvent
+  | RequestPasswordEvent
+  | PasswordInvalidEvent;
 
 /** Events that flow from the VS Code extension to the MCP server. */
-export type ExtensionToServerEvent = LogLevelEvent;
+export type ExtensionToServerEvent = LogLevelEvent | PasswordEvent | SystemsUpdateEvent;
 
 /** Union of all event types exchanged over the pipe. */
 export type AnyMcpEvent = ServerToExtensionEvent | ExtensionToServerEvent;

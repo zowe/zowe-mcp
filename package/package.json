@@ -1,0 +1,42 @@
+{
+  "name": "zowe-native-proto-sdk",
+  "version": "0.2.3",
+  "main": "lib/index.js",
+  "scripts": {
+    "build": "tsc -b",
+    "clean": "tsc -b --clean",
+    "lint": "npx @biomejs/biome check --write src tests",
+    "test": "vitest run --coverage",
+    "test:ui": "vitest --ui --coverage",
+    "typedoc": "typedoc src/index.ts --out ../../doc/typedoc",
+    "typedoc:md": "typedoc --options typedoc.markdown.json",
+    "watch": "tsc -b -w"
+  },
+  "keywords": [],
+  "author": "Zowe",
+  "license": "EPL-2.0",
+  "description": "Zowe Native Proto APIs for Zowe SDK",
+  "files": [
+    "bin",
+    "lib"
+  ],
+  "dependencies": {
+    "base64-stream": "^1.0.0",
+    "es-toolkit": "^1.39.10",
+    "node-ssh": "^13.2.0",
+    "ssh-config": "^5.0.3",
+    "ssh2": "^1.16.0"
+  },
+  "devDependencies": {
+    "@types/base64-stream": "^1.0.5",
+    "@types/node": "^22.10.7",
+    "@types/ssh2": "^1.15.4",
+    "typedoc": "^0.28.0",
+    "typedoc-plugin-markdown": "^4.10.0",
+    "typescript": "^5.7.3"
+  },
+  "peerDependencies": {
+    "@zowe/imperative": "^8.11.0",
+    "@zowe/zos-uss-for-zowe-sdk": "^8.11.0"
+  }
+}

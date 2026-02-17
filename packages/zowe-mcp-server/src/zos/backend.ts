@@ -175,8 +175,14 @@ export interface ZosBackend {
    * @param systemId - Target z/OS system.
    * @param pattern - Dataset name pattern (e.g. `"USER.*"`).
    * @param volser - Optional volume serial for uncataloged datasets.
+   * @param userId - Optional user ID (for backends that need it, e.g. SSH per-user session).
    */
-  listDatasets(systemId: SystemId, pattern: string, volser?: string): Promise<DatasetEntry[]>;
+  listDatasets(
+    systemId: SystemId,
+    pattern: string,
+    volser?: string,
+    userId?: string
+  ): Promise<DatasetEntry[]>;
 
   /**
    * List members of a PDS/PDSE.

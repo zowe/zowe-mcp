@@ -73,6 +73,15 @@
           ],
           "description": "Minimum log level for the Zowe MCP Server. Changes take effect immediately without restarting.",
           "order": 2
+        },
+        "zowe-mcp.nativeSystems": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "Connection specs for Zowe Native (SSH) backend: user@hostname or user@hostname:port (e.g. USERID@sys1.example.com). When non-empty, the MCP server starts with the native backend instead of mock. Passwords are stored in the shared Zowe secret namespace (zowe.ssh.password.*). Changes require restarting the MCP server.",
+          "order": 3
         }
       }
     }

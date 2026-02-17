@@ -69,7 +69,7 @@ Types: `DatasetEntry`, `MemberEntry`, `ReadDatasetResult`, `WriteDatasetResult`,
   - DSN convention: unquoted = relative to DSN prefix; single-quoted = absolute. Use `resolveDsn(dsn, prefix, member)` from `src/zos/dsn.ts` for validation and resolution.
   - Return responses via the **response envelope** from `src/tools/response.ts`:
     - `buildContext(systemId, prefix, { resolvedDsn: formatResolved(dsn) })` (or `resolvedPattern` for list, `resolvedTargetDsn` for copy/rename).
-    - List: `paginat§eList(items, offset, limit)` → `ListResultMeta`; Read: `windowContent(text, startLine, lineCount)` → `ReadResultMeta`; Mutations: `MutationResultMeta` with `{ success: true }`.
+    - List: `paginateList(items, offset, limit)` → `ListResultMeta`; Read: `windowContent(text, startLine, lineCount)` → `ReadResultMeta`; Mutations: `MutationResultMeta` with `{ success: true }`.
     - `wrapResponse(ctx, meta, data)` to build the final JSON envelope.
   - Tool names: **camelCase** (e.g. `listDatasets`). Annotations: `readOnlyHint: true` for read-only, `destructiveHint: true` for delete.
   - Describe single-quote convention in tool description and param descriptions.

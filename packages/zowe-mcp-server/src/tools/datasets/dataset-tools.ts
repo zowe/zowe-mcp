@@ -165,9 +165,10 @@ export function registerDatasetTools(
           userId
         );
 
-        // Add resource links
+        // Add resource links; output DSN as absolute single-quoted
         const enriched = datasets.map(ds => ({
           ...ds,
+          dsn: formatResolved(ds.dsn),
           resourceLink: buildDsUri(systemId, ds.dsn, undefined, ds.volser),
         }));
 
@@ -782,12 +783,18 @@ export function registerDatasetTools(
         });
 
         const mutationMeta: MutationResultMeta = { success: true };
+        const oldDisplay = resolvedOld.member
+          ? `${resolvedOld.dsn}(${resolvedOld.member})`
+          : resolvedOld.dsn;
+        const newDisplay = resolvedNew.member
+          ? `${resolvedNew.dsn}(${resolvedNew.member})`
+          : resolvedNew.dsn;
         return wrapResponse(
           ctx,
           mutationMeta,
           {
-            oldName: resolvedOld.dsn,
-            newName: resolvedNew.dsn,
+            oldName: formatResolved(oldDisplay),
+            newName: formatResolved(newDisplay),
           },
           []
         );

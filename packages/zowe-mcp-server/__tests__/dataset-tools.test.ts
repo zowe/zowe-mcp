@@ -462,9 +462,9 @@ describe('Dataset tools with mock backend', () => {
       expect(data.length).toBeGreaterThanOrEqual(3);
 
       const names = data.map(d => d.dsn);
-      expect(names).toContain('TESTUSER.DATA.INPUT');
-      expect(names).toContain('TESTUSER.SRC.COBOL');
-      expect(names).toContain('TESTUSER.JCL.CNTL');
+      expect(names).toContain("'TESTUSER.DATA.INPUT'");
+      expect(names).toContain("'TESTUSER.SRC.COBOL'");
+      expect(names).toContain("'TESTUSER.JCL.CNTL'");
     });
 
     it('should list datasets with absolute pattern "\'TESTUSER.*\'"', async () => {
@@ -477,8 +477,8 @@ describe('Dataset tools with mock backend', () => {
       expect(data.length).toBeGreaterThanOrEqual(3);
 
       const names = data.map(d => d.dsn);
-      expect(names).toContain('TESTUSER.DATA.INPUT');
-      expect(names).toContain('TESTUSER.SRC.COBOL');
+      expect(names).toContain("'TESTUSER.DATA.INPUT'");
+      expect(names).toContain("'TESTUSER.SRC.COBOL'");
     });
 
     it('should include 2-qualifier datasets in trailing * results', async () => {
@@ -489,7 +489,7 @@ describe('Dataset tools with mock backend', () => {
 
       const data = parseData<{ dsn: string }[]>(result);
       const names = data.map(d => d.dsn);
-      expect(names).toContain('TESTUSER.LOAD');
+      expect(names).toContain("'TESTUSER.LOAD'");
     });
 
     it('should match specific qualifier patterns', async () => {
@@ -500,8 +500,8 @@ describe('Dataset tools with mock backend', () => {
 
       const data = parseData<{ dsn: string }[]>(result);
       const names = data.map(d => d.dsn);
-      expect(names).toContain('TESTUSER.SRC.COBOL');
-      expect(names).not.toContain('TESTUSER.JCL.CNTL');
+      expect(names).toContain("'TESTUSER.SRC.COBOL'");
+      expect(names).not.toContain("'TESTUSER.JCL.CNTL'");
     });
 
     it('should return empty data array for non-matching pattern', async () => {
@@ -809,8 +809,8 @@ describe('Dataset tools with mock backend', () => {
 
       const data = parseData<{ dsn: string }[]>(result);
       const names = data.map(d => d.dsn);
-      expect(names).toContain('TESTUSER.SRC.COBOL');
-      expect(names).not.toContain('TESTUSER.JCL.CNTL');
+      expect(names).toContain("'TESTUSER.SRC.COBOL'");
+      expect(names).not.toContain("'TESTUSER.JCL.CNTL'");
     });
 
     it('should match with wildcard in middle qualifier', async () => {
@@ -821,9 +821,9 @@ describe('Dataset tools with mock backend', () => {
 
       const data = parseData<{ dsn: string }[]>(result);
       const names = data.map(d => d.dsn);
-      expect(names).toContain('TESTUSER.SRC.COBOL');
-      expect(names).not.toContain('TESTUSER.JCL.CNTL');
-      expect(names).not.toContain('TESTUSER.DATA.INPUT');
+      expect(names).toContain("'TESTUSER.SRC.COBOL'");
+      expect(names).not.toContain("'TESTUSER.JCL.CNTL'");
+      expect(names).not.toContain("'TESTUSER.DATA.INPUT'");
     });
 
     it('should handle case-insensitive pattern matching', async () => {
@@ -885,6 +885,27 @@ describe('Dataset tools with mock backend', () => {
       expect(envelope.data.allocation.messages).toContain(
         'dirblk defaulted to 5 for partitioned dataset.'
       );
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // renameDataset quoted DSN in response
+  // -----------------------------------------------------------------------
+  describe('renameDataset envelope', () => {
+    it('should return oldName and newName as single-quoted absolute DSN', async () => {
+      await client.callTool({
+        name: 'createDataset',
+        arguments: { dsn: 'RENAME.SOURCE', type: 'PS' },
+      });
+
+      const result = await client.callTool({
+        name: 'renameDataset',
+        arguments: { dsn: 'RENAME.SOURCE', newDsn: 'RENAME.TARGET' },
+      });
+
+      const envelope = parseEnvelope<{ oldName: string; newName: string }>(result);
+      expect(envelope.data.oldName).toBe("'TESTUSER.RENAME.SOURCE'");
+      expect(envelope.data.newName).toBe("'TESTUSER.RENAME.TARGET'");
     });
   });
 

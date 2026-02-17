@@ -23,7 +23,10 @@
  * z/OS convention for absolute dataset names.
  */
 
+import { createRequire } from 'node:module';
 import { inferMimeType } from '../zos/dsn.js';
+
+const require = createRequire(import.meta.url);
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -107,9 +110,28 @@ export interface ToolResponseEnvelope<T> {
  * Wrap a fully-qualified value in single quotes (z/OS absolute convention).
  *
  * All resolved values are absolute, so they are always quoted.
+ * Idempotent: if the value is already wrapped in single quotes, it is
+ * stripped and re-wrapped once. When that normalization happens, a debug
+ * message is logged so we can see when backends or callers pass quoted DSN.
  */
 export function formatResolved(value: string): string {
-  return `'${value}'`;
+  const alreadyQuoted = value.length >= 2 && value.startsWith("'") && value.endsWith("'");
+  const unquoted = alreadyQuoted ? value.slice(1, -1) : value;
+  if (alreadyQuoted) {
+    try {
+      const { getLogger } = require('../server.js') as {
+        getLogger: () => {
+          child: (name: string) => { debug: (msg: string, data?: unknown) => void };
+        };
+      };
+      getLogger().child('response').debug('formatResolved: DSN was already quoted, normalized', {
+        value,
+      });
+    } catch {
+      // Avoid circular dependency or missing server at load time; skip log
+    }
+  }
+  return `'${unquoted}'`;
 }
 
 /**

@@ -206,7 +206,7 @@ describe('Dataset tools with native backend', () => {
       expect(envelope._result).toBeDefined();
       expect(Array.isArray(envelope.data)).toBe(true);
       expect(envelope.data).toHaveLength(1);
-      expect(envelope.data[0].dsn).toBe('USER.PDS.LIB');
+      expect(envelope.data[0].dsn).toBe("'USER.PDS.LIB'");
     });
   });
 });

@@ -1,4 +1,4 @@
-# Zowe MCP
+# <img src="packages/zowe-mcp-vscode/resources/icon.svg" alt="Zowe MCP" style="height:1.2em; vertical-align: text-top;" /> Zowe MCP
 
 Model Context Protocol (MCP) server and VS Code extension that gives AI
 assistants tools for working with z/OS systems -- data sets, jobs, and UNIX
@@ -158,7 +158,7 @@ Passwords are read from environment variables:
 replaced by `_`). Example for `USERID@sys1.example.com`:
 
 ```bash
-export ZOWE_MCP_PASSWORD_USERID_SYS1_EXAMPLE_COM=yourpassword
+export ZOWE_MCP_PASSWORD_USERID_SYS1_EXAMPLE_COM=password
 npx zowe-mcp-server --stdio --native --system USERID@sys1.example.com
 ```
 

@@ -87,7 +87,7 @@ The `resolvedPattern` field is for list tools (`listDatasets`); `resolvedDsn` is
 - **Credentials**: `CredentialProvider` interface in `src/zos/credentials.ts`. Implementations: `MockCredentialProvider` (reads `systems.json`), future: `ZoweTeamConfigProvider`, `OAuthTokenProvider`.
 - **Session state**: `SessionState` in `src/zos/session.ts`. Tracks active system and per-system `SystemContext` (userId, dsnPrefix).
 - **DSN utilities**: `src/zos/dsn.ts` — `resolveDsn()`, `validateDsn()`, `validateMember()`, `buildDsUri()`, `inferMimeType()`. Use `dsn` (not `dsname`) as the variable name for dataset names throughout the codebase.
-- **Backend**: `ZosBackend` interface in `src/zos/backend.ts`. Implementations: `FilesystemMockBackend` (mock), `NativeBackend` (Zowe Native Proto SDK over SSH; listDatasets only).
+- **Backend**: `ZosBackend` interface in `src/zos/backend.ts`. Implementations: `FilesystemMockBackend` (mock), `NativeBackend` (Zowe Native Proto SDK over SSH; listDatasets and listMembers).
 
 ### Mock Mode
 

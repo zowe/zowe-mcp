@@ -11,7 +11,7 @@ Use this in chats when implementing new dataset operations or other z/OS tools.
 | Tool | Backend method | Mock backend | Native (SSH) backend |
 | ---- | -------------- | ------------ | -------------------- |
 | `listDatasets` | `listDatasets()` | ✅ | ✅ |
-| `listMembers` | `listMembers()` | ✅ | ❌ throws |
+| `listMembers` | `listMembers()` | ✅ | ✅ |
 | `getDatasetAttributes` | `getAttributes()` | ✅ | ❌ throws |
 | `readDataset` | `readDataset()` | ✅ | ❌ throws |
 | `writeDataset` | `writeDataset()` | ✅ | ❌ throws |
@@ -21,7 +21,7 @@ Use this in chats when implementing new dataset operations or other z/OS tools.
 | `renameDataset` | `renameDataset()` | ✅ | ❌ throws |
 
 - **Mock backend**: `FilesystemMockBackend` in `src/zos/mock/` — implements full `ZosBackend`.
-- **Native backend**: `NativeBackend` in `src/zos/native/native-backend.ts` — only `listDatasets()` is implemented; all other methods throw `"Not implemented for Zowe Native backend"`.
+- **Native backend**: `NativeBackend` in `src/zos/native/native-backend.ts` — `listDatasets()` and `listMembers()` are implemented; all other methods throw `"Not implemented for Zowe Native backend"`.
 
 ### Other components
 
@@ -140,10 +140,32 @@ The **zowe-native-proto** VS Code extension uses a cache that is a good referenc
 
 Our cache in `packages/zowe-mcp-server/src/zos/native/ssh-client-cache.ts` follows a similar idea (key by `user@host:port`, getOrCreate, evict) but is adapted for MCP (no VS Code or profile, connection spec from config/env).
 
+### Finding SDK sources on GitHub
+
+The SDK is not on npm; the canonical source is the **zowe-native-proto** repo. Use these to find the right APIs without cloning:
+
+- **Repo**: <https://github.com/zowe/zowe-native-proto> (branch `main`).
+- **Client API surface** (what methods exist on `client.ds`): `packages/sdk/src/RpcClientApi.ts`  
+  Raw: <https://raw.githubusercontent.com/zowe/zowe-native-proto/main/packages/sdk/src/RpcClientApi.ts>
+- **Dataset RPC definitions** (request/response types): `packages/sdk/src/doc/rpc/ds.ts`  
+  Raw: <https://raw.githubusercontent.com/zowe/zowe-native-proto/main/packages/sdk/src/doc/rpc/ds.ts>
+- **Common types** (e.g. `DsMember`, `Dataset`, `ListOptions`): `packages/sdk/src/doc/rpc/common.ts`  
+  Raw: <https://raw.githubusercontent.com/zowe/zowe-native-proto/main/packages/sdk/src/doc/rpc/common.ts>
+- **Example usage**: repo root `example/index.ts` (listDatasets only; no listMembers example in tree).
+
+**How to discover "list members"**: In `RpcClientApi.ts`, the `ds` object lists all dataset commands (`listDatasets`, `listDsMembers`, `readDataset`, etc.). The method name is **`listDsMembers`** (not `listMembers`). Then open `ds.ts` for `ListDsMembersRequest` / `ListDsMembersResponse` and `common.ts` for `DsMember`.
+
+### Insights for native backend methods
+
+- **SDK method name**: Backend method is `listMembers`; SDK method is **`listDsMembers`** (RPC command string `"listDsMembers"`).
+- **No member pattern in SDK**: `ListDsMembersRequest` has `dsname`, `maxItems`, `start`, `attributes` — no `pattern`. Implement member-name filtering **client-side** (e.g. regex from `pattern.replace(/\*/g, '.*')`, case-insensitive), consistent with the mock backend.
+- **Response shape**: `items: DsMember[]` with `DsMember = { name: string }`; maps 1:1 to our `MemberEntry` after normalizing `name` to uppercase.
+- **Auth/connection errors**: Same handling as `listDatasets`: on errors whose message indicates auth or connection failure, call `credentialProvider.markInvalid(spec)`, `clientCache.evict(spec)`, `onPasswordInvalid?.(...)`, then rethrow.
+
 ### Implementing more native-backend methods
 
 1. Follow the pattern in `native-backend.ts` `listDatasets`: get spec, credentials, client via cache, call SDK API, map to `DatasetEntry` / `MemberEntry` / etc.
-2. Use the **example** above for the exact SDK calls (e.g. `client.ds.listDatasets({ pattern })`).
+2. Use the **example** above for the exact SDK calls (e.g. `client.ds.listDatasets({ pattern })`, `client.ds.listDsMembers({ dsname })`).
 3. SDK types and APIs are in the installed package under `node_modules/zowe-native-proto-sdk`; for source and RPC definitions see `zowe-native-proto/packages/sdk/src/`.
 
 ---

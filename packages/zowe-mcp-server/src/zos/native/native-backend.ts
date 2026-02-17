@@ -12,9 +12,10 @@
 /**
  * ZosBackend implementation using the Zowe Native Proto SDK (SSH).
  *
- * Implements listDatasets only; other methods throw "not implemented".
+ * Implements listDatasets and listMembers; other methods throw "not implemented".
  */
 
+import type { ZSshClient } from 'zowe-native-proto-sdk';
 import type {
   CreateDatasetOptions,
   CreateDatasetResult,
@@ -30,6 +31,22 @@ import type { NativeCredentialProvider } from './native-credential-provider.js';
 import type { SshClientCache } from './ssh-client-cache.js';
 
 const NOT_IMPL = 'Not implemented for Zowe Native backend';
+
+/** Subset of ZSshClient.ds we use (SDK types may be loose). */
+interface NativeDsApi {
+  listDatasets(req: { pattern: string }): Promise<{
+    items?: {
+      name: string;
+      dsorg?: string;
+      recfm?: string;
+      lrecl?: number;
+      blksize?: number;
+      cdate?: string;
+      volser?: string;
+    }[];
+  }>;
+  listDsMembers(req: { dsname: string }): Promise<{ items?: { name: string }[] }>;
+}
 
 function mapDatasetToEntry(item: {
   name: string;
@@ -63,13 +80,11 @@ export interface NativeBackendOptions {
 export class NativeBackend {
   constructor(private readonly options: NativeBackendOptions) {}
 
-  async listDatasets(
+  private async withNativeClient<T>(
     systemId: SystemId,
-    pattern: string,
-    _volser?: string,
-    userId?: string
-  ): Promise<DatasetEntry[]> {
-    // TODO2: Can we move what is not listing datasets to a shared call?
+    userId: string | undefined,
+    fn: (client: ZSshClient) => Promise<T>
+  ): Promise<T> {
     const spec = this.options.getSpec(systemId, userId);
     if (!spec) {
       throw new Error(
@@ -81,10 +96,8 @@ export class NativeBackend {
 
     try {
       const client = await this.options.clientCache.getOrCreate(spec, credentials);
-      const response = await client.ds.listDatasets({ pattern });
-      return (response.items ?? []).map(mapDatasetToEntry);
+      return await fn(client);
     } catch (err) {
-      // TODO: Can we move this to a shared call and differentiate between authentication errors and other errors (connections)?
       const msg = err instanceof Error ? err.message : String(err);
       if (
         msg.includes('Authentication') ||
@@ -101,10 +114,34 @@ export class NativeBackend {
     }
   }
 
+  async listDatasets(
+    systemId: SystemId,
+    pattern: string,
+    _volser?: string,
+    userId?: string
+  ): Promise<DatasetEntry[]> {
+    return this.withNativeClient(systemId, userId, async client => {
+      const ds = (client as unknown as { ds: NativeDsApi }).ds;
+      const response = await ds.listDatasets({ pattern });
+      return (response.items ?? []).map(mapDatasetToEntry);
+    });
+  }
+
   async listMembers(systemId: SystemId, dsn: string, pattern?: string): Promise<MemberEntry[]> {
-    void [systemId, dsn, pattern];
-    await Promise.resolve();
-    throw new Error(NOT_IMPL);
+    return this.withNativeClient(systemId, undefined, async client => {
+      const ds = (client as unknown as { ds: NativeDsApi }).ds;
+      const response = await ds.listDsMembers({ dsname: dsn });
+      let members: MemberEntry[] = (response.items ?? []).map(m => ({
+        name: m.name.toUpperCase(),
+      }));
+
+      if (pattern) {
+        const regex = new RegExp(`^${pattern.replace(/\*/g, '.*')}$`, 'i');
+        members = members.filter(m => regex.test(m.name));
+      }
+
+      return members.sort((a, b) => a.name.localeCompare(b.name));
+    });
   }
 
   async readDataset(

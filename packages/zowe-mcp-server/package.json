@@ -12,8 +12,8 @@
     "dist/"
   ],
   "scripts": {
-    "build": "tsc",
-    "dev": "tsc --watch",
+    "build": "tsc -p tsconfig.build.json",
+    "dev": "tsc -p tsconfig.build.json --watch",
     "test": "vitest run",
     "test:watch": "vitest",
     "format": "prettier --write \"**/*.{ts,js,mjs,json,jsonc}\"",

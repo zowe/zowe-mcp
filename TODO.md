@@ -20,7 +20,7 @@ Items to address later. Not ordered by priority.
 - **Other AI assistants**: Test with Cline (VS Code) and with Claude Desktop / Claude Code.
 - **Password error messages**: Validate that the password error messages match what really happens when errors occur.
 - **Tool description quality**: Evaluate tool descriptions; see how Code4z Assistant does it for reference.
-- **z/OS integration tests**: Add or run z/OS integration tests.
+- DONE - **z/OS integration tests**: Add or run z/OS integration tests. (Native stdio E2E tests)
 
 ## VS Code / UX
 

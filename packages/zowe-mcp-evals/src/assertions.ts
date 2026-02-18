@@ -70,10 +70,32 @@ export function runAssertions(
       }
       case 'answerContains': {
         const expected = a;
-        if (!finalText.includes(expected.substring)) {
+        if (expected.pattern !== undefined) {
+          try {
+            const re = new RegExp(expected.pattern);
+            if (!re.test(finalText)) {
+              return {
+                passed: false,
+                failedAssertion: `Expected answer to match pattern /${expected.pattern}/`,
+              };
+            }
+          } catch (e) {
+            return {
+              passed: false,
+              failedAssertion: `Invalid answerContains pattern: ${expected.pattern}`,
+            };
+          }
+        } else if (expected.substring !== undefined) {
+          if (!finalText.includes(expected.substring)) {
+            return {
+              passed: false,
+              failedAssertion: `Expected answer to contain "${expected.substring}"`,
+            };
+          }
+        } else {
           return {
             passed: false,
-            failedAssertion: `Expected answer to contain "${expected.substring}"`,
+            failedAssertion: 'answerContains requires substring or pattern',
           };
         }
         break;
@@ -102,6 +124,39 @@ export function runAssertions(
             passed: false,
             failedAssertion: `Expected a tool call "${expected.tool}" with matching args`,
           };
+        }
+        break;
+      }
+      case 'minToolCalls': {
+        const expected = a;
+        const count = toolCalls.filter(tc => tc.name === expected.tool.trim()).length;
+        if (count < expected.minCount) {
+          return {
+            passed: false,
+            failedAssertion: `Expected at least ${expected.minCount} call(s) to "${expected.tool}", got ${count}`,
+          };
+        }
+        break;
+      }
+      case 'toolCallSequence': {
+        const expected = a;
+        const normalized = expected.tool.trim();
+        const calls = toolCalls.filter(tc => tc.name === normalized);
+        if (calls.length < expected.sequence.length) {
+          return {
+            passed: false,
+            failedAssertion: `Expected at least ${expected.sequence.length} call(s) to "${expected.tool}", got ${calls.length}`,
+          };
+        }
+        for (let i = 0; i < expected.sequence.length; i++) {
+          const expectedArgs = expected.sequence[i];
+          const actualArgs = calls[i].arguments;
+          if (!argsMatch(expectedArgs, actualArgs)) {
+            return {
+              passed: false,
+              failedAssertion: `Expected "${expected.tool}" call ${i + 1} to have args matching ${JSON.stringify(expectedArgs)}, got ${JSON.stringify(actualArgs)}`,
+            };
+          }
         }
         break;
       }

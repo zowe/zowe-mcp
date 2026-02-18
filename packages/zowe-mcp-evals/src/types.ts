@@ -57,11 +57,15 @@ export interface AssertToolCall {
 }
 
 /**
- * Assertion: final answer text must contain this substring.
+ * Assertion: final answer text must contain a substring or match a regex.
+ * Use either `substring` (literal) or `pattern` (regex string); if both are set, `pattern` is used.
  */
 export interface AssertAnswerContains {
   type: 'answerContains';
-  substring: string;
+  /** Literal substring to look for. */
+  substring?: string;
+  /** Regex pattern (string) to match; e.g. "2,?000" matches "2000" or "2,000". */
+  pattern?: string;
 }
 
 /**
@@ -82,11 +86,33 @@ export interface AssertToolOnly {
   args?: Record<string, unknown>;
 }
 
+/**
+ * Assertion: the tool must have been called at least minCount times (e.g. for pagination).
+ */
+export interface AssertMinToolCalls {
+  type: 'minToolCalls';
+  tool: string;
+  minCount: number;
+}
+
+/**
+ * Assertion: the tool must have been called in order with args matching each element of sequence
+ * (partial match per call). Used to assert pagination parameters (e.g. offset/limit) on every call.
+ */
+export interface AssertToolCallSequence {
+  type: 'toolCallSequence';
+  tool: string;
+  /** Expected args for each call, in order. Each element is partial-match. */
+  sequence: Record<string, unknown>[];
+}
+
 export type Assertion =
   | AssertToolCall
   | AssertAnswerContains
   | AssertSingleToolCall
-  | AssertToolOnly;
+  | AssertToolOnly
+  | AssertMinToolCalls
+  | AssertToolCallSequence;
 
 /**
  * One question in a set.

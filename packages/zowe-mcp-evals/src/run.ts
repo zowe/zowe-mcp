@@ -9,7 +9,6 @@
  *
  */
 
-import { spawnSync } from 'node:child_process';
 import { existsSync, rmSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -76,28 +75,6 @@ function filterQuestions(questions: Question[], cli: CliArgs): Question[] {
     list = list.slice(start, end + 1);
   }
   return list;
-}
-
-function runMarkdownlint(reportDir: string): void {
-  const reportPath = resolve(reportDir, 'report.md');
-  const failuresPath = resolve(reportDir, 'failures.md');
-  const files: string[] = [];
-  if (existsSync(reportPath)) files.push(reportPath);
-  if (existsSync(failuresPath)) files.push(failuresPath);
-  if (files.length === 0) return;
-  const configPath = resolve(__dirname, '..', 'evals.markdownlint-cli2.jsonc');
-  const args = ['markdownlint-cli2', '--fix'];
-  if (existsSync(configPath)) args.push('--config', configPath);
-  args.push(...files);
-  const r = spawnSync('npx', args, {
-    cwd: process.cwd(),
-    shell: true,
-    stdio: 'pipe',
-    encoding: 'utf-8',
-  });
-  if (r.status !== 0) {
-    log.debug('markdownlint reported issues', { stderr: r.stderr, stdout: r.stdout });
-  }
 }
 
 async function main(): Promise<void> {
@@ -237,7 +214,6 @@ async function main(): Promise<void> {
 
   log.info('Writing report');
   writeReport(allResults, allToolCalls, process.cwd());
-  runMarkdownlint(reportDir);
 
   log.notice(`Runs: ${passed}/${total} passed`);
   if (success) {

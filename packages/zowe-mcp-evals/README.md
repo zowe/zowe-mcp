@@ -74,6 +74,8 @@ Question sets are YAML files in `questions/`. Each file has:
 - **answerContains** — Final answer must contain `substring`.
 - **singleToolCall** — Exactly one tool call in the first turn, matching `tool` and optional `args`.
 - **toolOnly** — At least one call to `tool` with optional `args`; answer content not checked.
+- **minToolCalls** — The tool must have been called at least `minCount` times (e.g. for pagination evals).
+- **toolCallSequence** — The tool must have been called in order with args matching each element of `sequence` (partial match per call). Use to assert every pagination call has correct parameters (e.g. `dsn`, `offset`, `limit`).
 
 ## Report
 

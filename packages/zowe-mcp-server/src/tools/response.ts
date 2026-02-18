@@ -181,15 +181,32 @@ export function paginateList<T>(
   const effectiveOffset = Math.max(0, offset);
   const effectiveLimit = Math.min(Math.max(1, limit), MAX_LIST_LIMIT);
   const page = items.slice(effectiveOffset, effectiveOffset + effectiveLimit);
+  const hasMore = effectiveOffset + effectiveLimit < items.length;
+  const meta: ListResultMeta = {
+    count: page.length,
+    totalAvailable: items.length,
+    offset: effectiveOffset,
+    hasMore,
+  };
   return {
     data: page,
-    meta: {
-      count: page.length,
-      totalAvailable: items.length,
-      offset: effectiveOffset,
-      hasMore: effectiveOffset + effectiveLimit < items.length,
-    },
+    meta,
   };
+}
+
+/**
+ * Return messages to include in the response envelope when the list has more pages.
+ * Directs the agent to call the tool again with the next offset/limit; used in the envelope "messages" array.
+ */
+export function getListMessages(meta: ListResultMeta): string[] {
+  if (!meta.hasMore) return [];
+  const nextOffset = meta.offset + meta.count;
+  const limit = meta.count;
+  return [
+    `More results are available (showing ${meta.offset + 1}–${meta.offset + meta.count} of ${meta.totalAvailable}). ` +
+      `You must call this tool again with offset=${nextOffset} and limit=${limit} to fetch the next page. ` +
+      `Do not answer with only partial data—keep calling until _result.hasMore is false.`,
+  ];
 }
 
 /**

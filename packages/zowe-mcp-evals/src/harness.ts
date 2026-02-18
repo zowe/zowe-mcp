@@ -24,7 +24,7 @@ import type { EvalsConfig } from './config.js';
 import type { SetConfig, ToolCallRecord } from './types.js';
 
 const DEFAULT_SYSTEM_PROMPT =
-  'You are an assistant with access to z/OS dataset tools. Use the provided tools to answer the user.';
+  'You are an assistant with access to z/OS dataset tools. Use the provided tools to answer the user. ';
 
 const MAX_STEPS = 10;
 

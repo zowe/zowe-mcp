@@ -40,6 +40,7 @@ import {
   buildContext,
   DEFAULT_LIST_LIMIT,
   formatResolved,
+  getListMessages,
   paginateList,
   resolvedOnlyIfDifferent,
   windowContent,
@@ -142,8 +143,9 @@ export function registerDatasetTools(
     'listDatasets',
     {
       description:
-        'List datasets matching a DSLEVEL pattern. Returns the first page of results (default 500, max 1000). ' +
-        'Use offset and limit to page through large result sets. ' +
+        'List datasets matching a DSLEVEL pattern. Results are paginated (default 500, max 1000 per page). ' +
+        'When _result.hasMore is true, more items exist—you must call this tool again with offset and limit to get the next page (offset = current offset + _result.count, same limit). ' +
+        'Do not answer using only the first page; fetch all pages until _result.hasMore is false. Parameters: offset (0-based), limit (items per page). ' +
         dslevelDescription,
       annotations: { readOnlyHint: true },
       inputSchema: {
@@ -208,7 +210,7 @@ export function registerDatasetTools(
           resolvedPattern: resolvedOnlyIfDifferent(resolvedPattern, dsnPattern),
         });
 
-        return wrapResponse(ctx, meta, data, []);
+        return wrapResponse(ctx, meta, data, getListMessages(meta));
       } catch (err) {
         return errorResult((err as Error).message);
       }
@@ -222,8 +224,9 @@ export function registerDatasetTools(
     'listMembers',
     {
       description:
-        'List members of a PDS/PDSE dataset. Returns the first page of results (default 500, max 1000). ' +
-        'Use offset and limit to page through large result sets.',
+        'List members of a PDS/PDSE dataset. Results are paginated (default 500, max 1000 per page). ' +
+        'When _result.hasMore is true, more members exist—you must call this tool again with offset and limit to get the next page (offset = current offset + _result.count, same limit). ' +
+        'Do not answer using only the first page; fetch all pages until _result.hasMore is false. Parameters: offset (0-based), limit (members per page).',
       annotations: { readOnlyHint: true },
       inputSchema: {
         dsn: z.string().describe('Fully qualified dataset name (e.g. USER.SRC.COBOL).'),
@@ -278,7 +281,7 @@ export function registerDatasetTools(
           resolvedDsn: resolvedOnlyIfDifferent(resolvedDsn, dsn),
         });
 
-        return wrapResponse(ctx, meta, rawData, []);
+        return wrapResponse(ctx, meta, rawData, getListMessages(meta));
       } catch (err) {
         if (err instanceof DsnError) {
           return errorResult(err.message);

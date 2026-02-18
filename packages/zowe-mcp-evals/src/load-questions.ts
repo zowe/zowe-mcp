@@ -32,7 +32,11 @@ function parseAssertion(raw: unknown): Assertion {
     };
   }
   if (type === 'answerContains') {
-    return { type: 'answerContains', substring: o.substring as string };
+    const substring = o.substring as string | undefined;
+    const pattern = o.pattern as string | undefined;
+    if (substring === undefined && pattern === undefined)
+      throw new Error('answerContains requires substring or pattern');
+    return { type: 'answerContains', substring, pattern };
   }
   if (type === 'singleToolCall') {
     return {
@@ -46,6 +50,29 @@ function parseAssertion(raw: unknown): Assertion {
       type: 'toolOnly',
       tool: o.tool as string,
       args: o.args as Record<string, unknown> | undefined,
+    };
+  }
+  if (type === 'minToolCalls') {
+    const minCount =
+      typeof o.minCount === 'number' ? o.minCount : parseInt(String(o.minCount), 10);
+    if (!Number.isInteger(minCount) || minCount < 1)
+      throw new Error('minToolCalls assertion requires minCount >= 1');
+    return {
+      type: 'minToolCalls',
+      tool: o.tool as string,
+      minCount,
+    };
+  }
+  if (type === 'toolCallSequence') {
+    const seq = o.sequence;
+    if (!Array.isArray(seq) || seq.length === 0)
+      throw new Error('toolCallSequence assertion requires non-empty sequence array');
+    return {
+      type: 'toolCallSequence',
+      tool: o.tool as string,
+      sequence: seq.map((s: unknown) =>
+        s && typeof s === 'object' ? (s as Record<string, unknown>) : {}
+      ),
     };
   }
   throw new Error(`Unknown assertion type: ${type}`);

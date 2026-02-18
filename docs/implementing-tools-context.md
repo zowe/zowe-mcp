@@ -69,8 +69,8 @@ Types: `DatasetEntry`, `MemberEntry`, `ReadDatasetResult`, `WriteDatasetResult`,
   - DSN convention: all names are fully qualified. Use `resolveDsn(dsn, member)` or `resolvePattern(dsnPattern)` from `src/zos/dsn.ts` for validation and resolution.
   - Return responses via the **response envelope** from `src/tools/response.ts`:
     - `buildContext(systemId, { resolvedDsn: formatResolved(dsn) })` (or `resolvedPattern` for list, `resolvedTargetDsn` for copy/rename).
-    - List: `paginateList(items, offset, limit)` → `ListResultMeta`; Read: `windowContent(text, startLine, lineCount)` → `ReadResultMeta`; Mutations: `MutationResultMeta` with `{ success: true }`.
-    - `wrapResponse(ctx, meta, data)` to build the final JSON envelope.
+    - List: `paginateList(items, offset, limit)` → `ListResultMeta`; use `getListMessages(meta)` for the envelope `messages` array when there are more pages; Read: `windowContent(...)` → `ReadResultMeta`; Mutations: `MutationResultMeta` with `{ success: true }`.
+    - `wrapResponse(ctx, meta, data, messages)` to build the final JSON envelope. For list tools, pass `getListMessages(meta)` as the fourth argument so the agent is directed to fetch the next page when `hasMore` is true.
   - Tool names: **camelCase** (e.g. `listDatasets`). Annotations: `readOnlyHint: true` for read-only, `destructiveHint: true` for delete.
   - Describe dataset/pattern parameters as fully qualified (e.g. USER.SRC.COBOL).
 
@@ -190,7 +190,7 @@ Raw: [https://raw.githubusercontent.com/zowe/zowe-native-proto/main/packages/sdk
 
 ## Quick reference: response envelope
 
-- **List**: `buildContext(..., { resolvedPattern: formatResolved(pattern) })`, `paginateList(list, offset, limit)`, `wrapResponse(ctx, meta, data)`.
+- **List**: `buildContext(..., { resolvedPattern: formatResolved(pattern) })`, `paginateList(list, offset, limit)`, `wrapResponse(ctx, meta, data, getListMessages(meta))`.
 - **Read**: `buildContext(..., { resolvedDsn })`, `windowContent(text, startLine, lineCount)`, `wrapResponse(ctx, meta, { text, etag, ... })`.
 - **Mutation**: `buildContext(..., { resolvedDsn } or { resolvedDsn, resolvedTargetDsn })`, `wrapResponse(ctx, { success: true }, data)`.
 - Resolved values in `_context` (`resolvedPattern`, `resolvedDsn`, `resolvedTargetDsn`) are only present when resolution changed the input (e.g. normalized case, stripped quotes), and are fully qualified with no quotes.

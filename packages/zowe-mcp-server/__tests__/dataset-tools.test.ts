@@ -506,6 +506,9 @@ describe('Dataset tools with mock backend', () => {
       expect(meta.totalAvailable).toBeGreaterThan(2);
       expect(meta.offset).toBe(0);
       expect(meta.hasMore).toBe(true);
+      expect(envelope.messages).toHaveLength(1);
+      expect(envelope.messages[0]).toContain('offset=2');
+      expect(envelope.messages[0]).toContain('limit=2');
     });
 
     it('should respect offset parameter for listDatasets', async () => {
@@ -539,9 +542,11 @@ describe('Dataset tools with mock backend', () => {
         arguments: { dsnPattern: 'TESTUSER.*', limit: 1000 },
       });
 
-      const meta = parseEnvelope<unknown>(result)._result as ListResultMeta;
+      const envelope = parseEnvelope<unknown>(result);
+      const meta = envelope._result as ListResultMeta;
       expect(meta.hasMore).toBe(false);
       expect(meta.count).toBe(meta.totalAvailable);
+      expect(envelope.messages).toHaveLength(0);
     });
 
     it('should paginate listMembers', async () => {

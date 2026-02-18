@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=../schemas/evals-question-set.schema.json
 # Pagination eval set: listMembers only. Asserts every call has correct dsn, offset, and limit.
 # Uses inventory preset (USER.INVNTORY with 2000 members; default limit 500 => 4 pages).
 config:

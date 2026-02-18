@@ -1,25 +1,28 @@
 {
-    "cSpell.words": [
-        "blksz",
-        "blockinfile",
-        "CNTL",
-        "dirblk",
-        "dsorg",
-        "evals",
-        "hostnames",
-        "INVNTORY",
-        "ISPF",
-        "lrecl",
-        "MACLIB",
-        "modelcontextprotocol",
-        "OSMF",
-        "PDSE",
-        "plape",
-        "PROCLIB",
-        "Qwen",
-        "recfm",
-        "recompiles",
-        "SAMPLIB",
-        "volser"
-    ]
+  "cSpell.words": [
+    "blksz",
+    "blockinfile",
+    "CNTL",
+    "dirblk",
+    "dsorg",
+    "evals",
+    "hostnames",
+    "INVNTORY",
+    "ISPF",
+    "lrecl",
+    "MACLIB",
+    "modelcontextprotocol",
+    "OSMF",
+    "PDSE",
+    "plape",
+    "PROCLIB",
+    "Qwen",
+    "recfm",
+    "recompiles",
+    "SAMPLIB",
+    "volser"
+  ],
+  "yaml.schemas": {
+    "packages/zowe-mcp-evals/schemas/evals-question-set.schema.json": "packages/zowe-mcp-evals/questions/*.yaml"
+  }
 }

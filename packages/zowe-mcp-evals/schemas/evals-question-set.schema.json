@@ -1,0 +1,172 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/zowe/zowe-mcp/evals-question-set.schema.json",
+  "title": "Zowe MCP Evals Question Set",
+  "description": "Schema for eval question set YAML files (config + questions with assertions)",
+  "type": "object",
+  "required": ["questions"],
+  "properties": {
+    "config": {
+      "type": "object",
+      "description": "Set-level eval config (repetitions, success rate, backend, system prompt)",
+      "properties": {
+        "name": { "type": "string", "description": "Set name (e.g. datasets, pagination)" },
+        "description": { "type": "string", "description": "Short description of the set" },
+        "repetitions": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Number of runs per question"
+        },
+        "minSuccessRate": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Minimum pass rate (0–1) for the set"
+        },
+        "mock": {
+          "type": "object",
+          "description": "Use mock backend with init-mock options",
+          "properties": {
+            "initArgs": {
+              "type": "string",
+              "description": "Arguments for init-mock (e.g. --preset default)"
+            }
+          },
+          "required": ["initArgs"],
+          "additionalProperties": false
+        },
+        "native": {
+          "type": "object",
+          "description": "Use native (SSH) backend",
+          "properties": {
+            "serverArgs": {
+              "type": "string",
+              "description": "Server args after --stdio (e.g. --native --config path)"
+            }
+          },
+          "required": ["serverArgs"],
+          "additionalProperties": false
+        },
+        "systemPrompt": {
+          "type": "string",
+          "description": "Override default system prompt entirely"
+        },
+        "systemPromptAddition": {
+          "type": "string",
+          "description": "Appended to default system prompt"
+        }
+      },
+      "additionalProperties": false
+    },
+    "questions": {
+      "type": "array",
+      "description": "List of questions with assertions",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/Question" }
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "Question": {
+      "type": "object",
+      "required": ["id", "prompt", "assertions"],
+      "properties": {
+        "id": { "type": "string", "description": "Unique question id within the set" },
+        "prompt": { "type": "string", "description": "User prompt sent to the agent" },
+        "preset": {
+          "type": "string",
+          "enum": ["default", "inventory"],
+          "description": "Mock preset override (when using mock backend)"
+        },
+        "assertions": {
+          "type": "array",
+          "description": "Assertions that must pass for the run to succeed",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/Assertion" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "Assertion": {
+      "oneOf": [
+        { "$ref": "#/$defs/AssertToolCall" },
+        { "$ref": "#/$defs/AssertAnswerContains" },
+        { "$ref": "#/$defs/AssertSingleToolCall" },
+        { "$ref": "#/$defs/AssertToolOnly" },
+        { "$ref": "#/$defs/AssertMinToolCalls" },
+        { "$ref": "#/$defs/AssertToolCallSequence" }
+      ]
+    },
+    "AssertToolCall": {
+      "type": "object",
+      "description": "A call to the tool with optional argument matchers (partial match). Values in args can be single or array of alternatives.",
+      "required": ["type", "tool"],
+      "properties": {
+        "type": { "const": "toolCall" },
+        "tool": { "type": "string" },
+        "args": { "type": "object", "additionalProperties": true }
+      },
+      "additionalProperties": false
+    },
+    "AssertAnswerContains": {
+      "type": "object",
+      "description": "Final answer text must contain a substring or match a regex. Use substring (literal) or pattern (regex); if both set, pattern is used.",
+      "required": ["type"],
+      "properties": {
+        "type": { "const": "answerContains" },
+        "substring": { "type": "string" },
+        "pattern": { "type": "string", "description": "Regex pattern (e.g. \"2,?000\")" }
+      },
+      "oneOf": [{ "required": ["substring"] }, { "required": ["pattern"] }],
+      "additionalProperties": false
+    },
+    "AssertSingleToolCall": {
+      "type": "object",
+      "description": "Exactly one tool call in the first turn, matching tool/args",
+      "required": ["type", "tool"],
+      "properties": {
+        "type": { "const": "singleToolCall" },
+        "tool": { "type": "string" },
+        "args": { "type": "object", "additionalProperties": true }
+      },
+      "additionalProperties": false
+    },
+    "AssertToolOnly": {
+      "type": "object",
+      "description": "Only check the (last) tool call, not the answer content",
+      "required": ["type", "tool"],
+      "properties": {
+        "type": { "const": "toolOnly" },
+        "tool": { "type": "string" },
+        "args": { "type": "object", "additionalProperties": true }
+      },
+      "additionalProperties": false
+    },
+    "AssertMinToolCalls": {
+      "type": "object",
+      "description": "The tool must have been called at least minCount times (e.g. for pagination)",
+      "required": ["type", "tool", "minCount"],
+      "properties": {
+        "type": { "const": "minToolCalls" },
+        "tool": { "type": "string" },
+        "minCount": { "type": "integer", "minimum": 1 }
+      },
+      "additionalProperties": false
+    },
+    "AssertToolCallSequence": {
+      "type": "object",
+      "description": "The tool must have been called in order with args matching each element of sequence (partial match per call). Use for pagination (dsn, offset, limit).",
+      "required": ["type", "tool", "sequence"],
+      "properties": {
+        "type": { "const": "toolCallSequence" },
+        "tool": { "type": "string" },
+        "sequence": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "object", "additionalProperties": true }
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

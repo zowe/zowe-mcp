@@ -8,6 +8,7 @@ Items to address later. Not ordered by priority.
 - **listDatasets member-name pattern**: The Zowe Native SDK does not expose a member-name pattern parameter; pattern filtering is done client-side after the RPC (with `*` and `%`). Discuss with Dan if we want to support it at the native level.
 - **listDatasets error messages**: Confirm whether listDatasets returns useful error messages (e.g. invalid dataset name or invalid pattern). Good error messages help the AI agent or human fix parameters. Can be done in the MCP server, but native-level support is the desired choice for everyone.
 - **listDatasets attributes**: Follow up with Dan: attributes are not returned by Zowe Native listDatasets. Exposing them would help the AI agent reason about datasets (e.g. type, format).
+- List the first segments (names of catalogs).
 
 ## Security / Infrastructure
 

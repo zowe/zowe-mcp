@@ -112,10 +112,12 @@ export class McpEvalHarness {
         inputSchema: jsonSchema(schema),
         execute: async (args: unknown) => {
           const a = args as Record<string, unknown>;
-          toolCallRecords.push({ name, arguments: a });
           const result = await this.client!.callTool({ name, arguments: a });
           const content = result.content as { type: string; text?: string }[];
           const text = content?.find(c => c.type === 'text')?.text ?? JSON.stringify(result);
+          const resultForReport =
+            text.length > 16000 ? text.slice(0, 16000) + '\n… [truncated]' : text;
+          toolCallRecords.push({ name, arguments: a, result: resultForReport });
           return text;
         },
       }) as unknown as ReturnType<typeof tool>;

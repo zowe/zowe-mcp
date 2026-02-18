@@ -37,6 +37,8 @@ interface MockPreset {
   membersPerPds: number;
   /** When set, generate one INVENTORY dataset with this many members (ITEM0001..ITEMnnnn). */
   inventoryMembers?: number;
+  /** When set, generate USER.PEOPLE.firstname.lastname PS datasets (unique English names, ≤8 chars each). */
+  peopleDatasets?: number;
 }
 
 const PRESETS: Record<string, MockPreset> = {
@@ -49,6 +51,14 @@ const PRESETS: Record<string, MockPreset> = {
     datasetsPerUser: 8,
     membersPerPds: 5,
     inventoryMembers: 2000,
+  },
+  pagination: {
+    systems: 1,
+    usersPerSystem: 1,
+    datasetsPerUser: 8,
+    membersPerPds: 5,
+    inventoryMembers: 2000,
+    peopleDatasets: 1000,
   },
 };
 
@@ -617,6 +627,91 @@ async function generateInventoryDataset(
 }
 
 // ---------------------------------------------------------------------------
+// People datasets (USER.PEOPLE.firstname.lastname, PS, unique English names ≤8 chars)
+// ---------------------------------------------------------------------------
+
+/** Sanitize to DSN qualifier: ASCII letters only, max 8 chars, uppercase. */
+function sanitizeQualifier(s: string): string {
+  const letters = s.replace(/[^A-Za-z]/g, '').slice(0, 8);
+  return letters.toUpperCase();
+}
+
+/**
+ * Generate unique English first/last name pairs (each ≤8 chars, no special characters).
+ * Uses fakerEN with deterministic seeds so the same seed yields the same set.
+ */
+function generateUniquePeopleNames(
+  count: number,
+  seed: number
+): { first: string; last: string }[] {
+  const seen = new Set<string>();
+  const result: { first: string; last: string }[] = [];
+  let tries = 0;
+  const maxTries = count * 20;
+  for (; result.length < count && tries < maxTries; tries++) {
+    const itemSeed = seed * 10000 + (result.length * 1000 + tries);
+    fakerEN.seed(itemSeed);
+    const first = sanitizeQualifier(fakerEN.person.firstName());
+    const last = sanitizeQualifier(fakerEN.person.lastName());
+    if (first.length === 0 || last.length === 0) continue;
+    const key = `${first}.${last}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push({ first, last });
+  }
+  if (result.length < count) {
+    throw new Error(
+      `Could not generate ${count} unique people names (got ${result.length}). Try a different seed.`
+    );
+  }
+  return result;
+}
+
+async function writeMetaFile(
+  hlqDir: string,
+  entryName: string,
+  dsn: string,
+  dsorg: string,
+  extra?: Partial<MockDatasetMeta>
+): Promise<void> {
+  const meta: MockDatasetMeta = {
+    dsn,
+    dsorg,
+    recfm: extra?.recfm ?? 'FB',
+    lrecl: extra?.lrecl ?? 80,
+    blksz: extra?.blksz ?? 27920,
+    volser: extra?.volser ?? 'VOL001',
+    creationDate: extra?.creationDate ?? '2024-03-15',
+    smsClass: extra?.smsClass ?? { data: 'STANDARD', storage: 'PRIMARY', management: 'DEFAULT' },
+  };
+  const metaPath = path.join(hlqDir, `${entryName}_meta.json`);
+  await fs.writeFile(metaPath, JSON.stringify(meta, null, 2), 'utf-8');
+}
+
+/**
+ * Generate USER.PEOPLE.firstname.lastname PS datasets (configurable count).
+ * Names are unique, English, no special characters, first and last each ≤8 chars.
+ * Uses the same seed as inventory for reproducibility.
+ */
+async function generatePeopleDatasets(
+  sysDir: string,
+  hlq: string,
+  count: number,
+  seed: number
+): Promise<void> {
+  const hlqDir = path.join(sysDir, hlq);
+  await fs.mkdir(hlqDir, { recursive: true });
+  const names = generateUniquePeopleNames(count, seed);
+  for (const { first, last } of names) {
+    const entryName = `PEOPLE.${first}.${last}`;
+    const dsn = `${hlq}.${entryName}`;
+    const filePath = path.join(hlqDir, entryName);
+    await fs.writeFile(filePath, `* ${first} ${last}\n`, 'utf-8');
+    await writeMetaFile(hlqDir, entryName, dsn, 'PS');
+  }
+}
+
+// ---------------------------------------------------------------------------
 // CLI
 // ---------------------------------------------------------------------------
 
@@ -627,6 +722,7 @@ interface CliArgs {
   datasetsPerUser: number;
   membersPerPds: number;
   inventoryMembers: number;
+  peopleDatasets: number;
   seed: number;
 }
 
@@ -659,6 +755,9 @@ function parseCliArgs(): CliArgs {
       case '--inventory-members':
         preset = { ...preset, inventoryMembers: parseInt(args[++i], 10) };
         break;
+      case '--people-datasets':
+        preset = { ...preset, peopleDatasets: parseInt(args[++i], 10) };
+        break;
       case '--seed':
         seed = parseInt(args[++i], 10);
         break;
@@ -672,6 +771,7 @@ function parseCliArgs(): CliArgs {
     datasetsPerUser: preset.datasetsPerUser,
     membersPerPds: preset.membersPerPds,
     inventoryMembers: preset.inventoryMembers ?? 0,
+    peopleDatasets: preset.peopleDatasets ?? 0,
     seed,
   };
 }
@@ -686,6 +786,11 @@ async function main(): Promise<void> {
   );
   if (args.inventoryMembers > 0) {
     console.log(`  Inventory dataset: ${args.inventoryMembers} members, seed: ${args.seed}`);
+  }
+  if (args.peopleDatasets > 0) {
+    console.log(
+      `  People datasets: ${args.peopleDatasets} (USER.PEOPLE.first.last), seed: ${args.seed}`
+    );
   }
 
   // Clean and create output directory
@@ -722,6 +827,10 @@ async function main(): Promise<void> {
     // Optional: one INVENTORY dataset for first system / first user
     if (s === 0 && args.inventoryMembers > 0) {
       await generateInventoryDataset(sysDir, defaultUser, args.inventoryMembers, args.seed);
+    }
+    // Optional: USER.PEOPLE.firstname.lastname PS datasets for first system / first user
+    if (s === 0 && args.peopleDatasets > 0) {
+      await generatePeopleDatasets(sysDir, defaultUser, args.peopleDatasets, args.seed);
     }
   }
 
@@ -761,6 +870,9 @@ async function main(): Promise<void> {
   console.log(`  ${totalMembers} members`);
   if (args.inventoryMembers > 0) {
     console.log(`  Inventory: ${args.inventoryMembers} members`);
+  }
+  if (args.peopleDatasets > 0) {
+    console.log(`  People: ${args.peopleDatasets} datasets`);
   }
   console.log(`\nMock data directory: ${path.resolve(args.output)}`);
 }

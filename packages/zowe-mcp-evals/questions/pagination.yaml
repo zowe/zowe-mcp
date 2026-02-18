@@ -1,13 +1,13 @@
 # yaml-language-server: $schema=../schemas/evals-question-set.schema.json
-# Pagination eval set: listMembers only. Asserts every call has correct dsn, offset, and limit.
-# Uses inventory preset (USER.INVNTORY with 2000 members; default limit 500 => 4 pages).
+# Pagination eval set: listMembers and listDatasets. Asserts every call has correct dsn/pattern, offset, and limit.
+# Uses pagination preset: USER.INVNTORY (2000 members => 4 pages), USER.PEOPLE.* (1000 datasets => 2 pages).
 config:
   name: pagination
-  description: Agent must page through listMembers with correct parameters each call
+  description: Agent must page through listMembers and listDatasets with correct parameters each call
   repetitions: 2
   minSuccessRate: 0.8
   mock:
-    initArgs: --preset inventory
+    initArgs: --preset pagination
 
 questions:
   # All 4 pages: offset 0, 500, 1000, 1500 (limit 500 each).
@@ -29,3 +29,17 @@ questions:
             limit: 500
       - type: answerContains
         pattern: "2,?000"
+
+  # listDatasets USER.PEOPLE.*: 2 pages (offset 0, 500 with limit 500 each).
+  - id: list-datasets-people-all-pages
+    prompt: List datasets under USER.PEOPLE
+    assertions:
+      - type: toolCallSequence
+        tool: listDatasets
+        sequence:
+          - dsnPattern: "USER.PEOPLE.*"
+          - dsnPattern: "USER.PEOPLE.*"
+            offset: 500
+            limit: 500
+      - type: answerContains
+        pattern: "1,?000"

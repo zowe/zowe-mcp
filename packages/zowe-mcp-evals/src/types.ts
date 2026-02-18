@@ -139,6 +139,8 @@ export interface QuestionSet {
 export interface ToolCallRecord {
   name: string;
   arguments: Record<string, unknown>;
+  /** Tool result (server response text), when captured for reporting. */
+  result?: string;
 }
 
 /**

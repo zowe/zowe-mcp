@@ -113,11 +113,21 @@ export function writeReport(
     failed.forEach(run => {
       const runLabel = `Run ${run.runIndex + 1}/${totalRunsForQuestion}`;
       failures.push(`#### ${runLabel}`);
-      const toolCallsJson = JSON.stringify(run.toolCalls, null, 2);
       failures.push('- Tool calls:');
-      failures.push('```json');
-      failures.push(toolCallsJson);
-      failures.push('```');
+      for (let i = 0; i < run.toolCalls.length; i++) {
+        const tc = run.toolCalls[i];
+        const argsJson = JSON.stringify(tc.arguments, null, 2);
+        failures.push(`  ${i + 1}. **${tc.name}**`);
+        failures.push(`     Args: \`${argsJson.replace(/\n/g, ' ')}\``);
+        if (tc.result !== undefined) {
+          const preview =
+            tc.result.length > 800 ? tc.result.slice(0, 800) + '… [truncated]' : tc.result;
+          failures.push(`     Result:`);
+          failures.push('     ```');
+          failures.push(preview);
+          failures.push('     ```');
+        }
+      }
       failures.push(`- Error/assertion: ${run.assertionFailed ?? run.error ?? 'unknown'}`);
       failures.push('');
     });

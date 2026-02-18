@@ -132,7 +132,7 @@ Help:
 
 Subcommands:
   init-mock   Generate a mock data directory. Example:
-              npx ${bin} init-mock --output ./zowe-mcp-mock-data [--preset minimal|default|large]
+              npx ${bin} init-mock --output ./zowe-mcp-mock-data [--preset minimal|default|large|inventory|pagination]
   call-tool   List or call MCP tools. Example:
               npx ${bin} call-tool [--mock=<dir> | --native [--config=<path>] [--system <spec> ...]] [<tool-name> [args]]
 `);

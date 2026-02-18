@@ -181,7 +181,8 @@ export class FilesystemMockBackend implements ZosBackend {
 
       const entries = await fs.readdir(hlqPath);
       for (const entry of entries) {
-        if (entry === '_meta.json' || entry.startsWith('.')) continue;
+        if (entry === '_meta.json' || entry.endsWith('_meta.json') || entry.startsWith('.'))
+          continue;
 
         const dsn = `${hlq}.${entry}`.toUpperCase();
         const fullPath = path.join(hlqPath, entry);

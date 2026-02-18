@@ -18,8 +18,11 @@
 
 import { SshSession } from '@zowe/zos-uss-for-zowe-sdk';
 import { ZSshClient } from 'zowe-native-proto-sdk';
+import { getLogger } from '../../server.js';
 import type { Credentials } from '../credentials.js';
 import type { ParsedConnectionSpec } from './connection-spec.js';
+
+const log = getLogger().child('native.ssh');
 
 /** Builds a cache key from a parsed spec (user@host:port). */
 export function cacheKey(spec: ParsedConnectionSpec): string {
@@ -42,9 +45,15 @@ export class SshClientCache {
     const key = cacheKey(spec);
     const existing = this.clients.get(key);
     if (existing) {
+      log.debug('Reusing cached SSH client', { key });
       return existing;
     }
 
+    log.info('Creating SSH session', {
+      host: spec.host,
+      port: spec.port,
+      user: spec.user,
+    });
     const session = new SshSession({
       hostname: spec.host,
       port: spec.port,
@@ -54,11 +63,13 @@ export class SshClientCache {
 
     const client = await ZSshClient.create(session, {
       onClose: () => {
+        log.info('SSH session closed', { key });
         this.evictKey(key);
       },
     });
 
     this.clients.set(key, client);
+    log.debug('SSH client connected and cached', { key });
     return client;
   }
 
@@ -71,6 +82,7 @@ export class SshClientCache {
   evictKey(key: string): void {
     const client = this.clients.get(key);
     if (client) {
+      log.debug('SSH client evicted', { key });
       try {
         client.dispose();
       } catch {
@@ -82,7 +94,11 @@ export class SshClientCache {
 
   /** Disposes all cached clients. */
   dispose(): void {
-    for (const key of [...this.clients.keys()]) {
+    const keys = [...this.clients.keys()];
+    if (keys.length > 0) {
+      log.debug('SSH client cache dispose', { count: keys.length, keys });
+    }
+    for (const key of keys) {
       this.evictKey(key);
     }
   }

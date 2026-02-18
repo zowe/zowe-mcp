@@ -187,9 +187,13 @@ export interface ZosBackend {
   /**
    * List members of a PDS/PDSE.
    *
+   * Member name pattern wildcards (when pattern is provided):
+   * - `*` — zero or more characters
+   * - `%` — exactly one character
+   *
    * @param systemId - Target z/OS system.
    * @param dsn - Fully-qualified PDS/PDSE name.
-   * @param pattern - Optional member name filter pattern.
+   * @param pattern - Optional member name filter pattern (e.g. "ABC*", "A%C").
    */
   listMembers(systemId: SystemId, dsn: string, pattern?: string): Promise<MemberEntry[]>;
 

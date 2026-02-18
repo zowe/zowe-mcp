@@ -45,6 +45,7 @@ import type {
   WriteDatasetResult,
   ZosBackend,
 } from '../backend.js';
+import { memberPatternToRegExp } from '../member-pattern.js';
 import type { SystemId } from '../system.js';
 import type { MockDatasetMeta } from './mock-types.js';
 
@@ -229,8 +230,8 @@ export class FilesystemMockBackend implements ZosBackend {
       const memberName = path.parse(entry).name.toUpperCase();
 
       if (pattern) {
-        const regex = new RegExp(`^${pattern.replace(/\*/g, '.*')}$`, 'i');
-        if (!regex.test(memberName)) continue;
+        const regex = memberPatternToRegExp(pattern);
+        if (regex && !regex.test(memberName)) continue;
       }
 
       members.push({ name: memberName });

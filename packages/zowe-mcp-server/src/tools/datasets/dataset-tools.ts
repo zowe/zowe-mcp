@@ -235,7 +235,9 @@ export function registerDatasetTools(
         memberPattern: z
           .string()
           .optional()
-          .describe('Optional member name filter pattern (e.g. "ABC*").'),
+          .describe(
+            'Optional member name filter. Wildcards: * (zero or more characters), % (one character). E.g. "ABC*", "A%C".'
+          ),
         system: z
           .string()
           .optional()

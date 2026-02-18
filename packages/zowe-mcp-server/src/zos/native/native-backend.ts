@@ -25,6 +25,7 @@ import type {
   ReadDatasetResult,
   WriteDatasetResult,
 } from '../backend.js';
+import { memberPatternToRegExp } from '../member-pattern.js';
 import type { SystemId } from '../system.js';
 import type { ParsedConnectionSpec } from './connection-spec.js';
 import type { NativeCredentialProvider } from './native-credential-provider.js';
@@ -136,8 +137,10 @@ export class NativeBackend {
       }));
 
       if (pattern) {
-        const regex = new RegExp(`^${pattern.replace(/\*/g, '.*')}$`, 'i');
-        members = members.filter(m => regex.test(m.name));
+        const regex = memberPatternToRegExp(pattern);
+        if (regex) {
+          members = members.filter(m => regex.test(m.name));
+        }
       }
 
       return members.sort((a, b) => a.name.localeCompare(b.name));

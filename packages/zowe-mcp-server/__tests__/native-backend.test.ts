@@ -200,6 +200,33 @@ describe('NativeBackend', () => {
       expect(result.map(m => m.name)).toEqual(['ALICE', 'ALPHA']);
     });
 
+    it('filters by % (one character) wildcard in pattern', async () => {
+      const options = createOptions({
+        clientCache: {
+          getOrCreate: vi.fn().mockResolvedValue(
+            createFakeClient({
+              listDsMembers: () =>
+                Promise.resolve({
+                  items: [
+                    { name: 'ALPHA' },
+                    { name: 'AB' },
+                    { name: 'A' },
+                    { name: 'BETA' },
+                    { name: 'AX' },
+                  ],
+                }),
+            })
+          ),
+          evict: vi.fn(),
+        },
+      });
+      const backend = new NativeBackend(options);
+
+      const result = await backend.listMembers(SYSTEM_ID, 'USER.PDS', 'A%');
+
+      expect(result.map(m => m.name)).toEqual(['AB', 'AX']);
+    });
+
     it('returns list sorted by name', async () => {
       const options = createOptions({
         clientCache: {

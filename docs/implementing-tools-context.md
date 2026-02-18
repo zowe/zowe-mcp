@@ -12,7 +12,7 @@ Use this in chats when implementing new dataset operations or other z/OS tools.
 | ---- | -------------- | ------------ | -------------------- |
 | `listDatasets` | `listDatasets()` | ✅ | ✅ |
 | `listMembers` | `listMembers()` | ✅ | ✅ |
-| `getDatasetAttributes` | `getAttributes()` | ✅ | ❌ throws |
+| `getDatasetAttributes` | `getAttributes()` | ✅ | ❌ throws (no SDK API; see [native-get-dataset-attributes.md](native-get-dataset-attributes.md)) |
 | `readDataset` | `readDataset()` | ✅ | ❌ throws |
 | `writeDataset` | `writeDataset()` | ✅ | ❌ throws |
 | `createDataset` | `createDataset()` | ✅ | ❌ throws |
@@ -167,6 +167,7 @@ The SDK is not on npm; the canonical source is the **zowe-native-proto** repo. U
 1. Follow the pattern in `native-backend.ts` `listDatasets`: get spec, credentials, client via cache, call SDK API, map to `DatasetEntry` / `MemberEntry` / etc.
 2. Use the **example** above for the exact SDK calls (e.g. `client.ds.listDatasets({ pattern })`, `client.ds.listDsMembers({ dsname })`).
 3. SDK types and APIs are in the installed package under `node_modules/zowe-native-proto-sdk`; for source and RPC definitions see `zowe-native-proto/packages/sdk/src/`.
+4. **getDatasetAttributes**: The SDK has no `getAttributes` / `getDatasetAttributes` RPC. See [native-get-dataset-attributes.md](native-get-dataset-attributes.md) for the gap, options, and recommendation.
 
 ---
 

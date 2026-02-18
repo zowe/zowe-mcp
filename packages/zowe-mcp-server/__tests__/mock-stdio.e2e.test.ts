@@ -187,3 +187,98 @@ describe('Zowe MCP Server (mock stdio E2E)', () => {
     }
   });
 });
+
+describe('listMembers pagination (inventory 2000)', () => {
+  let tmpdirPath: string;
+  let client: Client;
+
+  beforeAll(() => {
+    tmpdirPath = mkdtempSync(resolve(tmpdir(), 'zowe-mcp-mock-inv-e2e-'));
+    const init = spawnSync(
+      'node',
+      [serverPath, 'init-mock', '--output', tmpdirPath, '--preset', 'inventory'],
+      {
+        cwd: packageRoot,
+        encoding: 'utf-8',
+      }
+    );
+    if (init.status !== 0) {
+      throw new Error(`init-mock failed: ${init.stderr ?? init.stdout}`);
+    }
+  });
+
+  afterAll(async () => {
+    if (client) {
+      await client.close();
+    }
+    rmSync(tmpdirPath, { recursive: true, force: true });
+  });
+
+  it('should page through 2000 inventory members', async () => {
+    const transport = new StdioClientTransport({
+      command: 'node',
+      args: [serverPath, '--stdio', '--mock', tmpdirPath],
+    });
+    client = new Client({ name: 'e2e-mock-inv-test', version: '1.0.0' });
+    await client.connect(transport);
+
+    await client.callTool({
+      name: 'setSystem',
+      arguments: { system: FIRST_SYSTEM },
+    });
+    await client.callTool({
+      name: 'setDsnPrefix',
+      arguments: { prefix: 'USER' },
+    });
+
+    // Page 1: offset 0, limit 500
+    let result = await client.callTool({
+      name: 'listMembers',
+      arguments: { dsn: 'INVNTORY', offset: 0, limit: 500 },
+    });
+    expect(result.isError).toBeFalsy();
+    const page1 = JSON.parse(getResultText(result)) as {
+      _result: { totalAvailable: number; count: number; offset: number; hasMore: boolean };
+      data: { member: string }[];
+    };
+    expect(page1._result.totalAvailable).toBe(2000);
+    expect(page1._result.count).toBe(500);
+    expect(page1._result.offset).toBe(0);
+    expect(page1._result.hasMore).toBe(true);
+    expect(page1.data).toHaveLength(500);
+    expect(page1.data[0].member).toBe('ITEM0001');
+    expect(page1.data[499].member).toBe('ITEM0500');
+
+    // Page 2: offset 500, limit 500
+    result = await client.callTool({
+      name: 'listMembers',
+      arguments: { dsn: 'INVNTORY', offset: 500, limit: 500 },
+    });
+    expect(result.isError).toBeFalsy();
+    const page2 = JSON.parse(getResultText(result)) as {
+      _result: { totalAvailable: number; count: number; offset: number; hasMore: boolean };
+      data: { member: string }[];
+    };
+    expect(page2._result.totalAvailable).toBe(2000);
+    expect(page2._result.count).toBe(500);
+    expect(page2._result.offset).toBe(500);
+    expect(page2._result.hasMore).toBe(true);
+    expect(page2.data[0].member).toBe('ITEM0501');
+    expect(page2.data[499].member).toBe('ITEM1000');
+
+    // Last page: offset 1999, limit 10
+    result = await client.callTool({
+      name: 'listMembers',
+      arguments: { dsn: 'INVNTORY', offset: 1999, limit: 10 },
+    });
+    expect(result.isError).toBeFalsy();
+    const lastPage = JSON.parse(getResultText(result)) as {
+      _result: { count: number; hasMore: boolean };
+      data: { member: string }[];
+    };
+    expect(lastPage._result.count).toBe(1);
+    expect(lastPage._result.hasMore).toBe(false);
+    expect(lastPage.data).toHaveLength(1);
+    expect(lastPage.data[0].member).toBe('ITEM2000');
+  });
+});

@@ -92,7 +92,7 @@ The `resolvedPattern` field is for list tools (`listDatasets`); `resolvedDsn` is
 ### Mock Mode
 
 - **Starting**: `npx zowe-mcp-server --stdio --mock ./zowe-mcp-mock-data` or `ZOWE_MCP_MOCK_DIR=./zowe-mcp-mock-data`
-- **Generating data**: `npx zowe-mcp-server init-mock --output ./zowe-mcp-mock-data [--preset minimal|default|large]`
+- **Generating data**: `npx zowe-mcp-server init-mock --output ./zowe-mcp-mock-data [--preset minimal|default|large|inventory]`. Use **inventory** preset for one dataset (USER.INVNTORY) with 2000 members for listMembers pagination E2E. Optional: `--inventory-members N`, `--seed N` (default 42) for reproducible Faker data.
 - **Directory layout**: DSFS-inspired — `zowe-mcp-mock-data/{system}/{HLQ}/{dataset-qualifiers}/` with `_meta.json` for attributes
 - **Adding mock systems**: Edit `systems.json` in the mock data directory. Each system has `host`, `port`, `description`, optional `defaultUser`, and `credentials` array. If `defaultUser` is omitted, the first credential entry is used as the default.
 
@@ -105,7 +105,7 @@ Server tests are organized into **common** (parameterized) and **transport-speci
 - **In-memory specific** (`__tests__/server.test.ts`): Fast unit tests for behaviour unique to the in-memory transport (e.g. multiple calls on the same connection, server internals).
 - **Stdio specific** (`__tests__/stdio.e2e.test.ts`): E2E tests for stdio-only behaviour (e.g. default transport flag, process spawning).
 - **HTTP specific** (`__tests__/http.e2e.test.ts`): E2E tests for HTTP-only behaviour (e.g. port binding, custom port flag).
-- **Mock stdio E2E** (`__tests__/mock-stdio.e2e.test.ts`): Single E2E test that inits default mock in a temp dir, starts the stdio server with `--mock`, and runs a subset of tools (info, context, listDatasets, listMembers) in one session via a data-driven `ToolTestCase[]` with `assertResult` for expected values. Mutation tools and getDatasetAttributes/readDataset are not exercised. Run with `npx vitest run mock.stdio.e2e` from the server package (requires build).
+- **Mock stdio E2E** (`__tests__/mock-stdio.e2e.test.ts`): Two describes: (1) inits default mock in a temp dir, starts the stdio server with `--mock`, and runs a subset of tools (info, context, listDatasets, listMembers) in one session via a data-driven `ToolTestCase[]` with `assertResult` for expected values; (2) listMembers pagination: inits with `--preset inventory` (USER.INVNTORY with 2000 members), then asserts offset/limit and hasMore across pages. Mutation tools and getDatasetAttributes/readDataset are not exercised. Run with `npx vitest run mock.stdio.e2e` from the server package (requires build).
 - **Native stdio E2E** (`__tests__/native-stdio.e2e.test.ts`): E2E test that starts the stdio server with `--native --config <path>` and runs info, listSystems, setSystem, getContext, listDatasets (`'SYS1.*LIB'`), and listMembers (`'SYS1.SAMPLIB'`) against real z/OS. Skipped when config file (`native-config.json` in cwd) or password (ZOWE_MCP_PASSWORD_<USER>_<HOST> or ZOS_PASSWORD) is missing. Asserts SYS1.SAMPLIB has >1000 members and includes ADFDFLTX and APSIVP; listDatasets result includes SAMPLIB and MACLIB. Run with `npx vitest run native-stdio.e2e` from the server package (requires build).
 - **VS Code extension tests**: Use `@vscode/test-cli` + `@vscode/test-electron` for integration tests in a real VS Code instance.
 - **Quick tool testing**: `npx zowe-mcp-server call-tool [--mock=<dir>] [<tool-name> [key=value ...]]` or `npm run call-tool -- ...` (requires build).
@@ -179,7 +179,7 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 - Parameter descriptions for all dataset/pattern inputs explicitly document the single-quote convention with examples (e.g. `"SRC.COBOL"` for relative, `"'USER.SRC.COBOL'"` for absolute).
 - The mock backend stores files as UTF-8 and ignores the `codepage` parameter. Real backends must handle EBCDIC-to-UTF-8 conversion.
 - Mock ETags are derived from file modification timestamps (`mtime`). Real backends should use the ETag mechanism provided by their API (e.g. z/OSMF `ETag` header).
-- The `init-mock` CLI supports presets (`minimal`, `default`, `large`) and custom scale parameters (`--systems`, `--users-per-system`, `--datasets-per-user`, `--members-per-pds`).
+- The `init-mock` CLI supports presets (`minimal`, `default`, `large`, `inventory`) and custom scale parameters (`--systems`, `--users-per-system`, `--datasets-per-user`, `--members-per-pds`, `--inventory-members N`, `--seed N` default 42 for reproducible inventory/Faker data).
 - **Native backend list pattern**: The Zowe Native Proto z/OS server appends `.**` to list patterns that do not end with a wildcard (so e.g. `USER` becomes `USER.**`). Invalid patterns like `'...'` (empty qualifiers) would become `'....**'` and produce confusing errors; `validateListPattern()` in `dsn.ts` rejects empty qualifiers before calling the backend so the user gets a clear error.
 
 ## Scripts Reference

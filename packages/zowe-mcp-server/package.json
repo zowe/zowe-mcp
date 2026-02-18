@@ -36,6 +36,7 @@
     "zowe-native-proto-sdk": "file:../../bin/zowe-native-proto-sdk-0.2.3.tgz"
   },
   "devDependencies": {
+    "@faker-js/faker": "^9.0.0",
     "@types/express": "^5.0.0",
     "@types/node": "^22.0.0",
     "vitest": "^3.0.0"

@@ -20,8 +20,10 @@
  *   npx zowe-mcp-server init-mock --output ./zowe-mcp-mock-data --systems 5 --users-per-system 3
  */
 
+import { type Faker, fakerCS_CZ, fakerDE, fakerEN, fakerES, fakerIT } from '@faker-js/faker';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import type { MockDatasetMeta, MockSystemsConfig } from '../zos/mock/mock-types.js';
 
 // ---------------------------------------------------------------------------
@@ -33,12 +35,21 @@ interface MockPreset {
   usersPerSystem: number;
   datasetsPerUser: number;
   membersPerPds: number;
+  /** When set, generate one INVENTORY dataset with this many members (ITEM0001..ITEMnnnn). */
+  inventoryMembers?: number;
 }
 
 const PRESETS: Record<string, MockPreset> = {
   minimal: { systems: 1, usersPerSystem: 1, datasetsPerUser: 5, membersPerPds: 3 },
   default: { systems: 2, usersPerSystem: 2, datasetsPerUser: 8, membersPerPds: 5 },
   large: { systems: 5, usersPerSystem: 3, datasetsPerUser: 20, membersPerPds: 15 },
+  inventory: {
+    systems: 1,
+    usersPerSystem: 1,
+    datasetsPerUser: 8,
+    membersPerPds: 5,
+    inventoryMembers: 2000,
+  },
 };
 
 // ---------------------------------------------------------------------------
@@ -54,6 +65,41 @@ const SYSTEM_TEMPLATES = [
 ];
 
 const USER_TEMPLATES = ['USER', 'DEVUSR1', 'DEVUSR2', 'SYSPROG', 'QAUSER1', 'PRODMGR'];
+
+/** Faker instances for inventory item cards (en, es, de, it, cs_CZ). Language is randomized per item; not written into the card. */
+const INVENTORY_LOCALES: Faker[] = [fakerEN, fakerES, fakerDE, fakerIT, fakerCS_CZ];
+
+/** Escape a string for use as a YAML value (double-quoted if needed). Exported for tests. */
+export function yamlValue(s: string): string {
+  if (/[\n":\\#]/.test(s) || s.startsWith(' ') || s.endsWith(' ')) {
+    return `"${s.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n')}"`;
+  }
+  return s;
+}
+
+/**
+ * Generate a single inventory item card as YAML (name, description, category, price, material, product, upc).
+ * Uses the given Faker instance so content can be in that locale's language. Exported for tests.
+ */
+export function generateInventoryMemberCard(fakerInstance: Faker): string {
+  const name = fakerInstance.commerce.productName();
+  const description = fakerInstance.commerce.productDescription();
+  const category = fakerInstance.commerce.department();
+  const price = fakerInstance.commerce.price();
+  const material = fakerInstance.commerce.productMaterial();
+  const product = fakerInstance.commerce.product();
+  // UPC: use isbn() as product identifier (Faker 9.x has no commerce.upc(); added in 10.2)
+  const upc = fakerInstance.commerce.isbn(13).replace(/-/g, '');
+  return [
+    `name: ${yamlValue(name)}`,
+    `description: ${yamlValue(description)}`,
+    `category: ${yamlValue(category)}`,
+    `price: ${yamlValue(price)}`,
+    `material: ${yamlValue(material)}`,
+    `product: ${yamlValue(product)}`,
+    `upc: ${yamlValue(upc)}`,
+  ].join('\n');
+}
 
 // ---------------------------------------------------------------------------
 // Content generators
@@ -539,6 +585,38 @@ async function generateSystemDatasets(sysDir: string): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
+// Inventory dataset (fake goods: ITEM0001..ITEMnnnn, YAML cards, multi-locale)
+// ---------------------------------------------------------------------------
+
+/**
+ * Generate one INVENTORY PDS with memberCount members (ITEM0001.txt .. ITEMnnnn.txt).
+ * Each member contains a YAML card (name, description, category, price, material, product, upc).
+ * Locale is chosen deterministically per item from [en, es, de, it, cs_CZ] using seed + item index.
+ */
+async function generateInventoryDataset(
+  sysDir: string,
+  hlq: string,
+  memberCount: number,
+  seed: number
+): Promise<void> {
+  // Qualifier must be ≤8 chars (z/OS). Use INVNTORY.
+  const invDir = path.join(sysDir, hlq, 'INVNTORY');
+  await fs.mkdir(invDir, { recursive: true });
+  await writeMeta(invDir, `${hlq}.INVNTORY`, 'PO-E');
+
+  const padLength = Math.max(4, String(memberCount).length);
+  for (let i = 1; i <= memberCount; i++) {
+    const localeIndex = (seed + i) % INVENTORY_LOCALES.length;
+    const fakerInstance = INVENTORY_LOCALES[localeIndex];
+    const itemSeed = seed * 10000 + i;
+    fakerInstance.seed(itemSeed);
+    const card = generateInventoryMemberCard(fakerInstance);
+    const memberName = `ITEM${String(i).padStart(padLength, '0')}`;
+    await fs.writeFile(path.join(invDir, `${memberName}.txt`), card + '\n', 'utf-8');
+  }
+}
+
+// ---------------------------------------------------------------------------
 // CLI
 // ---------------------------------------------------------------------------
 
@@ -548,12 +626,15 @@ interface CliArgs {
   usersPerSystem: number;
   datasetsPerUser: number;
   membersPerPds: number;
+  inventoryMembers: number;
+  seed: number;
 }
 
 function parseCliArgs(): CliArgs {
   const args = process.argv.slice(2);
   let output = './zowe-mcp-mock-data';
   let preset: MockPreset = PRESETS.default;
+  let seed = 42;
 
   for (let i = 0; i < args.length; i++) {
     switch (args[i]) {
@@ -575,6 +656,12 @@ function parseCliArgs(): CliArgs {
       case '--members-per-pds':
         preset = { ...preset, membersPerPds: parseInt(args[++i], 10) };
         break;
+      case '--inventory-members':
+        preset = { ...preset, inventoryMembers: parseInt(args[++i], 10) };
+        break;
+      case '--seed':
+        seed = parseInt(args[++i], 10);
+        break;
     }
   }
 
@@ -584,6 +671,8 @@ function parseCliArgs(): CliArgs {
     usersPerSystem: preset.usersPerSystem,
     datasetsPerUser: preset.datasetsPerUser,
     membersPerPds: preset.membersPerPds,
+    inventoryMembers: preset.inventoryMembers ?? 0,
+    seed,
   };
 }
 
@@ -595,6 +684,9 @@ async function main(): Promise<void> {
     `  Systems: ${args.systems}, Users/system: ${args.usersPerSystem}, ` +
       `Datasets/user: ${args.datasetsPerUser}, Members/PDS: ${args.membersPerPds}`
   );
+  if (args.inventoryMembers > 0) {
+    console.log(`  Inventory dataset: ${args.inventoryMembers} members, seed: ${args.seed}`);
+  }
 
   // Clean and create output directory
   await fs.rm(args.output, { recursive: true, force: true });
@@ -626,6 +718,11 @@ async function main(): Promise<void> {
 
     // Generate system datasets
     await generateSystemDatasets(sysDir);
+
+    // Optional: one INVENTORY dataset for first system / first user
+    if (s === 0 && args.inventoryMembers > 0) {
+      await generateInventoryDataset(sysDir, defaultUser, args.inventoryMembers, args.seed);
+    }
   }
 
   await fs.writeFile(
@@ -662,10 +759,20 @@ async function main(): Promise<void> {
   console.log(`  ${config.systems.length} systems`);
   console.log(`  ${totalDatasets} datasets`);
   console.log(`  ${totalMembers} members`);
+  if (args.inventoryMembers > 0) {
+    console.log(`  Inventory: ${args.inventoryMembers} members`);
+  }
   console.log(`\nMock data directory: ${path.resolve(args.output)}`);
 }
 
-main().catch((err: unknown) => {
-  console.error('Error generating mock data:', err);
-  process.exit(1);
-});
+const isMain =
+  typeof process !== 'undefined' &&
+  process.argv[1] != null &&
+  path.resolve(fileURLToPath(import.meta.url)) === path.resolve(process.argv[1]);
+
+if (isMain) {
+  main().catch((err: unknown) => {
+    console.error('Error generating mock data:', err);
+    process.exit(1);
+  });
+}

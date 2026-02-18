@@ -165,7 +165,7 @@ export function createServer(options?: CreateServerOptions): McpServer {
       logger
     );
     registerDatasetResources(server, { backend }, logger);
-    registerDatasetPrompts(server, { backend, sessionState }, logger);
+    registerDatasetPrompts(server, { backend, systemRegistry, sessionState }, logger);
 
     // Auto-activate the system when there is exactly one configured
     const systems = systemRegistry.list();

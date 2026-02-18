@@ -15,9 +15,7 @@
  * Provides tools for listing, reading, writing, creating, deleting,
  * copying, and renaming z/OS datasets and PDS/PDSE members.
  *
- * All dataset names follow the z/OS single-quote convention:
- * - Unquoted names are relative to the current DSN prefix
- * - Single-quoted names (e.g. `'SYS1.PROCLIB'`) are absolute
+ * All dataset names are fully qualified (e.g. USER.SRC.COBOL).
  */
 
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
@@ -32,10 +30,10 @@ import {
   buildDsUri,
   DsnError,
   resolveDsn,
-  resolveWithPrefix,
+  resolvePattern,
   validateListPattern,
 } from '../../zos/dsn.js';
-import type { SessionState } from '../../zos/session.js';
+import { resolveSystemForTool, type SessionState } from '../../zos/session.js';
 import type { SystemRegistry } from '../../zos/system.js';
 import type { MutationResultMeta } from '../response.js';
 import {
@@ -43,6 +41,7 @@ import {
   DEFAULT_LIST_LIMIT,
   formatResolved,
   paginateList,
+  resolvedOnlyIfDifferent,
   windowContent,
   wrapResponse,
 } from '../response.js';
@@ -83,9 +82,9 @@ export interface DatasetToolDeps {
  * Ensure a system context exists for the given system ID.
  *
  * When the LLM passes an explicit `system` parameter to a dataset tool
- * without first calling `setSystem`, no context (userId / dsnPrefix)
- * exists yet. This helper lazily initializes the context using the
- * credential provider, mirroring what `setSystem` does.
+ * without first calling `setSystem`, no context (userId) exists yet.
+ * This helper lazily initializes the context using the credential
+ * provider, mirroring what `setSystem` does.
  */
 async function ensureContext(deps: DatasetToolDeps, systemId: string): Promise<void> {
   if (deps.sessionState.getContext(systemId)) return;
@@ -106,13 +105,11 @@ async function resolveInput(
   system: string | undefined,
   log: Logger
 ) {
-  const systemId = deps.sessionState.requireSystem(system);
+  const systemId = resolveSystemForTool(deps.systemRegistry, deps.sessionState, system);
   await ensureContext(deps, systemId);
-  const prefix = deps.sessionState.getDsnPrefix(systemId);
-  const resolved = resolveDsn(dsn, prefix, member);
+  const resolved = resolveDsn(dsn, member);
   log.debug('resolved input', {
     systemId,
-    prefix,
     dsn: resolved.dsn,
     member: resolved.member,
   });
@@ -147,19 +144,20 @@ export function registerDatasetTools(
       description:
         'List datasets matching a DSLEVEL pattern. Returns the first page of results (default 500, max 1000). ' +
         'Use offset and limit to page through large result sets. ' +
-        "Pattern: if in single quotes (e.g. 'USER.*'), it is absolute; otherwise relative and the DSN prefix is prepended with a trailing dot. " +
         dslevelDescription,
       annotations: { readOnlyHint: true },
       inputSchema: {
         dsnPattern: z
           .string()
           .describe(
-            `Dataset list pattern (required). Absolute if single-quoted (e.g. 'USER.*'); otherwise relative to DSN prefix. ${dslevelDescription}`
+            `Fully qualified dataset list pattern (e.g. USER.* or USER.**). ${dslevelDescription}`
           ),
         system: z
           .string()
           .optional()
-          .describe('Target z/OS system hostname. Defaults to the active system.'),
+          .describe(
+            'Target z/OS system: fully qualified or unqualified hostname (e.g. sys1.example.com or sys1 when unambiguous). Defaults to the active system.'
+          ),
         volser: z.string().optional().describe('Volume serial for uncataloged datasets.'),
         offset: z
           .number()
@@ -180,18 +178,13 @@ export function registerDatasetTools(
       log.info('listDatasets called', { dsnPattern, system, volser, offset, limit });
 
       try {
-        const systemId = deps.sessionState.requireSystem(system);
+        const systemId = resolveSystemForTool(deps.systemRegistry, deps.sessionState, system);
         await ensureContext(deps, systemId);
-        const prefix = deps.sessionState.getDsnPrefix(systemId);
 
-        const { resolved: resolvedPattern, wasAbsolute } = resolveWithPrefix(dsnPattern, prefix);
+        const resolvedPattern = resolvePattern(dsnPattern);
         validateListPattern(resolvedPattern);
 
-        log.debug('listDatasets resolved', {
-          systemId,
-          prefix,
-          resolvedPattern,
-        });
+        log.debug('listDatasets resolved', { systemId, resolvedPattern });
 
         const userId = deps.sessionState.getContext(systemId)?.userId;
         const datasets = await deps.backend.listDatasets(
@@ -201,7 +194,7 @@ export function registerDatasetTools(
           userId
         );
 
-        // Add resource links; output DSN as absolute single-quoted
+        // Add resource links; output DSN as fully qualified (no quotes)
         const enriched = datasets.map(ds => ({
           ...ds,
           dsn: formatResolved(ds.dsn),
@@ -211,8 +204,8 @@ export function registerDatasetTools(
         // Paginate
         const { data, meta } = paginateList(enriched, offset ?? 0, limit ?? DEFAULT_LIST_LIMIT);
 
-        const ctx = buildContext(systemId, wasAbsolute ? undefined : prefix, {
-          resolvedPattern: formatResolved(resolvedPattern),
+        const ctx = buildContext(systemId, {
+          resolvedPattern: resolvedOnlyIfDifferent(resolvedPattern, dsnPattern),
         });
 
         return wrapResponse(ctx, meta, data, []);
@@ -230,15 +223,10 @@ export function registerDatasetTools(
     {
       description:
         'List members of a PDS/PDSE dataset. Returns the first page of results (default 500, max 1000). ' +
-        'Use offset and limit to page through large result sets. ' +
-        "Dataset name: use a relative name (e.g. SRC.COBOL), or an absolute name in single quotes (e.g. 'SYS1.PROCLIB'). Relative names are prefixed with the current DSN prefix.",
+        'Use offset and limit to page through large result sets.',
       annotations: { readOnlyHint: true },
       inputSchema: {
-        dsn: z
-          .string()
-          .describe(
-            "Dataset name: use a relative name (e.g. SRC.COBOL), or an absolute name in single quotes (e.g. 'SYS1.PROCLIB'). Relative names are prefixed with the current DSN prefix."
-          ),
+        dsn: z.string().describe('Fully qualified dataset name (e.g. USER.SRC.COBOL).'),
         memberPattern: z
           .string()
           .optional()
@@ -248,7 +236,9 @@ export function registerDatasetTools(
         system: z
           .string()
           .optional()
-          .describe('Target z/OS system hostname. Defaults to the active system.'),
+          .describe(
+            'Target z/OS system: fully qualified or unqualified hostname (e.g. sys1.example.com or sys1 when unambiguous). Defaults to the active system.'
+          ),
         offset: z
           .number()
           .int()
@@ -268,12 +258,13 @@ export function registerDatasetTools(
       log.info('listMembers called', { dsn, memberPattern, system, offset, limit });
 
       try {
-        const {
-          systemId,
-          dsn: resolvedDsn,
-          wasAbsolute,
-        } = await resolveInput(deps, dsn, undefined, system, log);
-        const prefix = deps.sessionState.getDsnPrefix(systemId);
+        const { systemId, dsn: resolvedDsn } = await resolveInput(
+          deps,
+          dsn,
+          undefined,
+          system,
+          log
+        );
         const members = await deps.backend.listMembers(systemId, resolvedDsn, memberPattern);
 
         // Paginate and map name -> member for response
@@ -283,8 +274,8 @@ export function registerDatasetTools(
           limit ?? DEFAULT_LIST_LIMIT
         );
 
-        const ctx = buildContext(systemId, wasAbsolute ? undefined : prefix, {
-          resolvedDsn: formatResolved(resolvedDsn),
+        const ctx = buildContext(systemId, {
+          resolvedDsn: resolvedOnlyIfDifferent(resolvedDsn, dsn),
         });
 
         return wrapResponse(ctx, meta, rawData, []);
@@ -305,35 +296,33 @@ export function registerDatasetTools(
     {
       description:
         'Get detailed attributes of a dataset: organization, record format, ' +
-        'record length, block size, volume, SMS classes, dates, and more. ' +
-        "Dataset name: use a relative name (e.g. SRC.COBOL), or an absolute name in single quotes (e.g. 'SYS1.PROCLIB'). Relative names are prefixed with the current DSN prefix.",
+        'record length, block size, volume, SMS classes, dates, and more.',
       annotations: { readOnlyHint: true },
       inputSchema: {
-        dsn: z
-          .string()
-          .describe(
-            "Dataset name: use a relative name (e.g. SRC.COBOL), or an absolute name in single quotes (e.g. 'SYS1.PROCLIB'). Relative names are prefixed with the current DSN prefix."
-          ),
+        dsn: z.string().describe('Fully qualified dataset name (e.g. USER.SRC.COBOL).'),
         system: z
           .string()
           .optional()
-          .describe('Target z/OS system hostname. Defaults to the active system.'),
+          .describe(
+            'Target z/OS system: fully qualified or unqualified hostname (e.g. sys1.example.com or sys1 when unambiguous). Defaults to the active system.'
+          ),
       },
     },
     async ({ dsn, system }) => {
       log.info('getDatasetAttributes called', { dsn, system });
 
       try {
-        const {
-          systemId,
-          dsn: resolvedDsn,
-          wasAbsolute,
-        } = await resolveInput(deps, dsn, undefined, system, log);
-        const prefix = deps.sessionState.getDsnPrefix(systemId);
+        const { systemId, dsn: resolvedDsn } = await resolveInput(
+          deps,
+          dsn,
+          undefined,
+          system,
+          log
+        );
         const attrs = await deps.backend.getAttributes(systemId, resolvedDsn);
 
-        const ctx = buildContext(systemId, wasAbsolute ? undefined : prefix, {
-          resolvedDsn: formatResolved(resolvedDsn),
+        const ctx = buildContext(systemId, {
+          resolvedDsn: resolvedOnlyIfDifferent(resolvedDsn, dsn),
         });
 
         const createCompatibleType =
@@ -378,16 +367,14 @@ export function registerDatasetTools(
         'Pass the ETag to writeDataset to prevent overwriting concurrent changes.',
       annotations: { readOnlyHint: true },
       inputSchema: {
-        dsn: z
-          .string()
-          .describe(
-            "Dataset name: use a relative name (e.g. SRC.COBOL), or an absolute name in single quotes (e.g. 'SYS1.PROCLIB'). Relative names are prefixed with the current DSN prefix."
-          ),
+        dsn: z.string().describe('Fully qualified dataset name (e.g. USER.SRC.COBOL).'),
         member: z.string().optional().describe('Member name for PDS/PDSE datasets.'),
         system: z
           .string()
           .optional()
-          .describe('Target z/OS system hostname. Defaults to the active system.'),
+          .describe(
+            'Target z/OS system: fully qualified or unqualified hostname (e.g. sys1.example.com or sys1 when unambiguous). Defaults to the active system.'
+          ),
         codepage: z
           .string()
           .optional()
@@ -413,7 +400,6 @@ export function registerDatasetTools(
 
       try {
         const resolved = await resolveInput(deps, dsn, member, system, log);
-        const prefix = deps.sessionState.getDsnPrefix(resolved.systemId);
         const result = await deps.backend.readDataset(
           resolved.systemId,
           resolved.dsn,
@@ -426,9 +412,10 @@ export function registerDatasetTools(
 
         // Build the resolved DSN with member if applicable
         const fullDsn = resolved.member ? `${resolved.dsn}(${resolved.member})` : resolved.dsn;
+        const rawInputDsn = member ? `${dsn.trim()}(${member.trim()})` : dsn.trim();
 
-        const ctx = buildContext(resolved.systemId, resolved.wasAbsolute ? undefined : prefix, {
-          resolvedDsn: formatResolved(fullDsn),
+        const ctx = buildContext(resolved.systemId, {
+          resolvedDsn: resolvedOnlyIfDifferent(fullDsn, rawInputDsn),
         });
 
         return wrapResponse(
@@ -462,17 +449,15 @@ export function registerDatasetTools(
         'fails if the dataset was modified since the read — preventing overwrites. ' +
         'Returns a new ETag for the written content.',
       inputSchema: {
-        dsn: z
-          .string()
-          .describe(
-            "Dataset name: use a relative name (e.g. SRC.COBOL), or an absolute name in single quotes (e.g. 'SYS1.PROCLIB'). Relative names are prefixed with the current DSN prefix."
-          ),
+        dsn: z.string().describe('Fully qualified dataset name (e.g. USER.SRC.COBOL).'),
         content: z.string().describe('UTF-8 text content to write.'),
         member: z.string().optional().describe('Member name for PDS/PDSE datasets.'),
         system: z
           .string()
           .optional()
-          .describe('Target z/OS system hostname. Defaults to the active system.'),
+          .describe(
+            'Target z/OS system: fully qualified or unqualified hostname (e.g. sys1.example.com or sys1 when unambiguous). Defaults to the active system.'
+          ),
         etag: z
           .string()
           .optional()
@@ -488,7 +473,6 @@ export function registerDatasetTools(
 
       try {
         const resolved = await resolveInput(deps, dsn, member, system, log);
-        const prefix = deps.sessionState.getDsnPrefix(resolved.systemId);
         const result = await deps.backend.writeDataset(
           resolved.systemId,
           resolved.dsn,
@@ -499,9 +483,10 @@ export function registerDatasetTools(
         );
 
         const fullDsn = resolved.member ? `${resolved.dsn}(${resolved.member})` : resolved.dsn;
+        const rawInputDsn = member ? `${dsn.trim()}(${member.trim()})` : dsn.trim();
 
-        const ctx = buildContext(resolved.systemId, resolved.wasAbsolute ? undefined : prefix, {
-          resolvedDsn: formatResolved(fullDsn),
+        const ctx = buildContext(resolved.systemId, {
+          resolvedDsn: resolvedOnlyIfDifferent(fullDsn, rawInputDsn),
         });
 
         const mutationMeta: MutationResultMeta = { success: true };
@@ -525,11 +510,7 @@ export function registerDatasetTools(
         'Create a new sequential or partitioned dataset. Specify the type ' +
         '(PS/SEQUENTIAL, PO/PDS, PO-E/PDSE/LIBRARY) and optional attributes.',
       inputSchema: {
-        dsn: z
-          .string()
-          .describe(
-            "Dataset name: use a relative name (e.g. SRC.COBOL), or an absolute name in single quotes (e.g. 'SYS1.PROCLIB'). Relative names are prefixed with the current DSN prefix."
-          ),
+        dsn: z.string().describe('Fully qualified dataset name (e.g. USER.SRC.COBOL).'),
         type: z
           .enum(['PS', 'PO', 'PO-E', 'SEQUENTIAL', 'PDS', 'PDSE', 'LIBRARY'])
           .describe(
@@ -538,7 +519,9 @@ export function registerDatasetTools(
         system: z
           .string()
           .optional()
-          .describe('Target z/OS system hostname. Defaults to the active system.'),
+          .describe(
+            'Target z/OS system: fully qualified or unqualified hostname (e.g. sys1.example.com or sys1 when unambiguous). Defaults to the active system.'
+          ),
         recfm: z
           .string()
           .optional()
@@ -563,12 +546,13 @@ export function registerDatasetTools(
               : type;
 
       try {
-        const {
-          systemId,
-          dsn: resolvedDsn,
-          wasAbsolute,
-        } = await resolveInput(deps, dsn, undefined, system, log);
-        const prefix = deps.sessionState.getDsnPrefix(systemId);
+        const { systemId, dsn: resolvedDsn } = await resolveInput(
+          deps,
+          dsn,
+          undefined,
+          system,
+          log
+        );
         const result = await deps.backend.createDataset(systemId, resolvedDsn, {
           type: canonicalType,
           recfm: recfm as CreateDatasetOptions['recfm'],
@@ -579,8 +563,8 @@ export function registerDatasetTools(
           dirblk,
         });
 
-        const ctx = buildContext(systemId, wasAbsolute ? undefined : prefix, {
-          resolvedDsn: formatResolved(resolvedDsn),
+        const ctx = buildContext(systemId, {
+          resolvedDsn: resolvedOnlyIfDifferent(resolvedDsn, dsn),
         });
 
         const mutationMeta: MutationResultMeta = { success: true };
@@ -617,11 +601,7 @@ export function registerDatasetTools(
         'This is a destructive operation that cannot be undone.',
       annotations: { destructiveHint: true },
       inputSchema: {
-        dsn: z
-          .string()
-          .describe(
-            "Dataset name: use a relative name (e.g. SRC.COBOL), or an absolute name in single quotes (e.g. 'SYS1.PROCLIB'). Relative names are prefixed with the current DSN prefix."
-          ),
+        dsn: z.string().describe('Fully qualified dataset name (e.g. USER.SRC.COBOL).'),
         member: z
           .string()
           .optional()
@@ -629,7 +609,9 @@ export function registerDatasetTools(
         system: z
           .string()
           .optional()
-          .describe('Target z/OS system hostname. Defaults to the active system.'),
+          .describe(
+            'Target z/OS system: fully qualified or unqualified hostname (e.g. sys1.example.com or sys1 when unambiguous). Defaults to the active system.'
+          ),
       },
     },
     async ({ dsn, member, system }) => {
@@ -637,13 +619,13 @@ export function registerDatasetTools(
 
       try {
         const resolved = await resolveInput(deps, dsn, member, system, log);
-        const prefix = deps.sessionState.getDsnPrefix(resolved.systemId);
         await deps.backend.deleteDataset(resolved.systemId, resolved.dsn, resolved.member);
 
         const fullDsn = resolved.member ? `${resolved.dsn}(${resolved.member})` : resolved.dsn;
+        const rawInputDsn = member ? `${dsn.trim()}(${member.trim()})` : dsn.trim();
 
-        const ctx = buildContext(resolved.systemId, resolved.wasAbsolute ? undefined : prefix, {
-          resolvedDsn: formatResolved(fullDsn),
+        const ctx = buildContext(resolved.systemId, {
+          resolvedDsn: resolvedOnlyIfDifferent(fullDsn, rawInputDsn),
         });
 
         const mutationMeta: MutationResultMeta = { success: true };
@@ -674,14 +656,10 @@ export function registerDatasetTools(
       inputSchema: {
         sourceDsn: z
           .string()
-          .describe(
-            "Dataset name: use a relative name (e.g. SRC.COBOL), or an absolute name in single quotes (e.g. 'SYS1.PROCLIB'). Relative names are prefixed with the current DSN prefix."
-          ),
+          .describe('Fully qualified source dataset name (e.g. USER.SRC.COBOL).'),
         targetDsn: z
           .string()
-          .describe(
-            "Dataset name: use a relative name (e.g. SRC.BACKUP), or an absolute name in single quotes (e.g. 'SYS1.PROCLIB'). Relative names are prefixed with the current DSN prefix."
-          ),
+          .describe('Fully qualified target dataset name (e.g. USER.SRC.BACKUP).'),
         sourceMember: z
           .string()
           .optional()
@@ -693,7 +671,9 @@ export function registerDatasetTools(
         system: z
           .string()
           .optional()
-          .describe('Target z/OS system hostname. Defaults to the active system.'),
+          .describe(
+            'Target z/OS system: fully qualified or unqualified hostname (e.g. sys1.example.com or sys1 when unambiguous). Defaults to the active system.'
+          ),
       },
     },
     async ({ sourceDsn, targetDsn, sourceMember, targetMember, system }) => {
@@ -706,14 +686,12 @@ export function registerDatasetTools(
       });
 
       try {
-        const systemId = deps.sessionState.requireSystem(system);
+        const systemId = resolveSystemForTool(deps.systemRegistry, deps.sessionState, system);
         await ensureContext(deps, systemId);
-        const prefix = deps.sessionState.getDsnPrefix(systemId);
-        const resolvedSource = resolveDsn(sourceDsn, prefix, sourceMember);
-        const resolvedTarget = resolveDsn(targetDsn, prefix, targetMember);
+        const resolvedSource = resolveDsn(sourceDsn, sourceMember);
+        const resolvedTarget = resolveDsn(targetDsn, targetMember);
         log.debug('copyDataset resolved', {
           systemId,
-          prefix,
           source: resolvedSource.dsn,
           target: resolvedTarget.dsn,
           sourceMember: resolvedSource.member,
@@ -728,13 +706,24 @@ export function registerDatasetTools(
           resolvedTarget.member
         );
 
-        // Determine dsnPrefix inclusion: include if either input was relative
-        const showPrefix =
-          !resolvedSource.wasAbsolute || !resolvedTarget.wasAbsolute ? prefix : undefined;
+        const rawSource = sourceMember
+          ? `${sourceDsn.trim()}(${sourceMember.trim()})`
+          : sourceDsn.trim();
+        const rawTarget = targetMember
+          ? `${targetDsn.trim()}(${targetMember.trim()})`
+          : targetDsn.trim();
+        const sourceFull =
+          resolvedSource.member !== undefined
+            ? `${resolvedSource.dsn}(${resolvedSource.member})`
+            : resolvedSource.dsn;
+        const targetFull =
+          resolvedTarget.member !== undefined
+            ? `${resolvedTarget.dsn}(${resolvedTarget.member})`
+            : resolvedTarget.dsn;
 
-        const ctx = buildContext(systemId, showPrefix, {
-          resolvedDsn: formatResolved(resolvedSource.dsn),
-          resolvedTargetDsn: formatResolved(resolvedTarget.dsn),
+        const ctx = buildContext(systemId, {
+          resolvedDsn: resolvedOnlyIfDifferent(sourceFull, rawSource),
+          resolvedTargetDsn: resolvedOnlyIfDifferent(targetFull, rawTarget),
         });
 
         const mutationMeta: MutationResultMeta = { success: true };
@@ -764,16 +753,8 @@ export function registerDatasetTools(
     {
       description: 'Rename a dataset or PDS/PDSE member.',
       inputSchema: {
-        dsn: z
-          .string()
-          .describe(
-            "Dataset name: use a relative name (e.g. SRC.COBOL), or an absolute name in single quotes (e.g. 'SYS1.PROCLIB'). Relative names are prefixed with the current DSN prefix."
-          ),
-        newDsn: z
-          .string()
-          .describe(
-            "New dataset name: use a relative name (e.g. SRC.NEW), or an absolute name in single quotes (e.g. 'SYS1.PROCLIB'). Relative names are prefixed with the current DSN prefix."
-          ),
+        dsn: z.string().describe('Fully qualified dataset name (e.g. USER.SRC.COBOL).'),
+        newDsn: z.string().describe('Fully qualified new dataset name (e.g. USER.SRC.NEW).'),
         member: z
           .string()
           .optional()
@@ -782,21 +763,21 @@ export function registerDatasetTools(
         system: z
           .string()
           .optional()
-          .describe('Target z/OS system hostname. Defaults to the active system.'),
+          .describe(
+            'Target z/OS system: fully qualified or unqualified hostname (e.g. sys1.example.com or sys1 when unambiguous). Defaults to the active system.'
+          ),
       },
     },
     async ({ dsn, newDsn, member, newMember, system }) => {
       log.info('renameDataset called', { dsn, newDsn, member, newMember, system });
 
       try {
-        const systemId = deps.sessionState.requireSystem(system);
+        const systemId = resolveSystemForTool(deps.systemRegistry, deps.sessionState, system);
         await ensureContext(deps, systemId);
-        const prefix = deps.sessionState.getDsnPrefix(systemId);
-        const resolvedOld = resolveDsn(dsn, prefix, member);
-        const resolvedNew = resolveDsn(newDsn, prefix, newMember);
+        const resolvedOld = resolveDsn(dsn, member);
+        const resolvedNew = resolveDsn(newDsn, newMember);
         log.debug('renameDataset resolved', {
           systemId,
-          prefix,
           oldDsn: resolvedOld.dsn,
           newDsn: resolvedNew.dsn,
           oldMember: resolvedOld.member,
@@ -811,13 +792,20 @@ export function registerDatasetTools(
           resolvedNew.member
         );
 
-        // Determine dsnPrefix inclusion: include if either input was relative
-        const showPrefix =
-          !resolvedOld.wasAbsolute || !resolvedNew.wasAbsolute ? prefix : undefined;
+        const rawOld = member ? `${dsn.trim()}(${member.trim()})` : dsn.trim();
+        const rawNew = newMember ? `${newDsn.trim()}(${newMember.trim()})` : newDsn.trim();
+        const oldFull =
+          resolvedOld.member !== undefined
+            ? `${resolvedOld.dsn}(${resolvedOld.member})`
+            : resolvedOld.dsn;
+        const newFull =
+          resolvedNew.member !== undefined
+            ? `${resolvedNew.dsn}(${resolvedNew.member})`
+            : resolvedNew.dsn;
 
-        const ctx = buildContext(systemId, showPrefix, {
-          resolvedDsn: formatResolved(resolvedOld.dsn),
-          resolvedTargetDsn: formatResolved(resolvedNew.dsn),
+        const ctx = buildContext(systemId, {
+          resolvedDsn: resolvedOnlyIfDifferent(oldFull, rawOld),
+          resolvedTargetDsn: resolvedOnlyIfDifferent(newFull, rawNew),
         });
 
         const mutationMeta: MutationResultMeta = { success: true };

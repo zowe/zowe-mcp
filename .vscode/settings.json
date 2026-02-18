@@ -10,6 +10,7 @@
         "INVNTORY",
         "ISPF",
         "lrecl",
+        "MACLIB",
         "modelcontextprotocol",
         "OSMF",
         "PDSE",
@@ -18,6 +19,7 @@
         "Qwen",
         "recfm",
         "recompiles",
+        "SAMPLIB",
         "volser"
     ]
 }

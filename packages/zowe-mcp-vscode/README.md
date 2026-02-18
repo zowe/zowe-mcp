@@ -14,7 +14,7 @@ Zowe MCP brings mainframe z/OS capabilities to AI assistants in VS Code. It regi
 When the extension is configured with a backend (mock or native), your AI assistant can:
 
 - **Data sets** — List, read, write, copy, rename, and delete data sets and PDS members
-- **Context** — Switch between z/OS systems and set data set name prefixes (HLQ)
+- **Context** — Switch between z/OS systems
 - **Slash commands** — Use prompts such as “review JCL” or “explain data set” in chat
 
 Without a backend, only the server **info** tool is available; the extension will prompt you to set up mock data or a connection.

@@ -183,22 +183,20 @@ describe.skipIf(!canRunNativeE2E)(
       expect(hosts).toContain(firstSystemId);
     });
 
-    it('setSystem sets active system and returns userId and dsnPrefix', async () => {
+    it('setSystem sets active system and returns userId', async () => {
       const { parsed } = await callToolSuccess(client, 'setSystem', {
         system: firstSystemId,
       });
-      const o = parsed as { activeSystem: string; userId: string; dsnPrefix: string };
+      const o = parsed as { activeSystem: string; userId: string };
       expect(o.activeSystem).toBe(firstSystemId);
       expect(o.userId).toBeDefined();
       expect(o.userId.length).toBeGreaterThan(0);
-      expect(o.dsnPrefix).toBeDefined();
-      expect(o.dsnPrefix.length).toBeGreaterThan(0);
     });
 
     it('getContext returns active system', async () => {
       const { parsed } = await callToolSuccess(client, 'getContext', {});
       const o = parsed as {
-        activeSystem: { system: string; userId: string; dsnPrefix: string } | null;
+        activeSystem: { system: string; userId: string } | null;
       };
       expect(o.activeSystem).not.toBeNull();
       expect(o.activeSystem!.system).toBe(firstSystemId);
@@ -368,8 +366,7 @@ describe.skipIf(!canRunNativeE2E)(
         'listDatasets',
         { dsnPattern: "'SYS1.*'", system: 'nonexistent-host.example.com' },
         {
-          match:
-            /^No connection spec for system "nonexistent-host\.example\.com"( and user "[^"]+")?$/,
+          match: /System 'nonexistent-host\.example\.com' not found\. Available systems:/,
         }
       );
       expect(r.isError).toBe(true);

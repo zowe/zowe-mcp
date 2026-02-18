@@ -22,7 +22,7 @@ import {
   DsnError,
   inferMimeType,
   resolveDsn,
-  resolveWithPrefix,
+  resolvePattern,
   validateDsn,
   validateListPattern,
   validateMember,
@@ -484,59 +484,29 @@ describe('inferMimeType', () => {
 });
 
 // ---------------------------------------------------------------------------
-// resolveWithPrefix — pattern/name resolution (no validation)
+// resolvePattern — pattern/name normalization (no validation)
 // ---------------------------------------------------------------------------
 
-describe('resolveWithPrefix', () => {
-  it('absolute: single-quoted with undefined prefix returns resolved, wasAbsolute true', () => {
-    const r = resolveWithPrefix("'SYS1.PROCLIB'", undefined);
-    expect(r.resolved).toBe('SYS1.PROCLIB');
-    expect(r.wasAbsolute).toBe(true);
+describe('resolvePattern', () => {
+  it('strips optional single quotes and uppercases', () => {
+    expect(resolvePattern("'SYS1.PROCLIB'")).toBe('SYS1.PROCLIB');
+    expect(resolvePattern("'sys1.proclib'")).toBe('SYS1.PROCLIB');
   });
 
-  it('absolute: single-quoted with prefix returns resolved, wasAbsolute true', () => {
-    const r = resolveWithPrefix("'SYS1.PROCLIB'", 'USER');
-    expect(r.resolved).toBe('SYS1.PROCLIB');
-    expect(r.wasAbsolute).toBe(true);
+  it('uses unquoted input as-is (uppercased)', () => {
+    expect(resolvePattern('USER.SRC.COBOL')).toBe('USER.SRC.COBOL');
+    expect(resolvePattern('USER.SRC.*')).toBe('USER.SRC.*');
+    expect(resolvePattern('USER.**')).toBe('USER.**');
   });
 
-  it('relative with prefix: prepends prefix', () => {
-    const r = resolveWithPrefix('SRC.COBOL', 'USER');
-    expect(r.resolved).toBe('USER.SRC.COBOL');
-    expect(r.wasAbsolute).toBe(false);
-  });
-
-  it('relative with prefix: trims input', () => {
-    const r = resolveWithPrefix('  SRC.COBOL  ', 'USER');
-    expect(r.resolved).toBe('USER.SRC.COBOL');
-    expect(r.wasAbsolute).toBe(false);
-  });
-
-  it('relative pattern with prefix: SRC.*', () => {
-    const r = resolveWithPrefix('SRC.*', 'USER');
-    expect(r.resolved).toBe('USER.SRC.*');
-    expect(r.wasAbsolute).toBe(false);
-  });
-
-  it('relative pattern with prefix: *', () => {
-    const r = resolveWithPrefix('*', 'USER');
-    expect(r.resolved).toBe('USER.*');
-    expect(r.wasAbsolute).toBe(false);
-  });
-
-  it('relative with undefined prefix throws', () => {
-    expect(() => resolveWithPrefix('JCL.CNTL', undefined)).toThrow(DsnError);
-  });
-
-  it('absolute pattern with prefix: single-quoted', () => {
-    const r = resolveWithPrefix("'USER.SRC.*'", 'OTHER');
-    expect(r.resolved).toBe('USER.SRC.*');
-    expect(r.wasAbsolute).toBe(true);
+  it('trims input', () => {
+    expect(resolvePattern('  USER.SRC.COBOL  ')).toBe('USER.SRC.COBOL');
+    expect(resolvePattern("  'SYS1.PROCLIB'  ")).toBe('SYS1.PROCLIB');
   });
 
   it('throws for empty input', () => {
-    expect(() => resolveWithPrefix('', 'USER')).toThrow(DsnError);
-    expect(() => resolveWithPrefix('   ', 'USER')).toThrow(DsnError);
+    expect(() => resolvePattern('')).toThrow(DsnError);
+    expect(() => resolvePattern('   ')).toThrow(DsnError);
   });
 });
 
@@ -574,95 +544,82 @@ describe('validateListPattern', () => {
 // ---------------------------------------------------------------------------
 
 describe('resolveDsn', () => {
-  describe('relative names (no quotes)', () => {
-    it('should prepend prefix to relative name', () => {
-      const result = resolveDsn('SRC.COBOL', 'USER');
-      expect(result.dsn).toBe('USER.SRC.COBOL');
-      expect(result.wasAbsolute).toBe(false);
-    });
-
-    it('should uppercase relative name', () => {
-      const result = resolveDsn('src.cobol', 'USER');
+  describe('unquoted full name', () => {
+    it('should use input as fully qualified name (uppercased)', () => {
+      const result = resolveDsn('USER.SRC.COBOL');
       expect(result.dsn).toBe('USER.SRC.COBOL');
     });
 
-    it('should throw when relative name and no prefix', () => {
-      expect(() => resolveDsn('USER.SRC.COBOL', undefined)).toThrow(DsnError);
-      expect(() => resolveDsn('JCL.CNTL', undefined)).toThrow(DsnError);
+    it('should uppercase', () => {
+      const result = resolveDsn('user.src.cobol');
+      expect(result.dsn).toBe('USER.SRC.COBOL');
     });
   });
 
-  describe('absolute names (single-quoted)', () => {
-    it('should strip quotes and use as-is', () => {
-      const result = resolveDsn("'SYS1.PROCLIB'", 'USER');
-      expect(result.dsn).toBe('SYS1.PROCLIB');
-      expect(result.wasAbsolute).toBe(true);
-    });
-
-    it('should uppercase absolute name', () => {
-      const result = resolveDsn("'sys1.proclib'", 'USER');
+  describe('quoted full name', () => {
+    it('should strip quotes and use as-is (uppercased)', () => {
+      const result = resolveDsn("'SYS1.PROCLIB'");
       expect(result.dsn).toBe('SYS1.PROCLIB');
     });
 
-    it('should ignore prefix for absolute names', () => {
-      const result = resolveDsn("'SYS1.PROCLIB'", 'USER');
+    it('should uppercase', () => {
+      const result = resolveDsn("'sys1.proclib'");
       expect(result.dsn).toBe('SYS1.PROCLIB');
     });
   });
 
   describe('member resolution', () => {
     it('should include member when provided', () => {
-      const result = resolveDsn('SRC.COBOL', 'USER', 'HELLO');
+      const result = resolveDsn('USER.SRC.COBOL', 'HELLO');
       expect(result.dsn).toBe('USER.SRC.COBOL');
       expect(result.member).toBe('HELLO');
     });
 
     it('should uppercase member name', () => {
-      const result = resolveDsn('SRC.COBOL', 'USER', 'hello');
+      const result = resolveDsn('USER.SRC.COBOL', 'hello');
       expect(result.member).toBe('HELLO');
     });
 
     it('should return undefined member when not provided', () => {
-      const result = resolveDsn('SRC.COBOL', 'USER');
+      const result = resolveDsn('USER.SRC.COBOL');
       expect(result.member).toBeUndefined();
     });
 
     it('should return undefined member for empty string', () => {
-      const result = resolveDsn('SRC.COBOL', 'USER', '');
+      const result = resolveDsn('USER.SRC.COBOL', '');
       expect(result.member).toBeUndefined();
     });
 
     it('should return undefined member for whitespace-only', () => {
-      const result = resolveDsn('SRC.COBOL', 'USER', '   ');
+      const result = resolveDsn('USER.SRC.COBOL', '   ');
       expect(result.member).toBeUndefined();
     });
   });
 
   describe('validation', () => {
     it('should throw for empty input', () => {
-      expect(() => resolveDsn('', 'USER')).toThrow(DsnError);
+      expect(() => resolveDsn('')).toThrow(DsnError);
     });
 
     it('should throw for name exceeding 44 characters', () => {
-      // 6 qualifiers of 8 chars each + 5 dots = 53 chars (exceeds 44-char limit)
       const longName = "'ABCDEFGH.ABCDEFGH.ABCDEFGH.ABCDEFGH.ABCDEFGH.ABCDEF'";
       expect(longName.slice(1, -1).length).toBeGreaterThan(44);
-      expect(() => resolveDsn(longName, undefined)).toThrow(DsnError);
+      expect(() => resolveDsn(longName)).toThrow(DsnError);
     });
 
     it('should throw for invalid member name', () => {
-      expect(() => resolveDsn('SRC.COBOL', 'USER', '123BAD')).toThrow(DsnError);
+      expect(() => resolveDsn('USER.SRC.COBOL', '123BAD')).toThrow(DsnError);
     });
   });
 
   describe('whitespace handling', () => {
     it('should trim leading/trailing whitespace', () => {
-      const result = resolveDsn('  SRC.COBOL  ', 'USER');
+      const result = resolveDsn('  USER.SRC.COBOL  ');
       expect(result.dsn).toBe('USER.SRC.COBOL');
     });
 
     it('should trim whitespace from quoted names', () => {
-      const result = resolveDsn("  'SYS1.PROCLIB'  ", 'USER');
+      const result = resolveDsn("  'SYS1.PROCLIB'  ");
       expect(result.dsn).toBe('SYS1.PROCLIB');
     });
   });

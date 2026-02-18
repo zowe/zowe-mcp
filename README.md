@@ -338,7 +338,7 @@ npm run test:vscode
 
 ### Quick tool testing from the CLI
 
-Build the server first (`npm run build`), then use `npm run call-tool --` or `npx zowe-mcp-server call-tool`. For usage, options, and examples see the script source: [`packages/zowe-mcp-server/src/scripts/call-tool.ts`](packages/zowe-mcp-server/src/scripts/call-tool.ts).
+Build the server first (`npm run build`), then use `npx zowe-mcp-server call-tool`. For usage, options, and examples see the script source: [`packages/zowe-mcp-server/src/scripts/call-tool.ts`](packages/zowe-mcp-server/src/scripts/call-tool.ts).
 
 ### MCP Inspector
 
@@ -391,7 +391,6 @@ npm run check-format  # Check formatting without modifying files
 | `npm run test:all` | Run all tests (server + VS Code extension) |
 | `npm run test:vscode` | Run VS Code extension tests |
 | `npm run build-and-install` | Package and install the VS Code extension |
-| `npm run call-tool -- [--mock=<dir>] [<name> [key=value ...]]` | Call a tool from the CLI; `npx zowe-mcp-server call-tool` same |
 | `npm run inspector` | Launch MCP Inspector (no backend) |
 | `npm run inspector:mock` | Launch MCP Inspector with mock data (`./zowe-mcp-mock-data`) |
 | `npm run inspector:native` | Launch MCP Inspector with native SSH (`native-config.json` + `.env`) |
@@ -400,6 +399,7 @@ npm run check-format  # Check formatting without modifying files
 | `npm run lint:fix` | Auto-fix ESLint issues |
 | `npm run format` | Format all files with Prettier |
 | `npx zowe-mcp-server init-mock --output <dir>` | Generate mock data |
+| `npx zowe-mcp-server call-tool [--mock=<dir>] [<tool-name> [key=value ...]]` | Call a tool from the CLI |
 
 ## License
 

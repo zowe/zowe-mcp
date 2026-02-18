@@ -14,13 +14,12 @@
  *
  * Every dataset tool wraps its response in a {@link ToolResponseEnvelope}
  * that provides:
- * - `_context`: how the input was resolved (system, prefix, resolved name/pattern)
+ * - `_context`: how the input was resolved (system, resolved name/pattern)
  * - `_result`: summary metadata (count, pagination, windowing, MIME type)
  * - `data`: the actual payload
  *
  * Resolved values (`resolvedPattern`, `resolvedDsn`, `resolvedTargetDsn`)
- * are always fully-qualified, absolute, and single-quoted — following the
- * z/OS convention for absolute dataset names.
+ * are only included when resolution changed the input; they are fully qualified (no quotes).
  */
 
 import { createRequire } from 'node:module';
@@ -49,13 +48,11 @@ export const MAX_READ_LINES = 2000;
 export interface ResponseContext {
   /** Resolved system ID. */
   system: string;
-  /** Active DSN prefix (present when a relative name was resolved). */
-  dsnPrefix?: string;
-  /** Resolved pattern for list tools (always absolute, single-quoted). */
+  /** Resolved pattern for list tools (fully qualified). */
   resolvedPattern?: string;
-  /** Resolved dataset name for CRUD tools (always absolute, single-quoted). */
+  /** Resolved dataset name for CRUD tools (fully qualified). */
   resolvedDsn?: string;
-  /** Resolved target dataset name for copy/rename (always absolute, single-quoted). */
+  /** Resolved target dataset name for copy/rename (fully qualified). */
   resolvedTargetDsn?: string;
 }
 
@@ -107,12 +104,11 @@ export interface ToolResponseEnvelope<T> {
 // ---------------------------------------------------------------------------
 
 /**
- * Wrap a fully-qualified value in single quotes (z/OS absolute convention).
+ * Normalize a fully-qualified value for display in tool output.
  *
- * All resolved values are absolute, so they are always quoted.
- * Idempotent: if the value is already wrapped in single quotes, it is
- * stripped and re-wrapped once. When that normalization happens, a debug
- * message is logged so we can see when backends or callers pass quoted DSN.
+ * Strips optional single quotes so resolved values are always returned
+ * as plain fully-qualified names (no quotes). If the value was already
+ * quoted, a debug message is logged.
  */
 export function formatResolved(value: string): string {
   const alreadyQuoted = value.length >= 2 && value.startsWith("'") && value.endsWith("'");
@@ -131,7 +127,21 @@ export function formatResolved(value: string): string {
       // Avoid circular dependency or missing server at load time; skip log
     }
   }
-  return `'${unquoted}'`;
+  return unquoted;
+}
+
+/**
+ * Return the resolved value for context only when resolution actually changed
+ * the input (e.g. normalized case, stripped quotes). Omits the key when
+ * trimmed raw input equals the resolved value.
+ *
+ * @param resolved - Normalized value (e.g. from resolvePattern / resolveDsn).
+ * @param rawInput - Raw input string from the user (will be trimmed for comparison).
+ * @returns Formatted resolved value to include in context, or undefined to omit.
+ */
+export function resolvedOnlyIfDifferent(resolved: string, rawInput: string): string | undefined {
+  if (resolved === rawInput.trim()) return undefined;
+  return formatResolved(resolved);
 }
 
 /**
@@ -139,7 +149,6 @@ export function formatResolved(value: string): string {
  */
 export function buildContext(
   systemId: string,
-  dsnPrefix: string | undefined,
   resolved: {
     resolvedPattern?: string;
     resolvedDsn?: string;
@@ -147,9 +156,6 @@ export function buildContext(
   }
 ): ResponseContext {
   const ctx: ResponseContext = { system: systemId };
-  if (dsnPrefix !== undefined) {
-    ctx.dsnPrefix = dsnPrefix;
-  }
   if (resolved.resolvedPattern !== undefined) {
     ctx.resolvedPattern = resolved.resolvedPattern;
   }

@@ -19,8 +19,8 @@ Items to address later. Not ordered by priority.
 - **Windows**: Test on Windows — mainly the named pipe behavior.
 - **Other AI assistants**: Test with Cline (VS Code) and with Claude Desktop / Claude Code.
 - **Password error messages**: Validate that the password error messages match what really happens when errors occur.
-- **DONE** - **Tool description quality**: Evaluate tool descriptions; see how Code4z Assistant does it for reference.
-- **DONE** - **z/OS integration tests**: Add or run z/OS integration tests. (Native stdio E2E tests)
+- ✅ **Tool description quality**: Evaluate tool descriptions; see how Code4z Assistant does it for reference.
+- ✅ **z/OS integration tests**: Add or run z/OS integration tests. (Native stdio E2E tests)
 
 ## VS Code / UX
 
@@ -34,7 +34,7 @@ Items to address later. Not ordered by priority.
 
 ## Pagination, search & editing
 
-- **Consider removing relative DSN and dsnPrefix**: The concept of DSN relative to a dsnPrefix (and the dsnPrefix itself) may be confusing models; e.g. Qwen3 needs several tool calls to get it right. Consider removing relative-DSN resolution and dsnPrefix from the MCP tools so that dataset names are always fully qualified (e.g. require `'USER.SRC.COBOL'`-style input only).
+- ✅  **Consider removing relative DSN and dsnPrefix**: The concept of DSN relative to a dsnPrefix (and the dsnPrefix itself) may be confusing models; e.g. Qwen3 needs several tool calls to get it right. Consider removing relative-DSN resolution and dsnPrefix from the MCP tools so that dataset names are always fully qualified (e.g. require `'USER.SRC.COBOL'`-style input only). The model that add quotes to the parameters and get quoted DSNs as output still change it back to unquoted absolute names in the response.
 - **Pagination — review and Copilot usability**: Review how pagination is implemented (`listDatasets` / `listMembers` offset, limit, `hasMore`) and whether Copilot can effectively use it. Key question: *When the user asks for a dataset that is not on the first page (or not matched by wildcards alone), does the agent reliably use offset/limit and `hasMore` to keep fetching until it finds the target or exhausts results?* Validate with real Copilot sessions and improve tool descriptions or response shape if needed.
 - **Search tools**: Add tool(s) to find datasets that contain a specific member (e.g. by name or pattern). Inputs: list of datasets and/or DSN/member wildcards; output: datasets that have matching members.
 - **Working set**: Introduce a concept of a working set — a defined set of datasets (with optional member subset or wildcards) that can be reused as input for search or other operations (e.g. “search in my working set”).

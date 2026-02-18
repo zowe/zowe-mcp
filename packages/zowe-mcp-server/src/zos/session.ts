@@ -21,7 +21,47 @@
  * per-system context map.
  */
 
-import type { SystemId } from './system.js';
+import type { SystemId, SystemRegistry } from './system.js';
+
+// ---------------------------------------------------------------------------
+// Resolve system parameter (FQDN or unqualified)
+// ---------------------------------------------------------------------------
+
+/**
+ * Resolve the system parameter for tools that accept an optional system.
+ * Accepts either a fully qualified hostname (FQDN) or an unqualified
+ * hostname when unambiguous, consistent with setSystem behavior.
+ *
+ * @param systemRegistry - Registry of known systems (for getOrResolve).
+ * @param sessionState - Session state (for active system when system is omitted).
+ * @param system - Optional hostname from the tool/prompt argument.
+ * @returns The resolved system ID (canonical hostname).
+ * @throws {Error} if no system is active and none provided, or if the given system is not found.
+ */
+export function resolveSystemForTool(
+  systemRegistry: SystemRegistry,
+  sessionState: SessionState,
+  system?: string
+): SystemId {
+  if (system === undefined || system === '') {
+    const active = sessionState.getActiveSystem();
+    if (active === undefined) {
+      throw new Error(
+        'No active z/OS system. Use setSystem to select a system, or pass the "system" parameter explicitly.'
+      );
+    }
+    return active;
+  }
+
+  const sysInfo = systemRegistry.getOrResolve(system);
+  if (!sysInfo) {
+    const available = systemRegistry.list().join(', ');
+    throw new Error(
+      `System '${system}' not found. Available systems: ${available}. Use listSystems to see all configured systems.`
+    );
+  }
+  return sysInfo.host;
+}
 
 // ---------------------------------------------------------------------------
 // Per-system context
@@ -31,15 +71,12 @@ import type { SystemId } from './system.js';
 export interface SystemContext {
   /** Active user ID on this system (e.g. `"USER"`). */
   userId: string;
-  /** DSN prefix — defaults to `userId`. Like `cwd` in the dataset tree. */
-  dsnPrefix: string;
 }
 
 /** Serializable summary of a system context (for tool responses). */
 export interface SystemContextSummary {
   system: SystemId;
   userId: string;
-  dsnPrefix: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -64,8 +101,7 @@ export class SessionState {
 
   /**
    * Set the active system. If the system has no context yet, one is
-   * created with the given `defaultUserId` as both `userId` and
-   * `dsnPrefix`.
+   * created with the given `defaultUserId` as `userId`.
    *
    * @returns The context for the newly active system.
    */
@@ -74,7 +110,6 @@ export class SessionState {
     if (!this.contexts.has(systemId)) {
       this.contexts.set(systemId, {
         userId: defaultUserId,
-        dsnPrefix: defaultUserId,
       });
     }
     return this.contexts.get(systemId)!;
@@ -114,34 +149,11 @@ export class SessionState {
     );
   }
 
-  /**
-   * Get the DSN prefix for a system.
-   *
-   * @param systemId - If omitted, uses the active system.
-   */
-  getDsnPrefix(systemId?: SystemId): string | undefined {
-    const id = systemId ?? this.activeSystemId;
-    if (!id) return undefined;
-    return this.contexts.get(id)?.dsnPrefix;
-  }
-
-  /**
-   * Set the DSN prefix for the active system.
-   *
-   * @throws {Error} if no system is active.
-   */
-  setDsnPrefix(prefix: string): SystemContext {
-    const ctx = this.getActiveContext();
-    ctx.dsnPrefix = prefix.toUpperCase();
-    return ctx;
-  }
-
   /** Return summary info for all system contexts. */
   getAllContexts(): SystemContextSummary[] {
     return [...this.contexts.entries()].map(([system, ctx]) => ({
       system,
       userId: ctx.userId,
-      dsnPrefix: ctx.dsnPrefix,
     }));
   }
 

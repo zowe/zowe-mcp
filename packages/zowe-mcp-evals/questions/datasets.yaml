@@ -20,16 +20,18 @@ questions:
         tool: listDatasets
         args:
           dsnPattern:
+            - "USER.**"
             - "'USER.**'"
-            - "**"
       - type: answerContains
         substring: SRC.COBOL
   - id: list-members-src-cobol
-    prompt: List members of SRC.COBOL.
+    prompt: List members of USER.SRC.COBOL.
     assertions:
       - type: toolCall
         tool: listMembers
         args:
-          dsn: SRC.COBOL
+          dsn:
+            - "USER.SRC.COBOL"
+            - "'USER.SRC.COBOL'"
       - type: answerContains
         substring: CUSTFILE

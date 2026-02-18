@@ -10,11 +10,12 @@
  */
 
 /**
- * Unit tests for SessionState — per-system working context management.
+ * Unit tests for SessionState and resolveSystemForTool.
  */
 
 import { describe, expect, it } from 'vitest';
-import { SessionState } from '../src/zos/session.js';
+import { resolveSystemForTool, SessionState } from '../src/zos/session.js';
+import { SystemRegistry } from '../src/zos/system.js';
 
 describe('SessionState', () => {
   describe('initial state', () => {
@@ -27,41 +28,29 @@ describe('SessionState', () => {
       const state = new SessionState();
       expect(state.getAllContexts()).toEqual([]);
     });
-
-    it('should return undefined prefix when no system is active', () => {
-      const state = new SessionState();
-      expect(state.getDsnPrefix()).toBeUndefined();
-    });
   });
 
   describe('setActiveSystem', () => {
-    it('should set the active system and create context with user ID as prefix', () => {
+    it('should set the active system and create context with user ID', () => {
       const state = new SessionState();
       const ctx = state.setActiveSystem('sys1', 'USER');
       expect(state.getActiveSystem()).toBe('sys1');
       expect(ctx.userId).toBe('USER');
-      expect(ctx.dsnPrefix).toBe('USER');
     });
 
     it('should preserve context when switching back to a previously used system', () => {
       const state = new SessionState();
       state.setActiveSystem('sys1', 'USER');
-      state.setDsnPrefix('USER.DEV');
       state.setActiveSystem('sys2', 'DEVUSER');
-      // Switch back to sys1
       const ctx = state.setActiveSystem('sys1', 'USER');
-      expect(ctx.dsnPrefix).toBe('USER.DEV'); // preserved, not reset
       expect(ctx.userId).toBe('USER');
     });
 
     it('should not overwrite existing context on re-activation', () => {
       const state = new SessionState();
       state.setActiveSystem('sys1', 'USER');
-      state.setDsnPrefix('CUSTOM.PREFIX');
-      // Re-activate with a different defaultUserId — should NOT reset
       const ctx = state.setActiveSystem('sys1', 'OTHERUSER');
-      expect(ctx.userId).toBe('USER'); // original, not OTHERUSER
-      expect(ctx.dsnPrefix).toBe('CUSTOM.PREFIX');
+      expect(ctx.userId).toBe('USER');
     });
   });
 
@@ -103,49 +92,6 @@ describe('SessionState', () => {
     });
   });
 
-  describe('DSN prefix management', () => {
-    it('should default prefix to user ID', () => {
-      const state = new SessionState();
-      state.setActiveSystem('sys1', 'USER');
-      expect(state.getDsnPrefix()).toBe('USER');
-    });
-
-    it('should update prefix and uppercase it', () => {
-      const state = new SessionState();
-      state.setActiveSystem('sys1', 'USER');
-      const ctx = state.setDsnPrefix('user.dev.src');
-      expect(ctx.dsnPrefix).toBe('USER.DEV.SRC');
-    });
-
-    it('should throw when setting prefix with no active system', () => {
-      const state = new SessionState();
-      expect(() => state.setDsnPrefix('TEST')).toThrow('No active z/OS system');
-    });
-
-    it('should get prefix for a specific system', () => {
-      const state = new SessionState();
-      state.setActiveSystem('sys1', 'USER');
-      state.setActiveSystem('sys2', 'DEVUSER');
-      expect(state.getDsnPrefix('sys1')).toBe('USER');
-      expect(state.getDsnPrefix('sys2')).toBe('DEVUSER');
-    });
-
-    it('should return undefined prefix for unknown system', () => {
-      const state = new SessionState();
-      expect(state.getDsnPrefix('unknown')).toBeUndefined();
-    });
-
-    it('should isolate prefixes between systems', () => {
-      const state = new SessionState();
-      state.setActiveSystem('sys1', 'USER');
-      state.setDsnPrefix('USER.PROD');
-      state.setActiveSystem('sys2', 'DEVUSER');
-      state.setDsnPrefix('DEVUSER.TEST');
-      expect(state.getDsnPrefix('sys1')).toBe('USER.PROD');
-      expect(state.getDsnPrefix('sys2')).toBe('DEVUSER.TEST');
-    });
-  });
-
   describe('getAllContexts', () => {
     it('should return summaries for all systems', () => {
       const state = new SessionState();
@@ -153,8 +99,8 @@ describe('SessionState', () => {
       state.setActiveSystem('sys2', 'DEVUSER');
       const contexts = state.getAllContexts();
       expect(contexts).toHaveLength(2);
-      expect(contexts).toContainEqual({ system: 'sys1', userId: 'USER', dsnPrefix: 'USER' });
-      expect(contexts).toContainEqual({ system: 'sys2', userId: 'DEVUSER', dsnPrefix: 'DEVUSER' });
+      expect(contexts).toContainEqual({ system: 'sys1', userId: 'USER' });
+      expect(contexts).toContainEqual({ system: 'sys2', userId: 'DEVUSER' });
     });
   });
 
@@ -162,12 +108,67 @@ describe('SessionState', () => {
     it('should return context for a known system', () => {
       const state = new SessionState();
       state.setActiveSystem('sys1', 'USER');
-      expect(state.getContext('sys1')).toEqual({ userId: 'USER', dsnPrefix: 'USER' });
+      expect(state.getContext('sys1')).toEqual({ userId: 'USER' });
     });
 
     it('should return undefined for unknown system', () => {
       const state = new SessionState();
       expect(state.getContext('unknown')).toBeUndefined();
     });
+  });
+});
+
+describe('resolveSystemForTool', () => {
+  it('should return active system when system param is omitted', () => {
+    const registry = new SystemRegistry();
+    registry.register({ host: 'sys1.example.com', port: 443 });
+    const state = new SessionState();
+    state.setActiveSystem('sys1.example.com', 'USER');
+    expect(resolveSystemForTool(registry, state)).toBe('sys1.example.com');
+  });
+
+  it('should throw when no system param and no active system', () => {
+    const registry = new SystemRegistry();
+    registry.register({ host: 'sys1.example.com', port: 443 });
+    const state = new SessionState();
+    expect(() => resolveSystemForTool(registry, state)).toThrow('No active z/OS system');
+  });
+
+  it('should resolve FQDN to canonical host when registered', () => {
+    const registry = new SystemRegistry();
+    registry.register({ host: 'sys1.example.com', port: 443 });
+    const state = new SessionState();
+    expect(resolveSystemForTool(registry, state, 'sys1.example.com')).toBe('sys1.example.com');
+  });
+
+  it('should resolve unqualified hostname to FQDN when unambiguous', () => {
+    const registry = new SystemRegistry();
+    registry.register({ host: 'sys1.example.com', port: 443 });
+    const state = new SessionState();
+    expect(resolveSystemForTool(registry, state, 'sys1')).toBe('sys1.example.com');
+  });
+
+  it('should resolve case-insensitively', () => {
+    const registry = new SystemRegistry();
+    registry.register({ host: 'Sys1.Example.COM', port: 443 });
+    const state = new SessionState();
+    expect(resolveSystemForTool(registry, state, 'SYS1')).toBe('Sys1.Example.COM');
+  });
+
+  it('should throw when system not found', () => {
+    const registry = new SystemRegistry();
+    registry.register({ host: 'sys1.example.com', port: 443 });
+    const state = new SessionState();
+    expect(() => resolveSystemForTool(registry, state, 'unknown')).toThrow(
+      "System 'unknown' not found"
+    );
+  });
+
+  it('should throw when unqualified name is ambiguous', () => {
+    const registry = new SystemRegistry();
+    registry.register({ host: 'sys1.a.example.com', port: 443 });
+    registry.register({ host: 'sys1.b.example.com', port: 443 });
+    const state = new SessionState();
+    expect(() => resolveSystemForTool(registry, state, 'sys1')).toThrow("System 'sys1' not found");
   });
 });

@@ -16,11 +16,10 @@
  * - Auto-activation of a single system at server creation
  * - Lazy context initialization when the LLM skips `setSystem`
  * - Pattern matching for `listDatasets` (trailing `*` → `**`)
- * - Correct DSN prefix resolution from auto-initialized context
  * - Response envelope structure (_context, _result, data)
  * - Pagination for list operations (offset, limit, hasMore)
  * - Line windowing for read operations (startLine, lineCount, auto-truncation)
- * - Single-quote convention on resolvedPattern / resolvedDsn
+ * - Fully qualified names; resolved values in output are unquoted
  */
 
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
@@ -225,13 +224,12 @@ describe('Dataset tools with mock backend', () => {
     it('should auto-activate the only system so setSystem is not required', async () => {
       const result = await client.callTool({ name: 'getContext', arguments: {} });
       const ctx = JSON.parse(getResultText(result)) as {
-        activeSystem: { system: string; userId: string; dsnPrefix: string } | null;
+        activeSystem: { system: string; userId: string } | null;
       };
 
       expect(ctx.activeSystem).not.toBeNull();
       expect(ctx.activeSystem!.system).toBe(SYSTEM_HOST);
       expect(ctx.activeSystem!.userId).toBe(DEFAULT_USER);
-      expect(ctx.activeSystem!.dsnPrefix).toBe(DEFAULT_USER);
     });
 
     it('should register all z/OS tools when backend is provided', async () => {
@@ -268,9 +266,9 @@ describe('Dataset tools with mock backend', () => {
     it('should return allSystems from registry and recentlyUsedSystems with context', async () => {
       const result = await client.callTool({ name: 'getContext', arguments: {} });
       const ctx = JSON.parse(getResultText(result)) as {
-        activeSystem: { system: string; userId: string; dsnPrefix: string } | null;
+        activeSystem: { system: string; userId: string } | null;
         allSystems: { host: string; description?: string; active: boolean }[];
-        recentlyUsedSystems: { system: string; userId: string; dsnPrefix: string }[];
+        recentlyUsedSystems: { system: string; userId: string }[];
       };
 
       expect(ctx.allSystems).toHaveLength(1);
@@ -280,39 +278,14 @@ describe('Dataset tools with mock backend', () => {
       expect(ctx.recentlyUsedSystems).toHaveLength(1);
       expect(ctx.recentlyUsedSystems[0].system).toBe(SYSTEM_HOST);
       expect(ctx.recentlyUsedSystems[0].userId).toBe(DEFAULT_USER);
-      expect(ctx.recentlyUsedSystems[0].dsnPrefix).toBe(DEFAULT_USER);
     });
   });
 
   // -----------------------------------------------------------------------
-  // setDsnPrefix and setSystem behavior
+  // setSystem behavior
   // -----------------------------------------------------------------------
-  describe('setDsnPrefix and setSystem', () => {
-    it('should strip trailing dot from setDsnPrefix and return message', async () => {
-      const result = await client.callTool({
-        name: 'setDsnPrefix',
-        arguments: { prefix: 'USER.' },
-      });
-      const body = JSON.parse(getResultText(result)) as {
-        dsnPrefix: string;
-        messages: string[];
-      };
-      expect(body.dsnPrefix).toBe('USER');
-      expect(body.messages).toEqual([
-        'Trailing dot removed from DSN prefix. DSN prefix can be only full DSN segments.',
-      ]);
-    });
-
-    it('should not add message when setDsnPrefix has no trailing dot', async () => {
-      const result = await client.callTool({
-        name: 'setDsnPrefix',
-        arguments: { prefix: 'USER' },
-      });
-      const body = JSON.parse(getResultText(result)) as { messages: string[] };
-      expect(body.messages).toEqual([]);
-    });
-
-    it('should resolve unqualified hostname in setSystem when unambiguous', async () => {
+  describe('setSystem', () => {
+    it('should resolve unqualified hostname when unambiguous', async () => {
       const result = await client.callTool({
         name: 'setSystem',
         arguments: { system: 'test-system' },
@@ -333,16 +306,14 @@ describe('Dataset tools with mock backend', () => {
     it('should wrap listDatasets response in envelope with _context and _result', async () => {
       const result = await client.callTool({
         name: 'listDatasets',
-        arguments: { dsnPattern: '*' },
+        arguments: { dsnPattern: 'TESTUSER.*' },
       });
 
       const envelope = parseEnvelope<{ dsn: string }[]>(result);
 
-      // _context
+      // _context (no resolvedPattern when input already normalized)
       expect(envelope._context).toBeDefined();
       expect(envelope._context.system).toBe(SYSTEM_HOST);
-      expect(envelope._context.dsnPrefix).toBe(DEFAULT_USER);
-      expect(envelope._context.resolvedPattern).toBe("'TESTUSER.*'");
 
       // _result (list metadata)
       expect(envelope._result).toBeDefined();
@@ -357,94 +328,80 @@ describe('Dataset tools with mock backend', () => {
       expect(envelope.data.length).toBe(meta.count);
     });
 
-    it('should use resolvedDsn for listMembers envelope', async () => {
+    it('should not include resolvedDsn when input already normalized (listMembers)', async () => {
       const result = await client.callTool({
         name: 'listMembers',
-        arguments: { dsn: 'SRC.COBOL' },
+        arguments: { dsn: 'TESTUSER.SRC.COBOL' },
       });
 
       const envelope = parseEnvelope<{ member: string }[]>(result);
-      expect(envelope._context.resolvedDsn).toBe("'TESTUSER.SRC.COBOL'");
-      expect(envelope._context.dsnPrefix).toBe(DEFAULT_USER);
+      expect(envelope._context.resolvedDsn).toBeUndefined();
       expect(envelope._context.resolvedPattern).toBeUndefined();
     });
 
-    it('should use resolvedDsn for readDataset envelope', async () => {
+    it('should not include resolvedDsn when input already normalized (readDataset)', async () => {
       const result = await client.callTool({
         name: 'readDataset',
-        arguments: { dsn: 'DATA.INPUT' },
+        arguments: { dsn: 'TESTUSER.DATA.INPUT' },
       });
 
       const envelope = parseEnvelope<{ text: string }>(result);
-      expect(envelope._context.resolvedDsn).toBe("'TESTUSER.DATA.INPUT'");
-      expect(envelope._context.dsnPrefix).toBe(DEFAULT_USER);
+      expect(envelope._context.resolvedDsn).toBeUndefined();
     });
+  });
 
-    it('should omit dsnPrefix for absolute input', async () => {
+  // -----------------------------------------------------------------------
+  // Resolved values in _context and data are fully qualified, no quotes
+  // -----------------------------------------------------------------------
+  describe('resolved value format', () => {
+    it('should include resolvedPattern without quotes when input differed (quoted)', async () => {
       const result = await client.callTool({
         name: 'listDatasets',
         arguments: { dsnPattern: "'TESTUSER.*'" },
       });
 
-      const envelope = parseEnvelope<unknown[]>(result);
-      expect(envelope._context.dsnPrefix).toBeUndefined();
-      expect(envelope._context.resolvedPattern).toBe("'TESTUSER.*'");
-    });
-  });
-
-  // -----------------------------------------------------------------------
-  // Single-quote convention on resolved values
-  // -----------------------------------------------------------------------
-  describe('single-quote convention', () => {
-    it('should single-quote resolvedPattern for relative pattern', async () => {
-      const result = await client.callTool({
-        name: 'listDatasets',
-        arguments: { dsnPattern: '*' },
-      });
-
       const ctx = parseEnvelope<unknown>(result)._context;
-      expect(ctx.resolvedPattern).toBe("'TESTUSER.*'");
+      expect(ctx.resolvedPattern).toBe('TESTUSER.*');
     });
 
-    it('should single-quote resolvedPattern for absolute pattern', async () => {
+    it('should return resolvedPattern without quotes for quoted input', async () => {
       const result = await client.callTool({
         name: 'listDatasets',
         arguments: { dsnPattern: "'TESTUSER.SRC.*'" },
       });
 
       const ctx = parseEnvelope<unknown>(result)._context;
-      expect(ctx.resolvedPattern).toBe("'TESTUSER.SRC.*'");
+      expect(ctx.resolvedPattern).toBe('TESTUSER.SRC.*');
     });
 
-    it('should single-quote resolvedDsn for relative dataset name', async () => {
-      const result = await client.callTool({
-        name: 'listMembers',
-        arguments: { dsn: 'SRC.COBOL' },
-      });
-
-      const ctx = parseEnvelope<unknown>(result)._context;
-      expect(ctx.resolvedDsn).toBe("'TESTUSER.SRC.COBOL'");
-    });
-
-    it('should single-quote resolvedDsn for absolute dataset name', async () => {
+    it('should include resolvedDsn without quotes when input differed (listMembers quoted)', async () => {
       const result = await client.callTool({
         name: 'listMembers',
         arguments: { dsn: "'TESTUSER.SRC.COBOL'" },
       });
 
       const ctx = parseEnvelope<unknown>(result)._context;
-      expect(ctx.resolvedDsn).toBe("'TESTUSER.SRC.COBOL'");
-      expect(ctx.dsnPrefix).toBeUndefined();
+      expect(ctx.resolvedDsn).toBe('TESTUSER.SRC.COBOL');
     });
 
-    it('should single-quote resolvedDsn with member for readDataset', async () => {
+    it('should return resolvedDsn without quotes for quoted input', async () => {
       const result = await client.callTool({
-        name: 'readDataset',
-        arguments: { dsn: 'SRC.COBOL', member: 'MAIN' },
+        name: 'listMembers',
+        arguments: { dsn: "'TESTUSER.SRC.COBOL'" },
       });
 
       const ctx = parseEnvelope<unknown>(result)._context;
-      expect(ctx.resolvedDsn).toBe("'TESTUSER.SRC.COBOL(MAIN)'");
+      expect(ctx.resolvedDsn).toBe('TESTUSER.SRC.COBOL');
+    });
+
+    it('should include resolvedDsn with member when input differed (readDataset quoted)', async () => {
+      const result = await client.callTool({
+        name: 'readDataset',
+        arguments: { dsn: "'TESTUSER.SRC.COBOL'", member: 'MAIN' },
+      });
+
+      const ctx = parseEnvelope<unknown>(result)._context;
+      expect(ctx.resolvedDsn).toBe('TESTUSER.SRC.COBOL(MAIN)');
     });
   });
 
@@ -452,22 +409,22 @@ describe('Dataset tools with mock backend', () => {
   // listDatasets with auto-activated system
   // -----------------------------------------------------------------------
   describe('listDatasets with auto-activated system', () => {
-    it('should list datasets with relative pattern "*" (resolved to TESTUSER.*)', async () => {
+    it('should list datasets with pattern TESTUSER.*', async () => {
       const result = await client.callTool({
         name: 'listDatasets',
-        arguments: { dsnPattern: '*' },
+        arguments: { dsnPattern: 'TESTUSER.*' },
       });
 
       const data = parseData<{ dsn: string }[]>(result);
       expect(data.length).toBeGreaterThanOrEqual(3);
 
       const names = data.map(d => d.dsn);
-      expect(names).toContain("'TESTUSER.DATA.INPUT'");
-      expect(names).toContain("'TESTUSER.SRC.COBOL'");
-      expect(names).toContain("'TESTUSER.JCL.CNTL'");
+      expect(names).toContain('TESTUSER.DATA.INPUT');
+      expect(names).toContain('TESTUSER.SRC.COBOL');
+      expect(names).toContain('TESTUSER.JCL.CNTL');
     });
 
-    it('should list datasets with absolute pattern "\'TESTUSER.*\'"', async () => {
+    it('should list datasets with quoted pattern', async () => {
       const result = await client.callTool({
         name: 'listDatasets',
         arguments: { dsnPattern: "'TESTUSER.*'" },
@@ -477,31 +434,31 @@ describe('Dataset tools with mock backend', () => {
       expect(data.length).toBeGreaterThanOrEqual(3);
 
       const names = data.map(d => d.dsn);
-      expect(names).toContain("'TESTUSER.DATA.INPUT'");
-      expect(names).toContain("'TESTUSER.SRC.COBOL'");
+      expect(names).toContain('TESTUSER.DATA.INPUT');
+      expect(names).toContain('TESTUSER.SRC.COBOL');
     });
 
     it('should include 2-qualifier datasets in trailing * results', async () => {
       const result = await client.callTool({
         name: 'listDatasets',
-        arguments: { dsnPattern: "'TESTUSER.*'" },
+        arguments: { dsnPattern: 'TESTUSER.*' },
       });
 
       const data = parseData<{ dsn: string }[]>(result);
       const names = data.map(d => d.dsn);
-      expect(names).toContain("'TESTUSER.LOAD'");
+      expect(names).toContain('TESTUSER.LOAD');
     });
 
     it('should match specific qualifier patterns', async () => {
       const result = await client.callTool({
         name: 'listDatasets',
-        arguments: { dsnPattern: 'SRC.*' },
+        arguments: { dsnPattern: 'TESTUSER.SRC.*' },
       });
 
       const data = parseData<{ dsn: string }[]>(result);
       const names = data.map(d => d.dsn);
-      expect(names).toContain("'TESTUSER.SRC.COBOL'");
-      expect(names).not.toContain("'TESTUSER.JCL.CNTL'");
+      expect(names).toContain('TESTUSER.SRC.COBOL');
+      expect(names).not.toContain('TESTUSER.JCL.CNTL');
     });
 
     it('should return empty data array for non-matching pattern', async () => {
@@ -521,7 +478,7 @@ describe('Dataset tools with mock backend', () => {
     it('should include resource_link in results', async () => {
       const result = await client.callTool({
         name: 'listDatasets',
-        arguments: { dsnPattern: '*' },
+        arguments: { dsnPattern: 'TESTUSER.*' },
       });
 
       const data = parseData<{ dsn: string; resourceLink: string }[]>(result);
@@ -539,7 +496,7 @@ describe('Dataset tools with mock backend', () => {
     it('should respect limit parameter for listDatasets', async () => {
       const result = await client.callTool({
         name: 'listDatasets',
-        arguments: { dsnPattern: '*', limit: 2 },
+        arguments: { dsnPattern: 'TESTUSER.*', limit: 2 },
       });
 
       const envelope = parseEnvelope<{ dsn: string }[]>(result);
@@ -555,14 +512,14 @@ describe('Dataset tools with mock backend', () => {
       // First get all datasets
       const allResult = await client.callTool({
         name: 'listDatasets',
-        arguments: { dsnPattern: '*' },
+        arguments: { dsnPattern: 'TESTUSER.*' },
       });
       const allData = parseData<{ dsn: string }[]>(allResult);
 
       // Now get with offset=2
       const result = await client.callTool({
         name: 'listDatasets',
-        arguments: { dsnPattern: '*', offset: 2, limit: 2 },
+        arguments: { dsnPattern: 'TESTUSER.*', offset: 2, limit: 2 },
       });
 
       const envelope = parseEnvelope<{ dsn: string }[]>(result);
@@ -579,7 +536,7 @@ describe('Dataset tools with mock backend', () => {
     it('should return hasMore=false when all items fit in one page', async () => {
       const result = await client.callTool({
         name: 'listDatasets',
-        arguments: { dsnPattern: '*', limit: 1000 },
+        arguments: { dsnPattern: 'TESTUSER.*', limit: 1000 },
       });
 
       const meta = parseEnvelope<unknown>(result)._result as ListResultMeta;
@@ -590,7 +547,7 @@ describe('Dataset tools with mock backend', () => {
     it('should paginate listMembers', async () => {
       const result = await client.callTool({
         name: 'listMembers',
-        arguments: { dsn: 'SRC.COBOL', limit: 1 },
+        arguments: { dsn: 'TESTUSER.SRC.COBOL', limit: 1 },
       });
 
       const envelope = parseEnvelope<{ member: string }[]>(result);
@@ -604,7 +561,7 @@ describe('Dataset tools with mock backend', () => {
     it('should return second page of listMembers', async () => {
       const result = await client.callTool({
         name: 'listMembers',
-        arguments: { dsn: 'SRC.COBOL', offset: 1, limit: 1 },
+        arguments: { dsn: 'TESTUSER.SRC.COBOL', offset: 1, limit: 1 },
       });
 
       const envelope = parseEnvelope<{ member: string }[]>(result);
@@ -622,7 +579,7 @@ describe('Dataset tools with mock backend', () => {
     it('should return full content for small files', async () => {
       const result = await client.callTool({
         name: 'readDataset',
-        arguments: { dsn: 'DATA.INPUT' },
+        arguments: { dsn: 'TESTUSER.DATA.INPUT' },
       });
 
       const envelope = parseEnvelope<{ text: string; etag: string; codepage: string }>(result);
@@ -640,7 +597,7 @@ describe('Dataset tools with mock backend', () => {
     it('should support startLine parameter', async () => {
       const result = await client.callTool({
         name: 'readDataset',
-        arguments: { dsn: 'LARGE.DATA', startLine: 10, lineCount: 5 },
+        arguments: { dsn: 'TESTUSER.LARGE.DATA', startLine: 10, lineCount: 5 },
       });
 
       const envelope = parseEnvelope<{ text: string }>(result);
@@ -656,7 +613,7 @@ describe('Dataset tools with mock backend', () => {
     it('should support lineCount parameter', async () => {
       const result = await client.callTool({
         name: 'readDataset',
-        arguments: { dsn: 'LARGE.DATA', lineCount: 3 },
+        arguments: { dsn: 'TESTUSER.LARGE.DATA', lineCount: 3 },
       });
 
       const envelope = parseEnvelope<{ text: string }>(result);
@@ -669,7 +626,7 @@ describe('Dataset tools with mock backend', () => {
     it('should include mimeType in read result', async () => {
       const result = await client.callTool({
         name: 'readDataset',
-        arguments: { dsn: 'SRC.COBOL', member: 'MAIN' },
+        arguments: { dsn: 'TESTUSER.SRC.COBOL', member: 'MAIN' },
       });
 
       const meta = parseEnvelope<unknown>(result)._result as ReadResultMeta;
@@ -680,7 +637,7 @@ describe('Dataset tools with mock backend', () => {
     it('should return correct contentLength', async () => {
       const result = await client.callTool({
         name: 'readDataset',
-        arguments: { dsn: 'LARGE.DATA', startLine: 1, lineCount: 5 },
+        arguments: { dsn: 'TESTUSER.DATA.INPUT', startLine: 1, lineCount: 5 },
       });
 
       const envelope = parseEnvelope<{ text: string }>(result);
@@ -725,6 +682,18 @@ describe('Dataset tools with mock backend', () => {
       expect(members).toContain('MAIN');
       expect(members).toContain('UTIL');
     });
+
+    it('should accept unqualified hostname and resolve to FQDN (consistent with setSystem)', async () => {
+      const result = await client.callTool({
+        name: 'listDatasets',
+        arguments: { dsnPattern: 'TESTUSER.*', system: 'test-system' },
+      });
+
+      const envelope = parseEnvelope<{ dsn: string }[]>(result);
+      expect(envelope._context.system).toBe(SYSTEM_HOST);
+      expect(Array.isArray(envelope.data)).toBe(true);
+      expect(envelope.data.length).toBeGreaterThanOrEqual(3);
+    });
   });
 
   // -----------------------------------------------------------------------
@@ -749,7 +718,7 @@ describe('Dataset tools with mock backend', () => {
     it('should fail listDatasets without system when no system is active', async () => {
       const multiResult = await multiClient.callTool({
         name: 'listDatasets',
-        arguments: { dsnPattern: '*' },
+        arguments: { dsnPattern: 'USER1.*' },
       });
 
       const text = getResultText(multiResult);
@@ -777,13 +746,12 @@ describe('Dataset tools with mock backend', () => {
         arguments: {},
       });
       const ctx = JSON.parse(getResultText(ctxResult)) as {
-        activeSystem: { system: string; userId: string; dsnPrefix: string } | null;
+        activeSystem: { system: string; userId: string } | null;
       };
 
       expect(ctx.activeSystem).not.toBeNull();
       expect(ctx.activeSystem!.system).toBe('sys1.example.com');
       expect(ctx.activeSystem!.userId).toBe('USER1');
-      expect(ctx.activeSystem!.dsnPrefix).toBe('USER1');
     });
   });
 
@@ -809,8 +777,8 @@ describe('Dataset tools with mock backend', () => {
 
       const data = parseData<{ dsn: string }[]>(result);
       const names = data.map(d => d.dsn);
-      expect(names).toContain("'TESTUSER.SRC.COBOL'");
-      expect(names).not.toContain("'TESTUSER.JCL.CNTL'");
+      expect(names).toContain('TESTUSER.SRC.COBOL');
+      expect(names).not.toContain('TESTUSER.JCL.CNTL');
     });
 
     it('should match with wildcard in middle qualifier', async () => {
@@ -821,9 +789,9 @@ describe('Dataset tools with mock backend', () => {
 
       const data = parseData<{ dsn: string }[]>(result);
       const names = data.map(d => d.dsn);
-      expect(names).toContain("'TESTUSER.SRC.COBOL'");
-      expect(names).not.toContain("'TESTUSER.JCL.CNTL'");
-      expect(names).not.toContain("'TESTUSER.DATA.INPUT'");
+      expect(names).toContain('TESTUSER.SRC.COBOL');
+      expect(names).not.toContain('TESTUSER.JCL.CNTL');
+      expect(names).not.toContain('TESTUSER.DATA.INPUT');
     });
 
     it('should handle case-insensitive pattern matching', async () => {
@@ -844,7 +812,7 @@ describe('Dataset tools with mock backend', () => {
     it('should return applied allocation attributes and messages for defaults', async () => {
       const result = await client.callTool({
         name: 'createDataset',
-        arguments: { dsn: 'NEW.PS.DATA', type: 'PS' },
+        arguments: { dsn: 'TESTUSER.NEW.PS.DATA', type: 'PS' },
       });
 
       const envelope = parseEnvelope<{
@@ -852,8 +820,7 @@ describe('Dataset tools with mock backend', () => {
         type: string;
         allocation: { applied: Record<string, unknown>; messages: string[] };
       }>(result);
-      expect(envelope._context.resolvedDsn).toBe("'TESTUSER.NEW.PS.DATA'");
-      expect(envelope.data.dsn).toBe("'TESTUSER.NEW.PS.DATA'");
+      expect(envelope.data.dsn).toBe('TESTUSER.NEW.PS.DATA');
       expect(envelope.data.type).toBe('PS');
       expect(envelope.data.allocation).toBeDefined();
       expect(envelope.data.allocation.applied).toBeDefined();
@@ -872,7 +839,7 @@ describe('Dataset tools with mock backend', () => {
     it('should describe dirblk default for PDS and include allocation in response', async () => {
       const result = await client.callTool({
         name: 'createDataset',
-        arguments: { dsn: 'NEW.PDS.LIB', type: 'PO' },
+        arguments: { dsn: 'TESTUSER.NEW.PDS.LIB', type: 'PO' },
       });
 
       const envelope = parseEnvelope<{
@@ -892,20 +859,23 @@ describe('Dataset tools with mock backend', () => {
   // renameDataset quoted DSN in response
   // -----------------------------------------------------------------------
   describe('renameDataset envelope', () => {
-    it('should return oldName and newName as single-quoted absolute DSN', async () => {
+    it('should return oldName and newName as fully qualified DSN (no quotes)', async () => {
       await client.callTool({
         name: 'createDataset',
-        arguments: { dsn: 'RENAME.SOURCE', type: 'PS' },
+        arguments: { dsn: 'TESTUSER.RENAME.SOURCE', type: 'PS' },
       });
 
       const result = await client.callTool({
         name: 'renameDataset',
-        arguments: { dsn: 'RENAME.SOURCE', newDsn: 'RENAME.TARGET' },
+        arguments: {
+          dsn: 'TESTUSER.RENAME.SOURCE',
+          newDsn: 'TESTUSER.RENAME.TARGET',
+        },
       });
 
       const envelope = parseEnvelope<{ oldName: string; newName: string }>(result);
-      expect(envelope.data.oldName).toBe("'TESTUSER.RENAME.SOURCE'");
-      expect(envelope.data.newName).toBe("'TESTUSER.RENAME.TARGET'");
+      expect(envelope.data.oldName).toBe('TESTUSER.RENAME.SOURCE');
+      expect(envelope.data.newName).toBe('TESTUSER.RENAME.TARGET');
     });
   });
 
@@ -916,15 +886,13 @@ describe('Dataset tools with mock backend', () => {
     it('should wrap attributes in envelope with _context and no _result', async () => {
       const result = await client.callTool({
         name: 'getDatasetAttributes',
-        arguments: { dsn: 'SRC.COBOL' },
+        arguments: { dsn: 'TESTUSER.SRC.COBOL' },
       });
 
       const envelope = parseEnvelope<{ dsn: string; type: string }>(result);
       expect(envelope._context.system).toBe(SYSTEM_HOST);
-      expect(envelope._context.resolvedDsn).toBe("'TESTUSER.SRC.COBOL'");
-      expect(envelope._context.dsnPrefix).toBe(DEFAULT_USER);
       expect(envelope._result).toBeUndefined();
-      expect(envelope.data.dsn).toBe("'TESTUSER.SRC.COBOL'");
+      expect(envelope.data.dsn).toBe('TESTUSER.SRC.COBOL');
       expect(envelope.data.type).toBe('PO-E');
     });
   });

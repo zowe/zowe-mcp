@@ -21,11 +21,13 @@ import { z } from 'zod';
 import type { Logger } from '../log.js';
 import type { ZosBackend } from '../zos/backend.js';
 import { resolveDsn } from '../zos/dsn.js';
-import type { SessionState } from '../zos/session.js';
+import { resolveSystemForTool, type SessionState } from '../zos/session.js';
+import type { SystemRegistry } from '../zos/system.js';
 
 /** Dependencies injected into prompt registration. */
 export interface DatasetPromptDeps {
   backend: ZosBackend;
+  systemRegistry: SystemRegistry;
   sessionState: SessionState;
 }
 
@@ -38,6 +40,7 @@ export function registerDatasetPrompts(
   logger: Logger
 ): void {
   const log = logger.child('prompts');
+  const { backend, systemRegistry, sessionState } = deps;
 
   // -----------------------------------------------------------------------
   // reviewJcl
@@ -50,26 +53,23 @@ export function registerDatasetPrompts(
         'Read a JCL member and analyze it for common issues, ' +
         'suggest improvements, and explain what the job does.',
       argsSchema: {
-        dsn: z
-          .string()
-          .describe(
-            "Dataset name: use a relative name (e.g. SRC.COBOL), or an absolute name in single quotes (e.g. 'SYS1.PROCLIB'). Relative names are prefixed with the current DSN prefix."
-          ),
+        dsn: z.string().describe('Fully qualified dataset name (e.g. USER.SRC.COBOL).'),
         member: z.string().optional().describe('JCL member name (for PDS/PDSE datasets).'),
         system: z
           .string()
           .optional()
-          .describe('Target z/OS system hostname. Defaults to the active system.'),
+          .describe(
+            'Target z/OS system: fully qualified or unqualified hostname (e.g. sys1.example.com or sys1 when unambiguous). Defaults to the active system.'
+          ),
       },
     },
     async ({ dsn, member, system }) => {
       log.info('reviewJcl prompt called', { dsn, member, system });
 
-      const systemId = deps.sessionState.requireSystem(system);
-      const prefix = deps.sessionState.getDsnPrefix(systemId);
-      const resolved = resolveDsn(dsn, prefix, member);
+      const systemId = resolveSystemForTool(systemRegistry, sessionState, system);
+      const resolved = resolveDsn(dsn, member);
 
-      const result = await deps.backend.readDataset(systemId, resolved.dsn, resolved.member);
+      const result = await backend.readDataset(systemId, resolved.dsn, resolved.member);
 
       const dsLabel = resolved.member ? `${resolved.dsn}(${resolved.member})` : resolved.dsn;
 
@@ -108,38 +108,31 @@ export function registerDatasetPrompts(
         'Get attributes and sample content of a dataset, then explain ' +
         'its purpose, structure, and how it fits into the system.',
       argsSchema: {
-        dsn: z
-          .string()
-          .describe(
-            "Dataset name: use a relative name (e.g. SRC.COBOL), or an absolute name in single quotes (e.g. 'SYS1.PROCLIB'). Relative names are prefixed with the current DSN prefix."
-          ),
+        dsn: z.string().describe('Fully qualified dataset name (e.g. USER.SRC.COBOL).'),
         system: z
           .string()
           .optional()
-          .describe('Target z/OS system hostname. Defaults to the active system.'),
+          .describe(
+            'Target z/OS system: fully qualified or unqualified hostname (e.g. sys1.example.com or sys1 when unambiguous). Defaults to the active system.'
+          ),
       },
     },
     async ({ dsn, system }) => {
       log.info('explainDataset prompt called', { dsn, system });
 
-      const systemId = deps.sessionState.requireSystem(system);
-      const prefix = deps.sessionState.getDsnPrefix(systemId);
-      const resolved = resolveDsn(dsn, prefix);
+      const systemId = resolveSystemForTool(systemRegistry, sessionState, system);
+      const resolved = resolveDsn(dsn);
 
-      const attrs = await deps.backend.getAttributes(systemId, resolved.dsn);
+      const attrs = await backend.getAttributes(systemId, resolved.dsn);
 
       // Try to get sample content
       let sampleContent = '';
       try {
         if (attrs.dsorg === 'PO' || attrs.dsorg === 'PO-E') {
-          const members = await deps.backend.listMembers(systemId, resolved.dsn);
+          const members = await backend.listMembers(systemId, resolved.dsn);
           if (members.length > 0) {
             const firstMember = members[0].name;
-            const memberContent = await deps.backend.readDataset(
-              systemId,
-              resolved.dsn,
-              firstMember
-            );
+            const memberContent = await backend.readDataset(systemId, resolved.dsn, firstMember);
             sampleContent =
               `\nSample content (first member: ${firstMember}):\n` +
               '```\n' +
@@ -148,7 +141,7 @@ export function registerDatasetPrompts(
               '\n```';
           }
         } else {
-          const content = await deps.backend.readDataset(systemId, resolved.dsn);
+          const content = await backend.readDataset(systemId, resolved.dsn);
           sampleContent =
             '\nSample content:\n```\n' +
             content.text.slice(0, 2000) +
@@ -196,29 +189,26 @@ export function registerDatasetPrompts(
         'Read two PDS/PDSE members and compare them, explaining ' +
         'the differences and their significance.',
       argsSchema: {
-        dsn: z
-          .string()
-          .describe(
-            "Dataset name: use a relative name (e.g. SRC.COBOL), or an absolute name in single quotes (e.g. 'SYS1.PROCLIB'). Relative names are prefixed with the current DSN prefix."
-          ),
+        dsn: z.string().describe('Fully qualified dataset name (e.g. USER.SRC.COBOL).'),
         member1: z.string().describe('First member name to compare.'),
         member2: z.string().describe('Second member name to compare.'),
         system: z
           .string()
           .optional()
-          .describe('Target z/OS system hostname. Defaults to the active system.'),
+          .describe(
+            'Target z/OS system: fully qualified or unqualified hostname (e.g. sys1.example.com or sys1 when unambiguous). Defaults to the active system.'
+          ),
       },
     },
     async ({ dsn, member1, member2, system }) => {
       log.info('compareMembers prompt called', { dsn, member1, member2, system });
 
-      const systemId = deps.sessionState.requireSystem(system);
-      const prefix = deps.sessionState.getDsnPrefix(systemId);
-      const resolved = resolveDsn(dsn, prefix);
+      const systemId = resolveSystemForTool(systemRegistry, sessionState, system);
+      const resolved = resolveDsn(dsn);
 
       const [content1, content2] = await Promise.all([
-        deps.backend.readDataset(systemId, resolved.dsn, member1.toUpperCase()),
-        deps.backend.readDataset(systemId, resolved.dsn, member2.toUpperCase()),
+        backend.readDataset(systemId, resolved.dsn, member1.toUpperCase()),
+        backend.readDataset(systemId, resolved.dsn, member2.toUpperCase()),
       ]);
 
       return {

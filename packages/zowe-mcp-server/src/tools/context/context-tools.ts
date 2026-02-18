@@ -13,7 +13,7 @@
  * Context management tools for the Zowe MCP Server.
  *
  * Provides tools for listing z/OS systems, switching the active system,
- * setting the DSN prefix, and inspecting the current session context.
+ * and inspecting the current session context.
  */
 
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
@@ -80,9 +80,7 @@ export function registerContextTools(
     'setSystem',
     {
       description:
-        'Set the active z/OS system. This restores the per-system context ' +
-        '(DSN prefix, user ID) if the system was previously used. ' +
-        'On first connection, the DSN prefix defaults to the user ID. ' +
+        'Set the active z/OS system. This restores the per-system context (user ID) if the system was previously used. ' +
         'Hostname can be fully qualified (e.g. sys1.example.com) or unqualified when unambiguous (e.g. sys1, SYS1).',
       inputSchema: {
         system: z
@@ -128,7 +126,6 @@ export function registerContextTools(
               {
                 activeSystem: resolvedHost,
                 userId: ctx.userId,
-                dsnPrefix: ctx.dsnPrefix,
                 description: sysInfo.description,
                 messages,
               },
@@ -142,75 +139,14 @@ export function registerContextTools(
   );
 
   // -----------------------------------------------------------------------
-  // setDsnPrefix
-  // -----------------------------------------------------------------------
-  server.registerTool(
-    'setDsnPrefix',
-    {
-      description:
-        'Set the DSN prefix for the current active z/OS system. ' +
-        'The prefix is one or more full DSN segments (e.g. "USER" or "USER.SRC"). ' +
-        'Relative dataset names are resolved against it. If the prefix ends with a dot, ' +
-        'the dot is removed and a message is returned.',
-      inputSchema: {
-        prefix: z.string().describe('DSN prefix to set (e.g. "USER" or "USER.SRC")'),
-      },
-    },
-    ({ prefix }) => {
-      log.info('setDsnPrefix called', { prefix });
-
-      try {
-        let normalized = prefix.trim();
-        const hadTrailingDot = normalized.endsWith('.');
-        if (hadTrailingDot) {
-          normalized = normalized.slice(0, -1);
-        }
-        const ctx = sessionState.setDsnPrefix(normalized);
-        const activeSystem = sessionState.getActiveSystem();
-        const messages = hadTrailingDot
-          ? ['Trailing dot removed from DSN prefix. DSN prefix can be only full DSN segments.']
-          : [];
-
-        return {
-          content: [
-            {
-              type: 'text' as const,
-              text: JSON.stringify(
-                {
-                  activeSystem,
-                  userId: ctx.userId,
-                  dsnPrefix: ctx.dsnPrefix,
-                  messages,
-                },
-                null,
-                2
-              ),
-            },
-          ],
-        };
-      } catch (err) {
-        return {
-          content: [
-            {
-              type: 'text' as const,
-              text: (err as Error).message,
-            },
-          ],
-          isError: true,
-        };
-      }
-    }
-  );
-
-  // -----------------------------------------------------------------------
   // getContext
   // -----------------------------------------------------------------------
   server.registerTool(
     'getContext',
     {
       description:
-        'Return the current session context: active system, DSN prefix, ' +
-        'user ID, all known systems, and recently used systems (those with saved context).',
+        'Return the current session context: active system, user ID, ' +
+        'all known systems, and recently used systems (those with saved context).',
       annotations: { readOnlyHint: true },
     },
     () => {
@@ -227,7 +163,6 @@ export function registerContextTools(
           activeSystem = {
             system: activeSystemId,
             userId: ctx.userId,
-            dsnPrefix: ctx.dsnPrefix,
           };
         }
       }

@@ -151,14 +151,13 @@ describe('Dataset tools with native backend', () => {
     it('should return envelope with _context, _result, and data containing members', async () => {
       const result = await client.callTool({
         name: 'listMembers',
-        arguments: { dsn: 'PDS.LIB' },
+        arguments: { dsn: `${NATIVE_USER}.PDS.LIB` },
       });
 
       const envelope = parseEnvelope<{ member: string }[]>(result);
 
       expect(envelope._context).toBeDefined();
-      expect(envelope._context.resolvedDsn).toBe(`'${NATIVE_USER}.PDS.LIB'`);
-      expect(envelope._context.dsnPrefix).toBe(NATIVE_USER);
+      // No resolvedDsn when input already normalized
 
       const listResult = envelope._result as ListResultMeta | undefined;
       expect(listResult).toBeDefined();
@@ -202,11 +201,11 @@ describe('Dataset tools with native backend', () => {
       const envelope = parseEnvelope<{ dsn: string }[]>(result);
 
       expect(envelope._context).toBeDefined();
-      expect(envelope._context.resolvedPattern).toBeDefined();
+      // No resolvedPattern when input already normalized (pattern '*')
       expect(envelope._result).toBeDefined();
       expect(Array.isArray(envelope.data)).toBe(true);
       expect(envelope.data).toHaveLength(1);
-      expect(envelope.data[0].dsn).toBe("'USER.PDS.LIB'");
+      expect(envelope.data[0].dsn).toBe('USER.PDS.LIB');
     });
   });
 });

@@ -7,22 +7,21 @@
     "packages/*"
   ],
   "scripts": {
+    "build-and-install": "npm run build-and-install -w packages/zowe-mcp-vscode",
     "build": "npm run build --workspaces",
-    "test": "npm run test -w packages/zowe-mcp-server",
+    "call-tool": "npx zowe-mcp-server call-tool",
+    "check-format": "prettier --check \"**/*.{ts,js,mjs,json,jsonc}\"",
+    "format": "prettier --write \"**/*.{ts,js,mjs,json,jsonc}\"",
+    "inspector:mock": "npx @modelcontextprotocol/inspector node packages/zowe-mcp-server/dist/index.js --stdio --mock ./zowe-mcp-mock-data",
+    "inspector:native": "dotenv -e .env -- npx @modelcontextprotocol/inspector node packages/zowe-mcp-server/dist/index.js -- --stdio --native --config native-config.json",
+    "inspector": "npx @modelcontextprotocol/inspector node packages/zowe-mcp-server/dist/index.js --stdio",
+    "lint:fix": "eslint --fix \"packages/**/*.ts\"",
+    "lint": "eslint \"packages/**/*.ts\"",
+    "markdownlint": "markdownlint-cli2 --fix",
     "test:all": "npm run test --workspaces",
     "test:server": "npm run test -w packages/zowe-mcp-server",
     "test:vscode": "npm run test -w packages/zowe-mcp-vscode",
-    "call-tool": "npx zowe-mcp-server call-tool",
-    "inspector": "npx @modelcontextprotocol/inspector node packages/zowe-mcp-server/dist/index.js --stdio",
-    "inspector:mock": "npx @modelcontextprotocol/inspector node packages/zowe-mcp-server/dist/index.js --stdio --mock ./zowe-mcp-mock-data",
-    "inspector:native": "dotenv -e .env -- npx @modelcontextprotocol/inspector node packages/zowe-mcp-server/dist/index.js -- --stdio --native --config native-config.json",
-    "build-and-install": "npm run build-and-install -w packages/zowe-mcp-vscode",
-    "lint": "eslint \"packages/**/*.ts\"",
-    "lint:fix": "eslint --fix \"packages/**/*.ts\"",
-    "format": "prettier --write \"**/*.{ts,js,mjs,json,jsonc}\"",
-    "check-format": "prettier --check \"**/*.{ts,js,mjs,json,jsonc}\"",
-    "markdownlint": "markdownlint-cli2 --fix",
-    "evals": "npm run build -w packages/zowe-mcp-server && npm run build -w packages/zowe-mcp-evals && npm run evals -w packages/zowe-mcp-evals -- \"$@\""
+    "test": "npm run test -w packages/zowe-mcp-server"
   },
   "devDependencies": {
     "dotenv-cli": "^7.4.2",

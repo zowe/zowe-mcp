@@ -33,7 +33,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const serverPath = resolve(__dirname, '..', 'dist', 'index.js');
 const packageRoot = resolve(__dirname, '..');
-const EXPECTED_TOOL_COUNT = 14;
+const EXPECTED_TOOL_COUNT = 13;
 
 /** Parsed tool result content. */
 interface ToolContent {
@@ -122,10 +122,9 @@ describe('Zowe MCP Server (mock stdio E2E)', () => {
         name: 'setSystem',
         arguments: { system: FIRST_SYSTEM },
         assertResult(parsed) {
-          const o = parsed as { activeSystem: string; userId: string; dsnPrefix: string };
+          const o = parsed as { activeSystem: string; userId: string };
           expect(o.activeSystem).toBe(FIRST_SYSTEM);
           expect(o.userId).toBe('USER');
-          expect(o.dsnPrefix).toBe('USER');
         },
       },
       {
@@ -133,29 +132,19 @@ describe('Zowe MCP Server (mock stdio E2E)', () => {
         arguments: {},
         assertResult(parsed) {
           const o = parsed as {
-            activeSystem: { system: string; userId: string; dsnPrefix: string } | null;
+            activeSystem: { system: string; userId: string } | null;
           };
           expect(o.activeSystem).not.toBeNull();
           expect(o.activeSystem!.system).toBe(FIRST_SYSTEM);
           expect(o.activeSystem!.userId).toBe('USER');
-          expect(o.activeSystem!.dsnPrefix).toBe('USER');
-        },
-      },
-      {
-        name: 'setDsnPrefix',
-        arguments: { prefix: 'USER' },
-        assertResult(parsed) {
-          const o = parsed as { dsnPrefix: string };
-          expect(o.dsnPrefix).toBe('USER');
         },
       },
       {
         name: 'listDatasets',
-        arguments: { dsnPattern: "'USER.*'" },
+        arguments: { dsnPattern: 'USER.*' },
         assertResult(parsed) {
           const o = parsed as { _context: { resolvedPattern?: string }; data: { dsn: string }[] };
           expect(o._context).toBeDefined();
-          expect(o._context.resolvedPattern).toBeDefined();
           expect(Array.isArray(o.data)).toBe(true);
           const dsns = o.data.map(d => d.dsn);
           expect(dsns.some(d => d.includes('USER.SRC.COBOL'))).toBe(true);
@@ -163,7 +152,7 @@ describe('Zowe MCP Server (mock stdio E2E)', () => {
       },
       {
         name: 'listMembers',
-        arguments: { dsn: 'SRC.COBOL' },
+        arguments: { dsn: 'USER.SRC.COBOL' },
         assertResult(parsed) {
           const o = parsed as { _context: unknown; data: { member: string }[] };
           expect(o._context).toBeDefined();
@@ -226,15 +215,11 @@ describe('listMembers pagination (inventory 2000)', () => {
       name: 'setSystem',
       arguments: { system: FIRST_SYSTEM },
     });
-    await client.callTool({
-      name: 'setDsnPrefix',
-      arguments: { prefix: 'USER' },
-    });
 
     // Page 1: offset 0, limit 500
     let result = await client.callTool({
       name: 'listMembers',
-      arguments: { dsn: 'INVNTORY', offset: 0, limit: 500 },
+      arguments: { dsn: 'USER.INVNTORY', offset: 0, limit: 500 },
     });
     expect(result.isError).toBeFalsy();
     const page1 = JSON.parse(getResultText(result)) as {
@@ -252,7 +237,7 @@ describe('listMembers pagination (inventory 2000)', () => {
     // Page 2: offset 500, limit 500
     result = await client.callTool({
       name: 'listMembers',
-      arguments: { dsn: 'INVNTORY', offset: 500, limit: 500 },
+      arguments: { dsn: 'USER.INVNTORY', offset: 500, limit: 500 },
     });
     expect(result.isError).toBeFalsy();
     const page2 = JSON.parse(getResultText(result)) as {
@@ -269,7 +254,7 @@ describe('listMembers pagination (inventory 2000)', () => {
     // Last page: offset 1999, limit 10
     result = await client.callTool({
       name: 'listMembers',
-      arguments: { dsn: 'INVNTORY', offset: 1999, limit: 10 },
+      arguments: { dsn: 'USER.INVNTORY', offset: 1999, limit: 10 },
     });
     expect(result.isError).toBeFalsy();
     const lastPage = JSON.parse(getResultText(result)) as {

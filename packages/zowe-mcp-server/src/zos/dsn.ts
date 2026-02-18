@@ -12,14 +12,10 @@
 /**
  * z/OS dataset name resolution utilities.
  *
- * Implements the z/OS single-quote convention for absolute vs. relative
- * dataset names, case normalization, and validation rules.
- *
- * - A name **without** single quotes is relative — the current DSN prefix
- *   is prepended (e.g. `"JCL.CNTL"` with prefix `"USER"` → `"USER.JCL.CNTL"`).
- * - A name **wrapped in single quotes** is fully qualified (absolute) —
- *   used as-is with quotes stripped (e.g. `"'SYS1.PROCLIB'"` → `"SYS1.PROCLIB"`).
- * - All names are normalized to uppercase.
+ * All dataset names are fully qualified. Input may optionally be wrapped in
+ * single quotes (e.g. 'USER.SRC.COBOL'); quotes are stripped. Names are
+ * normalized to uppercase and validated. MY.DATASET and 'MY.DATASET' are
+ * equivalent.
  */
 
 // ---------------------------------------------------------------------------
@@ -60,74 +56,43 @@ export interface ResolvedDsn {
   dsn: string;
   /** Member name if provided (uppercase). */
   member?: string;
-  /** Whether the original input was absolute (single-quoted). */
-  wasAbsolute: boolean;
 }
 
 // ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
 
-/** Result of resolveWithPrefix (no validation; usable for patterns). */
-export interface ResolvedWithPrefix {
-  resolved: string;
-  wasAbsolute: boolean;
-}
-
 /**
- * Resolve a dataset name or pattern using the z/OS single-quote convention.
- * Does not validate the result (so patterns like USER.* are allowed).
- * Use this for listDatasets pattern resolution; use resolveDsn for full DSN validation.
+ * Normalize a dataset name or pattern: trim, strip optional surrounding
+ * single quotes, uppercase. Does not validate (so patterns like USER.*
+ * are allowed). Use for listDatasets pattern resolution.
  *
  * @param input - Dataset name or pattern as provided by the agent.
- * @param prefix - The current DSN prefix (required when input is relative).
- * @returns The resolved string and whether the input was absolute.
- * @throws {DsnError} if input is empty or relative and prefix is undefined.
+ * @returns The normalized string.
+ * @throws {DsnError} if input is empty.
  */
-export function resolveWithPrefix(input: string, prefix: string | undefined): ResolvedWithPrefix {
+export function resolvePattern(input: string): string {
   const trimmed = input.trim();
   if (trimmed.length === 0) {
     throw new DsnError('Dataset name must not be empty');
   }
-
-  // Single-quote convention: 'FULLY.QUALIFIED.NAME' is absolute
   if (trimmed.startsWith("'") && trimmed.endsWith("'")) {
-    return {
-      resolved: trimmed.slice(1, -1).toUpperCase(),
-      wasAbsolute: true,
-    };
+    return trimmed.slice(1, -1).toUpperCase();
   }
-
-  // Relative — prefix is required
-  if (prefix === undefined || prefix === '') {
-    throw new DsnError(
-      'No DSN prefix set; relative name or pattern requires a prefix. Use setSystem or setDsnPrefix first, or use an absolute name in single quotes.'
-    );
-  }
-
-  const upper = trimmed.toUpperCase();
-  return {
-    resolved: `${prefix.toUpperCase()}.${upper}`,
-    wasAbsolute: false,
-  };
+  return trimmed.toUpperCase();
 }
 
 /**
- * Resolve a dataset name from agent input using the z/OS single-quote
- * convention.
+ * Resolve a dataset name from agent input: normalize (strip optional quotes,
+ * uppercase) and validate.
  *
- * @param input - The dataset name as provided by the agent.
- * @param prefix - The current DSN prefix (may be `undefined` if not set).
+ * @param input - The fully qualified dataset name as provided by the agent.
  * @param member - Optional member name.
  * @returns The resolved, validated, uppercase dataset name.
  * @throws {DsnError} if the name is invalid.
  */
-export function resolveDsn(
-  input: string,
-  prefix: string | undefined,
-  member?: string
-): ResolvedDsn {
-  const { resolved: dsn, wasAbsolute } = resolveWithPrefix(input, prefix);
+export function resolveDsn(input: string, member?: string): ResolvedDsn {
+  const dsn = resolvePattern(input);
   validateDsn(dsn);
 
   const resolvedMember = member?.trim().toUpperCase();
@@ -138,7 +103,6 @@ export function resolveDsn(
   return {
     dsn,
     member: resolvedMember && resolvedMember.length > 0 ? resolvedMember : undefined,
-    wasAbsolute,
   };
 }
 

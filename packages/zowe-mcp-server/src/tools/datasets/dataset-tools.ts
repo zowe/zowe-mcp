@@ -21,6 +21,9 @@
  */
 
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
 import type { Logger } from '../../log.js';
 import type { ZosBackend } from '../../zos/backend.js';
@@ -37,6 +40,30 @@ import {
   windowContent,
   wrapResponse,
 } from '../response.js';
+
+const RESOURCES_DSLEVEL_PATH = path.join(
+  path.dirname(fileURLToPath(import.meta.url)),
+  '..',
+  '..',
+  'resources',
+  'dslevel-pattern.txt'
+);
+
+/** Fallback when the packaged resource file is missing (e.g. tests or incomplete build). */
+const DSLEVEL_FALLBACK =
+  'DSLEVEL pattern: first qualifier literal, max 44 chars. Wildcards: % (one char), * (one qualifier), ** (across qualifiers). No leading wildcard.';
+
+/**
+ * DSLEVEL pattern description for dataset list operations (listDatasets).
+ * Loaded from the packaged resource file at runtime.
+ */
+export function getDslevelPatternDescription(): string {
+  try {
+    return readFileSync(RESOURCES_DSLEVEL_PATH, 'utf-8').trim();
+  } catch {
+    return DSLEVEL_FALLBACK;
+  }
+}
 
 /** Dependencies injected into dataset tool registration. */
 export interface DatasetToolDeps {
@@ -107,19 +134,21 @@ export function registerDatasetTools(
   // -----------------------------------------------------------------------
   // listDatasets
   // -----------------------------------------------------------------------
+  const dslevelDescription = getDslevelPatternDescription();
   server.registerTool(
     'listDatasets',
     {
       description:
-        'List datasets matching a pattern. Returns the first page of results (default 500, max 1000). ' +
+        'List datasets matching a DSLEVEL pattern. Returns the first page of results (default 500, max 1000). ' +
         'Use offset and limit to page through large result sets. ' +
-        "Pattern: if in single quotes (e.g. 'USER.*'), it is absolute; otherwise relative and the DSN prefix is prepended with a trailing dot. Use * within a qualifier and ** across qualifiers.",
+        "Pattern: if in single quotes (e.g. 'USER.*'), it is absolute; otherwise relative and the DSN prefix is prepended with a trailing dot. " +
+        dslevelDescription,
       annotations: { readOnlyHint: true },
       inputSchema: {
         dsnPattern: z
           .string()
           .describe(
-            "Dataset name pattern (required). If in single quotes (e.g. 'USER.*'), it is absolute; otherwise relative and the DSN prefix is prepended with a trailing dot. Use * within a qualifier and ** across qualifiers."
+            `Dataset list pattern (required). Absolute if single-quoted (e.g. 'USER.*'); otherwise relative to DSN prefix. ${dslevelDescription}`
           ),
         system: z
           .string()

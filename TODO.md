@@ -32,6 +32,13 @@ Items to address later. Not ordered by priority.
 - **Remote server with Zowe API ML and OIDC**: Support authentication in remote MCP server scenarios using Zowe API Mediation Layer and OIDC.
 - **Remote MCP credentials**: Research ways for a remote MCP server to request credentials without giving them to the LLM or storing them insecurely.
 
+## Pagination, search & editing
+
+- **Pagination — review and Copilot usability**: Review how pagination is implemented (`listDatasets` / `listMembers` offset, limit, `hasMore`) and whether Copilot can effectively use it. Key question: *When the user asks for a dataset that is not on the first page (or not matched by wildcards alone), does the agent reliably use offset/limit and `hasMore` to keep fetching until it finds the target or exhausts results?* Validate with real Copilot sessions and improve tool descriptions or response shape if needed.
+- **Search tools**: Add tool(s) to find datasets that contain a specific member (e.g. by name or pattern). Inputs: list of datasets and/or DSN/member wildcards; output: datasets that have matching members.
+- **Working set**: Introduce a concept of a working set — a defined set of datasets (with optional member subset or wildcards) that can be reused as input for search or other operations (e.g. “search in my working set”).
+- **Efficient editing**: Support efficient, targeted edits similar to Ansible’s `ansible.builtin.replace` (change multiple similar lines by pattern) and `ansible.builtin.blockinfile` (insert/update/remove a block of lines). Avoid full read–edit–write when only a few lines or one block change; reduce risk of corrupting large datasets.
+
 ## Features / Components
 
 - **Jobs component**: Implement `jobs` tool component (submit job, list jobs, get job output, etc.) as in AGENTS.md; register in server when backend supports it.

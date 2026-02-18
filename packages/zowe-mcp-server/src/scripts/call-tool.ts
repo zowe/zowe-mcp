@@ -13,13 +13,17 @@
  * CLI helper to call MCP tools on the Zowe MCP Server.
  *
  * Usage:
- *   npx zowe-mcp-server call-tool [--mock=<dir>] [<tool-name> [args]]
+ *   npx zowe-mcp-server call-tool [--mock=<dir> | --native [--config=<path>] [--system <spec> ...]] [<tool-name> [args]]
  *
  * Options:
  *   --mock=<dir>  Use the mock backend with the given data directory (or set ZOWE_MCP_MOCK_DIR).
  *                 Also accepted: --mock <dir> (space-separated).
+ *   --native      Use the Zowe Native (SSH) backend.
+ *   --config=<path>  JSON file with { "systems": ["user@host", ...] } (used with --native).
+ *   --system <spec>  Connection spec user@host or user@host:port (repeatable, used with --native).
  *
  * Tool arguments are key=value pairs. Values are strings unless they look like numbers or booleans (true/false).
+ * Passwords for native mode: set ZOWE_MCP_PASSWORD_<USER>_<HOST> (e.g. ZOWE_MCP_PASSWORD_MYUSER_MYHOST).
  *
  * Examples:
  *   # List tools (no backend)
@@ -34,19 +38,43 @@
  *   # List members in mock backend
  *   npx zowe-mcp-server call-tool --mock=./zowe-mcp-mock-data listMembers dsn=SRC.COBOL  system=mainframe-dev.example.com
  *
+ *   # List tools with native backend (systems from config)
+ *
+ *   ZOWE_MCP_PASSWORD_MYUSER_MYHOST_EXAMPLE_COM=password npx zowe-mcp-server call-tool --native --config=./native-config.json listSystems
+ *
+ *   # List datasets with native backend (system on command line)
+ *   ZOWE_MCP_PASSWORD_MYUSER_MYHOST_EXAMPLE_COM=password npx zowe-mcp-server call-tool --native --system myuser@myhost.example.com listDatasets "dsnPattern='SYS1.SAMPLIB'"
+ *
+ *   # List members with native backend (system on command line)
+ *   ZOWE_MCP_PASSWORD_MYUSER_MYHOST_EXAMPLE_COM=password npx zowe-mcp-server call-tool --native --system myuser@myhost.example.com listMembers "dsn='SYS1.SAMPLIB'"
+ *
  * Without arguments, lists all available tools.
  */
 
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
+import { readFileSync } from 'node:fs';
 import { Logger } from '../log.js';
-import { createServer } from '../server.js';
+import { createServer, type CreateServerOptions } from '../server.js';
 import { loadMock } from '../zos/mock/load-mock.js';
+import { loadNative } from '../zos/native/load-native.js';
 
 const log = new Logger({ name: 'call-tool' });
 
+function loadSystemsFromConfig(configPath: string): string[] {
+  const raw = readFileSync(configPath, 'utf-8');
+  const config = JSON.parse(raw) as { systems?: string[] };
+  if (!Array.isArray(config.systems)) {
+    throw new Error(`Config file ${configPath} must have a "systems" array`);
+  }
+  return config.systems;
+}
+
 function parseArgs(): {
   mockDir: string | undefined;
+  native: boolean;
+  configPath: string | undefined;
+  systemSpecs: string[];
   toolName: string | undefined;
   /** Everything after the tool name (key=value args). */
   argsRest: string[];
@@ -54,27 +82,47 @@ function parseArgs(): {
   const args = process.argv.slice(2);
   let i = 0;
   let mockDir: string | undefined;
+  let native = false;
+  let configPath: string | undefined;
+  const systemSpecs: string[] = [];
+
   while (i < args.length) {
     const arg = args[i];
     if (arg === '--mock' && i + 1 < args.length) {
       mockDir = args[i + 1];
       i += 2;
     } else if (arg.startsWith('--mock=')) {
-      mockDir = arg.slice(7); // length of '--mock='
+      mockDir = arg.slice(7);
       if (!mockDir) {
         throw new Error('--mock= requires a non-empty path');
       }
       i += 1;
+    } else if (arg === '--native') {
+      native = true;
+      i += 1;
+    } else if (arg === '--config' && i + 1 < args.length) {
+      configPath = args[i + 1];
+      i += 2;
+    } else if (arg.startsWith('--config=')) {
+      configPath = arg.slice(9);
+      if (!configPath) {
+        throw new Error('--config= requires a non-empty path');
+      }
+      i += 1;
+    } else if (arg === '--system' && i + 1 < args.length) {
+      systemSpecs.push(args[i + 1]);
+      i += 2;
     } else {
       break;
     }
   }
+
   if (!mockDir && process.env.ZOWE_MCP_MOCK_DIR) {
     mockDir = process.env.ZOWE_MCP_MOCK_DIR;
   }
   const toolName = args[i];
   const argsRest = i + 1 < args.length ? args.slice(i + 1) : [];
-  return { mockDir, toolName, argsRest };
+  return { mockDir, native, configPath, systemSpecs, toolName, argsRest };
 }
 
 /**
@@ -110,16 +158,49 @@ function coerceValue(raw: string): string | number | boolean {
 }
 
 async function main(): Promise<void> {
-  const { mockDir, toolName, argsRest } = parseArgs();
-  log.info('Parsed args', { mockDir, toolName, argsRest });
+  const { mockDir, native, configPath, systemSpecs, toolName, argsRest } = parseArgs();
+  log.info('Parsed args', { mockDir, native, configPath, systemSpecs, toolName, argsRest });
 
-  const serverOptions = mockDir ? await loadMock(mockDir) : undefined;
-  if (mockDir && serverOptions) {
-    log.info('Using mock backend', {
-      mockDir,
-      systems: serverOptions.systemRegistry.list(),
+  if (mockDir && native) {
+    throw new Error('Cannot use both --mock and --native. Choose one.');
+  }
+
+  let serverOptions: CreateServerOptions | undefined;
+
+  if (mockDir) {
+    serverOptions = await loadMock(mockDir);
+    if (serverOptions) {
+      log.info('Using mock backend', {
+        mockDir,
+        systems: serverOptions.systemRegistry?.list() ?? [],
+      });
+    }
+  } else if (native) {
+    let systems: string[] = [...systemSpecs];
+    if (configPath) {
+      const fromConfig = loadSystemsFromConfig(configPath);
+      systems = [...fromConfig, ...systemSpecs];
+    }
+    if (systems.length === 0) {
+      throw new Error(
+        'Native mode requires at least one system. Use --config <path> (JSON with "systems" array) or --system user@host (repeatable).'
+      );
+    }
+    const nativeSetup = loadNative({
+      systems,
+      useEnvForPassword: true,
     });
-  } else {
+    serverOptions = {
+      backend: nativeSetup.backend,
+      systemRegistry: nativeSetup.systemRegistry,
+      credentialProvider: nativeSetup.credentialProvider,
+    };
+    log.info('Using native (SSH) backend', {
+      systems: nativeSetup.systemRegistry.list(),
+    });
+  }
+
+  if (!serverOptions) {
     log.info('No backend — only core tools (e.g. info) available');
   }
 

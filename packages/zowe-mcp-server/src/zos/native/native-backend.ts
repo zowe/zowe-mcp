@@ -16,6 +16,7 @@
  */
 
 import type { ZSshClient } from 'zowe-native-proto-sdk';
+import { getLogger } from '../../server.js';
 import type {
   CreateDatasetOptions,
   CreateDatasetResult,
@@ -30,6 +31,8 @@ import type { SystemId } from '../system.js';
 import type { ParsedConnectionSpec } from './connection-spec.js';
 import type { NativeCredentialProvider } from './native-credential-provider.js';
 import type { SshClientCache } from './ssh-client-cache.js';
+
+const log = getLogger().child('native');
 
 const NOT_IMPL = 'Not implemented for Zowe Native backend';
 
@@ -69,6 +72,33 @@ function mapDatasetToEntry(item: {
   };
 }
 
+/**
+ * Classifies an error message as connection/network error or invalid-password error.
+ * Connection errors should not mark credentials invalid; password errors should.
+ */
+function classifyNativeError(message: string): {
+  isConnectionError: boolean;
+  isInvalidPassword: boolean;
+} {
+  const isConnectionError =
+    message.includes('ECONNREFUSED') ||
+    message.includes('ENOTFOUND') ||
+    message.includes('ETIMEDOUT') ||
+    message.includes('ECONNRESET') ||
+    message.includes('ENETUNREACH') ||
+    message.includes('timeout') ||
+    message.includes('Connection');
+
+  const isInvalidPassword =
+    !isConnectionError &&
+    (/invalid.*password|password.*invalid|authentication failed|auth failed|permission denied/i.test(
+      message
+    ) ||
+      (message.includes('Authentication') && message.toLowerCase().includes('fail')));
+
+  return { isConnectionError, isInvalidPassword };
+}
+
 export interface NativeBackendOptions {
   credentialProvider: NativeCredentialProvider;
   clientCache: SshClientCache;
@@ -100,13 +130,19 @@ export class NativeBackend {
       return await fn(client);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      if (
-        msg.includes('Authentication') ||
-        msg.includes('auth') ||
-        msg.includes('password') ||
-        msg.includes('ECONNREFUSED') ||
-        msg.includes('ENOTFOUND')
-      ) {
+      log.warning('Native backend error', {
+        message: msg,
+        systemId,
+        user: spec.user,
+        host: spec.host,
+      });
+      log.debug('Native backend error detail', {
+        err: err instanceof Error ? err.stack : String(err),
+      });
+
+      const { isInvalidPassword } = classifyNativeError(msg);
+
+      if (isInvalidPassword) {
         this.options.credentialProvider.markInvalid(spec);
         this.options.clientCache.evict(spec);
         this.options.onPasswordInvalid?.(spec.user, spec.host, spec.port);

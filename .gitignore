@@ -56,3 +56,6 @@ coverage/
 *.temp
 temp/
 tmp/
+
+# Mock data
+zowe-mcp-mock-data/

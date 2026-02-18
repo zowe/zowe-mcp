@@ -106,7 +106,7 @@ Server tests are organized into **common** (parameterized) and **transport-speci
 - **Stdio specific** (`__tests__/stdio.e2e.test.ts`): E2E tests for stdio-only behaviour (e.g. default transport flag, process spawning).
 - **HTTP specific** (`__tests__/http.e2e.test.ts`): E2E tests for HTTP-only behaviour (e.g. port binding, custom port flag).
 - **VS Code extension tests**: Use `@vscode/test-cli` + `@vscode/test-electron` for integration tests in a real VS Code instance.
-- **Quick tool testing**: `npm run call-tool -- <tool-name> [json-args]` for CLI testing.
+- **Quick tool testing**: `npx zowe-mcp-server call-tool [--mock=<dir>] [<tool-name> [key=value ...]]` or `npm run call-tool -- ...` (requires build).
 - **MCP Inspector**: `npm run inspector` launches the web-based inspector at `http://localhost:6274`.
 
 ### Code Formatting and License Headers
@@ -187,7 +187,7 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 | `npm test` | Run server tests (Vitest) |
 | `npm run test:all` | Run all tests (server + VS Code extension) |
 | `npm run test:vscode` | Run VS Code extension tests (auto-builds first via `pretest`) |
-| `npm run call-tool -- <name>` | Call a tool from CLI |
+| `npm run call-tool --` / `npx zowe-mcp-server call-tool` | Call a tool from CLI (optional `--mock=<dir>`, args as key=value) |
 | `npm run inspector` | Launch MCP Inspector |
 | `npm run lint` | Run ESLint (type-checked rules + license headers) |
 | `npm run lint:fix` | Auto-fix ESLint issues (including missing headers) |

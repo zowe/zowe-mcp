@@ -24,7 +24,8 @@
  *   --system <spec>  Connection spec user@host or user@host:port (repeatable, used with --native)
  *
  * Subcommands:
- *   init-mock  Generate a mock data directory (delegates to init-mock script)
+ *   init-mock   Generate a mock data directory (delegates to init-mock script)
+ *   call-tool  Call MCP tools via in-memory transport (optional --mock <dir>)
  */
 
 import { readFileSync } from 'node:fs';
@@ -73,6 +74,12 @@ function parseArgs(): ParsedArgs {
       }
     } else if (args[i] === '--mock' && i + 1 < args.length) {
       mockDir = args[++i];
+    } else if (args[i].startsWith('--mock=')) {
+      mockDir = args[i].slice(7);
+      if (!mockDir) {
+        getLogger().error('--mock= requires a non-empty path');
+        process.exit(1);
+      }
     } else if (args[i] === '--native') {
       native = true;
     } else if (args[i] === '--config' && i + 1 < args.length) {
@@ -99,19 +106,55 @@ function loadSystemsFromConfig(configPath: string): string[] {
   return config.systems;
 }
 
+function printHelp(): void {
+  const bin = 'zowe-mcp-server';
+  console.log(`Zowe MCP Server v${SERVER_VERSION}
+Model Context Protocol server for z/OS (datasets, jobs, USS).
+
+Usage:
+  npx ${bin} [options]              Start the MCP server (default: stdio)
+  npx ${bin} init-mock [options]    Generate a mock data directory
+  npx ${bin} call-tool [options]    Call MCP tools via CLI (optional --mock=<dir>)
+
+Transport (server mode):
+  --stdio              Use stdio transport (default)
+  --http               Use HTTP Streamable transport
+  --port <number>      Port for HTTP transport (default: 3000)
+
+Backend (server mode):
+  --mock <dir>         Mock backend: use filesystem data from <dir> (or --mock=<dir>, or ZOWE_MCP_MOCK_DIR)
+  --native             Zowe Native (SSH) backend
+  --config <path>      JSON file with { "systems": ["user@host", ...] } (used with --native)
+  --system <spec>      Connection spec user@host or user@host:port (repeatable, used with --native)
+
+Help:
+  -h, --help           Show this help and exit.
+
+Subcommands:
+  init-mock   Generate a mock data directory. Example:
+              npx ${bin} init-mock --output ./zowe-mcp-mock-data [--preset minimal|default|large]
+  call-tool   List or call MCP tools. Example:
+              npx ${bin} call-tool [--mock=<dir>] [<tool-name> [args]]
+`);
+}
+
 async function main(): Promise<void> {
+  const args = process.argv.slice(2);
+  if (args.includes('--help') || args.includes('-h')) {
+    printHelp();
+    process.exit(0);
+  }
+
   const parsed = parseArgs();
 
   // Handle subcommands
-  if (parsed.subcommand === 'init-mock') {
-    // Delegate to the init-mock script by re-running with the script path
+  if (parsed.subcommand === 'init-mock' || parsed.subcommand === 'call-tool') {
     const childProcess = await import('node:child_process');
     const nodePath = await import('node:path');
     const nodeUrl = await import('node:url');
     const __dirname = nodePath.dirname(nodeUrl.fileURLToPath(import.meta.url));
-    const scriptPath = nodePath.resolve(__dirname, 'scripts', 'init-mock.js');
+    const scriptPath = nodePath.resolve(__dirname, 'scripts', `${parsed.subcommand}.js`);
 
-    // Pass remaining args to the init-mock script
     const childArgs = process.argv.slice(3);
     const child = childProcess.fork(scriptPath, childArgs, { stdio: 'inherit' });
     child.on('exit', code => process.exit(code ?? 0));

@@ -1,0 +1,6 @@
+{
+  "provider": "vllm",
+  "base_url": "http://localhost:8000/v1",
+  "server_model": "your-model-name",
+  "api_key": "no key needed"
+}

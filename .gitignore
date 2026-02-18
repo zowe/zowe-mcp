@@ -23,7 +23,7 @@ packages/zowe-mcp-vscode/vscode.proposed.*.d.ts
 *.tsbuildinfo
 
 # IDE
-.vscode/
+.vscode/*
 !.vscode/extensions.json
 !.vscode/settings.json
 .idea/
@@ -59,3 +59,10 @@ tmp/
 
 # Mock data
 zowe-mcp-mock-data/
+
+# Evals (gitignored config and report output)
+evals.config.json
+evals.config.local.json
+packages/zowe-mcp-evals/evals.config.json
+packages/zowe-mcp-evals/evals.config.local.json
+evals-report/

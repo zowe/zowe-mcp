@@ -11,6 +11,7 @@ zowe-mcp/                       # npm workspaces monorepo
   packages/
     zowe-mcp-server/            # Standalone MCP server (ESM)
     zowe-mcp-vscode/            # VS Code extension (CommonJS)
+    zowe-mcp-evals/             # AI evaluations (LLM agent + MCP tools)
 ```
 
 ## Prerequisites
@@ -357,6 +358,21 @@ npm run inspector:mock     # mock data in ./zowe-mcp-mock-data
 npm run inspector:native   # SSH via native-config.json + .env
 ```
 
+## Evaluations
+
+The **evals** package runs an LLM agent against the MCP server (mock or native) and checks that tool calls and answers match expectations. Use it to validate that AI assistants use the Zowe MCP tools correctly.
+
+1. **Config** (at repo root): copy `evals.config.example.json` to `evals.config.json` and set your LLM provider (vLLM or Gemini). See [packages/zowe-mcp-evals/README.md](packages/zowe-mcp-evals/README.md).
+2. **Run** from repo root:
+
+```bash
+npm run evals                    # all question sets
+npm run evals -- --set datasets  # one set
+npm run evals -- --set datasets --number 1   # one question
+```
+
+Reports are written to `evals-report/report.md` and `evals-report/failures.md`.
+
 ## Linting and formatting
 
 ```bash
@@ -379,6 +395,7 @@ npm run check-format  # Check formatting without modifying files
 | `npm run inspector` | Launch MCP Inspector (no backend) |
 | `npm run inspector:mock` | Launch MCP Inspector with mock data (`./zowe-mcp-mock-data`) |
 | `npm run inspector:native` | Launch MCP Inspector with native SSH (`native-config.json` + `.env`) |
+| `npm run evals` | Run AI evals (builds server + evals first). Pass options after `--`: `--set`, `--number`, `--id`, `--filter`. Requires `evals.config.json` at root. |
 | `npm run lint` | Run ESLint |
 | `npm run lint:fix` | Auto-fix ESLint issues |
 | `npm run format` | Format all files with Prettier |

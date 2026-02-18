@@ -6,10 +6,11 @@ Zowe MCP is a Model Context Protocol (MCP) server and VS Code extension that pro
 
 ## Repository Structure
 
-This is an npm workspaces monorepo with two packages:
+This is an npm workspaces monorepo with three packages:
 
 - `packages/zowe-mcp-server` — Standalone MCP server (ESM, publishable to npm)
 - `packages/zowe-mcp-vscode` — VS Code extension that registers the server (CommonJS)
+- `packages/zowe-mcp-evals` — AI evaluations: runs an LLM agent against the MCP server (mock or native), checks tool choice/arguments and answer content, produces a Markdown report. Uses Vercel AI SDK and MCP SDK client. Config: gitignored `evals.config.json` at **repo root** (vLLM or Gemini). Run from repo root: `npm run evals` (options after `--`). Question sets: YAML files in `questions/` with per-set `repetitions`, `minSuccessRate`, optional `mock`/`native`, optional `systemPrompt`/`systemPromptAddition`.
 
 ## Key Architectural Decisions
 
@@ -102,9 +103,9 @@ Server tests are organized into **common** (parameterized) and **transport-speci
 
 - **Common tests** (`__tests__/common.test.ts`): Tests that must pass on every transport. They run once per transport provider (in-memory, stdio, HTTP) using the `allProviders` array from `transport-providers.ts`. Add new tool tests here so they are automatically verified across all transports.
 - **Transport providers** (`__tests__/transport-providers.ts`): Abstraction that encapsulates setup/teardown for each transport. Implements the `TransportProvider` interface (`setup() → Client`, `teardown()`). When adding a new transport, create a provider here and add it to `allProviders`.
-- **In-memory specific** (`__tests__/server.test.ts`): Fast unit tests for behaviour unique to the in-memory transport (e.g. multiple calls on the same connection, server internals).
-- **Stdio specific** (`__tests__/stdio.e2e.test.ts`): E2E tests for stdio-only behaviour (e.g. default transport flag, process spawning).
-- **HTTP specific** (`__tests__/http.e2e.test.ts`): E2E tests for HTTP-only behaviour (e.g. port binding, custom port flag).
+- **In-memory specific** (`__tests__/server.test.ts`): Fast unit tests for behavior unique to the in-memory transport (e.g. multiple calls on the same connection, server internals).
+- **Stdio specific** (`__tests__/stdio.e2e.test.ts`): E2E tests for stdio-only behavior (e.g. default transport flag, process spawning).
+- **HTTP specific** (`__tests__/http.e2e.test.ts`): E2E tests for HTTP-only behavior (e.g. port binding, custom port flag).
 - **Mock stdio E2E** (`__tests__/mock-stdio.e2e.test.ts`): Two describes: (1) inits default mock in a temp dir, starts the stdio server with `--mock`, and runs a subset of tools (info, context, listDatasets, listMembers) in one session via a data-driven `ToolTestCase[]` with `assertResult` for expected values; (2) listMembers pagination: inits with `--preset inventory` (USER.INVNTORY with 2000 members), then asserts offset/limit and hasMore across pages. Mutation tools and getDatasetAttributes/readDataset are not exercised. Run with `npx vitest run mock.stdio.e2e` from the server package (requires build).
 - **Native stdio E2E** (`__tests__/native-stdio.e2e.test.ts`): E2E test that starts the stdio server with `--native --config <path>` and runs info, listSystems, setSystem, getContext, listDatasets (`'SYS1.*LIB'`), and listMembers (`'SYS1.SAMPLIB'`) against real z/OS. Skipped when config file (`native-config.json` in cwd) or password (ZOWE_MCP_PASSWORD_<USER>_<HOST> or ZOS_PASSWORD) is missing. Asserts SYS1.SAMPLIB has >1000 members and includes ADFDFLTX and APSIVP; listDatasets result includes SAMPLIB and MACLIB. Run with `npx vitest run native-stdio.e2e` from the server package (requires build).
 - **VS Code extension tests**: Use `@vscode/test-cli` + `@vscode/test-electron` for integration tests in a real VS Code instance.
@@ -198,3 +199,4 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 | `npm run check-format` | Check formatting without modifying files |
 | `npm run markdownlint <file>` | Fix markdown lint issues |
 | `npx zowe-mcp-server init-mock --output <dir>` | Generate mock data directory |
+| `npm run evals` | Run AI evals from repo root (requires `evals.config.json` at root; pass options after `--`: `--set`, `--number`, `--id`, `--filter`) |

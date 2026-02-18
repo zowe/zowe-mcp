@@ -21,7 +21,8 @@
     "lint:fix": "eslint --fix \"packages/**/*.ts\"",
     "format": "prettier --write \"**/*.{ts,js,mjs,json,jsonc}\"",
     "check-format": "prettier --check \"**/*.{ts,js,mjs,json,jsonc}\"",
-    "markdownlint": "markdownlint-cli2 --fix"
+    "markdownlint": "markdownlint-cli2 --fix",
+    "evals": "npm run build -w packages/zowe-mcp-server && npm run build -w packages/zowe-mcp-evals && npm run evals -w packages/zowe-mcp-evals -- \"$@\""
   },
   "devDependencies": {
     "dotenv-cli": "^7.4.2",

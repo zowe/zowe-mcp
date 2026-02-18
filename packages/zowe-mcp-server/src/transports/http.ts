@@ -55,6 +55,9 @@ export async function startHttp(
   app.post('/mcp', async (req: Request, res: Response) => {
     try {
       const sessionId = req.headers['mcp-session-id'] as string | undefined;
+      if (sessionId) {
+        log.debug('MCP request', { mcpSessionId: sessionId });
+      }
       let transport: StreamableHTTPServerTransport;
 
       if (sessionId && transports[sessionId]) {
@@ -66,6 +69,7 @@ export async function startHttp(
           sessionIdGenerator: () => randomUUID(),
           onsessioninitialized: (sid: string) => {
             transports[sid] = transport;
+            log.info('MCP session initialized', { mcpSessionId: sid });
           },
         });
 

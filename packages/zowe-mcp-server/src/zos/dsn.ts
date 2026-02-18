@@ -143,6 +143,30 @@ export function resolveDsn(
 }
 
 /**
+ * Validate a resolved list pattern for listDatasets.
+ * Rejects patterns with empty qualifiers (e.g. '...' or 'USER..BAR').
+ * The Zowe Native backend (z/OS server) appends `.**` to patterns that do not
+ * end with a wildcard, so invalid patterns like '...' would become '....**'
+ * and produce confusing errors; validating here gives a clear message.
+ *
+ * @param resolvedPattern - Resolved pattern (no quotes, uppercase).
+ * @throws {DsnError} if any qualifier is empty.
+ */
+export function validateListPattern(resolvedPattern: string): void {
+  if (resolvedPattern.length === 0) {
+    throw new DsnError('Dataset list pattern must not be empty');
+  }
+  const qualifiers = resolvedPattern.split('.');
+  const emptyIndex = qualifiers.findIndex(q => q.length === 0);
+  if (emptyIndex >= 0) {
+    throw new DsnError(
+      `Invalid list pattern: empty qualifier in "${resolvedPattern}". ` +
+        "Use valid qualifiers (e.g. 'USER.*', 'SYS1.**') and avoid consecutive or leading/trailing dots."
+    );
+  }
+}
+
+/**
  * Validate a fully-qualified dataset name.
  *
  * Rules:

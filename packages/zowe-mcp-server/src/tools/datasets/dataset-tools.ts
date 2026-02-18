@@ -28,7 +28,13 @@ import { z } from 'zod';
 import type { Logger } from '../../log.js';
 import type { ZosBackend } from '../../zos/backend.js';
 import type { CredentialProvider } from '../../zos/credentials.js';
-import { buildDsUri, DsnError, resolveDsn, resolveWithPrefix } from '../../zos/dsn.js';
+import {
+  buildDsUri,
+  DsnError,
+  resolveDsn,
+  resolveWithPrefix,
+  validateListPattern,
+} from '../../zos/dsn.js';
 import type { SessionState } from '../../zos/session.js';
 import type { SystemRegistry } from '../../zos/system.js';
 import type { MutationResultMeta } from '../response.js';
@@ -179,6 +185,7 @@ export function registerDatasetTools(
         const prefix = deps.sessionState.getDsnPrefix(systemId);
 
         const { resolved: resolvedPattern, wasAbsolute } = resolveWithPrefix(dsnPattern, prefix);
+        validateListPattern(resolvedPattern);
 
         log.debug('listDatasets resolved', {
           systemId,

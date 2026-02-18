@@ -180,6 +180,7 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 - The mock backend stores files as UTF-8 and ignores the `codepage` parameter. Real backends must handle EBCDIC-to-UTF-8 conversion.
 - Mock ETags are derived from file modification timestamps (`mtime`). Real backends should use the ETag mechanism provided by their API (e.g. z/OSMF `ETag` header).
 - The `init-mock` CLI supports presets (`minimal`, `default`, `large`) and custom scale parameters (`--systems`, `--users-per-system`, `--datasets-per-user`, `--members-per-pds`).
+- **Native backend list pattern**: The Zowe Native Proto z/OS server appends `.**` to list patterns that do not end with a wildcard (so e.g. `USER` becomes `USER.**`). Invalid patterns like `'...'` (empty qualifiers) would become `'....**'` and produce confusing errors; `validateListPattern()` in `dsn.ts` rejects empty qualifiers before calling the backend so the user gets a clear error.
 
 ## Scripts Reference
 

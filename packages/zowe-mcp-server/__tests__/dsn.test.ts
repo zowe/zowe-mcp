@@ -24,6 +24,7 @@ import {
   resolveDsn,
   resolveWithPrefix,
   validateDsn,
+  validateListPattern,
   validateMember,
 } from '../src/zos/dsn.js';
 
@@ -536,6 +537,35 @@ describe('resolveWithPrefix', () => {
   it('throws for empty input', () => {
     expect(() => resolveWithPrefix('', 'USER')).toThrow(DsnError);
     expect(() => resolveWithPrefix('   ', 'USER')).toThrow(DsnError);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// validateListPattern
+// ---------------------------------------------------------------------------
+
+describe('validateListPattern', () => {
+  it('accepts valid patterns', () => {
+    expect(() => validateListPattern('USER.*')).not.toThrow();
+    expect(() => validateListPattern('SYS1.**')).not.toThrow();
+    expect(() => validateListPattern('USER.SRC.COBOL')).not.toThrow();
+  });
+
+  it('throws for empty pattern', () => {
+    expect(() => validateListPattern('')).toThrow(DsnError);
+  });
+
+  it('throws for pattern with empty qualifier (consecutive dots)', () => {
+    expect(() => validateListPattern('USER..BAR')).toThrow(DsnError);
+    expect(() => validateListPattern('...')).toThrow(DsnError);
+  });
+
+  it('throws for pattern starting with dot', () => {
+    expect(() => validateListPattern('.USER')).toThrow(DsnError);
+  });
+
+  it('throws for pattern ending with dot', () => {
+    expect(() => validateListPattern('USER.')).toThrow(DsnError);
   });
 });
 

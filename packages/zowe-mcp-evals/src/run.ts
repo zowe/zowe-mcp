@@ -96,7 +96,7 @@ function runMarkdownlint(reportDir: string): void {
     encoding: 'utf-8',
   });
   if (r.status !== 0) {
-    log.warning('markdownlint reported issues', { stderr: r.stderr, stdout: r.stdout });
+    log.debug('markdownlint reported issues', { stderr: r.stderr, stdout: r.stdout });
   }
 }
 

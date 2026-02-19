@@ -21,7 +21,65 @@ import { tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { EvalsConfig } from './config.js';
+import { log } from './log.js';
 import type { SetConfig, ToolCallRecord } from './types.js';
+
+const DEBUG_MAX_TEXT = 500;
+
+function truncate(s: string, max: number = DEBUG_MAX_TEXT): string {
+  return s.length <= max ? s : s.slice(0, max) + '…';
+}
+
+function prepareStepPayload(options: {
+  stepNumber: number;
+  steps: unknown[];
+  messages: unknown[];
+}): Record<string, unknown> {
+  const userContent: string[] = [];
+  for (const m of options.messages) {
+    const msg = m as { role?: string; content?: string | unknown[] };
+    if (msg.role !== 'user') continue;
+    if (typeof msg.content === 'string') userContent.push(msg.content);
+    else if (Array.isArray(msg.content))
+      for (const part of msg.content) {
+        const p = part as { type?: string; text?: string };
+        if (p.type === 'text' && typeof p.text === 'string') userContent.push(p.text);
+      }
+  }
+  return {
+    stepNumber: options.stepNumber,
+    previousSteps: options.steps.length,
+    userMessagePreview: truncate(userContent.join('\n')),
+  };
+}
+
+function stepFinishPayload(result: {
+  finishReason?: string;
+  usage?: unknown;
+  totalUsage?: unknown;
+  text?: string;
+  toolCalls?: unknown[];
+  toolResults?: unknown[];
+  isContinued?: boolean;
+}): Record<string, unknown> {
+  const toolCallsSummary =
+    result.toolCalls?.map((tc: unknown) => {
+      const t = tc as { toolName?: string; input?: unknown };
+      return {
+        tool: t.toolName,
+        args: t.input != null ? Object.keys(t.input as object) : [],
+      };
+    }) ?? [];
+  return {
+    finishReason: result.finishReason,
+    usage: result.usage,
+    totalUsage: result.totalUsage,
+    textPreview: result.text != null ? truncate(result.text) : undefined,
+    toolCalls: toolCallsSummary,
+    toolResultCount: result.toolResults?.length ?? 0,
+    isContinued: result.isContinued,
+  };
+}
 
 const DEFAULT_SYSTEM_PROMPT =
   'You are an assistant with access to z/OS dataset tools. Use the provided tools to answer the user. ';
@@ -152,6 +210,30 @@ export class McpEvalHarness {
       prompt,
       tools,
       stopWhen: stepCountIs(MAX_STEPS),
+      prepareStep(options) {
+        log.debug('AI SDK prepareStep (before request)', prepareStepPayload(options));
+        return {};
+      },
+      onStepFinish(stepResult: {
+        finishReason?: string;
+        usage?: unknown;
+        totalUsage?: unknown;
+        text?: string;
+        toolCalls?: unknown[];
+        toolResults?: unknown[];
+        isContinued?: boolean;
+      }) {
+        log.debug('AI SDK onStepFinish', stepFinishPayload(stepResult));
+      },
+    });
+
+    log.debug('AI SDK generateText result', {
+      finishReason: result.finishReason,
+      usage: result.usage,
+      totalUsage: result.totalUsage,
+      textPreview: result.text != null ? truncate(result.text) : undefined,
+      stepCount: result.steps?.length ?? 0,
+      reasoningPreview: result.reasoningText != null ? truncate(result.reasoningText) : undefined,
     });
 
     const finalText = result.text ?? '';

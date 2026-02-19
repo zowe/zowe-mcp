@@ -42,8 +42,10 @@ import {
   DEFAULT_LIST_LIMIT,
   formatResolved,
   getListMessages,
+  getReadMessages,
   paginateList,
   resolvedOnlyIfDifferent,
+  sanitizeTextForDisplay,
   windowContent,
   wrapResponse,
 } from '../response.js';
@@ -383,8 +385,9 @@ export function registerDatasetTools(
     {
       description:
         'Read the content of a sequential dataset or PDS/PDSE member. ' +
-        'Large files are automatically truncated to the first 2000 lines. ' +
-        'Use startLine and lineCount to read specific sections. ' +
+        'Results are paginated by lines. When _result.hasMore is true, more lines exist—you must call this tool again with startLine and lineCount to get the next page. ' +
+        'Do not answer using only the first page; fetch until _result.hasMore is false. ' +
+        'Large files are automatically truncated to the first 2000 lines when no window is requested. ' +
         'Returns UTF-8 text, an ETag for optimistic locking, and the source codepage. ' +
         'Pass the ETag to writeDataset to prevent overwriting concurrent changes.',
       annotations: { readOnlyHint: true },
@@ -422,17 +425,35 @@ export function registerDatasetTools(
 
       try {
         const resolved = await resolveInput(deps, dsn, member, system, log);
-        const result = await deps.backend.readDataset(
-          resolved.systemId,
-          resolved.dsn,
-          resolved.member,
-          codepage
-        );
+        const userId = deps.sessionState.getContext(resolved.systemId)?.userId ?? '';
 
-        // Apply line windowing
-        const windowed = windowContent(result.text, startLine, lineCount);
+        const result = deps.responseCache
+          ? await deps.responseCache.getOrFetch(
+              buildCacheKey('readDataset', {
+                systemId: resolved.systemId,
+                userId,
+                dsn: resolved.dsn,
+                member: resolved.member ?? '',
+                codepage: codepage ?? '',
+              }),
+              () =>
+                deps.backend.readDataset(
+                  resolved.systemId,
+                  resolved.dsn,
+                  resolved.member,
+                  codepage
+                )
+            )
+          : await deps.backend.readDataset(
+              resolved.systemId,
+              resolved.dsn,
+              resolved.member,
+              codepage
+            );
 
-        // Build the resolved DSN with member if applicable
+        const sanitized = sanitizeTextForDisplay(result.text);
+        const windowed = windowContent(sanitized, startLine, lineCount);
+
         const fullDsn = resolved.member ? `${resolved.dsn}(${resolved.member})` : resolved.dsn;
         const rawInputDsn = member ? `${dsn.trim()}(${member.trim()})` : dsn.trim();
 
@@ -448,7 +469,7 @@ export function registerDatasetTools(
             etag: result.etag,
             codepage: result.codepage,
           },
-          []
+          getReadMessages(windowed.meta)
         );
       } catch (err) {
         if (err instanceof DsnError) {

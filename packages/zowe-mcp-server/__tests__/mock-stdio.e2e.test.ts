@@ -267,3 +267,127 @@ describe('listMembers pagination (inventory 2000)', () => {
     expect(lastPage.data[0].member).toBe('ITEM2000');
   });
 });
+
+describe('readDataset pagination (pagination preset)', () => {
+  let tmpdirPath: string;
+  let client: Client;
+
+  beforeAll(() => {
+    tmpdirPath = mkdtempSync(resolve(tmpdir(), 'zowe-mcp-read-e2e-'));
+    const init = spawnSync(
+      'node',
+      [serverPath, 'init-mock', '--output', tmpdirPath, '--preset', 'pagination'],
+      {
+        cwd: packageRoot,
+        encoding: 'utf-8',
+      }
+    );
+    if (init.status !== 0) {
+      throw new Error(`init-mock failed: ${init.stderr ?? init.stdout}`);
+    }
+  });
+
+  afterAll(async () => {
+    if (client) {
+      await client.close();
+    }
+    rmSync(tmpdirPath, { recursive: true, force: true });
+  });
+
+  it('should page through USER.LARGE.SEQ with hasMore and messages', async () => {
+    const transport = new StdioClientTransport({
+      command: 'node',
+      args: [serverPath, '--stdio', '--mock', tmpdirPath],
+    });
+    client = new Client({ name: 'e2e-read-pagination-test', version: '1.0.0' });
+    await client.connect(transport);
+
+    await client.callTool({
+      name: 'setSystem',
+      arguments: { system: FIRST_SYSTEM },
+    });
+
+    // Page 1: startLine 1, lineCount 500
+    let result = await client.callTool({
+      name: 'readDataset',
+      arguments: { dsn: 'USER.LARGE.SEQ', startLine: 1, lineCount: 500 },
+    });
+    expect(result.isError).toBeFalsy();
+    const page1 = JSON.parse(getResultText(result)) as {
+      _result: { totalLines: number; startLine: number; returnedLines: number; hasMore: boolean };
+      data: { text: string };
+      messages: string[];
+    };
+    expect(page1._result.totalLines).toBe(2200);
+    expect(page1._result.startLine).toBe(1);
+    expect(page1._result.returnedLines).toBe(500);
+    expect(page1._result.hasMore).toBe(true);
+    expect(page1.messages).toHaveLength(1);
+    expect(page1.messages[0]).toContain('startLine=501');
+    expect(page1.data.text).toContain('LINE 0001');
+    expect(page1.data.text).toContain('LINE 0500');
+
+    // Page 2: startLine 501, lineCount 500
+    result = await client.callTool({
+      name: 'readDataset',
+      arguments: { dsn: 'USER.LARGE.SEQ', startLine: 501, lineCount: 500 },
+    });
+    expect(result.isError).toBeFalsy();
+    const page2 = JSON.parse(getResultText(result)) as {
+      _result: { startLine: number; returnedLines: number; hasMore: boolean };
+      data: { text: string };
+    };
+    expect(page2._result.startLine).toBe(501);
+    expect(page2._result.returnedLines).toBe(500);
+    expect(page2._result.hasMore).toBe(true);
+    expect(page2.data.text).toContain('LINE 0501');
+    expect(page2.data.text).toContain('LINE 1000');
+
+    // Last page: startLine 2001, lineCount 500 → lines 2001–2200 (200 lines), hasMore false
+    result = await client.callTool({
+      name: 'readDataset',
+      arguments: { dsn: 'USER.LARGE.SEQ', startLine: 2001, lineCount: 500 },
+    });
+    expect(result.isError).toBeFalsy();
+    const lastPage = JSON.parse(getResultText(result)) as {
+      _result: { startLine: number; returnedLines: number; hasMore: boolean };
+      data: { text: string };
+      messages: string[];
+    };
+    expect(lastPage._result.startLine).toBe(2001);
+    expect(lastPage._result.returnedLines).toBe(200);
+    expect(lastPage._result.hasMore).toBe(false);
+    expect(lastPage.messages).toHaveLength(0);
+    expect(lastPage.data.text).toContain('LINE 2001');
+    expect(lastPage.data.text).toContain('LINE 2200');
+  });
+
+  it('should page through USER.INVNTORY(LARGE) member', async () => {
+    const transport = new StdioClientTransport({
+      command: 'node',
+      args: [serverPath, '--stdio', '--mock', tmpdirPath],
+    });
+    client = new Client({ name: 'e2e-read-member-test', version: '1.0.0' });
+    await client.connect(transport);
+
+    await client.callTool({
+      name: 'setSystem',
+      arguments: { system: FIRST_SYSTEM },
+    });
+
+    const result = await client.callTool({
+      name: 'readDataset',
+      arguments: { dsn: 'USER.INVNTORY', member: 'LARGE', startLine: 1, lineCount: 500 },
+    });
+    expect(result.isError).toBeFalsy();
+    const parsed = JSON.parse(getResultText(result)) as {
+      _result: { totalLines: number; hasMore: boolean };
+      data: { text: string };
+      messages: string[];
+    };
+    expect(parsed._result.totalLines).toBe(2500);
+    expect(parsed._result.hasMore).toBe(true);
+    expect(parsed.messages.length).toBeGreaterThanOrEqual(1);
+    expect(parsed.data.text).toContain('LINE 0001');
+  });
+});

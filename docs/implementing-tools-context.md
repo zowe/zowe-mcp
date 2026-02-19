@@ -8,20 +8,20 @@ Use this in chats when implementing new dataset operations or other z/OS tools.
 
 ### Dataset tools (all implemented at tool layer)
 
-| Tool                   | Backend method    | Mock backend | Native (SSH) backend                                                                            |
-| ---------------------- | ----------------- | ------------ | ----------------------------------------------------------------------------------------------- |
-| `listDatasets`         | `listDatasets()`  | ✅            | ✅                                                                                               |
-| `listMembers`          | `listMembers()`   | ✅            | ✅                                                                                               |
-| `getDatasetAttributes` | `getAttributes()` | ✅            | ❌ throws (no SDK API; see [native-get-dataset-attributes.md](native-get-dataset-attributes.md)) |
-| `readDataset`          | `readDataset()`   | ✅            | ❌ throws                                                                                        |
-| `writeDataset`         | `writeDataset()`  | ✅            | ❌ throws                                                                                        |
-| `createDataset`        | `createDataset()` | ✅            | ❌ throws                                                                                        |
-| `deleteDataset`        | `deleteDataset()` | ✅            | ❌ throws                                                                                        |
-| `copyDataset`          | `copyDataset()`   | ✅            | ❌ throws                                                                                        |
-| `renameDataset`        | `renameDataset()` | ✅            | ❌ throws                                                                                        |
+| Tool                   | Backend method    | Mock backend | Native (SSH) backend                                                                             |
+| ---------------------- | ----------------- | ------------ | ------------------------------------------------------------------------------------------------ |
+| `listDatasets`         | `listDatasets()`  | ✅           | ✅                                                                                               |
+| `listMembers`          | `listMembers()`   | ✅           | ✅                                                                                               |
+| `getDatasetAttributes` | `getAttributes()` | ✅           | ❌ throws (no SDK API; see [zowe-native-feature-requests.md](zowe-native-feature-requests.md))   |
+| `readDataset`          | `readDataset()`   | ✅           | ✅                                                                                               |
+| `writeDataset`         | `writeDataset()`  | ✅           | ❌ throws                                                                                        |
+| `createDataset`        | `createDataset()` | ✅           | ❌ throws                                                                                        |
+| `deleteDataset`        | `deleteDataset()` | ✅           | ❌ throws                                                                                        |
+| `copyDataset`          | `copyDataset()`   | ✅           | ❌ throws                                                                                        |
+| `renameDataset`        | `renameDataset()` | ✅           | ❌ throws                                                                                        |
 
 - **Mock backend**: `FilesystemMockBackend` in `src/zos/mock/` — implements full `ZosBackend`.
-- **Native backend**: `NativeBackend` in `src/zos/native/native-backend.ts` — `listDatasets()` and `listMembers()` are implemented; all other methods throw `"Not implemented for Zowe Native backend"`.
+- **Native backend**: `NativeBackend` in `src/zos/native/native-backend.ts` — `listDatasets()`, `listMembers()`, and `readDataset()` are implemented; all other methods throw `"Not implemented for Zowe Native backend"`.
 
 ### Other components
 
@@ -69,8 +69,8 @@ Types: `DatasetEntry`, `MemberEntry`, `ReadDatasetResult`, `WriteDatasetResult`,
   - DSN convention: all names are fully qualified. Use `resolveDsn(dsn, member)` or `resolvePattern(dsnPattern)` from `src/zos/dsn.ts` for validation and resolution.
   - Return responses via the **response envelope** from `src/tools/response.ts`:
     - `buildContext(systemId, { resolvedDsn: formatResolved(dsn) })` (or `resolvedPattern` for list, `resolvedTargetDsn` for copy/rename).
-    - List: `paginateList(items, offset, limit)` → `ListResultMeta`; use `getListMessages(meta)` for the envelope `messages` array when there are more pages; Read: `windowContent(...)` → `ReadResultMeta`; Mutations: `MutationResultMeta` with `{ success: true }`.
-    - `wrapResponse(ctx, meta, data, messages)` to build the final JSON envelope. For list tools, pass `getListMessages(meta)` as the fourth argument so the agent is directed to fetch the next page when `hasMore` is true.
+    - List: `paginateList(items, offset, limit)` → `ListResultMeta`; use `getListMessages(meta)` for the envelope `messages` array when there are more pages; Read: sanitize text with `sanitizeTextForDisplay(result.text)`, then `windowContent(text, startLine, lineCount)` → `ReadResultMeta` (includes `hasMore`); use `getReadMessages(meta)` for the envelope `messages` array when there are more lines; Mutations: `MutationResultMeta` with `{ success: true }`.
+    - `wrapResponse(ctx, meta, data, messages)` to build the final JSON envelope. For list tools, pass `getListMessages(meta)`; for read tools, pass `getReadMessages(meta)` so the agent is directed to fetch the next page when `hasMore` is true.
   - Tool names: **camelCase** (e.g. `listDatasets`). Annotations: `readOnlyHint: true` for read-only, `destructiveHint: true` for delete.
   - Describe dataset/pattern parameters as fully qualified (e.g. USER.SRC.COBOL).
 
@@ -145,11 +145,11 @@ Our cache in `packages/zowe-mcp-server/src/zos/native/ssh-client-cache.ts` follo
 The SDK is not on npm; the canonical source is the **zowe-native-proto** repo. Use these to find the right APIs without cloning:
 
 - **Repo**: [https://github.com/zowe/zowe-native-proto](https://github.com/zowe/zowe-native-proto) (branch `main`).
-- **Client API surface** (what methods exist on `client.ds`): `packages/sdk/src/RpcClientApi.ts`  
+- **Client API surface** (what methods exist on `client.ds`): `packages/sdk/src/RpcClientApi.ts`
 Raw: [https://raw.githubusercontent.com/zowe/zowe-native-proto/main/packages/sdk/src/RpcClientApi.ts](https://raw.githubusercontent.com/zowe/zowe-native-proto/main/packages/sdk/src/RpcClientApi.ts)
-- **Dataset RPC definitions** (request/response types): `packages/sdk/src/doc/rpc/ds.ts`  
+- **Dataset RPC definitions** (request/response types): `packages/sdk/src/doc/rpc/ds.ts`
 Raw: [https://raw.githubusercontent.com/zowe/zowe-native-proto/main/packages/sdk/src/doc/rpc/ds.ts](https://raw.githubusercontent.com/zowe/zowe-native-proto/main/packages/sdk/src/doc/rpc/ds.ts)
-- **Common types** (e.g. `DsMember`, `Dataset`, `ListOptions`): `packages/sdk/src/doc/rpc/common.ts`  
+- **Common types** (e.g. `DsMember`, `Dataset`, `ListOptions`): `packages/sdk/src/doc/rpc/common.ts`
 Raw: [https://raw.githubusercontent.com/zowe/zowe-native-proto/main/packages/sdk/src/doc/rpc/common.ts](https://raw.githubusercontent.com/zowe/zowe-native-proto/main/packages/sdk/src/doc/rpc/common.ts)
 - **Example usage**: repo root `example/index.ts` (listDatasets only; no listMembers example in tree).
 
@@ -191,6 +191,6 @@ Raw: [https://raw.githubusercontent.com/zowe/zowe-native-proto/main/packages/sdk
 ## Quick reference: response envelope
 
 - **List**: `buildContext(..., { resolvedPattern: formatResolved(pattern) })`, `paginateList(list, offset, limit)`, `wrapResponse(ctx, meta, data, getListMessages(meta))`.
-- **Read**: `buildContext(..., { resolvedDsn })`, `windowContent(text, startLine, lineCount)`, `wrapResponse(ctx, meta, { text, etag, ... })`.
+- **Read**: `buildContext(..., { resolvedDsn })`, `sanitizeTextForDisplay(result.text)`, `windowContent(text, startLine, lineCount)` (meta includes `hasMore`), `wrapResponse(ctx, meta, data, getReadMessages(meta))`.
 - **Mutation**: `buildContext(..., { resolvedDsn } or { resolvedDsn, resolvedTargetDsn })`, `wrapResponse(ctx, { success: true }, data)`.
 - Resolved values in `_context` (`resolvedPattern`, `resolvedDsn`, `resolvedTargetDsn`) are only present when resolution changed the input (e.g. normalized case, stripped quotes), and are fully qualified with no quotes.

@@ -12,7 +12,7 @@
 /**
  * ZosBackend implementation using the Zowe Native Proto SDK (SSH).
  *
- * Implements listDatasets and listMembers; other methods throw "not implemented".
+ * Implements listDatasets, listMembers, and readDataset; other methods throw "not implemented".
  */
 
 import type { ZSshClient } from 'zowe-native-proto-sdk';
@@ -189,9 +189,32 @@ export class NativeBackend {
     member?: string,
     codepage?: string
   ): Promise<ReadDatasetResult> {
-    void [systemId, dsn, member, codepage];
-    await Promise.resolve();
-    throw new Error(NOT_IMPL);
+    return this.withNativeClient(systemId, undefined, async client => {
+      const dsname = member ? `${dsn}(${member})` : dsn;
+      const ds = (
+        client as unknown as {
+          ds: {
+            readDataset(req: {
+              dsname: string;
+              localEncoding?: string;
+            }): Promise<{ etag?: string; data?: string }>;
+          };
+        }
+      ).ds;
+      const response = await ds.readDataset({
+        dsname,
+        localEncoding: codepage ?? 'IBM-1047',
+      });
+
+      const raw = response.data ?? '';
+      const text = raw.length > 0 ? Buffer.from(raw, 'base64').toString('utf-8') : '';
+
+      return {
+        text,
+        etag: response.etag ?? '',
+        codepage: codepage ?? 'IBM-1047',
+      };
+    });
   }
 
   async writeDataset(

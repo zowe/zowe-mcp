@@ -81,7 +81,11 @@ Question sets are YAML files in `questions/`. Each file has:
 - **singleToolCall** — Exactly one tool call in the first turn, matching `tool` and optional `args`.
 - **toolOnly** — At least one call to `tool` with optional `args`; answer content not checked.
 - **minToolCalls** — The tool must have been called at least `minCount` times (e.g. for pagination evals).
-- **toolCallSequence** — The tool must have been called in order with args matching each element of `sequence` (partial match per call). Use to assert every pagination call has correct parameters (e.g. `dsn`, `offset`, `limit`).
+- **toolCallSequence** — The tool must have been called in order with args matching each element of `sequence` (partial match per call). Use to assert every pagination call has correct parameters (e.g. `dsn`, `offset`, `limit` for list tools; `dsn`, `member`, `startLine`, `lineCount` for readDataset).
+
+### readDataset pagination
+
+- **Set** `read-pagination` (run with `--set read-pagination`): One question. Mock uses `--preset pagination`; USER.LARGE.SEQ has 2200 lines with a Star Wars character name on line 2100 (third chunk). The agent must page with readDataset (3 calls: 1000, 1000, 200 lines — startLine 1, 1001, 2001) and report the character name (LUKE). Works with any MCP client.
 
 ## Report
 

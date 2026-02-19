@@ -50,10 +50,11 @@ const mockConfig: MockSystemsConfig = {
   ],
 };
 
-/** Backend wrapper that counts listDatasets and listMembers calls. */
+/** Backend wrapper that counts listDatasets, listMembers, and readDataset calls. */
 class CountingBackend implements ZosBackend {
   listDatasetsCallCount = 0;
   listMembersCallCount = 0;
+  readDatasetCallCount = 0;
 
   constructor(private readonly inner: ZosBackend) {}
 
@@ -72,12 +73,13 @@ class CountingBackend implements ZosBackend {
     return this.inner.listMembers(systemId, dsn, pattern);
   }
 
-  readDataset(
+  async readDataset(
     systemId: SystemId,
     dsn: string,
     member?: string,
     codepage?: string
   ): Promise<ReadDatasetResult> {
+    this.readDatasetCallCount++;
     return this.inner.readDataset(systemId, dsn, member, codepage);
   }
 
@@ -148,6 +150,15 @@ async function createMockData(dir: string): Promise<void> {
     JSON.stringify({ dsorg: 'PS', recfm: 'FB', lrecl: 80 })
   );
   await fs.writeFile(path.join(sysDir, DEFAULT_USER, 'DATA', 'INPUT'), 'line1\nline2');
+  const largeLines = Array.from(
+    { length: 50 },
+    (_, i) => `LINE ${String(i + 1).padStart(3, '0')}`
+  );
+  await fs.writeFile(path.join(sysDir, DEFAULT_USER, 'LARGE.DATA'), largeLines.join('\n'));
+  await fs.writeFile(
+    path.join(sysDir, DEFAULT_USER, 'LARGE.DATA_meta.json'),
+    JSON.stringify({ dsn: `${DEFAULT_USER}.LARGE.DATA`, dsorg: 'PS', recfm: 'FB', lrecl: 80 })
+  );
 }
 
 let mockDir: string;
@@ -244,6 +255,50 @@ describe('Response cache', () => {
       expect(result2.content).toBeDefined();
 
       expect(countingBackend.listMembersCallCount).toBe(1);
+    } finally {
+      await client.close();
+      await server.close();
+    }
+  });
+
+  it('calls backend readDataset once when paging (same dsn, different startLine)', async () => {
+    const innerBackend = new FilesystemMockBackend(mockDir);
+    const countingBackend = new CountingBackend(innerBackend);
+    const credentialProvider: CredentialProvider = new MockCredentialProvider(mockConfig);
+    const systemRegistry = new SystemRegistry();
+    for (const sys of mockConfig.systems) {
+      systemRegistry.register({
+        host: sys.host,
+        port: sys.port,
+        description: sys.description,
+      });
+    }
+
+    const server = createServer({
+      backend: countingBackend,
+      systemRegistry,
+      credentialProvider,
+      responseCache: createResponseCache({ ttlMs: 60_000, maxSizeBytes: 10 * 1024 * 1024 }),
+    });
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    const client = new Client({ name: 'test', version: '1.0.0' });
+    await Promise.all([client.connect(clientTransport), server.connect(serverTransport)]);
+    await new Promise(resolve => setTimeout(resolve, 50));
+
+    try {
+      const result1 = await client.callTool({
+        name: 'readDataset',
+        arguments: { dsn: `${DEFAULT_USER}.LARGE.DATA`, startLine: 1, lineCount: 10 },
+      });
+      expect(result1.content).toBeDefined();
+
+      const result2 = await client.callTool({
+        name: 'readDataset',
+        arguments: { dsn: `${DEFAULT_USER}.LARGE.DATA`, startLine: 11, lineCount: 10 },
+      });
+      expect(result2.content).toBeDefined();
+
+      expect(countingBackend.readDatasetCallCount).toBe(1);
     } finally {
       await client.close();
       await server.close();

@@ -263,6 +263,35 @@ describe.skipIf(!canRunNativeE2E)(
       expect(allMembers).toContain('APSIVP');
     });
 
+    it('readDataset SYS1.SAMPLIB(AFBALOC) returns content and envelope', async () => {
+      const { parsed } = await callToolSuccess(client, 'readDataset', {
+        dsn: "'SYS1.SAMPLIB'",
+        member: 'AFBALOC',
+      });
+      const o = parsed as {
+        _context: { system: string; resolvedDsn?: string };
+        _result?: {
+          totalLines: number;
+          startLine: number;
+          returnedLines: number;
+          hasMore?: boolean;
+        };
+        data: { text: string; etag: string; codepage: string };
+      };
+      expect(o._context).toBeDefined();
+      expect(o._context.system).toBeDefined();
+      expect(o.data).toBeDefined();
+      expect(typeof o.data.text).toBe('string');
+      expect(o.data.text.length).toBeGreaterThan(0);
+      expect(typeof o.data.etag).toBe('string');
+      expect(typeof o.data.codepage).toBe('string');
+      if (o._result) {
+        expect(o._result.totalLines).toBeGreaterThan(0);
+        expect(o._result.startLine).toBe(1);
+        expect(o._result.returnedLines).toBeGreaterThan(0);
+      }
+    });
+
     it('listDatasets with empty pattern returns specific error', async () => {
       const r = await callToolError(
         client,

@@ -607,7 +607,8 @@ async function generateInventoryDataset(
   sysDir: string,
   hlq: string,
   memberCount: number,
-  seed: number
+  seed: number,
+  addLargeMember = false
 ): Promise<void> {
   // Qualifier must be ≤8 chars (z/OS). Use INVNTORY.
   const invDir = path.join(sysDir, hlq, 'INVNTORY');
@@ -624,6 +625,34 @@ async function generateInventoryDataset(
     const memberName = `ITEM${String(i).padStart(padLength, '0')}`;
     await fs.writeFile(path.join(invDir, `${memberName}.txt`), card + '\n', 'utf-8');
   }
+
+  // When pagination preset (addLargeMember true), add one member with many lines for readDataset pagination tests
+  if (memberCount >= 2000 && addLargeMember) {
+    const largeLines = Array.from(
+      { length: 2500 },
+      (_, i) => `LINE ${String(i + 1).padStart(4, '0')}`
+    );
+    await fs.writeFile(path.join(invDir, 'LARGE.txt'), largeLines.join('\n') + '\n', 'utf-8');
+  }
+}
+
+/**
+ * Generate one large sequential dataset (e.g. USER.LARGE.SEQ) with 2200 lines for readDataset pagination tests.
+ * With MAX_READ_LINES=1000 the agent must do 3 reads: 1–1000, 1001–2000, 2001–2200. LUKE is on the last chunk.
+ */
+async function generateLargeSequentialDataset(sysDir: string, hlq: string): Promise<void> {
+  const hlqDir = path.join(sysDir, hlq);
+  await fs.mkdir(hlqDir, { recursive: true });
+  const entryName = 'LARGE.SEQ';
+  const dsn = `${hlq}.${entryName}`;
+  const largeLines = Array.from(
+    { length: 2200 },
+    (_, i) => `LINE ${String(i + 1).padStart(4, '0')}`
+  );
+  // Line 2100: Star Wars character for read-pagination evals (answer on third page, 2001–2200)
+  largeLines[2099] = 'LUKE SKYWALKER';
+  await fs.writeFile(path.join(hlqDir, entryName), largeLines.join('\n') + '\n', 'utf-8');
+  await writeMetaFile(hlqDir, entryName, dsn, 'PS');
 }
 
 // ---------------------------------------------------------------------------
@@ -826,11 +855,22 @@ async function main(): Promise<void> {
 
     // Optional: one INVENTORY dataset for first system / first user
     if (s === 0 && args.inventoryMembers > 0) {
-      await generateInventoryDataset(sysDir, defaultUser, args.inventoryMembers, args.seed);
+      const addLargeMember = args.inventoryMembers >= 2000 && args.peopleDatasets > 0;
+      await generateInventoryDataset(
+        sysDir,
+        defaultUser,
+        args.inventoryMembers,
+        args.seed,
+        addLargeMember
+      );
     }
     // Optional: USER.PEOPLE.firstname.lastname PS datasets for first system / first user
     if (s === 0 && args.peopleDatasets > 0) {
       await generatePeopleDatasets(sysDir, defaultUser, args.peopleDatasets, args.seed);
+    }
+    // Optional: large sequential for readDataset pagination (pagination preset only)
+    if (s === 0 && args.inventoryMembers >= 2000 && args.peopleDatasets > 0) {
+      await generateLargeSequentialDataset(sysDir, defaultUser);
     }
   }
 

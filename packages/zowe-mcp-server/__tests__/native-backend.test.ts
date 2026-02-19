@@ -24,11 +24,21 @@ import { NativeBackend } from '../src/zos/native/native-backend.js';
 const SYSTEM_ID = 'host.example.com';
 const SPEC: ParsedConnectionSpec = { user: 'USER', host: 'host.example.com', port: 22 };
 
-/** Fake SDK client shape used by listDatasets / listDsMembers. */
+/** Fake SDK client shape used by listDatasets / listDsMembers / readDataset. */
 function createFakeClient(overrides?: {
   listDatasets?: (req: { pattern: string }) => Promise<{ items?: { name: string }[] }>;
   listDsMembers?: (req: { dsname: string }) => Promise<{ items?: { name: string }[] }>;
+  readDataset?: (req: { dsname: string; localEncoding?: string }) => Promise<{
+    etag?: string;
+    data?: string;
+  }>;
 }) {
+  const defaultReadDataset = (req: { dsname: string }) =>
+    Promise.resolve({
+      etag: 'mock-etag',
+      data: Buffer.from('line1\nline2\nline3', 'utf-8').toString('base64'),
+    });
+
   return {
     ds: {
       listDatasets:
@@ -50,6 +60,7 @@ function createFakeClient(overrides?: {
       listDsMembers:
         overrides?.listDsMembers ??
         (() => Promise.resolve({ items: [{ name: 'MEMBER1' }, { name: 'MEMBER2' }] })),
+      readDataset: overrides?.readDataset ?? defaultReadDataset,
     },
   };
 }
@@ -274,6 +285,124 @@ describe('NativeBackend', () => {
       expect(options.credentialProvider.markInvalid).toHaveBeenCalledWith(SPEC);
       expect(options.clientCache.evict).toHaveBeenCalledWith(SPEC);
       expect(options.onPasswordInvalid).toHaveBeenCalledWith(SPEC.user, SPEC.host, SPEC.port);
+    });
+  });
+
+  describe('readDataset', () => {
+    it('returns text, etag, codepage from SDK readDataset response', async () => {
+      const options = createOptions();
+      const backend = new NativeBackend(options);
+
+      const result = await backend.readDataset(SYSTEM_ID, 'USER.SEQ.DATA');
+
+      expect(result).toEqual({
+        text: 'line1\nline2\nline3',
+        etag: 'mock-etag',
+        codepage: 'IBM-1047',
+      });
+      expect(options.clientCache.getOrCreate).toHaveBeenCalledWith(SPEC, {
+        user: SPEC.user,
+        password: 'secret',
+      });
+    });
+
+    it('calls SDK readDataset with dsname for sequential dataset', async () => {
+      const readDatasetMock = vi.fn().mockResolvedValue({
+        etag: 'e1',
+        data: Buffer.from('content', 'utf-8').toString('base64'),
+      });
+      const options = createOptions({
+        clientCache: {
+          getOrCreate: vi
+            .fn()
+            .mockResolvedValue(createFakeClient({ readDataset: readDatasetMock })),
+          evict: vi.fn(),
+        },
+      });
+      const backend = new NativeBackend(options);
+
+      await backend.readDataset(SYSTEM_ID, 'USER.PS.DATA');
+
+      expect(readDatasetMock).toHaveBeenCalledTimes(1);
+      expect(readDatasetMock).toHaveBeenCalledWith({
+        dsname: 'USER.PS.DATA',
+        localEncoding: 'IBM-1047',
+      });
+    });
+
+    it('calls SDK readDataset with dsname(member) for PDS member', async () => {
+      const readDatasetMock = vi.fn().mockResolvedValue({
+        etag: 'e2',
+        data: Buffer.from('member content', 'utf-8').toString('base64'),
+      });
+      const options = createOptions({
+        clientCache: {
+          getOrCreate: vi
+            .fn()
+            .mockResolvedValue(createFakeClient({ readDataset: readDatasetMock })),
+          evict: vi.fn(),
+        },
+      });
+      const backend = new NativeBackend(options);
+
+      await backend.readDataset(SYSTEM_ID, 'USER.SRC.COBOL', 'MAIN');
+
+      expect(readDatasetMock).toHaveBeenCalledTimes(1);
+      expect(readDatasetMock).toHaveBeenCalledWith({
+        dsname: 'USER.SRC.COBOL(MAIN)',
+        localEncoding: 'IBM-1047',
+      });
+    });
+
+    it('passes codepage as localEncoding when provided', async () => {
+      const readDatasetMock = vi.fn().mockResolvedValue({ etag: '', data: '' });
+      const options = createOptions({
+        clientCache: {
+          getOrCreate: vi
+            .fn()
+            .mockResolvedValue(createFakeClient({ readDataset: readDatasetMock })),
+          evict: vi.fn(),
+        },
+      });
+      const backend = new NativeBackend(options);
+
+      await backend.readDataset(SYSTEM_ID, 'USER.DATA', undefined, 'IBM-037');
+
+      expect(readDatasetMock).toHaveBeenCalledWith({
+        dsname: 'USER.DATA',
+        localEncoding: 'IBM-037',
+      });
+    });
+
+    it('returns empty text when SDK returns empty data', async () => {
+      const options = createOptions({
+        clientCache: {
+          getOrCreate: vi.fn().mockResolvedValue(
+            createFakeClient({
+              readDataset: () => Promise.resolve({ etag: 'e', data: '' }),
+            })
+          ),
+          evict: vi.fn(),
+        },
+      });
+      const backend = new NativeBackend(options);
+
+      const result = await backend.readDataset(SYSTEM_ID, 'USER.EMPTY');
+
+      expect(result.text).toBe('');
+      expect(result.etag).toBe('e');
+      expect(result.codepage).toBe('IBM-1047');
+    });
+
+    it('throws when getSpec returns undefined', async () => {
+      const options = createOptions({ getSpec: () => undefined });
+      const backend = new NativeBackend(options);
+
+      await expect(backend.readDataset(SYSTEM_ID, 'USER.DATA')).rejects.toThrow(
+        `No connection spec for system "${SYSTEM_ID}"`
+      );
+
+      expect(options.clientCache.getOrCreate).not.toHaveBeenCalled();
     });
   });
 });

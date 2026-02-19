@@ -163,6 +163,14 @@ async function createMockData(dir: string, systemHost: string, user: string): Pr
     path.join(hlqDir, 'LARGE.DATA_meta.json'),
     JSON.stringify({ dsn: `${user}.LARGE.DATA`, dsorg: 'PS', recfm: 'FB', lrecl: 80 })
   );
+
+  // Dataset with unprintable character for sanitization test
+  const rawPath = path.join(hlqDir, 'RAW.DATA');
+  await fs.writeFile(rawPath, 'hello\x01world\nline2');
+  await fs.writeFile(
+    path.join(hlqDir, 'RAW.DATA_meta.json'),
+    JSON.stringify({ dsn: `${user}.RAW.DATA`, dsorg: 'PS', recfm: 'FB', lrecl: 80 })
+  );
 }
 
 /** Create a server with mock backend, connect a client, return both. */
@@ -648,6 +656,64 @@ describe('Dataset tools with mock backend', () => {
       const envelope = parseEnvelope<{ text: string }>(result);
       const meta = envelope._result as ReadResultMeta;
       expect(meta.contentLength).toBe(envelope.data.text.length);
+    });
+
+    it('should set hasMore true and include message when more lines exist', async () => {
+      const result = await client.callTool({
+        name: 'readDataset',
+        arguments: { dsn: 'TESTUSER.LARGE.DATA', lineCount: 10 },
+      });
+
+      const envelope = parseEnvelope<{ text: string }>(result);
+      const meta = envelope._result as ReadResultMeta;
+      expect(meta.totalLines).toBe(50);
+      expect(meta.returnedLines).toBe(10);
+      expect(meta.hasMore).toBe(true);
+      expect(envelope.messages).toHaveLength(1);
+      expect(envelope.messages[0]).toContain('startLine=11');
+      expect(envelope.messages[0]).toContain('lineCount');
+      expect(envelope.messages[0]).toContain('_result.hasMore is false');
+    });
+
+    it('should return second page with startLine 11', async () => {
+      const result = await client.callTool({
+        name: 'readDataset',
+        arguments: { dsn: 'TESTUSER.LARGE.DATA', startLine: 11, lineCount: 10 },
+      });
+
+      const envelope = parseEnvelope<{ text: string }>(result);
+      const meta = envelope._result as ReadResultMeta;
+      expect(meta.startLine).toBe(11);
+      expect(meta.returnedLines).toBe(10);
+      expect(meta.totalLines).toBe(50);
+      expect(meta.hasMore).toBe(true);
+      expect(envelope.data.text).toContain('LINE 011');
+      expect(envelope.data.text).not.toContain('LINE 001');
+    });
+
+    it('should set hasMore false and empty messages when all lines fit in one window', async () => {
+      const result = await client.callTool({
+        name: 'readDataset',
+        arguments: { dsn: 'TESTUSER.LARGE.DATA', startLine: 1, lineCount: 50 },
+      });
+
+      const envelope = parseEnvelope<{ text: string }>(result);
+      const meta = envelope._result as ReadResultMeta;
+      expect(meta.hasMore).toBe(false);
+      expect(meta.returnedLines).toBe(50);
+      expect(envelope.messages).toHaveLength(0);
+    });
+
+    it('should replace unprintable characters with period', async () => {
+      const result = await client.callTool({
+        name: 'readDataset',
+        arguments: { dsn: 'TESTUSER.RAW.DATA' },
+      });
+
+      const envelope = parseEnvelope<{ text: string }>(result);
+      expect(envelope.data.text).toContain('hello.world');
+      expect(envelope.data.text).not.toContain('\x01');
+      expect(envelope.data.text).toContain('line2');
     });
   });
 

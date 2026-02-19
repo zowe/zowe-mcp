@@ -38,7 +38,7 @@ export const DEFAULT_LIST_LIMIT = 500;
 export const MAX_LIST_LIMIT = 1000;
 
 /** Auto-truncation limit for readDataset when no window is requested. */
-export const MAX_READ_LINES = 2000;
+export const MAX_READ_LINES = 1000;
 
 // ---------------------------------------------------------------------------
 // Envelope types
@@ -80,6 +80,8 @@ export interface ReadResultMeta {
   contentLength: number;
   /** Inferred content type. */
   mimeType: string;
+  /** True if more lines exist beyond the returned window. */
+  hasMore: boolean;
 }
 
 /** Result summary for mutation operations. */
@@ -243,6 +245,7 @@ export function windowContent(
 
   const windowedLines = allLines.slice(startIdx, endIdx);
   const windowedText = windowedLines.join('\n');
+  const hasMore = startIdx + windowedLines.length < totalLines;
 
   return {
     text: windowedText,
@@ -253,8 +256,42 @@ export function windowContent(
       returnedLines: windowedLines.length,
       contentLength: windowedText.length,
       mimeType,
+      hasMore,
     },
   };
+}
+
+/**
+ * Return messages to include in the response envelope when the read has more lines.
+ * Directs the agent to call the tool again with the next startLine/lineCount; used in the envelope "messages" array.
+ */
+export function getReadMessages(meta: ReadResultMeta): string[] {
+  if (!meta.hasMore) return [];
+  const nextStartLine = meta.startLine + meta.returnedLines;
+  return [
+    `More lines are available (showing lines ${meta.startLine}–${meta.startLine + meta.returnedLines - 1} of ${meta.totalLines}). ` +
+      `You must call this tool again with startLine=${nextStartLine} and the same lineCount to fetch the next page. ` +
+      `Do not answer with only partial data—keep calling until _result.hasMore is false.`,
+  ];
+}
+
+/**
+ * Replace unprintable characters in text with '.' for safe JSON and display.
+ * Keeps \t, \n, \r. Replaces control chars (0x00–0x1F except \t/\n/\r), DEL (0x7F), and C1 controls (0x80–0x9F).
+ */
+export function sanitizeTextForDisplay(text: string): string {
+  let result = '';
+  for (const char of text) {
+    const code = char.codePointAt(0) ?? 0;
+    if (code === 0x09 || code === 0x0a || code === 0x0d) {
+      result += char;
+    } else if (code <= 0x1f || code === 0x7f || (code >= 0x80 && code <= 0x9f)) {
+      result += '.';
+    } else {
+      result += char;
+    }
+  }
+  return result;
 }
 
 /**

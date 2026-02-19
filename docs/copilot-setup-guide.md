@@ -104,7 +104,7 @@ Tool names in Copilot are prefixed with `mcp_zowe_` (e.g. `mcp_zowe_info`, `mcp_
 | Step | Action |
 | ---- | ------ |
 | 1 | (Broadcom) Get OneTrust approval and Gemini API key; add Gemini in Copilot **Manage Models** and select it. |
-| 2 | Download the `.vsix` from [Releases](../../releases) and **Install from VSIX** in VS Code; reload. |
+| 2 | Download the `.vsix` from [Releases](https://github.com/plavjanik/zowe-mcp/releases) and **Install from VSIX** in VS Code; reload. |
 | 3 | Set **Zowe MCP → Native Systems** to `["user@host"]` (or use Mock Data); reload or restart Zowe MCP. |
 | 4 | In Copilot Chat, ensure Zowe tools are enabled and try *“Use the info tool to show the Zowe MCP server version.”* |
 | 5 | Use **MCP: List Servers** to restart Zowe or **Show Output**; use **Output → Zowe MCP** for extension logs. |

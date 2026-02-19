@@ -17,6 +17,7 @@ List of new functions or behaviors requested from Zowe Native Proto for use by Z
 
 - **Request**: When `listDatasets` is called with `attributes: true`, include attribute fields in each returned item (e.g. dsorg, recfm, lrecl, blksz, volser, cdate, rdate).
 - **Why**: AI agents and tools need type/format/size to reason about datasets; currently attributes are not returned.
+- ✅ **Status**: Supported and used by the Zowe MCP server. The Zowe MCP server calls the SDK with `attributes: true` by default; the tool accepts an optional `attributes` parameter (default true) so callers can set `attributes: false` for names-only responses.
 
 ---
 

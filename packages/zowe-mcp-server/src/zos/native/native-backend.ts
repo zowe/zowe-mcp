@@ -38,7 +38,7 @@ const NOT_IMPL = 'Not implemented for Zowe Native backend';
 
 /** Subset of ZSshClient.ds we use (SDK types may be loose). */
 interface NativeDsApi {
-  listDatasets(req: { pattern: string }): Promise<{
+  listDatasets(req: { pattern: string; attributes?: boolean }): Promise<{
     items?: {
       name: string;
       dsorg?: string;
@@ -155,11 +155,15 @@ export class NativeBackend {
     systemId: SystemId,
     pattern: string,
     _volser?: string,
-    userId?: string
+    userId?: string,
+    attributes?: boolean
   ): Promise<DatasetEntry[]> {
     return this.withNativeClient(systemId, userId, async client => {
       const ds = (client as unknown as { ds: NativeDsApi }).ds;
-      const response = await ds.listDatasets({ pattern });
+      const response = await ds.listDatasets({
+        pattern,
+        attributes: attributes ?? true,
+      });
       return (response.items ?? []).map(mapDatasetToEntry);
     });
   }

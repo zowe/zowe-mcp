@@ -62,10 +62,11 @@ class CountingBackend implements ZosBackend {
     systemId: SystemId,
     pattern: string,
     volser?: string,
-    userId?: string
+    userId?: string,
+    attributes?: boolean
   ): Promise<DatasetEntry[]> {
     this.listDatasetsCallCount++;
-    return this.inner.listDatasets(systemId, pattern, volser, userId);
+    return this.inner.listDatasets(systemId, pattern, volser, userId, attributes);
   }
 
   async listMembers(systemId: SystemId, dsn: string, pattern?: string): Promise<MemberEntry[]> {

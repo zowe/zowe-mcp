@@ -172,16 +172,21 @@ export interface ZosBackend {
    * - `*` matches any characters within a single qualifier
    * - `**` matches any number of qualifiers
    *
+   * When `attributes` is false, backends may return only dsn (and volser if needed for
+   * resource links); when true or omitted, return full attributes when supported.
+   *
    * @param systemId - Target z/OS system.
    * @param pattern - Dataset name pattern (e.g. `"USER.*"`).
    * @param volser - Optional volume serial for uncataloged datasets.
    * @param userId - Optional user ID (for backends that need it, e.g. SSH per-user session).
+   * @param attributes - When false, return only dataset names; when true or omitted, include attributes when supported.
    */
   listDatasets(
     systemId: SystemId,
     pattern: string,
     volser?: string,
-    userId?: string
+    userId?: string,
+    attributes?: boolean
   ): Promise<DatasetEntry[]>;
 
   /**

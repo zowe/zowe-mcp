@@ -151,6 +151,7 @@ export function registerDatasetTools(
         'List datasets matching a DSLEVEL pattern. Results are paginated (default 500, max 1000 per page). ' +
         'When _result.hasMore is true, more items exist—you must call this tool again with offset and limit to get the next page (offset = current offset + _result.count, same limit). ' +
         'Do not answer using only the first page; fetch all pages until _result.hasMore is false. Parameters: offset (0-based), limit (items per page). ' +
+        'Set attributes to false for names-only (default true includes dsorg, recfm, lrecl, etc.). ' +
         dslevelDescription,
       annotations: { readOnlyHint: true },
       inputSchema: {
@@ -179,10 +180,18 @@ export function registerDatasetTools(
           .max(1000)
           .optional()
           .describe('Maximum number of items to return. Default: 500. Max: 1000.'),
+        attributes: z
+          .boolean()
+          .optional()
+          .default(true)
+          .describe(
+            'When true (default), include dataset attributes (dsorg, recfm, lrecl, blksz, volser, creationDate). When false, return only dataset names.'
+          ),
       },
     },
-    async ({ dsnPattern, system, volser, offset, limit }) => {
-      log.info('listDatasets called', { dsnPattern, system, volser, offset, limit });
+    async ({ dsnPattern, system, volser, offset, limit, attributes }) => {
+      const wantAttrs = attributes ?? true;
+      log.info('listDatasets called', { dsnPattern, system, volser, offset, limit, attributes });
 
       try {
         const systemId = resolveSystemForTool(deps.systemRegistry, deps.sessionState, system);
@@ -201,10 +210,11 @@ export function registerDatasetTools(
                 userId: userId ?? '',
                 pattern: resolvedPattern,
                 volser: volser ?? '',
+                attributes: wantAttrs ? 'true' : 'false',
               }),
-              () => deps.backend.listDatasets(systemId, resolvedPattern, volser, userId)
+              () => deps.backend.listDatasets(systemId, resolvedPattern, volser, userId, wantAttrs)
             )
-          : await deps.backend.listDatasets(systemId, resolvedPattern, volser, userId);
+          : await deps.backend.listDatasets(systemId, resolvedPattern, volser, userId, wantAttrs);
 
         // Add resource links; output DSN as fully qualified (no quotes)
         const enriched = datasets.map((ds: DatasetEntry) => ({

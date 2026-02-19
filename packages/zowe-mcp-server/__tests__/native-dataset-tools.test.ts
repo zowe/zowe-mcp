@@ -59,21 +59,22 @@ const SPEC: ParsedConnectionSpec = {
 
 /** Fake SDK client shape for listDsMembers / listDatasets. */
 function createFakeNativeClient() {
+  const fullItems = [
+    {
+      name: 'USER.PDS.LIB',
+      dsorg: 'PO',
+      recfm: 'FB',
+      lrecl: 80,
+      blksize: 27920,
+      cdate: '2024-01-01',
+      volser: 'VOL1',
+    },
+  ];
   return {
     ds: {
-      listDatasets: () =>
+      listDatasets: (req: { pattern: string; attributes?: boolean }) =>
         Promise.resolve({
-          items: [
-            {
-              name: 'USER.PDS.LIB',
-              dsorg: 'PO',
-              recfm: 'FB',
-              lrecl: 80,
-              blksize: 27920,
-              cdate: '2024-01-01',
-              volser: 'VOL1',
-            },
-          ],
+          items: req.attributes === false ? [{ name: 'USER.PDS.LIB' }] : fullItems,
         }),
       listDsMembers: () =>
         Promise.resolve({
@@ -192,20 +193,55 @@ describe('Dataset tools with native backend', () => {
   });
 
   describe('listDatasets', () => {
-    it('should return envelope with _context, _result, and data containing datasets', async () => {
+    it('should return envelope with _context, _result, and data containing datasets with attributes', async () => {
       const result = await client.callTool({
         name: 'listDatasets',
         arguments: { dsnPattern: '*' },
       });
 
-      const envelope = parseEnvelope<{ dsn: string }[]>(result);
+      const envelope = parseEnvelope<
+        {
+          dsn: string;
+          dsorg?: string;
+          recfm?: string;
+          lrecl?: number;
+          blksz?: number;
+          volser?: string;
+          creationDate?: string;
+        }[]
+      >(result);
 
       expect(envelope._context).toBeDefined();
       // No resolvedPattern when input already normalized (pattern '*')
       expect(envelope._result).toBeDefined();
       expect(Array.isArray(envelope.data)).toBe(true);
       expect(envelope.data).toHaveLength(1);
+      expect(envelope.data[0]).toMatchObject({
+        dsn: 'USER.PDS.LIB',
+        dsorg: 'PO',
+        recfm: 'FB',
+        lrecl: 80,
+        blksz: 27920,
+        volser: 'VOL1',
+        creationDate: '2024-01-01',
+      });
+    });
+
+    it('should return only dsn and resourceLink when attributes: false', async () => {
+      const result = await client.callTool({
+        name: 'listDatasets',
+        arguments: { dsnPattern: '*', attributes: false },
+      });
+
+      const envelope = parseEnvelope<{ dsn: string; resourceLink?: string }[]>(result);
+
+      expect(envelope.data).toHaveLength(1);
       expect(envelope.data[0].dsn).toBe('USER.PDS.LIB');
+      expect(envelope.data[0]).toHaveProperty('resourceLink');
+      // Names-only: no attribute fields
+      expect(envelope.data[0]).not.toHaveProperty('dsorg');
+      expect(envelope.data[0]).not.toHaveProperty('recfm');
+      expect(envelope.data[0]).not.toHaveProperty('lrecl');
     });
   });
 });

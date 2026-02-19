@@ -161,7 +161,8 @@ export class FilesystemMockBackend implements ZosBackend {
     systemId: SystemId,
     pattern: string,
     volser?: string,
-    userId?: string
+    userId?: string,
+    attributes?: boolean
   ): Promise<DatasetEntry[]> {
     void [volser, userId];
     const sysDir = this.systemDir(systemId);
@@ -170,6 +171,7 @@ export class FilesystemMockBackend implements ZosBackend {
     }
 
     const results: DatasetEntry[] = [];
+    const includeAttrs = attributes !== false;
 
     // Walk HLQ directories
     const hlqDirs = await fs.readdir(sysDir);
@@ -188,6 +190,11 @@ export class FilesystemMockBackend implements ZosBackend {
         const fullPath = path.join(hlqPath, entry);
 
         if (!matchPattern(dsn, pattern)) continue;
+
+        if (!includeAttrs) {
+          results.push({ dsn });
+          continue;
+        }
 
         const isDir = await isDirectory(fullPath);
         const metaPath = isDir

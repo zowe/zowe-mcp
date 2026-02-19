@@ -26,37 +26,47 @@ const SPEC: ParsedConnectionSpec = { user: 'USER', host: 'host.example.com', por
 
 /** Fake SDK client shape used by listDatasets / listDsMembers / readDataset. */
 function createFakeClient(overrides?: {
-  listDatasets?: (req: { pattern: string }) => Promise<{ items?: { name: string }[] }>;
+  listDatasets?: (req: { pattern: string; attributes?: boolean }) => Promise<{
+    items?: {
+      name: string;
+      dsorg?: string;
+      recfm?: string;
+      lrecl?: number;
+      blksize?: number;
+      cdate?: string;
+      volser?: string;
+    }[];
+  }>;
   listDsMembers?: (req: { dsname: string }) => Promise<{ items?: { name: string }[] }>;
   readDataset?: (req: { dsname: string; localEncoding?: string }) => Promise<{
     etag?: string;
     data?: string;
   }>;
 }) {
-  const defaultReadDataset = (req: { dsname: string }) =>
-    Promise.resolve({
+  const defaultReadDataset = (req: { dsname: string }) => {
+    void req;
+    return Promise.resolve({
       etag: 'mock-etag',
       data: Buffer.from('line1\nline2\nline3', 'utf-8').toString('base64'),
     });
+  };
+
+  const defaultListDatasetsItems = [
+    {
+      name: 'USER.DATA',
+      dsorg: 'PO',
+      recfm: 'FB',
+      lrecl: 80,
+      blksize: 27920,
+      cdate: '2024-01-01',
+      volser: 'VOL1',
+    },
+  ];
 
   return {
     ds: {
       listDatasets:
-        overrides?.listDatasets ??
-        (() =>
-          Promise.resolve({
-            items: [
-              {
-                name: 'USER.DATA',
-                dsorg: 'PO',
-                recfm: 'FB',
-                lrecl: 80,
-                blksize: 27920,
-                cdate: '2024-01-01',
-                volser: 'VOL1',
-              },
-            ],
-          })),
+        overrides?.listDatasets ?? (() => Promise.resolve({ items: defaultListDatasetsItems })),
       listDsMembers:
         overrides?.listDsMembers ??
         (() => Promise.resolve({ items: [{ name: 'MEMBER1' }, { name: 'MEMBER2' }] })),
@@ -129,6 +139,56 @@ describe('NativeBackend', () => {
         user: SPEC.user,
         password: 'secret',
       });
+    });
+
+    it('calls SDK listDatasets with attributes: true by default', async () => {
+      const listDatasetsSpy = vi.fn().mockResolvedValue({
+        items: [
+          {
+            name: 'USER.DATA',
+            dsorg: 'PO',
+            recfm: 'FB',
+            lrecl: 80,
+            blksize: 27920,
+            cdate: '2024-01-01',
+            volser: 'VOL1',
+          },
+        ],
+      });
+      const options = createOptions({
+        clientCache: {
+          getOrCreate: vi
+            .fn()
+            .mockResolvedValue(createFakeClient({ listDatasets: listDatasetsSpy })),
+          evict: vi.fn(),
+        },
+      });
+      const backend = new NativeBackend(options);
+
+      await backend.listDatasets(SYSTEM_ID, 'USER.*');
+
+      expect(listDatasetsSpy).toHaveBeenCalledWith({ pattern: 'USER.*', attributes: true });
+    });
+
+    it('calls SDK listDatasets with attributes: false when requested', async () => {
+      const listDatasetsSpy = vi.fn().mockResolvedValue({
+        items: [{ name: 'USER.DATA' }],
+      });
+      const options = createOptions({
+        clientCache: {
+          getOrCreate: vi
+            .fn()
+            .mockResolvedValue(createFakeClient({ listDatasets: listDatasetsSpy })),
+          evict: vi.fn(),
+        },
+      });
+      const backend = new NativeBackend(options);
+
+      const result = await backend.listDatasets(SYSTEM_ID, 'USER.*', undefined, undefined, false);
+
+      expect(listDatasetsSpy).toHaveBeenCalledWith({ pattern: 'USER.*', attributes: false });
+      expect(result).toHaveLength(1);
+      expect(result[0]).toEqual({ dsn: 'USER.DATA' });
     });
 
     it('on auth-style error calls evict, markInvalid, onPasswordInvalid and rethrows', async () => {

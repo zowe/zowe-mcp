@@ -336,6 +336,24 @@ describe('Dataset tools with mock backend', () => {
       expect(envelope.data.length).toBe(meta.count);
     });
 
+    it('should return only dsn and resourceLink when listDatasets attributes: false', async () => {
+      const result = await client.callTool({
+        name: 'listDatasets',
+        arguments: { dsnPattern: 'TESTUSER.*', attributes: false },
+      });
+
+      const envelope = parseEnvelope<{ dsn: string; resourceLink?: string }[]>(result);
+
+      expect(Array.isArray(envelope.data)).toBe(true);
+      expect(envelope.data.length).toBeGreaterThan(0);
+      const first = envelope.data[0];
+      expect(first).toHaveProperty('dsn');
+      expect(first).toHaveProperty('resourceLink');
+      expect(first).not.toHaveProperty('dsorg');
+      expect(first).not.toHaveProperty('recfm');
+      expect(first).not.toHaveProperty('lrecl');
+    });
+
     it('should not include resolvedDsn when input already normalized (listMembers)', async () => {
       const result = await client.callTool({
         name: 'listMembers',

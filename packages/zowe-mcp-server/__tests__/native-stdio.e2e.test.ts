@@ -218,6 +218,52 @@ describe.skipIf(!canRunNativeE2E)(
       expect(dsns.some(d => d.includes('MACLIB'))).toBe(true);
     });
 
+    it('listDatasets with SYS1.*LIB returns dataset attributes when attributes default', async () => {
+      const { parsed } = await callToolSuccess(client, 'listDatasets', {
+        dsnPattern: "'SYS1.*LIB'",
+      });
+      const o = parsed as {
+        _context: unknown;
+        data: {
+          dsn: string;
+          resourceLink?: string;
+          dsorg?: string;
+          recfm?: string;
+          lrecl?: number;
+          blksz?: number;
+          volser?: string;
+          creationDate?: string;
+        }[];
+      };
+      expect(Array.isArray(o.data)).toBe(true);
+      expect(o.data.length).toBeGreaterThan(0);
+      const first = o.data[0];
+      expect(first).toHaveProperty('dsn');
+      expect(typeof first.dsn).toBe('string');
+      expect(first).toHaveProperty('resourceLink');
+      expect(first).toHaveProperty('dsorg');
+      expect(first).toHaveProperty('recfm');
+      expect(typeof first.lrecl).toBe('number');
+      expect(typeof first.blksz).toBe('number');
+    });
+
+    it('listDatasets with attributes false returns names only', async () => {
+      const { parsed } = await callToolSuccess(client, 'listDatasets', {
+        dsnPattern: "'SYS1.*LIB'",
+        attributes: false,
+      });
+      const o = parsed as {
+        _context: unknown;
+        data: { dsn: string; resourceLink?: string; dsorg?: string }[];
+      };
+      expect(Array.isArray(o.data)).toBe(true);
+      expect(o.data.length).toBeGreaterThan(0);
+      const first = o.data[0];
+      expect(first).toHaveProperty('dsn');
+      expect(first).toHaveProperty('resourceLink');
+      expect(first).not.toHaveProperty('dsorg');
+    });
+
     it('listMembers with SYS1.SAMPLIB returns 1000+ members', async () => {
       const { parsed } = await callToolSuccess(client, 'listMembers', {
         dsn: "'SYS1.SAMPLIB'",

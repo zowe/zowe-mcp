@@ -196,6 +196,8 @@ wins.
 
 ## Configuring VS Code Copilot
 
+**New to Zowe MCP?** See **[Copilot setup guide](docs/COPILOT-SETUP.md)** for installing the extension from a VSIX, configuring Gemini (e.g. for Broadcom), defining `user@host`, and Copilot/MCP tips (list servers, restart, view output).
+
 There are two ways to use Zowe MCP with GitHub Copilot in VS Code:
 
 ### Option A: Install the VS Code extension (recommended)
@@ -396,6 +398,8 @@ npm run check-format  # Check formatting without modifying files
 
 ## Scripts reference
 
+To publish a VSIX to GitHub Releases from your machine (no GitHub Actions): run `npm run release-vsix` (tag defaults to `v` + extension version) or `npm run release-vsix -- v0.1.0`. Or run `./scripts/release-vsix.sh [TAG]` directly. Requires [GitHub CLI](https://cli.github.com/) (`gh`) and `gh auth login`. Builds the extension, creates/updates the release for the tag, and uploads the VSIX.
+
 | Script | Description |
 | --- | --- |
 | `npm run build` | Build all packages |
@@ -412,6 +416,7 @@ npm run check-format  # Check formatting without modifying files
 | `npm run format` | Format all files with Prettier |
 | `npx zowe-mcp-server init-mock --output <dir>` | Generate mock data |
 | `npx zowe-mcp-server call-tool [--mock=<dir>] [<tool-name> [key=value ...]]` | Call a tool from the CLI |
+| `npm run release-vsix [-- TAG]` | Build VSIX and create/update GitHub Release (requires `gh`). Optional tag after `--`, e.g. `v0.1.0`; default from extension version. |
 
 ## License
 

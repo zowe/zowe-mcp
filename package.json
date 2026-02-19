@@ -22,7 +22,8 @@
     "test:all": "npm run test --workspaces",
     "test:server": "npm run test -w packages/zowe-mcp-server",
     "test:vscode": "npm run test -w packages/zowe-mcp-vscode",
-    "test": "npm run test -w packages/zowe-mcp-server"
+    "test": "npm run test -w packages/zowe-mcp-server",
+    "release-vsix": "bash scripts/release-vsix.sh"
   },
   "devDependencies": {
     "dotenv-cli": "^7.4.2",

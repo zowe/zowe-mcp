@@ -1,0 +1,112 @@
+# Zowe MCP – Setup guide for GitHub Copilot
+
+This guide helps you get the Zowe MCP extension running with GitHub Copilot in VS Code so you can use AI tools for z/OS (data sets, context, etc.).
+
+## Who can use Copilot with Zowe MCP
+
+- **Broadcom users**: You can use Copilot with Zowe MCP only if:
+  1. You are included in the **OneTrust approval for Zowe MCP**, and
+  2. You have a **Gemini API key** (used when your org requires “bring your own” model access).
+- **Others**: If your Copilot subscription already includes chat and MCP, you can use the extension with the default models; you may still add Gemini via “Add Models” if you prefer.
+
+## 1. Use Gemini API key in Copilot (Broadcom / BYOK)
+
+If your organization uses “Bring Your Own Key” (BYOK) and you need Gemini:
+
+1. Open **GitHub Copilot Chat** (e.g. **View → Copilot Chat** or `Ctrl+Shift+I` / `Cmd+Shift+I`).
+2. Click the **model name** in the chat header (e.g. “Auto” or the current model).
+3. Choose **Manage Models…** (or **Add Models…**).
+4. Add **Google** as a provider and enter your **Gemini API key** when prompted.
+5. Enable the Gemini model(s) you want to use.
+6. In the model dropdown, select the Gemini model so Copilot uses it for chat (and thus for MCP tools like Zowe).
+
+Your API key is stored by VS Code/Copilot and used only for your chat requests. You can get a key from your org’s GenAI champion.
+
+## 2. Download and install the Zowe MCP extension
+
+The extension is not on the Marketplace yet. Install from the **VSIX** published on GitHub:
+
+1. Go to the [Releases](../../releases) page of this repository.
+2. Open the latest release (e.g. **v0.1.0**).
+3. Download the **`.vsix`** asset (e.g. `zowe-mcp-vscode-0.1.0.vsix`). You must be signed in and have read access to the repo.
+4. In VS Code:
+   - **Extensions** view (`Ctrl+Shift+X` / `Cmd+Shift+X`) → **Views and More Actions** (⋯) → **Install from VSIX…**,
+   - or run **Extensions: Install from VSIX** from the Command Palette (`Ctrl+Shift+P` / `Cmd+Shift+P`).
+5. Select the downloaded `.vsix` file and install. Reload the window if prompted.
+
+After reload, the **Zowe** MCP server is registered with Copilot.
+
+## 3. Define your z/OS system (user@host)
+
+To connect to real z/OS systems over SSH (native backend):
+
+1. Open **Settings** (`Ctrl+,` / `Cmd+,`) and search for **Zowe MCP**.
+2. Find **Native Systems**.
+3. Add connection specs as `user@host` or `user@host:port`, e.g.:
+   - `USERID@sys1.example.com`
+   - `USERID@host.example.com:22`
+4. In the JSON editor it looks like:
+
+   ```json
+   "zowe-mcp.nativeSystems": [
+     "USERID@sys1.example.com"
+   ]
+   ```
+
+5. **Reload the window** (or restart the Zowe MCP server) so the server starts with the native backend. When the server needs a password, the extension will prompt you; it is stored in VS Code Secret Storage under the shared Zowe key.
+
+To use **mock data** instead of a real system (no mainframe), use **Zowe MCP: Generate Mock Data** from the Command Palette or set **Mock Data Dir** to an existing mock data directory. If both Mock Data Dir and Native Systems are set, **Native Systems** is used.
+
+## 4. Check that Copilot sees the Zowe tools
+
+1. Open **Copilot Chat** (`Ctrl+Shift+I` / `Cmd+Shift+I`).
+2. In the chat header, open the **tools** (or context) picker and ensure **Zowe** (or the Zowe MCP server) is enabled so its tools are available.
+3. Try a prompt, for example:
+   - *“Use the info tool to show the Zowe MCP server version.”*
+   - With native/mock configured: *“List the available z/OS systems.”* or *“Set the active system to &lt;your-host&gt; and list datasets matching USER.\*”*
+
+Tool names in Copilot are prefixed with `mcp_zowe_` (e.g. `mcp_zowe_info`, `mcp_zowe_listDatasets`, `mcp_zowe_setSystem`).
+
+## 5. Copilot and MCP tips
+
+### List MCP servers
+
+- **Command Palette** (`Ctrl+Shift+P` / `Cmd+Shift+P`) → **MCP: List Servers**.
+  You’ll see all configured MCP servers (including **Zowe** from this extension).
+
+### Restart an MCP server
+
+- Run **MCP: List Servers**, select **Zowe** (or the server you want), then choose **Restart** (or the equivalent action).
+  Useful after changing **Native Systems** or **Mock Data Dir** if you don’t want to reload the whole window.
+
+### See MCP server output (Zowe MCP server process)
+
+- **MCP: List Servers** → select **Zowe** → **Show Output**.
+  This shows the Zowe MCP server’s logs (stdio/stderr and any logging sent over the protocol).
+
+### See the Zowe MCP extension output
+
+- Open the **Output** panel (**View → Output**).
+- In the dropdown on the right, select **Zowe MCP**.
+  This is the extension’s own log (activation, settings, pipe, etc.), separate from the server process output above.
+
+### Clear cached MCP tools
+
+- If new or updated tools don’t appear, run **MCP: Reset Cached Tools** from the Command Palette, then restart the Zowe server or reload the window.
+
+### Trust and configuration
+
+- The first time an MCP server runs, VS Code may ask you to confirm that you trust it. You must accept for the Zowe server to start.
+- Zowe MCP is registered by the extension (not via `mcp.json`). Its settings are under **Zowe MCP** in VS Code Settings.
+
+## Summary
+
+| Step | Action |
+| ---- | ------ |
+| 1 | (Broadcom) Get OneTrust approval and Gemini API key; add Gemini in Copilot **Manage Models** and select it. |
+| 2 | Download the `.vsix` from [Releases](../../releases) and **Install from VSIX** in VS Code; reload. |
+| 3 | Set **Zowe MCP → Native Systems** to `["user@host"]` (or use Mock Data); reload or restart Zowe MCP. |
+| 4 | In Copilot Chat, ensure Zowe tools are enabled and try *“Use the info tool to show the Zowe MCP server version.”* |
+| 5 | Use **MCP: List Servers** to restart Zowe or **Show Output**; use **Output → Zowe MCP** for extension logs. |
+
+For development, mock mode, and native (SSH) details, see the main [README](../README.md) and [Configuring VS Code Copilot](../README.md#configuring-vs-code-copilot).

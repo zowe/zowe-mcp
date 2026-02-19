@@ -20,6 +20,28 @@ function escapeMd(s: string): string {
   return s.replace(/\|/g, '\\|').replace(/\n/g, ' ');
 }
 
+const CODE_FENCE = '```';
+
+/** Truncate text for preview; if truncated inside a code block, put … inside it and close the fence. */
+function truncateForPreview(text: string, maxLen: number): string {
+  if (text.length <= maxLen) return text;
+  const truncated = text.slice(0, maxLen);
+  const fenceCount = (truncated.match(/```/g) ?? []).length;
+  if (fenceCount % 2 === 1) {
+    return truncated + '\n…\n' + CODE_FENCE;
+  }
+  return truncated + '…';
+}
+
+/** Slug for markdown header anchor (matches GitHub-style heading IDs). */
+function toHeaderAnchor(id: string): string {
+  return id
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, '-')
+    .replace(/[^a-z0-9-]/g, '');
+}
+
 export function writeReport(
   results: RunResult[],
   allToolCalls: { name: string; arguments: Record<string, unknown> }[],
@@ -43,7 +65,8 @@ export function writeReport(
     const total = runs.length;
     const rate = total > 0 ? (passed / total).toFixed(2) : '0';
     const status = passed === total ? 'PASS' : 'FAIL';
-    questionRows.push(`|${escapeMd(qid)}|${passed}/${total} (${rate})|${status}|`);
+    const anchor = toHeaderAnchor(qid);
+    questionRows.push(`|[${escapeMd(qid)}](#${anchor})|${passed}/${total} (${rate})|${status}|`);
   }
 
   const toolCounts = new Map<string, number>();
@@ -90,15 +113,16 @@ export function writeReport(
   for (const [qid, runs] of byQuestion) {
     const first = runs[0];
     if (!first) continue;
-    qaSection.push(`### ${qid}`);
+    qaSection.push(`### ${qid}\n`);
     qaSection.push('**Question:**');
     qaSection.push((first.prompt ?? first.questionId).trim());
     qaSection.push('');
     const answer = (first.finalText ?? first.error ?? '(no answer)').trim();
-    const answerPreview = answer.length > 500 ? answer.slice(0, 500) + '…' : answer;
+    const answerPreview = truncateForPreview(answer, 500);
     qaSection.push('**Answer:**');
+    qaSection.push('<!-- markdownlint-disable -->');
     qaSection.push(answerPreview);
-    qaSection.push('');
+    qaSection.push('<!-- markdownlint-disable -->');
   }
 
   const failures: string[] = [];
@@ -157,6 +181,7 @@ export function writeReport(
     '## Failures',
     '',
     ...(failures.length > 0 ? failures : ['No failures.']),
+    '',
   ].join('\n');
 
   const reportPath = resolve(outDir, 'report.md');

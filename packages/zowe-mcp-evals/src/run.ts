@@ -185,6 +185,9 @@ async function main(): Promise<void> {
 
         const cached = useCache ? await cacheGet(cacheDir, cacheKey) : null;
 
+        log.info(`Question ${q.id}:`);
+        for (const line of q.prompt.trim().split(/\n/)) log.info(`  ${line}`);
+
         if (cached) {
           for (let r = 0; r < repetitions; r++) {
             const { finalText, toolCalls } = cached;
@@ -206,8 +209,6 @@ async function main(): Promise<void> {
             const icon = passed ? PASS : FAIL;
             const detail = passed ? ' cache hit' : ` ${failedAssertion ?? 'assertion failed'}`;
             log.info(`Running ${q.id} (${r + 1}/${repetitions}) ${icon}${detail}`);
-            log.info('  Question:');
-            for (const line of q.prompt.trim().split(/\n/)) log.info(`    ${line}`);
             const answerPreview =
               finalText.length > 300 ? finalText.slice(0, 300) + '…' : finalText;
             log.info('  Answer:');
@@ -239,8 +240,6 @@ async function main(): Promise<void> {
               const icon = passed ? PASS : FAIL;
               const detail = passed ? '' : ` ${failedAssertion ?? 'assertion failed'}`;
               log.info(`Running ${q.id} (${r + 1}/${repetitions}) ${icon}${detail}`);
-              log.info('  Question:');
-              for (const line of q.prompt.trim().split(/\n/)) log.info(`    ${line}`);
               const answerPreview =
                 finalText.length > 300 ? finalText.slice(0, 300) + '…' : finalText;
               log.info('  Answer:');
@@ -259,8 +258,6 @@ async function main(): Promise<void> {
               allResults.push(failedResult);
               questionResults.push(failedResult);
               log.info(`Running ${q.id} (${r + 1}/${repetitions}) ${FAIL} ${msg}`);
-              log.info('  Question:');
-              for (const line of q.prompt.trim().split(/\n/)) log.info(`    ${line}`);
               log.info('  Answer: (error)');
               for (const line of msg.trim().split(/\n/)) log.info(`    ${line}`);
               log.info(`    ${msg}`);

@@ -21,7 +21,47 @@ List of new functions or behaviors requested from Zowe Native Proto for use by Z
 
 ---
 
+## Dataset and member: extended attributes (SMS, ISPF, load modules)
+
+- **Request**: Expose additional attributes so tools and AI agents can reason about storage, editing, and executable metadata:
+  - **Datasets**: SMS-related fields (e.g. storage class, management class, data class, volume serials, space/usage if available from catalog or DFHSM).
+  - **Members**: ISPF statistics (e.g. size, modified date, created date, version, line count, TTR) and, for load libraries, load module attributes (e.g. AMODE, RMODE, size, entry point, aliases).
+- **Where**: In `getDatasetAttributes` (and list with `attributes: true`) for dataset-level SMS attributes; in `listDsMembers` (and any future get-member-attributes) for member-level ISPF and load-module attributes.
+- **Why**: AI agents need to distinguish load modules from source, understand member history, or advise on SMS/space; today only basic dataset attributes (dsorg, recfm, lrecl, etc.) are exposed.
+
+---
+
 ## Dataset: listDsMembers member-name pattern
 
 - **Request**: Add optional member-name pattern (or filter) parameter to `listDsMembers` so the server can filter by member name (e.g. `A*`, `%`).
 - **Why**: Enables server-side filtering instead of client-side only; consistent with pattern semantics for datasets.
+
+---
+
+## Dataset: partial read/write with change detection
+
+- **Request**: Support reading or writing a range of records/lines (e.g. by record number or line offset) so the client does not need to transfer the entire dataset. In addition, provide a way to detect that the dataset (or member) has changed between reads.
+- **Why**: The MCP server currently caches the full dataset for pagination and applies line windowing in the tool layer. For large datasets this is inefficient and can serve stale data. We need either:
+  - **Server-side range read**: Native API that accepts something like `startRecord`, `recordCount` (or line-based) and returns only that slice, so we avoid caching the whole dataset; and/or
+  - **Stable change token**: A version/ETag or last-modified indicator returned with list/read that we can send on a subsequent read so the backend can tell us “content changed” and we can invalidate cache or warn the user.
+- **Open question**: How does the Native Proto backend today (or in future) represent “same content” vs “changed” (e.g. generation, timestamp, ETag) so we can safely paginate without re-reading the full dataset each time?
+
+---
+
+## Dataset: list high-level qualifiers (HLQs)
+
+- **Request**: New RPC (e.g. `listHighLevelQualifiers` or `listHLQs`) that returns the set of high-level qualifiers (first qualifier of dataset names) visible to the user, without listing all datasets.
+- **Input**: Optional scope (e.g. system, volume, or catalog).
+- **Output**: List of HLQ strings (e.g. `["SYS1", "USER", "ISP"]`).
+- **Why**: AI agents and UIs often need to discover “what prefixes exist” before building patterns or drilling down. Listing all datasets under `*` is expensive and unnecessary when only HLQs are needed.
+
+---
+
+## Search: dataset names, member names, and content
+
+- **Request**: Search capabilities in the Native Proto layer:
+  - **By name**: Search dataset names and/or member names by pattern (e.g. wildcard, SUPERCE-style, or regex if supported on the platform).
+  - **By content**: Search inside dataset or member content (e.g. SUPERC/SUPERCE or grep-like) with pattern (string or regex), optionally scoped to a DSN pattern, member pattern, or list of members.
+- **Input**: Pattern type (name vs content), pattern (string/regex), scope (HLQ, DSN pattern, member pattern), optional content search options (case-sensitive, whole record, etc.).
+- **Output**: List of matches with location (dataset, member if applicable, record/line number, matched text or snippet).
+- **Why**: Enables “find where this symbol is used” or “which members reference this copybook” without the client reading every dataset and member; essential for large systems and better UX in MCP tools.

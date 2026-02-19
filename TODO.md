@@ -19,7 +19,7 @@ Items to address later. Not ordered by priority.
 - **Copilot resources and prompts**: Test how the current resources and prompts work in GitHub Copilot.
 - **Windows**: Test on Windows — mainly the named pipe behavior.
 - **Other AI assistants**: Test with Cline (VS Code) and with Claude Desktop / Claude Code.
-- **Password error messages**: Validate that the password error messages match what really happens when errors occur.
+- ✅ **Password error messages**: Validate that the password error messages match what really happens when errors occur.
 - ✅ **Tool description quality**: Evaluate tool descriptions; see how Code4z Assistant does it for reference.
 - ✅ **z/OS integration tests**: Add or run z/OS integration tests. (Native stdio E2E tests)
 
@@ -29,7 +29,7 @@ Items to address later. Not ordered by priority.
 
 ## Authentication / UX
 
-- **Re-prompt on invalid password**: When the password is invalid, prompt to enter the password again in the same way as when the password is missing in VS Code — ideally before failing the action. Standalone MCP server should keep invalid passwords blacklisted. Research MCP elicitation for obtaining a new password.
+- ✅ **Re-prompt on invalid password**: When the password is invalid, prompt to enter the password again in the same way as when the password is missing in VS Code — ideally before failing the action. Standalone MCP server should keep invalid passwords blacklisted. Research MCP elicitation for obtaining a new password.
 - **Remote server with Zowe API ML and OIDC**: Support authentication in remote MCP server scenarios using Zowe API Mediation Layer and OIDC.
 - **Remote MCP credentials**: Research ways for a remote MCP server to request credentials without giving them to the LLM or storing them insecurely.
 

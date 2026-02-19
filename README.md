@@ -179,6 +179,18 @@ back. Passwords are stored under the shared Zowe OSS key
 `zowe.ssh.password.<user>.<hostNormalized>` so other Zowe extensions can reuse
 them. If a password is invalid the extension deletes it from storage.
 
+Server and extension logs include a **passwordHash** (first 16 hex characters of
+SHA-256 of the password in UTF-8) so you can correlate log lines without
+exposing the password. To verify or reproduce the hash from the command line
+(use `-n` so no newline is included):
+
+```bash
+echo -n 'YOUR_EXACT_PASSWORD' | sha256sum
+```
+
+Take the first 16 characters of the output; they should match the `passwordHash`
+in the logs when the same password is used.
+
 You cannot use both mock mode and native mode; if both are configured, native
 wins.
 

@@ -46,11 +46,11 @@ describe('SessionState', () => {
       expect(ctx.userId).toBe('USER');
     });
 
-    it('should not overwrite existing context on re-activation', () => {
+    it('should update existing context on re-activation', () => {
       const state = new SessionState();
       state.setActiveSystem('sys1', 'USER');
       const ctx = state.setActiveSystem('sys1', 'OTHERUSER');
-      expect(ctx.userId).toBe('USER');
+      expect(ctx.userId).toBe('OTHERUSER');
     });
   });
 

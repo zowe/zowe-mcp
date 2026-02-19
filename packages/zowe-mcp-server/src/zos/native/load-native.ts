@@ -16,6 +16,7 @@
  * a list of user@host connection specs.
  */
 
+import { ZSshClient } from 'zowe-native-proto-sdk';
 import type { ZosBackend } from '../backend.js';
 import type { CredentialProvider } from '../credentials.js';
 import { SystemRegistry } from '../system.js';
@@ -40,12 +41,18 @@ export interface LoadNativeOptions {
   requestPasswordCallback?: NativeCredentialProviderOptions['requestPasswordCallback'];
   /** VS Code only: callback when auth fails (sends password-invalid event). */
   onPasswordInvalid?: (user: string, host: string, port?: number) => void;
+  /** When true (default), deploy ZNP via ZSshUtils.installServer when "Server not found" is detected. */
+  autoInstallZnp?: boolean;
+  /** Remote path where the ZNP server is installed/run (default: ~/.zowe-server). */
+  nativeServerPath?: string;
 }
 
 export interface NativeSetup {
   backend: ZosBackend;
   credentialProvider: CredentialProvider;
   systemRegistry: SystemRegistry;
+  /** When set (VS Code mode), updates systems from a new list (e.g. systems-update event). */
+  updateSystems?: (systems: string[]) => void;
 }
 
 /**
@@ -61,18 +68,6 @@ export function loadNative(options: LoadNativeOptions): NativeSetup {
   }
 
   const systemRegistry = new SystemRegistry();
-  const seenHosts = new Set<string>();
-  for (const spec of specs) {
-    if (!seenHosts.has(spec.host)) {
-      seenHosts.add(spec.host);
-      systemRegistry.register({
-        host: spec.host,
-        port: spec.port,
-        description: `SSH (${spec.host})`,
-      });
-    }
-  }
-
   const credentialProvider = new NativeCredentialProvider({
     connectionSpecs: specs,
     useEnvForPassword: options.useEnvForPassword,
@@ -80,10 +75,16 @@ export function loadNative(options: LoadNativeOptions): NativeSetup {
     requestPasswordCallback: options.requestPasswordCallback,
   });
 
-  const clientCache = new SshClientCache();
+  const clientCache = new SshClientCache({
+    autoInstallZnp: options.autoInstallZnp ?? true,
+    serverPath: options.nativeServerPath ?? ZSshClient.DEFAULT_SERVER_PATH,
+  });
+
+  /** Mutable ref so getSpec and updateSystems see the same list (used for systems-update from VS Code). */
+  const specsRef = { current: specs };
 
   function getSpec(systemId: string, userId?: string): ParsedConnectionSpec | undefined {
-    const forHost = specs.filter(s => s.host === systemId);
+    const forHost = specsRef.current.filter(s => s.host === systemId);
     if (forHost.length === 0) return undefined;
     if (userId) {
       const match = forHost.find(s => s.user.toUpperCase() === userId.toUpperCase());
@@ -99,5 +100,33 @@ export function loadNative(options: LoadNativeOptions): NativeSetup {
     onPasswordInvalid: options.onPasswordInvalid,
   });
 
-  return { backend, credentialProvider, systemRegistry };
+  function registerSystemsFromSpecs(specList: ParsedConnectionSpec[]): void {
+    systemRegistry.clear();
+    const seenHosts = new Set<string>();
+    for (const spec of specList) {
+      if (!seenHosts.has(spec.host)) {
+        seenHosts.add(spec.host);
+        systemRegistry.register({
+          host: spec.host,
+          port: spec.port,
+          description: `SSH (${spec.host})`,
+        });
+      }
+    }
+  }
+
+  registerSystemsFromSpecs(specs);
+
+  const updateSystems =
+    options.passwordStore != null && options.requestPasswordCallback != null
+      ? (systems: string[]) => {
+          if (systems.length === 0) return;
+          const newSpecs = parseConnectionSpecs(systems);
+          specsRef.current = newSpecs;
+          credentialProvider.updateSpecs(newSpecs);
+          registerSystemsFromSpecs(newSpecs);
+        }
+      : undefined;
+
+  return { backend, credentialProvider, systemRegistry, updateSystems };
 }

@@ -58,6 +58,11 @@ export interface SystemInfo {
 export class SystemRegistry {
   private readonly systems = new Map<SystemId, ZosSystem>();
 
+  /** Remove all registered systems. Used when applying a new list (e.g. systems-update from VS Code). */
+  clear(): void {
+    this.systems.clear();
+  }
+
   /** Register a system. Overwrites any existing entry with the same host. */
   register(system: ZosSystem): void {
     this.systems.set(system.host, system);

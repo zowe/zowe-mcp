@@ -19,12 +19,19 @@
  * - `password-invalid` → delete secret for that user@host
  */
 
+import * as crypto from 'crypto';
 import * as vscode from 'vscode';
 import type {
   ExtensionToServerEvent,
   ServerToExtensionEvent,
 } from 'zowe-mcp-server/dist/events.js';
 import { getNativePasswordKey } from './secrets';
+
+/** Hash of password for log correlation only; never log the plain password. */
+function passwordHash(password: string): string {
+  if (password === '') return '<empty>';
+  return crypto.createHash('sha256').update(password, 'utf8').digest('hex').slice(0, 16);
+}
 
 /**
  * Maps RFC 5424 syslog levels to VS Code LogOutputChannel methods.
@@ -107,8 +114,13 @@ async function handleRequestPassword(
 ): Promise<void> {
   if (event.type !== 'request-password') return;
   const { user, host, port } = event.data;
+  const portNum = port ?? 22;
   const key = getNativePasswordKey(user, host);
   let password = await options.context.secrets.get(key);
+  const hadStoredSecret = !!password;
+  log.debug(
+    `SSH password requested: user=${user} host=${host} port=${portNum} key=${key} hadStoredSecret=${hadStoredSecret}`
+  );
   if (!password) {
     password = await vscode.window.showInputBox({
       title: `Zowe MCP: Password for ${user}@${host}`,
@@ -122,6 +134,9 @@ async function handleRequestPassword(
     }
     await options.context.secrets.store(key, password);
   }
+  log.debug(
+    `SSH password sending to server: user=${user} host=${host} port=${portNum} passwordHash=${passwordHash(password)}`
+  );
   options.sendEventToServers({
     type: 'password',
     data: { user, host, port, password },
@@ -133,12 +148,16 @@ async function handleRequestPassword(
  * Handles password-invalid: delete the secret so it is not reused.
  */
 async function handlePasswordInvalid(
+  log: vscode.LogOutputChannel,
   event: ServerToExtensionEvent,
   options: NativeSecretsOptions
 ): Promise<void> {
   if (event.type !== 'password-invalid') return;
-  const { user, host } = event.data;
+  const { user, host, port } = event.data;
   const key = getNativePasswordKey(user, host);
+  log.info(
+    `SSH password-invalid: deleting stored secret user=${user} host=${host} port=${port ?? 22} key=${key}`
+  );
   await options.context.secrets.delete(key);
 }
 
@@ -163,7 +182,7 @@ export function handleServerEvent(
       if (options) void handleRequestPassword(log, event, options);
       break;
     case 'password-invalid':
-      if (options) void handlePasswordInvalid(event, options);
+      if (options) void handlePasswordInvalid(log, event, options);
       break;
     default:
       log.warn(`Unknown event type from MCP server: ${(event as { type: string }).type}`);

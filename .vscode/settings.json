@@ -20,7 +20,8 @@
     "recfm",
     "recompiles",
     "SAMPLIB",
-    "volser"
+    "volser",
+    "waitable"
   ],
   "yaml.schemas": {
     "packages/zowe-mcp-evals/schemas/evals-question-set.schema.json": "packages/zowe-mcp-evals/questions/*.yaml"

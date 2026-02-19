@@ -51,6 +51,10 @@ interface ParsedArgs {
   subcommand?: string;
   /** Response cache: false = disabled, object = custom options, undefined = server defaults. */
   responseCache?: ResponseCacheConfig | false;
+  /** When true, do not auto-install ZNP on "Server not found" (native mode). Default false = auto-install enabled. */
+  nativeNoAutoInstallZnp?: boolean;
+  /** Override remote path for ZNP server install/run (native mode). Default ~/.zowe-server. */
+  nativeServerPath?: string;
 }
 
 function parseArgs(): ParsedArgs {
@@ -64,6 +68,9 @@ function parseArgs(): ParsedArgs {
   let subcommand: string | undefined;
   let responseCache: ResponseCacheConfig | false | undefined;
 
+  let nativeNoAutoInstallZnp = false;
+  let nativeServerPath: string | undefined;
+
   // Check for subcommand (first non-flag argument)
   if (args.length > 0 && !args[0].startsWith('-')) {
     subcommand = args[0];
@@ -76,6 +83,8 @@ function parseArgs(): ParsedArgs {
       systemSpecs,
       subcommand,
       responseCache,
+      nativeNoAutoInstallZnp,
+      nativeServerPath,
     };
   }
 
@@ -104,6 +113,14 @@ function parseArgs(): ParsedArgs {
       configPath = args[++i];
     } else if (args[i] === '--system' && i + 1 < args.length) {
       systemSpecs.push(args[++i]);
+    } else if (args[i] === '--native-no-auto-install-znp') {
+      nativeNoAutoInstallZnp = true;
+    } else if (args[i] === '--native-server-path' && i + 1 < args.length) {
+      nativeServerPath = args[++i];
+      if (!nativeServerPath.trim()) {
+        getLogger().error('--native-server-path requires a non-empty path');
+        process.exit(1);
+      }
     } else if (args[i] === '--response-cache-disable') {
       responseCache = false;
     } else if (args[i] === '--response-cache-ttl-minutes' && i + 1 < args.length) {
@@ -160,7 +177,28 @@ function parseArgs(): ParsedArgs {
     responseCache = false;
   }
 
-  return { transport, port, mockDir, native, configPath, systemSpecs, subcommand, responseCache };
+  if (
+    process.env.ZOWE_MCP_NATIVE_NO_AUTO_INSTALL_ZNP === '1' ||
+    process.env.ZOWE_MCP_NATIVE_NO_AUTO_INSTALL_ZNP === 'true'
+  ) {
+    nativeNoAutoInstallZnp = true;
+  }
+  if (process.env.ZOWE_MCP_NATIVE_SERVER_PATH?.trim()) {
+    nativeServerPath = process.env.ZOWE_MCP_NATIVE_SERVER_PATH.trim();
+  }
+
+  return {
+    transport,
+    port,
+    mockDir,
+    native,
+    configPath,
+    systemSpecs,
+    subcommand,
+    responseCache,
+    nativeNoAutoInstallZnp,
+    nativeServerPath,
+  };
 }
 
 function loadSystemsFromConfig(configPath: string): string[] {
@@ -192,6 +230,8 @@ Backend (server mode):
   --native             Zowe Native (SSH) backend
   --config <path>      JSON file with { "systems": ["user@host", ...] } (used with --native)
   --system <spec>      Connection spec user@host or user@host:port (repeatable, used with --native)
+  --native-no-auto-install-znp   Do not auto-install ZNP when "Server not found" (default: auto-install)
+  --native-server-path <path>    Remote path for ZNP server (default: ~/.zowe-server; or ZOWE_MCP_NATIVE_SERVER_PATH)
 
 Response cache (when backend is used; reduces repeated backend calls):
   --response-cache-disable       Disable response cache (default: enabled, 10 min TTL, 1 GB max)
@@ -250,6 +290,8 @@ async function main(): Promise<void> {
 
   // Connect to VS Code extension pipe (if env vars are set)
   const extensionClient = await connectExtensionClient(logger);
+  /** Captured from systems-update sent on connect (before native setup); applied when native is ready. */
+  let pendingSystemsUpdate: string[] | undefined;
   if (extensionClient) {
     logger.attachExtension(extensionClient);
 
@@ -259,6 +301,12 @@ async function main(): Promise<void> {
         const { level } = event.data;
         logger.info(`Log level changed to "${level}" by VS Code extension`);
         logger.setLevel(level);
+      }
+    });
+    // Capture systems-update sent on connect (extension sends current list when we connect)
+    extensionClient.onEvent(event => {
+      if (event.type === 'systems-update') {
+        pendingSystemsUpdate = event.data.systems;
       }
     });
   }
@@ -306,6 +354,8 @@ async function main(): Promise<void> {
     const { WaitablePasswordStore } = await import('./zos/native/password-store.js');
     const { loadNative } = await import('./zos/native/load-native.js');
     const { cacheKey } = await import('./zos/native/ssh-client-cache.js');
+    const { passwordHash } = await import('./zos/native/password-hash.js');
+    const nativePasswordLog = logger.child('native.password');
     const nativePasswordStore = extensionClient?.connected
       ? new WaitablePasswordStore()
       : undefined;
@@ -315,6 +365,11 @@ async function main(): Promise<void> {
       passwordStore: nativePasswordStore,
       requestPasswordCallback: extensionClient?.connected
         ? (user, host, port) => {
+            nativePasswordLog.debug('Sending request-password to extension', {
+              user,
+              host,
+              port: port ?? 22,
+            });
             extensionClient.sendEvent({
               type: 'request-password',
               data: { user, host, port },
@@ -324,6 +379,11 @@ async function main(): Promise<void> {
         : undefined,
       onPasswordInvalid: extensionClient?.connected
         ? (user, host, port) => {
+            nativePasswordLog.info('Sending password-invalid to extension (auth failed)', {
+              user,
+              host,
+              port: port ?? 22,
+            });
             extensionClient.sendEvent({
               type: 'password-invalid',
               data: { user, host, port },
@@ -331,6 +391,8 @@ async function main(): Promise<void> {
             });
           }
         : undefined,
+      autoInstallZnp: !parsed.nativeNoAutoInstallZnp,
+      nativeServerPath: parsed.nativeServerPath,
     });
     serverOptions = {
       backend: nativeSetup.backend,
@@ -341,15 +403,42 @@ async function main(): Promise<void> {
       extensionClient.onEvent(event => {
         if (event.type === 'password') {
           const { user, host, port, password } = event.data;
-          const key = cacheKey({
+          const portNum = port ?? 22;
+          const key = cacheKey({ user, host, port: portNum });
+          nativePasswordLog.debug('Received password from extension', {
             user,
             host,
-            port: port ?? 22,
+            port: portNum,
+            key,
+            passwordHash: passwordHash(password),
           });
           nativePasswordStore.set(key, password);
           // Any getCredentials() waiting on waitFor(key) will now resolve.
         }
       });
+    }
+    const updateSystems = nativeSetup.updateSystems;
+    if (extensionClient?.connected && updateSystems) {
+      extensionClient.onEvent(event => {
+        if (event.type === 'systems-update') {
+          const { systems } = event.data;
+          if (systems.length > 0) {
+            logger.info('Applying systems-update from VS Code extension', {
+              count: systems.length,
+              systems,
+            });
+            updateSystems(systems);
+          }
+        }
+      });
+      // Apply list sent on connect (in case process args were stale, e.g. VS Code cached definition)
+      if (pendingSystemsUpdate && pendingSystemsUpdate.length > 0) {
+        logger.info('Applying initial systems list from extension pipe', {
+          count: pendingSystemsUpdate.length,
+          systems: pendingSystemsUpdate,
+        });
+        updateSystems(pendingSystemsUpdate);
+      }
     }
     logger.info('Native (SSH) mode enabled', {
       systems: nativeSetup.systemRegistry.list(),
@@ -386,6 +475,10 @@ async function main(): Promise<void> {
 }
 
 main().catch((error: unknown) => {
-  getLogger().emergency('Fatal error', error);
+  const err = error instanceof Error ? error : new Error(String(error));
+  getLogger().emergency('Fatal error', {
+    message: err.message,
+    stack: err.stack,
+  });
   process.exit(1);
 });

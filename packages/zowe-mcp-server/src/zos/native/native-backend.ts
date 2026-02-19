@@ -80,21 +80,22 @@ function classifyNativeError(message: string): {
   isConnectionError: boolean;
   isInvalidPassword: boolean;
 } {
+  const lowerCaseMessage = message.toLowerCase();
   const isConnectionError =
-    message.includes('ECONNREFUSED') ||
-    message.includes('ENOTFOUND') ||
-    message.includes('ETIMEDOUT') ||
-    message.includes('ECONNRESET') ||
-    message.includes('ENETUNREACH') ||
-    message.includes('timeout') ||
-    message.includes('Connection');
+    lowerCaseMessage.includes('econnrefused') ||
+    lowerCaseMessage.includes('enotfound') ||
+    lowerCaseMessage.includes('etimedout') ||
+    lowerCaseMessage.includes('econnreset') ||
+    lowerCaseMessage.includes('enetunreach') ||
+    lowerCaseMessage.includes('timeout') ||
+    lowerCaseMessage.includes('connection');
 
   const isInvalidPassword =
     !isConnectionError &&
     (/invalid.*password|password.*invalid|authentication failed|auth failed|permission denied/i.test(
-      message
+      lowerCaseMessage
     ) ||
-      (message.includes('Authentication') && message.toLowerCase().includes('fail')));
+      (lowerCaseMessage.includes('authentication') && lowerCaseMessage.includes('fail')));
 
   return { isConnectionError, isInvalidPassword };
 }
@@ -130,17 +131,24 @@ export class NativeBackend {
       return await fn(client);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      log.warning('Native backend error', {
+      const code =
+        err && typeof err === 'object' && 'code' in err
+          ? String((err as { code: unknown }).code)
+          : undefined;
+      const { isConnectionError, isInvalidPassword } = classifyNativeError(msg);
+      log.info('Native backend error (SSH/connection or auth)', {
         message: msg,
+        errorCode: code,
         systemId,
-        user: spec.user,
         host: spec.host,
+        port: spec.port,
+        user: spec.user,
+        isConnectionError,
+        isInvalidPassword,
       });
       log.debug('Native backend error detail', {
         err: err instanceof Error ? err.stack : String(err),
       });
-
-      const { isInvalidPassword } = classifyNativeError(msg);
 
       if (isInvalidPassword) {
         this.options.credentialProvider.markInvalid(spec);

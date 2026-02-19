@@ -17,10 +17,11 @@
  */
 
 import { SshSession } from '@zowe/zos-uss-for-zowe-sdk';
-import { ZSshClient } from 'zowe-native-proto-sdk';
+import { ZSshClient, ZSshUtils } from 'zowe-native-proto-sdk';
 import { getLogger } from '../../server.js';
 import type { Credentials } from '../credentials.js';
 import type { ParsedConnectionSpec } from './connection-spec.js';
+import { passwordHash } from './password-hash.js';
 
 const log = getLogger().child('native.ssh');
 
@@ -31,28 +32,58 @@ export function cacheKey(spec: ParsedConnectionSpec): string {
 }
 
 /**
+ * Returns true if the error indicates the ZNP server binary is not present on the remote (FSUM7351 / "Server not found").
+ */
+export function isZnpServerNotFoundError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err);
+  return msg.includes('Server not found') || msg.includes('FSUM7351');
+}
+
+export interface SshClientCacheOptions {
+  /** When true (default), deploy ZNP via ZSshUtils.installServer when "Server not found" is detected, then retry. */
+  autoInstallZnp?: boolean;
+  /** Remote path where the ZNP server is installed/run (default: ZSshClient.DEFAULT_SERVER_PATH). */
+  serverPath?: string;
+}
+
+/**
  * In-memory cache of ZSshClient instances.
  * Call evict() on auth/connection errors so the next request can create a new client.
  */
 export class SshClientCache {
   private readonly clients = new Map<string, ZSshClient>();
+  private readonly autoInstallZnp: boolean;
+  private readonly serverPath: string;
+
+  constructor(options: SshClientCacheOptions = {}) {
+    this.autoInstallZnp = options.autoInstallZnp ?? true;
+    this.serverPath = options.serverPath ?? ZSshClient.DEFAULT_SERVER_PATH;
+  }
 
   /**
    * Returns an existing client or creates one for the given spec and credentials.
    * On connection failure the client is not cached; the caller may retry with new credentials.
+   * When "Server not found" (ZNP not deployed) is detected and autoInstallZnp is true, installs ZNP then retries once.
    */
   async getOrCreate(spec: ParsedConnectionSpec, credentials: Credentials): Promise<ZSshClient> {
     const key = cacheKey(spec);
     const existing = this.clients.get(key);
     if (existing) {
-      log.debug('Reusing cached SSH client', { key });
+      log.debug('SSH cache hit: reusing cached client', {
+        key,
+        host: spec.host,
+        port: spec.port,
+        user: spec.user,
+      });
       return existing;
     }
 
-    log.info('Creating SSH session', {
+    log.debug('SSH cache miss: creating new session', {
+      key,
       host: spec.host,
       port: spec.port,
       user: spec.user,
+      passwordHash: passwordHash(credentials.password),
     });
     const session = new SshSession({
       hostname: spec.host,
@@ -61,15 +92,69 @@ export class SshClientCache {
       password: credentials.password,
     });
 
-    const client = await ZSshClient.create(session, {
+    const createOpts = {
+      serverPath: this.serverPath,
       onClose: () => {
-        log.info('SSH session closed', { key });
+        log.debug('SSH session closed', { key });
         this.evictKey(key);
       },
-    });
+    };
+
+    let client: ZSshClient;
+    try {
+      client = await ZSshClient.create(session, createOpts);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      const code =
+        err && typeof err === 'object' && 'code' in err
+          ? String((err as { code: unknown }).code)
+          : undefined;
+      log.info('SSH connection failed', {
+        key,
+        host: spec.host,
+        port: spec.port,
+        user: spec.user,
+        passwordHash: passwordHash(credentials.password),
+        errorMessage: msg,
+        errorCode: code,
+      });
+      if (!isZnpServerNotFoundError(err) || !this.autoInstallZnp) {
+        throw err;
+      }
+      log.info('Installing Zowe Native server on host (retry after install)', {
+        host: spec.host,
+        port: spec.port,
+        user: spec.user,
+        serverPath: this.serverPath,
+      });
+      try {
+        await ZSshUtils.installServer(session, this.serverPath);
+        client = await ZSshClient.create(session, createOpts);
+      } catch (installErr) {
+        const installMsg = installErr instanceof Error ? installErr.message : String(installErr);
+        const installCode =
+          installErr && typeof installErr === 'object' && 'code' in installErr
+            ? String((installErr as { code: unknown }).code)
+            : undefined;
+        log.info('ZNP install or retry failed', {
+          key,
+          host: spec.host,
+          port: spec.port,
+          user: spec.user,
+          errorMessage: installMsg,
+          errorCode: installCode,
+        });
+        throw installErr;
+      }
+    }
 
     this.clients.set(key, client);
-    log.debug('SSH client connected and cached', { key });
+    log.debug('SSH client connected and cached', {
+      key,
+      host: spec.host,
+      port: spec.port,
+      user: spec.user,
+    });
     return client;
   }
 
@@ -82,7 +167,7 @@ export class SshClientCache {
   evictKey(key: string): void {
     const client = this.clients.get(key);
     if (client) {
-      log.debug('SSH client evicted', { key });
+      log.debug('SSH cache evict: removing client', { key });
       try {
         client.dispose();
       } catch {
@@ -96,7 +181,7 @@ export class SshClientCache {
   dispose(): void {
     const keys = [...this.clients.keys()];
     if (keys.length > 0) {
-      log.debug('SSH client cache dispose', { count: keys.length, keys });
+      log.debug('SSH cache dispose: closing all clients', { count: keys.length, keys });
     }
     for (const key of keys) {
       this.evictKey(key);

@@ -210,6 +210,25 @@ describe('NativeBackend', () => {
       expect(options.onPasswordInvalid).toHaveBeenCalledWith(SPEC.user, SPEC.host, SPEC.port);
     });
 
+    it('classifies "All configured authentication methods failed" as invalid password', async () => {
+      const authError = new Error('All configured authentication methods failed');
+      const options = createOptions({
+        clientCache: {
+          getOrCreate: vi.fn().mockRejectedValue(authError),
+          evict: vi.fn(),
+        },
+      });
+      const backend = new NativeBackend(options);
+
+      await expect(backend.listDatasets(SYSTEM_ID, 'USER.*')).rejects.toThrow(
+        'All configured authentication methods failed'
+      );
+
+      expect(options.credentialProvider.markInvalid).toHaveBeenCalledWith(SPEC);
+      expect(options.clientCache.evict).toHaveBeenCalledWith(SPEC);
+      expect(options.onPasswordInvalid).toHaveBeenCalledWith(SPEC.user, SPEC.host, SPEC.port);
+    });
+
     it('on non-auth error does not call evict or markInvalid', async () => {
       const otherError = new Error('Network timeout');
       const options = createOptions({

@@ -100,19 +100,21 @@ export class SessionState {
   }
 
   /**
-   * Set the active system. If the system has no context yet, one is
-   * created with the given `defaultUserId` as `userId`.
+   * Set the active system. Creates or updates the per-system context so
+   * that {@code userId} reflects the credentials used for this connection.
    *
    * @returns The context for the newly active system.
    */
   setActiveSystem(systemId: SystemId, defaultUserId: string): SystemContext {
     this.activeSystemId = systemId;
-    if (!this.contexts.has(systemId)) {
-      this.contexts.set(systemId, {
-        userId: defaultUserId,
-      });
+    const existing = this.contexts.get(systemId);
+    if (existing) {
+      existing.userId = defaultUserId;
+      return existing;
     }
-    return this.contexts.get(systemId)!;
+    const ctx: SystemContext = { userId: defaultUserId };
+    this.contexts.set(systemId, ctx);
+    return ctx;
   }
 
   /**

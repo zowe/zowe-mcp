@@ -26,6 +26,11 @@ import { registerCoreTools } from './tools/core/zowe-info.js';
 import { registerDatasetTools } from './tools/datasets/dataset-tools.js';
 import type { ZosBackend } from './zos/backend.js';
 import type { CredentialProvider } from './zos/credentials.js';
+import {
+  createResponseCache,
+  type ResponseCache,
+  type ResponseCacheOptions,
+} from './zos/response-cache.js';
 import { SessionState } from './zos/session.js';
 import { SystemRegistry } from './zos/system.js';
 
@@ -85,6 +90,12 @@ export interface CreateServerOptions {
   systemRegistry?: SystemRegistry;
   /** Credential provider for resolving user identities. */
   credentialProvider?: CredentialProvider;
+  /**
+   * Response cache for backend results (e.g. listDatasets, listMembers). If undefined, a new in-memory cache is created with defaults (10 min TTL, 1 GB max).
+   * If false, cache is disabled and tools call the backend directly on every request.
+   * If a ResponseCache instance is passed (e.g. from createResponseCache()), that instance is used so tests can inject a fresh empty cache or share one.
+   */
+  responseCache?: ResponseCacheOptions | ResponseCache | false;
 }
 
 /** Known backend kind names for the info tool. */
@@ -157,11 +168,22 @@ export function createServer(options?: CreateServerOptions): McpServer {
     const systemRegistry = options.systemRegistry ?? new SystemRegistry();
     const credentialProvider = options.credentialProvider!;
     const sessionState = new SessionState();
+    const responseCacheOpt = options.responseCache;
+    const responseCache: ResponseCache | undefined =
+      responseCacheOpt === false
+        ? undefined
+        : typeof responseCacheOpt === 'object' &&
+            responseCacheOpt !== null &&
+            'getOrFetch' in responseCacheOpt
+          ? responseCacheOpt
+          : createResponseCache(
+              typeof responseCacheOpt === 'object' ? responseCacheOpt : undefined
+            );
 
     registerContextTools(server, { systemRegistry, sessionState, credentialProvider }, logger);
     registerDatasetTools(
       server,
-      { backend, systemRegistry, sessionState, credentialProvider },
+      { backend, systemRegistry, sessionState, credentialProvider, responseCache },
       logger
     );
     registerDatasetResources(server, { backend }, logger);

@@ -24,7 +24,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
 import type { Logger } from '../../log.js';
-import type { ZosBackend } from '../../zos/backend.js';
+import type { DatasetEntry, MemberEntry, ZosBackend } from '../../zos/backend.js';
 import type { CredentialProvider } from '../../zos/credentials.js';
 import {
   buildDsUri,
@@ -33,6 +33,7 @@ import {
   resolvePattern,
   validateListPattern,
 } from '../../zos/dsn.js';
+import { buildCacheKey, type ResponseCache } from '../../zos/response-cache.js';
 import { resolveSystemForTool, type SessionState } from '../../zos/session.js';
 import type { SystemRegistry } from '../../zos/system.js';
 import type { MutationResultMeta } from '../response.js';
@@ -77,6 +78,8 @@ export interface DatasetToolDeps {
   systemRegistry: SystemRegistry;
   sessionState: SessionState;
   credentialProvider: CredentialProvider;
+  /** When set, listDatasets and listMembers use it to cache backend results (avoids repeated backend calls when paginating). */
+  responseCache?: ResponseCache;
 }
 
 /**
@@ -189,15 +192,20 @@ export function registerDatasetTools(
         log.debug('listDatasets resolved', { systemId, resolvedPattern });
 
         const userId = deps.sessionState.getContext(systemId)?.userId;
-        const datasets = await deps.backend.listDatasets(
-          systemId,
-          resolvedPattern,
-          volser,
-          userId
-        );
+        const datasets = deps.responseCache
+          ? await deps.responseCache.getOrFetch(
+              buildCacheKey('listDatasets', {
+                systemId,
+                userId: userId ?? '',
+                pattern: resolvedPattern,
+                volser: volser ?? '',
+              }),
+              () => deps.backend.listDatasets(systemId, resolvedPattern, volser, userId)
+            )
+          : await deps.backend.listDatasets(systemId, resolvedPattern, volser, userId);
 
         // Add resource links; output DSN as fully qualified (no quotes)
-        const enriched = datasets.map(ds => ({
+        const enriched = datasets.map((ds: DatasetEntry) => ({
           ...ds,
           dsn: formatResolved(ds.dsn),
           resourceLink: buildDsUri(systemId, ds.dsn, undefined, ds.volser),
@@ -268,11 +276,22 @@ export function registerDatasetTools(
           system,
           log
         );
-        const members = await deps.backend.listMembers(systemId, resolvedDsn, memberPattern);
+        const userId = deps.sessionState.getContext(systemId)?.userId;
+        const members = deps.responseCache
+          ? await deps.responseCache.getOrFetch(
+              buildCacheKey('listMembers', {
+                systemId,
+                userId: userId ?? '',
+                dsn: resolvedDsn,
+                memberPattern: memberPattern ?? '',
+              }),
+              () => deps.backend.listMembers(systemId, resolvedDsn, memberPattern)
+            )
+          : await deps.backend.listMembers(systemId, resolvedDsn, memberPattern);
 
         // Paginate and map name -> member for response
         const { data: rawData, meta } = paginateList(
-          members.map(m => ({ member: m.name })),
+          members.map((m: MemberEntry) => ({ member: m.name })),
           offset ?? 0,
           limit ?? DEFAULT_LIST_LIMIT
         );

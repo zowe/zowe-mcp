@@ -35,6 +35,12 @@ import { createServer, getLogger, SERVER_VERSION } from './server.js';
 import { startHttp } from './transports/http.js';
 import { startStdio } from './transports/stdio.js';
 
+/** Response cache config from CLI or env (undefined = use server defaults). */
+interface ResponseCacheConfig {
+  ttlMs?: number;
+  maxSizeBytes?: number;
+}
+
 interface ParsedArgs {
   transport: 'stdio' | 'http';
   port: number;
@@ -43,6 +49,8 @@ interface ParsedArgs {
   configPath?: string;
   systemSpecs: string[];
   subcommand?: string;
+  /** Response cache: false = disabled, object = custom options, undefined = server defaults. */
+  responseCache?: ResponseCacheConfig | false;
 }
 
 function parseArgs(): ParsedArgs {
@@ -54,11 +62,21 @@ function parseArgs(): ParsedArgs {
   let configPath: string | undefined;
   const systemSpecs: string[] = [];
   let subcommand: string | undefined;
+  let responseCache: ResponseCacheConfig | false | undefined;
 
   // Check for subcommand (first non-flag argument)
   if (args.length > 0 && !args[0].startsWith('-')) {
     subcommand = args[0];
-    return { transport, port, mockDir, native, configPath, systemSpecs, subcommand };
+    return {
+      transport,
+      port,
+      mockDir,
+      native,
+      configPath,
+      systemSpecs,
+      subcommand,
+      responseCache,
+    };
   }
 
   for (let i = 0; i < args.length; i++) {
@@ -86,6 +104,28 @@ function parseArgs(): ParsedArgs {
       configPath = args[++i];
     } else if (args[i] === '--system' && i + 1 < args.length) {
       systemSpecs.push(args[++i]);
+    } else if (args[i] === '--response-cache-disable') {
+      responseCache = false;
+    } else if (args[i] === '--response-cache-ttl-minutes' && i + 1 < args.length) {
+      const minutes = parseInt(args[++i], 10);
+      if (isNaN(minutes) || minutes < 1) {
+        getLogger().error('--response-cache-ttl-minutes must be a positive number');
+        process.exit(1);
+      }
+      if (responseCache !== false) {
+        responseCache = responseCache ?? {};
+        responseCache.ttlMs = minutes * 60 * 1000;
+      }
+    } else if (args[i] === '--response-cache-max-mb' && i + 1 < args.length) {
+      const mb = parseInt(args[++i], 10);
+      if (isNaN(mb) || mb < 1) {
+        getLogger().error('--response-cache-max-mb must be a positive number');
+        process.exit(1);
+      }
+      if (responseCache !== false) {
+        responseCache = responseCache ?? {};
+        responseCache.maxSizeBytes = mb * 1024 * 1024;
+      }
     }
   }
 
@@ -94,7 +134,33 @@ function parseArgs(): ParsedArgs {
     mockDir = process.env.ZOWE_MCP_MOCK_DIR;
   }
 
-  return { transport, port, mockDir, native, configPath, systemSpecs, subcommand };
+  // Response cache from env (CLI takes precedence)
+  if (responseCache !== false) {
+    const envTtl = process.env.ZOWE_MCP_RESPONSE_CACHE_TTL_MS;
+    const envMax = process.env.ZOWE_MCP_RESPONSE_CACHE_MAX_BYTES;
+    if (envTtl !== undefined) {
+      const ttl = parseInt(envTtl, 10);
+      if (!isNaN(ttl) && ttl > 0) {
+        responseCache = responseCache ?? {};
+        responseCache.ttlMs = ttl;
+      }
+    }
+    if (envMax !== undefined) {
+      const max = parseInt(envMax, 10);
+      if (!isNaN(max) && max > 0) {
+        responseCache = responseCache ?? {};
+        responseCache.maxSizeBytes = max;
+      }
+    }
+  }
+  if (
+    process.env.ZOWE_MCP_RESPONSE_CACHE_DISABLE === '1' ||
+    process.env.ZOWE_MCP_RESPONSE_CACHE_DISABLE === 'true'
+  ) {
+    responseCache = false;
+  }
+
+  return { transport, port, mockDir, native, configPath, systemSpecs, subcommand, responseCache };
 }
 
 function loadSystemsFromConfig(configPath: string): string[] {
@@ -126,6 +192,11 @@ Backend (server mode):
   --native             Zowe Native (SSH) backend
   --config <path>      JSON file with { "systems": ["user@host", ...] } (used with --native)
   --system <spec>      Connection spec user@host or user@host:port (repeatable, used with --native)
+
+Response cache (when backend is used; reduces repeated backend calls):
+  --response-cache-disable       Disable response cache (default: enabled, 10 min TTL, 1 GB max)
+  --response-cache-ttl-minutes N  Cache entry TTL in minutes (or ZOWE_MCP_RESPONSE_CACHE_TTL_MS)
+  --response-cache-max-mb N       Max cache size in MB (or ZOWE_MCP_RESPONSE_CACHE_MAX_BYTES)
 
 Help:
   -h, --help           Show this help and exit.
@@ -161,7 +232,15 @@ async function main(): Promise<void> {
     return;
   }
 
-  const { transport, port, mockDir, native, configPath, systemSpecs } = parsed;
+  const {
+    transport,
+    port,
+    mockDir,
+    native,
+    configPath,
+    systemSpecs,
+    responseCache: responseCacheConfig,
+  } = parsed;
   const logger = getLogger();
 
   if (mockDir && native) {
@@ -275,6 +354,10 @@ async function main(): Promise<void> {
     logger.info('Native (SSH) mode enabled', {
       systems: nativeSetup.systemRegistry.list(),
     });
+  }
+
+  if (serverOptions && responseCacheConfig !== undefined) {
+    serverOptions.responseCache = responseCacheConfig;
   }
 
   if (transport === 'stdio') {

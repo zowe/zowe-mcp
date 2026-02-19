@@ -26,7 +26,7 @@ Your API key is stored by VS Code/Copilot and used only for your chat requests. 
 
 The extension is not on the Marketplace yet. Install from the **VSIX** published on GitHub:
 
-1. Go to the [Releases](../../releases) page of this repository.
+1. Go to the [Releases](https://github.com/plavjanik/zowe-mcp/releases) page of this repository.
 2. Open the latest release (e.g. **v0.1.0**).
 3. Download the **`.vsix`** asset (e.g. `zowe-mcp-vscode-0.1.0.vsix`). You must be signed in and have read access to the repo.
 4. In VS Code:

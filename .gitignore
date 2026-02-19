@@ -60,9 +60,10 @@ tmp/
 # Mock data
 zowe-mcp-mock-data/
 
-# Evals (gitignored config and report output)
+# Evals (gitignored config, cache, and report output)
 evals.config.json
 evals.config.local.json
 packages/zowe-mcp-evals/evals.config.json
 packages/zowe-mcp-evals/evals.config.local.json
+.evals-cache/
 evals-report/

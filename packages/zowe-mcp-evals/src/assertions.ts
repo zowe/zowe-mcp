@@ -79,7 +79,7 @@ export function runAssertions(
                 failedAssertion: `Expected answer to match pattern /${expected.pattern}/`,
               };
             }
-          } catch (e) {
+          } catch {
             return {
               passed: false,
               failedAssertion: `Invalid answerContains pattern: ${expected.pattern}`,

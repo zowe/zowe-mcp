@@ -13,8 +13,9 @@ import { existsSync, rmSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { runAssertions } from './assertions.js';
+import { buildCacheKey, get as cacheGet, set as cacheSet, getToolsUnderTest } from './cache.js';
 import { loadEvalsConfig } from './config.js';
-import { McpEvalHarness, initMockData } from './harness.js';
+import { getSystemPrompt, initMockData, McpEvalHarness } from './harness.js';
 import { listSetNames, loadSet } from './load-questions.js';
 import { log } from './log.js';
 import { writeReport } from './report.js';
@@ -36,6 +37,12 @@ interface CliArgs {
   number?: string;
   id?: string[];
   filter?: string;
+  noCache?: boolean;
+}
+
+interface CacheStats {
+  hits: number;
+  writes: number;
 }
 
 function parseArgs(): CliArgs {
@@ -50,6 +57,8 @@ function parseArgs(): CliArgs {
       result.id = args[++i].split(',').map(s => s.trim());
     } else if (args[i] === '--filter' && i + 1 < args.length) {
       result.filter = args[++i];
+    } else if (args[i] === '--no-cache') {
+      result.noCache = true;
     }
   }
   if (result.set.length === 0) result.set = ['all'];
@@ -107,6 +116,9 @@ async function main(): Promise<void> {
 
   const allResults: RunResult[] = [];
   const allToolCalls: { name: string; arguments: Record<string, unknown> }[] = [];
+  const useCache = !cli.noCache;
+  const cacheDir = useCache ? resolve(process.cwd(), '.evals-cache') : '';
+  const cacheStats: CacheStats = { hits: 0, writes: 0 };
 
   for (const setName of setNames) {
     let questionSet;
@@ -120,6 +132,7 @@ async function main(): Promise<void> {
     const questions = filterQuestions(questionSet.questions, cli);
     const config = questionSet.config;
     const repetitions = config.repetitions ?? 5;
+    const minSuccessRate = config.minSuccessRate ?? 0.8;
     log.info('Set loaded', {
       setName,
       questionCount: questions.length,
@@ -147,11 +160,34 @@ async function main(): Promise<void> {
       await harness.start();
       log.info('MCP server ready');
 
+      let toolDefinitions: Awaited<ReturnType<McpEvalHarness['getToolDefinitions']>> | undefined;
+      if (useCache) {
+        toolDefinitions = await harness.getToolDefinitions();
+      }
+
       for (const q of questions) {
         const questionResults: RunResult[] = [];
-        for (let r = 0; r < repetitions; r++) {
-          try {
-            const { finalText, toolCalls } = await harness.runOne(q.prompt);
+        const toolNames = getToolsUnderTest(q.assertions);
+        const toolDefs: Record<string, { description?: string; inputSchema?: unknown }> = {};
+        if (toolDefinitions) {
+          for (const name of toolNames) {
+            const t = toolDefinitions.find(td => td.name === name);
+            if (t) toolDefs[name] = { description: t.description, inputSchema: t.inputSchema };
+          }
+        }
+        const cacheKey = useCache
+          ? buildCacheKey({
+              systemPrompt: getSystemPrompt(config),
+              prompt: q.prompt,
+              toolDefs,
+            })
+          : '';
+
+        const cached = useCache ? await cacheGet(cacheDir, cacheKey) : null;
+
+        if (cached) {
+          for (let r = 0; r < repetitions; r++) {
+            const { finalText, toolCalls } = cached;
             for (const tc of toolCalls)
               allToolCalls.push({ name: tc.name, arguments: tc.arguments });
             const { passed, failedAssertion } = runAssertions(q.assertions, toolCalls, finalText);
@@ -166,8 +202,9 @@ async function main(): Promise<void> {
             };
             questionResults.push(result);
             allResults.push(result);
+            cacheStats.hits++;
             const icon = passed ? PASS : FAIL;
-            const detail = passed ? '' : ` ${failedAssertion ?? 'assertion failed'}`;
+            const detail = passed ? ' cache hit' : ` ${failedAssertion ?? 'assertion failed'}`;
             log.info(`Running ${q.id} (${r + 1}/${repetitions}) ${icon}${detail}`);
             log.info('  Question:');
             for (const line of q.prompt.trim().split(/\n/)) log.info(`    ${line}`);
@@ -175,27 +212,75 @@ async function main(): Promise<void> {
               finalText.length > 300 ? finalText.slice(0, 300) + '…' : finalText;
             log.info('  Answer:');
             for (const line of answerPreview.trim().split(/\n/)) log.info(`    ${line}`);
-          } catch (err) {
-            const msg = errorMessage(err);
-            const failedResult: RunResult = {
-              questionId: q.id,
-              prompt: q.prompt,
-              runIndex: r,
-              passed: false,
-              toolCalls: [],
-              finalText: '',
-              error: msg,
-            };
-            allResults.push(failedResult);
-            questionResults.push(failedResult);
-            log.info(`Running ${q.id} (${r + 1}/${repetitions}) ${FAIL} ${msg}`);
-            log.info('  Question:');
-            for (const line of q.prompt.trim().split(/\n/)) log.info(`    ${line}`);
-            log.info('  Answer: (error)');
-            for (const line of msg.trim().split(/\n/)) log.info(`    ${line}`);
-            log.info(`    ${msg}`);
+          }
+        } else {
+          for (let r = 0; r < repetitions; r++) {
+            try {
+              const runResult = await harness.runOne(q.prompt);
+              const { finalText, toolCalls } = runResult;
+              for (const tc of toolCalls)
+                allToolCalls.push({ name: tc.name, arguments: tc.arguments });
+              const { passed, failedAssertion } = runAssertions(
+                q.assertions,
+                toolCalls,
+                finalText
+              );
+              const result: RunResult = {
+                questionId: q.id,
+                prompt: q.prompt,
+                runIndex: r,
+                passed,
+                toolCalls,
+                finalText,
+                assertionFailed: failedAssertion,
+              };
+              questionResults.push(result);
+              allResults.push(result);
+              const icon = passed ? PASS : FAIL;
+              const detail = passed ? '' : ` ${failedAssertion ?? 'assertion failed'}`;
+              log.info(`Running ${q.id} (${r + 1}/${repetitions}) ${icon}${detail}`);
+              log.info('  Question:');
+              for (const line of q.prompt.trim().split(/\n/)) log.info(`    ${line}`);
+              const answerPreview =
+                finalText.length > 300 ? finalText.slice(0, 300) + '…' : finalText;
+              log.info('  Answer:');
+              for (const line of answerPreview.trim().split(/\n/)) log.info(`    ${line}`);
+            } catch (err) {
+              const msg = errorMessage(err);
+              const failedResult: RunResult = {
+                questionId: q.id,
+                prompt: q.prompt,
+                runIndex: r,
+                passed: false,
+                toolCalls: [],
+                finalText: '',
+                error: msg,
+              };
+              allResults.push(failedResult);
+              questionResults.push(failedResult);
+              log.info(`Running ${q.id} (${r + 1}/${repetitions}) ${FAIL} ${msg}`);
+              log.info('  Question:');
+              for (const line of q.prompt.trim().split(/\n/)) log.info(`    ${line}`);
+              log.info('  Answer: (error)');
+              for (const line of msg.trim().split(/\n/)) log.info(`    ${line}`);
+              log.info(`    ${msg}`);
+            }
+          }
+          const qPassed = questionResults.filter(x => x.passed).length;
+          const qTotal = questionResults.length;
+          const questionPassRate = qTotal > 0 ? qPassed / qTotal : 0;
+          if (useCache && questionPassRate >= minSuccessRate) {
+            const firstPassing = questionResults.find(x => x.passed);
+            if (firstPassing) {
+              await cacheSet(cacheDir, cacheKey, {
+                finalText: firstPassing.finalText,
+                toolCalls: firstPassing.toolCalls,
+              });
+              cacheStats.writes++;
+            }
           }
         }
+
         const qPassed = questionResults.filter(x => x.passed).length;
         const qTotal = questionResults.length;
         const icon = qPassed === qTotal ? PASS : FAIL;
@@ -216,6 +301,12 @@ async function main(): Promise<void> {
   writeReport(allResults, allToolCalls, process.cwd());
 
   log.notice(`Runs: ${passed}/${total} passed`);
+  if (useCache) {
+    const llmCalls = total - cacheStats.hits;
+    log.notice(
+      `Cache: ${cacheStats.hits} hits, ${cacheStats.writes} writes, ${llmCalls} LLM calls (${total} runs)`
+    );
+  }
   if (success) {
     log.notice('SUCCESS');
   } else {

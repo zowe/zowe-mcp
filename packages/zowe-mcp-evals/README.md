@@ -43,6 +43,7 @@ npm run evals -- --set datasets --number 1
 npm run evals -- --set datasets --number 1-2
 npm run evals -- --set members --filter listMembers
 npm run evals -- --set datasets --id list-systems
+npm run evals -- --no-cache
 ```
 
 ### CLI options
@@ -51,6 +52,11 @@ npm run evals -- --set datasets --id list-systems
 - **`--number <n>`** — Run only question index `n` (1-based). **`--number <start>-<end>`** — Run questions in range (e.g. `1-5`).
 - **`--id <id>`** — Run only questions whose id equals the given value. **`--id id1,id2`** — Multiple ids.
 - **`--filter <substring>`** — Run only questions whose id or prompt contains the substring (case-insensitive).
+- **`--no-cache`** — Disable the development cache (see below). Use for CI or when you want every run to call the LLM.
+
+### Cache (development)
+
+When cache is enabled (default), successful eval results are stored under `.evals-cache/` at the repo root. The cache key includes the system prompt, question text, and tool descriptions for the tools under test, so changing a tool description or the question invalidates the cache for that question. Only **passing** runs are cached; failed runs are never stored. Repeated evals with the same questions and tooling reuse cached results and skip LLM calls. At the end of a run you see a line like: `Cache: N hits, M writes, K LLM calls (T runs)`. To run without cache (e.g. in CI or for a clean run), pass **`--no-cache`**.
 
 ## Question sets
 

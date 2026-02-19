@@ -56,11 +56,17 @@ function buildModel(evalsConfig: EvalsConfig): LanguageModel {
   return google(evalsConfig.server_model) as unknown as LanguageModel;
 }
 
-function getSystemPrompt(setConfig: SetConfig): string {
+export function getSystemPrompt(setConfig: SetConfig): string {
   if (setConfig.systemPrompt) return setConfig.systemPrompt;
   const base = DEFAULT_SYSTEM_PROMPT;
   if (setConfig.systemPromptAddition) return base + '\n\n' + setConfig.systemPromptAddition;
   return base;
+}
+
+export interface ToolDefinition {
+  name: string;
+  description?: string;
+  inputSchema?: unknown;
 }
 
 export class McpEvalHarness {
@@ -92,6 +98,20 @@ export class McpEvalHarness {
       await this.client.close();
       this.client = null;
     }
+  }
+
+  /**
+   * Returns tool definitions from the MCP server for cache key building.
+   * Call after start().
+   */
+  async getToolDefinitions(): Promise<ToolDefinition[]> {
+    if (!this.client) throw new Error('Harness not started');
+    const { tools: mcpTools } = await this.client.listTools();
+    return mcpTools.map(t => ({
+      name: t.name,
+      description: t.description ?? undefined,
+      inputSchema: t.inputSchema,
+    }));
   }
 
   /**

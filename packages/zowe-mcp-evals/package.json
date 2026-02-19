@@ -7,7 +7,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "evals": "node dist/run.js",
-    "test": "node -e \"process.exit(0)\"",
+    "test": "vitest run",
     "format": "prettier --write \"**/*.{ts,js,json}\"",
     "check-format": "prettier --check \"**/*.{ts,js,json}\""
   },
@@ -28,6 +28,7 @@
   "devDependencies": {
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^22.0.0",
-    "typescript": "^5.9.2"
+    "typescript": "^5.9.2",
+    "vitest": "^3.2.4"
   }
 }

@@ -16,8 +16,6 @@ questions:
         tool: readDataset
         sequence:
           - dsn: "USER.LARGE.SEQ"
-            startLine: 1
-            lineCount: 1000
           - dsn: "USER.LARGE.SEQ"
             startLine: 1001
             lineCount: 1000

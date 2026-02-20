@@ -22,10 +22,14 @@ cd "$REPO_ROOT"
 # Resolve tag
 if [ -n "$1" ]; then
   TAG="$1"
+  VERSION="${TAG#v}"
 else
   VERSION=$(node -p "require('./packages/zowe-mcp-vscode/package.json').version")
   TAG="v${VERSION}"
 fi
+
+# Sync version in all package.json so VSIX and builds use the same version
+node scripts/set-version.js "$VERSION"
 
 echo "Building and packaging extension for tag: $TAG"
 

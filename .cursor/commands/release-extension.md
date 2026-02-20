@@ -46,11 +46,12 @@ Run the full release workflow for the Zowe MCP VS Code extension. Execute each s
 
 Only after the user has approved the changelog:
 
-1. **Bump version**: Update **`packages/zowe-mcp-vscode/package.json`** — set **`version`** to the agreed next version (e.g. `0.2.0`). If this repo keeps the server package in sync, update **`packages/zowe-mcp-server/package.json`** **`version`** to the same value, and the extension’s **`dependencies["zowe-mcp-server"]`** in **`packages/zowe-mcp-vscode/package.json`** to that version as well.
+1. **Bump version**: Run **`node scripts/set-version.js <version>`** (e.g. `node scripts/set-version.js 0.2.0`) to set the version in all **`package.json`** files (root and every workspace) and the extension’s **`dependencies["zowe-mcp-server"]`**. Do not edit version in package.json files manually — the script is the single source of truth.
 2. **Write changelog**: Insert the approved changelog section into **`packages/zowe-mcp-vscode/CHANGELOG.md`** at the top of the changelog (below the “Change Log” intro), so the new version is the first listed.
 3. **Commit and push**: Create a single commit (e.g. “Release v0.2.0” or “chore: release v0.2.0”) that includes the version and CHANGELOG changes, then **`git push origin <branch>`**.
 4. **Release**: Run **`npm run release-vsix`** from the repo root. This script uses the version from **`packages/zowe-mcp-vscode/package.json`** to build, tag, and create the GitHub release with the VSIX. Do not pass a tag unless the user asked for a specific tag.
-5. If anything fails (e.g. tag already exists, `gh` not authenticated), report the error and stop; do not force-push or overwrite tags without explicit user request.
+5. **Update release description**: Set the GitHub release body to the new version’s changelog. From **`packages/zowe-mcp-vscode/CHANGELOG.md`**, extract the first version block (from the first `## \`X.Y.Z\`` heading through the line before the next `## \` or end of file). Omit the first line (the `## \`0.2.0\``heading) so the body contains only the sections and bullets. Write that content to a temporary file, run **`gh release edit v<VERSION> --notes-file <tempfile>`** (e.g.`gh release edit v0.2.0 --notes-file /tmp/release-notes.md`), then delete the temp file. If`gh` is not available or the release edit fails, report and continue; do not fail the workflow.
+6. If anything fails (e.g. tag already exists, `gh` not authenticated), report the error and stop; do not force-push or overwrite tags without explicit user request.
 
 ## 7. Closing message
 
@@ -58,4 +59,4 @@ After a successful release, say something short and positive about the release (
 
 ---
 
-**Summary**: Tests → clean git → checklist → suggest version → draft changelog → **wait for user “ok”** → bump version, update CHANGELOG, commit, push, `npm run release-vsix` → short congrats.
+**Summary**: Tests → clean git → checklist → suggest version → draft changelog → **wait for user “ok”** → bump version, update CHANGELOG, commit, push, `npm run release-vsix`, update GitHub release description with changelog → short congrats.

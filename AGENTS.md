@@ -207,3 +207,5 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 | `npm run markdownlint <file>` | Fix markdown lint issues |
 | `npx zowe-mcp-server init-mock --output <dir>` | Generate mock data directory |
 | `npm run evals` | Run AI evals from repo root (requires `evals.config.json` at root; pass options after `--`: `--set`, `--number`, `--id`, `--filter`) |
+| `npm run release-vsix` | Build extension, create tag from `packages/zowe-mcp-vscode` version, push tag, create GitHub release and upload VSIX (requires `gh` auth) |
+| **Cursor command** `/release-extension` | Full release workflow: test:all, git check, version suggestion (0.x.y vs semver), draft CHANGELOG → user approval → bump version, commit, push, `npm run release-vsix` (see `.cursor/commands/release-extension.md`) |

@@ -37,6 +37,7 @@ Run the full release workflow for the Zowe MCP VS Code extension. Execute each s
   - **New features and enhancements**
   - **Bug fixes** (if any)
   - **Other** (if needed)
+- **User-facing only**: Include only changes that affect extension users (settings, commands, UX, docs they see). Omit internal implementation details (e.g. CLI/library migrations, internal tooling, AGENTS.md or process docs).
 - Base the draft on the commits/changes you found in step 4. Keep entries short and user-focused.
 - **Show the full draft** (the new section only or the full CHANGELOG if clearer) and say: **“Review this changelog draft. Reply with ‘ok’ or ‘looks good’ (or similar) to approve, or tell me what to change.”**
 - **Do not commit, push, or run the release script until the user explicitly approves** (e.g. “ok”, “looks good”, “approved”).

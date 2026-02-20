@@ -39,6 +39,11 @@ import type { CreateServerOptions } from './server.js';
 import { createServer, getLogger, SERVER_VERSION } from './server.js';
 import { startHttp } from './transports/http.js';
 import { startStdio } from './transports/stdio.js';
+import {
+  DEFAULT_MAINFRAME_MVS_ENCODING,
+  DEFAULT_MAINFRAME_USS_ENCODING,
+  type EncodingOptions,
+} from './zos/encoding.js';
 
 /** Response cache config from CLI or env (undefined = use server defaults). */
 interface ResponseCacheConfig {
@@ -60,6 +65,10 @@ interface ParsedArgs {
   nativeServerAutoInstall?: boolean;
   /** Override remote path for ZNP server install/run (native mode). Default ~/.zowe-server. */
   nativeServerPath?: string;
+  /** Default mainframe encoding for MVS datasets (e.g. IBM-37). */
+  defaultMvsEncoding?: string;
+  /** Default mainframe encoding for USS files (e.g. IBM-1047). */
+  defaultUssEncoding?: string;
 }
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -105,6 +114,12 @@ function applyEnvOverrides(parsed: ParsedArgs): void {
   }
   if (process.env.ZOWE_MCP_NATIVE_SERVER_PATH?.trim()) {
     parsed.nativeServerPath = process.env.ZOWE_MCP_NATIVE_SERVER_PATH.trim();
+  }
+  if (process.env.ZOWE_MCP_DEFAULT_MVS_ENCODING?.trim()) {
+    parsed.defaultMvsEncoding = process.env.ZOWE_MCP_DEFAULT_MVS_ENCODING.trim();
+  }
+  if (process.env.ZOWE_MCP_DEFAULT_USS_ENCODING?.trim()) {
+    parsed.defaultUssEncoding = process.env.ZOWE_MCP_DEFAULT_USS_ENCODING.trim();
   }
 }
 
@@ -219,6 +234,14 @@ function parseArgs(): ParsedArgs {
         type: 'number',
         describe: 'Max cache size in MB (or ZOWE_MCP_RESPONSE_CACHE_MAX_BYTES)',
       },
+      'default-mvs-encoding': {
+        type: 'string',
+        describe: `Default mainframe encoding for datasets (e.g. IBM-37; or ZOWE_MCP_DEFAULT_MVS_ENCODING)`,
+      },
+      'default-uss-encoding': {
+        type: 'string',
+        describe: `Default mainframe encoding for USS files (e.g. IBM-1047; or ZOWE_MCP_DEFAULT_USS_ENCODING)`,
+      },
     })
     .alias('h', 'help')
     .help();
@@ -259,6 +282,8 @@ function parseArgs(): ParsedArgs {
     responseCache,
     nativeServerAutoInstall: (argv['native-server-auto-install'] as boolean) ?? true,
     nativeServerPath: argv['native-server-path'] as string | undefined,
+    defaultMvsEncoding: argv['default-mvs-encoding'] as string | undefined,
+    defaultUssEncoding: argv['default-uss-encoding'] as string | undefined,
   };
   applyEnvOverrides(parsed);
   return parsed;
@@ -326,13 +351,21 @@ async function main(): Promise<void> {
 
   // Load mock backend if --mock is specified
   let serverOptions: CreateServerOptions | undefined;
+  let encodingOptionsRef: { current: EncodingOptions } | undefined;
   if (mockDir) {
     const { loadMock } = await import('./zos/mock/load-mock.js');
     const mock = await loadMock(mockDir);
+    encodingOptionsRef = {
+      current: {
+        defaultMainframeMvsEncoding: parsed.defaultMvsEncoding ?? DEFAULT_MAINFRAME_MVS_ENCODING,
+        defaultMainframeUssEncoding: parsed.defaultUssEncoding ?? DEFAULT_MAINFRAME_USS_ENCODING,
+      },
+    };
     serverOptions = {
       backend: mock.backend,
       systemRegistry: mock.systemRegistry,
       credentialProvider: mock.credentialProvider,
+      encodingOptions: encodingOptionsRef,
     };
     logger.info('Mock mode enabled', {
       mockDir,
@@ -407,10 +440,17 @@ async function main(): Promise<void> {
       nativeServerPath: parsed.nativeServerPath,
       getNativeOptions: extensionClient?.connected ? () => nativeOptionsRef.current : undefined,
     });
+    encodingOptionsRef = {
+      current: {
+        defaultMainframeMvsEncoding: parsed.defaultMvsEncoding ?? DEFAULT_MAINFRAME_MVS_ENCODING,
+        defaultMainframeUssEncoding: parsed.defaultUssEncoding ?? DEFAULT_MAINFRAME_USS_ENCODING,
+      },
+    };
     serverOptions = {
       backend: nativeSetup.backend,
       systemRegistry: nativeSetup.systemRegistry,
       credentialProvider: nativeSetup.credentialProvider,
+      encodingOptions: encodingOptionsRef,
     };
     if (extensionClient?.connected && nativePasswordStore) {
       extensionClient.onEvent(event => {
@@ -466,6 +506,25 @@ async function main(): Promise<void> {
     }
     logger.info('Native (SSH) mode enabled', {
       systems: nativeSetup.systemRegistry.list(),
+    });
+  }
+
+  // When extension is connected and we have encoding options, handle runtime updates (mock or native)
+  if (encodingOptionsRef && extensionClient?.connected) {
+    extensionClient.onEvent(event => {
+      if (event.type === 'encoding-options-update') {
+        const d = event.data;
+        if (d.defaultMainframeMvsEncoding !== undefined) {
+          encodingOptionsRef.current.defaultMainframeMvsEncoding = d.defaultMainframeMvsEncoding;
+        }
+        if (d.defaultMainframeUssEncoding !== undefined) {
+          encodingOptionsRef.current.defaultMainframeUssEncoding = d.defaultMainframeUssEncoding;
+        }
+        logger.info('Applied encoding-options-update from VS Code extension', {
+          defaultMainframeMvsEncoding: d.defaultMainframeMvsEncoding ?? '(unchanged)',
+          defaultMainframeUssEncoding: d.defaultMainframeUssEncoding ?? '(unchanged)',
+        });
+      }
     });
   }
 

@@ -124,6 +124,18 @@ export type NativeOptionsUpdateEvent = McpEvent<
   NativeOptionsUpdateEventData
 >;
 
+/** Payload for an `encoding-options-update` event (extension → server). */
+export interface EncodingOptionsUpdateEventData {
+  defaultMainframeMvsEncoding?: string;
+  defaultMainframeUssEncoding?: string;
+}
+
+/** Updates default mainframe encodings. Applied immediately to the running server. */
+export type EncodingOptionsUpdateEvent = McpEvent<
+  'encoding-options-update',
+  EncodingOptionsUpdateEventData
+>;
+
 // ---------------------------------------------------------------------------
 // Union types
 // ---------------------------------------------------------------------------
@@ -140,7 +152,8 @@ export type ExtensionToServerEvent =
   | LogLevelEvent
   | PasswordEvent
   | SystemsUpdateEvent
-  | NativeOptionsUpdateEvent;
+  | NativeOptionsUpdateEvent
+  | EncodingOptionsUpdateEvent;
 
 /** Union of all event types exchanged over the pipe. */
 export type AnyMcpEvent = ServerToExtensionEvent | ExtensionToServerEvent;

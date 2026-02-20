@@ -20,6 +20,7 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import { getDisplayName, getLog, initLog } from './log';
 import {
+  sendEncodingOptionsUpdateEvent,
   sendLogLevelEvent,
   sendNativeOptionsUpdateEvent,
   sendSystemsUpdateEvent,
@@ -51,6 +52,14 @@ export function activate(context: vscode.ExtensionContext): void {
           true
         );
         const zoweNativeServerPath = config.get<string>('zoweNativeServerPath', '~/.zowe-server');
+        const defaultMainframeMvsEncoding = config.get<string>(
+          'defaultMainframeMvsEncoding',
+          'IBM-37'
+        );
+        const defaultMainframeUssEncoding = config.get<string>(
+          'defaultMainframeUssEncoding',
+          'IBM-1047'
+        );
 
         // Mock only when mock directory is set and native systems is empty; otherwise native mode.
         if (mockDataDirectory && nativeSystems.length === 0) {
@@ -70,6 +79,12 @@ export function activate(context: vscode.ExtensionContext): void {
             args.push('--native-server-path', zoweNativeServerPath.trim());
           }
           log.info(`Native (SSH) mode enabled: ${nativeSystems.length} system(s)`);
+        }
+        if (defaultMainframeMvsEncoding?.trim()) {
+          args.push('--default-mvs-encoding', defaultMainframeMvsEncoding.trim());
+        }
+        if (defaultMainframeUssEncoding?.trim()) {
+          args.push('--default-uss-encoding', defaultMainframeUssEncoding.trim());
         }
 
         return [
@@ -108,6 +123,13 @@ export function activate(context: vscode.ExtensionContext): void {
       ) {
         log.info('Native options setting changed, forwarding to MCP servers');
         sendNativeOptionsUpdateEvent();
+      }
+      if (
+        e.affectsConfiguration('zoweMCP.defaultMainframeMvsEncoding') ||
+        e.affectsConfiguration('zoweMCP.defaultMainframeUssEncoding')
+      ) {
+        log.info('Encoding options setting changed, forwarding to MCP servers');
+        sendEncodingOptionsUpdateEvent();
       }
     })
   );

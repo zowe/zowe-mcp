@@ -32,6 +32,7 @@
 import { createHash } from 'node:crypto';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
+import { getLogger } from '../../server.js';
 import type {
   CreateDatasetApplied,
   CreateDatasetOptions,
@@ -42,10 +43,13 @@ import type {
   MemberEntry,
   ReadDatasetResult,
   RecordFormat,
+  SearchInDatasetOptions,
+  SearchInDatasetResult,
   WriteDatasetResult,
   ZosBackend,
 } from '../backend.js';
 import { memberPatternToRegExp } from '../member-pattern.js';
+import { runSearchWithListAndRead } from '../search-runner.js';
 import type { SystemId } from '../system.js';
 import type { MockDatasetMeta } from './mock-types.js';
 
@@ -248,11 +252,14 @@ export class FilesystemMockBackend implements ZosBackend {
     return members.sort((a, b) => a.name.localeCompare(b.name));
   }
 
+  /**
+   * Reads dataset content. Result is always UTF-8. Mainframe encoding is ignored in mock (files are UTF-8).
+   */
   async readDataset(
     systemId: SystemId,
     dsn: string,
     member?: string,
-    codepage?: string
+    encoding?: string
   ): Promise<ReadDatasetResult> {
     const dsPath = this.datasetPath(systemId, dsn);
     let filePath: string;
@@ -291,7 +298,7 @@ export class FilesystemMockBackend implements ZosBackend {
     return {
       text,
       etag,
-      codepage: codepage ?? 'IBM-1047',
+      encoding: encoding ?? 'IBM-1047',
     };
   }
 
@@ -301,7 +308,7 @@ export class FilesystemMockBackend implements ZosBackend {
     content: string,
     member?: string,
     etag?: string,
-    codepage?: string
+    encoding?: string
   ): Promise<WriteDatasetResult> {
     const dsPath = this.datasetPath(systemId, dsn);
     let filePath: string;
@@ -353,8 +360,8 @@ export class FilesystemMockBackend implements ZosBackend {
       etag: computeEtag(stat.mtimeMs),
     };
 
-    // codepage is ignored in mock mode (files are stored as UTF-8)
-    void codepage;
+    // encoding is ignored in mock mode (files are stored as UTF-8)
+    void encoding;
   }
 
   async createDataset(
@@ -565,6 +572,15 @@ export class FilesystemMockBackend implements ZosBackend {
       await fs.mkdir(path.dirname(targetPath), { recursive: true });
       await fs.rename(sourcePath, targetPath);
     }
+  }
+
+  async searchInDataset(
+    systemId: SystemId,
+    dsn: string,
+    options: SearchInDatasetOptions
+  ): Promise<SearchInDatasetResult> {
+    const log = getLogger().child('mock');
+    return runSearchWithListAndRead(this, systemId, dsn, options, log);
   }
 
   // -----------------------------------------------------------------------

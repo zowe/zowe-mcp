@@ -23,6 +23,14 @@ import type { CredentialProvider } from '../../zos/credentials.js';
 import type { SessionState } from '../../zos/session.js';
 import type { SystemRegistry } from '../../zos/system.js';
 
+/** Zod schema for optional string or null (null = use server default). */
+const optionalEncoding = z
+  .union([z.string(), z.null()])
+  .optional()
+  .describe(
+    'Mainframe encoding (EBCDIC) for this system. Omit to leave unchanged; pass null to use MCP server default.'
+  );
+
 /** Dependencies injected into context tool registration. */
 export interface ContextToolDeps {
   systemRegistry: SystemRegistry;
@@ -80,18 +88,21 @@ export function registerContextTools(
     'setSystem',
     {
       description:
-        'Set the active z/OS system. This restores the per-system context (user ID) if the system was previously used. ' +
-        'Hostname can be fully qualified (e.g. sys1.example.com) or unqualified when unambiguous (e.g. sys1, SYS1).',
+        'Set the active z/OS system. This restores the per-system context (user ID, encoding overrides) if the system was previously used. ' +
+        'Hostname can be fully qualified (e.g. sys1.example.com) or unqualified when unambiguous (e.g. sys1, SYS1). ' +
+        'Optionally set mainframe encodings for this system (dataset and USS); omit to leave existing overrides unchanged, or pass null to use MCP server default.',
       inputSchema: {
         system: z
           .string()
           .describe(
             'Hostname of the z/OS system to activate (e.g. "sys1.example.com" or "sys1" when unambiguous).'
           ),
+        mainframeMvsEncoding: optionalEncoding,
+        mainframeUssEncoding: optionalEncoding,
       },
     },
-    async ({ system }) => {
-      log.info('setSystem called', { system });
+    async ({ system, mainframeMvsEncoding, mainframeUssEncoding }) => {
+      log.info('setSystem called', { system, mainframeMvsEncoding, mainframeUssEncoding });
 
       const sysInfo = systemRegistry.getOrResolve(system);
       if (!sysInfo) {
@@ -116,22 +127,28 @@ export function registerContextTools(
         : [];
 
       const credentials = await credentialProvider.getCredentials(resolvedHost);
-      const ctx = sessionState.setActiveSystem(resolvedHost, credentials.user);
+      const encodingOverrides =
+        mainframeMvsEncoding !== undefined || mainframeUssEncoding !== undefined
+          ? { mainframeMvsEncoding, mainframeUssEncoding }
+          : undefined;
+      const ctx = sessionState.setActiveSystem(resolvedHost, credentials.user, encodingOverrides);
+
+      const response: Record<string, unknown> = {
+        activeSystem: resolvedHost,
+        userId: ctx.userId,
+        description: sysInfo.description,
+        messages,
+      };
+      if (ctx.mainframeMvsEncoding !== undefined || ctx.mainframeUssEncoding !== undefined) {
+        response.mainframeMvsEncoding = ctx.mainframeMvsEncoding ?? null;
+        response.mainframeUssEncoding = ctx.mainframeUssEncoding ?? null;
+      }
 
       return {
         content: [
           {
             type: 'text' as const,
-            text: JSON.stringify(
-              {
-                activeSystem: resolvedHost,
-                userId: ctx.userId,
-                description: sysInfo.description,
-                messages,
-              },
-              null,
-              2
-            ),
+            text: JSON.stringify(response, null, 2),
           },
         ],
       };
@@ -156,7 +173,12 @@ export function registerContextTools(
       const allConfigured = systemRegistry.listInfo();
       const recentlyUsed = sessionState.getAllContexts();
 
-      let activeSystem = null;
+      let activeSystem: {
+        system: string;
+        userId: string;
+        mainframeMvsEncoding?: string | null;
+        mainframeUssEncoding?: string | null;
+      } | null = null;
       if (activeSystemId) {
         const ctx = sessionState.getContext(activeSystemId);
         if (ctx) {
@@ -164,6 +186,10 @@ export function registerContextTools(
             system: activeSystemId,
             userId: ctx.userId,
           };
+          if (ctx.mainframeMvsEncoding !== undefined || ctx.mainframeUssEncoding !== undefined) {
+            activeSystem.mainframeMvsEncoding = ctx.mainframeMvsEncoding ?? null;
+            activeSystem.mainframeUssEncoding = ctx.mainframeUssEncoding ?? null;
+          }
         }
       }
 

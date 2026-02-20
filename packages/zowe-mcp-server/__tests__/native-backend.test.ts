@@ -38,7 +38,7 @@ function createFakeClient(overrides?: {
     }[];
   }>;
   listDsMembers?: (req: { dsname: string }) => Promise<{ items?: { name: string }[] }>;
-  readDataset?: (req: { dsname: string; localEncoding?: string }) => Promise<{
+  readDataset?: (req: { dsname: string; localEncoding?: string; encoding?: string }) => Promise<{
     etag?: string;
     data?: string;
   }>;
@@ -368,7 +368,7 @@ describe('NativeBackend', () => {
   });
 
   describe('readDataset', () => {
-    it('returns text, etag, codepage from SDK readDataset response', async () => {
+    it('returns text, etag, encoding from SDK readDataset response', async () => {
       const options = createOptions();
       const backend = new NativeBackend(options);
 
@@ -377,7 +377,7 @@ describe('NativeBackend', () => {
       expect(result).toEqual({
         text: 'line1\nline2\nline3',
         etag: 'mock-etag',
-        codepage: 'IBM-1047',
+        encoding: 'IBM-1047',
       });
       expect(options.clientCache.getOrCreate).toHaveBeenCalledWith(SPEC, {
         user: SPEC.user,
@@ -405,7 +405,8 @@ describe('NativeBackend', () => {
       expect(readDatasetMock).toHaveBeenCalledTimes(1);
       expect(readDatasetMock).toHaveBeenCalledWith({
         dsname: 'USER.PS.DATA',
-        localEncoding: 'IBM-1047',
+        localEncoding: 'utf-8',
+        encoding: 'IBM-1047',
       });
     });
 
@@ -429,11 +430,12 @@ describe('NativeBackend', () => {
       expect(readDatasetMock).toHaveBeenCalledTimes(1);
       expect(readDatasetMock).toHaveBeenCalledWith({
         dsname: 'USER.SRC.COBOL(MAIN)',
-        localEncoding: 'IBM-1047',
+        localEncoding: 'utf-8',
+        encoding: 'IBM-1047',
       });
     });
 
-    it('passes codepage as localEncoding when provided', async () => {
+    it('passes encoding to SDK when provided', async () => {
       const readDatasetMock = vi.fn().mockResolvedValue({ etag: '', data: '' });
       const options = createOptions({
         clientCache: {
@@ -449,7 +451,8 @@ describe('NativeBackend', () => {
 
       expect(readDatasetMock).toHaveBeenCalledWith({
         dsname: 'USER.DATA',
-        localEncoding: 'IBM-037',
+        localEncoding: 'utf-8',
+        encoding: 'IBM-037',
       });
     });
 
@@ -470,7 +473,7 @@ describe('NativeBackend', () => {
 
       expect(result.text).toBe('');
       expect(result.etag).toBe('e');
-      expect(result.codepage).toBe('IBM-1047');
+      expect(result.encoding).toBe('IBM-1047');
     });
 
     it('throws when getSpec returns undefined', async () => {

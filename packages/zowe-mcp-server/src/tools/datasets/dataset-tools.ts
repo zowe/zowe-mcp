@@ -33,7 +33,10 @@ import {
   resolvePattern,
   validateListPattern,
 } from '../../zos/dsn.js';
+import { type EncodingOptions, resolveDatasetEncoding } from '../../zos/encoding.js';
 import { buildCacheKey, type ResponseCache } from '../../zos/response-cache.js';
+import type { SearchCommentType } from '../../zos/search-options.js';
+import { buildParmsFromOptions, SEARCH_COMMENT_TYPES } from '../../zos/search-options.js';
 import { resolveSystemForTool, type SessionState } from '../../zos/session.js';
 import type { SystemRegistry } from '../../zos/system.js';
 import type { MutationResultMeta } from '../response.js';
@@ -43,7 +46,9 @@ import {
   formatResolved,
   getListMessages,
   getReadMessages,
+  MAX_LIST_LIMIT,
   paginateList,
+  paginateSearchResult,
   resolvedOnlyIfDifferent,
   sanitizeTextForDisplay,
   windowContent,
@@ -82,6 +87,8 @@ export interface DatasetToolDeps {
   credentialProvider: CredentialProvider;
   /** When set, listDatasets and listMembers use it to cache backend results (avoids repeated backend calls when paginating). */
   responseCache?: ResponseCache;
+  /** Default mainframe encodings (MVS datasets, USS). Used when no per-system or per-operation override. */
+  encodingOptions: EncodingOptions;
 }
 
 /**
@@ -323,6 +330,179 @@ export function registerDatasetTools(
   );
 
   // -----------------------------------------------------------------------
+  // searchInDataset
+  // -----------------------------------------------------------------------
+  const searchCommentEnum = z.enum(SEARCH_COMMENT_TYPES as unknown as [string, ...string[]]);
+  server.registerTool(
+    'searchInDataset',
+    {
+      description:
+        'Search for a string in a sequential dataset or in a PDS/PDSE (all members or one member). ' +
+        'Returns matching lines with line numbers and a summary. ' +
+        'Results are paginated by member (offset/limit); when _result.hasMore is true, call again with the next offset and limit. ' +
+        'Full result is cached so paging does not re-run the search. ' +
+        'Options: caseSensitive (default false), cobol (ignore cols 1–6), ignoreSequenceNumbers, doNotProcessComments (asterisk, cobolComment, fortran, cpp, pli, pascal, pcAssembly, ada).',
+      annotations: { readOnlyHint: true },
+      inputSchema: {
+        dsn: z
+          .string()
+          .describe('Fully qualified dataset name (e.g. USER.SRC.COBOL or SYS1.SAMPLIB).'),
+        string: z.string().describe('Search string (literal) to find in the dataset or members.'),
+        system: z
+          .string()
+          .optional()
+          .describe(
+            'Target z/OS system: fully qualified or unqualified hostname. Defaults to the active system.'
+          ),
+        encoding: z
+          .string()
+          .optional()
+          .describe(
+            'Mainframe encoding (EBCDIC) for reading dataset content. Overrides system and server default when set.'
+          ),
+        member: z
+          .string()
+          .optional()
+          .describe(
+            'For PDS/PDSE only, limit search to this member (e.g. IEANTCOB). Omit to search all members or a sequential dataset.'
+          ),
+        offset: z
+          .number()
+          .int()
+          .min(0)
+          .optional()
+          .describe('0-based offset into the member list. Default: 0.'),
+        limit: z
+          .number()
+          .int()
+          .min(1)
+          .max(MAX_LIST_LIMIT)
+          .optional()
+          .describe(
+            `Number of members to return per page. Default: ${DEFAULT_LIST_LIMIT}. Max: ${MAX_LIST_LIMIT}.`
+          ),
+        caseSensitive: z
+          .boolean()
+          .optional()
+          .describe('When true, match exact case. Default false (case-insensitive).'),
+        cobol: z
+          .boolean()
+          .optional()
+          .describe('When true, ignore columns 1–6 (COBOL sequence numbers). Default: false.'),
+        ignoreSequenceNumbers: z
+          .boolean()
+          .optional()
+          .describe(
+            'When true (default), ignore cols 73–80 as sequence numbers. When false, treat as data.'
+          ),
+        doNotProcessComments: z
+          .array(searchCommentEnum)
+          .optional()
+          .describe(
+            'Comment types to exclude from search: asterisk, cobolComment, fortran, cpp, pli, pascal, pcAssembly, ada.'
+          ),
+      },
+    },
+    async ({
+      dsn,
+      string: searchString,
+      system,
+      encoding,
+      member,
+      offset,
+      limit,
+      caseSensitive,
+      cobol,
+      ignoreSequenceNumbers,
+      doNotProcessComments,
+    }) => {
+      log.info('searchInDataset called', {
+        dsn,
+        string: searchString,
+        system,
+        encoding,
+        member,
+        offset,
+        limit,
+      });
+
+      try {
+        const resolved = await resolveInput(deps, dsn, member, system, log);
+        const systemCtx = deps.sessionState.getContext(resolved.systemId);
+        const resolvedEncoding = resolveDatasetEncoding(
+          encoding,
+          systemCtx?.mainframeMvsEncoding,
+          deps.encodingOptions.defaultMainframeMvsEncoding
+        );
+        const parms = buildParmsFromOptions({
+          caseSensitive,
+          cobol,
+          ignoreSequenceNumbers,
+          doNotProcessComments: doNotProcessComments as SearchCommentType[] | undefined,
+        });
+
+        const searchOptions = {
+          string: searchString,
+          member: resolved.member,
+          parms,
+          encoding: resolvedEncoding,
+        };
+
+        const fullResult = deps.responseCache
+          ? await deps.responseCache.getOrFetch(
+              buildCacheKey('searchInDataset', {
+                systemId: resolved.systemId,
+                dsn: resolved.dsn,
+                member: resolved.member ?? '',
+                string: searchString,
+                parms,
+                encoding: resolvedEncoding,
+              }),
+              () => deps.backend.searchInDataset(resolved.systemId, resolved.dsn, searchOptions)
+            )
+          : await deps.backend.searchInDataset(resolved.systemId, resolved.dsn, searchOptions);
+
+        const { members: slicedMembers, meta } = paginateSearchResult(
+          fullResult,
+          offset ?? 0,
+          limit ?? DEFAULT_LIST_LIMIT
+        );
+
+        // Sanitize match content just before returning (single point for unprintable → '.')
+        const sanitizedMembers = slicedMembers.map(m => ({
+          name: m.name,
+          matches: m.matches.map(mat => ({
+            lineNumber: mat.lineNumber,
+            content: sanitizeTextForDisplay(mat.content),
+          })),
+        }));
+
+        const fullDsn = resolved.member ? `${resolved.dsn}(${resolved.member})` : resolved.dsn;
+        const rawInputDsn = member ? `${dsn.trim()}(${member.trim()})` : dsn.trim();
+        const responseCtx = buildContext(resolved.systemId, {
+          resolvedDsn: resolvedOnlyIfDifferent(fullDsn, rawInputDsn),
+        });
+
+        return wrapResponse(
+          responseCtx,
+          meta,
+          {
+            dataset: fullResult.dataset,
+            members: sanitizedMembers,
+            summary: fullResult.summary,
+          },
+          getListMessages(meta)
+        );
+      } catch (err) {
+        if (err instanceof DsnError) {
+          return errorResult(err.message);
+        }
+        return errorResult((err as Error).message);
+      }
+    }
+  );
+
+  // -----------------------------------------------------------------------
   // getDatasetAttributes
   // -----------------------------------------------------------------------
   server.registerTool(
@@ -398,7 +578,7 @@ export function registerDatasetTools(
         'Results are paginated by lines. When _result.hasMore is true, more lines exist—you must call this tool again with startLine and lineCount to get the next page. ' +
         'Do not answer using only the first page; fetch until _result.hasMore is false. ' +
         'Large files are automatically truncated to the first 2000 lines when no window is requested. ' +
-        'Returns UTF-8 text, an ETag for optimistic locking, and the source codepage. ' +
+        'Returns UTF-8 text, an ETag for optimistic locking, and the source encoding. ' +
         'Pass the ETag to writeDataset to prevent overwriting concurrent changes.',
       annotations: { readOnlyHint: true },
       inputSchema: {
@@ -410,10 +590,12 @@ export function registerDatasetTools(
           .describe(
             'Target z/OS system: fully qualified or unqualified hostname (e.g. sys1.example.com or sys1 when unambiguous). Defaults to the active system.'
           ),
-        codepage: z
+        encoding: z
           .string()
           .optional()
-          .describe('Source codepage for EBCDIC-to-UTF-8 conversion (default: "IBM-1047").'),
+          .describe(
+            'Mainframe encoding (EBCDIC) for this read. Overrides system and server default when set. Default: from system or MCP server default.'
+          ),
         startLine: z
           .number()
           .int()
@@ -430,12 +612,25 @@ export function registerDatasetTools(
           ),
       },
     },
-    async ({ dsn, member, system, codepage, startLine, lineCount }) => {
-      log.info('readDataset called', { dsn, member, system, codepage, startLine, lineCount });
+    async ({ dsn, member, system, encoding, startLine, lineCount }) => {
+      log.info('readDataset called', {
+        dsn,
+        member,
+        system,
+        encoding,
+        startLine,
+        lineCount,
+      });
 
       try {
         const resolved = await resolveInput(deps, dsn, member, system, log);
-        const userId = deps.sessionState.getContext(resolved.systemId)?.userId ?? '';
+        const systemCtx = deps.sessionState.getContext(resolved.systemId);
+        const userId = systemCtx?.userId ?? '';
+        const resolvedEncoding = resolveDatasetEncoding(
+          encoding,
+          systemCtx?.mainframeMvsEncoding,
+          deps.encodingOptions.defaultMainframeMvsEncoding
+        );
 
         const result = deps.responseCache
           ? await deps.responseCache.getOrFetch(
@@ -444,21 +639,21 @@ export function registerDatasetTools(
                 userId,
                 dsn: resolved.dsn,
                 member: resolved.member ?? '',
-                codepage: codepage ?? '',
+                encoding: resolvedEncoding,
               }),
               () =>
                 deps.backend.readDataset(
                   resolved.systemId,
                   resolved.dsn,
                   resolved.member,
-                  codepage
+                  resolvedEncoding
                 )
             )
           : await deps.backend.readDataset(
               resolved.systemId,
               resolved.dsn,
               resolved.member,
-              codepage
+              resolvedEncoding
             );
 
         const sanitized = sanitizeTextForDisplay(result.text);
@@ -467,17 +662,17 @@ export function registerDatasetTools(
         const fullDsn = resolved.member ? `${resolved.dsn}(${resolved.member})` : resolved.dsn;
         const rawInputDsn = member ? `${dsn.trim()}(${member.trim()})` : dsn.trim();
 
-        const ctx = buildContext(resolved.systemId, {
+        const responseCtx = buildContext(resolved.systemId, {
           resolvedDsn: resolvedOnlyIfDifferent(fullDsn, rawInputDsn),
         });
 
         return wrapResponse(
-          ctx,
+          responseCtx,
           windowed.meta,
           {
             text: windowed.text,
             etag: result.etag,
-            codepage: result.codepage,
+            encoding: result.encoding,
           },
           getReadMessages(windowed.meta)
         );
@@ -515,35 +710,49 @@ export function registerDatasetTools(
           .string()
           .optional()
           .describe('ETag from a previous readDataset call for optimistic locking.'),
-        codepage: z
+        encoding: z
           .string()
           .optional()
-          .describe('Target codepage for UTF-8-to-EBCDIC conversion (default: "IBM-1047").'),
+          .describe(
+            'Mainframe encoding (EBCDIC) for this write. Overrides system and server default when set. Default: from system or MCP server default.'
+          ),
       },
     },
-    async ({ dsn, content, member, system, etag, codepage }) => {
-      log.info('writeDataset called', { dsn, member, system, hasEtag: !!etag, codepage });
+    async ({ dsn, content, member, system, etag, encoding }) => {
+      log.info('writeDataset called', {
+        dsn,
+        member,
+        system,
+        hasEtag: !!etag,
+        encoding,
+      });
 
       try {
         const resolved = await resolveInput(deps, dsn, member, system, log);
+        const systemCtx = deps.sessionState.getContext(resolved.systemId);
+        const resolvedEncoding = resolveDatasetEncoding(
+          encoding,
+          systemCtx?.mainframeMvsEncoding,
+          deps.encodingOptions.defaultMainframeMvsEncoding
+        );
         const result = await deps.backend.writeDataset(
           resolved.systemId,
           resolved.dsn,
           content,
           resolved.member,
           etag,
-          codepage
+          resolvedEncoding
         );
 
         const fullDsn = resolved.member ? `${resolved.dsn}(${resolved.member})` : resolved.dsn;
         const rawInputDsn = member ? `${dsn.trim()}(${member.trim()})` : dsn.trim();
 
-        const ctx = buildContext(resolved.systemId, {
+        const responseCtx = buildContext(resolved.systemId, {
           resolvedDsn: resolvedOnlyIfDifferent(fullDsn, rawInputDsn),
         });
 
         const mutationMeta: MutationResultMeta = { success: true };
-        return wrapResponse(ctx, mutationMeta, { etag: result.etag }, []);
+        return wrapResponse(responseCtx, mutationMeta, { etag: result.etag }, []);
       } catch (err) {
         if (err instanceof DsnError) {
           return errorResult(err.message);

@@ -42,8 +42,8 @@ Signatures (see `backend.ts` for full JSDoc):
 
 - `listDatasets(systemId, pattern, volser?, userId?)` → `Promise<DatasetEntry[]>`
 - `listMembers(systemId, dsn, pattern?)` → `Promise<MemberEntry[]>`
-- `readDataset(systemId, dsn, member?, codepage?)` → `Promise<ReadDatasetResult>`
-- `writeDataset(systemId, dsn, content, member?, etag?, codepage?)` → `Promise<WriteDatasetResult>`
+- `readDataset(systemId, dsn, member?, encoding?)` → `Promise<ReadDatasetResult>`
+- `writeDataset(systemId, dsn, content, member?, etag?, encoding?)` → `Promise<WriteDatasetResult>`
 - `createDataset(systemId, dsn, options)` → `Promise<CreateDatasetResult>`
 - `deleteDataset(systemId, dsn, member?)` → `Promise<void>`
 - `getAttributes(systemId, dsn)` → `Promise<DatasetAttributes>`

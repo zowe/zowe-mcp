@@ -67,16 +67,28 @@ export function resolveSystemForTool(
 // Per-system context
 // ---------------------------------------------------------------------------
 
+/** Optional per-system mainframe encoding overrides. null or missing = use MCP server default. */
+export interface SystemEncodingOverrides {
+  mainframeMvsEncoding?: string | null;
+  mainframeUssEncoding?: string | null;
+}
+
 /** Working context for a single z/OS system. */
 export interface SystemContext {
   /** Active user ID on this system (e.g. `"USER"`). */
   userId: string;
+  /** Mainframe encoding for dataset operations; null/undefined = use server default. */
+  mainframeMvsEncoding?: string | null;
+  /** Mainframe encoding for USS operations (reserved); null/undefined = use server default. */
+  mainframeUssEncoding?: string | null;
 }
 
 /** Serializable summary of a system context (for tool responses). */
 export interface SystemContextSummary {
   system: SystemId;
   userId: string;
+  mainframeMvsEncoding?: string | null;
+  mainframeUssEncoding?: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -102,17 +114,41 @@ export class SessionState {
   /**
    * Set the active system. Creates or updates the per-system context so
    * that {@code userId} reflects the credentials used for this connection.
+   * When encodingOverrides is provided, sets or clears per-system encoding;
+   * when omitted, leaves existing encoding overrides unchanged.
    *
    * @returns The context for the newly active system.
    */
-  setActiveSystem(systemId: SystemId, defaultUserId: string): SystemContext {
+  setActiveSystem(
+    systemId: SystemId,
+    defaultUserId: string,
+    encodingOverrides?: SystemEncodingOverrides
+  ): SystemContext {
     this.activeSystemId = systemId;
     const existing = this.contexts.get(systemId);
     if (existing) {
       existing.userId = defaultUserId;
+      if (encodingOverrides !== undefined) {
+        if ('mainframeMvsEncoding' in encodingOverrides) {
+          existing.mainframeMvsEncoding = encodingOverrides.mainframeMvsEncoding;
+        }
+        if ('mainframeUssEncoding' in encodingOverrides) {
+          existing.mainframeUssEncoding = encodingOverrides.mainframeUssEncoding;
+        }
+      }
       return existing;
     }
-    const ctx: SystemContext = { userId: defaultUserId };
+    const ctx: SystemContext = {
+      userId: defaultUserId,
+      mainframeMvsEncoding:
+        encodingOverrides?.mainframeMvsEncoding !== undefined
+          ? encodingOverrides.mainframeMvsEncoding
+          : undefined,
+      mainframeUssEncoding:
+        encodingOverrides?.mainframeUssEncoding !== undefined
+          ? encodingOverrides.mainframeUssEncoding
+          : undefined,
+    };
     this.contexts.set(systemId, ctx);
     return ctx;
   }
@@ -156,6 +192,8 @@ export class SessionState {
     return [...this.contexts.entries()].map(([system, ctx]) => ({
       system,
       userId: ctx.userId,
+      mainframeMvsEncoding: ctx.mainframeMvsEncoding,
+      mainframeUssEncoding: ctx.mainframeUssEncoding,
     }));
   }
 

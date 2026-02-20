@@ -91,12 +91,12 @@ export interface MemberEntry {
 
 /** Result of reading a dataset or member. */
 export interface ReadDatasetResult {
-  /** Content as UTF-8 text. */
+  /** Content as UTF-8 text (local/client encoding). */
   text: string;
   /** ETag for optimistic locking. */
   etag: string;
-  /** Source codepage used for conversion. */
-  codepage: string;
+  /** Mainframe (source) EBCDIC encoding used for conversion to UTF-8. */
+  encoding: string;
 }
 
 /** Result of writing a dataset or member. */
@@ -154,6 +154,64 @@ export interface CreateDatasetResult {
 }
 
 // ---------------------------------------------------------------------------
+// Search types
+// ---------------------------------------------------------------------------
+
+/** A single matching line from a search. */
+export interface SearchMatchEntry {
+  /** 1-based line number. */
+  lineNumber: number;
+  /** Line content (UTF-8). */
+  content: string;
+}
+
+/** Search result for one member: name and matching lines. */
+export interface SearchMemberResult {
+  /** Member name (or synthetic name for sequential dataset). */
+  name: string;
+  /** Matching lines with line numbers. */
+  matches: SearchMatchEntry[];
+}
+
+/** Summary counts and options for a search result. */
+export interface SearchInDatasetSummary {
+  /** Total lines that matched the search string. */
+  linesFound: number;
+  /** Total lines processed across all members. */
+  linesProcessed: number;
+  /** Number of members that had at least one match. */
+  membersWithLines: number;
+  /** Number of members with no matches (PDS only). */
+  membersWithoutLines: number;
+  /** Search string used. */
+  searchPattern: string;
+  /** SuperC process options string (e.g. "ANYC COBOL"). */
+  processOptions: string;
+}
+
+/** Options for searchInDataset. Tool builds parms from natural options and passes parms. */
+export interface SearchInDatasetOptions {
+  /** Search string (literal). */
+  string: string;
+  /** Optional member name to limit search to one PDS/PDSE member. */
+  member?: string;
+  /** SuperC process options string (e.g. "ANYC COBOL"), built from natural options. */
+  parms: string;
+  /** Mainframe (EBCDIC) encoding for reading dataset content. Resolved by tool layer (operation → system → server default). */
+  encoding?: string;
+}
+
+/** Full result of a search in a dataset (all members with matches and summary). */
+export interface SearchInDatasetResult {
+  /** Resolved dataset name. */
+  dataset: string;
+  /** Members (or single entry for sequential) with their matching lines. */
+  members: SearchMemberResult[];
+  /** Summary counts and options. */
+  summary: SearchInDatasetSummary;
+}
+
+// ---------------------------------------------------------------------------
 // Backend interface
 // ---------------------------------------------------------------------------
 
@@ -205,32 +263,36 @@ export interface ZosBackend {
   /**
    * Read the content of a sequential dataset or PDS/PDSE member.
    *
-   * The backend converts from the source codepage to UTF-8.
+   * Returned text is always UTF-8 (local/client encoding). The optional
+   * encoding parameter is the mainframe (source) EBCDIC encoding used to
+   * convert to UTF-8. When not provided, the tool layer supplies the resolved
+   * value (system override or MCP server default).
    *
    * @param systemId - Target z/OS system.
    * @param dsn - Fully-qualified dataset name.
    * @param member - Member name (for PDS/PDSE).
-   * @param codepage - Source codepage (default: `"IBM-1047"`).
+   * @param encoding - Mainframe EBCDIC encoding (resolved by tool layer when omitted).
    */
   readDataset(
     systemId: SystemId,
     dsn: string,
     member?: string,
-    codepage?: string
+    encoding?: string
   ): Promise<ReadDatasetResult>;
 
   /**
    * Write content to a sequential dataset or PDS/PDSE member.
    *
    * Content is provided as UTF-8 text. The backend converts to the
-   * target codepage.
+   * target encoding. When not provided, the tool layer supplies the
+   * resolved value (system override or MCP server default).
    *
    * @param systemId - Target z/OS system.
    * @param dsn - Fully-qualified dataset name.
    * @param content - UTF-8 text content to write.
    * @param member - Member name (for PDS/PDSE).
    * @param etag - Optional ETag for optimistic locking.
-   * @param codepage - Target codepage (default: `"IBM-1047"`).
+   * @param encoding - Target mainframe EBCDIC encoding (resolved by tool layer when omitted).
    * @throws If `etag` is provided and does not match the current version.
    */
   writeDataset(
@@ -239,7 +301,7 @@ export interface ZosBackend {
     content: string,
     member?: string,
     etag?: string,
-    codepage?: string
+    encoding?: string
   ): Promise<WriteDatasetResult>;
 
   /**
@@ -308,4 +370,18 @@ export interface ZosBackend {
     member?: string,
     newMember?: string
   ): Promise<void>;
+
+  /**
+   * Search for a string in a sequential dataset or PDS/PDSE (all members or one member).
+   * Returns matching lines with line numbers and a summary.
+   *
+   * @param systemId - Target z/OS system.
+   * @param dsn - Fully-qualified dataset name.
+   * @param options - Search string, optional member, and parms (process options).
+   */
+  searchInDataset(
+    systemId: SystemId,
+    dsn: string,
+    options: SearchInDatasetOptions
+  ): Promise<SearchInDatasetResult>;
 }

@@ -248,6 +248,7 @@ describe('Dataset tools with mock backend', () => {
       expect(toolNames).toContain('listDatasets');
       expect(toolNames).toContain('listMembers');
       expect(toolNames).toContain('readDataset');
+      expect(toolNames).toContain('searchInDataset');
       expect(toolNames).toContain('setSystem');
       expect(toolNames).toContain('getContext');
     });
@@ -604,6 +605,96 @@ describe('Dataset tools with mock backend', () => {
   });
 
   // -----------------------------------------------------------------------
+  // searchInDataset
+  // -----------------------------------------------------------------------
+  describe('searchInDataset', () => {
+    /* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access -- envelope from JSON.parse; shape asserted by test */
+    it('should return envelope with _context, _result, data (dataset, members, summary)', async () => {
+      const result = await client.callTool({
+        name: 'searchInDataset',
+        arguments: { dsn: 'TESTUSER.DATA.INPUT', string: 'HELLO' },
+      });
+
+      const envelope = parseEnvelope(result) as ToolResponseEnvelope<{
+        dataset: string;
+        members: { name: string; matches: { lineNumber: number; content: string }[] }[];
+        summary: { linesFound: number; searchPattern: string };
+      }> & { _result: SearchResultMeta };
+      expect(envelope._context).toBeDefined();
+      expect(envelope._context.system).toBe(SYSTEM_HOST);
+      const meta = envelope._result as SearchResultMeta;
+      expect(meta).toBeDefined();
+      expect(meta.count).toBe(1);
+      expect(meta.totalAvailable).toBe(1);
+      expect(meta.linesFound).toBe(1);
+      expect(meta.searchPattern).toBe('HELLO');
+      expect(envelope.data.dataset).toBe('TESTUSER.DATA.INPUT');
+      expect(envelope.data.members).toHaveLength(1);
+      expect(envelope.data.members[0].matches).toHaveLength(1);
+      expect(envelope.data.members[0].matches[0].content).toContain('HELLO');
+      expect(envelope.data.summary.linesFound).toBe(1);
+    });
+
+    it('should search PDS and return members with matches', async () => {
+      const result = await client.callTool({
+        name: 'searchInDataset',
+        arguments: { dsn: 'TESTUSER.SRC.COBOL', string: 'IDENTIFICATION' },
+      });
+
+      const envelope = parseEnvelope(result) as ToolResponseEnvelope<{
+        members: { name: string; matches: { lineNumber: number; content: string }[] }[];
+        summary: { linesFound: number; membersWithLines: number };
+      }> & { _result: SearchResultMeta };
+      const meta = envelope._result as SearchResultMeta;
+      expect(meta.totalAvailable).toBe(2); // MAIN and UTIL
+      expect(meta.linesFound).toBe(2);
+      expect(envelope.data.members).toHaveLength(2);
+      expect(envelope.data.summary.membersWithLines).toBe(2);
+    });
+
+    it('should paginate and use cache for second page', async () => {
+      const first = await client.callTool({
+        name: 'searchInDataset',
+        arguments: { dsn: 'TESTUSER.SRC.COBOL', string: 'DIVISION', limit: 1 },
+      });
+      const envelope1 = parseEnvelope(first) as ToolResponseEnvelope<{ members: unknown[] }> & {
+        _result: SearchResultMeta;
+      };
+      const meta1 = envelope1._result as SearchResultMeta;
+      expect(meta1.hasMore).toBe(true);
+      expect(meta1.count).toBe(1);
+      expect(meta1.totalAvailable).toBe(2);
+
+      const second = await client.callTool({
+        name: 'searchInDataset',
+        arguments: { dsn: 'TESTUSER.SRC.COBOL', string: 'DIVISION', offset: 1, limit: 1 },
+      });
+      const envelope2 = parseEnvelope(second) as ToolResponseEnvelope<{ members: unknown[] }> & {
+        _result: SearchResultMeta;
+      };
+      const meta2 = envelope2._result as SearchResultMeta;
+      expect(meta2.offset).toBe(1);
+      expect(meta2.hasMore).toBe(false);
+      expect(envelope2.data.members).toHaveLength(1);
+    });
+
+    it('should return sanitized match content (unprintable replaced with period)', async () => {
+      // TESTUSER.RAW.DATA contains "hello\x01world\nline2"
+      const result = await client.callTool({
+        name: 'searchInDataset',
+        arguments: { dsn: 'TESTUSER.RAW.DATA', string: 'world' },
+      });
+
+      const envelope = parseEnvelope(result);
+      expect(envelope.data.members).toHaveLength(1);
+      expect(envelope.data.members[0].matches).toHaveLength(1);
+      const content = envelope.data.members[0].matches[0].content;
+      expect(content).toContain('hello.world');
+      expect(content).not.toContain('\x01');
+    });
+  });
+
+  // -----------------------------------------------------------------------
   // Line windowing for readDataset
   // -----------------------------------------------------------------------
   describe('line windowing', () => {
@@ -613,7 +704,7 @@ describe('Dataset tools with mock backend', () => {
         arguments: { dsn: 'TESTUSER.DATA.INPUT' },
       });
 
-      const envelope = parseEnvelope<{ text: string; etag: string; codepage: string }>(result);
+      const envelope = parseEnvelope<{ text: string; etag: string; encoding: string }>(result);
       const meta = envelope._result as ReadResultMeta;
       expect(meta.totalLines).toBeGreaterThanOrEqual(1);
       expect(meta.startLine).toBe(1);
@@ -622,7 +713,7 @@ describe('Dataset tools with mock backend', () => {
       expect(meta.mimeType).toBeDefined();
       expect(envelope.data.text).toContain('HELLO WORLD');
       expect(envelope.data.etag).toBeDefined();
-      expect(envelope.data.codepage).toBeDefined();
+      expect(envelope.data.encoding).toBeDefined();
     });
 
     it('should support startLine parameter', async () => {
@@ -732,6 +823,59 @@ describe('Dataset tools with mock backend', () => {
       expect(envelope.data.text).toContain('hello.world');
       expect(envelope.data.text).not.toContain('\x01');
       expect(envelope.data.text).toContain('line2');
+    });
+
+    it('should return server default encoding (IBM-37) when encoding param is omitted', async () => {
+      const result = await client.callTool({
+        name: 'readDataset',
+        arguments: { dsn: 'TESTUSER.DATA.INPUT' },
+      });
+
+      const envelope = parseEnvelope<{ text: string; etag: string; encoding: string }>(result);
+      expect(envelope.data.encoding).toBe('IBM-37');
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // setSystem encoding overrides
+  // -----------------------------------------------------------------------
+  describe('setSystem encoding overrides', () => {
+    it('should accept mainframeMvsEncoding and mainframeUssEncoding and return them in response', async () => {
+      const result = await client.callTool({
+        name: 'setSystem',
+        arguments: {
+          system: SYSTEM_HOST,
+          mainframeMvsEncoding: 'IBM-1047',
+          mainframeUssEncoding: 'IBM-1047',
+        },
+      });
+
+      const body = JSON.parse(getResultText(result)) as {
+        activeSystem: string;
+        userId: string;
+        mainframeMvsEncoding?: string | null;
+        mainframeUssEncoding?: string | null;
+      };
+      expect(body.activeSystem).toBe(SYSTEM_HOST);
+      expect(body.mainframeMvsEncoding).toBe('IBM-1047');
+      expect(body.mainframeUssEncoding).toBe('IBM-1047');
+    });
+
+    it('should show encoding overrides in getContext after setSystem', async () => {
+      await client.callTool({
+        name: 'setSystem',
+        arguments: {
+          system: SYSTEM_HOST,
+          mainframeMvsEncoding: 'IBM-1047',
+        },
+      });
+
+      const result = await client.callTool({ name: 'getContext', arguments: {} });
+      const body = JSON.parse(getResultText(result)) as {
+        activeSystem: { system: string; mainframeMvsEncoding?: string | null } | null;
+      };
+      expect(body.activeSystem).not.toBeNull();
+      expect(body.activeSystem!.mainframeMvsEncoding).toBe('IBM-1047');
     });
   });
 

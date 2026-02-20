@@ -78,10 +78,10 @@ class CountingBackend implements ZosBackend {
     systemId: SystemId,
     dsn: string,
     member?: string,
-    codepage?: string
+    encoding?: string
   ): Promise<ReadDatasetResult> {
     this.readDatasetCallCount++;
-    return this.inner.readDataset(systemId, dsn, member, codepage);
+    return this.inner.readDataset(systemId, dsn, member, encoding);
   }
 
   writeDataset(
@@ -90,9 +90,9 @@ class CountingBackend implements ZosBackend {
     content: string,
     member?: string,
     etag?: string,
-    codepage?: string
+    encoding?: string
   ) {
-    return this.inner.writeDataset(systemId, dsn, content, member, etag, codepage);
+    return this.inner.writeDataset(systemId, dsn, content, member, etag, encoding);
   }
 
   createDataset(

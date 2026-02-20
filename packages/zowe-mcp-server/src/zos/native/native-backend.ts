@@ -24,9 +24,12 @@ import type {
   DatasetEntry,
   MemberEntry,
   ReadDatasetResult,
+  SearchInDatasetOptions,
+  SearchInDatasetResult,
   WriteDatasetResult,
 } from '../backend.js';
 import { memberPatternToRegExp } from '../member-pattern.js';
+import { runSearchWithListAndRead } from '../search-runner.js';
 import type { SystemId } from '../system.js';
 import type { ParsedConnectionSpec } from './connection-spec.js';
 import type { NativeCredentialProvider } from './native-credential-provider.js';
@@ -35,6 +38,9 @@ import type { SshClientCache } from './ssh-client-cache.js';
 const log = getLogger().child('native');
 
 const NOT_IMPL = 'Not implemented for Zowe Native backend';
+
+/** Local encoding for ZNP read result; data in the MCP server is always UTF-8. */
+const LOCAL_ENCODING_UTF8 = 'utf-8';
 
 /** Subset of ZSshClient.ds we use (SDK types may be loose). */
 interface NativeDsApi {
@@ -195,27 +201,36 @@ export class NativeBackend {
     });
   }
 
+  /**
+   * Reads dataset content. Result is always UTF-8 (local encoding).
+   * localEncoding is always UTF-8. The encoding argument is the mainframe (EBCDIC) encoding (tool layer resolves default).
+   */
   async readDataset(
     systemId: SystemId,
     dsn: string,
     member?: string,
-    codepage?: string
+    encoding?: string
   ): Promise<ReadDatasetResult> {
     return this.withNativeClient(systemId, undefined, async client => {
       const dsname = member ? `${dsn}(${member})` : dsn;
+      const mainframeEncoding = encoding ?? 'IBM-1047';
       const ds = (
         client as unknown as {
           ds: {
             readDataset(req: {
               dsname: string;
+              /** Local (client) encoding for the result: UTF-8. */
               localEncoding?: string;
+              /** Mainframe (EBCDIC) encoding for conversion. */
+              encoding?: string;
             }): Promise<{ etag?: string; data?: string }>;
           };
         }
       ).ds;
       const response = await ds.readDataset({
         dsname,
-        localEncoding: codepage ?? 'IBM-1047',
+        localEncoding: LOCAL_ENCODING_UTF8,
+        encoding: mainframeEncoding,
       });
 
       const raw = response.data ?? '';
@@ -224,7 +239,7 @@ export class NativeBackend {
       return {
         text,
         etag: response.etag ?? '',
-        codepage: codepage ?? 'IBM-1047',
+        encoding: mainframeEncoding,
       };
     });
   }
@@ -235,9 +250,9 @@ export class NativeBackend {
     content: string,
     member?: string,
     etag?: string,
-    codepage?: string
+    encoding?: string
   ): Promise<WriteDatasetResult> {
-    void [systemId, dsn, content, member, etag, codepage];
+    void [systemId, dsn, content, member, etag, encoding];
     await Promise.resolve();
     throw new Error(NOT_IMPL);
   }
@@ -286,5 +301,16 @@ export class NativeBackend {
     void [systemId, dsn, newDsn, member, newMember];
     await Promise.resolve();
     throw new Error(NOT_IMPL);
+  }
+
+  async searchInDataset(
+    systemId: SystemId,
+    dsn: string,
+    options: SearchInDatasetOptions
+  ): Promise<SearchInDatasetResult> {
+    // First implementation: use listMembers + readDataset + grep. When ZNP client.tool.search
+    // is available (see https://github.com/zowe/zowe-native-proto/pull/809), call it here and
+    // map the response to SearchInDatasetResult instead.
+    return runSearchWithListAndRead(this, systemId, dsn, options, log);
   }
 }

@@ -33,7 +33,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const serverPath = resolve(__dirname, '..', 'dist', 'index.js');
 const packageRoot = resolve(__dirname, '..');
-const EXPECTED_TOOL_COUNT = 13;
+const EXPECTED_TOOL_COUNT = 14;
 
 /** Parsed tool result content. */
 interface ToolContent {
@@ -160,6 +160,25 @@ describe('Zowe MCP Server (mock stdio E2E)', () => {
           const names = o.data.map(m => m.member);
           expect(names).toContain('CUSTFILE');
           expect(names).toContain('ACCTPROC');
+        },
+      },
+      {
+        name: 'searchInDataset',
+        arguments: { dsn: 'USER.SRC.COBOL', string: 'DIVISION' },
+        assertResult(parsed) {
+          const o = parsed as {
+            _context: { system: string };
+            _result: { count: number; totalAvailable: number; linesFound: number };
+            data: { dataset: string; members: unknown[]; summary: { searchPattern: string } };
+          };
+          expect(o._context).toBeDefined();
+          expect(o._result).toBeDefined();
+          expect(o._result.count).toBeGreaterThanOrEqual(0);
+          expect(o._result.totalAvailable).toBeGreaterThanOrEqual(0);
+          expect(o.data.dataset).toBe('USER.SRC.COBOL');
+          expect(Array.isArray(o.data.members)).toBe(true);
+          expect(o.data.summary).toBeDefined();
+          expect(o.data.summary.searchPattern).toBe('DIVISION');
         },
       },
     ];
@@ -315,7 +334,7 @@ describe('readDataset pagination (pagination preset)', () => {
     expect(result.isError).toBeFalsy();
     const page1 = JSON.parse(getResultText(result)) as {
       _result: { totalLines: number; startLine: number; returnedLines: number; hasMore: boolean };
-      data: { text: string };
+      data: { text: string; encoding?: string };
       messages: string[];
     };
     expect(page1._result.totalLines).toBe(2200);
@@ -326,6 +345,7 @@ describe('readDataset pagination (pagination preset)', () => {
     expect(page1.messages[0]).toContain('startLine=501');
     expect(page1.data.text).toContain('LINE 0001');
     expect(page1.data.text).toContain('LINE 0500');
+    expect(page1.data.encoding).toBe('IBM-37');
 
     // Page 2: startLine 501, lineCount 500
     result = await client.callTool({

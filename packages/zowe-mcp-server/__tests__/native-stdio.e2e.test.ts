@@ -322,7 +322,7 @@ describe.skipIf(!canRunNativeE2E)(
           returnedLines: number;
           hasMore?: boolean;
         };
-        data: { text: string; etag: string; codepage: string };
+        data: { text: string; etag: string; encoding: string };
       };
       expect(o._context).toBeDefined();
       expect(o._context.system).toBeDefined();
@@ -330,11 +330,38 @@ describe.skipIf(!canRunNativeE2E)(
       expect(typeof o.data.text).toBe('string');
       expect(o.data.text.length).toBeGreaterThan(0);
       expect(typeof o.data.etag).toBe('string');
-      expect(typeof o.data.codepage).toBe('string');
+      expect(typeof o.data.encoding).toBe('string');
       if (o._result) {
         expect(o._result.totalLines).toBeGreaterThan(0);
         expect(o._result.startLine).toBe(1);
         expect(o._result.returnedLines).toBeGreaterThan(0);
+      }
+    });
+
+    it('searchInDataset SYS1.SAMPLIB(IEANTCOB) returns envelope and matches when present', async () => {
+      const { parsed } = await callToolSuccess(client, 'searchInDataset', {
+        dsn: "'SYS1.SAMPLIB'",
+        member: 'IEANTCOB',
+        string: 'Name/Token Service',
+      });
+      const o = parsed as {
+        _context: { system: string };
+        _result: { count: number; totalAvailable: number; linesFound: number };
+        data: {
+          dataset: string;
+          members: { name: string; matches: { lineNumber: number; content: string }[] }[];
+          summary: { searchPattern: string };
+        };
+      };
+      expect(o._context).toBeDefined();
+      expect(o._result).toBeDefined();
+      expect(o.data.dataset).toBe('SYS1.SAMPLIB');
+      expect(Array.isArray(o.data.members)).toBe(true);
+      expect(o.data.summary.searchPattern).toBe('Name/Token Service');
+      if (o.data.members.length >= 1) {
+        const member = o.data.members.find(m => m.name === 'IEANTCOB') ?? o.data.members[0];
+        expect(member.matches.length).toBeGreaterThan(0);
+        expect(member.matches.some(m => m.content.includes('Name/Token Service'))).toBe(true);
       }
     });
 

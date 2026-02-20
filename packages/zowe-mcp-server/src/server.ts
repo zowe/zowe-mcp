@@ -27,6 +27,11 @@ import { registerDatasetTools } from './tools/datasets/dataset-tools.js';
 import type { ZosBackend } from './zos/backend.js';
 import type { CredentialProvider } from './zos/credentials.js';
 import {
+  DEFAULT_MAINFRAME_MVS_ENCODING,
+  DEFAULT_MAINFRAME_USS_ENCODING,
+  type EncodingOptions,
+} from './zos/encoding.js';
+import {
   createResponseCache,
   type ResponseCache,
   type ResponseCacheOptions,
@@ -96,6 +101,11 @@ export interface CreateServerOptions {
    * If a ResponseCache instance is passed (e.g. from createResponseCache()), that instance is used so tests can inject a fresh empty cache or share one.
    */
   responseCache?: ResponseCacheOptions | ResponseCache | false;
+  /**
+   * Default mainframe encodings. When not provided, uses IBM-37 for MVS datasets and IBM-1047 for USS.
+   * Can be a mutable ref so runtime updates (e.g. encoding-options-update from VS Code) can change defaults without recreating the server.
+   */
+  encodingOptions?: EncodingOptions | { current: EncodingOptions };
 }
 
 /** Known backend kind names for the info tool. */
@@ -168,6 +178,16 @@ export function createServer(options?: CreateServerOptions): McpServer {
     const systemRegistry = options.systemRegistry ?? new SystemRegistry();
     const credentialProvider = options.credentialProvider!;
     const sessionState = new SessionState();
+    const encodingOpt = options.encodingOptions;
+    const encodingOptions: EncodingOptions =
+      encodingOpt === undefined
+        ? {
+            defaultMainframeMvsEncoding: DEFAULT_MAINFRAME_MVS_ENCODING,
+            defaultMainframeUssEncoding: DEFAULT_MAINFRAME_USS_ENCODING,
+          }
+        : 'current' in encodingOpt
+          ? encodingOpt.current
+          : encodingOpt;
     const responseCacheOpt = options.responseCache;
     const responseCache: ResponseCache | undefined =
       responseCacheOpt === false
@@ -183,7 +203,14 @@ export function createServer(options?: CreateServerOptions): McpServer {
     registerContextTools(server, { systemRegistry, sessionState, credentialProvider }, logger);
     registerDatasetTools(
       server,
-      { backend, systemRegistry, sessionState, credentialProvider, responseCache },
+      {
+        backend,
+        systemRegistry,
+        sessionState,
+        credentialProvider,
+        responseCache,
+        encodingOptions,
+      },
       logger
     );
     registerDatasetResources(server, { backend }, logger);

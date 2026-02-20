@@ -105,6 +105,24 @@
           "description": "Local absolute path to a mock data directory. When set and Native Systems is empty, the MCP server starts in mock mode. Use the 'Zowe MCP: Generate Mock Data' command to create one. Leave empty to use native (SSH) mode. Changes require restarting the MCP server.",
           "markdownDescription": "Local absolute path to a mock data directory (e.g. `/path`, `C:\\\\path`, or `~/path`). When set and **Native Systems** is empty, the MCP server starts in mock mode. Use the **Zowe MCP: Generate Mock Data** command to create one. Leave empty to use native (SSH) mode. Changes require restarting the MCP server.",
           "order": 5
+        },
+        "zoweMCP.defaultMainframeMvsEncoding": {
+          "type": "string",
+          "default": "IBM-37",
+          "pattern": "^IBM-[0-9]+$",
+          "patternErrorMessage": "Must be a valid IBM encoding format (e.g. IBM-37, IBM-1047)",
+          "description": "Default mainframe encoding (EBCDIC) for dataset read/write (e.g. IBM-37, IBM-1047). Use the encoding used at your site. Changes are sent to the server and take effect immediately.",
+          "markdownDescription": "Default mainframe encoding (EBCDIC) for dataset read/write (e.g. `IBM-37`, `IBM-1047`). Use the encoding used at your site. Changes are sent to the server and take effect immediately.",
+          "order": 6
+        },
+        "zoweMCP.defaultMainframeUssEncoding": {
+          "type": "string",
+          "default": "IBM-1047",
+          "pattern": "^IBM-[0-9]+$",
+          "patternErrorMessage": "Must be a valid IBM encoding format (e.g. IBM-1047)",
+          "description": "Default mainframe encoding for USS file operations (e.g. IBM-1047). Use the encoding used at your site. Changes are sent to the server and take effect immediately.",
+          "markdownDescription": "Default mainframe encoding for USS file operations (e.g. `IBM-1047`). Use the encoding used at your site. Changes are sent to the server and take effect immediately.",
+          "order": 7
         }
       }
     }

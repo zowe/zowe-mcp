@@ -99,6 +99,7 @@ export function startPipeServer(context: vscode.ExtensionContext): PipeServerInf
     sendInitialLogLevel();
     sendInitialSystems();
     sendInitialNativeOptions();
+    sendInitialEncodingOptions();
 
     let buffer = '';
     socket.on('data', (data: Buffer) => {
@@ -252,6 +253,27 @@ function sendInitialNativeOptions(): void {
 }
 
 /**
+ * Sends the current default mainframe encoding settings to all connected servers.
+ * Called when a new server connects.
+ */
+function sendInitialEncodingOptions(): void {
+  const config = vscode.workspace.getConfiguration('zoweMCP');
+  const defaultMainframeMvsEncoding = config.get<string>('defaultMainframeMvsEncoding', 'IBM-37');
+  const defaultMainframeUssEncoding = config.get<string>(
+    'defaultMainframeUssEncoding',
+    'IBM-1047'
+  );
+  sendEventToServers({
+    type: 'encoding-options-update',
+    data: {
+      defaultMainframeMvsEncoding: defaultMainframeMvsEncoding?.trim() || undefined,
+      defaultMainframeUssEncoding: defaultMainframeUssEncoding?.trim() || undefined,
+    },
+    timestamp: Date.now(),
+  } as ExtensionToServerEvent);
+}
+
+/**
  * Sends a systems-update event to all connected MCP server instances.
  * Call when zoweMCP.nativeSystems configuration changes.
  */
@@ -265,4 +287,25 @@ export function sendSystemsUpdateEvent(): void {
  */
 export function sendNativeOptionsUpdateEvent(): void {
   sendInitialNativeOptions();
+}
+
+/**
+ * Sends the current default mainframe encoding options to all connected MCP server instances.
+ * Call when zoweMCP.defaultMainframeMvsEncoding or zoweMCP.defaultMainframeUssEncoding changes.
+ */
+export function sendEncodingOptionsUpdateEvent(): void {
+  const config = vscode.workspace.getConfiguration('zoweMCP');
+  const defaultMainframeMvsEncoding = config.get<string>('defaultMainframeMvsEncoding', 'IBM-37');
+  const defaultMainframeUssEncoding = config.get<string>(
+    'defaultMainframeUssEncoding',
+    'IBM-1047'
+  );
+  sendEventToServers({
+    type: 'encoding-options-update',
+    data: {
+      defaultMainframeMvsEncoding: defaultMainframeMvsEncoding?.trim() || undefined,
+      defaultMainframeUssEncoding: defaultMainframeUssEncoding?.trim() || undefined,
+    },
+    timestamp: Date.now(),
+  } as ExtensionToServerEvent);
 }

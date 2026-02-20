@@ -89,8 +89,32 @@ export interface MutationResultMeta {
   success: boolean;
 }
 
+/** Result summary for search operations (pagination over members + summary fields). */
+export interface SearchResultMeta {
+  /** Number of members returned in this page. */
+  count: number;
+  /** Total members with matches (before pagination). */
+  totalAvailable: number;
+  /** 0-based offset of the first returned member. */
+  offset: number;
+  /** True if more members exist beyond this page. */
+  hasMore: boolean;
+  /** Total lines that matched the search string. */
+  linesFound: number;
+  /** Total lines processed across all members. */
+  linesProcessed: number;
+  /** Number of members that had at least one match. */
+  membersWithLines: number;
+  /** Number of members with no matches (PDS only). */
+  membersWithoutLines: number;
+  /** Search string used. */
+  searchPattern: string;
+  /** SuperC process options string. */
+  processOptions: string;
+}
+
 /** Union of all result metadata types. */
-export type ResultMeta = ListResultMeta | ReadResultMeta | MutationResultMeta;
+export type ResultMeta = ListResultMeta | ReadResultMeta | MutationResultMeta | SearchResultMeta;
 
 /** The standard response envelope for all dataset tools. */
 export interface ToolResponseEnvelope<T> {
@@ -209,6 +233,39 @@ export function getListMessages(meta: ListResultMeta): string[] {
       `You must call this tool again with offset=${nextOffset} and limit=${limit} to fetch the next page. ` +
       `Do not answer with only partial data—keep calling until _result.hasMore is false.`,
   ];
+}
+
+/**
+ * Apply pagination to search result members and build SearchResultMeta.
+ * Used by searchInDataset tool: full result is cached; this slices the members for the requested page.
+ */
+export function paginateSearchResult(
+  fullResult: {
+    dataset: string;
+    members: { name: string; matches: { lineNumber: number; content: string }[] }[];
+    summary: {
+      linesFound: number;
+      linesProcessed: number;
+      membersWithLines: number;
+      membersWithoutLines: number;
+      searchPattern: string;
+      processOptions: string;
+    };
+  },
+  offset: number,
+  limit: number
+): { members: typeof fullResult.members; meta: SearchResultMeta } {
+  const { data, meta: listMeta } = paginateList(fullResult.members, offset, limit);
+  const meta: SearchResultMeta = {
+    ...listMeta,
+    linesFound: fullResult.summary.linesFound,
+    linesProcessed: fullResult.summary.linesProcessed,
+    membersWithLines: fullResult.summary.membersWithLines,
+    membersWithoutLines: fullResult.summary.membersWithoutLines,
+    searchPattern: fullResult.summary.searchPattern,
+    processOptions: fullResult.summary.processOptions,
+  };
+  return { members: data, meta };
 }
 
 /**

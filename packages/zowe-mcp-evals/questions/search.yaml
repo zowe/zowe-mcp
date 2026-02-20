@@ -1,0 +1,34 @@
+# yaml-language-server: $schema=../schemas/evals-question-set.schema.json
+# Search eval set: agent must use searchInDataset with correct dsn/string (mock, default preset).
+config:
+  name: search
+  description: Agent must use searchInDataset to find a string in a dataset or member
+  repetitions: 2
+  minSuccessRate: 0.8
+  mock:
+    initArgs: --preset default
+
+questions:
+  - id: search-in-pds
+    prompt: Search for the string DIVISION in dataset USER.SRC.COBOL and tell me what you find.
+    assertions:
+      - type: toolCall
+        tool: searchInDataset
+        args:
+          dsn:
+            - "USER.SRC.COBOL"
+            - "'USER.SRC.COBOL'"
+          string: "DIVISION"
+      - type: answerContains
+        substring: search
+  - id: search-in-member
+    prompt: Search for PROCEDURE in member CUSTFILE of USER.SRC.COBOL.
+    assertions:
+      - type: toolCall
+        tool: searchInDataset
+        args:
+          dsn:
+            - "USER.SRC.COBOL"
+            - "'USER.SRC.COBOL'"
+          member: "CUSTFILE"
+          string: "PROCEDURE"

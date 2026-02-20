@@ -39,12 +39,12 @@ npm run build
 # Package VSIX (writes to packages/zowe-mcp-vscode/*.vsix)
 npm run package -w packages/zowe-mcp-vscode
 
-# Find the VSIX (single file)
+# Use the VSIX that matches the release version (ignore any leftover old .vsix files)
 VSIX_DIR="$REPO_ROOT/packages/zowe-mcp-vscode"
-VSIX=$(find "$VSIX_DIR" -maxdepth 1 -name '*.vsix' -print | head -n 1)
+VSIX="$VSIX_DIR/zowe-mcp-vscode-${VERSION}.vsix"
 
-if [ -z "$VSIX" ] || [ ! -f "$VSIX" ]; then
-  echo "Error: No .vsix found in $VSIX_DIR" >&2
+if [ ! -f "$VSIX" ]; then
+  echo "Error: Expected VSIX not found: $VSIX" >&2
   exit 1
 fi
 

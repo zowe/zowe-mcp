@@ -34,12 +34,12 @@ import type { Logger } from '../log.js';
  * the matching transport.
  *
  * @param createServer - Factory that returns a fully-configured McpServer.
- * @param port - The port to listen on (default: 3000).
+ * @param port - The port to listen on (default: 7542, Zowe MCP; Zowe API ML uses 7552-7558).
  * @param logger - Logger instance for diagnostic messages.
  */
 export async function startHttp(
   createServer: () => McpServer,
-  port = 3000,
+  port = 7542,
   logger: Logger
 ): Promise<void> {
   const log = logger.child('http');

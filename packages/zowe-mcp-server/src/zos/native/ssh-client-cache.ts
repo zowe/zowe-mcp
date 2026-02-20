@@ -39,11 +39,18 @@ export function isZnpServerNotFoundError(err: unknown): boolean {
   return msg.includes('Server not found') || msg.includes('FSUM7351');
 }
 
+export interface NativeOptions {
+  autoInstallZnp: boolean;
+  serverPath: string;
+}
+
 export interface SshClientCacheOptions {
   /** When true (default), deploy ZNP via ZSshUtils.installServer when "Server not found" is detected, then retry. */
   autoInstallZnp?: boolean;
   /** Remote path where the ZNP server is installed/run (default: ZSshClient.DEFAULT_SERVER_PATH). */
   serverPath?: string;
+  /** When set, options are read at getOrCreate time (allows runtime updates from extension). */
+  getOptions?: () => NativeOptions;
 }
 
 /**
@@ -52,12 +59,25 @@ export interface SshClientCacheOptions {
  */
 export class SshClientCache {
   private readonly clients = new Map<string, ZSshClient>();
-  private readonly autoInstallZnp: boolean;
-  private readonly serverPath: string;
+  private readonly staticOptions: NativeOptions | undefined;
+  private readonly getOptions: (() => NativeOptions) | undefined;
 
   constructor(options: SshClientCacheOptions = {}) {
-    this.autoInstallZnp = options.autoInstallZnp ?? true;
-    this.serverPath = options.serverPath ?? ZSshClient.DEFAULT_SERVER_PATH;
+    if (options.getOptions) {
+      this.getOptions = options.getOptions;
+      this.staticOptions = undefined;
+    } else {
+      this.getOptions = undefined;
+      this.staticOptions = {
+        autoInstallZnp: options.autoInstallZnp ?? true,
+        serverPath: options.serverPath ?? ZSshClient.DEFAULT_SERVER_PATH,
+      };
+    }
+  }
+
+  private options(): NativeOptions {
+    if (this.getOptions) return this.getOptions();
+    return this.staticOptions!;
   }
 
   /**
@@ -78,6 +98,7 @@ export class SshClientCache {
       return existing;
     }
 
+    const opts = this.options();
     log.debug('SSH cache miss: creating new session', {
       key,
       host: spec.host,
@@ -93,7 +114,7 @@ export class SshClientCache {
     });
 
     const createOpts = {
-      serverPath: this.serverPath,
+      serverPath: opts.serverPath,
       onClose: () => {
         log.debug('SSH session closed', { key });
         this.evictKey(key);
@@ -118,17 +139,17 @@ export class SshClientCache {
         errorMessage: msg,
         errorCode: code,
       });
-      if (!isZnpServerNotFoundError(err) || !this.autoInstallZnp) {
+      if (!isZnpServerNotFoundError(err) || !opts.autoInstallZnp) {
         throw err;
       }
       log.info('Installing Zowe Native server on host (retry after install)', {
         host: spec.host,
         port: spec.port,
         user: spec.user,
-        serverPath: this.serverPath,
+        serverPath: opts.serverPath,
       });
       try {
-        await ZSshUtils.installServer(session, this.serverPath);
+        await ZSshUtils.installServer(session, opts.serverPath);
         client = await ZSshClient.create(session, createOpts);
       } catch (installErr) {
         const installMsg = installErr instanceof Error ? installErr.message : String(installErr);

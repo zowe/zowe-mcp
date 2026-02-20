@@ -19,7 +19,12 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { getDisplayName, getLog, initLog } from './log';
-import { sendLogLevelEvent, sendSystemsUpdateEvent, startPipeServer } from './pipe-server';
+import {
+  sendLogLevelEvent,
+  sendNativeOptionsUpdateEvent,
+  sendSystemsUpdateEvent,
+  startPipeServer,
+} from './pipe-server';
 import { logLanguageModels, logStartupInfo } from './startup-log';
 
 export function activate(context: vscode.ExtensionContext): void {
@@ -38,24 +43,31 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.lm.registerMcpServerDefinitionProvider('zowe', {
       provideMcpServerDefinitions: () => {
         const args = [serverModule, '--stdio'];
-        const config = vscode.workspace.getConfiguration('zowe-mcp');
-        const mockDataDir = config.get<string>('mockDataDir', '').trim();
+        const config = vscode.workspace.getConfiguration('zoweMCP');
+        const mockDataDirectory = config.get<string>('mockDataDirectory', '').trim();
         const nativeSystems = config.get<string[]>('nativeSystems', []) ?? [];
+        const installZoweNativeServerAutomatically = config.get<boolean>(
+          'installZoweNativeServerAutomatically',
+          true
+        );
+        const zoweNativeServerPath = config.get<string>('zoweNativeServerPath', '~/.zowe-server');
 
-        if (mockDataDir && nativeSystems.length > 0) {
-          log.warn(
-            'Both mockDataDir and nativeSystems are set; using nativeSystems (native mode).'
-          );
-        }
-        if (mockDataDir && nativeSystems.length === 0) {
-          args.push('--mock', mockDataDir);
-          log.info(`Mock mode enabled: ${mockDataDir}`);
-        } else if (nativeSystems.length > 0) {
+        // Mock only when mock directory is set and native systems is empty; otherwise native mode.
+        if (mockDataDirectory && nativeSystems.length === 0) {
+          args.push('--mock', mockDataDirectory);
+          log.info(`Mock mode enabled: ${mockDataDirectory}`);
+        } else {
           args.push('--native');
           for (const spec of nativeSystems) {
             if (typeof spec === 'string' && spec.trim()) {
               args.push('--system', spec.trim());
             }
+          }
+          if (!installZoweNativeServerAutomatically) {
+            args.push('--native-server-auto-install=false');
+          }
+          if (zoweNativeServerPath?.trim()) {
+            args.push('--native-server-path', zoweNativeServerPath.trim());
           }
           log.info(`Native (SSH) mode enabled: ${nativeSystems.length} system(s)`);
         }
@@ -80,15 +92,22 @@ export function activate(context: vscode.ExtensionContext): void {
   // Watch for setting changes and forward to connected MCP servers
   context.subscriptions.push(
     vscode.workspace.onDidChangeConfiguration(e => {
-      if (e.affectsConfiguration('zowe-mcp.logLevel')) {
-        const config = vscode.workspace.getConfiguration('zowe-mcp');
+      if (e.affectsConfiguration('zoweMCP.logLevel')) {
+        const config = vscode.workspace.getConfiguration('zoweMCP');
         const level = config.get<string>('logLevel', 'info');
         log.info(`Log level setting changed to "${level}", forwarding to MCP servers`);
         sendLogLevelEvent(level);
       }
-      if (e.affectsConfiguration('zowe-mcp.nativeSystems')) {
+      if (e.affectsConfiguration('zoweMCP.nativeSystems')) {
         log.info('Native systems setting changed, forwarding to MCP servers');
         sendSystemsUpdateEvent();
+      }
+      if (
+        e.affectsConfiguration('zoweMCP.installZoweNativeServerAutomatically') ||
+        e.affectsConfiguration('zoweMCP.zoweNativeServerPath')
+      ) {
+        log.info('Native options setting changed, forwarding to MCP servers');
+        sendNativeOptionsUpdateEvent();
       }
     })
   );
@@ -131,7 +150,7 @@ function resolveServerPath(context: vscode.ExtensionContext): string {
  * Generates mock z/OS data by running the bundled server's `init-mock` command.
  *
  * Prompts the user for an output directory, runs the generator, and offers
- * to set `zowe-mcp.mockDataDir` to the generated directory.
+ * to set `zoweMCP.mockDataDirectory` to the generated directory.
  */
 async function initMockData(
   context: vscode.ExtensionContext,
@@ -191,9 +210,9 @@ async function initMockData(
   );
 
   if (choice === configure) {
-    const config = vscode.workspace.getConfiguration('zowe-mcp');
-    await config.update('mockDataDir', outputDir, vscode.ConfigurationTarget.Workspace);
-    log.info(`Set zowe-mcp.mockDataDir to: ${outputDir}`);
+    const config = vscode.workspace.getConfiguration('zoweMCP');
+    await config.update('mockDataDirectory', outputDir, vscode.ConfigurationTarget.Workspace);
+    log.info(`Set zoweMCP.mockDataDirectory to: ${outputDir}`);
 
     const reload = 'Reload Window';
     const reloadChoice = await vscode.window.showInformationMessage(

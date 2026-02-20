@@ -17,7 +17,7 @@
  * Parses CLI arguments to determine which transport to use:
  *   --stdio   (default) Start with stdio transport
  *   --http    Start with HTTP Streamable transport
- *   --port N  Port for HTTP transport (default: 3000)
+ *   --port N  Port for HTTP transport (default: 7542, Zowe MCP)
  *   --mock <dir>  Start in mock mode with the given data directory
  *   --native  Start with Zowe Native (SSH) backend
  *   --config <path>  JSON file with { "systems": ["user@host", ...] } (used with --native)
@@ -28,7 +28,12 @@
  *   call-tool  Call MCP tools via in-memory transport (optional --mock <dir>)
  */
 
+import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import yargs from 'yargs';
+import { hideBin } from 'yargs/helpers';
 import { connectExtensionClient } from './extension-client.js';
 import type { CreateServerOptions } from './server.js';
 import { createServer, getLogger, SERVER_VERSION } from './server.js';
@@ -51,122 +56,40 @@ interface ParsedArgs {
   subcommand?: string;
   /** Response cache: false = disabled, object = custom options, undefined = server defaults. */
   responseCache?: ResponseCacheConfig | false;
-  /** When true, do not auto-install ZNP on "Server not found" (native mode). Default false = auto-install enabled. */
-  nativeNoAutoInstallZnp?: boolean;
+  /** When false, do not auto-install ZNP on "Server not found" (native mode). Default true = auto-install enabled. */
+  nativeServerAutoInstall?: boolean;
   /** Override remote path for ZNP server install/run (native mode). Default ~/.zowe-server. */
   nativeServerPath?: string;
 }
 
-function parseArgs(): ParsedArgs {
-  const args = process.argv.slice(2);
-  let transport: 'stdio' | 'http' = 'stdio';
-  let port = 3000;
-  let mockDir: string | undefined;
-  let native = false;
-  let configPath: string | undefined;
-  const systemSpecs: string[] = [];
-  let subcommand: string | undefined;
-  let responseCache: ResponseCacheConfig | false | undefined;
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
-  let nativeNoAutoInstallZnp = false;
-  let nativeServerPath: string | undefined;
-
-  // Check for subcommand (first non-flag argument)
-  if (args.length > 0 && !args[0].startsWith('-')) {
-    subcommand = args[0];
-    return {
-      transport,
-      port,
-      mockDir,
-      native,
-      configPath,
-      systemSpecs,
-      subcommand,
-      responseCache,
-      nativeNoAutoInstallZnp,
-      nativeServerPath,
-    };
+function applyEnvOverrides(parsed: ParsedArgs): void {
+  if (!parsed.mockDir && process.env.ZOWE_MCP_MOCK_DIR) {
+    parsed.mockDir = process.env.ZOWE_MCP_MOCK_DIR;
   }
-
-  for (let i = 0; i < args.length; i++) {
-    if (args[i] === '--http') {
-      transport = 'http';
-    } else if (args[i] === '--stdio') {
-      transport = 'stdio';
-    } else if (args[i] === '--port' && i + 1 < args.length) {
-      port = parseInt(args[++i], 10);
-      if (isNaN(port)) {
-        getLogger().error('Invalid port number');
-        process.exit(1);
-      }
-    } else if (args[i] === '--mock' && i + 1 < args.length) {
-      mockDir = args[++i];
-    } else if (args[i].startsWith('--mock=')) {
-      mockDir = args[i].slice(7);
-      if (!mockDir) {
-        getLogger().error('--mock= requires a non-empty path');
-        process.exit(1);
-      }
-    } else if (args[i] === '--native') {
-      native = true;
-    } else if (args[i] === '--config' && i + 1 < args.length) {
-      configPath = args[++i];
-    } else if (args[i] === '--system' && i + 1 < args.length) {
-      systemSpecs.push(args[++i]);
-    } else if (args[i] === '--native-no-auto-install-znp') {
-      nativeNoAutoInstallZnp = true;
-    } else if (args[i] === '--native-server-path' && i + 1 < args.length) {
-      nativeServerPath = args[++i];
-      if (!nativeServerPath.trim()) {
-        getLogger().error('--native-server-path requires a non-empty path');
-        process.exit(1);
-      }
-    } else if (args[i] === '--response-cache-disable') {
-      responseCache = false;
-    } else if (args[i] === '--response-cache-ttl-minutes' && i + 1 < args.length) {
-      const minutes = parseInt(args[++i], 10);
-      if (isNaN(minutes) || minutes < 1) {
-        getLogger().error('--response-cache-ttl-minutes must be a positive number');
-        process.exit(1);
-      }
-      if (responseCache !== false) {
-        responseCache = responseCache ?? {};
-        responseCache.ttlMs = minutes * 60 * 1000;
-      }
-    } else if (args[i] === '--response-cache-max-mb' && i + 1 < args.length) {
-      const mb = parseInt(args[++i], 10);
-      if (isNaN(mb) || mb < 1) {
-        getLogger().error('--response-cache-max-mb must be a positive number');
-        process.exit(1);
-      }
-      if (responseCache !== false) {
-        responseCache = responseCache ?? {};
-        responseCache.maxSizeBytes = mb * 1024 * 1024;
-      }
-    }
-  }
-
-  // Also check environment variable
-  if (!mockDir && process.env.ZOWE_MCP_MOCK_DIR) {
-    mockDir = process.env.ZOWE_MCP_MOCK_DIR;
-  }
-
-  // Response cache from env (CLI takes precedence)
-  if (responseCache !== false) {
-    const envTtl = process.env.ZOWE_MCP_RESPONSE_CACHE_TTL_MS;
+  if (parsed.responseCache !== false) {
+    const envTtlMinutes = process.env.ZOWE_MCP_RESPONSE_CACHE_TTL_MINUTES;
+    const envTtlMsLegacy = process.env.ZOWE_MCP_RESPONSE_CACHE_TTL_MS;
     const envMax = process.env.ZOWE_MCP_RESPONSE_CACHE_MAX_BYTES;
-    if (envTtl !== undefined) {
-      const ttl = parseInt(envTtl, 10);
+    if (envTtlMinutes !== undefined) {
+      const minutes = parseInt(envTtlMinutes, 10);
+      if (!isNaN(minutes) && minutes > 0) {
+        parsed.responseCache = parsed.responseCache ?? {};
+        parsed.responseCache.ttlMs = minutes * 60 * 1000;
+      }
+    } else if (envTtlMsLegacy !== undefined) {
+      const ttl = parseInt(envTtlMsLegacy, 10);
       if (!isNaN(ttl) && ttl > 0) {
-        responseCache = responseCache ?? {};
-        responseCache.ttlMs = ttl;
+        parsed.responseCache = parsed.responseCache ?? {};
+        parsed.responseCache.ttlMs = ttl;
       }
     }
     if (envMax !== undefined) {
       const max = parseInt(envMax, 10);
       if (!isNaN(max) && max > 0) {
-        responseCache = responseCache ?? {};
-        responseCache.maxSizeBytes = max;
+        parsed.responseCache = parsed.responseCache ?? {};
+        parsed.responseCache.maxSizeBytes = max;
       }
     }
   }
@@ -174,31 +97,171 @@ function parseArgs(): ParsedArgs {
     process.env.ZOWE_MCP_RESPONSE_CACHE_DISABLE === '1' ||
     process.env.ZOWE_MCP_RESPONSE_CACHE_DISABLE === 'true'
   ) {
-    responseCache = false;
+    parsed.responseCache = false;
   }
-
-  if (
-    process.env.ZOWE_MCP_NATIVE_NO_AUTO_INSTALL_ZNP === '1' ||
-    process.env.ZOWE_MCP_NATIVE_NO_AUTO_INSTALL_ZNP === 'true'
-  ) {
-    nativeNoAutoInstallZnp = true;
+  const envAutoInstall = process.env.ZOWE_MCP_NATIVE_SERVER_AUTO_INSTALL?.toLowerCase();
+  if (envAutoInstall === 'false' || envAutoInstall === '0') {
+    parsed.nativeServerAutoInstall = false;
   }
   if (process.env.ZOWE_MCP_NATIVE_SERVER_PATH?.trim()) {
-    nativeServerPath = process.env.ZOWE_MCP_NATIVE_SERVER_PATH.trim();
+    parsed.nativeServerPath = process.env.ZOWE_MCP_NATIVE_SERVER_PATH.trim();
+  }
+}
+
+function parseArgs(): ParsedArgs {
+  const parser = yargs(hideBin(process.argv))
+    .scriptName('zowe-mcp-server')
+    .version(SERVER_VERSION)
+    .usage(
+      'Model Context Protocol server for z/OS (datasets, jobs, USS).\n\n' +
+        'Usage:\n  $0 [options]                    Start the MCP server (default: stdio)\n' +
+        '  $0 init-mock [options]                 Generate a mock data directory\n' +
+        '  $0 call-tool [options] [tool-name ...]  Call MCP tools via CLI'
+    )
+    .command(
+      'init-mock [args..]',
+      'Generate a mock data directory',
+      y =>
+        y.options({
+          output: { type: 'string', describe: 'Output directory for mock data' },
+          preset: {
+            type: 'string',
+            describe: 'Preset: minimal, default, large, inventory, or pagination',
+          },
+        }),
+      () => {
+        const scriptPath = resolve(__dirname, 'scripts', 'init-mock.js');
+        const result = spawnSync(process.execPath, [scriptPath, ...process.argv.slice(3)], {
+          stdio: 'inherit',
+        });
+        process.exit(result.status ?? 0);
+      }
+    )
+    .command(
+      'call-tool [args..]',
+      'Call MCP tools via CLI (optional --mock=<dir>, args as key=value)',
+      y =>
+        y.options({
+          mock: { type: 'string', describe: 'Mock data directory (or --mock=<dir>)' },
+          native: { type: 'boolean', describe: 'Use native (SSH) backend' },
+          config: { type: 'string', describe: 'JSON config path with "systems" array' },
+          system: {
+            type: 'array',
+            string: true,
+            describe: 'Connection spec user@host (repeatable)',
+          },
+        }),
+      () => {
+        const scriptPath = resolve(__dirname, 'scripts', 'call-tool.js');
+        const result = spawnSync(process.execPath, [scriptPath, ...process.argv.slice(3)], {
+          stdio: 'inherit',
+        });
+        process.exit(result.status ?? 0);
+      }
+    )
+    .options({
+      stdio: {
+        type: 'boolean',
+        default: true,
+        describe: 'Use stdio transport (default)',
+      },
+      http: {
+        type: 'boolean',
+        default: false,
+        describe: 'Use HTTP Streamable transport',
+      },
+      port: {
+        type: 'number',
+        default: 7542,
+        describe:
+          'Port for HTTP transport (default 7542, in Zowe 75xx range; Zowe API ML uses 7552-7558)',
+      },
+      mock: {
+        type: 'string',
+        describe:
+          'Mock backend: use filesystem data from this directory (or set ZOWE_MCP_MOCK_DIR)',
+      },
+      native: {
+        type: 'boolean',
+        default: false,
+        describe: 'Zowe Native (SSH) backend',
+      },
+      config: {
+        type: 'string',
+        describe: 'JSON file with { "systems": ["user@host", ...] } (used with --native)',
+      },
+      system: {
+        type: 'array',
+        string: true,
+        describe: 'Connection spec user@host or user@host:port (repeatable, used with --native)',
+      },
+      'native-server-auto-install': {
+        type: 'boolean',
+        default: true,
+        describe: 'Auto-install ZNP when "Server not found" (default: true)',
+      },
+      'native-server-path': {
+        type: 'string',
+        describe:
+          'Remote path for ZNP server (default: ~/.zowe-server; or ZOWE_MCP_NATIVE_SERVER_PATH)',
+      },
+      'response-cache-disable': {
+        type: 'boolean',
+        default: false,
+        describe: 'Disable response cache (default: enabled, 10 min TTL, 1 GB max)',
+      },
+      'response-cache-ttl-minutes': {
+        type: 'number',
+        describe:
+          'Cache entry TTL in minutes (default 10; or ZOWE_MCP_RESPONSE_CACHE_TTL_MINUTES)',
+      },
+      'response-cache-max-mb': {
+        type: 'number',
+        describe: 'Max cache size in MB (or ZOWE_MCP_RESPONSE_CACHE_MAX_BYTES)',
+      },
+    })
+    .alias('h', 'help')
+    .help();
+
+  const argv = parser.parseSync() as Record<string, unknown>;
+
+  let responseCache: ResponseCacheConfig | false | undefined = argv['response-cache-disable']
+    ? false
+    : undefined;
+  if (responseCache !== false) {
+    const ttl = argv['response-cache-ttl-minutes'] as number | undefined;
+    const maxMb = argv['response-cache-max-mb'] as number | undefined;
+    if ((ttl !== undefined && ttl > 0) || (maxMb !== undefined && maxMb > 0)) {
+      responseCache = responseCache ?? {};
+      if (ttl !== undefined && ttl > 0) {
+        responseCache.ttlMs = ttl * 60 * 1000;
+      }
+      if (maxMb !== undefined && maxMb > 0) {
+        responseCache.maxSizeBytes = maxMb * 1024 * 1024;
+      }
+    }
   }
 
-  return {
-    transport,
-    port,
-    mockDir,
-    native,
-    configPath,
+  const systemArg = argv.system;
+  const systemSpecs = Array.isArray(systemArg)
+    ? (systemArg as string[]).filter(
+        (s): s is string => typeof s === 'string' && s.trim().length > 0
+      )
+    : [];
+
+  const parsed: ParsedArgs = {
+    transport: argv.http ? 'http' : 'stdio',
+    port: (argv.port as number) ?? 7542,
+    mockDir: argv.mock as string | undefined,
+    native: (argv.native as boolean) ?? false,
+    configPath: argv.config as string | undefined,
     systemSpecs,
-    subcommand,
     responseCache,
-    nativeNoAutoInstallZnp,
-    nativeServerPath,
+    nativeServerAutoInstall: (argv['native-server-auto-install'] as boolean) ?? true,
+    nativeServerPath: argv['native-server-path'] as string | undefined,
   };
+  applyEnvOverrides(parsed);
+  return parsed;
 }
 
 function loadSystemsFromConfig(configPath: string): string[] {
@@ -210,67 +273,8 @@ function loadSystemsFromConfig(configPath: string): string[] {
   return config.systems;
 }
 
-function printHelp(): void {
-  const bin = 'zowe-mcp-server';
-  console.log(`Zowe MCP Server v${SERVER_VERSION}
-Model Context Protocol server for z/OS (datasets, jobs, USS).
-
-Usage:
-  npx ${bin} [options]              Start the MCP server (default: stdio)
-  npx ${bin} init-mock [options]    Generate a mock data directory
-  npx ${bin} call-tool [options]    Call MCP tools via CLI (optional --mock=<dir>)
-
-Transport (server mode):
-  --stdio              Use stdio transport (default)
-  --http               Use HTTP Streamable transport
-  --port <number>      Port for HTTP transport (default: 3000)
-
-Backend (server mode):
-  --mock <dir>         Mock backend: use filesystem data from <dir> (or --mock=<dir>, or ZOWE_MCP_MOCK_DIR)
-  --native             Zowe Native (SSH) backend
-  --config <path>      JSON file with { "systems": ["user@host", ...] } (used with --native)
-  --system <spec>      Connection spec user@host or user@host:port (repeatable, used with --native)
-  --native-no-auto-install-znp   Do not auto-install ZNP when "Server not found" (default: auto-install)
-  --native-server-path <path>    Remote path for ZNP server (default: ~/.zowe-server; or ZOWE_MCP_NATIVE_SERVER_PATH)
-
-Response cache (when backend is used; reduces repeated backend calls):
-  --response-cache-disable       Disable response cache (default: enabled, 10 min TTL, 1 GB max)
-  --response-cache-ttl-minutes N  Cache entry TTL in minutes (or ZOWE_MCP_RESPONSE_CACHE_TTL_MS)
-  --response-cache-max-mb N       Max cache size in MB (or ZOWE_MCP_RESPONSE_CACHE_MAX_BYTES)
-
-Help:
-  -h, --help           Show this help and exit.
-
-Subcommands:
-  init-mock   Generate a mock data directory. Example:
-              npx ${bin} init-mock --output ./zowe-mcp-mock-data [--preset minimal|default|large|inventory|pagination]
-  call-tool   List or call MCP tools. Example:
-              npx ${bin} call-tool [--mock=<dir> | --native [--config=<path>] [--system <spec> ...]] [<tool-name> [args]]
-`);
-}
-
 async function main(): Promise<void> {
-  const args = process.argv.slice(2);
-  if (args.includes('--help') || args.includes('-h')) {
-    printHelp();
-    process.exit(0);
-  }
-
   const parsed = parseArgs();
-
-  // Handle subcommands
-  if (parsed.subcommand === 'init-mock' || parsed.subcommand === 'call-tool') {
-    const childProcess = await import('node:child_process');
-    const nodePath = await import('node:path');
-    const nodeUrl = await import('node:url');
-    const __dirname = nodePath.dirname(nodeUrl.fileURLToPath(import.meta.url));
-    const scriptPath = nodePath.resolve(__dirname, 'scripts', `${parsed.subcommand}.js`);
-
-    const childArgs = process.argv.slice(3);
-    const child = childProcess.fork(scriptPath, childArgs, { stdio: 'inherit' });
-    child.on('exit', code => process.exit(code ?? 0));
-    return;
-  }
 
   const {
     transport,
@@ -345,9 +349,10 @@ async function main(): Promise<void> {
         process.exit(1);
       }
     }
-    if (systems.length === 0) {
+    const extensionConnected = extensionClient?.connected === true;
+    if (systems.length === 0 && !extensionConnected) {
       logger.error(
-        'Native mode requires at least one system. Use --config <path> (JSON with "systems" array) or --system user@host (repeatable).'
+        'Native mode requires at least one system when run standalone. Use --config <path> (JSON with "systems" array) or --system user@host (repeatable).'
       );
       process.exit(1);
     }
@@ -359,6 +364,13 @@ async function main(): Promise<void> {
     const nativePasswordStore = extensionClient?.connected
       ? new WaitablePasswordStore()
       : undefined;
+    const defaultNativeServerPath = '~/.zowe-server';
+    const nativeOptionsRef = {
+      current: {
+        autoInstallZnp: parsed.nativeServerAutoInstall ?? true,
+        serverPath: parsed.nativeServerPath ?? defaultNativeServerPath,
+      },
+    };
     const nativeSetup = loadNative({
       systems,
       useEnvForPassword: !extensionClient?.connected,
@@ -391,8 +403,9 @@ async function main(): Promise<void> {
             });
           }
         : undefined,
-      autoInstallZnp: !parsed.nativeNoAutoInstallZnp,
+      autoInstallZnp: parsed.nativeServerAutoInstall ?? true,
       nativeServerPath: parsed.nativeServerPath,
+      getNativeOptions: extensionClient?.connected ? () => nativeOptionsRef.current : undefined,
     });
     serverOptions = {
       backend: nativeSetup.backend,
@@ -430,6 +443,17 @@ async function main(): Promise<void> {
             updateSystems(systems);
           }
         }
+        if (event.type === 'native-options-update') {
+          const { installZoweNativeServerAutomatically, zoweNativeServerPath } = event.data;
+          nativeOptionsRef.current = {
+            autoInstallZnp: installZoweNativeServerAutomatically,
+            serverPath: zoweNativeServerPath ?? nativeOptionsRef.current.serverPath,
+          };
+          logger.info('Applied native-options-update from VS Code extension', {
+            installZoweNativeServerAutomatically,
+            zoweNativeServerPath: zoweNativeServerPath ?? '(unchanged)',
+          });
+        }
       });
       // Apply list sent on connect (in case process args were stale, e.g. VS Code cached definition)
       if (pendingSystemsUpdate && pendingSystemsUpdate.length > 0) {
@@ -465,7 +489,7 @@ async function main(): Promise<void> {
         message:
           'Zowe MCP Server started without a z/OS backend — only the "info" tool is available. ' +
           'To enable all z/OS tools, run "Zowe MCP: Generate Mock Data" from the Command Palette ' +
-          'or set "zowe-mcp.mockDataDir" in Settings to an existing mock data directory.',
+          'or set "zoweMCP.mockDataDirectory" in Settings to an existing mock data directory.',
       },
       timestamp: Date.now(),
     });

@@ -102,12 +102,13 @@ prepareFileDepsForBundle(targetPackageJson);
 
 if (cacheHit) {
   // Cache hit — copy cached node_modules
-  console.log('Using cached server production dependencies.');
+  console.log(`Using cached server production dependencies (${cacheDir}).`);
   fs.cpSync(path.join(cacheDir, 'node_modules'), path.join(targetDir, 'node_modules'), {
     recursive: true,
   });
 } else {
-  // Cache miss — install fresh and update cache
+  // Cache miss — install fresh and update cache.
+  // When using a private registry (e.g. Artifactory), ensure npm is logged in so this install can authenticate.
   console.log('Installing server production dependencies...');
   execSync('npm install --omit=dev --ignore-scripts', {
     cwd: targetDir,

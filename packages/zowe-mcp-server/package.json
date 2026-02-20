@@ -29,6 +29,7 @@
   "license": "EPL-2.0",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.26.0",
+    "yargs": "^17.7.2",
     "@zowe/imperative": "^8.11.0",
     "@zowe/zos-uss-for-zowe-sdk": "^8.11.0",
     "express": "^5.1.0",

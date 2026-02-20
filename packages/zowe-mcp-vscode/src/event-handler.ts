@@ -93,7 +93,10 @@ function showNotification(event: ServerToExtensionEvent): void {
     if (choice === generateMock) {
       void vscode.commands.executeCommand('zowe-mcp.initMockData');
     } else if (choice === openSettings) {
-      void vscode.commands.executeCommand('workbench.action.openSettings', 'zowe-mcp.mockDataDir');
+      void vscode.commands.executeCommand(
+        'workbench.action.openSettings',
+        'zoweMCP.mockDataDirectory'
+      );
     }
   });
 }

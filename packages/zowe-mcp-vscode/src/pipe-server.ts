@@ -98,6 +98,7 @@ export function startPipeServer(context: vscode.ExtensionContext): PipeServerInf
 
     sendInitialLogLevel();
     sendInitialSystems();
+    sendInitialNativeOptions();
 
     let buffer = '';
     socket.on('data', (data: Buffer) => {
@@ -190,7 +191,7 @@ export function startPipeServer(context: vscode.ExtensionContext): PipeServerInf
 }
 
 /**
- * Sends the current `zowe-mcp.logLevel` setting as a `log-level` event
+ * Sends the current `zoweMCP.logLevel` setting as a `log-level` event
  * to all connected MCP server instances.
  */
 export function sendLogLevelEvent(level: string): void {
@@ -206,7 +207,7 @@ export function sendLogLevelEvent(level: string): void {
  * to all connected servers. Called when a new server connects.
  */
 function sendInitialLogLevel(): void {
-  const config = vscode.workspace.getConfiguration('zowe-mcp');
+  const config = vscode.workspace.getConfiguration('zoweMCP');
   const level = config.get<string>('logLevel', 'info');
   sendLogLevelEvent(level);
 }
@@ -216,7 +217,7 @@ function sendInitialLogLevel(): void {
  * Called when a new server connects.
  */
 function sendInitialSystems(): void {
-  const config = vscode.workspace.getConfiguration('zowe-mcp');
+  const config = vscode.workspace.getConfiguration('zoweMCP');
   const systems = (config.get<string[]>('nativeSystems', []) ?? []).filter(
     (s): s is string => typeof s === 'string' && s.trim().length > 0
   );
@@ -230,9 +231,38 @@ function sendInitialSystems(): void {
 }
 
 /**
+ * Reads the current native options from VS Code settings and sends a
+ * native-options-update event to all connected servers. Called when a new server connects.
+ */
+function sendInitialNativeOptions(): void {
+  const config = vscode.workspace.getConfiguration('zoweMCP');
+  const installZoweNativeServerAutomatically = config.get<boolean>(
+    'installZoweNativeServerAutomatically',
+    true
+  );
+  const zoweNativeServerPath = config.get<string>('zoweNativeServerPath', '~/.zowe-server');
+  sendEventToServers({
+    type: 'native-options-update',
+    data: {
+      installZoweNativeServerAutomatically,
+      zoweNativeServerPath: zoweNativeServerPath?.trim() || undefined,
+    },
+    timestamp: Date.now(),
+  } as ExtensionToServerEvent);
+}
+
+/**
  * Sends a systems-update event to all connected MCP server instances.
- * Call when zowe-mcp.nativeSystems configuration changes.
+ * Call when zoweMCP.nativeSystems configuration changes.
  */
 export function sendSystemsUpdateEvent(): void {
   sendInitialSystems();
+}
+
+/**
+ * Sends the current native options to all connected MCP server instances.
+ * Call when zoweMCP.installZoweNativeServerAutomatically or zoweMCP.zoweNativeServerPath changes.
+ */
+export function sendNativeOptionsUpdateEvent(): void {
+  sendInitialNativeOptions();
 }

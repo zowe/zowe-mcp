@@ -243,7 +243,7 @@ Or add this to your `settings.json`:
 
 ```jsonc
 {
-  "zowe-mcp.mockDataDir": "/absolute/path/to/zowe-mcp-mock-data"
+  "zoweMCP.mockDataDirectory": "/absolute/path/to/zowe-mcp-mock-data"
 }
 ```
 

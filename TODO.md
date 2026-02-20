@@ -58,4 +58,4 @@ Items to address later. Not ordered by priority.
 ## Documentation & Maintenance
 
 - **MCP SDK v2**: MCP SDK v1.x is stable and SDK `main` is v2 pre-alpha. When v2 is stable, evaluate migration and update dependencies.
-- **Mock config hot-reload**: Currently changing `zowe-mcp.mockDataDir` requires restarting the MCP server; consider supporting config/systems change without full restart if feasible.
+- **Mock config hot-reload**: Currently changing `zoweMCP.mockDataDirectory` requires restarting the MCP server; consider supporting config/systems change without full restart if feasible.

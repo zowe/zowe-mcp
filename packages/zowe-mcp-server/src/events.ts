@@ -112,6 +112,18 @@ export interface SystemsUpdateEventData {
 /** Updates the list of connection specs (user@host) for native mode. */
 export type SystemsUpdateEvent = McpEvent<'systems-update', SystemsUpdateEventData>;
 
+/** Payload for a `native-options-update` event (extension → server). */
+export interface NativeOptionsUpdateEventData {
+  installZoweNativeServerAutomatically: boolean;
+  zoweNativeServerPath?: string;
+}
+
+/** Updates native backend options (auto-install, server path). Applied to future connections. */
+export type NativeOptionsUpdateEvent = McpEvent<
+  'native-options-update',
+  NativeOptionsUpdateEventData
+>;
+
 // ---------------------------------------------------------------------------
 // Union types
 // ---------------------------------------------------------------------------
@@ -124,7 +136,11 @@ export type ServerToExtensionEvent =
   | PasswordInvalidEvent;
 
 /** Events that flow from the VS Code extension to the MCP server. */
-export type ExtensionToServerEvent = LogLevelEvent | PasswordEvent | SystemsUpdateEvent;
+export type ExtensionToServerEvent =
+  | LogLevelEvent
+  | PasswordEvent
+  | SystemsUpdateEvent
+  | NativeOptionsUpdateEvent;
 
 /** Union of all event types exchanged over the pipe. */
 export type AnyMcpEvent = ServerToExtensionEvent | ExtensionToServerEvent;

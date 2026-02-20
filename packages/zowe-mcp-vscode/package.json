@@ -42,13 +42,19 @@
     "configuration": {
       "title": "Zowe MCP",
       "properties": {
-        "zowe-mcp.mockDataDir": {
-          "type": "string",
-          "default": "",
-          "description": "Absolute path to a mock data directory. When set, the MCP server starts in mock mode using a filesystem-backed z/OS backend instead of connecting to a real mainframe. Use the 'Zowe MCP: Generate Mock Data' command to create one. Leave empty to disable mock mode. Changes require restarting the MCP server.",
+        "zoweMCP.nativeSystems": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[^@]+@[a-zA-Z0-9.-]+(:\\d+)?$",
+            "patternErrorMessage": "Must be user@host or user@host:port"
+          },
+          "default": [],
+          "description": "Connection specs for Zowe Native (SSH) backend: user@hostname or user@hostname:port (e.g. USERID@sys1.example.com). When non-empty, the MCP server starts with the native backend. Passwords are stored in the shared Zowe secret namespace (zowe.ssh.password.*).",
+          "markdownDescription": "Connection specs for Zowe Native (SSH) backend: `user@hostname` or `user@hostname:port` (e.g. `USERID@sys1.example.com`). When non-empty, the MCP server starts with the native backend. Passwords are stored in the shared Zowe secret namespace (`zowe.ssh.password.*`).",
           "order": 1
         },
-        "zowe-mcp.logLevel": {
+        "zoweMCP.logLevel": {
           "type": "string",
           "default": "info",
           "enum": [
@@ -72,16 +78,33 @@
             "System is unusable"
           ],
           "description": "Minimum log level for the Zowe MCP Server. Changes take effect immediately without restarting.",
+          "markdownDescription": "Minimum log level for the Zowe MCP Server (RFC 5424 levels: `debug`, `info`, `notice`, `warning`, `error`, `critical`, `alert`, `emergency`). Changes take effect immediately without restarting.",
           "order": 2
         },
-        "zowe-mcp.nativeSystems": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "default": [],
-          "description": "Connection specs for Zowe Native (SSH) backend: user@hostname or user@hostname:port (e.g. USERID@sys1.example.com). When non-empty, the MCP server starts with the native backend instead of mock. Passwords are stored in the shared Zowe secret namespace (zowe.ssh.password.*). Changes require restarting the MCP server.",
+        "zoweMCP.installZoweNativeServerAutomatically": {
+          "type": "boolean",
+          "default": true,
+          "description": "When true, automatically install the Zowe Native server on the host when \"Server not found\" is detected. Set to false to disable auto-install. Changes are sent to the server and apply to future connections.",
+          "markdownDescription": "When `true`, automatically install the Zowe Native server on the host when \"Server not found\" is detected. Set to `false` to disable auto-install. Changes are sent to the server and apply to future connections.",
           "order": 3
+        },
+        "zoweMCP.zoweNativeServerPath": {
+          "type": "string",
+          "default": "~/.zowe-server",
+          "pattern": "^(/|~).*",
+          "patternErrorMessage": "Must be a Unix-style path for z/OS UNIX System Services (e.g. ~/.zowe-server or /var/zowe-server)",
+          "description": "Remote path on the z/OS host (UNIX System Services). Must start with / or ~. Changes are sent to the server and apply to future connections.",
+          "markdownDescription": "Remote path on the z/OS host (UNIX System Services). Must start with `/` or `~` (e.g. `~/.zowe-server` or `/var/zowe-server`). Changes are sent to the server and apply to future connections.",
+          "order": 4
+        },
+        "zoweMCP.mockDataDirectory": {
+          "type": "string",
+          "default": "",
+          "pattern": "^[^\u0000-\u001f]*$",
+          "patternErrorMessage": "Must not contain control characters. Use an absolute path for your OS (e.g. /path, C:\\path, or ~/path).",
+          "description": "Local absolute path to a mock data directory. When set and Native Systems is empty, the MCP server starts in mock mode. Use the 'Zowe MCP: Generate Mock Data' command to create one. Leave empty to use native (SSH) mode. Changes require restarting the MCP server.",
+          "markdownDescription": "Local absolute path to a mock data directory (e.g. `/path`, `C:\\\\path`, or `~/path`). When set and **Native Systems** is empty, the MCP server starts in mock mode. Use the **Zowe MCP: Generate Mock Data** command to create one. Leave empty to use native (SSH) mode. Changes require restarting the MCP server.",
+          "order": 5
         }
       }
     }

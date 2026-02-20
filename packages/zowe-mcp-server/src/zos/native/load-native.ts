@@ -25,10 +25,11 @@ import { parseConnectionSpecs } from './connection-spec.js';
 import { NativeBackend } from './native-backend.js';
 import type { NativeCredentialProviderOptions } from './native-credential-provider.js';
 import { NativeCredentialProvider } from './native-credential-provider.js';
+import type { NativeOptions } from './ssh-client-cache.js';
 import { SshClientCache } from './ssh-client-cache.js';
 
 export interface LoadNativeOptions {
-  /** Connection specs: "user@host" or "user@host:port". */
+  /** Connection specs: "user@host" or "user@host:port". May be empty when extension will send systems via systems-update. */
   systems: string[];
   /**
    * true = standalone: passwords from env vars.
@@ -45,6 +46,8 @@ export interface LoadNativeOptions {
   autoInstallZnp?: boolean;
   /** Remote path where the ZNP server is installed/run (default: ~/.zowe-server). */
   nativeServerPath?: string;
+  /** When set, native options are read at connection time (allows runtime updates from extension). */
+  getNativeOptions?: () => NativeOptions;
 }
 
 export interface NativeSetup {
@@ -63,9 +66,6 @@ export interface NativeSetup {
  */
 export function loadNative(options: LoadNativeOptions): NativeSetup {
   const specs = parseConnectionSpecs(options.systems);
-  if (specs.length === 0) {
-    throw new Error('At least one system (user@host) is required for native mode');
-  }
 
   const systemRegistry = new SystemRegistry();
   const credentialProvider = new NativeCredentialProvider({
@@ -75,10 +75,22 @@ export function loadNative(options: LoadNativeOptions): NativeSetup {
     requestPasswordCallback: options.requestPasswordCallback,
   });
 
-  const clientCache = new SshClientCache({
-    autoInstallZnp: options.autoInstallZnp ?? true,
-    serverPath: options.nativeServerPath ?? ZSshClient.DEFAULT_SERVER_PATH,
-  });
+  const clientCache = new SshClientCache(
+    options.getNativeOptions
+      ? {
+          getOptions: () => {
+            const o = options.getNativeOptions!();
+            return {
+              autoInstallZnp: o.autoInstallZnp,
+              serverPath: o.serverPath,
+            };
+          },
+        }
+      : {
+          autoInstallZnp: options.autoInstallZnp ?? true,
+          serverPath: options.nativeServerPath ?? ZSshClient.DEFAULT_SERVER_PATH,
+        }
+  );
 
   /** Mutable ref so getSpec and updateSystems see the same list (used for systems-update from VS Code). */
   const specsRef = { current: specs };

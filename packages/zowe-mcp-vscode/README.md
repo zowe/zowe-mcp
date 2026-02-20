@@ -55,11 +55,48 @@ When the server needs a password, the extension will prompt you. Passwords are s
 
 | Setting | Description |
 | --- | --- |
-| **Mock Data Dir** | Absolute path to a mock data directory. When set, the server uses mock z/OS data. Leave empty to disable. |
-| **Native Systems** | Connection specs for SSH: `user@host` or `user@host:port`. When non-empty, the server uses the native backend. |
-| **Log Level** | Minimum log level (e.g. `info`, `debug`). Takes effect immediately. |
+| **Native Systems** | Connection specs for SSH: `user@host` or `user@host:port` (e.g. `USERID@sys1.example.com`). With default configuration the server runs in native (SSH) mode; add systems here to connect. Passwords are stored in VS Code Secret Storage (Zowe namespace). Changes require reloading the window. |
+| **Log Level** | Minimum log level (e.g. `info`, `debug`). Takes effect immediately without restart. |
+| **Install Zowe Native Server Automatically** | When enabled (default), the extension automatically installs the Zowe Native server on the host when "Server not found" is detected. Disable to use a pre-installed server only. Changes are sent to the server and apply to future connections. |
+| **Zowe Native Server Path** | Remote path for the Zowe Native server on the host (default: `~/.zowe-server`). Changes are sent to the server and apply to future connections. |
+| **Mock Data Directory** | Absolute path to a mock data directory. When set **and** Native Systems is empty, the server uses mock z/OS data. Leave empty to use native (SSH) mode. Changes require reloading the window. |
 
-Changes to Mock Data Dir or Native Systems require reloading the window (or restarting the Zowe MCP server).
+**Mode behavior:** With default configuration (empty Mock Data Directory and empty Native Systems), the server runs in **native** mode with no systems; add entries to Native Systems to connect. Mock mode is active only when Mock Data Directory is set and Native Systems is empty.
+
+## User-facing options reference
+
+All options that affect the MCP server are documented below. The extension uses the **VS Code settings**; when running the server standalone you use **CLI options** and **environment variables**.
+
+### VS Code settings (Zowe MCP)
+
+| Setting ID | Type | Default | Description |
+| --- | --- | --- | --- |
+| `zoweMCP.nativeSystems` | array of string | `[]` | Connection specs: `user@host` or `user@host:port`. Format is validated in Settings UI. |
+| `zoweMCP.logLevel` | string | `"info"` | Log level: `debug`, `info`, `notice`, `warning`, `error`, `critical`, `alert`, `emergency`. |
+| `zoweMCP.installZoweNativeServerAutomatically` | boolean | `true` | Auto-install Zowe Native server on host when "Server not found". |
+| `zoweMCP.zoweNativeServerPath` | string | `"~/.zowe-server"` | Remote path for Zowe Native server install/run. |
+| `zoweMCP.mockDataDirectory` | string | `""` | Absolute path to mock data directory. Mock mode only when set and Native Systems is empty. |
+
+### Server CLI options (standalone)
+
+When running `npx zowe-mcp-server` (or the bundled server) outside VS Code:
+
+- **Transport:** `--stdio` (default), `--http`, `--port <N>` (default 7542 for HTTP)
+- **Backend:** `--mock <dir>`, `--native`, `--config <path>`, `--system <spec>` (repeatable)
+- **Native:** `--native-server-auto-install=true|false` (default: true), `--native-server-path <path>`
+- **Response cache:** `--response-cache-disable`, `--response-cache-ttl-minutes N`, `--response-cache-max-mb N`
+- **Help:** `-h`, `--help`
+
+### Environment variables (standalone)
+
+- `ZOWE_MCP_MOCK_DIR` — Mock data directory (same as `--mock <dir>`)
+- `ZOWE_MCP_LOG_LEVEL` — Log level (e.g. `info`, `debug`)
+- `ZOWE_MCP_NATIVE_SERVER_AUTO_INSTALL` — `false` or `0` to disable auto-install
+- `ZOWE_MCP_NATIVE_SERVER_PATH` — Remote path for Zowe Native server
+- `ZOWE_MCP_RESPONSE_CACHE_DISABLE` — `1` or `true` to disable response cache
+- `ZOWE_MCP_RESPONSE_CACHE_TTL_MINUTES` — Cache entry TTL in minutes (default 10). Legacy: `ZOWE_MCP_RESPONSE_CACHE_TTL_MS` (milliseconds) is still supported.
+- `ZOWE_MCP_RESPONSE_CACHE_MAX_BYTES` — Max cache size in bytes
+- `ZOWE_MCP_PASSWORD_<USER>_<HOST>` — Password for native SSH (e.g. `ZOWE_MCP_PASSWORD_MYUSER_MYHOST_EXAMPLE_COM`)
 
 ## Commands
 

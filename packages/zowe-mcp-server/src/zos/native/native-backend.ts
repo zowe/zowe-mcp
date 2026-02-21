@@ -30,7 +30,7 @@ import type {
   WriteDatasetResult,
 } from '../backend.js';
 import { memberPatternToRegExp } from '../member-pattern.js';
-import { runSearchWithListAndRead } from '../search-runner.js';
+import { runSearchWithListAndRead, type SearchBackendAdapter } from '../search-runner.js';
 import type { SystemId } from '../system.js';
 import type { ParsedConnectionSpec } from './connection-spec.js';
 import type { NativeCredentialProvider } from './native-credential-provider.js';
@@ -60,6 +60,11 @@ interface NativeDsApi {
     }[];
   }>;
   listDsMembers(req: { dsname: string }): Promise<{ items?: { name: string }[] }>;
+  readDataset(req: {
+    dsname: string;
+    localEncoding?: string;
+    encoding?: string;
+  }): Promise<{ etag?: string; data?: string }>;
 }
 
 function mapDatasetToEntry(item: {
@@ -216,6 +221,59 @@ export class NativeBackend {
       release!();
       log.debug('Native backend: connection lock released', { key, systemId });
     }
+  }
+
+  /** List members using an already-acquired client (avoids re-entering withNativeClient). */
+  private async _listMembersWithClient(
+    client: ZSshClient,
+    dsn: string,
+    pattern?: string
+  ): Promise<MemberEntry[]> {
+    const ds = (client as unknown as { ds: NativeDsApi }).ds;
+    const response = await ds.listDsMembers({ dsname: dsn });
+    let members: MemberEntry[] = (response.items ?? []).map(m => ({
+      name: m.name.toUpperCase(),
+    }));
+    if (pattern) {
+      const regex = memberPatternToRegExp(pattern);
+      if (regex) {
+        members = members.filter(m => regex.test(m.name));
+      }
+    }
+    return members.sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  /** Read dataset using an already-acquired client (avoids re-entering withNativeClient). */
+  private async _readDatasetWithClient(
+    client: ZSshClient,
+    dsn: string,
+    member?: string,
+    encoding?: string
+  ): Promise<ReadDatasetResult> {
+    const dsname = member ? `${dsn}(${member})` : dsn;
+    const mainframeEncoding = encoding ?? 'IBM-1047';
+    const ds = (client as unknown as { ds: NativeDsApi }).ds;
+    const response = await ds.readDataset({
+      dsname,
+      localEncoding: LOCAL_ENCODING_UTF8,
+      encoding: mainframeEncoding,
+    });
+    const raw = response.data ?? '';
+    const text = raw.length > 0 ? Buffer.from(raw, 'base64').toString('utf-8') : '';
+    return {
+      text,
+      etag: response.etag ?? '',
+      encoding: mainframeEncoding,
+    };
+  }
+
+  /** Adapter for runSearchWithListAndRead that uses an already-acquired client (single lock). */
+  private makeSearchAdapter(client: ZSshClient): SearchBackendAdapter {
+    return {
+      listMembers: (_systemId, dsn) => this._listMembersWithClient(client, dsn),
+      readDataset: (_systemId, dsn, member, encoding) =>
+        this._readDatasetWithClient(client, dsn, member, encoding),
+    };
   }
 
   async listDatasets(
@@ -397,14 +455,14 @@ export class NativeBackend {
     options: SearchInDatasetOptions,
     progress?: BackendProgressCallback
   ): Promise<SearchInDatasetResult> {
-    // First implementation: use listMembers + readDataset + grep. When ZNP client.tool.search
-    // is available (see https://github.com/zowe/zowe-native-proto/pull/809), call it here and
-    // map the response to SearchInDatasetResult instead.
-    // Progress is reported at withNativeClient level (Connecting, Running Zowe Native operation).
+    // Use the client we already hold so we don't re-enter withNativeClient (listMembers/readDataset
+    // would otherwise acquire the same connection lock again). When ZNP client.tool.search is
+    // available (see https://github.com/zowe/zowe-native-proto/pull/809), call it here instead.
     return this.withNativeClient(
       systemId,
       undefined,
-      () => runSearchWithListAndRead(this, systemId, dsn, options, log),
+      client =>
+        runSearchWithListAndRead(this.makeSearchAdapter(client), systemId, dsn, options, log),
       progress
     );
   }

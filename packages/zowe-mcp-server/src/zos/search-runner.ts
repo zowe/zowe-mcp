@@ -16,14 +16,30 @@
 
 import type { Logger } from '../log.js';
 import type {
+  MemberEntry,
+  ReadDatasetResult,
   SearchInDatasetOptions,
   SearchInDatasetResult,
   SearchInDatasetSummary,
   SearchMatchEntry,
   SearchMemberResult,
-  ZosBackend,
 } from './backend.js';
 import type { SystemId } from './system.js';
+
+/**
+ * Minimal backend interface for the search runner (listMembers + readDataset).
+ * Allows callers that already hold a connection (e.g. NativeBackend inside withNativeClient)
+ * to run search without re-acquiring the connection lock.
+ */
+export interface SearchBackendAdapter {
+  listMembers(systemId: SystemId, dsn: string): Promise<MemberEntry[]>;
+  readDataset(
+    systemId: SystemId,
+    dsn: string,
+    member?: string,
+    encoding?: string
+  ): Promise<ReadDatasetResult>;
+}
 
 /** Whether to search case-sensitively (from parms: no ANYC = case-sensitive). */
 function isCaseSensitive(parms: string): boolean {
@@ -72,7 +88,7 @@ function grepLines(text: string, searchString: string, parms: string): SearchMat
  * @param logger - Optional logger; when provided, logs what is searched, which dataset/members are read, and summary.
  */
 export async function runSearchWithListAndRead(
-  backend: ZosBackend,
+  backend: SearchBackendAdapter,
   systemId: SystemId,
   dsn: string,
   options: SearchInDatasetOptions,

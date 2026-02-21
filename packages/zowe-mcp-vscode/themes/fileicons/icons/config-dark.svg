@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <path fill="#525456" d="M4 2h18l6 6v22H4V2z"/>
+  <path fill="#5e6164" d="M22 2v6h6l-6-6z"/>
+  <rect x="6" y="6" width="20" height="3" rx=".5" fill="#6d7176"/>
+  <text x="16" y="22" font-family="system-ui, sans-serif" font-size="9" font-weight="700" fill="#f3f4f4" text-anchor="middle">CFG</text>
+</svg>

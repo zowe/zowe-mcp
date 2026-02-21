@@ -97,23 +97,17 @@
             "info",
             "notice",
             "warning",
-            "error",
-            "critical",
-            "alert",
-            "emergency"
+            "error"
+
           ],
           "enumDescriptions": [
             "Verbose debug messages",
             "Informational messages",
             "Normal but significant conditions",
             "Warning conditions",
-            "Error conditions",
-            "Critical conditions",
-            "Action must be taken immediately",
-            "System is unusable"
+            "Error conditions"
           ],
           "description": "Minimum log level for the Zowe MCP Server. Changes take effect immediately without restarting.",
-          "markdownDescription": "Minimum log level for the Zowe MCP Server (RFC 5424 levels: `debug`, `info`, `notice`, `warning`, `error`, `critical`, `alert`, `emergency`). Changes take effect immediately without restarting.",
           "order": 2
         },
         "zoweMCP.installZoweNativeServerAutomatically": {

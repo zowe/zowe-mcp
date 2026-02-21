@@ -1,6 +1,6 @@
 {
   "$schema": "vscode://schemas/color-theme",
-  "name": "Zowe Light",
+  "name": "Zowe Light (Classic)",
   "type": "light",
   "colors": {
     "editor.background": "#ffffff",

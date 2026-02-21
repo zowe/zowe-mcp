@@ -168,7 +168,7 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 
 ## Things to Remember
 
-- The extension contributes two color themes (**Zowe Dark**, **Zowe Light**) using the Zowe design palette (primary blue `#0062FF`, WCAG AA–friendly contrast). Theme files live in `packages/zowe-mcp-vscode/themes/` and are registered via `contributes.themes`.
+- The extension contributes four color themes: **Zowe Dark (Classic)** and **Zowe Light (Classic)** (primary `#0062FF`) and **Zowe Dark (Official)** / **Zowe Light (Official)** (Zowe docs palette: zBlue/zCoolGray). Theme files and names match: `zowe-*-classic-color-theme.json` / "Zowe *(Classic)", `zowe-*-official-color-theme.json` / "Zowe* (Official)"; registered via `contributes.themes`.
 - The MCP SDK v1.x is the stable branch. The `main` branch of the SDK repo is v2 pre-alpha — do not use it.
 - The VS Code extension uses `@vscode/dts` to download VS Code type definitions. The `vscode.d.ts` file is auto-generated and should not be edited.
 - The `mcpServerDefinitionProviders` contribution point in the VS Code extension `package.json` must have an `id` matching the one passed to `registerMcpServerDefinitionProvider`.

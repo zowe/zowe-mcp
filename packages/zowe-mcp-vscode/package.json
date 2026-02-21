@@ -87,30 +87,6 @@
         "label": "ISPF Modern (Light)",
         "path": "./themes/ispf-modern-light-color-theme.json",
         "uiTheme": "vs"
-      },
-      {
-        "id": "broadcom-dark",
-        "label": "Broadcom Dark (Cobalt Blue)",
-        "path": "./themes/broadcom-dark-blue-color-theme.json",
-        "uiTheme": "vs-dark"
-      },
-      {
-        "id": "broadcom-light",
-        "label": "Broadcom Light (Cobalt Blue)",
-        "path": "./themes/broadcom-light-blue-color-theme.json",
-        "uiTheme": "vs"
-      },
-      {
-        "id": "broadcom-dark-red",
-        "label": "Broadcom Dark (Pulse Red)",
-        "path": "./themes/broadcom-dark-red-color-theme.json",
-        "uiTheme": "vs-dark"
-      },
-      {
-        "id": "broadcom-light-red",
-        "label": "Broadcom Light (Pulse Red)",
-        "path": "./themes/broadcom-light-red-color-theme.json",
-        "uiTheme": "vs"
       }
     ],
     "mcpServerDefinitionProviders": [

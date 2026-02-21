@@ -22,6 +22,7 @@ import type { Logger } from '../../log.js';
 import type { CredentialProvider } from '../../zos/credentials.js';
 import type { SessionState } from '../../zos/session.js';
 import type { SystemRegistry } from '../../zos/system.js';
+import { createToolProgress } from '../progress.js';
 
 /** Zod schema for optional string or null (null = use server default). */
 const optionalEncoding = z
@@ -60,7 +61,9 @@ export function registerContextTools(
         'Use this to discover available systems before connecting with setSystem.',
       annotations: { readOnlyHint: true },
     },
-    () => {
+    async extra => {
+      const progress = createToolProgress(extra, 'List configured systems');
+      await progress.start();
       log.debug('listSystems called');
       const systems = systemRegistry.listInfo();
       const activeSystem = sessionState.getActiveSystem();
@@ -70,6 +73,7 @@ export function registerContextTools(
         active: s.host === activeSystem,
       }));
 
+      await progress.complete(`${result.length} systems`);
       return {
         content: [
           {
@@ -101,12 +105,16 @@ export function registerContextTools(
         mainframeUssEncoding: optionalEncoding,
       },
     },
-    async ({ system, mainframeMvsEncoding, mainframeUssEncoding }) => {
+    async ({ system, mainframeMvsEncoding, mainframeUssEncoding }, extra) => {
+      const title = `Set active system to ${system}`;
+      const progress = createToolProgress(extra, title);
+      await progress.start();
       log.info('setSystem called', { system, mainframeMvsEncoding, mainframeUssEncoding });
 
       const sysInfo = systemRegistry.getOrResolve(system);
       if (!sysInfo) {
         const available = systemRegistry.list().join(', ');
+        await progress.complete(`system not found`);
         return {
           content: [
             {
@@ -144,6 +152,7 @@ export function registerContextTools(
         response.mainframeUssEncoding = ctx.mainframeUssEncoding ?? null;
       }
 
+      await progress.complete('connected');
       return {
         content: [
           {
@@ -166,7 +175,9 @@ export function registerContextTools(
         'all known systems, and recently used systems (those with saved context).',
       annotations: { readOnlyHint: true },
     },
-    () => {
+    async extra => {
+      const progress = createToolProgress(extra, 'Get current session context');
+      await progress.start();
       log.debug('getContext called');
 
       const activeSystemId = sessionState.getActiveSystem();
@@ -199,6 +210,7 @@ export function registerContextTools(
         active: s.host === activeSystemId,
       }));
 
+      await progress.complete('done');
       return {
         content: [
           {

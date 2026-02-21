@@ -18,6 +18,7 @@
 import type { ZSshClient } from 'zowe-native-proto-sdk';
 import { getLogger } from '../../server.js';
 import type {
+  BackendProgressCallback,
   CreateDatasetOptions,
   CreateDatasetResult,
   DatasetAttributes,
@@ -132,7 +133,8 @@ export class NativeBackend {
   private async withNativeClient<T>(
     systemId: SystemId,
     userId: string | undefined,
-    fn: (client: ZSshClient) => Promise<T>
+    fn: (client: ZSshClient) => Promise<T>,
+    progress?: BackendProgressCallback
   ): Promise<T> {
     const spec = this.options.getSpec(systemId, userId);
     if (!spec) {
@@ -160,8 +162,9 @@ export class NativeBackend {
 
     try {
       log.debug('Native backend: getOrCreate client', { key, systemId });
-      const client = await this.options.clientCache.getOrCreate(spec, credentials);
+      const client = await this.options.clientCache.getOrCreate(spec, credentials, progress);
       log.debug('Native backend: got client, running operation', { key, systemId });
+      progress?.('Running Zowe Native operation');
 
       const timeoutSec = this.options.getResponseTimeout?.() ?? 60;
       const timeoutMs = timeoutSec * 1000;
@@ -218,35 +221,51 @@ export class NativeBackend {
     pattern: string,
     _volser?: string,
     userId?: string,
-    attributes?: boolean
+    attributes?: boolean,
+    progress?: BackendProgressCallback
   ): Promise<DatasetEntry[]> {
-    return this.withNativeClient(systemId, userId, async client => {
-      const ds = (client as unknown as { ds: NativeDsApi }).ds;
-      const response = await ds.listDatasets({
-        pattern,
-        attributes: attributes ?? true,
-      });
-      return (response.items ?? []).map(mapDatasetToEntry);
-    });
+    return this.withNativeClient(
+      systemId,
+      userId,
+      async client => {
+        const ds = (client as unknown as { ds: NativeDsApi }).ds;
+        const response = await ds.listDatasets({
+          pattern,
+          attributes: attributes ?? true,
+        });
+        return (response.items ?? []).map(mapDatasetToEntry);
+      },
+      progress
+    );
   }
 
-  async listMembers(systemId: SystemId, dsn: string, pattern?: string): Promise<MemberEntry[]> {
-    return this.withNativeClient(systemId, undefined, async client => {
-      const ds = (client as unknown as { ds: NativeDsApi }).ds;
-      const response = await ds.listDsMembers({ dsname: dsn });
-      let members: MemberEntry[] = (response.items ?? []).map(m => ({
-        name: m.name.toUpperCase(),
-      }));
+  async listMembers(
+    systemId: SystemId,
+    dsn: string,
+    pattern?: string,
+    progress?: BackendProgressCallback
+  ): Promise<MemberEntry[]> {
+    return this.withNativeClient(
+      systemId,
+      undefined,
+      async client => {
+        const ds = (client as unknown as { ds: NativeDsApi }).ds;
+        const response = await ds.listDsMembers({ dsname: dsn });
+        let members: MemberEntry[] = (response.items ?? []).map(m => ({
+          name: m.name.toUpperCase(),
+        }));
 
-      if (pattern) {
-        const regex = memberPatternToRegExp(pattern);
-        if (regex) {
-          members = members.filter(m => regex.test(m.name));
+        if (pattern) {
+          const regex = memberPatternToRegExp(pattern);
+          if (regex) {
+            members = members.filter(m => regex.test(m.name));
+          }
         }
-      }
 
-      return members.sort((a, b) => a.name.localeCompare(b.name));
-    });
+        return members.sort((a, b) => a.name.localeCompare(b.name));
+      },
+      progress
+    );
   }
 
   /**
@@ -257,39 +276,45 @@ export class NativeBackend {
     systemId: SystemId,
     dsn: string,
     member?: string,
-    encoding?: string
+    encoding?: string,
+    progress?: BackendProgressCallback
   ): Promise<ReadDatasetResult> {
-    return this.withNativeClient(systemId, undefined, async client => {
-      const dsname = member ? `${dsn}(${member})` : dsn;
-      const mainframeEncoding = encoding ?? 'IBM-1047';
-      const ds = (
-        client as unknown as {
-          ds: {
-            readDataset(req: {
-              dsname: string;
-              /** Local (client) encoding for the result: UTF-8. */
-              localEncoding?: string;
-              /** Mainframe (EBCDIC) encoding for conversion. */
-              encoding?: string;
-            }): Promise<{ etag?: string; data?: string }>;
-          };
-        }
-      ).ds;
-      const response = await ds.readDataset({
-        dsname,
-        localEncoding: LOCAL_ENCODING_UTF8,
-        encoding: mainframeEncoding,
-      });
+    return this.withNativeClient(
+      systemId,
+      undefined,
+      async client => {
+        const dsname = member ? `${dsn}(${member})` : dsn;
+        const mainframeEncoding = encoding ?? 'IBM-1047';
+        const ds = (
+          client as unknown as {
+            ds: {
+              readDataset(req: {
+                dsname: string;
+                /** Local (client) encoding for the result: UTF-8. */
+                localEncoding?: string;
+                /** Mainframe (EBCDIC) encoding for conversion. */
+                encoding?: string;
+              }): Promise<{ etag?: string; data?: string }>;
+            };
+          }
+        ).ds;
+        const response = await ds.readDataset({
+          dsname,
+          localEncoding: LOCAL_ENCODING_UTF8,
+          encoding: mainframeEncoding,
+        });
 
-      const raw = response.data ?? '';
-      const text = raw.length > 0 ? Buffer.from(raw, 'base64').toString('utf-8') : '';
+        const raw = response.data ?? '';
+        const text = raw.length > 0 ? Buffer.from(raw, 'base64').toString('utf-8') : '';
 
-      return {
-        text,
-        etag: response.etag ?? '',
-        encoding: mainframeEncoding,
-      };
-    });
+        return {
+          text,
+          etag: response.etag ?? '',
+          encoding: mainframeEncoding,
+        };
+      },
+      progress
+    );
   }
 
   async writeDataset(
@@ -298,7 +323,8 @@ export class NativeBackend {
     content: string,
     member?: string,
     etag?: string,
-    encoding?: string
+    encoding?: string,
+    _progress?: BackendProgressCallback
   ): Promise<WriteDatasetResult> {
     void [systemId, dsn, content, member, etag, encoding];
     await Promise.resolve();
@@ -308,20 +334,30 @@ export class NativeBackend {
   async createDataset(
     systemId: SystemId,
     dsn: string,
-    options: CreateDatasetOptions
+    options: CreateDatasetOptions,
+    _progress?: BackendProgressCallback
   ): Promise<CreateDatasetResult> {
     void [systemId, dsn, options];
     await Promise.resolve();
     throw new Error(NOT_IMPL);
   }
 
-  async deleteDataset(systemId: SystemId, dsn: string, member?: string): Promise<void> {
+  async deleteDataset(
+    systemId: SystemId,
+    dsn: string,
+    member?: string,
+    _progress?: BackendProgressCallback
+  ): Promise<void> {
     void [systemId, dsn, member];
     await Promise.resolve();
     throw new Error(NOT_IMPL);
   }
 
-  async getAttributes(systemId: SystemId, dsn: string): Promise<DatasetAttributes> {
+  async getAttributes(
+    systemId: SystemId,
+    dsn: string,
+    _progress?: BackendProgressCallback
+  ): Promise<DatasetAttributes> {
     void [systemId, dsn];
     await Promise.resolve();
     throw new Error(NOT_IMPL);
@@ -332,7 +368,8 @@ export class NativeBackend {
     sourceDsn: string,
     targetDsn: string,
     sourceMember?: string,
-    targetMember?: string
+    targetMember?: string,
+    _progress?: BackendProgressCallback
   ): Promise<void> {
     void [systemId, sourceDsn, targetDsn, sourceMember, targetMember];
     await Promise.resolve();
@@ -344,7 +381,8 @@ export class NativeBackend {
     dsn: string,
     newDsn: string,
     member?: string,
-    newMember?: string
+    newMember?: string,
+    _progress?: BackendProgressCallback
   ): Promise<void> {
     void [systemId, dsn, newDsn, member, newMember];
     await Promise.resolve();
@@ -354,11 +392,18 @@ export class NativeBackend {
   async searchInDataset(
     systemId: SystemId,
     dsn: string,
-    options: SearchInDatasetOptions
+    options: SearchInDatasetOptions,
+    progress?: BackendProgressCallback
   ): Promise<SearchInDatasetResult> {
     // First implementation: use listMembers + readDataset + grep. When ZNP client.tool.search
     // is available (see https://github.com/zowe/zowe-native-proto/pull/809), call it here and
     // map the response to SearchInDatasetResult instead.
-    return runSearchWithListAndRead(this, systemId, dsn, options, log);
+    // Progress is reported at withNativeClient level (Connecting, Running Zowe Native operation).
+    return this.withNativeClient(
+      systemId,
+      undefined,
+      () => runSearchWithListAndRead(this, systemId, dsn, options, log),
+      progress
+    );
   }
 }

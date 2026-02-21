@@ -39,6 +39,7 @@ import type { SearchCommentType } from '../../zos/search-options.js';
 import { buildParmsFromOptions, SEARCH_COMMENT_TYPES } from '../../zos/search-options.js';
 import { resolveSystemForTool, type SessionState } from '../../zos/session.js';
 import type { SystemRegistry } from '../../zos/system.js';
+import { createToolProgress } from '../progress.js';
 import type { MutationResultMeta } from '../response.js';
 import {
   buildContext,
@@ -196,7 +197,10 @@ export function registerDatasetTools(
           ),
       },
     },
-    async ({ dsnPattern, system, volser, offset, limit, attributes }) => {
+    async ({ dsnPattern, system, volser, offset, limit, attributes }, extra) => {
+      const title = `List datasets matching ${dsnPattern}`;
+      const progress = createToolProgress(extra, title);
+      await progress.start();
       const wantAttrs = attributes ?? true;
       log.info('listDatasets called', { dsnPattern, system, volser, offset, limit, attributes });
 
@@ -210,6 +214,9 @@ export function registerDatasetTools(
         log.debug('listDatasets resolved', { systemId, resolvedPattern });
 
         const userId = deps.sessionState.getContext(systemId)?.userId;
+        const progressCb = extra._meta?.progressToken
+          ? (msg: string) => progress.step(msg)
+          : undefined;
         const datasets = deps.responseCache
           ? await deps.responseCache.getOrFetch(
               buildCacheKey('listDatasets', {
@@ -219,9 +226,24 @@ export function registerDatasetTools(
                 volser: volser ?? '',
                 attributes: wantAttrs ? 'true' : 'false',
               }),
-              () => deps.backend.listDatasets(systemId, resolvedPattern, volser, userId, wantAttrs)
+              () =>
+                deps.backend.listDatasets(
+                  systemId,
+                  resolvedPattern,
+                  volser,
+                  userId,
+                  wantAttrs,
+                  progressCb
+                )
             )
-          : await deps.backend.listDatasets(systemId, resolvedPattern, volser, userId, wantAttrs);
+          : await deps.backend.listDatasets(
+              systemId,
+              resolvedPattern,
+              volser,
+              userId,
+              wantAttrs,
+              progressCb
+            );
 
         // Add resource links; output DSN as fully qualified (no quotes)
         const enriched = datasets.map((ds: DatasetEntry) => ({
@@ -237,8 +259,10 @@ export function registerDatasetTools(
           resolvedPattern: resolvedOnlyIfDifferent(resolvedPattern, dsnPattern),
         });
 
+        await progress.complete(`${meta.count} datasets`);
         return wrapResponse(ctx, meta, data, getListMessages(meta));
       } catch (err) {
+        await progress.complete((err as Error).message);
         return errorResult((err as Error).message);
       }
     }
@@ -284,7 +308,10 @@ export function registerDatasetTools(
           .describe('Maximum number of items to return. Default: 500. Max: 1000.'),
       },
     },
-    async ({ dsn, memberPattern, system, offset, limit }) => {
+    async ({ dsn, memberPattern, system, offset, limit }, extra) => {
+      const title = `List members of ${dsn}`;
+      const progress = createToolProgress(extra, title);
+      await progress.start();
       log.info('listMembers called', { dsn, memberPattern, system, offset, limit });
 
       try {
@@ -296,6 +323,9 @@ export function registerDatasetTools(
           log
         );
         const userId = deps.sessionState.getContext(systemId)?.userId;
+        const progressCb = extra._meta?.progressToken
+          ? (msg: string) => void progress.step(msg)
+          : undefined;
         const members = deps.responseCache
           ? await deps.responseCache.getOrFetch(
               buildCacheKey('listMembers', {
@@ -304,9 +334,9 @@ export function registerDatasetTools(
                 dsn: resolvedDsn,
                 memberPattern: memberPattern ?? '',
               }),
-              () => deps.backend.listMembers(systemId, resolvedDsn, memberPattern)
+              () => deps.backend.listMembers(systemId, resolvedDsn, memberPattern, progressCb)
             )
-          : await deps.backend.listMembers(systemId, resolvedDsn, memberPattern);
+          : await deps.backend.listMembers(systemId, resolvedDsn, memberPattern, progressCb);
 
         // Paginate and map name -> member for response
         const { data: rawData, meta } = paginateList(
@@ -319,8 +349,10 @@ export function registerDatasetTools(
           resolvedDsn: resolvedOnlyIfDifferent(resolvedDsn, dsn),
         });
 
+        await progress.complete(`${meta.count} members found`);
         return wrapResponse(ctx, meta, rawData, getListMessages(meta));
       } catch (err) {
+        await progress.complete(err instanceof Error ? err.message : String(err));
         if (err instanceof DsnError) {
           return errorResult(err.message);
         }
@@ -403,19 +435,25 @@ export function registerDatasetTools(
           ),
       },
     },
-    async ({
-      dsn,
-      string: searchString,
-      system,
-      encoding,
-      member,
-      offset,
-      limit,
-      caseSensitive,
-      cobol,
-      ignoreSequenceNumbers,
-      doNotProcessComments,
-    }) => {
+    async (
+      {
+        dsn,
+        string: searchString,
+        system,
+        encoding,
+        member,
+        offset,
+        limit,
+        caseSensitive,
+        cobol,
+        ignoreSequenceNumbers,
+        doNotProcessComments,
+      },
+      extra
+    ) => {
+      const title = `Search in ${dsn}`;
+      const progress = createToolProgress(extra, title);
+      await progress.start();
       log.info('searchInDataset called', {
         dsn,
         string: searchString,
@@ -448,6 +486,9 @@ export function registerDatasetTools(
           encoding: resolvedEncoding,
         };
 
+        const progressCb = extra._meta?.progressToken
+          ? (msg: string) => void progress.step(msg)
+          : undefined;
         const fullResult = deps.responseCache
           ? await deps.responseCache.getOrFetch(
               buildCacheKey('searchInDataset', {
@@ -458,9 +499,20 @@ export function registerDatasetTools(
                 parms,
                 encoding: resolvedEncoding,
               }),
-              () => deps.backend.searchInDataset(resolved.systemId, resolved.dsn, searchOptions)
+              () =>
+                deps.backend.searchInDataset(
+                  resolved.systemId,
+                  resolved.dsn,
+                  searchOptions,
+                  progressCb
+                )
             )
-          : await deps.backend.searchInDataset(resolved.systemId, resolved.dsn, searchOptions);
+          : await deps.backend.searchInDataset(
+              resolved.systemId,
+              resolved.dsn,
+              searchOptions,
+              progressCb
+            );
 
         const { members: slicedMembers, meta } = paginateSearchResult(
           fullResult,
@@ -483,6 +535,8 @@ export function registerDatasetTools(
           resolvedDsn: resolvedOnlyIfDifferent(fullDsn, rawInputDsn),
         });
 
+        const matchCount = fullResult.summary.linesFound;
+        await progress.complete(`${matchCount} matches`);
         return wrapResponse(
           responseCtx,
           meta,
@@ -494,6 +548,7 @@ export function registerDatasetTools(
           getListMessages(meta)
         );
       } catch (err) {
+        await progress.complete(err instanceof Error ? err.message : String(err));
         if (err instanceof DsnError) {
           return errorResult(err.message);
         }
@@ -522,7 +577,10 @@ export function registerDatasetTools(
           ),
       },
     },
-    async ({ dsn, system }) => {
+    async ({ dsn, system }, extra) => {
+      const title = `Get attributes of ${dsn}`;
+      const progress = createToolProgress(extra, title);
+      await progress.start();
       log.info('getDatasetAttributes called', { dsn, system });
 
       try {
@@ -533,7 +591,10 @@ export function registerDatasetTools(
           system,
           log
         );
-        const attrs = await deps.backend.getAttributes(systemId, resolvedDsn);
+        const progressCb = extra._meta?.progressToken
+          ? (msg: string) => void progress.step(msg)
+          : undefined;
+        const attrs = await deps.backend.getAttributes(systemId, resolvedDsn, progressCb);
 
         const ctx = buildContext(systemId, {
           resolvedDsn: resolvedOnlyIfDifferent(resolvedDsn, dsn),
@@ -557,8 +618,10 @@ export function registerDatasetTools(
           usedExtents: attrs.usedExtents,
         };
 
+        await progress.complete('done');
         return wrapResponse(ctx, undefined, data, []);
       } catch (err) {
+        await progress.complete(err instanceof Error ? err.message : String(err));
         if (err instanceof DsnError) {
           return errorResult(err.message);
         }
@@ -612,7 +675,11 @@ export function registerDatasetTools(
           ),
       },
     },
-    async ({ dsn, member, system, encoding, startLine, lineCount }) => {
+    async ({ dsn, member, system, encoding, startLine, lineCount }, extra) => {
+      const displayDsn = member ? `${dsn}(${member})` : dsn;
+      const title = `Read ${displayDsn}`;
+      const progress = createToolProgress(extra, title);
+      await progress.start();
       log.info('readDataset called', {
         dsn,
         member,
@@ -632,6 +699,9 @@ export function registerDatasetTools(
           deps.encodingOptions.defaultMainframeMvsEncoding
         );
 
+        const progressCb = extra._meta?.progressToken
+          ? (msg: string) => void progress.step(msg)
+          : undefined;
         const result = deps.responseCache
           ? await deps.responseCache.getOrFetch(
               buildCacheKey('readDataset', {
@@ -646,14 +716,16 @@ export function registerDatasetTools(
                   resolved.systemId,
                   resolved.dsn,
                   resolved.member,
-                  resolvedEncoding
+                  resolvedEncoding,
+                  progressCb
                 )
             )
           : await deps.backend.readDataset(
               resolved.systemId,
               resolved.dsn,
               resolved.member,
-              resolvedEncoding
+              resolvedEncoding,
+              progressCb
             );
 
         const sanitized = sanitizeTextForDisplay(result.text);
@@ -666,6 +738,9 @@ export function registerDatasetTools(
           resolvedDsn: resolvedOnlyIfDifferent(fullDsn, rawInputDsn),
         });
 
+        const { startLine: s, returnedLines: r, totalLines: total } = windowed.meta;
+        const endRecord = s + r - 1;
+        await progress.complete(`range ${s}–${endRecord}, ${total} records`);
         return wrapResponse(
           responseCtx,
           windowed.meta,
@@ -677,6 +752,7 @@ export function registerDatasetTools(
           getReadMessages(windowed.meta)
         );
       } catch (err) {
+        await progress.complete(err instanceof Error ? err.message : String(err));
         if (err instanceof DsnError) {
           return errorResult(err.message);
         }
@@ -718,7 +794,11 @@ export function registerDatasetTools(
           ),
       },
     },
-    async ({ dsn, content, member, system, etag, encoding }) => {
+    async ({ dsn, content, member, system, etag, encoding }, extra) => {
+      const displayDsn = member ? `${dsn}(${member})` : dsn;
+      const title = `Write to ${displayDsn}`;
+      const progress = createToolProgress(extra, title);
+      await progress.start();
       log.info('writeDataset called', {
         dsn,
         member,
@@ -735,13 +815,17 @@ export function registerDatasetTools(
           systemCtx?.mainframeMvsEncoding,
           deps.encodingOptions.defaultMainframeMvsEncoding
         );
+        const progressCb = extra._meta?.progressToken
+          ? (msg: string) => void progress.step(msg)
+          : undefined;
         const result = await deps.backend.writeDataset(
           resolved.systemId,
           resolved.dsn,
           content,
           resolved.member,
           etag,
-          resolvedEncoding
+          resolvedEncoding,
+          progressCb
         );
 
         const fullDsn = resolved.member ? `${resolved.dsn}(${resolved.member})` : resolved.dsn;
@@ -751,9 +835,11 @@ export function registerDatasetTools(
           resolvedDsn: resolvedOnlyIfDifferent(fullDsn, rawInputDsn),
         });
 
+        await progress.complete('written');
         const mutationMeta: MutationResultMeta = { success: true };
         return wrapResponse(responseCtx, mutationMeta, { etag: result.etag }, []);
       } catch (err) {
+        await progress.complete(err instanceof Error ? err.message : String(err));
         if (err instanceof DsnError) {
           return errorResult(err.message);
         }
@@ -795,7 +881,10 @@ export function registerDatasetTools(
         dirblk: z.number().optional().describe('Directory blocks (PDS only).'),
       },
     },
-    async ({ dsn, type, system, recfm, lrecl, blksz, primary, secondary, dirblk }) => {
+    async ({ dsn, type, system, recfm, lrecl, blksz, primary, secondary, dirblk }, extra) => {
+      const title = `Create dataset ${dsn}`;
+      const progress = createToolProgress(extra, title);
+      await progress.start();
       log.info('createDataset called', { dsn, type, system });
 
       const canonicalType: CreateDatasetOptions['type'] =
@@ -815,20 +904,29 @@ export function registerDatasetTools(
           system,
           log
         );
-        const result = await deps.backend.createDataset(systemId, resolvedDsn, {
-          type: canonicalType,
-          recfm: recfm as CreateDatasetOptions['recfm'],
-          lrecl,
-          blksz,
-          primary,
-          secondary,
-          dirblk,
-        });
+        const progressCb = extra._meta?.progressToken
+          ? (msg: string) => void progress.step(msg)
+          : undefined;
+        const result = await deps.backend.createDataset(
+          systemId,
+          resolvedDsn,
+          {
+            type: canonicalType,
+            recfm: recfm as CreateDatasetOptions['recfm'],
+            lrecl,
+            blksz,
+            primary,
+            secondary,
+            dirblk,
+          },
+          progressCb
+        );
 
         const ctx = buildContext(systemId, {
           resolvedDsn: resolvedOnlyIfDifferent(resolvedDsn, dsn),
         });
 
+        await progress.complete('created');
         const mutationMeta: MutationResultMeta = { success: true };
         return wrapResponse(
           ctx,
@@ -844,6 +942,7 @@ export function registerDatasetTools(
           result.messages
         );
       } catch (err) {
+        await progress.complete(err instanceof Error ? err.message : String(err));
         if (err instanceof DsnError) {
           return errorResult(err.message);
         }
@@ -876,12 +975,24 @@ export function registerDatasetTools(
           ),
       },
     },
-    async ({ dsn, member, system }) => {
+    async ({ dsn, member, system }, extra) => {
+      const displayDsn = member ? `${dsn}(${member})` : dsn;
+      const title = `Delete ${displayDsn}`;
+      const progress = createToolProgress(extra, title);
+      await progress.start();
       log.info('deleteDataset called', { dsn, member, system });
 
       try {
         const resolved = await resolveInput(deps, dsn, member, system, log);
-        await deps.backend.deleteDataset(resolved.systemId, resolved.dsn, resolved.member);
+        const progressCb = extra._meta?.progressToken
+          ? (msg: string) => void progress.step(msg)
+          : undefined;
+        await deps.backend.deleteDataset(
+          resolved.systemId,
+          resolved.dsn,
+          resolved.member,
+          progressCb
+        );
 
         const fullDsn = resolved.member ? `${resolved.dsn}(${resolved.member})` : resolved.dsn;
         const rawInputDsn = member ? `${dsn.trim()}(${member.trim()})` : dsn.trim();
@@ -890,6 +1001,7 @@ export function registerDatasetTools(
           resolvedDsn: resolvedOnlyIfDifferent(fullDsn, rawInputDsn),
         });
 
+        await progress.complete('deleted');
         const mutationMeta: MutationResultMeta = { success: true };
         return wrapResponse(
           ctx,
@@ -900,6 +1012,7 @@ export function registerDatasetTools(
           []
         );
       } catch (err) {
+        await progress.complete(err instanceof Error ? err.message : String(err));
         if (err instanceof DsnError) {
           return errorResult(err.message);
         }
@@ -938,7 +1051,10 @@ export function registerDatasetTools(
           ),
       },
     },
-    async ({ sourceDsn, targetDsn, sourceMember, targetMember, system }) => {
+    async ({ sourceDsn, targetDsn, sourceMember, targetMember, system }, extra) => {
+      const title = `Copy ${sourceDsn} to ${targetDsn}`;
+      const progress = createToolProgress(extra, title);
+      await progress.start();
       log.info('copyDataset called', {
         sourceDsn,
         targetDsn,
@@ -960,12 +1076,16 @@ export function registerDatasetTools(
           targetMember: resolvedTarget.member,
         });
 
+        const progressCb = extra._meta?.progressToken
+          ? (msg: string) => void progress.step(msg)
+          : undefined;
         await deps.backend.copyDataset(
           systemId,
           resolvedSource.dsn,
           resolvedTarget.dsn,
           resolvedSource.member,
-          resolvedTarget.member
+          resolvedTarget.member,
+          progressCb
         );
 
         const rawSource = sourceMember
@@ -988,6 +1108,7 @@ export function registerDatasetTools(
           resolvedTargetDsn: resolvedOnlyIfDifferent(targetFull, rawTarget),
         });
 
+        await progress.complete('copied');
         const mutationMeta: MutationResultMeta = { success: true };
         return wrapResponse(
           ctx,
@@ -999,6 +1120,7 @@ export function registerDatasetTools(
           []
         );
       } catch (err) {
+        await progress.complete(err instanceof Error ? err.message : String(err));
         if (err instanceof DsnError) {
           return errorResult(err.message);
         }
@@ -1030,7 +1152,10 @@ export function registerDatasetTools(
           ),
       },
     },
-    async ({ dsn, newDsn, member, newMember, system }) => {
+    async ({ dsn, newDsn, member, newMember, system }, extra) => {
+      const title = `Rename ${dsn} to ${newDsn}`;
+      const progress = createToolProgress(extra, title);
+      await progress.start();
       log.info('renameDataset called', { dsn, newDsn, member, newMember, system });
 
       try {
@@ -1046,12 +1171,16 @@ export function registerDatasetTools(
           newMember: resolvedNew.member,
         });
 
+        const progressCb = extra._meta?.progressToken
+          ? (msg: string) => void progress.step(msg)
+          : undefined;
         await deps.backend.renameDataset(
           systemId,
           resolvedOld.dsn,
           resolvedNew.dsn,
           resolvedOld.member,
-          resolvedNew.member
+          resolvedNew.member,
+          progressCb
         );
 
         const rawOld = member ? `${dsn.trim()}(${member.trim()})` : dsn.trim();
@@ -1070,6 +1199,7 @@ export function registerDatasetTools(
           resolvedTargetDsn: resolvedOnlyIfDifferent(newFull, rawNew),
         });
 
+        await progress.complete('renamed');
         const mutationMeta: MutationResultMeta = { success: true };
         const oldDisplay = resolvedOld.member
           ? `${resolvedOld.dsn}(${resolvedOld.member})`
@@ -1087,6 +1217,7 @@ export function registerDatasetTools(
           []
         );
       } catch (err) {
+        await progress.complete(err instanceof Error ? err.message : String(err));
         if (err instanceof DsnError) {
           return errorResult(err.message);
         }

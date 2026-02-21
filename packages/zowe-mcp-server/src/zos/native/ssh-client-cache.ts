@@ -92,8 +92,13 @@ export class SshClientCache {
    * Returns an existing client or creates one for the given spec and credentials.
    * On connection failure the client is not cached; the caller may retry with new credentials.
    * When "Server not found" (ZNP not deployed) is detected and autoInstallZnp is true, installs ZNP then retries once.
+   * @param progress - Optional callback for progress messages (e.g. "Connecting to host via SSH", "Deploying Zowe Native server to host").
    */
-  async getOrCreate(spec: ParsedConnectionSpec, credentials: Credentials): Promise<ZSshClient> {
+  async getOrCreate(
+    spec: ParsedConnectionSpec,
+    credentials: Credentials,
+    progress?: (message: string) => void
+  ): Promise<ZSshClient> {
     const key = cacheKey(spec);
     log.debug('SSH client getOrCreate: entry', {
       key,
@@ -141,6 +146,7 @@ export class SshClientCache {
 
     let client: ZSshClient;
     try {
+      progress?.(`Connecting to ${spec.host} via SSH`);
       log.debug('SSH client: calling ZSshClient.create', {
         key,
         host: spec.host,
@@ -170,6 +176,7 @@ export class SshClientCache {
       if (!isZnpServerNotFoundError(err) || !opts.autoInstallZnp) {
         throw err;
       }
+      progress?.(`Deploying Zowe Native server to ${spec.host}`);
       log.info('Installing Zowe Native server on host (retry after install)', {
         host: spec.host,
         port: spec.port,

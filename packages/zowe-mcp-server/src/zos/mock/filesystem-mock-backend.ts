@@ -34,6 +34,7 @@ import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { getLogger } from '../../server.js';
 import type {
+  BackendProgressCallback,
   CreateDatasetApplied,
   CreateDatasetOptions,
   CreateDatasetResult,
@@ -166,9 +167,10 @@ export class FilesystemMockBackend implements ZosBackend {
     pattern: string,
     volser?: string,
     userId?: string,
-    attributes?: boolean
+    attributes?: boolean,
+    _progress?: BackendProgressCallback
   ): Promise<DatasetEntry[]> {
-    void [volser, userId];
+    void [volser, userId, _progress];
     const sysDir = this.systemDir(systemId);
     if (!(await pathExists(sysDir))) {
       return [];
@@ -221,7 +223,13 @@ export class FilesystemMockBackend implements ZosBackend {
     return results.sort((a, b) => a.dsn.localeCompare(b.dsn));
   }
 
-  async listMembers(systemId: SystemId, dsn: string, pattern?: string): Promise<MemberEntry[]> {
+  async listMembers(
+    systemId: SystemId,
+    dsn: string,
+    pattern?: string,
+    _progress?: BackendProgressCallback
+  ): Promise<MemberEntry[]> {
+    void _progress;
     const dsPath = this.datasetPath(systemId, dsn);
     if (!(await isDirectory(dsPath))) {
       throw new Error(
@@ -259,8 +267,10 @@ export class FilesystemMockBackend implements ZosBackend {
     systemId: SystemId,
     dsn: string,
     member?: string,
-    encoding?: string
+    encoding?: string,
+    _progress?: BackendProgressCallback
   ): Promise<ReadDatasetResult> {
+    void _progress;
     const dsPath = this.datasetPath(systemId, dsn);
     let filePath: string;
 
@@ -308,8 +318,10 @@ export class FilesystemMockBackend implements ZosBackend {
     content: string,
     member?: string,
     etag?: string,
-    encoding?: string
+    encoding?: string,
+    _progress?: BackendProgressCallback
   ): Promise<WriteDatasetResult> {
+    void _progress;
     const dsPath = this.datasetPath(systemId, dsn);
     let filePath: string;
 
@@ -367,8 +379,10 @@ export class FilesystemMockBackend implements ZosBackend {
   async createDataset(
     systemId: SystemId,
     dsn: string,
-    options: CreateDatasetOptions
+    options: CreateDatasetOptions,
+    _progress?: BackendProgressCallback
   ): Promise<CreateDatasetResult> {
+    void _progress;
     const dsPath = this.datasetPath(systemId, dsn);
 
     if (await pathExists(dsPath)) {
@@ -451,7 +465,13 @@ export class FilesystemMockBackend implements ZosBackend {
     return { applied, messages };
   }
 
-  async deleteDataset(systemId: SystemId, dsn: string, member?: string): Promise<void> {
+  async deleteDataset(
+    systemId: SystemId,
+    dsn: string,
+    member?: string,
+    _progress?: BackendProgressCallback
+  ): Promise<void> {
+    void _progress;
     const dsPath = this.datasetPath(systemId, dsn);
 
     if (member) {
@@ -477,7 +497,12 @@ export class FilesystemMockBackend implements ZosBackend {
     }
   }
 
-  async getAttributes(systemId: SystemId, dsn: string): Promise<DatasetAttributes> {
+  async getAttributes(
+    systemId: SystemId,
+    dsn: string,
+    _progress?: BackendProgressCallback
+  ): Promise<DatasetAttributes> {
+    void _progress;
     const dsPath = this.datasetPath(systemId, dsn);
 
     if (!(await pathExists(dsPath))) {
@@ -512,8 +537,10 @@ export class FilesystemMockBackend implements ZosBackend {
     sourceDsn: string,
     targetDsn: string,
     sourceMember?: string,
-    targetMember?: string
+    targetMember?: string,
+    _progress?: BackendProgressCallback
   ): Promise<void> {
+    void _progress;
     const sourcePath = this.datasetPath(systemId, sourceDsn);
     const targetPath = this.datasetPath(systemId, targetDsn);
 
@@ -548,8 +575,10 @@ export class FilesystemMockBackend implements ZosBackend {
     dsn: string,
     newDsn: string,
     member?: string,
-    newMember?: string
+    newMember?: string,
+    _progress?: BackendProgressCallback
   ): Promise<void> {
+    void _progress;
     if (member && newMember) {
       // Rename a member within the same dataset
       const dsPath = this.datasetPath(systemId, dsn);
@@ -577,8 +606,10 @@ export class FilesystemMockBackend implements ZosBackend {
   async searchInDataset(
     systemId: SystemId,
     dsn: string,
-    options: SearchInDatasetOptions
+    options: SearchInDatasetOptions,
+    _progress?: BackendProgressCallback
   ): Promise<SearchInDatasetResult> {
+    void _progress;
     const log = getLogger().child('mock');
     return runSearchWithListAndRead(this, systemId, dsn, options, log);
   }

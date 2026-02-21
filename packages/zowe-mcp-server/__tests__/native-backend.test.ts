@@ -135,10 +135,14 @@ describe('NativeBackend', () => {
         volser: 'VOL1',
         creationDate: '2024-01-01',
       });
-      expect(options.clientCache.getOrCreate).toHaveBeenCalledWith(SPEC, {
-        user: SPEC.user,
-        password: 'secret',
-      });
+      expect(options.clientCache.getOrCreate).toHaveBeenCalledWith(
+        SPEC,
+        {
+          user: SPEC.user,
+          password: 'secret',
+        },
+        undefined
+      );
     });
 
     it('calls SDK listDatasets with attributes: true by default', async () => {
@@ -230,7 +234,8 @@ describe('NativeBackend', () => {
     });
 
     it('on non-auth error does not call evict or markInvalid', async () => {
-      const otherError = new Error('Network timeout');
+      // Use an error that is not classified as connection or auth (e.g. "timeout" triggers evict)
+      const otherError = new Error('Disk full');
       const options = createOptions({
         clientCache: {
           getOrCreate: vi.fn().mockRejectedValue(otherError),
@@ -239,7 +244,7 @@ describe('NativeBackend', () => {
       });
       const backend = new NativeBackend(options);
 
-      await expect(backend.listDatasets(SYSTEM_ID, 'USER.*')).rejects.toThrow('Network timeout');
+      await expect(backend.listDatasets(SYSTEM_ID, 'USER.*')).rejects.toThrow('Disk full');
 
       expect(options.credentialProvider.markInvalid).not.toHaveBeenCalled();
       expect(options.clientCache.evict).not.toHaveBeenCalled();
@@ -379,10 +384,14 @@ describe('NativeBackend', () => {
         etag: 'mock-etag',
         encoding: 'IBM-1047',
       });
-      expect(options.clientCache.getOrCreate).toHaveBeenCalledWith(SPEC, {
-        user: SPEC.user,
-        password: 'secret',
-      });
+      expect(options.clientCache.getOrCreate).toHaveBeenCalledWith(
+        SPEC,
+        {
+          user: SPEC.user,
+          password: 'secret',
+        },
+        undefined
+      );
     });
 
     it('calls SDK readDataset with dsname for sequential dataset', async () => {

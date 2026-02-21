@@ -22,6 +22,9 @@
 
 import type { SystemId } from './system.js';
 
+/** Optional progress callback for long-running backend operations (e.g. connect, deploy). */
+export type BackendProgressCallback = (message: string) => void;
+
 // ---------------------------------------------------------------------------
 // Dataset types
 // ---------------------------------------------------------------------------
@@ -244,7 +247,8 @@ export interface ZosBackend {
     pattern: string,
     volser?: string,
     userId?: string,
-    attributes?: boolean
+    attributes?: boolean,
+    progress?: BackendProgressCallback
   ): Promise<DatasetEntry[]>;
 
   /**
@@ -258,7 +262,12 @@ export interface ZosBackend {
    * @param dsn - Fully-qualified PDS/PDSE name.
    * @param pattern - Optional member name filter pattern (e.g. "ABC*", "A%C").
    */
-  listMembers(systemId: SystemId, dsn: string, pattern?: string): Promise<MemberEntry[]>;
+  listMembers(
+    systemId: SystemId,
+    dsn: string,
+    pattern?: string,
+    progress?: BackendProgressCallback
+  ): Promise<MemberEntry[]>;
 
   /**
    * Read the content of a sequential dataset or PDS/PDSE member.
@@ -277,7 +286,8 @@ export interface ZosBackend {
     systemId: SystemId,
     dsn: string,
     member?: string,
-    encoding?: string
+    encoding?: string,
+    progress?: BackendProgressCallback
   ): Promise<ReadDatasetResult>;
 
   /**
@@ -301,7 +311,8 @@ export interface ZosBackend {
     content: string,
     member?: string,
     etag?: string,
-    encoding?: string
+    encoding?: string,
+    progress?: BackendProgressCallback
   ): Promise<WriteDatasetResult>;
 
   /**
@@ -317,7 +328,8 @@ export interface ZosBackend {
   createDataset(
     systemId: SystemId,
     dsn: string,
-    options: CreateDatasetOptions
+    options: CreateDatasetOptions,
+    progress?: BackendProgressCallback
   ): Promise<CreateDatasetResult>;
 
   /**
@@ -327,7 +339,12 @@ export interface ZosBackend {
    * @param dsn - Fully-qualified dataset name.
    * @param member - If provided, delete only this member.
    */
-  deleteDataset(systemId: SystemId, dsn: string, member?: string): Promise<void>;
+  deleteDataset(
+    systemId: SystemId,
+    dsn: string,
+    member?: string,
+    progress?: BackendProgressCallback
+  ): Promise<void>;
 
   /**
    * Get detailed attributes of a dataset.
@@ -335,7 +352,11 @@ export interface ZosBackend {
    * @param systemId - Target z/OS system.
    * @param dsn - Fully-qualified dataset name.
    */
-  getAttributes(systemId: SystemId, dsn: string): Promise<DatasetAttributes>;
+  getAttributes(
+    systemId: SystemId,
+    dsn: string,
+    progress?: BackendProgressCallback
+  ): Promise<DatasetAttributes>;
 
   /**
    * Copy a dataset or member within a single system.
@@ -351,7 +372,8 @@ export interface ZosBackend {
     sourceDsn: string,
     targetDsn: string,
     sourceMember?: string,
-    targetMember?: string
+    targetMember?: string,
+    progress?: BackendProgressCallback
   ): Promise<void>;
 
   /**
@@ -368,7 +390,8 @@ export interface ZosBackend {
     dsn: string,
     newDsn: string,
     member?: string,
-    newMember?: string
+    newMember?: string,
+    progress?: BackendProgressCallback
   ): Promise<void>;
 
   /**
@@ -382,6 +405,7 @@ export interface ZosBackend {
   searchInDataset(
     systemId: SystemId,
     dsn: string,
-    options: SearchInDatasetOptions
+    options: SearchInDatasetOptions,
+    progress?: BackendProgressCallback
   ): Promise<SearchInDatasetResult>;
 }

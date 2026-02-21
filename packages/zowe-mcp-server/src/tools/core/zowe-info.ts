@@ -17,6 +17,7 @@
 
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { Logger } from '../../log.js';
+import { createToolProgress } from '../progress.js';
 
 export interface ZoweInfoResponse {
   name: string;
@@ -64,7 +65,9 @@ export function registerCoreTools(
         backendDescription,
       annotations: { readOnlyHint: true },
     },
-    extra => {
+    async extra => {
+      const progress = createToolProgress(extra, 'Server info');
+      await progress.start();
       const clientInfo = server.server.getClientVersion();
       log.info('info tool called', {
         clientName: clientInfo?.name,
@@ -91,6 +94,7 @@ export function registerCoreTools(
           'Standalone — --native --system user@host (or --config <path>)';
       }
 
+      await progress.complete('ready');
       return {
         content: [
           {

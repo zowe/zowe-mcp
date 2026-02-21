@@ -117,6 +117,10 @@ export function loadNative(options: LoadNativeOptions): NativeSetup {
     clientCache,
     getSpec,
     onPasswordInvalid: options.onPasswordInvalid,
+    getResponseTimeout:
+      options.getNativeOptions != null
+        ? () => options.getNativeOptions!().responseTimeout ?? DEFAULT_NATIVE_RESPONSE_TIMEOUT_SEC
+        : () => options.responseTimeout ?? DEFAULT_NATIVE_RESPONSE_TIMEOUT_SEC,
   });
 
   function registerSystemsFromSpecs(specList: ParsedConnectionSpec[]): void {

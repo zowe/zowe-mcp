@@ -1,6 +1,6 @@
-# Zowe Native Proto — Feature Requests
+# Zowe Native Proto — Feature Requests and Defects
 
-List of new functions or behaviors requested from Zowe Native Proto for use by Zowe MCP server.
+List of new functions or behaviors requested from Zowe Native Proto for use by Zowe MCP server, and defects observed that we request be fixed.
 
 ---
 
@@ -65,3 +65,29 @@ List of new functions or behaviors requested from Zowe Native Proto for use by Z
 - **Input**: Pattern type (name vs content), pattern (string/regex), scope (HLQ, DSN pattern, member pattern), optional content search options (case-sensitive, whole record, etc.).
 - **Output**: List of matches with location (dataset, member if applicable, record/line number, matched text or snippet).
 - **Why**: Enables “find where this symbol is used” or “which members reference this copybook” without the client reading every dataset and member; essential for large systems and better UX in MCP tools.
+
+---
+
+## Defect: ZNP server abend (CEE3204S / 0C4) during listDatasets
+
+- **Summary**: The ZNP server on z/OS abends with a protection exception (System Completion Code 0C4) while handling requests (observed during `listDatasets`). The client then receives abend/dump output instead of JSON, logs "Invalid JSON response", and the request can hang until timeout.
+- **Request**: Fix the server-side crash so `listDatasets` (and any other operations that hit the same code path) complete successfully or return a proper error instead of abending.
+- **ZNP version**: No version reported in the ZNP log messages. Client SDK in use: zowe-native-proto-sdk 0.2.3 (from `bin/zowe-native-proto-sdk-0.2.3.tgz`).
+- **z/OS system**: Host: ca32.lvn.broadcom.net.
+- **Observed context**: Occurred when listing datasets (e.g. patterns like `PLAPE03.**`, `TEST4Z.**`) over SSH to a z/OS system; the server had successfully connected and was running the first list operation when the abend occurred.
+- **Log details** (from MCP server stderr when the client receives the invalid response):
+
+```text
+Error: Invalid JSON response: CEE3204S The system detected a protection exception (System Completion Code=0C4).
+Error: Invalid JSON response:          From compile unit TOROLABA:../ship/include/__string/ at entry point std::__1::_EBCDIC::basic_string<char, std::__1::_EBCDIC::char_traits<char>, std::__1::alloc... at statement 210 at compile unit offset +000000003CEF90A2 at entry offset
+Error: Invalid JSON response:          +000000000000016A at address 000000003CEF90A2.
+```
+
+- **Note**: The stack points to EBCDIC string handling (`std::__1::_EBCDIC::basic_string`, compile unit TOROLABA). This suggests a defect in the server's handling of string/data in that path (e.g. encoding, buffer, or lifecycle). Related client-side ask: see "Client: fail request immediately on invalid JSON response" so that when the server does abend, the client fails the request immediately instead of hanging.
+
+---
+
+## Client: fail request immediately on invalid JSON response
+
+- **Request**: When the SDK receives a response from the z/OS ZNP server that is not valid JSON (e.g. abend dump, protection exception 0C4, or other garbage), reject the in-flight request Promise immediately instead of only logging to stderr (e.g. "Invalid JSON response: ...") and leaving the Promise pending until the response timeout.
+- **Why**: If the ZNP server on z/OS abends, the client currently may log the error but not reject the request. The MCP server then holds the connection lock until the full timeout (e.g. 300s), blocking other requests and delaying feedback to the user. Callers expect the operation to fail as soon as the backend failure is detected so they can evict the client and surface an error without waiting for the timeout.

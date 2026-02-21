@@ -93,11 +93,14 @@ export class Logger {
   private _name: string | undefined;
   private _server: McpServer | undefined;
   private _extensionClient: ExtensionClient | undefined;
+  /** Root logger; only set on child loggers. Used so setLevel on root affects all children. */
+  private _root: Logger | undefined;
 
   constructor(options?: LoggerOptions) {
     const defaultLevel = options?.level ?? 'info';
     this._level = levelFromEnv(defaultLevel);
     this._name = options?.name;
+    this._root = undefined;
   }
 
   // -- Public API: attach / child / setLevel --------------------------------
@@ -128,12 +131,14 @@ export class Logger {
 
   /**
    * Creates a child logger that shares the same server and extension client
-   * references and level but uses a different logger name.
+   * references and uses the root logger's level (so setLevel on root affects children).
    */
   child(name: string): Logger {
-    const child = new Logger({ level: this._level, name });
+    const root = this._root ?? this;
+    const child = new Logger({ level: root._level, name });
     child._server = this._server;
     child._extensionClient = this._extensionClient;
+    child._root = root;
     return child;
   }
 
@@ -174,7 +179,8 @@ export class Logger {
   // -- Internals -----------------------------------------------------------
 
   private _log(level: LogLevel, message: string, data?: unknown): void {
-    if (LOG_LEVEL_SEVERITY[level] < LOG_LEVEL_SEVERITY[this._level]) {
+    const effectiveLevel = (this._root ?? this)._level;
+    if (LOG_LEVEL_SEVERITY[level] < LOG_LEVEL_SEVERITY[effectiveLevel]) {
       return;
     }
 

@@ -112,10 +112,13 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
     vscode.workspace.onDidChangeConfiguration(e => {
       if (e.affectsConfiguration('zoweMCP.logLevel')) {
-        const config = vscode.workspace.getConfiguration('zoweMCP');
-        const level = config.get<string>('logLevel', 'info');
-        log.info(`Log level setting changed to "${level}", forwarding to MCP servers`);
-        sendLogLevelEvent(level);
+        // Read after VS Code has applied the change (avoids reading stale value)
+        void Promise.resolve().then(() => {
+          const config = vscode.workspace.getConfiguration('zoweMCP');
+          const level = config.get<string>('logLevel', 'info');
+          log.info(`Log level setting changed to "${level}", forwarding to MCP servers`);
+          sendLogLevelEvent(level);
+        });
       }
       if (e.affectsConfiguration('zoweMCP.nativeSystems')) {
         log.info('Native systems setting changed, forwarding to MCP servers');

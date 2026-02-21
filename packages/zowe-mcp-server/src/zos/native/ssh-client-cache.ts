@@ -95,9 +95,17 @@ export class SshClientCache {
    */
   async getOrCreate(spec: ParsedConnectionSpec, credentials: Credentials): Promise<ZSshClient> {
     const key = cacheKey(spec);
+    log.debug('SSH client getOrCreate: entry', {
+      key,
+      host: spec.host,
+      port: spec.port,
+      user: spec.user,
+      cached: this.clients.has(key),
+    });
+
     const existing = this.clients.get(key);
     if (existing) {
-      log.debug('SSH cache hit: reusing cached client', {
+      log.debug('SSH client: cache hit, returning existing client', {
         key,
         host: spec.host,
         port: spec.port,
@@ -107,12 +115,13 @@ export class SshClientCache {
     }
 
     const opts = this.options();
-    log.debug('SSH cache miss: creating new session', {
+    log.debug('SSH client: cache miss, creating new session and ZSshClient', {
       key,
       host: spec.host,
       port: spec.port,
       user: spec.user,
       passwordHash: passwordHash(credentials.password),
+      responseTimeoutSec: opts.responseTimeout,
     });
     const session = new SshSession({
       hostname: spec.host,
@@ -125,14 +134,24 @@ export class SshClientCache {
       serverPath: opts.serverPath,
       responseTimeout: opts.responseTimeout ?? DEFAULT_NATIVE_RESPONSE_TIMEOUT_SEC,
       onClose: () => {
-        log.debug('SSH session closed', { key });
+        log.debug('SSH client: session closed (onClose callback)', { key, host: spec.host });
         this.evictKey(key);
       },
     };
 
     let client: ZSshClient;
     try {
+      log.debug('SSH client: calling ZSshClient.create', {
+        key,
+        host: spec.host,
+        port: spec.port,
+      });
       client = await ZSshClient.create(session, createOpts);
+      log.debug('SSH client: ZSshClient.create succeeded', {
+        key,
+        host: spec.host,
+        port: spec.port,
+      });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       const code =
@@ -179,11 +198,12 @@ export class SshClientCache {
     }
 
     this.clients.set(key, client);
-    log.debug('SSH client connected and cached', {
+    log.debug('SSH client: connected and cached', {
       key,
       host: spec.host,
       port: spec.port,
       user: spec.user,
+      cacheSize: this.clients.size,
     });
     return client;
   }
@@ -197,7 +217,7 @@ export class SshClientCache {
   evictKey(key: string): void {
     const client = this.clients.get(key);
     if (client) {
-      log.debug('SSH cache evict: removing client', { key });
+      log.debug('SSH client: evicting client from cache', { key });
       try {
         client.dispose();
       } catch {

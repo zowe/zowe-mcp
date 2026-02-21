@@ -33,9 +33,12 @@ import { runSearchWithListAndRead } from '../search-runner.js';
 import type { SystemId } from '../system.js';
 import type { ParsedConnectionSpec } from './connection-spec.js';
 import type { NativeCredentialProvider } from './native-credential-provider.js';
-import type { SshClientCache } from './ssh-client-cache.js';
+import { cacheKey, type SshClientCache } from './ssh-client-cache.js';
 
 const log = getLogger().child('native');
+
+/** Per connection (user@host:port) lock so only one request uses the client at a time. */
+const connectionLocks = new Map<string, Promise<void>>();
 
 const NOT_IMPL = 'Not implemented for Zowe Native backend';
 
@@ -79,8 +82,9 @@ function mapDatasetToEntry(item: {
 }
 
 /**
- * Classifies an error message as connection/network error or invalid-password error.
- * Connection errors should not mark credentials invalid; password errors should.
+ * Classifies an error message as connection/network/backend error or invalid-password error.
+ * Connection/backend errors mean the client should be evicted so the next request gets a new connection.
+ * Password errors should mark credentials invalid.
  */
 function classifyNativeError(message: string): {
   isConnectionError: boolean;
@@ -94,7 +98,12 @@ function classifyNativeError(message: string): {
     lowerCaseMessage.includes('econnreset') ||
     lowerCaseMessage.includes('enetunreach') ||
     lowerCaseMessage.includes('timeout') ||
-    lowerCaseMessage.includes('connection');
+    lowerCaseMessage.includes('connection') ||
+    // Backend (ZNP server) abended or returned invalid response; connection is unusable
+    lowerCaseMessage.includes('invalid json') ||
+    lowerCaseMessage.includes('protection exception') ||
+    lowerCaseMessage.includes('completion code') ||
+    /\b0c4\b/i.test(message);
 
   const isInvalidPassword =
     !isConnectionError &&
@@ -113,6 +122,8 @@ export interface NativeBackendOptions {
   getSpec: (systemId: SystemId, userId?: string) => ParsedConnectionSpec | undefined;
   /** VS Code mode: call when auth fails so extension can delete the secret. */
   onPasswordInvalid?: (user: string, host: string, port?: number) => void;
+  /** Current response timeout in seconds. When set, operations are limited to this duration so a hung SDK does not block the lock. */
+  getResponseTimeout?: () => number;
 }
 
 export class NativeBackend {
@@ -130,11 +141,43 @@ export class NativeBackend {
       );
     }
 
+    const key = cacheKey(spec);
+    const prev = connectionLocks.get(key) ?? Promise.resolve();
+    let release: () => void;
+    const done = new Promise<void>(r => {
+      release = r;
+    });
+    connectionLocks.set(
+      key,
+      prev.then(() => done)
+    );
+
+    log.debug('Native backend: waiting for connection lock', { key, systemId });
+    await prev;
+    log.debug('Native backend: connection lock acquired', { key, systemId });
+
     const credentials = await this.options.credentialProvider.getCredentials(systemId, userId);
 
     try {
+      log.debug('Native backend: getOrCreate client', { key, systemId });
       const client = await this.options.clientCache.getOrCreate(spec, credentials);
-      return await fn(client);
+      log.debug('Native backend: got client, running operation', { key, systemId });
+
+      const timeoutSec = this.options.getResponseTimeout?.() ?? 60;
+      const timeoutMs = timeoutSec * 1000;
+      let timeoutId: ReturnType<typeof setTimeout>;
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        timeoutId = setTimeout(
+          () => reject(new Error(`Request timed out after ${timeoutMs} ms`)),
+          timeoutMs
+        );
+      });
+      const result = await Promise.race([
+        fn(client).finally(() => clearTimeout(timeoutId!)),
+        timeoutPromise,
+      ]);
+      log.debug('Native backend: operation completed', { key, systemId });
+      return result;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       const code =
@@ -160,8 +203,13 @@ export class NativeBackend {
         this.options.credentialProvider.markInvalid(spec);
         this.options.clientCache.evict(spec);
         this.options.onPasswordInvalid?.(spec.user, spec.host, spec.port);
+      } else if (isConnectionError) {
+        this.options.clientCache.evict(spec);
       }
       throw err;
+    } finally {
+      release!();
+      log.debug('Native backend: connection lock released', { key, systemId });
     }
   }
 

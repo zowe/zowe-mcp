@@ -9,7 +9,7 @@ Zowe MCP is a Model Context Protocol (MCP) server and VS Code extension that pro
 This is an npm workspaces monorepo with three packages:
 
 - `packages/zowe-mcp-server` — Standalone MCP server (ESM, publishable to npm)
-- `packages/zowe-mcp-vscode` — VS Code extension that registers the server (CommonJS)
+- `packages/zowe-mcp-vscode` — VS Code extension that registers the server (CommonJS) and contributes Zowe Dark / Zowe Light color themes (`themes/*.json`)
 - `packages/zowe-mcp-evals` — AI evaluations: runs an LLM agent against the MCP server (mock or native), checks tool choice/arguments and answer content, produces a Markdown report. Uses Vercel AI SDK and MCP SDK client. Config: gitignored `evals.config.json` at **repo root** (vLLM or Gemini). Run from repo root: `npm run evals` (options after `--`). Question sets: YAML files in `questions/` with per-set `repetitions`, `minSuccessRate`, optional `mock`/`native`, optional `systemPrompt`/`systemPromptAddition`.
 
 ## Key Architectural Decisions
@@ -168,6 +168,7 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 
 ## Things to Remember
 
+- The extension contributes two color themes (**Zowe Dark**, **Zowe Light**) using the Zowe design palette (primary blue `#0062FF`, WCAG AA–friendly contrast). Theme files live in `packages/zowe-mcp-vscode/themes/` and are registered via `contributes.themes`.
 - The MCP SDK v1.x is the stable branch. The `main` branch of the SDK repo is v2 pre-alpha — do not use it.
 - The VS Code extension uses `@vscode/dts` to download VS Code type definitions. The `vscode.d.ts` file is auto-generated and should not be edited.
 - The `mcpServerDefinitionProviders` contribution point in the VS Code extension `package.json` must have an `id` matching the one passed to `registerMcpServerDefinitionProvider`.

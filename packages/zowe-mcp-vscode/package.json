@@ -1,7 +1,7 @@
 {
   "name": "zowe-mcp-vscode",
   "displayName": "Zowe MCP",
-  "description": "Zowe MCP Server for z/OS - provides AI tools for data sets, jobs, and UNIX System Services",
+  "description": "Zowe MCP Server for z/OS - provides AI tools for data sets, jobs, and UNIX System Services. Includes Zowe Dark and Zowe Light color themes using the Zowe design palette.",
   "version": "0.2.0",
   "publisher": "Zowe",
   "author": "Zowe",
@@ -12,20 +12,36 @@
   },
   "categories": [
     "AI",
-    "Other"
+    "Other",
+    "Themes"
   ],
   "keywords": [
     "zowe",
     "mcp",
     "z/OS",
     "mainframe",
-    "model-context-protocol"
+    "model-context-protocol",
+    "theme"
   ],
   "activationEvents": [
     "onStartupFinished"
   ],
   "main": "./out/extension.js",
   "contributes": {
+    "themes": [
+      {
+        "id": "zowe-dark",
+        "label": "Zowe Dark",
+        "path": "./themes/zowe-dark-color-theme.json",
+        "uiTheme": "vs-dark"
+      },
+      {
+        "id": "zowe-light",
+        "label": "Zowe Light",
+        "path": "./themes/zowe-light-color-theme.json",
+        "uiTheme": "vs"
+      }
+    ],
     "mcpServerDefinitionProviders": [
       {
         "id": "zowe",

@@ -52,6 +52,7 @@ export function activate(context: vscode.ExtensionContext): void {
           true
         );
         const zoweNativeServerPath = config.get<string>('zoweNativeServerPath', '~/.zowe-server');
+        const nativeResponseTimeout = config.get<number>('nativeResponseTimeout', 60);
         const defaultMainframeMvsEncoding = config.get<string>(
           'defaultMainframeMvsEncoding',
           'IBM-037'
@@ -77,6 +78,9 @@ export function activate(context: vscode.ExtensionContext): void {
           }
           if (zoweNativeServerPath?.trim()) {
             args.push('--native-server-path', zoweNativeServerPath.trim());
+          }
+          if (nativeResponseTimeout > 0 && nativeResponseTimeout !== 60) {
+            args.push('--native-response-timeout', String(nativeResponseTimeout));
           }
           log.info(`Native (SSH) mode enabled: ${nativeSystems.length} system(s)`);
         }
@@ -119,7 +123,8 @@ export function activate(context: vscode.ExtensionContext): void {
       }
       if (
         e.affectsConfiguration('zoweMCP.installZoweNativeServerAutomatically') ||
-        e.affectsConfiguration('zoweMCP.zoweNativeServerPath')
+        e.affectsConfiguration('zoweMCP.zoweNativeServerPath') ||
+        e.affectsConfiguration('zoweMCP.nativeResponseTimeout')
       ) {
         log.info('Native options setting changed, forwarding to MCP servers');
         sendNativeOptionsUpdateEvent();

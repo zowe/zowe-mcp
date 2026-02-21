@@ -242,11 +242,13 @@ function sendInitialNativeOptions(): void {
     true
   );
   const zoweNativeServerPath = config.get<string>('zoweNativeServerPath', '~/.zowe-server');
+  const responseTimeout = config.get<number>('nativeResponseTimeout', 60);
   sendEventToServers({
     type: 'native-options-update',
     data: {
       installZoweNativeServerAutomatically,
       zoweNativeServerPath: zoweNativeServerPath?.trim() || undefined,
+      responseTimeout: responseTimeout > 0 ? responseTimeout : undefined,
     },
     timestamp: Date.now(),
   } as ExtensionToServerEvent);

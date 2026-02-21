@@ -116,6 +116,8 @@ export type SystemsUpdateEvent = McpEvent<'systems-update', SystemsUpdateEventDa
 export interface NativeOptionsUpdateEventData {
   installZoweNativeServerAutomatically: boolean;
   zoweNativeServerPath?: string;
+  /** Response timeout in seconds for ZNP requests (default 60). Applied to future connections. */
+  responseTimeout?: number;
 }
 
 /** Updates native backend options (auto-install, server path). Applied to future connections. */

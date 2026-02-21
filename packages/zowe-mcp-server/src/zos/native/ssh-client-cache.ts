@@ -39,9 +39,14 @@ export function isZnpServerNotFoundError(err: unknown): boolean {
   return msg.includes('Server not found') || msg.includes('FSUM7351');
 }
 
+/** Default ZNP response timeout in seconds (used when not configured). */
+export const DEFAULT_NATIVE_RESPONSE_TIMEOUT_SEC = 60;
+
 export interface NativeOptions {
   autoInstallZnp: boolean;
   serverPath: string;
+  /** Response timeout in seconds for each ZNP request (default 60). */
+  responseTimeout: number;
 }
 
 export interface SshClientCacheOptions {
@@ -49,6 +54,8 @@ export interface SshClientCacheOptions {
   autoInstallZnp?: boolean;
   /** Remote path where the ZNP server is installed/run (default: ZSshClient.DEFAULT_SERVER_PATH). */
   serverPath?: string;
+  /** Response timeout in seconds for ZNP requests (default 60). */
+  responseTimeout?: number;
   /** When set, options are read at getOrCreate time (allows runtime updates from extension). */
   getOptions?: () => NativeOptions;
 }
@@ -71,6 +78,7 @@ export class SshClientCache {
       this.staticOptions = {
         autoInstallZnp: options.autoInstallZnp ?? true,
         serverPath: options.serverPath ?? ZSshClient.DEFAULT_SERVER_PATH,
+        responseTimeout: options.responseTimeout ?? DEFAULT_NATIVE_RESPONSE_TIMEOUT_SEC,
       };
     }
   }
@@ -115,6 +123,7 @@ export class SshClientCache {
 
     const createOpts = {
       serverPath: opts.serverPath,
+      responseTimeout: opts.responseTimeout ?? DEFAULT_NATIVE_RESPONSE_TIMEOUT_SEC,
       onClose: () => {
         log.debug('SSH session closed', { key });
         this.evictKey(key);

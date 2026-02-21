@@ -65,6 +65,8 @@ interface ParsedArgs {
   nativeServerAutoInstall?: boolean;
   /** Override remote path for ZNP server install/run (native mode). Default ~/.zowe-server. */
   nativeServerPath?: string;
+  /** Response timeout in seconds for ZNP requests (native mode). Default 60. */
+  nativeResponseTimeout?: number;
   /** Default mainframe encoding for MVS datasets (e.g. IBM-037). */
   defaultMvsEncoding?: string;
   /** Default mainframe encoding for USS files (e.g. IBM-1047). */
@@ -114,6 +116,13 @@ function applyEnvOverrides(parsed: ParsedArgs): void {
   }
   if (process.env.ZOWE_MCP_NATIVE_SERVER_PATH?.trim()) {
     parsed.nativeServerPath = process.env.ZOWE_MCP_NATIVE_SERVER_PATH.trim();
+  }
+  const envResponseTimeout = process.env.ZOWE_MCP_NATIVE_RESPONSE_TIMEOUT;
+  if (envResponseTimeout !== undefined) {
+    const sec = parseInt(envResponseTimeout, 10);
+    if (!isNaN(sec) && sec > 0) {
+      parsed.nativeResponseTimeout = sec;
+    }
   }
   if (process.env.ZOWE_MCP_DEFAULT_MVS_ENCODING?.trim()) {
     parsed.defaultMvsEncoding = process.env.ZOWE_MCP_DEFAULT_MVS_ENCODING.trim();
@@ -220,6 +229,12 @@ function parseArgs(): ParsedArgs {
         describe:
           'Remote path for ZNP server (default: ~/.zowe-server; or ZOWE_MCP_NATIVE_SERVER_PATH)',
       },
+      'native-response-timeout': {
+        type: 'number',
+        default: 60,
+        describe:
+          'Response timeout in seconds for ZNP requests (default 60; or ZOWE_MCP_NATIVE_RESPONSE_TIMEOUT)',
+      },
       'response-cache-disable': {
         type: 'boolean',
         default: false,
@@ -282,6 +297,7 @@ function parseArgs(): ParsedArgs {
     responseCache,
     nativeServerAutoInstall: (argv['native-server-auto-install'] as boolean) ?? true,
     nativeServerPath: argv['native-server-path'] as string | undefined,
+    nativeResponseTimeout: (argv['native-response-timeout'] as number) ?? 60,
     defaultMvsEncoding: argv['default-mvs-encoding'] as string | undefined,
     defaultUssEncoding: argv['default-uss-encoding'] as string | undefined,
   };
@@ -398,10 +414,12 @@ async function main(): Promise<void> {
       ? new WaitablePasswordStore()
       : undefined;
     const defaultNativeServerPath = '~/.zowe-server';
+    const defaultResponseTimeout = 60;
     const nativeOptionsRef = {
       current: {
         autoInstallZnp: parsed.nativeServerAutoInstall ?? true,
         serverPath: parsed.nativeServerPath ?? defaultNativeServerPath,
+        responseTimeout: parsed.nativeResponseTimeout ?? defaultResponseTimeout,
       },
     };
     const nativeSetup = loadNative({
@@ -438,6 +456,7 @@ async function main(): Promise<void> {
         : undefined,
       autoInstallZnp: parsed.nativeServerAutoInstall ?? true,
       nativeServerPath: parsed.nativeServerPath,
+      responseTimeout: parsed.nativeResponseTimeout ?? defaultResponseTimeout,
       getNativeOptions: extensionClient?.connected ? () => nativeOptionsRef.current : undefined,
     });
     encodingOptionsRef = {
@@ -484,14 +503,17 @@ async function main(): Promise<void> {
           }
         }
         if (event.type === 'native-options-update') {
-          const { installZoweNativeServerAutomatically, zoweNativeServerPath } = event.data;
+          const { installZoweNativeServerAutomatically, zoweNativeServerPath, responseTimeout } =
+            event.data;
           nativeOptionsRef.current = {
             autoInstallZnp: installZoweNativeServerAutomatically,
             serverPath: zoweNativeServerPath ?? nativeOptionsRef.current.serverPath,
+            responseTimeout: responseTimeout ?? nativeOptionsRef.current.responseTimeout,
           };
           logger.info('Applied native-options-update from VS Code extension', {
             installZoweNativeServerAutomatically,
             zoweNativeServerPath: zoweNativeServerPath ?? '(unchanged)',
+            responseTimeout: responseTimeout ?? '(unchanged)',
           });
         }
       });

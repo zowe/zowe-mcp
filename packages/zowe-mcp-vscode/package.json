@@ -132,6 +132,15 @@
           "markdownDescription": "Remote path on the z/OS host (UNIX System Services). Must start with `/` or `~` (e.g. `~/.zowe-server` or `/var/zowe-server`). Changes are sent to the server and apply to future connections.",
           "order": 4
         },
+        "zoweMCP.nativeResponseTimeout": {
+          "type": "number",
+          "default": 60,
+          "minimum": 1,
+          "maximum": 3600,
+          "description": "Response timeout in seconds for each Zowe Native (ZNP) request. Increase on overloaded systems to avoid timeouts. Changes are sent to the server and apply to future connections.",
+          "markdownDescription": "Response timeout in seconds for each Zowe Native (ZNP) request (e.g. list datasets, read dataset). Increase on overloaded systems to avoid timeouts. Changes are sent to the server and apply to future connections.",
+          "order": 5
+        },
         "zoweMCP.mockDataDirectory": {
           "type": "string",
           "default": "",
@@ -139,7 +148,7 @@
           "patternErrorMessage": "Must not contain control characters. Use an absolute path for your OS (e.g. /path, C:\\path, or ~/path).",
           "description": "Local absolute path to a mock data directory. When set and Native Systems is empty, the MCP server starts in mock mode. Use the 'Zowe MCP: Generate Mock Data' command to create one. Leave empty to use native (SSH) mode. Changes require restarting the MCP server.",
           "markdownDescription": "Local absolute path to a mock data directory (e.g. `/path`, `C:\\\\path`, or `~/path`). When set and **Native Systems** is empty, the MCP server starts in mock mode. Use the **Zowe MCP: Generate Mock Data** command to create one. Leave empty to use native (SSH) mode. Changes require restarting the MCP server.",
-          "order": 5
+          "order": 6
         },
         "zoweMCP.defaultMainframeMvsEncoding": {
           "type": "string",
@@ -148,7 +157,7 @@
           "patternErrorMessage": "Must be a valid IBM encoding format (e.g. IBM-037, IBM-1047)",
           "description": "Default mainframe encoding (EBCDIC) for dataset read/write (e.g. IBM-037, IBM-1047). Use the encoding used at your site. Changes are sent to the server and take effect immediately.",
           "markdownDescription": "Default mainframe encoding (EBCDIC) for dataset read/write (e.g. `IBM-037`, `IBM-1047`). Use the encoding used at your site. Changes are sent to the server and take effect immediately.",
-          "order": 6
+          "order": 7
         },
         "zoweMCP.defaultMainframeUssEncoding": {
           "type": "string",
@@ -157,7 +166,7 @@
           "patternErrorMessage": "Must be a valid IBM encoding format (e.g. IBM-1047)",
           "description": "Default mainframe encoding for USS file operations (e.g. IBM-1047). Use the encoding used at your site. Changes are sent to the server and take effect immediately.",
           "markdownDescription": "Default mainframe encoding for USS file operations (e.g. `IBM-1047`). Use the encoding used at your site. Changes are sent to the server and take effect immediately.",
-          "order": 7
+          "order": 8
         }
       }
     }

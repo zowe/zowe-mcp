@@ -25,8 +25,11 @@ import { parseConnectionSpecs } from './connection-spec.js';
 import { NativeBackend } from './native-backend.js';
 import type { NativeCredentialProviderOptions } from './native-credential-provider.js';
 import { NativeCredentialProvider } from './native-credential-provider.js';
-import type { NativeOptions } from './ssh-client-cache.js';
-import { SshClientCache } from './ssh-client-cache.js';
+import {
+  DEFAULT_NATIVE_RESPONSE_TIMEOUT_SEC,
+  SshClientCache,
+  type NativeOptions,
+} from './ssh-client-cache.js';
 
 export interface LoadNativeOptions {
   /** Connection specs: "user@host" or "user@host:port". May be empty when extension will send systems via systems-update. */
@@ -46,6 +49,8 @@ export interface LoadNativeOptions {
   autoInstallZnp?: boolean;
   /** Remote path where the ZNP server is installed/run (default: ~/.zowe-server). */
   nativeServerPath?: string;
+  /** Response timeout in seconds for ZNP requests (standalone only; default 60). When getNativeOptions is set, use that instead. */
+  responseTimeout?: number;
   /** When set, native options are read at connection time (allows runtime updates from extension). */
   getNativeOptions?: () => NativeOptions;
 }
@@ -78,17 +83,19 @@ export function loadNative(options: LoadNativeOptions): NativeSetup {
   const clientCache = new SshClientCache(
     options.getNativeOptions
       ? {
-          getOptions: () => {
+          getOptions: (): NativeOptions => {
             const o = options.getNativeOptions!();
             return {
               autoInstallZnp: o.autoInstallZnp,
               serverPath: o.serverPath,
+              responseTimeout: o.responseTimeout ?? DEFAULT_NATIVE_RESPONSE_TIMEOUT_SEC,
             };
           },
         }
       : {
           autoInstallZnp: options.autoInstallZnp ?? true,
           serverPath: options.nativeServerPath ?? ZSshClient.DEFAULT_SERVER_PATH,
+          responseTimeout: options.responseTimeout ?? DEFAULT_NATIVE_RESPONSE_TIMEOUT_SEC,
         }
   );
 

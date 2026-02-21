@@ -54,7 +54,7 @@ export function activate(context: vscode.ExtensionContext): void {
         const zoweNativeServerPath = config.get<string>('zoweNativeServerPath', '~/.zowe-server');
         const defaultMainframeMvsEncoding = config.get<string>(
           'defaultMainframeMvsEncoding',
-          'IBM-37'
+          'IBM-037'
         );
         const defaultMainframeUssEncoding = config.get<string>(
           'defaultMainframeUssEncoding',

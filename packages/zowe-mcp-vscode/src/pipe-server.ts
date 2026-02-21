@@ -258,7 +258,7 @@ function sendInitialNativeOptions(): void {
  */
 function sendInitialEncodingOptions(): void {
   const config = vscode.workspace.getConfiguration('zoweMCP');
-  const defaultMainframeMvsEncoding = config.get<string>('defaultMainframeMvsEncoding', 'IBM-37');
+  const defaultMainframeMvsEncoding = config.get<string>('defaultMainframeMvsEncoding', 'IBM-037');
   const defaultMainframeUssEncoding = config.get<string>(
     'defaultMainframeUssEncoding',
     'IBM-1047'
@@ -295,7 +295,7 @@ export function sendNativeOptionsUpdateEvent(): void {
  */
 export function sendEncodingOptionsUpdateEvent(): void {
   const config = vscode.workspace.getConfiguration('zoweMCP');
-  const defaultMainframeMvsEncoding = config.get<string>('defaultMainframeMvsEncoding', 'IBM-37');
+  const defaultMainframeMvsEncoding = config.get<string>('defaultMainframeMvsEncoding', 'IBM-037');
   const defaultMainframeUssEncoding = config.get<string>(
     'defaultMainframeUssEncoding',
     'IBM-1047'

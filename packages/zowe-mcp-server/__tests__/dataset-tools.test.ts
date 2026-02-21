@@ -825,14 +825,14 @@ describe('Dataset tools with mock backend', () => {
       expect(envelope.data.text).toContain('line2');
     });
 
-    it('should return server default encoding (IBM-37) when encoding param is omitted', async () => {
+    it('should return server default encoding (IBM-037) when encoding param is omitted', async () => {
       const result = await client.callTool({
         name: 'readDataset',
         arguments: { dsn: 'TESTUSER.DATA.INPUT' },
       });
 
       const envelope = parseEnvelope<{ text: string; etag: string; encoding: string }>(result);
-      expect(envelope.data.encoding).toBe('IBM-37');
+      expect(envelope.data.encoding).toBe('IBM-037');
     });
   });
 

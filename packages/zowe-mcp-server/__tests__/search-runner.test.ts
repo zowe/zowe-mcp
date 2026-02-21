@@ -179,9 +179,9 @@ describe('runSearchWithListAndRead', () => {
     await runSearchWithListAndRead(backend, SYSTEM_ID, 'USER.SEQ', {
       string: 'hit',
       parms: 'ANYC SEQ',
-      encoding: 'IBM-37',
+      encoding: 'IBM-037',
     });
 
-    expect(capturedEncoding).toBe('IBM-37');
+    expect(capturedEncoding).toBe('IBM-037');
   });
 });

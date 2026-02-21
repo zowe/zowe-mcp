@@ -93,6 +93,7 @@ export async function runSearchWithListAndRead(
       string: searchString,
       member: filterMember ?? '(all)',
       parms: parms || '(default)',
+      encoding: encoding,
     });
   }
 
@@ -107,7 +108,7 @@ export async function runSearchWithListAndRead(
     }
     try {
       if (log) {
-        log.debug('Reading sequential dataset for search', { dsn });
+        log.debug('Reading sequential dataset for search', { dsn, encoding: encoding });
       }
       const result = await backend.readDataset(systemId, dsn, undefined, encoding);
       const matchList = grepLines(result.text, searchString, parms);
@@ -182,7 +183,7 @@ export async function runSearchWithListAndRead(
   for (const mem of toSearch) {
     try {
       if (log) {
-        log.info('Reading member', { dsn, member: mem });
+        log.info('Reading member', { dsn, member: mem, encoding: encoding });
       }
       const result = await backend.readDataset(systemId, dsn, mem, encoding);
       const lines = result.text.split(/\r?\n/);
@@ -195,6 +196,7 @@ export async function runSearchWithListAndRead(
         log.info('Member read', {
           dsn,
           member: mem,
+          encoding,
           lineCount,
           contentStart,
         });

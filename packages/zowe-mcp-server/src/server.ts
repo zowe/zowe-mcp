@@ -102,7 +102,7 @@ export interface CreateServerOptions {
    */
   responseCache?: ResponseCacheOptions | ResponseCache | false;
   /**
-   * Default mainframe encodings. When not provided, uses IBM-37 for MVS datasets and IBM-1047 for USS.
+   * Default mainframe encodings. When not provided, uses IBM-037 for MVS datasets and IBM-1047 for USS.
    * Can be a mutable ref so runtime updates (e.g. encoding-options-update from VS Code) can change defaults without recreating the server.
    */
   encodingOptions?: EncodingOptions | { current: EncodingOptions };

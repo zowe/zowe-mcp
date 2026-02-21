@@ -345,7 +345,7 @@ describe('readDataset pagination (pagination preset)', () => {
     expect(page1.messages[0]).toContain('startLine=501');
     expect(page1.data.text).toContain('LINE 0001');
     expect(page1.data.text).toContain('LINE 0500');
-    expect(page1.data.encoding).toBe('IBM-37');
+    expect(page1.data.encoding).toBe('IBM-037');
 
     // Page 2: startLine 501, lineCount 500
     result = await client.callTool({

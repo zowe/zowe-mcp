@@ -14,13 +14,31 @@
  *
  * All data in the MCP server is UTF-8. The "mainframe encoding" is the EBCDIC
  * encoding used for conversion when reading from or writing to the mainframe.
+ *
+ * Encoding names are normalized so that IBM-N and IBM-NN are zero-padded to
+ * IBM-NNN (e.g. IBM-37 → IBM-037) for compatibility with Zowe Native Proto (ZNP).
  */
 
-/** Default mainframe encoding for MVS datasets (e.g. IBM-37 for US EBCDIC). */
-export const DEFAULT_MAINFRAME_MVS_ENCODING = 'IBM-37';
+/** Default mainframe encoding for MVS datasets (e.g. IBM-037 for US EBCDIC). */
+export const DEFAULT_MAINFRAME_MVS_ENCODING = 'IBM-037';
 
 /** Default mainframe encoding for USS files (e.g. IBM-1047). */
 export const DEFAULT_MAINFRAME_USS_ENCODING = 'IBM-1047';
+
+/**
+ * Normalize mainframe encoding for ZNP compatibility.
+ * IBM-N or IBM-NN (1–2 digit code page) is zero-padded to IBM-NNN (e.g. IBM-37 → IBM-037).
+ * Other values (e.g. IBM-1047, ISO8859-1) are returned unchanged.
+ */
+export function normalizeMainframeEncoding(encoding: string): string {
+  const match = /^IBM-(\d+)$/i.exec(encoding.trim());
+  if (!match) {
+    return encoding;
+  }
+  const num = match[1];
+  const padded = num.length <= 2 ? num.padStart(3, '0') : num;
+  return `IBM-${padded}`;
+}
 
 /**
  * Server-level default encodings. Used when no per-system override and no
@@ -46,11 +64,13 @@ export function resolveDatasetEncoding(
   systemOverride: string | null | undefined,
   serverDefault: string
 ): string {
+  let chosen: string;
   if (operationParam !== undefined && operationParam !== '') {
-    return operationParam;
+    chosen = operationParam;
+  } else if (systemOverride !== undefined && systemOverride !== null && systemOverride !== '') {
+    chosen = systemOverride;
+  } else {
+    chosen = serverDefault;
   }
-  if (systemOverride !== undefined && systemOverride !== null && systemOverride !== '') {
-    return systemOverride;
-  }
-  return serverDefault;
+  return normalizeMainframeEncoding(chosen);
 }

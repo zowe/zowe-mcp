@@ -65,7 +65,7 @@ interface ParsedArgs {
   nativeServerAutoInstall?: boolean;
   /** Override remote path for ZNP server install/run (native mode). Default ~/.zowe-server. */
   nativeServerPath?: string;
-  /** Default mainframe encoding for MVS datasets (e.g. IBM-37). */
+  /** Default mainframe encoding for MVS datasets (e.g. IBM-037). */
   defaultMvsEncoding?: string;
   /** Default mainframe encoding for USS files (e.g. IBM-1047). */
   defaultUssEncoding?: string;
@@ -236,7 +236,7 @@ function parseArgs(): ParsedArgs {
       },
       'default-mvs-encoding': {
         type: 'string',
-        describe: `Default mainframe encoding for datasets (e.g. IBM-37; or ZOWE_MCP_DEFAULT_MVS_ENCODING)`,
+        describe: `Default mainframe encoding for datasets (e.g. IBM-037; or ZOWE_MCP_DEFAULT_MVS_ENCODING)`,
       },
       'default-uss-encoding': {
         type: 'string',

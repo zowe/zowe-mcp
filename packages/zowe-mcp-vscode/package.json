@@ -108,11 +108,11 @@
         },
         "zoweMCP.defaultMainframeMvsEncoding": {
           "type": "string",
-          "default": "IBM-37",
+          "default": "IBM-037",
           "pattern": "^IBM-[0-9]+$",
-          "patternErrorMessage": "Must be a valid IBM encoding format (e.g. IBM-37, IBM-1047)",
-          "description": "Default mainframe encoding (EBCDIC) for dataset read/write (e.g. IBM-37, IBM-1047). Use the encoding used at your site. Changes are sent to the server and take effect immediately.",
-          "markdownDescription": "Default mainframe encoding (EBCDIC) for dataset read/write (e.g. `IBM-37`, `IBM-1047`). Use the encoding used at your site. Changes are sent to the server and take effect immediately.",
+          "patternErrorMessage": "Must be a valid IBM encoding format (e.g. IBM-037, IBM-1047)",
+          "description": "Default mainframe encoding (EBCDIC) for dataset read/write (e.g. IBM-037, IBM-1047). Use the encoding used at your site. Changes are sent to the server and take effect immediately.",
+          "markdownDescription": "Default mainframe encoding (EBCDIC) for dataset read/write (e.g. `IBM-037`, `IBM-1047`). Use the encoding used at your site. Changes are sent to the server and take effect immediately.",
           "order": 6
         },
         "zoweMCP.defaultMainframeUssEncoding": {

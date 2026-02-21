@@ -1,0 +1,47 @@
+{
+  "$schema": "vscode://schemas/icons",
+  "iconDefinitions": {
+    "_file_dark": { "iconPath": "./icons/document-dark.svg" },
+    "_file_light": { "iconPath": "./icons/document-light.svg" },
+    "_cobol_dark": { "iconPath": "./icons/cobol-dark.svg" },
+    "_cobol_light": { "iconPath": "./icons/cobol-light.svg" },
+    "_copybook_dark": { "iconPath": "./icons/copybook-dark.svg" },
+    "_copybook_light": { "iconPath": "./icons/copybook-light.svg" },
+    "_jcl_dark": { "iconPath": "./icons/jcl-dark.svg" },
+    "_jcl_light": { "iconPath": "./icons/jcl-light.svg" },
+    "_pli_dark": { "iconPath": "./icons/pli-dark.svg" },
+    "_pli_light": { "iconPath": "./icons/pli-light.svg" },
+    "_assembler_dark": { "iconPath": "./icons/assembler-dark.svg" },
+    "_assembler_light": { "iconPath": "./icons/assembler-light.svg" },
+    "_rexx_dark": { "iconPath": "./icons/rexx-dark.svg" },
+    "_rexx_light": { "iconPath": "./icons/rexx-light.svg" }
+  },
+  "file": "_file_dark",
+  "fileExtensions": {
+    "cbl": "_cobol_dark",
+    "cob": "_cobol_dark",
+    "cpy": "_copybook_dark",
+    "jcl": "_jcl_dark",
+    "pli": "_pli_dark",
+    "pl1": "_pli_dark",
+    "asm": "_assembler_dark",
+    "s": "_assembler_dark",
+    "rexx": "_rexx_dark",
+    "rex": "_rexx_dark"
+  },
+  "light": {
+    "file": "_file_light",
+    "fileExtensions": {
+      "cbl": "_cobol_light",
+      "cob": "_cobol_light",
+      "cpy": "_copybook_light",
+      "jcl": "_jcl_light",
+      "pli": "_pli_light",
+      "pl1": "_pli_light",
+      "asm": "_assembler_light",
+      "s": "_assembler_light",
+      "rexx": "_rexx_light",
+      "rex": "_rexx_light"
+    }
+  }
+}

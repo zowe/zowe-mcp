@@ -28,6 +28,13 @@
   ],
   "main": "./out/extension.js",
   "contributes": {
+    "iconThemes": [
+      {
+        "id": "zowe-mainframe",
+        "label": "Zowe Mainframe",
+        "path": "./themes/fileicons/zowe-file-icon-theme.json"
+      }
+    ],
     "themes": [
       {
         "id": "zowe-dark-classic",

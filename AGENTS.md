@@ -169,6 +169,7 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 ## Things to Remember
 
 - The extension contributes four color themes: **Zowe Dark (Classic)** and **Zowe Light (Classic)** (primary `#0062FF`) and **Zowe Dark (Official)** / **Zowe Light (Official)** (Zowe docs palette: zBlue/zCoolGray). Theme files and names match: `zowe-*-classic-color-theme.json` / "Zowe *(Classic)", `zowe-*-official-color-theme.json` / "Zowe* (Official)"; registered via `contributes.themes`.
+- **File icon theme** "Zowe Mainframe" (`contributes.iconThemes`, `themes/fileicons/zowe-file-icon-theme.json`) adds icons for mainframe file types: COBOL (`.cbl`, `.cob`), copybook (`.cpy`), JCL (`.jcl`), PL/I (`.pli`, `.pl1`), Assembler (`.asm`, `.s`), REXX (`.rexx`, `.rex`). COBOL/JCL/PL/I/copybook/assembler use document-style SVGs with label (COB, JCL, PL/I, cpy, ASM); REXX uses the official REXX logo (red, from svgrepo). Light/dark variants; Zowe palette where applicable.
 - The MCP SDK v1.x is the stable branch. The `main` branch of the SDK repo is v2 pre-alpha — do not use it.
 - The VS Code extension uses `@vscode/dts` to download VS Code type definitions. The `vscode.d.ts` file is auto-generated and should not be edited.
 - The `mcpServerDefinitionProviders` contribution point in the VS Code extension `package.json` must have an `id` matching the one passed to `registerMcpServerDefinitionProvider`.

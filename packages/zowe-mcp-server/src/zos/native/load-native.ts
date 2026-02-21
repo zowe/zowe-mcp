@@ -43,6 +43,10 @@ export interface LoadNativeOptions {
   passwordStore?: NativeCredentialProviderOptions['passwordStore'];
   /** VS Code only: callback when password is needed (sends request-password event). */
   requestPasswordCallback?: NativeCredentialProviderOptions['requestPasswordCallback'];
+  /** When set, try MCP elicitation first (if client supports it) before requestPasswordCallback. */
+  requestPasswordViaElicitation?: NativeCredentialProviderOptions['requestPasswordViaElicitation'];
+  /** When set, called when an elicited password is used so the extension can persist it. */
+  onElicitedPasswordUsed?: NativeCredentialProviderOptions['onElicitedPasswordUsed'];
   /** VS Code only: callback when auth fails (sends password-invalid event). */
   onPasswordInvalid?: (user: string, host: string, port?: number) => void;
   /** When true (default), deploy ZNP via ZSshUtils.installServer when "Server not found" is detected. */
@@ -78,6 +82,8 @@ export function loadNative(options: LoadNativeOptions): NativeSetup {
     useEnvForPassword: options.useEnvForPassword,
     passwordStore: options.passwordStore,
     requestPasswordCallback: options.requestPasswordCallback,
+    requestPasswordViaElicitation: options.requestPasswordViaElicitation,
+    onElicitedPasswordUsed: options.onElicitedPasswordUsed,
   });
 
   const clientCache = new SshClientCache(

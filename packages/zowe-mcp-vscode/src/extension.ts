@@ -26,6 +26,7 @@ import {
   sendSystemsUpdateEvent,
   startPipeServer,
 } from './pipe-server';
+import { getNativePasswordKey } from './secrets';
 import { logLanguageModels, logStartupInfo } from './startup-log';
 
 export function activate(context: vscode.ExtensionContext): void {
@@ -105,6 +106,13 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
     vscode.commands.registerCommand('zowe-mcp.initMockData', () =>
       initMockData(context, serverModule)
+    )
+  );
+
+  // Register the "Clear Stored Password" command
+  context.subscriptions.push(
+    vscode.commands.registerCommand('zowe-mcp.clearStoredPassword', () =>
+      clearStoredPassword(context)
     )
   );
 
@@ -253,6 +261,72 @@ async function initMockData(
       void vscode.commands.executeCommand('workbench.action.reloadWindow');
     }
   }
+}
+
+/**
+ * Parses a connection spec (user@host or user@host:port) into user and host.
+ */
+function parseConnectionSpec(spec: string): { user: string; host: string } | undefined {
+  const at = spec.indexOf('@');
+  if (at <= 0 || at >= spec.length - 1) return undefined;
+  const user = spec.slice(0, at);
+  const hostPart = spec.slice(at + 1);
+  const colon = hostPart.indexOf(':');
+  const host = colon >= 0 ? hostPart.slice(0, colon) : hostPart;
+  if (!user.trim() || !host.trim()) return undefined;
+  return { user: user.trim(), host: host.trim() };
+}
+
+/**
+ * Clears the stored SSH password from SecretStorage for a chosen connection.
+ * Shows a QuickPick of configured native systems, or an input box if none configured.
+ */
+async function clearStoredPassword(context: vscode.ExtensionContext): Promise<void> {
+  const log = getLog();
+  const config = vscode.workspace.getConfiguration('zoweMCP');
+  const nativeSystems = (config.get<string[]>('nativeSystems', []) ?? []).filter(
+    (s): s is string => typeof s === 'string' && s.trim().length > 0
+  );
+
+  let spec: string;
+  if (nativeSystems.length > 0) {
+    const chosen = await vscode.window.showQuickPick(nativeSystems, {
+      title: 'Zowe MCP: Clear Stored Password',
+      placeHolder: 'Select connection (user@host) to clear stored password',
+      matchOnDescription: false,
+    });
+    if (!chosen) return;
+    spec = chosen.trim();
+  } else {
+    const entered = await vscode.window.showInputBox({
+      title: 'Zowe MCP: Clear Stored Password',
+      prompt: 'Enter connection (user@host or user@host:port) to clear stored password',
+      placeHolder: 'USER@host.example.com',
+      validateInput(value: string) {
+        if (!value.trim()) return 'Enter a connection spec';
+        const parsed = parseConnectionSpec(value.trim());
+        return parsed ? null : 'Must be user@host or user@host:port';
+      },
+    });
+    if (!entered?.trim()) return;
+    spec = entered.trim();
+  }
+
+  const parsed = parseConnectionSpec(spec);
+  if (!parsed) {
+    log.warn(`Invalid connection spec for clear password: ${spec}`);
+    void vscode.window.showErrorMessage(
+      'Invalid connection spec. Use user@host or user@host:port.'
+    );
+    return;
+  }
+
+  const key = getNativePasswordKey(parsed.user, parsed.host);
+  await context.secrets.delete(key);
+  log.info(`Cleared stored password for ${parsed.user}@${parsed.host}`);
+  void vscode.window.showInformationMessage(
+    `Stored password cleared for ${parsed.user}@${parsed.host}.`
+  );
 }
 
 export function deactivate(): void {

@@ -124,6 +124,11 @@
         "command": "zowe-mcp.initMockData",
         "title": "Generate Mock Data",
         "category": "Zowe MCP"
+      },
+      {
+        "command": "zowe-mcp.clearStoredPassword",
+        "title": "Clear Stored Password",
+        "category": "Zowe MCP"
       }
     ],
     "configuration": {

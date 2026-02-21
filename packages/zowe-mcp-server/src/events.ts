@@ -81,6 +81,17 @@ export interface PasswordInvalidEventData {
 /** Tells the extension to delete the stored password for that user@host. */
 export type PasswordInvalidEvent = McpEvent<'password-invalid', PasswordInvalidEventData>;
 
+/** Payload for a `store-password` event (server → extension). */
+export interface StorePasswordEventData {
+  user: string;
+  host: string;
+  port?: number;
+  password: string;
+}
+
+/** Asks the extension to store a password for user@host in SecretStorage (e.g. after successful use of an elicited password). */
+export type StorePasswordEvent = McpEvent<'store-password', StorePasswordEventData>;
+
 // ---------------------------------------------------------------------------
 // Extension → Server events
 // ---------------------------------------------------------------------------
@@ -147,7 +158,8 @@ export type ServerToExtensionEvent =
   | LogEvent
   | NotificationEvent
   | RequestPasswordEvent
-  | PasswordInvalidEvent;
+  | PasswordInvalidEvent
+  | StorePasswordEvent;
 
 /** Events that flow from the VS Code extension to the MCP server. */
 export type ExtensionToServerEvent =

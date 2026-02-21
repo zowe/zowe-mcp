@@ -158,7 +158,9 @@ export class NativeBackend {
     await prev;
     log.debug('Native backend: connection lock acquired', { key, systemId });
 
-    const credentials = await this.options.credentialProvider.getCredentials(systemId, userId);
+    const credentials = await this.options.credentialProvider.getCredentials(systemId, userId, {
+      progress,
+    });
 
     try {
       log.debug('Native backend: getOrCreate client', { key, systemId });

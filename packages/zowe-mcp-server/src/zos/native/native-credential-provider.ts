@@ -19,7 +19,7 @@
  */
 
 import { getLogger } from '../../server.js';
-import type { CredentialProvider, Credentials } from '../credentials.js';
+import type { CredentialProvider, Credentials, GetCredentialsOptions } from '../credentials.js';
 import type { SystemId } from '../system.js';
 import type { ParsedConnectionSpec } from './connection-spec.js';
 import { toPasswordEnvVarName } from './connection-spec.js';
@@ -30,6 +30,21 @@ const log = getLogger().child('native.credentials');
 
 /** Callback to request a password from the VS Code extension (sends request-password event). */
 export type RequestPasswordCallback = (user: string, host: string, port?: number) => void;
+
+/** Async callback to request a password via MCP elicitation (when client supports it). Returns the password or undefined to fall back to pipe. */
+export type RequestPasswordViaElicitation = (
+  user: string,
+  host: string,
+  port?: number
+) => Promise<string | undefined>;
+
+/** Callback when an elicited password is successfully used, so the extension can persist it (e.g. store in SecretStorage). */
+export type OnElicitedPasswordUsed = (
+  user: string,
+  host: string,
+  port: number | undefined,
+  password: string
+) => void;
 
 /** In-memory store of password received from extension (VS Code mode). Key: cacheKey(spec). */
 export type PasswordStore = Map<string, string>;
@@ -54,6 +69,10 @@ export interface NativeCredentialProviderOptions {
   passwordStore?: PasswordStore | WaitablePasswordStoreLike;
   /** VS Code mode: call when password is missing so server can send request-password event. */
   requestPasswordCallback?: RequestPasswordCallback;
+  /** When set, try MCP elicitation first (if client supports it) before falling back to requestPasswordCallback. */
+  requestPasswordViaElicitation?: RequestPasswordViaElicitation;
+  /** When set, called after returning credentials that came from elicitation, so the extension can persist the password. */
+  onElicitedPasswordUsed?: OnElicitedPasswordUsed;
 }
 
 /**
@@ -64,6 +83,8 @@ export interface NativeCredentialProviderOptions {
 export class NativeCredentialProvider implements CredentialProvider {
   private readonly specsByHost = new Map<string, ParsedConnectionSpec[]>();
   private readonly invalidKeys = new Set<string>();
+  /** In-flight password requests by key so concurrent getCredentials() for the same connection wait for the first request. */
+  private readonly _passwordRequestByKey = new Map<string, Promise<string>>();
 
   constructor(private readonly options: NativeCredentialProviderOptions) {
     this._applySpecs(options.connectionSpecs);
@@ -99,7 +120,99 @@ export class NativeCredentialProvider implements CredentialProvider {
     }
   }
 
-  async getCredentials(systemId: SystemId, userId?: string): Promise<Credentials> {
+  /**
+   * Runs a single password request. When the pipe is available (VS Code connected), use it only.
+   * When the pipe is not available, use MCP elicitation if the client supports it. Used so
+   * concurrent getCredentials() for the same key await the same promise instead of each triggering a separate prompt.
+   */
+  private async _requestPasswordOnce(
+    key: string,
+    spec: ParsedConnectionSpec,
+    progress?: (message: string) => void
+  ): Promise<string> {
+    const store = this.options.passwordStore;
+    const waitable = store && 'waitFor' in store && typeof store.waitFor === 'function';
+
+    // Pipe only when VS Code extension is connected (no fallback to elicitation on timeout/cancel)
+    if (store && this.options.requestPasswordCallback) {
+      progress?.('Waiting for password');
+      log.debug('Requesting password from extension (pipe)', {
+        key,
+        host: spec.host,
+        port: spec.port,
+        user: spec.user,
+        waitable: !!waitable,
+      });
+      this.options.requestPasswordCallback(spec.user, spec.host, spec.port);
+      if (waitable) {
+        const PASSWORD_WAIT_MS = 120_000;
+        const password = await store.waitFor(key, PASSWORD_WAIT_MS);
+        if (password !== undefined) {
+          log.debug('Credentials obtained from extension (after wait)', {
+            key,
+            host: spec.host,
+            port: spec.port,
+            user: spec.user,
+            passwordHash: passwordHash(password),
+          });
+          return password;
+        }
+        log.info('Password not received from extension in time', {
+          key,
+          host: spec.host,
+          port: spec.port,
+          user: spec.user,
+          timeoutMs: PASSWORD_WAIT_MS,
+        });
+        throw new Error(
+          `Password for ${spec.user}@${spec.host} was not received in time. Please enter it when the extension prompts.`
+        );
+      }
+      throw new Error(
+        `Password required for ${spec.user}@${spec.host}. The VS Code extension should prompt and send it.`
+      );
+    }
+
+    // When pipe is not available (no VS Code): MCP elicitation when the client supports it
+    if (this.options.requestPasswordViaElicitation) {
+      progress?.('Waiting for password');
+      try {
+        const password = await this.options.requestPasswordViaElicitation(
+          spec.user,
+          spec.host,
+          spec.port
+        );
+        if (password !== undefined && password !== '') {
+          this.options.onElicitedPasswordUsed?.(spec.user, spec.host, spec.port, password);
+          log.debug('Credentials obtained via elicitation', {
+            key,
+            host: spec.host,
+            port: spec.port,
+            user: spec.user,
+            passwordHash: passwordHash(password),
+          });
+          return password;
+        }
+      } catch (err) {
+        log.debug('Elicitation failed', {
+          key,
+          host: spec.host,
+          user: spec.user,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
+
+    throw new Error(
+      `Password for ${spec.user}@${spec.host} was not received in time. Please enter it when the extension prompts.`
+    );
+  }
+
+  async getCredentials(
+    systemId: SystemId,
+    userId?: string,
+    options?: GetCredentialsOptions
+  ): Promise<Credentials> {
     await Promise.resolve();
     const specs = this.specsByHost.get(systemId);
     if (!specs || specs.length === 0) {
@@ -151,44 +264,33 @@ export class NativeCredentialProvider implements CredentialProvider {
     } else {
       const store = this.options.passwordStore;
       password = store?.get(key);
-      if (password === undefined && store && this.options.requestPasswordCallback) {
-        const waitable = 'waitFor' in store && typeof store.waitFor === 'function';
-        log.debug('Requesting password from extension', {
-          key,
-          host: spec.host,
-          port: spec.port,
-          user: spec.user,
-          waitable,
-        });
-        this.options.requestPasswordCallback(spec.user, spec.host, spec.port);
-        if (waitable) {
-          const PASSWORD_WAIT_MS = 120_000;
-          password = await store.waitFor(key, PASSWORD_WAIT_MS);
-          if (password === undefined) {
-            log.info('Password not received from extension in time', {
-              key,
-              host: spec.host,
-              port: spec.port,
-              user: spec.user,
-              timeoutMs: PASSWORD_WAIT_MS,
-            });
-            throw new Error(
-              `Password for ${spec.user}@${spec.host} was not received in time. Please enter it when the extension prompts.`
-            );
-          }
-          log.debug('Credentials obtained from extension (after wait)', {
+      if (
+        password === undefined &&
+        (this.options.requestPasswordViaElicitation || this.options.requestPasswordCallback)
+      ) {
+        const inFlight = this._passwordRequestByKey.get(key);
+        if (inFlight !== undefined) {
+          options?.progress?.('Waiting for password');
+          log.debug('Waiting for in-flight password request', {
             key,
             host: spec.host,
-            port: spec.port,
             user: spec.user,
-            passwordHash: passwordHash(password),
           });
+          password = await inFlight;
         } else {
-          throw new Error(
-            `Password required for ${spec.user}@${spec.host}. The VS Code extension should prompt and send it.`
-          );
+          const requestPromise = this._requestPasswordOnce(key, spec, options?.progress);
+          this._passwordRequestByKey.set(key, requestPromise);
+          try {
+            password = await requestPromise;
+            if (store && password !== undefined) {
+              store.set(key, password);
+            }
+          } finally {
+            this._passwordRequestByKey.delete(key);
+          }
         }
-      } else if (password === undefined) {
+      }
+      if (password === undefined) {
         log.info('Password required but no store or callback', {
           key,
           host: spec.host,
@@ -198,7 +300,8 @@ export class NativeCredentialProvider implements CredentialProvider {
         throw new Error(
           `Password required for ${spec.user}@${spec.host}. The VS Code extension should prompt and send it.`
         );
-      } else {
+      }
+      if (password !== undefined) {
         log.debug('Credentials obtained from store (cached)', {
           key,
           host: spec.host,
@@ -209,7 +312,7 @@ export class NativeCredentialProvider implements CredentialProvider {
       }
     }
 
-    return { user: spec.user, password };
+    return { user: spec.user, password: password };
   }
 
   async listUsers(systemId: SystemId): Promise<string[]> {

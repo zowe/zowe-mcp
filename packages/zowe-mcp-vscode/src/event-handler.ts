@@ -17,6 +17,7 @@
  * - `notification` events → VS Code information/warning/error message dialogs
  * - `request-password` → get from SecretStorage or prompt, send password event
  * - `password-invalid` → delete secret for that user@host
+ * - `store-password` → store password in SecretStorage (e.g. after successful use of elicited password)
  */
 
 import * as crypto from 'crypto';
@@ -165,6 +166,21 @@ async function handlePasswordInvalid(
 }
 
 /**
+ * Handles store-password: persist the password in SecretStorage (e.g. after successful use of an elicited password).
+ */
+async function handleStorePassword(
+  log: vscode.LogOutputChannel,
+  event: ServerToExtensionEvent,
+  options: NativeSecretsOptions
+): Promise<void> {
+  if (event.type !== 'store-password') return;
+  const { user, host, password } = event.data;
+  const key = getNativePasswordKey(user, host);
+  await options.context.secrets.store(key, password);
+  log.info(`Stored SSH password for ${user}@${host} in SecretStorage`);
+}
+
+/**
  * Handles a single event received from the MCP server over the named pipe.
  *
  * @param options - When provided, enables request-password and password-invalid handling (native mode).
@@ -186,6 +202,9 @@ export function handleServerEvent(
       break;
     case 'password-invalid':
       if (options) void handlePasswordInvalid(log, event, options);
+      break;
+    case 'store-password':
+      if (options) void handleStorePassword(log, event, options);
       break;
     default:
       log.warn(`Unknown event type from MCP server: ${(event as { type: string }).type}`);

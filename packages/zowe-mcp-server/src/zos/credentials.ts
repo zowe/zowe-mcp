@@ -31,6 +31,12 @@ export interface Credentials {
   password: string;
 }
 
+/** Optional options for getCredentials (e.g. progress reporting while waiting for password). */
+export interface GetCredentialsOptions {
+  /** Called when the provider is waiting for user input (e.g. password prompt). */
+  progress?: (message: string) => void;
+}
+
 // ---------------------------------------------------------------------------
 // Interface
 // ---------------------------------------------------------------------------
@@ -43,7 +49,11 @@ export interface Credentials {
  */
 export interface CredentialProvider {
   /** Get credentials for a system, optionally for a specific user. */
-  getCredentials(systemId: SystemId, userId?: string): Promise<Credentials>;
+  getCredentials(
+    systemId: SystemId,
+    userId?: string,
+    options?: GetCredentialsOptions
+  ): Promise<Credentials>;
 
   /** List all user IDs available for a system. */
   listUsers(systemId: SystemId): Promise<string[]>;

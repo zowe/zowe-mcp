@@ -134,7 +134,9 @@ export function registerContextTools(
         ? [`System resolved from unqualified name '${system}'.`]
         : [];
 
-      const credentials = await credentialProvider.getCredentials(resolvedHost);
+      const credentials = await credentialProvider.getCredentials(resolvedHost, undefined, {
+        progress: msg => progress.step(msg),
+      });
       const encodingOverrides =
         mainframeMvsEncoding !== undefined || mainframeUssEncoding !== undefined
           ? { mainframeMvsEncoding, mainframeUssEncoding }

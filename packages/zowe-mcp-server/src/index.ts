@@ -368,6 +368,8 @@ async function main(): Promise<void> {
   // Load mock backend if --mock is specified
   let serverOptions: CreateServerOptions | undefined;
   let encodingOptionsRef: { current: EncodingOptions } | undefined;
+  /** Set in native mode; used to pass server to elicitation callback after createServer (stdio only). */
+  let serverRef: { current: ReturnType<typeof createServer> | null } | undefined;
   if (mockDir) {
     const { loadMock } = await import('./zos/mock/load-mock.js');
     const mock = await loadMock(mockDir);
@@ -413,6 +415,8 @@ async function main(): Promise<void> {
     const nativePasswordStore = extensionClient?.connected
       ? new WaitablePasswordStore()
       : undefined;
+    /** Set after createServer() for stdio so elicitation callback can use the server. Not set for HTTP (multi-session). */
+    serverRef = { current: null };
     const defaultNativeServerPath = '~/.zowe-server';
     const defaultResponseTimeout = 60;
     const nativeOptionsRef = {
@@ -436,6 +440,59 @@ async function main(): Promise<void> {
             extensionClient.sendEvent({
               type: 'request-password',
               data: { user, host, port },
+              timestamp: Date.now(),
+            });
+          }
+        : undefined,
+      requestPasswordViaElicitation: extensionClient?.connected
+        ? async (user, host, port) => {
+            if (!serverRef) return undefined;
+            const s = serverRef.current;
+            if (!s) return undefined;
+            const caps = s.server.getClientCapabilities();
+            if (!caps?.elicitation?.form) return undefined;
+            const portNum = port ?? 22;
+            const message =
+              portNum === 22
+                ? `Enter SSH password for ${user}@${host}`
+                : `Enter SSH password for ${user}@${host}:${portNum}`;
+            try {
+              const result = await s.server.elicitInput({
+                mode: 'form',
+                message,
+                requestedSchema: {
+                  type: 'object',
+                  properties: {
+                    password: {
+                      type: 'string',
+                      title: 'Password',
+                      description: `SSH password for ${user}@${host})`,
+                    },
+                  },
+                  required: ['password'],
+                },
+              });
+              if (result.action === 'accept' && result.content?.password) {
+                return result.content.password as string;
+              }
+            } catch (err) {
+              nativePasswordLog.debug('Elicitation failed', {
+                user,
+                host,
+                error: err instanceof Error ? err.message : String(err),
+              });
+            }
+            return undefined;
+          }
+        : undefined,
+      onElicitedPasswordUsed: extensionClient?.connected
+        ? (user, host, port, password) => {
+            nativePasswordLog.debug(
+              'Sending store-password to extension (elicited password used)'
+            );
+            extensionClient.sendEvent({
+              type: 'store-password',
+              data: { user, host, port, password },
               timestamp: Date.now(),
             });
           }
@@ -556,6 +613,9 @@ async function main(): Promise<void> {
 
   if (transport === 'stdio') {
     const server = createServer(serverOptions);
+    if (serverRef) {
+      serverRef.current = server;
+    }
     await startStdio(server, logger);
   } else {
     await startHttp(() => createServer(serverOptions), port, logger);

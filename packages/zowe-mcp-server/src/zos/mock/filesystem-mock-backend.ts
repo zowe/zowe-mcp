@@ -319,6 +319,8 @@ export class FilesystemMockBackend implements ZosBackend {
     member?: string,
     etag?: string,
     encoding?: string,
+    startLine?: number,
+    endLine?: number,
     _progress?: BackendProgressCallback
   ): Promise<WriteDatasetResult> {
     void _progress;
@@ -344,9 +346,19 @@ export class FilesystemMockBackend implements ZosBackend {
       filePath = dsPath;
     }
 
-    // ETag check for optimistic locking
-    if (etag) {
+    if (startLine != null) {
+      // Replace a block of records: read, replace line range, write.
+      let currentText: string;
       try {
+        currentText = await fs.readFile(filePath, 'utf-8');
+      } catch (err) {
+        if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+          currentText = '';
+        } else {
+          throw err;
+        }
+      }
+      if (etag && currentText !== '') {
         const stat = await fs.stat(filePath);
         const currentEtag = computeEtag(stat.mtimeMs);
         if (currentEtag !== etag) {
@@ -355,11 +367,48 @@ export class FilesystemMockBackend implements ZosBackend {
               'Re-read the dataset to get the latest content and ETag before writing.'
           );
         }
-      } catch (err) {
-        if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
-          throw err;
+      }
+      const lines = currentText.split(/\r?\n/);
+      const contentLines = content.split(/\r?\n/);
+      const startIdx = startLine - 1;
+
+      if (endLine != null) {
+        // Replace [startLine, endLine] (inclusive) with content; line count need not match.
+        const endIdx = Math.min(endLine - 1, lines.length - 1);
+        const removeCount = Math.max(0, endIdx - startIdx + 1);
+        while (lines.length < startIdx) {
+          lines.push('');
         }
-        // File doesn't exist yet — ETag check is irrelevant for new files
+        lines.splice(startIdx, removeCount, ...contentLines);
+      } else {
+        // Replace N lines starting at startLine with N lines from content (backward compat).
+        const N = contentLines.length;
+        while (lines.length < startIdx + N) {
+          lines.push('');
+        }
+        for (let i = 0; i < N; i++) {
+          lines[startIdx + i] = contentLines[i];
+        }
+      }
+      content = lines.join('\n');
+    } else {
+      // Full replace: ETag check for optimistic locking
+      if (etag) {
+        try {
+          const stat = await fs.stat(filePath);
+          const currentEtag = computeEtag(stat.mtimeMs);
+          if (currentEtag !== etag) {
+            throw new Error(
+              'Write failed: dataset was modified since your last read (ETag mismatch). ' +
+                'Re-read the dataset to get the latest content and ETag before writing.'
+            );
+          }
+        } catch (err) {
+          if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
+            throw err;
+          }
+          // File doesn't exist yet — ETag check is irrelevant for new files
+        }
       }
     }
 
@@ -401,10 +450,8 @@ export class FilesystemMockBackend implements ZosBackend {
     const appliedRecfm = options.recfm ?? DEFAULT_RECFM;
     const appliedLrecl = options.lrecl ?? DEFAULT_LRECL;
     const appliedBlksz = options.blksz ?? DEFAULT_BLKSZ;
-    const appliedDirblk =
-      options.type === 'PO' || options.type === 'PO-E'
-        ? (options.dirblk ?? DEFAULT_DIRBLK)
-        : undefined;
+    // PDS (PO) uses directory blocks; PDSE (PO-E) does not — match native.
+    const appliedDirblk = options.type === 'PO' ? (options.dirblk ?? DEFAULT_DIRBLK) : undefined;
 
     const messages: string[] = [];
     if (options.recfm === undefined) {
@@ -417,7 +464,7 @@ export class FilesystemMockBackend implements ZosBackend {
       messages.push(`blksz defaulted to ${appliedBlksz}.`);
     }
     messages.push(`Volume ${MOCK_VOLSER} assigned by storage.`);
-    if (options.type === 'PO' || options.type === 'PO-E') {
+    if (options.type === 'PO') {
       if (options.dirblk === undefined) {
         messages.push(`dirblk defaulted to ${appliedDirblk} for partitioned dataset.`);
       }
@@ -450,8 +497,7 @@ export class FilesystemMockBackend implements ZosBackend {
 
     await fs.writeFile(metaPath, JSON.stringify(meta, null, 2), 'utf-8');
 
-    const primaryTracks: number | undefined = options.primary;
-    const secondaryTracks: number | undefined = options.secondary;
+    // Same applied shape as native: primary/secondary always present (may be undefined).
     const applied: CreateDatasetApplied = {
       dsorg: options.type,
       recfm: appliedRecfm,
@@ -459,8 +505,8 @@ export class FilesystemMockBackend implements ZosBackend {
       blksz: appliedBlksz,
       volser: MOCK_VOLSER,
       dirblk: appliedDirblk,
-      ...(primaryTracks !== undefined && { primary: primaryTracks }),
-      ...(secondaryTracks !== undefined && { secondary: secondaryTracks }),
+      primary: options.primary,
+      secondary: options.secondary,
     };
     return { applied, messages };
   }
@@ -519,6 +565,7 @@ export class FilesystemMockBackend implements ZosBackend {
 
     const meta = await readMeta(metaPath);
 
+    // Same schema as native getAttributes: only fields native returns (no referenceDate, smsClass).
     return {
       dsn: meta?.dsn ?? dsn,
       dsorg: (meta?.dsorg as DatasetOrg | undefined) ?? (isDir ? 'PO-E' : 'PS'),
@@ -527,8 +574,6 @@ export class FilesystemMockBackend implements ZosBackend {
       blksz: meta?.blksz ?? 27920,
       volser: meta?.volser ?? 'VOL001',
       creationDate: meta?.creationDate,
-      referenceDate: meta?.referenceDate,
-      smsClass: meta?.smsClass,
     };
   }
 

@@ -297,12 +297,22 @@ export interface ZosBackend {
    * target encoding. When not provided, the tool layer supplies the
    * resolved value (system override or MCP server default).
    *
+   * When both startLine and endLine are provided, the backend replaces the
+   * block of records from startLine to endLine (1-based, inclusive) with the
+   * given content; the number of lines in content need not match (dataset can
+   * grow or shrink). When only startLine is provided, the block replaced
+   * has the same number of lines as content. When both are omitted, the
+   * entire dataset or member is replaced.
+   *
    * @param systemId - Target z/OS system.
    * @param dsn - Fully-qualified dataset name.
    * @param content - UTF-8 text content to write.
    * @param member - Member name (for PDS/PDSE).
    * @param etag - Optional ETag for optimistic locking.
    * @param encoding - Target mainframe EBCDIC encoding (resolved by tool layer when omitted).
+   * @param startLine - Optional 1-based first line of the block to replace.
+   * @param endLine - Optional 1-based last line of the block to replace (inclusive); when provided with startLine, the block size can differ from the number of lines in content.
+   * @param progress - Optional progress callback.
    * @throws If `etag` is provided and does not match the current version.
    */
   writeDataset(
@@ -312,6 +322,8 @@ export interface ZosBackend {
     member?: string,
     etag?: string,
     encoding?: string,
+    startLine?: number,
+    endLine?: number,
     progress?: BackendProgressCallback
   ): Promise<WriteDatasetResult>;
 

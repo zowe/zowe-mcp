@@ -160,6 +160,25 @@ export function runAssertions(
         }
         break;
       }
+      case 'toolCallOrder': {
+        const expected = a;
+        let lastIndex = -1;
+        for (let i = 0; i < expected.sequence.length; i++) {
+          const step = expected.sequence[i];
+          const tool = step.tool.trim();
+          const idx = toolCalls.findIndex(
+            (tc, pos) => pos > lastIndex && tc.name === tool && argsMatch(step.args, tc.arguments)
+          );
+          if (idx === -1) {
+            return {
+              passed: false,
+              failedAssertion: `Expected a call to "${tool}" (step ${i + 1}) after index ${lastIndex}, with args matching ${JSON.stringify(step.args ?? {})}`,
+            };
+          }
+          lastIndex = idx;
+        }
+        break;
+      }
       default:
         return {
           passed: false,

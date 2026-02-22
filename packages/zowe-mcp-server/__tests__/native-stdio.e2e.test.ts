@@ -12,9 +12,15 @@
 /**
  * Native stdio E2E tests.
  *
- * Starts the stdio server with the native (SSH) backend and runs a subset of
- * tools (info, context, listDatasets, listMembers) against real z/OS. Uses
- * SYS1.SAMPLIB and 'SYS1.*LIB' for assertions.
+ * Starts the stdio server with the native (SSH) backend and runs tools against
+ * real z/OS. Uses SYS1.SAMPLIB and 'SYS1.*LIB' for read-only assertions, and
+ * a nested "with temporary datasets" block for create/write/delete/copy/rename
+ * using temp datasets (USER.TMP.*) so production data is not modified.
+ *
+ * Some tests are skipped when the system or ZNP server does not support them:
+ * PDSE (LIBRARY), deleteDatasetsUnderPrefix with listDatasets(prefix.**), and
+ * renameDataset member (renameMember). Re-enable by changing skipIf(true) to
+ * skipIf(false) when the backend supports the feature.
  *
  * Skipped when config file (native-config.json) or
  * password (ZOWE_MCP_PASSWORD_<USER>_<HOST> or ZOS_PASSWORD) is missing in
@@ -76,6 +82,11 @@ async function callToolError(
     expect(text).toMatch(opts.match);
   }
   return result;
+}
+
+/** Quote DSN for tool arguments (e.g. USER.TMP.X → 'USER.TMP.X'). */
+function q(dsn: string): string {
+  return `'${dsn}'`;
 }
 
 // ---------------------------------------------------------------------------
@@ -472,6 +483,480 @@ describe.skipIf(!canRunNativeE2E)(
         }
       );
       expect(r.isError).toBe(true);
+    });
+
+    describe('with temporary datasets', () => {
+      // -----------------------------------------------------------------------
+      // 1. Temp tools (getTempDatasetPrefix, getTempDatasetName, createTempDataset, deleteDatasetsUnderPrefix)
+      // -----------------------------------------------------------------------
+      it('1.1 getTempDatasetPrefix returns prefix and it is unique', async () => {
+        const { parsed } = await callToolSuccess(client, 'getTempDatasetPrefix', {});
+        const o = parsed as { data: { prefix: string } };
+        expect(o.data).toBeDefined();
+        expect(o.data.prefix).toBeDefined();
+        expect(typeof o.data.prefix).toBe('string');
+        expect(o.data.prefix.split('.').length).toBeGreaterThanOrEqual(4);
+        expect(o.data.prefix).toContain('TMP');
+      });
+
+      it('1.2 getTempDatasetName returns unique DSN', async () => {
+        const { parsed } = await callToolSuccess(client, 'getTempDatasetName', {});
+        const o = parsed as { data: { dsn: string; prefix: string } };
+        expect(o.data.dsn).toBeDefined();
+        expect(typeof o.data.dsn).toBe('string');
+        expect(o.data.dsn).toContain('TMP');
+        const r = await client.callTool({
+          name: 'getDatasetAttributes',
+          arguments: { dsn: q(o.data.dsn) },
+        });
+        expect(r.isError).toBe(true);
+      });
+
+      it('1.3 createTempDataset PS (FB, LRECL 80)', async () => {
+        const { parsed: createRes } = await callToolSuccess(client, 'createTempDataset', {
+          type: 'PS',
+        });
+        const o = createRes as { data: { dsn: string } };
+        const dsn = o.data.dsn;
+        expect(dsn).toBeDefined();
+        expect(dsn).toContain('TMP');
+        const { parsed: attrsRes } = await callToolSuccess(client, 'getDatasetAttributes', {
+          dsn: q(dsn),
+        });
+        const attrs = attrsRes as { data: { type?: string; recfm?: string; lrecl?: number } };
+        expect(attrs.data.type).toBe('PS');
+        expect(attrs.data.recfm).toBe('FB');
+        expect(attrs.data.lrecl).toBe(80);
+        await callToolSuccess(client, 'deleteDataset', { dsn: q(dsn) });
+      });
+
+      it('1.4 createTempDataset PS VB LRECL 255', async () => {
+        const { parsed: createRes } = await callToolSuccess(client, 'createTempDataset', {
+          type: 'PS',
+          recfm: 'VB',
+          lrecl: 255,
+        });
+        const o = createRes as { data: { dsn: string } };
+        const dsn = o.data.dsn;
+        expect(dsn).toBeDefined();
+        const { parsed: attrsRes } = await callToolSuccess(client, 'getDatasetAttributes', {
+          dsn: q(dsn),
+        });
+        const attrs = attrsRes as { data: { type?: string; recfm?: string; lrecl?: number } };
+        expect(attrs.data.type).toBe('PS');
+        expect(attrs.data.recfm).toBe('VB');
+        expect(attrs.data.lrecl).toBe(255);
+        await callToolSuccess(client, 'deleteDataset', { dsn: q(dsn) });
+      });
+
+      it('1.5 createTempDataset PDS', async () => {
+        const { parsed: createRes } = await callToolSuccess(client, 'createTempDataset', {
+          type: 'PDS',
+        });
+        const o = createRes as { data: { dsn: string } };
+        const dsn = o.data.dsn;
+        expect(dsn).toBeDefined();
+        const { parsed: attrsRes } = await callToolSuccess(client, 'getDatasetAttributes', {
+          dsn: q(dsn),
+        });
+        const attrs = attrsRes as { data: { type?: string } };
+        expect(attrs.data.type).toBe('PO');
+        await callToolSuccess(client, 'listMembers', { dsn: q(dsn), limit: 10 });
+        await callToolSuccess(client, 'deleteDataset', { dsn: q(dsn) });
+      });
+
+      it('1.6 createTempDataset PDSE (library)', async () => {
+        const { parsed: createRes } = await callToolSuccess(client, 'createTempDataset', {
+          type: 'PO-E',
+        });
+        const o = createRes as { data: { dsn: string } };
+        const dsn = o.data.dsn;
+        expect(dsn).toBeDefined();
+        const { parsed: attrsRes } = await callToolSuccess(client, 'getDatasetAttributes', {
+          dsn: q(dsn),
+        });
+        const attrs = attrsRes as { data: { type?: string } };
+        // PDSE created with PO + DSNTYPE=LIBRARY; ZNP may report dsorg as PO or PO-E.
+        expect(['PO', 'PO-E']).toContain(attrs.data.type);
+        await callToolSuccess(client, 'listMembers', { dsn: q(dsn), limit: 10 });
+        await callToolSuccess(client, 'deleteDataset', { dsn: q(dsn) });
+      });
+
+      it.skipIf(true)(
+        '1.7 deleteDatasetsUnderPrefix removes all under prefix - skipped when listDatasets(prefix.**) unsupported',
+        async () => {
+          const { parsed: prefixRes } = await callToolSuccess(client, 'getTempDatasetPrefix', {});
+          const prefix = (prefixRes as { data: { prefix: string } }).data.prefix;
+          await callToolSuccess(client, 'createTempDataset', {
+            type: 'PS',
+            prefix,
+            qualifier: 'E2EA',
+          });
+          await callToolSuccess(client, 'createTempDataset', {
+            type: 'PS',
+            prefix,
+            qualifier: 'E2EB',
+          });
+          await callToolSuccess(client, 'deleteDatasetsUnderPrefix', { dsnPrefix: q(prefix) });
+          const { parsed: listRes } = await callToolSuccess(client, 'listDatasets', {
+            dsnPattern: q(prefix + '.**'),
+          });
+          const list = listRes as { data: { dsn: string }[] };
+          expect(list.data.filter(d => d.dsn.startsWith(prefix))).toHaveLength(0);
+        }
+      );
+
+      it('1.8 deleteDatasetsUnderPrefix rejects prefix with <3 qualifiers', async () => {
+        const { parsed: ctxRes } = await callToolSuccess(client, 'getContext', {});
+        const userId = (ctxRes as { activeSystem: { userId: string } }).activeSystem.userId;
+        const badPrefix = `${userId}.TMP`;
+        const r = await callToolError(
+          client,
+          'deleteDatasetsUnderPrefix',
+          { dsnPrefix: q(badPrefix) },
+          { contains: 'at least 3 qualifiers' }
+        );
+        expect(r.isError).toBe(true);
+      });
+
+      it('1.9 deleteDatasetsUnderPrefix rejects prefix without TMP', async () => {
+        const { parsed: ctxRes } = await callToolSuccess(client, 'getContext', {});
+        const userId = (ctxRes as { activeSystem: { userId: string } }).activeSystem.userId;
+        const badPrefix = `${userId}.OTHER.ABCD1234`;
+        const r = await callToolError(
+          client,
+          'deleteDatasetsUnderPrefix',
+          { dsnPrefix: q(badPrefix) },
+          { contains: 'contain the qualifier "TMP"' }
+        );
+        expect(r.isError).toBe(true);
+      });
+
+      // -----------------------------------------------------------------------
+      // 2. getDatasetAttributes
+      // -----------------------------------------------------------------------
+      it('2.1 getDatasetAttributes on temp PS', async () => {
+        const { parsed: createRes } = await callToolSuccess(client, 'createTempDataset', {
+          type: 'PS',
+        });
+        const dsn = (createRes as { data: { dsn: string } }).data.dsn;
+        const { parsed: attrsRes } = await callToolSuccess(client, 'getDatasetAttributes', {
+          dsn: q(dsn),
+        });
+        const attrs = attrsRes as { data: { type?: string; recfm?: string; lrecl?: number } };
+        expect(attrs.data.type).toBe('PS');
+        expect(attrs.data.recfm).toBe('FB');
+        expect(attrs.data.lrecl).toBe(80);
+        await callToolSuccess(client, 'deleteDataset', { dsn: q(dsn) });
+      });
+
+      it('2.2 getDatasetAttributes on temp PDS', async () => {
+        const { parsed: createRes } = await callToolSuccess(client, 'createTempDataset', {
+          type: 'PDS',
+        });
+        const dsn = (createRes as { data: { dsn: string } }).data.dsn;
+        const { parsed: attrsRes } = await callToolSuccess(client, 'getDatasetAttributes', {
+          dsn: q(dsn),
+        });
+        const attrs = attrsRes as { data: { type?: string } };
+        expect(attrs.data.type).toBe('PO');
+        await callToolSuccess(client, 'deleteDataset', { dsn: q(dsn) });
+      });
+
+      it('2.3 getDatasetAttributes on temp PDSE', async () => {
+        const { parsed: createRes } = await callToolSuccess(client, 'createTempDataset', {
+          type: 'PO-E',
+        });
+        const dsn = (createRes as { data: { dsn: string } }).data.dsn;
+        const { parsed: attrsRes } = await callToolSuccess(client, 'getDatasetAttributes', {
+          dsn: q(dsn),
+        });
+        const attrs = attrsRes as { data: { type?: string } };
+        // PDSE created with PO + DSNTYPE=LIBRARY; ZNP may report dsorg as PO or PO-E.
+        expect(['PO', 'PO-E']).toContain(attrs.data.type);
+        await callToolSuccess(client, 'deleteDataset', { dsn: q(dsn) });
+      });
+
+      // -----------------------------------------------------------------------
+      // 3. createDataset (explicit DSN)
+      // -----------------------------------------------------------------------
+      it('3.1 createDataset with explicit temp DSN', async () => {
+        const { parsed: nameRes } = await callToolSuccess(client, 'getTempDatasetName', {});
+        const dsn = (nameRes as { data: { dsn: string } }).data.dsn;
+        await callToolSuccess(client, 'createDataset', {
+          dsn: q(dsn),
+          type: 'PS',
+          recfm: 'FB',
+          lrecl: 80,
+        });
+        await callToolSuccess(client, 'getDatasetAttributes', { dsn: q(dsn) });
+        const { parsed: readRes } = await callToolSuccess(client, 'readDataset', { dsn: q(dsn) });
+        expect((readRes as { data: { text: string } }).data.text).toBe('');
+        await callToolSuccess(client, 'deleteDataset', { dsn: q(dsn) });
+      });
+
+      // -----------------------------------------------------------------------
+      // 4. writeDataset and readDataset (round-trip)
+      // -----------------------------------------------------------------------
+      it('4.1 writeDataset then readDataset (PS)', async () => {
+        const { parsed: createRes } = await callToolSuccess(client, 'createTempDataset', {
+          type: 'PS',
+        });
+        const dsn = (createRes as { data: { dsn: string } }).data.dsn;
+        const content = 'LINE1\nLINE2\n';
+        await callToolSuccess(client, 'writeDataset', { dsn: q(dsn), content });
+        const { parsed: readRes } = await callToolSuccess(client, 'readDataset', { dsn: q(dsn) });
+        const readText = (readRes as { data: { text: string } }).data.text;
+        expect(readText === content || readText === content.replace(/\n$/, '')).toBe(true);
+        await callToolSuccess(client, 'deleteDataset', { dsn: q(dsn) });
+      });
+
+      it('4.2 writeDataset member then listMembers and read (PDS)', async () => {
+        const { parsed: createRes } = await callToolSuccess(client, 'createTempDataset', {
+          type: 'PDS',
+        });
+        const dsn = (createRes as { data: { dsn: string } }).data.dsn;
+        const content = 'MEMBER_CONTENT';
+        await callToolSuccess(client, 'writeDataset', {
+          dsn: q(dsn),
+          member: 'MEM1',
+          content,
+        });
+        const { parsed: listRes } = await callToolSuccess(client, 'listMembers', {
+          dsn: q(dsn),
+          limit: 100,
+        });
+        const members = (listRes as { data: { member: string }[] }).data.map(m => m.member);
+        expect(members).toContain('MEM1');
+        const { parsed: readRes } = await callToolSuccess(client, 'readDataset', {
+          dsn: q(dsn),
+          member: 'MEM1',
+        });
+        expect((readRes as { data: { text: string } }).data.text.trim()).toBe(content);
+        await callToolSuccess(client, 'deleteDataset', { dsn: q(dsn) });
+      });
+
+      it('4.3 writeDataset block replace (startLine/endLine) on PS', async () => {
+        const { parsed: createRes } = await callToolSuccess(client, 'createTempDataset', {
+          type: 'PS',
+        });
+        const dsn = (createRes as { data: { dsn: string } }).data.dsn;
+        const initial = 'L1\nL2\nL3\nL4\nL5\n';
+        await callToolSuccess(client, 'writeDataset', { dsn: q(dsn), content: initial });
+        await callToolSuccess(client, 'writeDataset', {
+          dsn: q(dsn),
+          content: 'NEW2\nNEW3\n',
+          startLine: 2,
+          endLine: 3,
+        });
+        const { parsed: readRes } = await callToolSuccess(client, 'readDataset', { dsn: q(dsn) });
+        const text = (readRes as { data: { text: string } }).data.text;
+        const lines = text.split(/\n/).filter(Boolean);
+        expect(lines).toContain('L1');
+        expect(lines).toContain('NEW2');
+        expect(lines).toContain('NEW3');
+        expect(lines).toContain('L4');
+        expect(lines).toContain('L5');
+        expect(lines.indexOf('L1')).toBeLessThan(lines.indexOf('NEW2'));
+        expect(lines.indexOf('NEW2')).toBeLessThan(lines.indexOf('NEW3'));
+        expect(lines.indexOf('NEW3')).toBeLessThan(lines.indexOf('L4'));
+        expect(lines.indexOf('L4')).toBeLessThan(lines.indexOf('L5'));
+        await callToolSuccess(client, 'deleteDataset', { dsn: q(dsn) });
+      });
+
+      // -----------------------------------------------------------------------
+      // 5. deleteDataset
+      // -----------------------------------------------------------------------
+      it('5.1 deleteDataset removes dataset', async () => {
+        const { parsed: createRes } = await callToolSuccess(client, 'createTempDataset', {
+          type: 'PS',
+        });
+        const dsn = (createRes as { data: { dsn: string } }).data.dsn;
+        await callToolSuccess(client, 'deleteDataset', { dsn: q(dsn) });
+        const r = await client.callTool({
+          name: 'getDatasetAttributes',
+          arguments: { dsn: q(dsn) },
+        });
+        expect(r.isError).toBe(true);
+      });
+
+      it('5.2 deleteDataset member (PDS)', async () => {
+        const { parsed: createRes } = await callToolSuccess(client, 'createTempDataset', {
+          type: 'PDS',
+        });
+        const dsn = (createRes as { data: { dsn: string } }).data.dsn;
+        await callToolSuccess(client, 'writeDataset', {
+          dsn: q(dsn),
+          member: 'M1',
+          content: 'X',
+        });
+        await callToolSuccess(client, 'deleteDataset', { dsn: q(dsn), member: 'M1' });
+        const { parsed: listRes } = await callToolSuccess(client, 'listMembers', {
+          dsn: q(dsn),
+          limit: 100,
+        });
+        const members = (listRes as { data: { member: string }[] }).data.map(m => m.member);
+        expect(members).not.toContain('M1');
+        const r = await client.callTool({
+          name: 'readDataset',
+          arguments: { dsn: q(dsn), member: 'M1' },
+        });
+        expect(r.isError).toBe(true);
+        await callToolSuccess(client, 'deleteDataset', { dsn: q(dsn) });
+      });
+
+      // -----------------------------------------------------------------------
+      // 6. copyDataset
+      // -----------------------------------------------------------------------
+      it('6.1 copyDataset PS to PS', async () => {
+        const { parsed: createRes } = await callToolSuccess(client, 'createTempDataset', {
+          type: 'PS',
+        });
+        const source = (createRes as { data: { dsn: string } }).data.dsn;
+        await callToolSuccess(client, 'writeDataset', { dsn: q(source), content: 'COPYME' });
+        const { parsed: nameRes } = await callToolSuccess(client, 'getTempDatasetName', {});
+        const targetDsn = (nameRes as { data: { dsn: string } }).data.dsn;
+        await callToolSuccess(client, 'createDataset', {
+          dsn: q(targetDsn),
+          type: 'PS',
+          recfm: 'FB',
+          lrecl: 80,
+        });
+        await callToolSuccess(client, 'copyDataset', {
+          sourceDsn: q(source),
+          targetDsn: q(targetDsn),
+        });
+        const { parsed: readRes } = await callToolSuccess(client, 'readDataset', {
+          dsn: q(targetDsn),
+        });
+        expect((readRes as { data: { text: string } }).data.text.trim()).toBe('COPYME');
+        await callToolSuccess(client, 'deleteDataset', { dsn: q(source) });
+        await callToolSuccess(client, 'deleteDataset', { dsn: q(targetDsn) });
+      });
+
+      it('6.2 copyDataset member to member (PDS)', async () => {
+        const { parsed: createSrc } = await callToolSuccess(client, 'createTempDataset', {
+          type: 'PDS',
+        });
+        const source = (createSrc as { data: { dsn: string } }).data.dsn;
+        await callToolSuccess(client, 'writeDataset', {
+          dsn: q(source),
+          member: 'SRC',
+          content: 'MEMBER_CONTENT',
+        });
+        const { parsed: createTgt } = await callToolSuccess(client, 'createTempDataset', {
+          type: 'PDS',
+        });
+        const target = (createTgt as { data: { dsn: string } }).data.dsn;
+        await callToolSuccess(client, 'copyDataset', {
+          sourceDsn: q(source),
+          targetDsn: q(target),
+          sourceMember: 'SRC',
+          targetMember: 'TGT',
+        });
+        const { parsed: readRes } = await callToolSuccess(client, 'readDataset', {
+          dsn: q(target),
+          member: 'TGT',
+        });
+        expect((readRes as { data: { text: string } }).data.text.trim()).toBe('MEMBER_CONTENT');
+        await callToolSuccess(client, 'deleteDataset', { dsn: q(source) });
+        await callToolSuccess(client, 'deleteDataset', { dsn: q(target) });
+      });
+
+      // -----------------------------------------------------------------------
+      // 7. renameDataset
+      // -----------------------------------------------------------------------
+      it('7.1 renameDataset PS', async () => {
+        const { parsed: createRes } = await callToolSuccess(client, 'createTempDataset', {
+          type: 'PS',
+        });
+        const dsn = (createRes as { data: { dsn: string } }).data.dsn;
+        await callToolSuccess(client, 'writeDataset', { dsn: q(dsn), content: 'RENAME_TEST' });
+        const { parsed: nameRes } = await callToolSuccess(client, 'getTempDatasetName', {});
+        const newDsn = (nameRes as { data: { dsn: string } }).data.dsn;
+        await callToolSuccess(client, 'renameDataset', { dsn: q(dsn), newDsn: q(newDsn) });
+        await callToolSuccess(client, 'getDatasetAttributes', { dsn: q(newDsn) });
+        const { parsed: readRes } = await callToolSuccess(client, 'readDataset', {
+          dsn: q(newDsn),
+        });
+        expect((readRes as { data: { text: string } }).data.text.trim()).toBe('RENAME_TEST');
+        const rOld = await client.callTool({
+          name: 'getDatasetAttributes',
+          arguments: { dsn: q(dsn) },
+        });
+        expect(rOld.isError).toBe(true);
+        await callToolSuccess(client, 'deleteDataset', { dsn: q(newDsn) });
+      });
+
+      it.skipIf(true)(
+        '7.2 renameDataset member (PDS) - skipped when ZNP renameMember not supported',
+        async () => {
+          const { parsed: createRes } = await callToolSuccess(client, 'createTempDataset', {
+            type: 'PDS',
+          });
+          const dsn = (createRes as { data: { dsn: string } }).data.dsn;
+          await callToolSuccess(client, 'writeDataset', {
+            dsn: q(dsn),
+            member: 'OLD',
+            content: 'X',
+          });
+          await callToolSuccess(client, 'renameDataset', {
+            dsn: q(dsn),
+            newDsn: q(dsn),
+            member: 'OLD',
+            newMember: 'NEW',
+          });
+          const { parsed: listRes } = await callToolSuccess(client, 'listMembers', {
+            dsn: q(dsn),
+            limit: 100,
+          });
+          const members = (listRes as { data: { member: string }[] }).data.map(m => m.member);
+          expect(members).toContain('NEW');
+          expect(members).not.toContain('OLD');
+          const { parsed: readRes } = await callToolSuccess(client, 'readDataset', {
+            dsn: q(dsn),
+            member: 'NEW',
+          });
+          expect((readRes as { data: { text: string } }).data.text.trim()).toBe('X');
+          await callToolSuccess(client, 'deleteDataset', { dsn: q(dsn) });
+        }
+      );
+
+      // -----------------------------------------------------------------------
+      // 8. listDatasets / listMembers (using temp data)
+      // -----------------------------------------------------------------------
+      it('8.1 listDatasets with temp prefix', async () => {
+        const { parsed: ctxRes } = await callToolSuccess(client, 'getContext', {});
+        const userId = (ctxRes as { activeSystem: { userId: string } }).activeSystem.userId;
+        const { parsed: createRes } = await callToolSuccess(client, 'createTempDataset', {
+          type: 'PS',
+        });
+        const dsn = (createRes as { data: { dsn: string } }).data.dsn;
+        const { parsed: listRes } = await callToolSuccess(client, 'listDatasets', {
+          dsnPattern: q(`${userId}.TMP.**`),
+        });
+        const list = listRes as { data: { dsn: string }[] };
+        expect(list.data.length).toBeGreaterThanOrEqual(1);
+        expect(list.data.some(d => d.dsn === dsn)).toBe(true);
+        await callToolSuccess(client, 'deleteDataset', { dsn: q(dsn) });
+      });
+
+      it('8.2 listMembers after writing members', async () => {
+        const { parsed: createRes } = await callToolSuccess(client, 'createTempDataset', {
+          type: 'PDS',
+        });
+        const dsn = (createRes as { data: { dsn: string } }).data.dsn;
+        await callToolSuccess(client, 'writeDataset', { dsn: q(dsn), member: 'M1', content: 'A' });
+        await callToolSuccess(client, 'writeDataset', { dsn: q(dsn), member: 'M2', content: 'B' });
+        const { parsed: listRes } = await callToolSuccess(client, 'listMembers', {
+          dsn: q(dsn),
+          limit: 100,
+        });
+        const members = (listRes as { data: { member: string }[] }).data.map(m => m.member);
+        expect(members).toContain('M1');
+        expect(members).toContain('M2');
+        await callToolSuccess(client, 'deleteDataset', { dsn: q(dsn) });
+      });
     });
   }
 );

@@ -33,6 +33,11 @@ export default tseslint.config(
       headers,
     },
     rules: {
+      // Intentionally unused args/vars (e.g. _options, _suffix) allowed when prefixed with _
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
+      ],
       // License header enforcement
       'headers/header-format': [
         'error',

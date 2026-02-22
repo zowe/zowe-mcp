@@ -1,0 +1,52 @@
+# yaml-language-server: $schema=../schemas/evals-question-set.schema.json
+# Mutation evals: write and delete (temp datasets so mock state is cleaned up).
+config:
+  name: mutations
+  description: Agent must create temp datasets, write content, delete members, and clean up
+  repetitions: 2
+  minSuccessRate: 0.8
+  mock:
+    initArgs: --preset default
+
+questions:
+  - id: write-temp-then-read
+    prompt: Create a temporary sequential dataset, write the single line "Evals write test" to it, read it back, and tell me what the first line says. Then delete all datasets under that temp prefix.
+    assertions:
+      - type: toolCallOrder
+        sequence:
+          - tool: createTempDataset
+            args:
+              type:
+                - "PS"
+                - "SEQUENTIAL"
+          - tool: writeDataset
+            args:
+              content: "Evals write test"
+          - tool: readDataset
+          - tool: deleteDatasetsUnderPrefix
+      - type: answerContains
+        substring: "Evals write test"
+
+  - id: create-pds-write-member-delete-member-cleanup
+    prompt: First create a temporary PDS with createTempDataset, then add member EVALMEM with content "temp content" using writeDataset, then delete that member with deleteDataset, then delete all datasets under that temp prefix with deleteDatasetsUnderPrefix.
+    assertions:
+      - type: toolCallOrder
+        sequence:
+          - tool: createTempDataset
+            args:
+              type:
+                - "PO"
+                - "PO-E"
+                - "PDS"
+                - "PDSE"
+                - "LIBRARY"
+          - tool: writeDataset
+            args:
+              member: "EVALMEM"
+              content: "temp content"
+          - tool: deleteDataset
+            args:
+              member: "EVALMEM"
+          - tool: deleteDatasetsUnderPrefix
+      - type: answerContains
+        pattern: "success|deleted|complete|done|cleaned|removed|finished|successfully"

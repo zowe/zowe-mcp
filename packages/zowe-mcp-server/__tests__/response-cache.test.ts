@@ -22,6 +22,7 @@ import * as path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createServer } from '../src/server.js';
 import type {
+  BackendProgressCallback,
   DatasetAttributes,
   DatasetEntry,
   MemberEntry,
@@ -32,7 +33,7 @@ import type { CredentialProvider } from '../src/zos/credentials.js';
 import { FilesystemMockBackend } from '../src/zos/mock/filesystem-mock-backend.js';
 import { MockCredentialProvider } from '../src/zos/mock/mock-credential-provider.js';
 import type { MockSystemsConfig } from '../src/zos/mock/mock-types.js';
-import { createResponseCache } from '../src/zos/response-cache.js';
+import { buildScopeSystem, createResponseCache } from '../src/zos/response-cache.js';
 import type { SystemId } from '../src/zos/system.js';
 import { SystemRegistry } from '../src/zos/system.js';
 
@@ -90,9 +91,22 @@ class CountingBackend implements ZosBackend {
     content: string,
     member?: string,
     etag?: string,
-    encoding?: string
+    encoding?: string,
+    startLine?: number,
+    endLine?: number,
+    progress?: BackendProgressCallback
   ) {
-    return this.inner.writeDataset(systemId, dsn, content, member, etag, encoding);
+    return this.inner.writeDataset(
+      systemId,
+      dsn,
+      content,
+      member,
+      etag,
+      encoding,
+      startLine,
+      endLine,
+      progress
+    );
   }
 
   createDataset(
@@ -174,6 +188,30 @@ afterAll(async () => {
 });
 
 describe('Response cache', () => {
+  it('invalidateScope removes keys so next getOrFetch hits fetch again', async () => {
+    const cache = createResponseCache({ ttlMs: 60_000, maxSizeBytes: 10 * 1024 * 1024 });
+    const scope = buildScopeSystem('cache-test.example.com');
+    let fetchCount = 0;
+    const key =
+      'listDatasets\x01{"attributes":"true","pattern":"TESTUSER.*","systemId":"cache-test.example.com","userId":"TESTUSER","volser":""}';
+
+    const v1 = await cache.getOrFetch(key, () => {
+      fetchCount++;
+      return Promise.resolve({ items: [1, 2, 3] });
+    }, [scope]);
+    expect(v1.items).toEqual([1, 2, 3]);
+    expect(fetchCount).toBe(1);
+
+    cache.invalidateScope(scope);
+
+    const v2 = await cache.getOrFetch(key, () => {
+      fetchCount++;
+      return Promise.resolve({ items: [4, 5, 6] });
+    }, [scope]);
+    expect(v2.items).toEqual([4, 5, 6]);
+    expect(fetchCount).toBe(2);
+  });
+
   it('calls backend listDatasets once when paginating (same params, different offset)', async () => {
     const innerBackend = new FilesystemMockBackend(mockDir);
     const countingBackend = new CountingBackend(innerBackend);
@@ -345,5 +383,199 @@ describe('Response cache', () => {
       await client.close();
       await server.close();
     }
+  });
+
+  describe('Cache invalidation after mutations', () => {
+    function setupServerWithCountingBackend(): {
+      server: ReturnType<typeof createServer>;
+      client: Client;
+      countingBackend: CountingBackend;
+    } {
+      const innerBackend = new FilesystemMockBackend(mockDir);
+      const countingBackend = new CountingBackend(innerBackend);
+      const credentialProvider: CredentialProvider = new MockCredentialProvider(mockConfig);
+      const systemRegistry = new SystemRegistry();
+      for (const sys of mockConfig.systems) {
+        systemRegistry.register({
+          host: sys.host,
+          port: sys.port,
+          description: sys.description,
+        });
+      }
+      const server = createServer({
+        backend: countingBackend,
+        systemRegistry,
+        credentialProvider,
+        responseCache: createResponseCache({ ttlMs: 60_000, maxSizeBytes: 10 * 1024 * 1024 }),
+      });
+      const [_clientTransport, _serverTransport] = InMemoryTransport.createLinkedPair();
+      const client = new Client({ name: 'test', version: '1.0.0' });
+      return { server, client, countingBackend };
+    }
+
+    it('after writeDataset full replace, next readDataset returns updated content from cache', async () => {
+      const { server, client, countingBackend } = setupServerWithCountingBackend();
+      const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+      await Promise.all([client.connect(clientTransport), server.connect(serverTransport)]);
+      await new Promise(resolve => setTimeout(resolve, 50));
+
+      try {
+        await client.callTool({
+          name: 'readDataset',
+          arguments: { dsn: `${DEFAULT_USER}.LARGE.DATA`, startLine: 1, lineCount: 5 },
+        });
+        expect(countingBackend.readDatasetCallCount).toBe(1);
+
+        const newContent = 'UPDATED_LINE_1\nUPDATED_LINE_2';
+        await client.callTool({
+          name: 'writeDataset',
+          arguments: {
+            dsn: `${DEFAULT_USER}.LARGE.DATA`,
+            content: newContent,
+          },
+        });
+
+        const readResult = await client.callTool({
+          name: 'readDataset',
+          arguments: { dsn: `${DEFAULT_USER}.LARGE.DATA`, startLine: 1, lineCount: 10 },
+        });
+        expect(countingBackend.readDatasetCallCount).toBe(1);
+        const envelope = JSON.parse(
+          (readResult.content?.[0] as { text?: string })?.text ?? '{}'
+        ) as { data?: { text?: string } };
+        expect(envelope.data?.text).toContain('UPDATED_LINE_1');
+      } finally {
+        await client.close();
+        await server.close();
+      }
+    });
+
+    it('after deleteDataset member, listMembers and read are invalidated', async () => {
+      const { server, client, countingBackend } = setupServerWithCountingBackend();
+      const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+      await Promise.all([client.connect(clientTransport), server.connect(serverTransport)]);
+      await new Promise(resolve => setTimeout(resolve, 50));
+
+      try {
+        await client.callTool({
+          name: 'listMembers',
+          arguments: { dsn: `${DEFAULT_USER}.SRC.COBOL`, offset: 0, limit: 10 },
+        });
+        expect(countingBackend.listMembersCallCount).toBe(1);
+
+        await client.callTool({
+          name: 'deleteDataset',
+          arguments: { dsn: `${DEFAULT_USER}.SRC.COBOL`, member: 'MEM3' },
+        });
+
+        await client.callTool({
+          name: 'listMembers',
+          arguments: { dsn: `${DEFAULT_USER}.SRC.COBOL`, offset: 0, limit: 10 },
+        });
+        expect(countingBackend.listMembersCallCount).toBe(2);
+      } finally {
+        await client.close();
+        await server.close();
+      }
+    });
+
+    it('after renameDataset, old and new dsn scopes are invalidated', async () => {
+      const { server, client, countingBackend } = setupServerWithCountingBackend();
+      const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+      await Promise.all([client.connect(clientTransport), server.connect(serverTransport)]);
+      await new Promise(resolve => setTimeout(resolve, 50));
+
+      try {
+        await client.callTool({
+          name: 'createDataset',
+          arguments: {
+            dsn: `${DEFAULT_USER}.CACHE.OLD`,
+            type: 'PS',
+            primary: 1,
+          },
+        });
+        await client.callTool({
+          name: 'writeDataset',
+          arguments: { dsn: `${DEFAULT_USER}.CACHE.OLD`, content: 'original' },
+        });
+        await client.callTool({
+          name: 'readDataset',
+          arguments: { dsn: `${DEFAULT_USER}.CACHE.OLD` },
+        });
+        expect(countingBackend.readDatasetCallCount).toBe(0);
+
+        await client.callTool({
+          name: 'renameDataset',
+          arguments: {
+            dsn: `${DEFAULT_USER}.CACHE.OLD`,
+            newDsn: `${DEFAULT_USER}.CACHE.NEW`,
+          },
+        });
+
+        await client.callTool({
+          name: 'readDataset',
+          arguments: { dsn: `${DEFAULT_USER}.CACHE.NEW` },
+        });
+        expect(countingBackend.readDatasetCallCount).toBe(1);
+      } finally {
+        await client.close();
+        await server.close();
+      }
+    });
+
+    it('after createDataset, listDatasets for system is invalidated', async () => {
+      const cache = createResponseCache({ ttlMs: 60_000, maxSizeBytes: 10 * 1024 * 1024 });
+      const innerBackend = new FilesystemMockBackend(mockDir);
+      const countingBackend = new CountingBackend(innerBackend);
+      const credentialProvider: CredentialProvider = new MockCredentialProvider(mockConfig);
+      const systemRegistry = new SystemRegistry();
+      for (const sys of mockConfig.systems) {
+        systemRegistry.register({
+          host: sys.host,
+          port: sys.port,
+          description: sys.description,
+        });
+      }
+      const server = createServer({
+        backend: countingBackend,
+        systemRegistry,
+        credentialProvider,
+        responseCache: cache,
+      });
+      const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+      const client = new Client({ name: 'test', version: '1.0.0' });
+      await Promise.all([client.connect(clientTransport), server.connect(serverTransport)]);
+      await new Promise(resolve => setTimeout(resolve, 50));
+
+      try {
+        await client.callTool({
+          name: 'setSystem',
+          arguments: { system: SYSTEM_HOST },
+        });
+        await client.callTool({
+          name: 'listDatasets',
+          arguments: { dsnPattern: `${DEFAULT_USER}.*`, offset: 0, limit: 20 },
+        });
+        expect(countingBackend.listDatasetsCallCount).toBe(1);
+
+        await client.callTool({
+          name: 'createDataset',
+          arguments: {
+            dsn: `${DEFAULT_USER}.CACHE.CREATED`,
+            type: 'PS',
+            primary: 1,
+          },
+        });
+
+        await client.callTool({
+          name: 'listDatasets',
+          arguments: { dsnPattern: `${DEFAULT_USER}.*`, offset: 0, limit: 20 },
+        });
+        expect(countingBackend.listDatasetsCallCount).toBe(2);
+      } finally {
+        await client.close();
+        await server.close();
+      }
+    });
   });
 });

@@ -12,16 +12,20 @@ Use this in chats when implementing new dataset operations or other z/OS tools.
 | ---------------------- | ----------------- | ------------ | ------------------------------------------------------------------------------------------------ |
 | `listDatasets`         | `listDatasets()`  | ✅           | ✅                                                                                               |
 | `listMembers`          | `listMembers()`   | ✅           | ✅                                                                                               |
-| `getDatasetAttributes` | `getAttributes()` | ✅           | ❌ throws (no SDK API; see [zowe-native-feature-requests.md](zowe-native-feature-requests.md))   |
+| `getDatasetAttributes` | `getAttributes()` | ✅           | ✅ (via `listDatasets` with `attributes: true`, exact DSN match)                                 |
 | `readDataset`          | `readDataset()`   | ✅           | ✅                                                                                               |
-| `writeDataset`         | `writeDataset()`  | ✅           | ❌ throws                                                                                        |
-| `createDataset`        | `createDataset()` | ✅           | ❌ throws                                                                                        |
-| `deleteDataset`        | `deleteDataset()` | ✅           | ❌ throws                                                                                        |
-| `copyDataset`          | `copyDataset()`   | ✅           | ❌ throws                                                                                        |
-| `renameDataset`        | `renameDataset()` | ✅           | ❌ throws                                                                                        |
+| `writeDataset`         | `writeDataset()`  | ✅           | ✅                                                                                               |
+| `createDataset`        | `createDataset()` | ✅           | ✅                                                                                               |
+| `deleteDataset`        | `deleteDataset()` | ✅           | ✅                                                                                               |
+| `copyDataset`          | `copyDataset()`   | ✅           | ✅ (read + write)                                                                                |
+| `renameDataset`        | `renameDataset()` | ✅           | ✅                                                                                               |
+| `getTempDatasetPrefix` | (uses `listDatasets`) | ✅       | ✅                                                                                               |
+| `getTempDatasetName`   | (uses `getAttributes`) | ✅      | ✅                                                                                               |
+| `createTempDataset`    | `createDataset()` | ✅           | ✅                                                                                               |
+| `deleteDatasetsUnderPrefix` | `listDatasets()` + `deleteDataset()` | ✅ | ✅                                                                                 |
 
 - **Mock backend**: `FilesystemMockBackend` in `src/zos/mock/` — implements full `ZosBackend`.
-- **Native backend**: `NativeBackend` in `src/zos/native/native-backend.ts` — `listDatasets()`, `listMembers()`, and `readDataset()` are implemented; all other methods throw `"Not implemented for Zowe Native backend"`.
+- **Native backend**: `NativeBackend` in `src/zos/native/native-backend.ts` — implements all dataset methods. `getAttributes()` is implemented via `listDatasets` with `attributes: true` (pattern = DSN, then exact-name match). `writeDataset` supports optional `startLine` (block-of-records replace). `copyDataset` is implemented as read + write (target must exist).
 
 ### Other components
 
@@ -43,7 +47,7 @@ Signatures (see `backend.ts` for full JSDoc):
 - `listDatasets(systemId, pattern, volser?, userId?)` → `Promise<DatasetEntry[]>`
 - `listMembers(systemId, dsn, pattern?)` → `Promise<MemberEntry[]>`
 - `readDataset(systemId, dsn, member?, encoding?)` → `Promise<ReadDatasetResult>`
-- `writeDataset(systemId, dsn, content, member?, etag?, encoding?)` → `Promise<WriteDatasetResult>`
+- `writeDataset(systemId, dsn, content, member?, etag?, encoding?, startLine?, endLine?, progress?)` → `Promise<WriteDatasetResult>` — when both `startLine` and `endLine` are provided, the block of records from startLine to endLine (inclusive) is replaced by content; the number of lines need not match (dataset can grow or shrink). When only `startLine` is provided, the same number of lines as in content are replaced. Mock and native both support it.
 - `createDataset(systemId, dsn, options)` → `Promise<CreateDatasetResult>`
 - `deleteDataset(systemId, dsn, member?)` → `Promise<void>`
 - `getAttributes(systemId, dsn)` → `Promise<DatasetAttributes>`
@@ -167,7 +171,7 @@ Raw: [https://raw.githubusercontent.com/zowe/zowe-native-proto/main/packages/sdk
 1. Follow the pattern in `native-backend.ts` `listDatasets`: get spec, credentials, client via cache, call SDK API, map to `DatasetEntry` / `MemberEntry` / etc.
 2. Use the **example** above for the exact SDK calls (e.g. `client.ds.listDatasets({ pattern })`, `client.ds.listDsMembers({ dsname })`).
 3. SDK types and APIs are in the installed package under `node_modules/zowe-native-proto-sdk`; for source and RPC definitions see `zowe-native-proto/packages/sdk/src/`.
-4. **getDatasetAttributes**: The SDK has no `getAttributes` / `getDatasetAttributes` RPC. See [native-get-dataset-attributes.md](native-get-dataset-attributes.md) for the gap, options, and recommendation.
+4. **getDatasetAttributes**: The SDK has no dedicated `getAttributes` RPC. The native backend implements it by calling `listDatasets` with the DSN as pattern and `attributes: true`, then selecting the entry with an exact DSN match; if none, it throws "Dataset not found".
 
 ---
 

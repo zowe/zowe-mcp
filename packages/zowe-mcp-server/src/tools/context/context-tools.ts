@@ -135,7 +135,7 @@ export function registerContextTools(
         : [];
 
       const credentials = await credentialProvider.getCredentials(resolvedHost, undefined, {
-        progress: msg => progress.step(msg),
+        progress: msg => void progress.step(msg),
       });
       const encodingOverrides =
         mainframeMvsEncoding !== undefined || mainframeUssEncoding !== undefined

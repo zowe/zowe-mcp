@@ -75,6 +75,26 @@ function parseAssertion(raw: unknown): Assertion {
       ),
     };
   }
+  if (type === 'toolCallOrder') {
+    const seq = o.sequence;
+    if (!Array.isArray(seq) || seq.length === 0)
+      throw new Error('toolCallOrder assertion requires non-empty sequence array');
+    return {
+      type: 'toolCallOrder',
+      sequence: seq.map((s: unknown) => {
+        if (!s || typeof s !== 'object')
+          throw new Error('toolCallOrder sequence step must be object');
+        const step = s as Record<string, unknown>;
+        const tool = step.tool as string;
+        if (!tool || typeof tool !== 'string')
+          throw new Error('toolCallOrder sequence step must have tool string');
+        return {
+          tool: tool.trim(),
+          args: step.args as Record<string, unknown> | undefined,
+        };
+      }),
+    };
+  }
   throw new Error(`Unknown assertion type: ${type}`);
 }
 

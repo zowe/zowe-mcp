@@ -1,8 +1,8 @@
 # yaml-language-server: $schema=../schemas/evals-question-set.schema.json
-# readDataset pagination: one question, 3 pages. USER.LARGE.SEQ has a Star Wars character name on line 1200 (third page).
+# readDataset pagination: one question. USER.LARGE.SEQ has a Star Wars character name (LUKE); agent must page until hasMore is false and report it.
 config:
   name: read-pagination
-  description: Agent must page through readDataset (3 pages) and find the Star Wars character in USER.LARGE.SEQ
+  description: Agent must page through readDataset (at least 2 calls) and find the Star Wars character in USER.LARGE.SEQ
   repetitions: 2
   minSuccessRate: 0.8
   mock:
@@ -12,14 +12,8 @@ questions:
   - id: read-large-seq-star-wars
     prompt: Read USER.LARGE.SEQ and tell me what Star Wars character name appears in it.
     assertions:
-      - type: toolCallSequence
+      - type: minToolCalls
         tool: readDataset
-        sequence:
-          - dsn: "USER.LARGE.SEQ"
-          - dsn: "USER.LARGE.SEQ"
-            startLine: 1001
-            lineCount: 1000
-          - dsn: "USER.LARGE.SEQ"
-            startLine: 2001
+        minCount: 2
       - type: answerContains
         substring: "LUKE"

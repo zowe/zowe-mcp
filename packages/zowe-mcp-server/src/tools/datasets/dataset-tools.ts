@@ -34,11 +34,23 @@ import {
   validateListPattern,
 } from '../../zos/dsn.js';
 import { type EncodingOptions, resolveDatasetEncoding } from '../../zos/encoding.js';
-import { buildCacheKey, type ResponseCache } from '../../zos/response-cache.js';
+import {
+  buildCacheKey,
+  buildScopeDsn,
+  buildScopeMember,
+  buildScopeSystem,
+  type ResponseCache,
+} from '../../zos/response-cache.js';
 import type { SearchCommentType } from '../../zos/search-options.js';
 import { buildParmsFromOptions, SEARCH_COMMENT_TYPES } from '../../zos/search-options.js';
 import { resolveSystemForTool, type SessionState } from '../../zos/session.js';
 import type { SystemRegistry } from '../../zos/system.js';
+import {
+  deleteDatasetsUnderPrefix as deleteDatasetsUnderPrefixInternal,
+  ensureUniqueDsn,
+  ensureUniquePrefix,
+  REQUIRED_SAFETY_QUALIFIER,
+} from '../../zos/temp-dsn.js';
 import {
   createToolProgress,
   formatListProgressRange,
@@ -59,6 +71,7 @@ import {
   windowContent,
   wrapResponse,
 } from '../response.js';
+import { applyCacheAfterMutation } from './dataset-cache.js';
 
 const RESOURCES_DSLEVEL_PATH = path.join(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -222,7 +235,7 @@ export function registerDatasetTools(
 
         const userId = deps.sessionState.getContext(systemId)?.userId;
         const progressCb = extra._meta?.progressToken
-          ? (msg: string) => progress.step(msg)
+          ? (msg: string) => void progress.step(msg)
           : undefined;
         const datasets = deps.responseCache
           ? await deps.responseCache.getOrFetch(
@@ -241,7 +254,8 @@ export function registerDatasetTools(
                   userId,
                   wantAttrs,
                   progressCb
-                )
+                ),
+              [buildScopeSystem(systemId)]
             )
           : await deps.backend.listDatasets(
               systemId,
@@ -342,7 +356,8 @@ export function registerDatasetTools(
                 dsn: resolvedDsn,
                 memberPattern: memberPattern ?? '',
               }),
-              () => deps.backend.listMembers(systemId, resolvedDsn, memberPattern, progressCb)
+              () => deps.backend.listMembers(systemId, resolvedDsn, memberPattern, progressCb),
+              [buildScopeDsn(systemId, resolvedDsn)]
             )
           : await deps.backend.listMembers(systemId, resolvedDsn, memberPattern, progressCb);
 
@@ -377,6 +392,7 @@ export function registerDatasetTools(
     'searchInDataset',
     {
       description:
+        'Do not answer with only the first page of results; fetch all pages until _result.hasMore is false. ' +
         'Search for a string in a sequential dataset or in a PDS/PDSE (all members or one member). ' +
         'Returns matching lines with line numbers and a summary. ' +
         'Results are paginated by member (offset/limit); when _result.hasMore is true, call again with the next offset and limit. ' +
@@ -514,7 +530,8 @@ export function registerDatasetTools(
                   resolved.dsn,
                   searchOptions,
                   progressCb
-                )
+                ),
+              [buildScopeDsn(resolved.systemId, resolved.dsn)]
             )
           : await deps.backend.searchInDataset(
               resolved.systemId,
@@ -728,7 +745,11 @@ export function registerDatasetTools(
                   resolved.member,
                   resolvedEncoding,
                   progressCb
-                )
+                ),
+              [
+                buildScopeDsn(resolved.systemId, resolved.dsn),
+                buildScopeMember(resolved.systemId, resolved.dsn, resolved.member ?? ''),
+              ]
             )
           : await deps.backend.readDataset(
               resolved.systemId,
@@ -779,6 +800,9 @@ export function registerDatasetTools(
     {
       description:
         'Write UTF-8 content to a sequential dataset or PDS/PDSE member. ' +
+        'When startLine and endLine are provided, the block of records from startLine to endLine (inclusive) is replaced by the given content; the number of lines need not match (dataset can grow or shrink). ' +
+        'When only startLine is provided, the same number of lines as in content are replaced starting at startLine. ' +
+        'When both are omitted, the entire dataset or member is replaced. ' +
         'If an ETag is provided (from a previous readDataset call), the write ' +
         'fails if the dataset was modified since the read — preventing overwrites. ' +
         'Returns a new ETag for the written content.',
@@ -802,9 +826,21 @@ export function registerDatasetTools(
           .describe(
             'Mainframe encoding (EBCDIC) for this write. Overrides system and server default when set. Default: from system or MCP server default.'
           ),
+        startLine: z
+          .number()
+          .optional()
+          .describe(
+            '1-based first line of the block to replace; use with endLine to replace a range (content line count can differ).'
+          ),
+        endLine: z
+          .number()
+          .optional()
+          .describe(
+            '1-based last line of the block to replace (inclusive). When provided with startLine, the replaced block can grow or shrink to match the number of lines in content.'
+          ),
       },
     },
-    async ({ dsn, content, member, system, etag, encoding }, extra) => {
+    async ({ dsn, content, member, system, etag, encoding, startLine, endLine }, extra) => {
       const displayDsn = member ? `${dsn}(${member})` : dsn;
       const title = `Write to ${displayDsn}`;
       const progress = createToolProgress(extra, title);
@@ -835,8 +871,25 @@ export function registerDatasetTools(
           resolved.member,
           etag,
           resolvedEncoding,
+          startLine,
+          endLine,
           progressCb
         );
+
+        if (deps.responseCache) {
+          const userId = deps.sessionState.getContext(resolved.systemId)?.userId ?? '';
+          const partialReplace = startLine != null || endLine != null;
+          applyCacheAfterMutation(deps.responseCache, 'write', {
+            systemId: resolved.systemId,
+            userId,
+            dsn: resolved.dsn,
+            member: resolved.member,
+            content: partialReplace ? undefined : content,
+            encoding: resolvedEncoding,
+            etag: result.etag,
+            partialReplace,
+          });
+        }
 
         const fullDsn = resolved.member ? `${resolved.dsn}(${resolved.member})` : resolved.dsn;
         const rawInputDsn = member ? `${dsn.trim()}(${member.trim()})` : dsn.trim();
@@ -848,6 +901,150 @@ export function registerDatasetTools(
         await progress.complete('written');
         const mutationMeta: MutationResultMeta = { success: true };
         return wrapResponse(responseCtx, mutationMeta, { etag: result.etag }, []);
+      } catch (err) {
+        await progress.complete(err instanceof Error ? err.message : String(err));
+        if (err instanceof DsnError) {
+          return errorResult(err.message);
+        }
+        return errorResult((err as Error).message);
+      }
+    }
+  );
+
+  // -----------------------------------------------------------------------
+  // getTempDatasetPrefix
+  // -----------------------------------------------------------------------
+  server.registerTool(
+    'getTempDatasetPrefix',
+    {
+      description:
+        'For automation and testing. Returns a unique DSN prefix (HLQ) under which temporary datasets can be created. ' +
+        `The prefix is verified not to exist on the system. Default is current user + .${REQUIRED_SAFETY_QUALIFIER} (e.g. USER.${REQUIRED_SAFETY_QUALIFIER}.XXXXXXXX.YYYYYYYY); configurable via parameters.`,
+      annotations: { readOnlyHint: true },
+      inputSchema: {
+        prefix: z
+          .string()
+          .optional()
+          .describe(
+            `HLQ for temp names (e.g. USER.${REQUIRED_SAFETY_QUALIFIER}). Default: current user on the target system + .${REQUIRED_SAFETY_QUALIFIER}.`
+          ),
+        suffix: z
+          .string()
+          .optional()
+          .describe('Optional suffix qualifier (last part of the generated prefix).'),
+        system: z
+          .string()
+          .optional()
+          .describe(
+            'Target z/OS system: fully qualified or unqualified hostname. Defaults to the active system.'
+          ),
+      },
+    },
+    async ({ prefix, suffix, system }, extra) => {
+      const title = 'Get temp dataset prefix';
+      const progress = createToolProgress(extra, title);
+      await progress.start();
+      log.info('getTempDatasetPrefix called', { prefix, suffix, system });
+
+      try {
+        const systemId = resolveSystemForTool(deps.systemRegistry, deps.sessionState, system);
+        await ensureContext(deps, systemId);
+        const userId = deps.sessionState.getContext(systemId)?.userId ?? '';
+        const effectivePrefix = prefix?.trim()
+          ? prefix.trim().toUpperCase()
+          : `${userId}.${REQUIRED_SAFETY_QUALIFIER}`;
+        if (!userId && !prefix?.trim()) {
+          throw new Error(
+            'No active user for system; set system first or pass prefix explicitly.'
+          );
+        }
+        const resultPrefix = await ensureUniquePrefix(
+          deps.backend,
+          systemId,
+          effectivePrefix,
+          userId
+        );
+        const ctx = buildContext(systemId, {});
+        await progress.complete('prefix ready');
+        return wrapResponse(ctx, { success: true }, { prefix: resultPrefix }, []);
+      } catch (err) {
+        await progress.complete(err instanceof Error ? err.message : String(err));
+        if (err instanceof DsnError) {
+          return errorResult(err.message);
+        }
+        return errorResult((err as Error).message);
+      }
+    }
+  );
+
+  // -----------------------------------------------------------------------
+  // getTempDatasetName
+  // -----------------------------------------------------------------------
+  server.registerTool(
+    'getTempDatasetName',
+    {
+      description:
+        'Returns a single unique full temporary dataset name (for one dataset). ' +
+        'The DSN is verified not to exist on the system. Same prefix/suffix defaults as getTempDatasetPrefix.',
+      annotations: { readOnlyHint: true },
+      inputSchema: {
+        prefix: z
+          .string()
+          .optional()
+          .describe(
+            `HLQ for temp names (e.g. USER.${REQUIRED_SAFETY_QUALIFIER}). Default: current user on the target system + .${REQUIRED_SAFETY_QUALIFIER}.`
+          ),
+        suffix: z
+          .string()
+          .optional()
+          .describe('Optional suffix qualifier for the generated prefix.'),
+        qualifier: z
+          .string()
+          .optional()
+          .describe(
+            'Last qualifier for the DSN (e.g. DATA, 1–8 chars). If omitted, a unique qualifier is generated.'
+          ),
+        system: z
+          .string()
+          .optional()
+          .describe(
+            'Target z/OS system: fully qualified or unqualified hostname. Defaults to the active system.'
+          ),
+      },
+    },
+    async ({ prefix, suffix: _suffix, qualifier, system }, extra) => {
+      const title = 'Get temp dataset name';
+      const progress = createToolProgress(extra, title);
+      await progress.start();
+      log.info('getTempDatasetName called', { prefix, qualifier, system });
+
+      try {
+        const systemId = resolveSystemForTool(deps.systemRegistry, deps.sessionState, system);
+        await ensureContext(deps, systemId);
+        const userId = deps.sessionState.getContext(systemId)?.userId ?? '';
+        const effectivePrefix = prefix?.trim()
+          ? prefix.trim().toUpperCase()
+          : `${userId}.${REQUIRED_SAFETY_QUALIFIER}`;
+        if (!userId && !prefix?.trim()) {
+          throw new Error(
+            'No active user for system; set system first or pass prefix explicitly.'
+          );
+        }
+        const dsn = await ensureUniqueDsn(
+          deps.backend,
+          systemId,
+          effectivePrefix,
+          qualifier?.trim() ?? undefined
+        );
+        const prefixPart = dsn.split('.').slice(0, -1).join('.');
+        const ctx = buildContext(systemId, {});
+        await progress.complete('DSN ready');
+        return wrapResponse(
+          ctx,
+          { success: true },
+          { dsn: formatResolved(dsn), prefix: prefixPart },
+          []
+        );
       } catch (err) {
         await progress.complete(err instanceof Error ? err.message : String(err));
         if (err instanceof DsnError) {
@@ -932,6 +1129,15 @@ export function registerDatasetTools(
           progressCb
         );
 
+        if (deps.responseCache) {
+          const userId = deps.sessionState.getContext(systemId)?.userId ?? '';
+          applyCacheAfterMutation(deps.responseCache, 'create', {
+            systemId,
+            userId,
+            dsn: resolvedDsn,
+          });
+        }
+
         const ctx = buildContext(systemId, {
           resolvedDsn: resolvedOnlyIfDifferent(resolvedDsn, dsn),
         });
@@ -943,6 +1149,154 @@ export function registerDatasetTools(
           mutationMeta,
           {
             dsn: formatResolved(resolvedDsn),
+            type: canonicalType,
+            allocation: {
+              applied: result.applied,
+              messages: result.messages,
+            },
+          },
+          result.messages
+        );
+      } catch (err) {
+        await progress.complete(err instanceof Error ? err.message : String(err));
+        if (err instanceof DsnError) {
+          return errorResult(err.message);
+        }
+        return errorResult((err as Error).message);
+      }
+    }
+  );
+
+  // -----------------------------------------------------------------------
+  // createTempDataset
+  // -----------------------------------------------------------------------
+  server.registerTool(
+    'createTempDataset',
+    {
+      description:
+        'Creates a new dataset with a unique temporary name in a single call. ' +
+        `Returns the created DSN for subsequent steps or cleanup. Same creation options as createDataset; optional prefix/suffix/qualifier for naming. Default prefix: current user + .${REQUIRED_SAFETY_QUALIFIER}.`,
+      inputSchema: {
+        type: z
+          .enum(['PS', 'PO', 'PO-E', 'SEQUENTIAL', 'PDS', 'PDSE', 'LIBRARY'])
+          .describe(
+            'Dataset type: PS or SEQUENTIAL (sequential), PO or PDS (PDS), PO-E or PDSE or LIBRARY (PDSE).'
+          ),
+        system: z
+          .string()
+          .optional()
+          .describe(
+            'Target z/OS system: fully qualified or unqualified hostname. Defaults to the active system.'
+          ),
+        prefix: z
+          .string()
+          .optional()
+          .describe(
+            `HLQ for temp name (e.g. USER.${REQUIRED_SAFETY_QUALIFIER}). Default: current user + .${REQUIRED_SAFETY_QUALIFIER}.`
+          ),
+        suffix: z
+          .string()
+          .optional()
+          .describe('Optional suffix qualifier for the generated prefix.'),
+        qualifier: z
+          .string()
+          .optional()
+          .describe(
+            'Last qualifier for the DSN (1–8 chars). If omitted, a unique qualifier is generated.'
+          ),
+        recfm: z
+          .string()
+          .optional()
+          .describe('Record format. Supported: F, FB, V, VB, U, FBA, VBA. Default: FB.'),
+        lrecl: z.number().optional().describe('Logical record length. Default: 80.'),
+        blksz: z.number().optional().describe('Block size. Default: 27920.'),
+        primary: z.number().optional().describe('Primary space allocation in tracks.'),
+        secondary: z.number().optional().describe('Secondary space allocation in tracks.'),
+        dirblk: z.number().optional().describe('Directory blocks (PDS only).'),
+      },
+    },
+    async (
+      {
+        type,
+        system,
+        prefix,
+        suffix: _suffix,
+        qualifier,
+        recfm,
+        lrecl,
+        blksz,
+        primary,
+        secondary,
+        dirblk,
+      },
+      extra
+    ) => {
+      const title = 'Create temp dataset';
+      const progress = createToolProgress(extra, title);
+      await progress.start();
+      log.info('createTempDataset called', { type, system, prefix });
+
+      const canonicalType: CreateDatasetOptions['type'] =
+        type === 'SEQUENTIAL'
+          ? 'PS'
+          : type === 'PDS'
+            ? 'PO'
+            : type === 'PDSE' || type === 'LIBRARY'
+              ? 'PO-E'
+              : type;
+
+      try {
+        const systemId = resolveSystemForTool(deps.systemRegistry, deps.sessionState, system);
+        await ensureContext(deps, systemId);
+        const userId = deps.sessionState.getContext(systemId)?.userId ?? '';
+        const effectivePrefix = prefix?.trim()
+          ? prefix.trim().toUpperCase()
+          : `${userId}.${REQUIRED_SAFETY_QUALIFIER}`;
+        if (!userId && !prefix?.trim()) {
+          throw new Error(
+            'No active user for system; set system first or pass prefix explicitly.'
+          );
+        }
+        const dsn = await ensureUniqueDsn(
+          deps.backend,
+          systemId,
+          effectivePrefix,
+          qualifier?.trim() ?? undefined
+        );
+        const progressCb = extra._meta?.progressToken
+          ? (msg: string) => void progress.step(msg)
+          : undefined;
+        const result = await deps.backend.createDataset(
+          systemId,
+          dsn,
+          {
+            type: canonicalType,
+            recfm: recfm as CreateDatasetOptions['recfm'],
+            lrecl,
+            blksz,
+            primary,
+            secondary,
+            dirblk,
+          },
+          progressCb
+        );
+
+        if (deps.responseCache) {
+          applyCacheAfterMutation(deps.responseCache, 'create', {
+            systemId,
+            userId,
+            dsn,
+          });
+        }
+
+        const ctx = buildContext(systemId, {});
+        await progress.complete('created');
+        const mutationMeta: MutationResultMeta = { success: true };
+        return wrapResponse(
+          ctx,
+          mutationMeta,
+          {
+            dsn: formatResolved(dsn),
             type: canonicalType,
             allocation: {
               applied: result.applied,
@@ -1004,6 +1358,16 @@ export function registerDatasetTools(
           progressCb
         );
 
+        if (deps.responseCache) {
+          const userId = deps.sessionState.getContext(resolved.systemId)?.userId ?? '';
+          applyCacheAfterMutation(deps.responseCache, 'delete', {
+            systemId: resolved.systemId,
+            userId,
+            dsn: resolved.dsn,
+            member: resolved.member,
+          });
+        }
+
         const fullDsn = resolved.member ? `${resolved.dsn}(${resolved.member})` : resolved.dsn;
         const rawInputDsn = member ? `${dsn.trim()}(${member.trim()})` : dsn.trim();
 
@@ -1021,6 +1385,73 @@ export function registerDatasetTools(
           },
           []
         );
+      } catch (err) {
+        await progress.complete(err instanceof Error ? err.message : String(err));
+        if (err instanceof DsnError) {
+          return errorResult(err.message);
+        }
+        return errorResult((err as Error).message);
+      }
+    }
+  );
+
+  // -----------------------------------------------------------------------
+  // deleteDatasetsUnderPrefix
+  // -----------------------------------------------------------------------
+  server.registerTool(
+    'deleteDatasetsUnderPrefix',
+    {
+      description:
+        'Destructive. Deletes all datasets whose names start with the given prefix (e.g. a prefix returned by getTempDatasetPrefix). ' +
+        `For automation: create temp datasets under one prefix, then call this once to clean up. Prefix must have at least 3 qualifiers and contain ${REQUIRED_SAFETY_QUALIFIER} (e.g. USER.${REQUIRED_SAFETY_QUALIFIER}.XXXXXXXX.YYYYYYYY).`,
+      annotations: { destructiveHint: true },
+      inputSchema: {
+        dsnPrefix: z
+          .string()
+          .describe(
+            `Fully qualified prefix (e.g. USER.${REQUIRED_SAFETY_QUALIFIER}.A1B2C3D4.E5F6G7H8). All datasets matching this prefix will be deleted. Must have at least 3 qualifiers and contain ${REQUIRED_SAFETY_QUALIFIER}.`
+          ),
+        system: z
+          .string()
+          .optional()
+          .describe(
+            'Target z/OS system: fully qualified or unqualified hostname. Defaults to the active system.'
+          ),
+      },
+    },
+    async ({ dsnPrefix, system }, extra) => {
+      const title = `Delete datasets under ${dsnPrefix}`;
+      const progress = createToolProgress(extra, title);
+      await progress.start();
+      log.info('deleteDatasetsUnderPrefix called', { dsnPrefix, system });
+
+      try {
+        const systemId = resolveSystemForTool(deps.systemRegistry, deps.sessionState, system);
+        await ensureContext(deps, systemId);
+        const userId = deps.sessionState.getContext(systemId)?.userId ?? '';
+        const progressCb = extra._meta?.progressToken
+          ? (msg: string) => void progress.step(msg)
+          : undefined;
+        const { deleted } = await deleteDatasetsUnderPrefixInternal(
+          deps.backend,
+          systemId,
+          dsnPrefix,
+          userId,
+          progressCb
+        );
+        if (deps.responseCache) {
+          for (const dsn of deleted) {
+            applyCacheAfterMutation(deps.responseCache, 'delete', {
+              systemId,
+              userId,
+              dsn,
+            });
+          }
+        }
+        const ctx = buildContext(systemId, {});
+        await progress.complete(`${deleted.length} deleted`);
+        const mutationMeta: MutationResultMeta = { success: true };
+        return wrapResponse(ctx, mutationMeta, { deleted, count: deleted.length }, []);
       } catch (err) {
         await progress.complete(err instanceof Error ? err.message : String(err));
         if (err instanceof DsnError) {
@@ -1192,6 +1623,18 @@ export function registerDatasetTools(
           resolvedNew.member,
           progressCb
         );
+
+        if (deps.responseCache) {
+          const userId = deps.sessionState.getContext(systemId)?.userId ?? '';
+          applyCacheAfterMutation(deps.responseCache, 'rename', {
+            systemId,
+            userId,
+            dsn: resolvedOld.dsn,
+            member: resolvedOld.member,
+            newDsn: resolvedNew.dsn,
+            newMember: resolvedNew.member,
+          });
+        }
 
         const rawOld = member ? `${dsn.trim()}(${member.trim()})` : dsn.trim();
         const rawNew = newMember ? `${newDsn.trim()}(${newMember.trim()})` : newDsn.trim();

@@ -218,7 +218,7 @@ describe('NativeCredentialProvider', () => {
       const provider = new NativeCredentialProvider({
         connectionSpecs: [SPEC],
         useEnvForPassword: false,
-        requestPasswordViaElicitation: async () => 'elicited-pwd',
+        requestPasswordViaElicitation: () => Promise.resolve('elicited-pwd'),
       });
 
       const creds = await provider.getCredentials(SPEC.host, undefined, {

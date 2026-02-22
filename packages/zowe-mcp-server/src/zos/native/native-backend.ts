@@ -19,6 +19,7 @@ import type { ZSshClient } from 'zowe-native-proto-sdk';
 import { getLogger } from '../../server.js';
 import type {
   BackendProgressCallback,
+  CreateDatasetApplied,
   CreateDatasetOptions,
   CreateDatasetResult,
   DatasetAttributes,
@@ -40,8 +41,6 @@ const log = getLogger().child('native');
 
 /** Per connection (user@host:port) lock so only one request uses the client at a time. */
 const connectionLocks = new Map<string, Promise<void>>();
-
-const NOT_IMPL = 'Not implemented for Zowe Native backend';
 
 /** Local encoding for ZNP read result; data in the MCP server is always UTF-8. */
 const LOCAL_ENCODING_UTF8 = 'utf-8';
@@ -65,6 +64,24 @@ interface NativeDsApi {
     localEncoding?: string;
     encoding?: string;
   }): Promise<{ etag?: string; data?: string }>;
+  writeDataset(req: {
+    dsname: string;
+    data?: string;
+    localEncoding?: string;
+    encoding?: string;
+    etag?: string;
+  }): Promise<{ etag: string }>;
+  createDataset(req: {
+    dsname: string;
+    attributes: Record<string, unknown>;
+  }): Promise<{ success: boolean }>;
+  deleteDataset(req: { dsname: string }): Promise<{ success: boolean }>;
+  renameDataset(req: { dsnameBefore: string; dsnameAfter: string }): Promise<{ success: boolean }>;
+  renameMember(req: {
+    dsname: string;
+    memberBefore: string;
+    memberAfter: string;
+  }): Promise<{ success: boolean }>;
 }
 
 function mapDatasetToEntry(item: {
@@ -250,11 +267,11 @@ export class NativeBackend {
     member?: string,
     encoding?: string
   ): Promise<ReadDatasetResult> {
-    const dsname = member ? `${dsn}(${member})` : dsn;
+    const resolvedDsn = member ? `${dsn}(${member})` : dsn;
     const mainframeEncoding = encoding ?? 'IBM-1047';
     const ds = (client as unknown as { ds: NativeDsApi }).ds;
     const response = await ds.readDataset({
-      dsname,
+      dsname: resolvedDsn,
       localEncoding: LOCAL_ENCODING_UTF8,
       encoding: mainframeEncoding,
     });
@@ -343,7 +360,7 @@ export class NativeBackend {
       systemId,
       undefined,
       async client => {
-        const dsname = member ? `${dsn}(${member})` : dsn;
+        const resolvedDsn = member ? `${dsn}(${member})` : dsn;
         const mainframeEncoding = encoding ?? 'IBM-1047';
         const ds = (
           client as unknown as {
@@ -359,7 +376,7 @@ export class NativeBackend {
           }
         ).ds;
         const response = await ds.readDataset({
-          dsname,
+          dsname: resolvedDsn,
           localEncoding: LOCAL_ENCODING_UTF8,
           encoding: mainframeEncoding,
         });
@@ -384,11 +401,61 @@ export class NativeBackend {
     member?: string,
     etag?: string,
     encoding?: string,
-    _progress?: BackendProgressCallback
+    startLine?: number,
+    endLine?: number,
+    progress?: BackendProgressCallback
   ): Promise<WriteDatasetResult> {
-    void [systemId, dsn, content, member, etag, encoding];
-    await Promise.resolve();
-    throw new Error(NOT_IMPL);
+    const mainframeEncoding = encoding ?? 'IBM-1047';
+    if (startLine != null) {
+      const readResult = await this.readDataset(
+        systemId,
+        dsn,
+        member,
+        mainframeEncoding,
+        progress
+      );
+      const lines = readResult.text.split(/\r?\n/);
+      const contentLines = content.split(/\r?\n/);
+      const startIdx = startLine - 1;
+
+      if (endLine != null) {
+        const endIdx = Math.min(endLine - 1, lines.length - 1);
+        const removeCount = Math.max(0, endIdx - startIdx + 1);
+        while (lines.length < startIdx) {
+          lines.push('');
+        }
+        lines.splice(startIdx, removeCount, ...contentLines);
+      } else {
+        const N = contentLines.length;
+        while (lines.length < startIdx + N) {
+          lines.push('');
+        }
+        for (let i = 0; i < N; i++) {
+          lines[startIdx + i] = contentLines[i];
+        }
+      }
+      content = lines.join('\n');
+      etag = readResult.etag;
+    }
+
+    return this.withNativeClient(
+      systemId,
+      undefined,
+      async client => {
+        const targetDsn = member ? `${dsn}(${member})` : dsn;
+        const ds = (client as unknown as { ds: NativeDsApi }).ds;
+        const data = Buffer.from(content, 'utf-8').toString('base64');
+        const response = await ds.writeDataset({
+          dsname: targetDsn,
+          data,
+          localEncoding: LOCAL_ENCODING_UTF8,
+          encoding: mainframeEncoding,
+          etag,
+        });
+        return { etag: response.etag };
+      },
+      progress
+    );
   }
 
   async createDataset(
@@ -397,30 +464,92 @@ export class NativeBackend {
     options: CreateDatasetOptions,
     _progress?: BackendProgressCallback
   ): Promise<CreateDatasetResult> {
-    void [systemId, dsn, options];
-    await Promise.resolve();
-    throw new Error(NOT_IMPL);
+    const DEFAULT_RECFM = 'FB';
+    const DEFAULT_LRECL = 80;
+    const DEFAULT_BLKSZ = 27920;
+    const DEFAULT_DIRBLK = 5;
+    const appliedRecfm = options.recfm ?? DEFAULT_RECFM;
+    const appliedLrecl = options.lrecl ?? DEFAULT_LRECL;
+    const appliedBlksz = options.blksz ?? DEFAULT_BLKSZ;
+    // PDS (PO) uses directory blocks; PDSE (PO-E / LIBRARY) does not—do not pass dirblk for PO-E.
+    const appliedDirblk = options.type === 'PO' ? (options.dirblk ?? DEFAULT_DIRBLK) : undefined;
+
+    // PDSE: z/OS allocation uses DSORG=PO + DSNTYPE=LIBRARY (no dirblk).
+    const effectiveDsorg = options.type === 'PO-E' ? 'PO' : options.type;
+    const attributes: Record<string, unknown> = {
+      dsorg: effectiveDsorg,
+      recfm: appliedRecfm,
+      lrecl: appliedLrecl,
+      primary: options.primary ?? 1,
+    };
+    if (appliedBlksz !== undefined) attributes.blksize = appliedBlksz;
+    if (options.secondary !== undefined) attributes.secondary = options.secondary;
+    if (appliedDirblk !== undefined) attributes.dirblk = appliedDirblk;
+    if (options.type === 'PO-E') attributes.dsntype = 'LIBRARY';
+
+    await this.withNativeClient(
+      systemId,
+      undefined,
+      async client => {
+        const ds = (client as unknown as { ds: NativeDsApi }).ds;
+        await ds.createDataset({ dsname: dsn, attributes });
+      },
+      _progress
+    );
+
+    const applied: CreateDatasetApplied = {
+      dsorg: options.type,
+      recfm: appliedRecfm,
+      lrecl: appliedLrecl,
+      blksz: appliedBlksz,
+      dirblk: appliedDirblk,
+      primary: options.primary,
+      secondary: options.secondary,
+    };
+    const messages = ['Dataset created on z/OS.'];
+    return { applied, messages };
   }
 
   async deleteDataset(
     systemId: SystemId,
     dsn: string,
     member?: string,
-    _progress?: BackendProgressCallback
+    progress?: BackendProgressCallback
   ): Promise<void> {
-    void [systemId, dsn, member];
-    await Promise.resolve();
-    throw new Error(NOT_IMPL);
+    const targetDsn = member ? `${dsn}(${member})` : dsn;
+    await this.withNativeClient(
+      systemId,
+      undefined,
+      async client => {
+        const ds = (client as unknown as { ds: NativeDsApi }).ds;
+        await ds.deleteDataset({ dsname: targetDsn });
+      },
+      progress
+    );
   }
 
   async getAttributes(
     systemId: SystemId,
     dsn: string,
-    _progress?: BackendProgressCallback
+    progress?: BackendProgressCallback
   ): Promise<DatasetAttributes> {
-    void [systemId, dsn];
-    await Promise.resolve();
-    throw new Error(NOT_IMPL);
+    const entries = await this.listDatasets(systemId, dsn, undefined, undefined, true, progress);
+    const exact = entries.find(e => e.dsn.toUpperCase() === dsn.toUpperCase());
+    if (!exact) {
+      throw new Error(
+        `Dataset '${dsn}' not found on ${systemId}. ` +
+          'Use listDatasets to see available datasets.'
+      );
+    }
+    return {
+      dsn: exact.dsn,
+      dsorg: exact.dsorg,
+      recfm: exact.recfm,
+      lrecl: exact.lrecl,
+      blksz: exact.blksz,
+      volser: exact.volser,
+      creationDate: exact.creationDate,
+    };
   }
 
   async copyDataset(
@@ -429,11 +558,26 @@ export class NativeBackend {
     targetDsn: string,
     sourceMember?: string,
     targetMember?: string,
-    _progress?: BackendProgressCallback
+    progress?: BackendProgressCallback
   ): Promise<void> {
-    void [systemId, sourceDsn, targetDsn, sourceMember, targetMember];
-    await Promise.resolve();
-    throw new Error(NOT_IMPL);
+    const readResult = await this.readDataset(
+      systemId,
+      sourceDsn,
+      sourceMember,
+      undefined,
+      progress
+    );
+    await this.writeDataset(
+      systemId,
+      targetDsn,
+      readResult.text,
+      targetMember,
+      undefined,
+      readResult.encoding,
+      undefined,
+      undefined,
+      progress
+    );
   }
 
   async renameDataset(
@@ -442,11 +586,28 @@ export class NativeBackend {
     newDsn: string,
     member?: string,
     newMember?: string,
-    _progress?: BackendProgressCallback
+    progress?: BackendProgressCallback
   ): Promise<void> {
-    void [systemId, dsn, newDsn, member, newMember];
-    await Promise.resolve();
-    throw new Error(NOT_IMPL);
+    await this.withNativeClient(
+      systemId,
+      undefined,
+      async client => {
+        const ds = (client as unknown as { ds: NativeDsApi }).ds;
+        if (member && newMember) {
+          await ds.renameMember({
+            dsname: dsn,
+            memberBefore: member,
+            memberAfter: newMember,
+          });
+        } else {
+          await ds.renameDataset({
+            dsnameBefore: dsn,
+            dsnameAfter: newDsn,
+          });
+        }
+      },
+      progress
+    );
   }
 
   async searchInDataset(

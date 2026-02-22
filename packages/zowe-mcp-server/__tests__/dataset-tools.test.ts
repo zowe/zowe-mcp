@@ -1089,6 +1089,111 @@ describe('Dataset tools with mock backend', () => {
   });
 
   // -----------------------------------------------------------------------
+  // writeDataset with startLine (block of records)
+  // -----------------------------------------------------------------------
+  describe('writeDataset startLine', () => {
+    it('should replace a block of records when startLine is provided', async () => {
+      await client.callTool({
+        name: 'createDataset',
+        arguments: { dsn: 'TESTUSER.WRITE.BLOCK', type: 'PS' },
+      });
+      await client.callTool({
+        name: 'writeDataset',
+        arguments: {
+          dsn: 'TESTUSER.WRITE.BLOCK',
+          content: 'LINE1\nLINE2\nLINE3',
+        },
+      });
+      const writeResult = await client.callTool({
+        name: 'writeDataset',
+        arguments: {
+          dsn: 'TESTUSER.WRITE.BLOCK',
+          content: 'REPLACED2\nREPLACED3',
+          startLine: 2,
+        },
+      });
+      const writeEnvelope = parseEnvelope<{ etag: string }>(writeResult);
+      expect(writeEnvelope.data.etag).toBeDefined();
+
+      const readResult = await client.callTool({
+        name: 'readDataset',
+        arguments: { dsn: 'TESTUSER.WRITE.BLOCK' },
+      });
+      const readEnvelope = parseEnvelope<{ text: string }>(readResult);
+      const lines = (readEnvelope.data.text ?? '').split(/\r?\n/);
+      expect(lines[0]).toBe('LINE1');
+      expect(lines[1]).toBe('REPLACED2');
+      expect(lines[2]).toBe('REPLACED3');
+    });
+
+    it('should replace block with startLine and endLine (content line count can differ)', async () => {
+      await client.callTool({
+        name: 'createDataset',
+        arguments: { dsn: 'TESTUSER.WRITE.RANGE', type: 'PS' },
+      });
+      await client.callTool({
+        name: 'writeDataset',
+        arguments: {
+          dsn: 'TESTUSER.WRITE.RANGE',
+          content: 'A\nB\nC\nD\nE',
+        },
+      });
+      // Replace lines 2-4 (B,C,D) with one line X -> dataset shrinks to A, X, E
+      await client.callTool({
+        name: 'writeDataset',
+        arguments: {
+          dsn: 'TESTUSER.WRITE.RANGE',
+          content: 'X',
+          startLine: 2,
+          endLine: 4,
+        },
+      });
+      let readResult = await client.callTool({
+        name: 'readDataset',
+        arguments: { dsn: 'TESTUSER.WRITE.RANGE' },
+      });
+      let lines = (parseEnvelope<{ text: string }>(readResult).data.text ?? '').split(/\r?\n/);
+      expect(lines).toHaveLength(3);
+      expect(lines[0]).toBe('A');
+      expect(lines[1]).toBe('X');
+      expect(lines[2]).toBe('E');
+
+      // Replace line 2 (X) with three lines P,Q,R -> dataset grows to A, P, Q, R, E (use different dsn to avoid read cache)
+      await client.callTool({
+        name: 'createDataset',
+        arguments: { dsn: 'TESTUSER.WRITE.RANGE2', type: 'PS' },
+      });
+      await client.callTool({
+        name: 'writeDataset',
+        arguments: {
+          dsn: 'TESTUSER.WRITE.RANGE2',
+          content: 'A\nX\nE',
+        },
+      });
+      await client.callTool({
+        name: 'writeDataset',
+        arguments: {
+          dsn: 'TESTUSER.WRITE.RANGE2',
+          content: 'P\nQ\nR',
+          startLine: 2,
+          endLine: 2,
+        },
+      });
+      readResult = await client.callTool({
+        name: 'readDataset',
+        arguments: { dsn: 'TESTUSER.WRITE.RANGE2' },
+      });
+      lines = (parseEnvelope<{ text: string }>(readResult).data.text ?? '').split(/\r?\n/);
+      expect(lines).toHaveLength(5);
+      expect(lines[0]).toBe('A');
+      expect(lines[1]).toBe('P');
+      expect(lines[2]).toBe('Q');
+      expect(lines[3]).toBe('R');
+      expect(lines[4]).toBe('E');
+    });
+  });
+
+  // -----------------------------------------------------------------------
   // renameDataset quoted DSN in response
   // -----------------------------------------------------------------------
   describe('renameDataset envelope', () => {
@@ -1127,6 +1232,91 @@ describe('Dataset tools with mock backend', () => {
       expect(envelope._result).toBeUndefined();
       expect(envelope.data.dsn).toBe('TESTUSER.SRC.COBOL');
       expect(envelope.data.type).toBe('PO-E');
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // Temp dataset tools (getTempDatasetPrefix, getTempDatasetName, createTempDataset, deleteDatasetsUnderPrefix)
+  // -----------------------------------------------------------------------
+  describe('temp dataset tools', () => {
+    it('getTempDatasetPrefix should return a valid prefix containing .TMP', async () => {
+      const result = await client.callTool({
+        name: 'getTempDatasetPrefix',
+        arguments: {},
+      });
+      const data = parseData<{ prefix: string }>(result);
+      expect(data.prefix).toMatch(/^TESTUSER\.TMP\.[A-Z0-9]{8}\.[A-Z0-9]{8}$/);
+      expect(data.prefix).toContain('.TMP.');
+    });
+
+    it('getTempDatasetName should return dsn and prefix', async () => {
+      const result = await client.callTool({
+        name: 'getTempDatasetName',
+        arguments: {},
+      });
+      const data = parseData<{ dsn: string; prefix: string }>(result);
+      expect(data.dsn).toMatch(/^TESTUSER\.TMP\.[A-Z0-9]{8}\.[A-Z0-9]{8}\.[A-Z0-9]{8}$/);
+      expect(data.prefix).toBe(data.dsn.split('.').slice(0, -1).join('.'));
+    });
+
+    it('createTempDataset should create a dataset and return dsn', async () => {
+      const result = await client.callTool({
+        name: 'createTempDataset',
+        arguments: { type: 'PS' },
+      });
+      const data = parseData<{ dsn: string; type: string }>(result);
+      expect(data.dsn).toMatch(/^TESTUSER\.TMP\./);
+      expect(data.type).toBe('PS');
+      const listResult = await client.callTool({
+        name: 'listDatasets',
+        arguments: { dsnPattern: `${data.dsn.split('.').slice(0, -1).join('.')}.**` },
+      });
+      const listData = parseData<{ dsn: string }[]>(listResult);
+      expect(listData.some(d => d.dsn === data.dsn)).toBe(true);
+    });
+
+    it('deleteDatasetsUnderPrefix should reject prefix with 1 or 2 qualifiers', async () => {
+      const result1 = await client.callTool({
+        name: 'deleteDatasetsUnderPrefix',
+        arguments: { dsnPrefix: 'USER' },
+      });
+      expect(getResultText(result1)).toContain('at least 3 qualifiers');
+      const result2 = await client.callTool({
+        name: 'deleteDatasetsUnderPrefix',
+        arguments: { dsnPrefix: 'USER.TMP' },
+      });
+      expect(getResultText(result2)).toContain('at least 3 qualifiers');
+    });
+
+    it('deleteDatasetsUnderPrefix should delete all datasets under prefix and return deleted list', async () => {
+      const prefixResult = await client.callTool({
+        name: 'getTempDatasetPrefix',
+        arguments: {},
+      });
+      const prefixData = parseData<{ prefix: string }>(prefixResult);
+      const prefix = prefixData.prefix;
+      await client.callTool({
+        name: 'createDataset',
+        arguments: { dsn: `${prefix}.A`, type: 'PS' },
+      });
+      await client.callTool({
+        name: 'createDataset',
+        arguments: { dsn: `${prefix}.B`, type: 'PS' },
+      });
+      const deleteResult = await client.callTool({
+        name: 'deleteDatasetsUnderPrefix',
+        arguments: { dsnPrefix: prefix },
+      });
+      const deleteData = parseData<{ deleted: string[]; count: number }>(deleteResult);
+      expect(deleteData.count).toBe(2);
+      expect(deleteData.deleted).toContain(`${prefix}.A`);
+      expect(deleteData.deleted).toContain(`${prefix}.B`);
+      const listAfter = await client.callTool({
+        name: 'listDatasets',
+        arguments: { dsnPattern: `${prefix}.**` },
+      });
+      const listData = parseData<{ dsn: string }[]>(listAfter);
+      expect(listData).toHaveLength(0);
     });
   });
 });

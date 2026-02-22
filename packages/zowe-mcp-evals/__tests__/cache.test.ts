@@ -66,6 +66,20 @@ describe('getToolsUnderTest', () => {
     ).toEqual(['listDatasets']);
   });
 
+  it('returns all tool names for toolCallOrder assertion', () => {
+    expect(
+      getToolsUnderTest([
+        {
+          type: 'toolCallOrder',
+          sequence: [
+            { tool: 'getTempDatasetPrefix' },
+            { tool: 'createTempDataset', args: { type: 'PS' } },
+          ],
+        },
+      ])
+    ).toEqual(['createTempDataset', 'getTempDatasetPrefix']);
+  });
+
   it('deduplicates when same tool appears in multiple assertions', () => {
     const assertions: Assertion[] = [
       { type: 'toolCall', tool: 'listDatasets', args: { dsnPattern: 'USER.*' } },

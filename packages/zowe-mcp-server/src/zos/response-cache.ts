@@ -44,13 +44,29 @@ export interface ResponseCacheOptions {
 
 /**
  * A cache that returns the value for a key, or runs the provided fetch function
- * on miss, stores the result, and returns it. Independent of backend or call type.
+ * on miss, stores the result, and returns it. Supports scope-based invalidation
+ * and explicit set for updates after mutations.
  */
 export interface ResponseCache {
   /**
    * Returns the cached value for the key, or runs `fetch()` on miss, stores the result, and returns it.
+   * When `scopes` is provided, the key is registered under those scopes for later invalidation.
    */
-  getOrFetch<T extends object>(key: string, fetch: () => Promise<T>): Promise<T>;
+  getOrFetch<T extends object>(
+    key: string,
+    fetch: () => Promise<T>,
+    scopes?: string[]
+  ): Promise<T>;
+
+  /**
+   * Stores a value for the key and optionally registers it under the given scopes.
+   */
+  set(key: string, value: object, scopes?: string[]): void;
+
+  /**
+   * Deletes all cache keys that were registered under the given scope.
+   */
+  invalidateScope(scopeKey: string): void;
 }
 
 /**
@@ -67,15 +83,73 @@ export function createResponseCache(options?: ResponseCacheOptions): ResponseCac
     ttl: ttlMs,
   });
 
+  /** Scope key -> set of cache keys registered under that scope. */
+  const scopeToKeys = new Map<string, Set<string>>();
+  /** Cache key -> set of scope keys it is registered under (for cleanup on set/invalidate). */
+  const keyToScopes = new Map<string, Set<string>>();
+
+  function registerKey(key: string, scopes: string[]): void {
+    if (scopes.length === 0) return;
+    // Remove key from any previous scope registration so we don't double-register
+    const prev = keyToScopes.get(key);
+    if (prev) {
+      for (const s of prev) {
+        scopeToKeys.get(s)?.delete(key);
+      }
+      keyToScopes.delete(key);
+    }
+    const scopeSet = new Set<string>(scopes);
+    keyToScopes.set(key, scopeSet);
+    for (const scopeKey of scopes) {
+      let keys = scopeToKeys.get(scopeKey);
+      if (!keys) {
+        keys = new Set();
+        scopeToKeys.set(scopeKey, keys);
+      }
+      keys.add(key);
+    }
+  }
+
+  function set(key: string, value: object, scopes?: string[]): void {
+    cache.set(key, value);
+    if (scopes?.length) {
+      registerKey(key, scopes);
+    }
+  }
+
   return {
-    async getOrFetch<T extends object>(key: string, fetch: () => Promise<T>): Promise<T> {
+    async getOrFetch<T extends object>(
+      key: string,
+      fetchFn: () => Promise<T>,
+      scopes?: string[]
+    ): Promise<T> {
       const cached = cache.get(key);
       if (cached !== undefined) {
         return cached as T;
       }
-      const value = await fetch();
-      cache.set(key, value);
+      const value = await fetchFn();
+      set(key, value, scopes);
       return value;
+    },
+
+    set(key: string, value: object, scopes?: string[]): void {
+      set(key, value, scopes);
+    },
+
+    invalidateScope(scopeKey: string): void {
+      const keys = scopeToKeys.get(scopeKey);
+      if (!keys) return;
+      for (const key of keys) {
+        cache.delete(key);
+        const scopes = keyToScopes.get(key);
+        if (scopes) {
+          for (const s of scopes) {
+            scopeToKeys.get(s)?.delete(key);
+          }
+          keyToScopes.delete(key);
+        }
+      }
+      scopeToKeys.delete(scopeKey);
     },
   };
 }
@@ -97,4 +171,21 @@ export function buildCacheKey(prefix: string, params: Record<string, string | un
       .sort(([a], [b]) => a.localeCompare(b))
   );
   return `${prefix}\x01${JSON.stringify(canonical)}`;
+}
+
+// --- Scope builders for invalidation ---
+
+/** Scope for all listDatasets keys for a system. */
+export function buildScopeSystem(systemId: string): string {
+  return `system:${systemId}`;
+}
+
+/** Scope for listMembers, readDataset, and searchInDataset keys for a dataset. */
+export function buildScopeDsn(systemId: string, dsn: string): string {
+  return `dsn:${systemId}:${dsn}`;
+}
+
+/** Scope for a single readDataset (system + dsn + member). */
+export function buildScopeMember(systemId: string, dsn: string, member: string): string {
+  return `member:${systemId}:${dsn}:${member}`;
 }

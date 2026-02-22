@@ -31,6 +31,16 @@ List of new functions or behaviors requested from Zowe Native Proto for use by Z
 
 ---
 
+## Dataset: rename PDS/PDSE member (renameMember)
+
+- **Request**: Implement the `renameMember` command on the ZNP z/OS server so that PDS/PDSE members can be renamed in place.
+- **Input**: `{ dsname: string, memberBefore: string, memberAfter: string }` (dataset name, current member name, new member name).
+- **Output**: Success or error (e.g. member not found, new name already exists).
+- **Why**: The Zowe MCP server exposes a `renameDataset` tool that supports renaming a member within the same dataset (dsn and newDsn equal, member and newMember specified). When the client calls this, the native backend invokes `ds.renameMember(...)`. The ZNP server on z/OS responds with **"Unrecognized command renameMember"**, so the operation is not available. Zowe zos-files (z/OSMF) provides `rename data-set-member`; the Native Proto server should offer equivalent capability for SSH-based workflows. The MCP server’s native-stdio E2E test 7.2 (renameDataset member) is skipped until ZNP supports this.
+- **Observed**: SDK in use (zowe-native-proto-sdk 0.2.3); server returns "Unrecognized command renameMember" when the client sends the renameMember request.
+
+---
+
 ## Dataset: listDsMembers member-name pattern
 
 - **Request**: Add optional member-name pattern (or filter) parameter to `listDsMembers` so the server can filter by member name (e.g. `A*`, `%`).

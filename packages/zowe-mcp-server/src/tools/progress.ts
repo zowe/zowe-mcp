@@ -20,6 +20,9 @@
  * @see https://modelcontextprotocol.io/specification/2025-11-25/basic/utilities/progress
  */
 
+/** En-dash (U+2013) used between title and status in progress messages. */
+export const EN_DASH = '\u2013';
+
 /** Minimal request-handler extra for progress: token and sendNotification. */
 export interface ToolProgressExtra {
   _meta?: { progressToken?: string | number } | undefined;
@@ -60,17 +63,20 @@ export function createToolProgress(
   const send = extra.sendNotification;
 
   if (token === undefined || token === null) {
+    const noop = async (): Promise<void> => {
+      await Promise.resolve();
+    };
     return {
-      async start() {},
-      async step() {},
-      async complete() {},
+      start: noop,
+      step: noop,
+      complete: noop,
     };
   }
 
   let current = 0;
 
   function message(msg: string): string {
-    return msg ? `${title} – ${msg}` : title;
+    return msg ? `${title} ${EN_DASH} ${msg}` : title;
   }
 
   return {
@@ -111,7 +117,7 @@ const DEFAULT_LIST_LIMIT_FOR_RANGE = 500;
 
 /**
  * Formats an offset/limit range for list-style progress titles (e.g. listDatasets, listMembers, searchInDataset).
- * Returns a range like "(1001-1500)" (1-based inclusive). Returns empty string only when both displayed
+ * Returns a range like "(1001–1500)" (1-based inclusive, en-dash). Returns empty string only when both displayed
  * numbers are the defaults (start 1, end defaultLimit), i.e. the first page with default page size.
  */
 export function formatListProgressRange(
@@ -124,23 +130,23 @@ export function formatListProgressRange(
   const start = off + 1;
   const end = off + lim;
   const isDefaultRange = start === 1 && end === defaultLimit;
-  return isDefaultRange ? '' : `(${start}-${end})`;
+  return isDefaultRange ? '' : `(${start}${EN_DASH}${end})`;
 }
 
 /**
  * Formats a startLine/lineCount range for read-dataset progress titles.
- * Returns empty string when neither is set (full read). When both are set returns "(1-100)" (same style as list).
- * When only startLine is set returns "(from record N)".
+ * Returns empty string when neither is set (full read). When both are set returns "(1–100)" (en-dash, same style as list).
+ * When only startLine is set returns "(N–)".
  */
 export function formatReadProgressRange(
   startLine: number | undefined,
   lineCount: number | undefined
 ): string {
   if (startLine !== undefined && lineCount !== undefined) {
-    return `(${startLine}-${startLine + lineCount - 1})`;
+    return `(${startLine}${EN_DASH}${startLine + lineCount - 1})`;
   }
   if (startLine !== undefined) {
-    return `(${startLine}-)`;
+    return `(${startLine}${EN_DASH})`;
   }
   return '';
 }

@@ -38,7 +38,11 @@ const CACHE_FILE_SUFFIX = '.json';
 export function getToolsUnderTest(assertions: Assertion[]): string[] {
   const names = new Set<string>();
   for (const a of assertions) {
-    if ('tool' in a && typeof (a as { tool?: string }).tool === 'string') {
+    if (a.type === 'toolCallOrder') {
+      for (const step of a.sequence) {
+        if (step.tool) names.add(step.tool.trim());
+      }
+    } else if ('tool' in a && typeof (a as { tool?: string }).tool === 'string') {
       names.add((a as { tool: string }).tool.trim());
     }
   }

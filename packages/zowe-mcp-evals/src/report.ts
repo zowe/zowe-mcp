@@ -10,7 +10,7 @@
  */
 
 import { mkdirSync, writeFileSync } from 'node:fs';
-import { relative, resolve } from 'node:path';
+import { resolve } from 'node:path';
 import { log } from './log.js';
 import type { RunResult } from './types.js';
 
@@ -186,8 +186,7 @@ export function writeReport(
 
   const reportPath = resolve(outDir, 'report.md');
   writeFileSync(reportPath, md, 'utf-8');
-  const reportRel = relative(cwd, reportPath);
-  log.info(`Report written to ${reportRel}`);
+  log.info(`Report written to ${reportPath}`);
 
   if (failures.length > 0) {
     const failuresPath = resolve(outDir, 'failures.md');
@@ -196,7 +195,6 @@ export function writeReport(
       ['# Failures detail', '', '## By question', '', ...failures].join('\n'),
       'utf-8'
     );
-    const failuresRel = relative(cwd, failuresPath);
-    log.info(`Failures written to ${failuresRel}`);
+    log.info(`Failures written to ${failuresPath}`);
   }
 }

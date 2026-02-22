@@ -94,7 +94,8 @@
         { "$ref": "#/$defs/AssertSingleToolCall" },
         { "$ref": "#/$defs/AssertToolOnly" },
         { "$ref": "#/$defs/AssertMinToolCalls" },
-        { "$ref": "#/$defs/AssertToolCallSequence" }
+        { "$ref": "#/$defs/AssertToolCallSequence" },
+        { "$ref": "#/$defs/AssertToolCallOrder" }
       ]
     },
     "AssertToolCall": {
@@ -164,6 +165,28 @@
           "type": "array",
           "minItems": 1,
           "items": { "type": "object", "additionalProperties": true }
+        }
+      },
+      "additionalProperties": false
+    },
+    "AssertToolCallOrder": {
+      "type": "object",
+      "description": "Tools must be called in this order (any other tools may appear in between). Each step can have optional args (partial match). Use for mutation flows.",
+      "required": ["type", "sequence"],
+      "properties": {
+        "type": { "const": "toolCallOrder" },
+        "sequence": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["tool"],
+            "properties": {
+              "tool": { "type": "string" },
+              "args": { "type": "object", "additionalProperties": true }
+            },
+            "additionalProperties": false
+          }
         }
       },
       "additionalProperties": false

@@ -106,13 +106,25 @@ export interface AssertToolCallSequence {
   sequence: Record<string, unknown>[];
 }
 
+/**
+ * Assertion: tools must be called in this order (any other tools may appear in between).
+ * Each step can have optional args (partial match). Use for mutation flows (e.g. createTempDataset
+ * then writeDataset then deleteDatasetsUnderPrefix).
+ */
+export interface AssertToolCallOrder {
+  type: 'toolCallOrder';
+  /** Expected tool calls in order. Each step: tool name and optional args. */
+  sequence: { tool: string; args?: Record<string, unknown> }[];
+}
+
 export type Assertion =
   | AssertToolCall
   | AssertAnswerContains
   | AssertSingleToolCall
   | AssertToolOnly
   | AssertMinToolCalls
-  | AssertToolCallSequence;
+  | AssertToolCallSequence
+  | AssertToolCallOrder;
 
 /**
  * One question in a set.

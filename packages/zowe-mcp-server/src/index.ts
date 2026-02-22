@@ -315,6 +315,16 @@ function loadSystemsFromConfig(configPath: string): string[] {
 }
 
 async function main(): Promise<void> {
+  // Run subcommand scripts directly so they work even if yargs doesn't dispatch (e.g. in bundled extension)
+  const subcommand = process.argv[2];
+  if (subcommand === 'init-mock' || subcommand === 'call-tool') {
+    const scriptPath = resolve(__dirname, 'scripts', `${subcommand}.js`);
+    const result = spawnSync(process.execPath, [scriptPath, ...process.argv.slice(3)], {
+      stdio: 'inherit',
+    });
+    process.exit(result.status ?? 0);
+  }
+
   const parsed = parseArgs();
 
   const {

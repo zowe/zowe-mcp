@@ -831,6 +831,7 @@ async function main(): Promise<void> {
 
   for (let s = 0; s < args.systems; s++) {
     const template = SYSTEM_TEMPLATES[s % SYSTEM_TEMPLATES.length];
+    console.log(`Creating system ${s + 1}/${args.systems}: ${template.host}...`);
     const users = USER_TEMPLATES.slice(0, args.usersPerSystem);
     const defaultUser = users[0];
 
@@ -846,8 +847,9 @@ async function main(): Promise<void> {
     await fs.mkdir(sysDir, { recursive: true });
 
     // Generate datasets for each user
-    for (const user of users) {
-      await generateUserDatasets(sysDir, user, args.datasetsPerUser, args.membersPerPds);
+    for (let u = 0; u < users.length; u++) {
+      console.log(`  User ${u + 1}/${users.length}: ${users[u]}...`);
+      await generateUserDatasets(sysDir, users[u], args.datasetsPerUser, args.membersPerPds);
     }
 
     // Generate system datasets
@@ -874,6 +876,7 @@ async function main(): Promise<void> {
     }
   }
 
+  console.log('Writing systems.json...');
   await fs.writeFile(
     path.join(args.output, 'systems.json'),
     JSON.stringify(config, null, 2),

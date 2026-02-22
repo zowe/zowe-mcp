@@ -172,8 +172,8 @@
           "default": "",
           "pattern": "^[^\u0000-\u001f]*$",
           "patternErrorMessage": "Must not contain control characters. Use an absolute path for your OS (e.g. /path, C:\\path, or ~/path).",
-          "description": "Local absolute path to a mock data directory. When set and Native Systems is empty, the MCP server starts in mock mode. Use the 'Zowe MCP: Generate Mock Data' command to create one. Leave empty to use native (SSH) mode. Changes require restarting the MCP server.",
-          "markdownDescription": "Local absolute path to a mock data directory (e.g. `/path`, `C:\\\\path`, or `~/path`). When set and **Native Systems** is empty, the MCP server starts in mock mode. Use the **Zowe MCP: Generate Mock Data** command to create one. Leave empty to use native (SSH) mode. Changes require restarting the MCP server.",
+          "description": "Local absolute path to a mock data directory. When set and Native Systems is empty, the MCP server starts in mock mode. Use the 'Zowe MCP: Generate Mock Data' command to create one. Leave empty to use native (SSH) mode. Changes require running 'Developer: Reload Window' command.",
+          "markdownDescription": "Local absolute path to a mock data directory (e.g. `/path`, `C:\\\\path`, or `~/path`). When set and **Native Systems** is empty, the MCP server starts in mock mode. Use the **Zowe MCP: Generate Mock Data** command to create one. Leave empty to use native (SSH) mode. Changes require running **Developer: Reload Window** command.",
           "order": 6
         },
         "zoweMCP.defaultMainframeMvsEncoding": {

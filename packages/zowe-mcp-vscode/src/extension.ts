@@ -210,9 +210,39 @@ async function initMockData(
   }
 
   const outputDir = path.join(folders[0].fsPath, 'zowe-mcp-mock-data');
-  log.info(`Generating mock data in: ${outputDir}`);
 
-  // Show progress while generating
+  // Let user choose preset (minimal = fastest, pagination = largest)
+  const presets: { id: string; label: string; description: string }[] = [
+    {
+      id: 'minimal',
+      label: 'Minimal',
+      description: '1 system, 1 user, 5 datasets, 3 members — fastest',
+    },
+    { id: 'default', label: 'Default', description: '2 systems, 2 users, 8 datasets, 5 members' },
+    { id: 'large', label: 'Large', description: '5 systems, 3 users, 20 datasets, 15 members' },
+    {
+      id: 'inventory',
+      label: 'Inventory',
+      description: '1 system + USER.INVNTORY with 2000 members',
+    },
+    {
+      id: 'pagination',
+      label: 'Pagination',
+      description: 'Inventory + 1000 PEOPLE datasets (for evals)',
+    },
+  ];
+  const chosen = await vscode.window.showQuickPick(presets, {
+    title: 'Mock data preset',
+    placeHolder: 'Choose a preset (minimal is fastest)',
+    matchOnDescription: true,
+  });
+  if (!chosen) {
+    return; // User cancelled
+  }
+
+  log.info(`Generating mock data in: ${outputDir} (preset: ${chosen.id})`);
+
+  // Show progress while generating; stream output to log
   await vscode.window.withProgress(
     {
       location: vscode.ProgressLocation.Notification,
@@ -222,21 +252,40 @@ async function initMockData(
     () =>
       new Promise<void>((resolve, reject) => {
         // eslint-disable-next-line @typescript-eslint/no-require-imports
-        const { execFile } = require('child_process') as typeof import('child_process');
-        execFile(
+        const { spawn } = require('child_process') as typeof import('child_process');
+        const child = spawn(
           process.execPath,
-          [serverModule, 'init-mock', '--output', outputDir],
-          { cwd: context.extensionPath },
-          (error: Error | null, stdout: string, stderr: string) => {
-            if (error) {
-              log.error(`Mock data generation failed: ${stderr || error.message}`);
-              reject(error);
-            } else {
-              log.info(`Mock data generated successfully: ${stdout.trim()}`);
-              resolve();
-            }
+          [serverModule, 'init-mock', '--output', outputDir, '--preset', chosen.id],
+          {
+            cwd: context.extensionPath,
+            stdio: ['ignore', 'pipe', 'pipe'],
           }
         );
+        const onData = (chunk: Buffer | string) => {
+          const text = (typeof chunk === 'string' ? chunk : chunk.toString()).trim();
+          if (text) {
+            for (const line of text.split(/\r?\n/)) {
+              if (line) log.info(line);
+            }
+          }
+        };
+        child.stdout?.on('data', (chunk: Buffer) => onData(chunk));
+        child.stderr?.on('data', (chunk: Buffer) => onData(chunk));
+        child.on('error', (err: Error) => {
+          log.error(`Mock data generation failed: ${err.message}`);
+          reject(err);
+        });
+        child.on('close', (code: number | null, signal: string | null) => {
+          if (code === 0) {
+            resolve();
+          } else {
+            const msg = signal
+              ? `Process exited with signal ${signal}`
+              : `Process exited with code ${code ?? 'unknown'}`;
+            log.error(`Mock data generation failed: ${msg}`);
+            reject(new Error(msg));
+          }
+        });
       })
   );
 

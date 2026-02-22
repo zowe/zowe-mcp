@@ -105,13 +105,13 @@ function buildModel(evalsConfig: EvalsConfig): LanguageModel {
   if (evalsConfig.provider === 'vllm') {
     const provider = createOpenAICompatible({
       name: 'vllm',
-      baseURL: evalsConfig.base_url ?? 'http://localhost:8000/v1',
-      apiKey: evalsConfig.api_key ?? 'no key needed',
+      baseURL: evalsConfig.baseUrl ?? 'http://localhost:8000/v1',
+      apiKey: evalsConfig.apiKey ?? 'no key needed',
     });
-    return provider(evalsConfig.server_model) as unknown as LanguageModel;
+    return provider(evalsConfig.serverModel) as unknown as LanguageModel;
   }
-  const google = createGoogleGenerativeAI({ apiKey: evalsConfig.api_key! });
-  return google(evalsConfig.server_model) as unknown as LanguageModel;
+  const google = createGoogleGenerativeAI({ apiKey: evalsConfig.apiKey! });
+  return google(evalsConfig.serverModel) as unknown as LanguageModel;
 }
 
 export function getSystemPrompt(setConfig: SetConfig): string {

@@ -34,6 +34,7 @@ const SERVER_PATH = resolve(__dirname, '..', '..', 'zowe-mcp-server', 'dist', 'i
 
 interface CliArgs {
   set: string[];
+  model?: string;
   number?: string;
   id?: string[];
   filter?: string;
@@ -51,6 +52,8 @@ function parseArgs(): CliArgs {
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--set' && i + 1 < args.length) {
       result.set = args[++i].split(',').map(s => s.trim());
+    } else if (args[i] === '--model' && i + 1 < args.length) {
+      result.model = args[++i];
     } else if (args[i] === '--number' && i + 1 < args.length) {
       result.number = args[++i];
     } else if (args[i] === '--id' && i + 1 < args.length) {
@@ -89,10 +92,11 @@ function filterQuestions(questions: Question[], cli: CliArgs): Question[] {
 async function main(): Promise<void> {
   const cli = parseArgs();
   log.info('Loading evals config');
-  const evalsConfig = loadEvalsConfig();
+  const evalsConfig = loadEvalsConfig(cli.model);
   log.info('Evals config loaded', {
+    modelId: evalsConfig.modelId ?? 'default',
     provider: evalsConfig.provider,
-    model: evalsConfig.server_model,
+    model: evalsConfig.serverModel,
   });
 
   const setNames = cli.set.includes('all') ? listSetNames() : cli.set;
@@ -180,6 +184,7 @@ async function main(): Promise<void> {
               systemPrompt: getSystemPrompt(config),
               prompt: q.prompt,
               toolDefs,
+              modelId: evalsConfig.modelId,
             })
           : '';
 

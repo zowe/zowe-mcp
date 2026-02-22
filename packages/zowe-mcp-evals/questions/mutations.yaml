@@ -3,7 +3,7 @@
 config:
   name: mutations
   description: Agent must create temp datasets, write content, delete members, and clean up
-  repetitions: 2
+  repetitions: 10
   minSuccessRate: 0.8
   mock:
     initArgs: --preset default

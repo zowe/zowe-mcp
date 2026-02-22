@@ -10,7 +10,7 @@ This is an npm workspaces monorepo with three packages:
 
 - `packages/zowe-mcp-server` — Standalone MCP server (ESM, publishable to npm)
 - `packages/zowe-mcp-vscode` — VS Code extension that registers the server (CommonJS) and contributes Zowe and ISPF color themes (`themes/*.json`)
-- `packages/zowe-mcp-evals` — AI evaluations: runs an LLM agent against the MCP server (mock or native), checks tool choice/arguments and answer content, produces a Markdown report. Uses Vercel AI SDK and MCP SDK client. Config: gitignored `evals.config.json` at **repo root** (vLLM or Gemini). Run from repo root: `npm run evals` (options after `--`). Question sets: YAML files in `questions/` with per-set `repetitions`, `minSuccessRate`, optional `mock`/`native`, optional `systemPrompt`/`systemPromptAddition`. Assertion types include `toolCall`, `answerContains`, `toolCallSequence` (same tool, ordered args for pagination), and **toolCallOrder** (different tools in order, for mutation flows).
+- `packages/zowe-mcp-evals` — AI evaluations: runs an LLM agent against the MCP server (mock or native), checks tool choice/arguments and answer content, produces a Markdown report. Uses Vercel AI SDK and MCP SDK client. Config: gitignored `evals.config.json` at **repo root** (vLLM or Gemini). Supports single-model (legacy) or **multi-model** (`models` array with `id` per entry; first is default). Use `--model <id>` to select a model when using multi-model config. Run from repo root: `npm run evals` (options after `--`). Question sets: YAML files in `questions/` with per-set `repetitions`, `minSuccessRate`, optional `mock`/`native`, optional `systemPrompt`/`systemPromptAddition`. Assertion types include `toolCall`, `answerContains`, `toolCallSequence` (same tool, ordered args for pagination), and **toolCallOrder** (different tools in order, for mutation flows).
 
 ## Key Architectural Decisions
 
@@ -220,7 +220,7 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 | `npm run check-format` | Check formatting without modifying files |
 | `npm run markdownlint <file>` | Fix markdown lint issues |
 | `npx zowe-mcp-server init-mock --output <dir>` | Generate mock data directory |
-| `npm run evals` | Run AI evals from repo root (requires `evals.config.json` at root; pass options after `--`: `--set`, `--number`, `--id`, `--filter`) |
+| `npm run evals` | Run AI evals from repo root (requires `evals.config.json` at root; pass options after `--`: `--set`, `--model <id>`, `--number`, `--id`, `--filter`) |
 | `node scripts/set-version.js <version>` | Set `version` in all `package.json` (root and workspaces) and extension’s `zowe-mcp-server` dependency. Use before release or when aligning versions. |
 | `npm run release-vsix` | Sync versions via `set-version.js`, build extension, create tag from extension version, push tag, create GitHub release and upload VSIX (requires `gh` auth). Ensures VSIX filename matches tag. |
 | **Cursor command** `/release-extension` | Full release workflow: test:all, git check, version suggestion (0.x.y vs semver), draft CHANGELOG → user approval → `node scripts/set-version.js <version>`, update CHANGELOG, commit, push, `npm run release-vsix` (see `.cursor/commands/release-extension.md`) |

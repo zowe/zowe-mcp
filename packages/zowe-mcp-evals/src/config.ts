@@ -19,9 +19,20 @@ export type EvalsProvider = 'vllm' | 'gemini';
 
 export interface EvalsConfig {
   provider: EvalsProvider;
-  base_url?: string;
-  server_model: string;
-  api_key?: string;
+  baseUrl?: string;
+  serverModel: string;
+  apiKey?: string;
+  /** Set when using multi-model config; used for cache key and logging. */
+  modelId?: string;
+}
+
+/** Single model entry in evals.config.json "models" array. */
+export interface EvalsModelEntry {
+  id: string;
+  provider: EvalsProvider;
+  serverModel: string;
+  baseUrl?: string;
+  apiKey?: string;
 }
 
 const CONFIG_NAMES = ['evals.config.json', 'evals.config.local.json'];
@@ -40,7 +51,46 @@ function findConfigDir(): string {
   return resolve(__dirname, '..');
 }
 
-export function loadEvalsConfig(): EvalsConfig {
+function validateProvider(p: string): EvalsProvider {
+  if (p !== 'vllm' && p !== 'gemini') {
+    throw new Error(`evals.config.json: provider must be "vllm" or "gemini", got "${p}"`);
+  }
+  return p as EvalsProvider;
+}
+
+function entryToConfig(entry: EvalsModelEntry): EvalsConfig {
+  const provider = validateProvider(entry.provider);
+  if (!entry.serverModel || typeof entry.serverModel !== 'string') {
+    throw new Error(`evals.config.json: model "${entry.id}" has no serverModel`);
+  }
+  let apiKey = entry.apiKey;
+  if (provider === 'gemini' && !apiKey && process.env.GEMINI_API_KEY) {
+    apiKey = process.env.GEMINI_API_KEY;
+  }
+  if (provider === 'gemini' && !apiKey) {
+    throw new Error(
+      `evals.config.json: model "${entry.id}" needs apiKey or GEMINI_API_KEY env for Gemini`
+    );
+  }
+  const config: EvalsConfig = {
+    provider,
+    serverModel: entry.serverModel,
+    apiKey,
+    modelId: entry.id,
+  };
+  if (provider === 'vllm') {
+    config.baseUrl = entry.baseUrl ?? 'http://localhost:8000/v1';
+  }
+  return config;
+}
+
+/**
+ * Load evals config and optionally select a model by id.
+ * With multi-model config, the first model is the default when modelId is omitted.
+ *
+ * @param modelId - Optional model id (from --model). If omitted, the first model is used.
+ */
+export function loadEvalsConfig(modelId?: string): EvalsConfig {
   const configDir = findConfigDir();
   let content: string | undefined;
   for (const name of CONFIG_NAMES) {
@@ -56,28 +106,59 @@ export function loadEvalsConfig(): EvalsConfig {
     );
   }
   const raw = JSON.parse(content) as Record<string, unknown>;
-  const provider = (raw.provider as string) ?? 'vllm';
-  if (provider !== 'vllm' && provider !== 'gemini') {
-    throw new Error(`evals.config.json: provider must be "vllm" or "gemini", got "${provider}"`);
+
+  const modelsRaw = raw.models;
+  let entries: EvalsModelEntry[];
+
+  if (Array.isArray(modelsRaw) && modelsRaw.length > 0) {
+    const ids = new Set<string>();
+    entries = modelsRaw.map((m: unknown, idx: number) => {
+      const o = m as Record<string, unknown>;
+      const id = (o.id as string) ?? `model-${idx}`;
+      if (ids.has(id)) {
+        throw new Error(`evals.config.json: duplicate model id "${id}"`);
+      }
+      ids.add(id);
+      const provider = (o.provider as string) ?? 'vllm';
+      const serverModel = (o.serverModel as string) ?? '';
+      return {
+        id,
+        provider: validateProvider(provider),
+        serverModel,
+        baseUrl: o.baseUrl as string | undefined,
+        apiKey: o.apiKey as string | undefined,
+      };
+    });
+  } else {
+    // Legacy single-model shape
+    const provider = (raw.provider as string) ?? 'vllm';
+    const serverModel = (raw.serverModel as string) ?? '';
+    if (!serverModel) {
+      throw new Error('evals.config.json: serverModel is required');
+    }
+    let apiKey = raw.apiKey as string | undefined;
+    if (provider === 'gemini' && !apiKey && process.env.GEMINI_API_KEY) {
+      apiKey = process.env.GEMINI_API_KEY;
+    }
+    if (provider === 'gemini' && !apiKey) {
+      throw new Error('evals.config.json: apiKey or GEMINI_API_KEY env is required for Gemini');
+    }
+    entries = [
+      {
+        id: 'default',
+        provider: validateProvider(provider),
+        serverModel,
+        baseUrl: raw.baseUrl as string | undefined,
+        apiKey,
+      },
+    ];
   }
-  const server_model = (raw.server_model as string) ?? '';
-  if (!server_model) {
-    throw new Error('evals.config.json: server_model is required');
+
+  const chosen = modelId !== undefined ? entries.find(e => e.id === modelId) : entries[0];
+  if (!chosen) {
+    const available = entries.map(e => e.id).join(', ');
+    throw new Error(`evals.config.json: unknown model "${modelId}". Available: ${available}`);
   }
-  let api_key = raw.api_key as string | undefined;
-  if (provider === 'gemini' && !api_key && process.env.GEMINI_API_KEY) {
-    api_key = process.env.GEMINI_API_KEY;
-  }
-  if (provider === 'gemini' && !api_key) {
-    throw new Error('evals.config.json: api_key or GEMINI_API_KEY env is required for Gemini');
-  }
-  const config: EvalsConfig = {
-    provider: provider as EvalsProvider,
-    server_model,
-    api_key,
-  };
-  if (provider === 'vllm') {
-    config.base_url = (raw.base_url as string) ?? 'http://localhost:8000/v1';
-  }
-  return config;
+
+  return entryToConfig(chosen);
 }

@@ -28,8 +28,8 @@ const MAX_DSN_LENGTH = 44;
 /** Maximum length of a single qualifier. */
 const MAX_QUALIFIER_LENGTH = 8;
 
-/** Default max retries when ensuring unique prefix or DSN. */
-const DEFAULT_MAX_RETRIES = 5;
+/** Default max retries when ensuring unique prefix or DSN. Higher for evals (many runs share mock state). */
+const DEFAULT_MAX_RETRIES = 20;
 
 /** Safety: minimum qualifiers required for deleteDatasetsUnderPrefix (e.g. USER.TMP.XXXXXXXX). */
 const MIN_QUALIFIERS_FOR_DELETE_PREFIX = 3;
@@ -169,6 +169,9 @@ export async function ensureUniquePrefix(
  * @param maxRetries - Max retries (default 5).
  * @returns A DSN that does not exist on the system.
  */
+/** Max prefix length such that prefix + "." + two qualifiers + "." + one qualifier still <= 44. */
+const MAX_PREFIX_LENGTH_FOR_TWO_QUALIFIERS = 44 - 1 - 8 - 1 - 8 - 1 - 8; // 17
+
 export async function ensureUniqueDsn(
   backend: ZosBackend,
   systemId: SystemId,
@@ -180,12 +183,15 @@ export async function ensureUniqueDsn(
   if (basePrefix.length === 0) {
     throw new DsnError('Temp DSN prefix must not be empty');
   }
+  const usePrefixAsIs = basePrefix.length > MAX_PREFIX_LENGTH_FOR_TWO_QUALIFIERS;
   for (let i = 0; i < maxRetries; i++) {
-    const candidatePrefix = generateTempDsnPrefix(basePrefix);
+    const candidatePrefix = usePrefixAsIs ? basePrefix : generateTempDsnPrefix(basePrefix);
     const dsn =
       qualifier !== undefined && qualifier.length > 0
         ? `${candidatePrefix}.${qualifier.trim().toUpperCase()}`
-        : generateTempDsn(candidatePrefix);
+        : usePrefixAsIs
+          ? `${candidatePrefix}.${uniqueQualifier()}`
+          : generateTempDsn(candidatePrefix);
     try {
       validateDsn(dsn);
     } catch {

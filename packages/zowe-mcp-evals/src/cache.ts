@@ -26,6 +26,8 @@ export interface CacheKeyPayload {
   systemPrompt: string;
   prompt: string;
   toolDefs: Record<string, { description?: string; inputSchema?: unknown }>;
+  /** Optional model id so cache entries are per-model. */
+  modelId?: string;
 }
 
 const KEY_LENGTH = 16;
@@ -72,6 +74,7 @@ export function buildCacheKey(payload: CacheKeyPayload): string {
     systemPrompt: payload.systemPrompt,
     prompt: payload.prompt,
     tools: payload.toolDefs,
+    modelId: payload.modelId ?? '',
   });
   const hash = createHash('sha256').update(json).digest('hex');
   return hash.slice(0, KEY_LENGTH);

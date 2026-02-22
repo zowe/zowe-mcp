@@ -6,17 +6,17 @@ AI evaluations for the Zowe MCP server: run an LLM agent against the server (moc
 
 1. **Build the server**: From repo root, run `npm run build` (or `npm run build -w packages/zowe-mcp-server`).
 
-2. **Evals config** (at repo root): Copy the example and set your LLM provider (vLLM or Gemini):
+2. **Evals config** (at repo root): Copy an example and set your LLM provider (vLLM or Gemini):
 
    ```bash
    # From repo root
    cp evals.config.example.json evals.config.json
    ```
 
-   Edit `evals.config.json` at the repo root:
+   Edit `evals.config.json` at the repo root. All keys use **camelCase** (`serverModel`, `baseUrl`, `apiKey`):
 
-   - **vLLM**: Set `provider`, `base_url`, `server_model`, and optionally `api_key`.
-   - **Gemini**: Set `provider`, `server_model`; set `api_key` or the `GEMINI_API_KEY` env var.
+   - **Single-model (legacy)**: Top-level `provider`, `serverModel`, and optionally `baseUrl` (vLLM), `apiKey` (or `GEMINI_API_KEY` env for Gemini).
+   - **Multi-model**: A `models` array. Each entry has `id`, `provider`, `serverModel`, and provider-specific fields (`baseUrl`/`apiKey` for vLLM, `apiKey` or env for Gemini). The **first** model is the default; use `npm run evals -- --model <id>` to run with another.
 
    The file `evals.config.json` is gitignored; do not commit secrets.
 
@@ -39,6 +39,7 @@ Pass CLI options after `--`:
 
 ```bash
 npm run evals -- --set datasets
+npm run evals -- --set datasets --model gemini-flash
 npm run evals -- --set datasets --number 1
 npm run evals -- --set datasets --number 1-2
 npm run evals -- --set members --filter listMembers
@@ -49,6 +50,7 @@ npm run evals -- --no-cache
 ### CLI options
 
 - **`--set <name>`** — Run one set (e.g. `datasets`) or multiple: `--set datasets,members`. Default: `all` (all YAML files in `questions/`).
+- **`--model <id>`** — Use the model with this id from `evals.config.json`. Only applies when config uses the `models` array; the first model is the default when omitted.
 - **`--number <n>`** — Run only question index `n` (1-based). **`--number <start>-<end>`** — Run questions in range (e.g. `1-5`).
 - **`--id <id>`** — Run only questions whose id equals the given value. **`--id id1,id2`** — Multiple ids.
 - **`--filter <substring>`** — Run only questions whose id or prompt contains the substring (case-insensitive).
@@ -56,7 +58,7 @@ npm run evals -- --no-cache
 
 ### Cache (development)
 
-When cache is enabled (default), successful eval results are stored under `.evals-cache/` at the repo root. The cache key includes the system prompt, question text, and tool descriptions for the tools under test, so changing a tool description or the question invalidates the cache for that question. Only **passing** runs are cached; failed runs are never stored. Repeated evals with the same questions and tooling reuse cached results and skip LLM calls. At the end of a run you see a line like: `Cache: N hits, M writes, K LLM calls (T runs)`. To run without cache (e.g. in CI or for a clean run), pass **`--no-cache`**.
+When cache is enabled (default), successful eval results are stored under `.evals-cache/` at the repo root. The cache key includes the system prompt, question text, tool descriptions for the tools under test, and the model id (when using multi-model config), so changing a tool description, the question, or the model invalidates the cache for that question. Only **passing** runs are cached; failed runs are never stored. Repeated evals with the same questions, tooling, and model reuse cached results and skip LLM calls. At the end of a run you see a line like: `Cache: N hits, M writes, K LLM calls (T runs)`. To run without cache (e.g. in CI or for a clean run), pass **`--no-cache`**.
 
 ## Question sets
 

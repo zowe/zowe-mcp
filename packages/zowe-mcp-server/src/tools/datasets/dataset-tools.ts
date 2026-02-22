@@ -39,7 +39,11 @@ import type { SearchCommentType } from '../../zos/search-options.js';
 import { buildParmsFromOptions, SEARCH_COMMENT_TYPES } from '../../zos/search-options.js';
 import { resolveSystemForTool, type SessionState } from '../../zos/session.js';
 import type { SystemRegistry } from '../../zos/system.js';
-import { createToolProgress } from '../progress.js';
+import {
+  createToolProgress,
+  formatListProgressRange,
+  formatReadProgressRange,
+} from '../progress.js';
 import type { MutationResultMeta } from '../response.js';
 import {
   buildContext,
@@ -198,7 +202,10 @@ export function registerDatasetTools(
       },
     },
     async ({ dsnPattern, system, volser, offset, limit, attributes }, extra) => {
-      const title = `List datasets matching ${dsnPattern}`;
+      const range = formatListProgressRange(offset, limit, DEFAULT_LIST_LIMIT);
+      const title = range
+        ? `List datasets matching ${dsnPattern} ${range}`
+        : `List datasets matching ${dsnPattern}`;
       const progress = createToolProgress(extra, title);
       await progress.start();
       const wantAttrs = attributes ?? true;
@@ -309,7 +316,8 @@ export function registerDatasetTools(
       },
     },
     async ({ dsn, memberPattern, system, offset, limit }, extra) => {
-      const title = `List members of ${dsn}`;
+      const range = formatListProgressRange(offset, limit, DEFAULT_LIST_LIMIT);
+      const title = range ? `List members of ${dsn} ${range}` : `List members of ${dsn}`;
       const progress = createToolProgress(extra, title);
       await progress.start();
       log.info('listMembers called', { dsn, memberPattern, system, offset, limit });
@@ -451,7 +459,8 @@ export function registerDatasetTools(
       },
       extra
     ) => {
-      const title = `Search in ${dsn}`;
+      const range = formatListProgressRange(offset, limit, DEFAULT_LIST_LIMIT);
+      const title = range ? `Search in ${dsn} ${range}` : `Search in ${dsn}`;
       const progress = createToolProgress(extra, title);
       await progress.start();
       log.info('searchInDataset called', {
@@ -677,7 +686,8 @@ export function registerDatasetTools(
     },
     async ({ dsn, member, system, encoding, startLine, lineCount }, extra) => {
       const displayDsn = member ? `${dsn}(${member})` : dsn;
-      const title = `Read ${displayDsn}`;
+      const range = formatReadProgressRange(startLine, lineCount);
+      const title = range ? `Read ${displayDsn} ${range}` : `Read ${displayDsn}`;
       const progress = createToolProgress(extra, title);
       await progress.start();
       log.info('readDataset called', {
@@ -738,9 +748,9 @@ export function registerDatasetTools(
           resolvedDsn: resolvedOnlyIfDifferent(fullDsn, rawInputDsn),
         });
 
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const { startLine: s, returnedLines: r, totalLines: total } = windowed.meta;
-        const endRecord = s + r - 1;
-        await progress.complete(`range ${s}–${endRecord}, ${total} records`);
+        await progress.complete(`${r} records`);
         return wrapResponse(
           responseCtx,
           windowed.meta,

@@ -106,3 +106,41 @@ export function createToolProgress(
     },
   };
 }
+
+const DEFAULT_LIST_LIMIT_FOR_RANGE = 500;
+
+/**
+ * Formats an offset/limit range for list-style progress titles (e.g. listDatasets, listMembers, searchInDataset).
+ * Returns a range like "(1001-1500)" (1-based inclusive). Returns empty string only when both displayed
+ * numbers are the defaults (start 1, end defaultLimit), i.e. the first page with default page size.
+ */
+export function formatListProgressRange(
+  offset: number | undefined,
+  limit: number | undefined,
+  defaultLimit: number = DEFAULT_LIST_LIMIT_FOR_RANGE
+): string {
+  const off = offset ?? 0;
+  const lim = limit ?? defaultLimit;
+  const start = off + 1;
+  const end = off + lim;
+  const isDefaultRange = start === 1 && end === defaultLimit;
+  return isDefaultRange ? '' : `(${start}-${end})`;
+}
+
+/**
+ * Formats a startLine/lineCount range for read-dataset progress titles.
+ * Returns empty string when neither is set (full read). When both are set returns "(1-100)" (same style as list).
+ * When only startLine is set returns "(from record N)".
+ */
+export function formatReadProgressRange(
+  startLine: number | undefined,
+  lineCount: number | undefined
+): string {
+  if (startLine !== undefined && lineCount !== undefined) {
+    return `(${startLine}-${startLine + lineCount - 1})`;
+  }
+  if (startLine !== undefined) {
+    return `(${startLine}-)`;
+  }
+  return '';
+}

@@ -13,8 +13,11 @@ Zowe MCP brings mainframe z/OS capabilities to AI assistants in VS Code. It regi
 
 When the extension is configured with a backend (mock or native), your AI assistant can:
 
-- **Data sets** — List, read, write, copy, rename, and delete data sets and PDS members
-- **Context** — Switch between z/OS systems
+- **Data sets** — List, read, write, copy, rename, and delete data sets and PDS members; search in data sets
+- **Jobs** — Submit JCL, check job status, read spool output, search job output, list jobs, get JCL, cancel/hold/release/delete jobs
+- **UNIX System Services (USS)** — List, read, write, create, and delete USS files; run safe USS commands; temp dir/path helpers; chmod/chown/chtag
+- **TSO** — Run safe TSO commands (block/elicit/safe patterns)
+- **Context** — Switch between z/OS systems; get current system and USS working directory
 - **Slash commands** — Use prompts such as “review JCL” or “explain data set” in chat
 
 Without a backend, only the server **info** tool is available; the extension will prompt you to set up mock data or a connection.
@@ -59,7 +62,11 @@ When the server needs a password, the extension will prompt you. Passwords are s
 | **Log Level** | Minimum log level (e.g. `info`, `debug`). Takes effect immediately without restart. |
 | **Install Zowe Native Server Automatically** | When enabled (default), the extension automatically installs the Zowe Native server on the host when "Server not found" is detected. Disable to use a pre-installed server only. Changes are sent to the server and apply to future connections. |
 | **Zowe Native Server Path** | Remote path for the Zowe Native server on the host (default: `~/.zowe-server`). Changes are sent to the server and apply to future connections. |
+| **Native Response Timeout** | Response timeout in seconds for each Zowe Native (ZNP) request (default: 60). Increase on overloaded systems. Changes apply to future connections. |
 | **Mock Data Directory** | Absolute path to a mock data directory. When set **and** Native Systems is empty, the server uses mock z/OS data. Leave empty to use native (SSH) mode. Changes require reloading the window. |
+| **Default Mainframe MVS Encoding** | Default EBCDIC encoding for dataset read/write (e.g. `IBM-037`, `IBM-1047`). Takes effect immediately. |
+| **Default Mainframe USS Encoding** | Default EBCDIC encoding for USS file operations (e.g. `IBM-1047`). Takes effect immediately. |
+| **Job Cards** | JCL job cards per connection spec (key: `user@host` or `user@host:port`). Use placeholders `{jobname}` and `{programmer}` for `submitJob`. Takes effect immediately. |
 
 **Mode behavior:** With default configuration (empty Mock Data Directory and empty Native Systems), the server runs in **native** mode with no systems; add entries to Native Systems to connect. Mock mode is active only when Mock Data Directory is set and Native Systems is empty.
 
@@ -75,17 +82,23 @@ All options that affect the MCP server are documented below. The extension uses 
 | `zoweMCP.logLevel` | string | `"info"` | Log level: `debug`, `info`, `notice`, `warning`, `error`, `critical`, `alert`, `emergency`. |
 | `zoweMCP.installZoweNativeServerAutomatically` | boolean | `true` | Auto-install Zowe Native server on host when "Server not found". |
 | `zoweMCP.zoweNativeServerPath` | string | `"~/.zowe-server"` | Remote path for Zowe Native server install/run. |
+| `zoweMCP.nativeResponseTimeout` | number | `60` | Response timeout in seconds for each ZNP request. |
 | `zoweMCP.mockDataDirectory` | string | `""` | Absolute path to mock data directory. Mock mode only when set and Native Systems is empty. |
+| `zoweMCP.defaultMainframeMvsEncoding` | string | `"IBM-037"` | Default EBCDIC encoding for dataset read/write. |
+| `zoweMCP.defaultMainframeUssEncoding` | string | `"IBM-1047"` | Default EBCDIC encoding for USS file operations. |
+| `zoweMCP.jobCards` | object | `{}` | JCL job cards per connection spec; keys `user@host` or `user@host:port`, value array of lines or string. Placeholders: `{jobname}`, `{programmer}`. |
 
 ### Server CLI options (standalone)
 
 When running `npx zowe-mcp-server` (or the bundled server) outside VS Code:
 
 - **Transport:** `--stdio` (default), `--http`, `--port <N>` (default 7542 for HTTP)
-- **Backend:** `--mock <dir>`, `--native`, `--config <path>`, `--system <spec>` (repeatable)
-- **Native:** `--native-server-auto-install=true|false` (default: true), `--native-server-path <path>`
+- **Backend:** `--mock <dir>`, `--native`, `--config <path>`, `--system <spec>` (repeatable). Config file may include `jobCards` per connection.
+- **Native:** `--native-server-auto-install=true|false` (default: true), `--native-server-path <path>`, `--native-response-timeout <seconds>` (default 60)
+- **Encoding:** `--default-mvs-encoding <name>` (e.g. IBM-037), `--default-uss-encoding <name>` (e.g. IBM-1047)
 - **Response cache:** `--response-cache-disable`, `--response-cache-ttl-minutes N`, `--response-cache-max-mb N`
-- **Help:** `-h`, `--help`
+- **Subcommands:** `init-mock [--output <dir>] [--preset ...]`, `call-tool [--mock=<dir>] [tool-name key=value ...]`
+- **Help:** `-h`, `--help`, `--version`
 
 ### Environment variables (standalone)
 
@@ -93,6 +106,9 @@ When running `npx zowe-mcp-server` (or the bundled server) outside VS Code:
 - `ZOWE_MCP_LOG_LEVEL` — Log level (e.g. `info`, `debug`)
 - `ZOWE_MCP_NATIVE_SERVER_AUTO_INSTALL` — `false` or `0` to disable auto-install
 - `ZOWE_MCP_NATIVE_SERVER_PATH` — Remote path for Zowe Native server
+- `ZOWE_MCP_NATIVE_RESPONSE_TIMEOUT` — Response timeout in seconds for ZNP (default 60)
+- `ZOWE_MCP_DEFAULT_MVS_ENCODING` — Default EBCDIC for datasets (e.g. IBM-037)
+- `ZOWE_MCP_DEFAULT_USS_ENCODING` — Default EBCDIC for USS (e.g. IBM-1047)
 - `ZOWE_MCP_RESPONSE_CACHE_DISABLE` — `1` or `true` to disable response cache
 - `ZOWE_MCP_RESPONSE_CACHE_TTL_MINUTES` — Cache entry TTL in minutes (default 10). Legacy: `ZOWE_MCP_RESPONSE_CACHE_TTL_MS` (milliseconds) is still supported.
 - `ZOWE_MCP_RESPONSE_CACHE_MAX_BYTES` — Max cache size in bytes
@@ -101,6 +117,7 @@ When running `npx zowe-mcp-server` (or the bundled server) outside VS Code:
 ## Commands
 
 - **Zowe MCP: Generate Mock Data** — Creates a mock z/OS data directory, configures the Mock Data Dir setting, and optionally reloads the window.
+- **Zowe MCP: Clear Stored Password** — Clears the stored password in VS Code Secret Storage for a chosen native connection.
 
 ## Documentation and Contributing
 

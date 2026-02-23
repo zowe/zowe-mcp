@@ -33,7 +33,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const serverPath = resolve(__dirname, '..', 'dist', 'index.js');
 const packageRoot = resolve(__dirname, '..');
-const EXPECTED_TOOL_COUNT = 34;
+const EXPECTED_TOOL_COUNT = 36;
 
 /** Parsed tool result content. */
 interface ToolContent {

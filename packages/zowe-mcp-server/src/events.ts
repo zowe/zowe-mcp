@@ -92,6 +92,27 @@ export interface StorePasswordEventData {
 /** Asks the extension to store a password for user@host in SecretStorage (e.g. after successful use of an elicited password). */
 export type StorePasswordEvent = McpEvent<'store-password', StorePasswordEventData>;
 
+/** Payload for a `request-job-card` event (server → extension). */
+export interface RequestJobCardEventData {
+  user: string;
+  host: string;
+  port?: number;
+}
+
+/** Asks the extension to provide a job card for user@host (multi-line JOB statement). */
+export type RequestJobCardEvent = McpEvent<'request-job-card', RequestJobCardEventData>;
+
+/** Payload for a `store-job-card` event (server → extension). */
+export interface StoreJobCardEventData {
+  /** Connection spec (e.g. user@host or user@host:port). */
+  connectionSpec: string;
+  /** Full job card text (multi-line). */
+  jobCard: string;
+}
+
+/** Asks the extension to persist a job card (e.g. after elicitation) to settings or storage. */
+export type StoreJobCardEvent = McpEvent<'store-job-card', StoreJobCardEventData>;
+
 // ---------------------------------------------------------------------------
 // Extension → Server events
 // ---------------------------------------------------------------------------
@@ -149,6 +170,27 @@ export type EncodingOptionsUpdateEvent = McpEvent<
   EncodingOptionsUpdateEventData
 >;
 
+/** Payload for a `job-cards-update` event (extension → server). */
+export interface JobCardsUpdateEventData {
+  /** Map of connection spec (user@host or user@host:port) to job card: string (multi-line) or array of lines. */
+  jobCards: Record<string, string | string[]>;
+}
+
+/** Sends job cards from VS Code setting to the server. Merged with file-sourced job cards. */
+export type JobCardsUpdateEvent = McpEvent<'job-cards-update', JobCardsUpdateEventData>;
+
+/** Payload for a `job-card` event (extension → server). */
+export interface JobCardEventData {
+  user: string;
+  host: string;
+  port?: number;
+  /** Full job card text (multi-line). */
+  jobCard: string;
+}
+
+/** Supplies a job card for user@host (after request-job-card or from settings). */
+export type JobCardEvent = McpEvent<'job-card', JobCardEventData>;
+
 // ---------------------------------------------------------------------------
 // Union types
 // ---------------------------------------------------------------------------
@@ -159,7 +201,9 @@ export type ServerToExtensionEvent =
   | NotificationEvent
   | RequestPasswordEvent
   | PasswordInvalidEvent
-  | StorePasswordEvent;
+  | StorePasswordEvent
+  | RequestJobCardEvent
+  | StoreJobCardEvent;
 
 /** Events that flow from the VS Code extension to the MCP server. */
 export type ExtensionToServerEvent =
@@ -167,7 +211,9 @@ export type ExtensionToServerEvent =
   | PasswordEvent
   | SystemsUpdateEvent
   | NativeOptionsUpdateEvent
-  | EncodingOptionsUpdateEvent;
+  | EncodingOptionsUpdateEvent
+  | JobCardsUpdateEvent
+  | JobCardEvent;
 
 /** Union of all event types exchanged over the pipe. */
 export type AnyMcpEvent = ServerToExtensionEvent | ExtensionToServerEvent;

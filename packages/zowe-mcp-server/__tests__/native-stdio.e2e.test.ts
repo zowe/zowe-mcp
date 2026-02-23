@@ -114,9 +114,19 @@ function findConfigPath(): string | undefined {
   return undefined;
 }
 
-function loadSystemsFromConfig(configPath: string): string[] {
+interface NativeConfigForTest {
+  systems?: string[];
+  /** Value may be string or array of lines (same as native config). */
+  jobCards?: Record<string, string | string[]>;
+}
+
+function loadNativeConfigForTest(configPath: string): NativeConfigForTest {
   const raw = readFileSync(configPath, 'utf-8');
-  const config = JSON.parse(raw) as { systems?: string[] };
+  return JSON.parse(raw) as NativeConfigForTest;
+}
+
+function loadSystemsFromConfig(configPath: string): string[] {
+  const config = loadNativeConfigForTest(configPath);
   if (!Array.isArray(config.systems) || config.systems.length === 0) {
     return [];
   }
@@ -135,6 +145,28 @@ const password =
 
 const firstSystemId = firstSpec?.host;
 const canRunNativeE2E = Boolean(configPath && password && firstSystemId);
+
+/** Job card for the first connection spec (from config jobCards section). Jobs tests are skipped when missing. */
+const nativeConfig = configPath ? loadNativeConfigForTest(configPath) : undefined;
+const firstConnectionSpec = configSystems[0];
+const jobCardForFirstSpec =
+  firstConnectionSpec && nativeConfig?.jobCards
+    ? nativeConfig.jobCards[firstConnectionSpec]
+    : undefined;
+const canRunJobsE2E = Boolean(canRunNativeE2E && jobCardForFirstSpec);
+
+/** Normalize job card (string or array of lines) to a single string; substitute {jobname} and {programmer} for E2E. */
+function normalizeJobCardForTest(
+  card: string | string[] | undefined,
+  defaults: { userId: string }
+): string {
+  if (card == null) return '';
+  const raw = Array.isArray(card) ? card.join('\n') : card;
+  return raw
+    .replace(/\{jobname\}/gi, defaults.userId + 'A')
+    .replace(/\{programmer\}/g, '')
+    .trim();
+}
 
 /** Reason shown when the suite is skipped (missing config or password). */
 const skipReason = !canRunNativeE2E
@@ -187,6 +219,7 @@ describe.skipIf(!canRunNativeE2E)(
       expect(o.components).toContain('context');
       expect(o.components).toContain('datasets');
       expect(o.components).toContain('uss');
+      expect(o.components).toContain('jobs');
     });
 
     it('listSystems returns at least one system including config system', async () => {
@@ -692,6 +725,89 @@ describe.skipIf(!canRunNativeE2E)(
         expect(parsed.error!.length).toBeGreaterThan(0);
       });
     });
+
+    /** Sample JCL body (two IEBGENER steps) without job card. */
+    const SAMPLE_JCL_BODY = [
+      '//STEP1  EXEC PGM=IEBGENER',
+      '//SYSPRINT DD SYSOUT=*',
+      '//SYSIN    DD DUMMY',
+      '//SYSUT1   DD *',
+      'INPUT1',
+      '//SYSUT2   DD SYSOUT=*',
+      '//*',
+      '//STEP2  EXEC PGM=IEBGENER',
+      '//SYSPRINT DD SYSOUT=*',
+      '//SYSIN    DD DUMMY',
+      '//SYSUT1   DD *',
+      'INPUT2',
+      '//SYSUT2   DD SYSOUT=*',
+    ].join('\n');
+
+    describe.skipIf(!canRunJobsE2E)(
+      `Jobs (submitJob, getJobStatus)${!canRunJobsE2E ? ' [skipped: Job card not configured in config jobCards]' : ''}`,
+      () => {
+        let submittedJobId: string;
+
+        it('submitJob with full JCL (job card present) returns jobId and jobName', async () => {
+          const jobCardStr = normalizeJobCardForTest(jobCardForFirstSpec, {
+            userId: firstSpec?.user ?? 'USER',
+          });
+          const fullJcl = jobCardStr.trimEnd() + '\n' + SAMPLE_JCL_BODY;
+          const { parsed } = await callToolSuccess(client, 'submitJob', { jcl: fullJcl });
+          const o = parsed as { data: { jobId: string; jobName: string } };
+          expect(o.data).toBeDefined();
+          expect(o.data.jobId).toBeDefined();
+          expect(o.data.jobName).toBeDefined();
+          expect(typeof o.data.jobId).toBe('string');
+          expect(typeof o.data.jobName).toBe('string');
+          submittedJobId = o.data.jobId;
+        });
+
+        it('submitJob with JCL body only (no job card) prepends config job card and submits', async () => {
+          const { parsed } = await callToolSuccess(client, 'submitJob', {
+            jcl: SAMPLE_JCL_BODY,
+          });
+          const o = parsed as { data: { jobId: string; jobName: string } };
+          expect(o.data).toBeDefined();
+          expect(o.data.jobId).toBeDefined();
+          expect(o.data.jobName).toBeDefined();
+        });
+
+        it('getJobStatus returns status for submitted job', async () => {
+          expect(submittedJobId).toBeDefined();
+          const { parsed } = await callToolSuccess(client, 'getJobStatus', {
+            jobId: submittedJobId,
+          });
+          const o = parsed as {
+            data: {
+              id: string;
+              name: string;
+              status: string;
+              owner: string;
+              retcode?: string;
+            };
+          };
+          expect(o.data).toBeDefined();
+          expect(o.data.id).toBeDefined();
+          expect(o.data.name).toBeDefined();
+          expect(o.data.status).toBeDefined();
+          expect(['INPUT', 'ACTIVE', 'OUTPUT']).toContain(o.data.status);
+        });
+      }
+    );
+
+    it.skipIf(!canRunNativeE2E || !!jobCardForFirstSpec)(
+      'submitJob with body only when no job card configured returns error',
+      async () => {
+        const r = await client.callTool({
+          name: 'submitJob',
+          arguments: { jcl: SAMPLE_JCL_BODY },
+        });
+        expect(r.isError).toBe(true);
+        const text = getResultText(r);
+        expect(text).toContain('No job card configured');
+      }
+    );
 
     describe('with temporary datasets', () => {
       // -----------------------------------------------------------------------

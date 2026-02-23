@@ -100,6 +100,7 @@ export function startPipeServer(context: vscode.ExtensionContext): PipeServerInf
     sendInitialSystems();
     sendInitialNativeOptions();
     sendInitialEncodingOptions();
+    sendInitialJobCards();
 
     let buffer = '';
     socket.on('data', (data: Buffer) => {
@@ -310,4 +311,37 @@ export function sendEncodingOptionsUpdateEvent(): void {
     },
     timestamp: Date.now(),
   } as ExtensionToServerEvent);
+}
+
+/**
+ * Sends the current job cards setting to all connected servers.
+ * Called when a new server connects.
+ */
+function sendInitialJobCards(): void {
+  const config = vscode.workspace.getConfiguration('zoweMCP');
+  const jobCards = config.get<Record<string, string | string[]>>('jobCards', {});
+  const valid =
+    jobCards && typeof jobCards === 'object'
+      ? Object.fromEntries(
+          Object.entries(jobCards).filter(
+            (e): e is [string, string | string[]] =>
+              typeof e[0] === 'string' &&
+              e[0].trim().length > 0 &&
+              (typeof e[1] === 'string' || Array.isArray(e[1]))
+          )
+        )
+      : {};
+  sendEventToServers({
+    type: 'job-cards-update',
+    data: { jobCards: valid },
+    timestamp: Date.now(),
+  } as ExtensionToServerEvent);
+}
+
+/**
+ * Sends the current job cards to all connected MCP server instances.
+ * Call when zoweMCP.jobCards configuration changes.
+ */
+export function sendJobCardsUpdateEvent(): void {
+  sendInitialJobCards();
 }

@@ -42,6 +42,7 @@ import type {
   DatasetAttributes,
   DatasetEntry,
   DatasetOrg,
+  JobStatusResult,
   ListUssFilesOptions,
   MemberEntry,
   ReadDatasetResult,
@@ -49,6 +50,7 @@ import type {
   RecordFormat,
   SearchInDatasetOptions,
   SearchInDatasetResult,
+  SubmitJobResult,
   UssFileEntry,
   WriteDatasetResult,
   WriteUssFileResult,
@@ -1012,6 +1014,22 @@ export class FilesystemMockBackend implements ZosBackend {
       deleted.push(ussPath.replace(/\/$/, ''));
     }
     return { deleted };
+  }
+
+  async submitJob(
+    _systemId: SystemId,
+    _jcl: string,
+    _progress?: BackendProgressCallback
+  ): Promise<SubmitJobResult> {
+    throw new Error('Jobs operations are not implemented in the mock backend');
+  }
+
+  async getJobStatus(
+    _systemId: SystemId,
+    _jobId: string,
+    _progress?: BackendProgressCallback
+  ): Promise<JobStatusResult> {
+    throw new Error('Jobs operations are not implemented in the mock backend');
   }
 
   // -----------------------------------------------------------------------

@@ -25,12 +25,14 @@ import type {
   CreateUssFileOptions,
   DatasetAttributes,
   DatasetEntry,
+  JobStatusResult,
   ListUssFilesOptions,
   MemberEntry,
   ReadDatasetResult,
   ReadUssFileResult,
   SearchInDatasetOptions,
   SearchInDatasetResult,
+  SubmitJobResult,
   UssFileEntry,
   WriteDatasetResult,
   WriteUssFileResult,
@@ -41,6 +43,7 @@ import type { SystemId } from '../system.js';
 import type { ParsedConnectionSpec } from './connection-spec.js';
 import type { NativeCredentialProvider } from './native-credential-provider.js';
 import { cacheKey, type SshClientCache } from './ssh-client-cache.js';
+import { logZnpResponse, requireMethods, sanitizeZnpString } from './znp-debug.js';
 
 const log = getLogger().child('native');
 
@@ -139,6 +142,29 @@ interface NativeUssApi {
 /** Subset of ZSshClient.cmds we use (ZNP command RPCs). */
 interface NativeCmdsApi {
   issueUnix(req: { commandText: string }): Promise<{ data?: string }>;
+}
+
+/** Subset of ZSshClient.jobs we use (ZNP job RPCs). ZNP uses getStatus (not getJobStatus). */
+interface NativeJobsApi {
+  submitJcl(req: {
+    jcl: string;
+    localEncoding?: string;
+    encoding?: string;
+  }): Promise<{ jobId?: string; jobName?: string }>;
+  /** ZNP method name is getStatus. */
+  getStatus(req: { jobId: string }): Promise<{
+    id?: string;
+    name?: string;
+    owner?: string;
+    status?: string;
+    type?: string;
+    class?: string;
+    retcode?: string;
+    subsystem?: string;
+    phase?: number;
+    phaseName?: string;
+    correlator?: string;
+  }>;
 }
 
 function mapDatasetToEntry(item: {
@@ -1041,5 +1067,108 @@ export class NativeBackend {
       progress
     );
     return { deleted: [normalized] };
+  }
+
+  private getJobs(client: ZSshClient): NativeJobsApi {
+    const clientWithJobs = client as unknown as { jobs?: NativeJobsApi };
+    const jobs = clientWithJobs.jobs;
+    if (jobs == null) {
+      log.debug('ZNP client.jobs is missing', {
+        clientKeys: typeof client === 'object' && client !== null ? Object.keys(client) : [],
+      });
+      throw new Error(
+        'Zowe Native Proto client does not expose jobs API (client.jobs is missing). Ensure the SDK and z/OS server support job operations.'
+      );
+    }
+    const jobsRecord = jobs as unknown as Record<string, unknown>;
+    requireMethods(log, 'ZNP client.jobs', jobsRecord, ['getStatus', 'submitJcl']);
+    return jobs;
+  }
+
+  async submitJob(
+    systemId: SystemId,
+    jcl: string,
+    progress?: BackendProgressCallback
+  ): Promise<SubmitJobResult> {
+    return this.withNativeClient(
+      systemId,
+      undefined,
+      async client => {
+        progress?.(`Submitting job to ${systemId}`);
+        const jobs = this.getJobs(client);
+        const jclBase64 = Buffer.from(jcl, 'utf-8').toString('base64');
+        const response = await jobs.submitJcl({
+          jcl: jclBase64,
+          localEncoding: LOCAL_ENCODING_UTF8,
+        });
+        const jobId = response.jobId ?? '';
+        const jobName = response.jobName ?? '';
+        if (!jobId) {
+          throw new Error('Submit JCL did not return a job ID');
+        }
+        const result: SubmitJobResult = { jobId, jobName };
+        const raw = (typeof response === 'object' && response !== null ? response : {}) as Record<
+          string,
+          unknown
+        >;
+        logZnpResponse(log, 'submitJcl', raw, result, {
+          matchesExpectation:
+            typeof jobId === 'string' && typeof jobName === 'string' && jobId.length > 0,
+        });
+        return result;
+      },
+      progress
+    );
+  }
+
+  async getJobStatus(
+    systemId: SystemId,
+    jobId: string,
+    progress?: BackendProgressCallback
+  ): Promise<JobStatusResult> {
+    return this.withNativeClient(
+      systemId,
+      undefined,
+      async client => {
+        progress?.(`Getting status for job ${jobId}`);
+        const jobs = this.getJobs(client);
+        const jobIdUpper = jobId.toUpperCase();
+        log.debug('getJobStatus calling ZNP getStatus', { jobId: jobIdUpper });
+        const r = await jobs.getStatus({ jobId: jobIdUpper });
+        const raw = (typeof r === 'object' && r !== null ? r : {}) as Record<string, unknown>;
+        const result: JobStatusResult = {
+          id: r.id ?? jobIdUpper,
+          name: sanitizeZnpString(r.name) ?? r.name ?? '',
+          owner: sanitizeZnpString(r.owner) ?? r.owner ?? '',
+          status: sanitizeZnpString(r.status) ?? r.status ?? '',
+          type: sanitizeZnpString(r.type) ?? r.type ?? '',
+          class: sanitizeZnpString(r.class) ?? r.class ?? '',
+          retcode: sanitizeZnpString(r.retcode) ?? r.retcode,
+          subsystem: sanitizeZnpString(r.subsystem) ?? r.subsystem,
+          phase: r.phase ?? 0,
+          phaseName: sanitizeZnpString(r.phaseName) ?? r.phaseName ?? '',
+          correlator: sanitizeZnpString(r.correlator) ?? r.correlator,
+        };
+        const expectedKeys = [
+          'id',
+          'name',
+          'owner',
+          'status',
+          'type',
+          'class',
+          'retcode',
+          'subsystem',
+          'phase',
+          'phaseName',
+          'correlator',
+        ];
+        logZnpResponse(log, 'getStatus', raw, result, {
+          expectedKeys,
+          matchesExpectation: typeof result.id === 'string' && typeof result.status === 'string',
+        });
+        return result;
+      },
+      progress
+    );
   }
 }

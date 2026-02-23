@@ -21,6 +21,7 @@ import * as vscode from 'vscode';
 import { getDisplayName, getLog, initLog } from './log';
 import {
   sendEncodingOptionsUpdateEvent,
+  sendJobCardsUpdateEvent,
   sendLogLevelEvent,
   sendNativeOptionsUpdateEvent,
   sendSystemsUpdateEvent,
@@ -146,6 +147,10 @@ export function activate(context: vscode.ExtensionContext): void {
       ) {
         log.info('Encoding options setting changed, forwarding to MCP servers');
         sendEncodingOptionsUpdateEvent();
+      }
+      if (e.affectsConfiguration('zoweMCP.jobCards')) {
+        log.info('Job cards setting changed, forwarding to MCP servers');
+        sendJobCardsUpdateEvent();
       }
     })
   );

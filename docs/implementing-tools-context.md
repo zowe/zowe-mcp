@@ -32,7 +32,7 @@ Use this in chats when implementing new dataset operations or other z/OS tools.
 - **Core**: `info` tool (`src/tools/core/zowe-info.ts`).
 - **Context**: `getContext`, `setSystem`, `listSystems` (`src/tools/context/context-tools.ts`).
 - **USS**: Implemented (`src/tools/uss/uss-tools.ts`). Tools: `getUssHome`, `listUssFiles`, `readUssFile`, `writeUssFile`, `createUssFile`, `deleteUssFile`, `chmodUssFile`, `chownUssFile`, `chtagUssFile`, `runSafeUssCommand`, `getUssTempDir`, `getUssTempPath`, `createTempUssFile`, `createTempUssDir`, `deleteUssTempUnderDir`. See **USS tools** section below.
-- **Future**: `jobs`.
+- **Jobs**: `submitJob`, `getJobStatus` (`src/tools/jobs/jobs-tools.ts`). Job cards from config file `jobCards` section or VS Code `zoweMCP.jobCards`. Mock backend throws "Not implemented"; native uses ZNP `client.jobs.submitJcl` and `getJobStatus`.
 
 ---
 

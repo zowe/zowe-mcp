@@ -279,6 +279,44 @@ export interface CreateUssFileOptions {
 }
 
 // ---------------------------------------------------------------------------
+// Job types
+// ---------------------------------------------------------------------------
+
+/** Result of submitting a job (JCL or from dataset/USS). */
+export interface SubmitJobResult {
+  /** Job ID assigned by JES (e.g. JOB00123). */
+  jobId: string;
+  /** Job name from the JOB statement. */
+  jobName: string;
+}
+
+/** Job status as returned by the backend (maps from ZNP Job). */
+export interface JobStatusResult {
+  /** Job ID. */
+  id: string;
+  /** Job name. */
+  name: string;
+  /** Job owner. */
+  owner: string;
+  /** Status: INPUT, ACTIVE, OUTPUT. */
+  status: string;
+  /** Job type: JOB, STC, TSU. */
+  type: string;
+  /** Execution class. */
+  class: string;
+  /** Return code (undefined if not complete). */
+  retcode?: string;
+  /** Subsystem (optional). */
+  subsystem?: string;
+  /** Phase number. */
+  phase: number;
+  /** Phase name. */
+  phaseName: string;
+  /** Correlator (optional, JES3). */
+  correlator?: string;
+}
+
+// ---------------------------------------------------------------------------
 // Backend interface
 // ---------------------------------------------------------------------------
 
@@ -700,4 +738,32 @@ export interface ZosBackend {
     userId?: string,
     progress?: BackendProgressCallback
   ): Promise<{ deleted: string[] }>;
+
+  // -------------------------------------------------------------------------
+  // Job operations
+  // -------------------------------------------------------------------------
+
+  /**
+   * Submit JCL to the system. The JCL must include a complete job card when required by the system.
+   *
+   * @param systemId - Target z/OS system.
+   * @param jcl - Full JCL text (UTF-8) to submit.
+   */
+  submitJob(
+    systemId: SystemId,
+    jcl: string,
+    progress?: BackendProgressCallback
+  ): Promise<SubmitJobResult>;
+
+  /**
+   * Get the current status of a job.
+   *
+   * @param systemId - Target z/OS system.
+   * @param jobId - Job ID (e.g. JOB00123).
+   */
+  getJobStatus(
+    systemId: SystemId,
+    jobId: string,
+    progress?: BackendProgressCallback
+  ): Promise<JobStatusResult>;
 }

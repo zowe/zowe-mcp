@@ -181,6 +181,53 @@ async function handleStorePassword(
 }
 
 /**
+ * Handles request-job-card: prompt for multi-line job card, then send job-card event.
+ * User can paste JCL with newlines; showInputBox is single-line so we use a placeholder that accepts \n.
+ */
+async function handleRequestJobCard(
+  log: vscode.LogOutputChannel,
+  event: ServerToExtensionEvent,
+  options: NativeSecretsOptions
+): Promise<void> {
+  if (event.type !== 'request-job-card') return;
+  const { user, host, port } = event.data;
+  const jobCard = await vscode.window.showInputBox({
+    title: `Zowe MCP: Job card for ${user}@${host}`,
+    prompt: 'Paste the JOB statement (and continuations). Use \\n for newlines.',
+    placeHolder: "//JOBNAME  JOB (ACCT),'NAME',CLASS=A,MSGCLASS=H",
+    ignoreFocusOut: true,
+  });
+  if (jobCard == null || jobCard.trim() === '') {
+    log.warn(`User cancelled job card input for ${user}@${host}`);
+    return;
+  }
+  const normalized = jobCard.replace(/\\n/g, '\n').trim();
+  options.sendEventToServers({
+    type: 'job-card',
+    data: { user, host, port, jobCard: normalized },
+    timestamp: Date.now(),
+  });
+  log.info(`Sent job card for ${user}@${host} to MCP server`);
+}
+
+/**
+ * Handles store-job-card: persist the job card into the zoweMCP.jobCards workspace/global setting.
+ */
+async function handleStoreJobCard(
+  log: vscode.LogOutputChannel,
+  event: ServerToExtensionEvent,
+  options: NativeSecretsOptions
+): Promise<void> {
+  if (event.type !== 'store-job-card') return;
+  const { connectionSpec, jobCard } = event.data;
+  const config = vscode.workspace.getConfiguration('zoweMCP');
+  const current = config.get<Record<string, string | string[]>>('jobCards', {}) ?? {};
+  const updated = { ...current, [connectionSpec]: jobCard };
+  await config.update('jobCards', updated, vscode.ConfigurationTarget.Global);
+  log.info(`Stored job card for ${connectionSpec} in settings`);
+}
+
+/**
  * Handles a single event received from the MCP server over the named pipe.
  *
  * @param options - When provided, enables request-password and password-invalid handling (native mode).
@@ -205,6 +252,12 @@ export function handleServerEvent(
       break;
     case 'store-password':
       if (options) void handleStorePassword(log, event, options);
+      break;
+    case 'request-job-card':
+      if (options) void handleRequestJobCard(log, event, options);
+      break;
+    case 'store-job-card':
+      if (options) void handleStoreJobCard(log, event, options);
       break;
     default:
       log.warn(`Unknown event type from MCP server: ${(event as { type: string }).type}`);

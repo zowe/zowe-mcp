@@ -44,6 +44,7 @@ import {
   DEFAULT_MAINFRAME_USS_ENCODING,
   type EncodingOptions,
 } from './zos/encoding.js';
+import { createJobCardStore } from './zos/job-cards.js';
 
 /** Response cache config from CLI or env (undefined = use server defaults). */
 interface ResponseCacheConfig {
@@ -305,13 +306,19 @@ function parseArgs(): ParsedArgs {
   return parsed;
 }
 
-function loadSystemsFromConfig(configPath: string): string[] {
+/** Native config file: systems (required when using --config) and optional jobCards. Job card value: string or array of lines. */
+interface NativeConfig {
+  systems?: string[];
+  jobCards?: Record<string, string | string[]>;
+}
+
+function loadNativeConfig(configPath: string): NativeConfig {
   const raw = readFileSync(configPath, 'utf-8');
-  const config = JSON.parse(raw) as { systems?: string[] };
+  const config = JSON.parse(raw) as NativeConfig;
   if (!Array.isArray(config.systems)) {
     throw new Error(`Config file ${configPath} must have a "systems" array`);
   }
-  return config.systems;
+  return config;
 }
 
 async function main(): Promise<void> {
@@ -394,6 +401,7 @@ async function main(): Promise<void> {
       systemRegistry: mock.systemRegistry,
       credentialProvider: mock.credentialProvider,
       encodingOptions: encodingOptionsRef,
+      jobCardStore: createJobCardStore(),
     };
     logger.info('Mock mode enabled', {
       mockDir,
@@ -401,10 +409,18 @@ async function main(): Promise<void> {
     });
   } else if (native) {
     let systems: string[] = [...systemSpecs];
+    const jobCardStore = createJobCardStore();
     if (configPath) {
       try {
-        const fromConfig = loadSystemsFromConfig(configPath);
-        systems = [...fromConfig, ...systemSpecs];
+        const fromConfig = loadNativeConfig(configPath);
+        systems = [...(fromConfig.systems ?? []), ...systemSpecs];
+        if (fromConfig.jobCards) {
+          jobCardStore.mergeFromObject(fromConfig.jobCards);
+          logger.info('Loaded job cards from config', {
+            path: configPath,
+            count: Object.keys(fromConfig.jobCards).length,
+          });
+        }
       } catch (err) {
         logger.error('Failed to load native config', err);
         process.exit(1);
@@ -537,6 +553,7 @@ async function main(): Promise<void> {
       systemRegistry: nativeSetup.systemRegistry,
       credentialProvider: nativeSetup.credentialProvider,
       encodingOptions: encodingOptionsRef,
+      jobCardStore,
     };
     if (extensionClient?.connected && nativePasswordStore) {
       extensionClient.onEvent(event => {
@@ -553,6 +570,26 @@ async function main(): Promise<void> {
           });
           nativePasswordStore.set(key, password);
           // Any getCredentials() waiting on waitFor(key) will now resolve.
+        }
+      });
+    }
+    if (extensionClient?.connected) {
+      extensionClient.onEvent(event => {
+        if (event.type === 'job-cards-update') {
+          const { jobCards } = event.data;
+          if (jobCards && typeof jobCards === 'object') {
+            jobCardStore.mergeFromObject(jobCards);
+            logger.info('Applied job-cards-update from VS Code extension', {
+              count: Object.keys(jobCards).length,
+            });
+          }
+        }
+        if (event.type === 'job-card') {
+          const { user, host, port, jobCard } = event.data;
+          const portNum = port ?? 22;
+          const spec = portNum === 22 ? `${user}@${host}` : `${user}@${host}:${portNum}`;
+          jobCardStore.set(spec, jobCard);
+          logger.info('Stored job card from extension', { connectionSpec: spec });
         }
       });
     }

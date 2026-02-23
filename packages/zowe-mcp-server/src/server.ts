@@ -24,6 +24,7 @@ import { registerDatasetResources } from './resources/dataset-resources.js';
 import { registerContextTools } from './tools/context/context-tools.js';
 import { registerCoreTools } from './tools/core/zowe-info.js';
 import { registerDatasetTools } from './tools/datasets/dataset-tools.js';
+import { registerJobTools } from './tools/jobs/jobs-tools.js';
 import { registerUssTools } from './tools/uss/uss-tools.js';
 import type { ZosBackend } from './zos/backend.js';
 import type { CredentialProvider } from './zos/credentials.js';
@@ -32,6 +33,7 @@ import {
   DEFAULT_MAINFRAME_USS_ENCODING,
   type EncodingOptions,
 } from './zos/encoding.js';
+import { createJobCardStore, type JobCardStore } from './zos/job-cards.js';
 import {
   createResponseCache,
   type ResponseCache,
@@ -107,6 +109,11 @@ export interface CreateServerOptions {
    * Can be a mutable ref so runtime updates (e.g. encoding-options-update from VS Code) can change defaults without recreating the server.
    */
   encodingOptions?: EncodingOptions | { current: EncodingOptions };
+  /**
+   * Store for JCL job cards per connection spec (used by submitJob when JCL has no job card).
+   * When not provided but a backend is present, a new empty store is used so job tools can register.
+   */
+  jobCardStore?: JobCardStore;
 }
 
 /** Known backend kind names for the info tool. */
@@ -201,7 +208,13 @@ export function createServer(options?: CreateServerOptions): McpServer {
               typeof responseCacheOpt === 'object' ? responseCacheOpt : undefined
             );
 
-    registerContextTools(server, { systemRegistry, sessionState, credentialProvider }, logger);
+    const jobCardStore = options.jobCardStore ?? createJobCardStore();
+
+    registerContextTools(
+      server,
+      { systemRegistry, sessionState, credentialProvider, jobCardStore },
+      logger
+    );
     registerDatasetTools(
       server,
       {
@@ -223,6 +236,17 @@ export function createServer(options?: CreateServerOptions): McpServer {
         credentialProvider,
         responseCache: responseCache ?? undefined,
         encodingOptions,
+      },
+      logger
+    );
+    registerJobTools(
+      server,
+      {
+        backend,
+        systemRegistry,
+        sessionState,
+        credentialProvider,
+        jobCardStore,
       },
       logger
     );

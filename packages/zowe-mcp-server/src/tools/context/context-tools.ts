@@ -20,6 +20,7 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import type { Logger } from '../../log.js';
 import type { CredentialProvider } from '../../zos/credentials.js';
+import type { JobCardStore } from '../../zos/job-cards.js';
 import type { SessionState } from '../../zos/session.js';
 import type { SystemRegistry } from '../../zos/system.js';
 import { createToolProgress } from '../progress.js';
@@ -37,6 +38,8 @@ export interface ContextToolDeps {
   systemRegistry: SystemRegistry;
   sessionState: SessionState;
   credentialProvider: CredentialProvider;
+  /** When provided, getContext includes the job card for the active system (if configured). */
+  jobCardStore?: JobCardStore;
 }
 
 /**
@@ -48,7 +51,7 @@ export function registerContextTools(
   logger: Logger
 ): void {
   const log = logger.child('context');
-  const { systemRegistry, sessionState, credentialProvider } = deps;
+  const { systemRegistry, sessionState, credentialProvider, jobCardStore } = deps;
 
   // -----------------------------------------------------------------------
   // listSystems
@@ -193,6 +196,8 @@ export function registerContextTools(
         mainframeUssEncoding?: string | null;
         ussHome?: string;
         ussCwd?: string;
+        /** Job card for this connection (when configured). Used by submitJob when JCL has no job card. */
+        jobCard?: string;
       } | null = null;
       if (activeSystemId) {
         const ctx = sessionState.getContext(activeSystemId);
@@ -209,6 +214,13 @@ export function registerContextTools(
             activeSystem.ussHome = ctx.ussHome;
           }
           activeSystem.ussCwd = ctx.ussCwd ?? ctx.ussHome ?? undefined;
+          if (jobCardStore) {
+            const connectionSpec = `${ctx.userId}@${activeSystemId}`;
+            const card = jobCardStore.get(connectionSpec);
+            if (card) {
+              activeSystem.jobCard = card;
+            }
+          }
         }
       }
 

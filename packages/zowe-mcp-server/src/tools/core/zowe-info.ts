@@ -80,7 +80,7 @@ export function registerCoreTools(
         version,
         description:
           'MCP server providing tools for z/OS systems including data sets, jobs, and UNIX System Services',
-        components: hasBackend ? ['core', 'context', 'datasets', 'uss'] : ['core'],
+        components: hasBackend ? ['core', 'context', 'datasets', 'uss', 'jobs'] : ['core'],
         backend,
       };
 

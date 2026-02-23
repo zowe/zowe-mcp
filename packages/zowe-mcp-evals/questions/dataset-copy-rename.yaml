@@ -1,0 +1,54 @@
+# yaml-language-server: $schema=../schemas/evals-question-set.schema.json
+# copyDataset and renameDataset evals (mock, default preset) - temp datasets and cleanup
+config:
+  name: dataset-copy-rename
+  description: Agent must copy/rename datasets and clean up temp prefix
+  repetitions: 2
+  minSuccessRate: 0.8
+  mock:
+    initArgs: --preset default
+
+questions:
+  - id: copy-member-then-cleanup
+    prompt: Create a temporary PDS, copy member CUSTFILE from USER.SRC.COBOL into that PDS as member BACKUP, then list the members of the temp PDS to confirm, then delete all datasets under that temp prefix.
+    assertions:
+      - type: toolCallOrder
+        sequence:
+          - tool: createTempDataset
+            args:
+              type:
+                - "PO"
+                - "PO-E"
+                - "PDS"
+                - "PDSE"
+                - "LIBRARY"
+          - tool: copyDataset
+            args:
+              sourceDsn:
+                - "USER.SRC.COBOL"
+                - "'USER.SRC.COBOL'"
+              sourceMember: "CUSTFILE"
+              targetMember: "BACKUP"
+          - tool: listMembers
+          - tool: deleteDatasetsUnderPrefix
+      - type: answerContains
+        pattern: "BACKUP|member|success|complete|deleted"
+
+  - id: rename-dataset-temp
+    prompt: Create a temporary sequential dataset, write one line "Rename test" to it, then rename that dataset to another temp name, read the renamed dataset to confirm the line, then delete datasets under the temp prefix.
+    assertions:
+      - type: toolCallOrder
+        sequence:
+          - tool: createTempDataset
+            args:
+              type:
+                - "PS"
+                - "SEQUENTIAL"
+          - tool: writeDataset
+            args:
+              content: "Rename test"
+          - tool: renameDataset
+          - tool: readDataset
+          - tool: deleteDatasetsUnderPrefix
+      - type: answerContains
+        substring: "Rename test"

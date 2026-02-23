@@ -1,0 +1,28 @@
+# yaml-language-server: $schema=../schemas/evals-question-set.schema.json
+# Job evals: require native backend (mock does not implement job operations)
+config:
+  name: jobs
+  description: Agent must use listJobs or getJobStatus; requires native z/OS backend
+  repetitions: 1
+  minSuccessRate: 0.8
+  native:
+    serverArgs: --native --config native-config.json
+
+questions:
+  - id: list-my-jobs
+    prompt: List my recent jobs on the system.
+    assertions:
+      - type: toolCall
+        tool: listJobs
+      - type: answerContains
+        pattern: "job|Job|JOB"
+
+  - id: job-status
+    prompt: What is the status of my most recent job?
+    assertions:
+      - type: toolCallOrder
+        sequence:
+          - tool: listJobs
+          - tool: getJobStatus
+      - type: answerContains
+        pattern: "status|ACTIVE|OUTPUT|CC|RC"

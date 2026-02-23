@@ -98,6 +98,28 @@ Question sets are YAML files in `questions/`. Each file has:
 
 - **Set** `mutations` (run with `--set mutations`): Two questions. (1) Create a temp sequential dataset, write a line, read it back, then delete under the temp prefix. (2) Create a temp PDS, write a member, delete that member, then delete under the temp prefix. Uses **toolCallOrder** to assert the flow.
 
+### Context and core
+
+- **Set** `context` (run with `--set context`): getContext and setSystem/listSystems then getContext. Mock, default preset.
+- **Set** `core` (run with `--set core`): info tool to report server and backend type. Mock, default preset.
+
+### Dataset attributes and copy/rename
+
+- **Set** `dataset-attributes` (run with `--set dataset-attributes`): getDatasetAttributes for RECFM, LRECL, DSORG. Mock, default preset.
+- **Set** `dataset-copy-rename` (run with `--set dataset-copy-rename`): copyDataset (member to temp PDS) and renameDataset (temp sequential) with cleanup. Mock, default preset.
+
+### TSO
+
+- **Set** `tso` (run with `--set tso`): runSafeTsoCommand for LISTALC, LISTDS, WHO. Mock returns canned output. Default preset.
+
+### USS (UNIX System Services)
+
+- **Set** `uss` (run with `--set uss`): getUssHome, listUssFiles, readUssFile, and a write-temp-read-cleanup flow. Mock; init-mock creates a minimal USS tree for the first system/user (`/u/<user>/file.txt`, `subdir`) when using default preset.
+
+### Jobs (native backend only)
+
+- **Set** `jobs` (run with `--set jobs`): listJobs and getJobStatus. **Requires native z/OS backend** (mock does not implement job operations). Use when `native-config.json` and credentials are configured; otherwise this set will fail or be skipped.
+
 ## Report
 
 After a run, `evals-report/report.md` contains:

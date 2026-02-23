@@ -1,0 +1,44 @@
+# yaml-language-server: $schema=../schemas/evals-question-set.schema.json
+# TSO evals: runSafeTsoCommand with LISTALC, LISTDS, WHO (mock returns canned output)
+config:
+  name: tso
+  description: Agent must use runSafeTsoCommand for LISTALC, LISTDS, WHO
+  repetitions: 2
+  minSuccessRate: 0.8
+  mock:
+    initArgs: --preset default
+
+questions:
+  - id: tso-list-allocations
+    prompt: What datasets are currently allocated in my TSO session?
+    assertions:
+      - type: toolCall
+        tool: runSafeTsoCommand
+        args:
+          commandText:
+            - "LISTALC"
+            - "LISTA"
+      - type: answerContains
+        pattern: "SYSIN|USER.INPUT|Allocations|allocated"
+
+  - id: tso-list-dataset-attributes
+    prompt: Run TSO to show the attributes of a dataset (like RECFM, LRECL).
+    assertions:
+      - type: toolCall
+        tool: runSafeTsoCommand
+        args:
+          commandText:
+            - "LISTDS"
+            - "LISTD"
+      - type: answerContains
+        pattern: "RECFM|LRECL|USER.MOCK.DATA"
+
+  - id: tso-who
+    prompt: Who am I in TSO?
+    assertions:
+      - type: toolCall
+        tool: runSafeTsoCommand
+        args:
+          commandText: "WHO"
+      - type: answerContains
+        pattern: "USER|mockuser"

@@ -741,6 +741,28 @@ async function generatePeopleDatasets(
 }
 
 // ---------------------------------------------------------------------------
+// USS (UNIX System Services) tree for getUssHome, listUssFiles, readUssFile evals
+// ---------------------------------------------------------------------------
+
+/**
+ * Create a minimal USS directory tree for a user: /u/<userId>/ with file.txt and subdir.
+ * Mock backend expects: mockDir/uss/<systemId>/u/<userId>/...
+ */
+async function generateUssForUser(
+  mockDir: string,
+  systemId: string,
+  userId: string
+): Promise<void> {
+  const base = path.join(mockDir, 'uss', systemId, 'u', userId);
+  await fs.mkdir(path.join(base, 'subdir'), { recursive: true });
+  await fs.writeFile(
+    path.join(base, 'file.txt'),
+    'Hello from USS mock. Use this file for readUssFile evals.\n',
+    'utf-8'
+  );
+}
+
+// ---------------------------------------------------------------------------
 // CLI
 // ---------------------------------------------------------------------------
 
@@ -873,6 +895,10 @@ async function main(): Promise<void> {
     // Optional: large sequential for readDataset pagination (pagination preset only)
     if (s === 0 && args.inventoryMembers >= 2000 && args.peopleDatasets > 0) {
       await generateLargeSequentialDataset(sysDir, defaultUser);
+    }
+    // USS tree for first system / default user (getUssHome, listUssFiles, readUssFile evals)
+    if (s === 0) {
+      await generateUssForUser(args.output, template.host, defaultUser);
     }
   }
 

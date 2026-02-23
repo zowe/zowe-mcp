@@ -144,6 +144,7 @@ export class McpEvalHarness {
     const transport = new StdioClientTransport({
       command: 'node',
       args: [serverPath, ...args],
+      env: { ...process.env } as Record<string, string>,
     });
     const client = new Client({ name: 'zowe-mcp-evals', version: '0.1.0' });
     await client.connect(transport);

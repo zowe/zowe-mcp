@@ -51,6 +51,11 @@ function findConfigDir(): string {
   return resolve(__dirname, '..');
 }
 
+/** Directory containing evals.config.json (repo root when run from workspace). Use to resolve relative paths in native serverArgs (e.g. --config). */
+export function getConfigDir(): string {
+  return findConfigDir();
+}
+
 function validateProvider(p: string): EvalsProvider {
   if (p !== 'vllm' && p !== 'gemini') {
     throw new Error(`evals.config.json: provider must be "vllm" or "gemini", got "${p}"`);

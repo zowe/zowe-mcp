@@ -9,12 +9,13 @@
  *
  */
 
+import dotenv from 'dotenv';
 import { existsSync, rmSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
+import { dirname, isAbsolute, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { runAssertions } from './assertions.js';
 import { buildCacheKey, get as cacheGet, set as cacheSet, getToolsUnderTest } from './cache.js';
-import { loadEvalsConfig } from './config.js';
+import { getConfigDir, loadEvalsConfig } from './config.js';
 import { getSystemPrompt, initMockData, McpEvalHarness } from './harness.js';
 import { listSetNames, loadSet } from './load-questions.js';
 import { log } from './log.js';
@@ -23,6 +24,22 @@ import type { Question, RunResult } from './types.js';
 
 const PASS = '\u2713'; // ✓
 const FAIL = '\u2717'; // ✗
+
+/**
+ * Resolve relative --config <path> in native serverArgs against the config directory (repo root).
+ * So jobs set with `--native --config native-config.json` finds the file at repo root.
+ */
+function resolveNativeServerArgs(serverArgs: string): string {
+  const tokens = serverArgs.trim().split(/\s+/).filter(Boolean);
+  const idx = tokens.indexOf('--config');
+  if (idx !== -1 && idx + 1 < tokens.length) {
+    const configPath = tokens[idx + 1];
+    if (!isAbsolute(configPath)) {
+      tokens[idx + 1] = resolve(getConfigDir(), configPath);
+    }
+  }
+  return tokens.join(' ');
+}
 
 function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
@@ -90,6 +107,7 @@ function filterQuestions(questions: Question[], cli: CliArgs): Question[] {
 }
 
 async function main(): Promise<void> {
+  dotenv.config({ path: resolve(getConfigDir(), '.env') });
   const cli = parseArgs();
   log.info('Loading evals config');
   const evalsConfig = loadEvalsConfig(cli.model);
@@ -149,7 +167,9 @@ async function main(): Promise<void> {
       mockDir = initMockData(serverPath, config.mock.initArgs);
       log.info('Mock data ready');
     }
-    const nativeServerArgs = config.native?.serverArgs;
+    const rawNativeArgs = config.native?.serverArgs;
+    const nativeServerArgs =
+      rawNativeArgs != null ? resolveNativeServerArgs(rawNativeArgs) : undefined;
 
     const harness = new McpEvalHarness({
       serverPath,

@@ -743,8 +743,18 @@ describe.skipIf(!canRunNativeE2E)(
       '//SYSUT2   DD SYSOUT=*',
     ].join('\n');
 
+    /** JCL body for a job that runs ~10s (BPXBATCH sleep 10). Used for executeJob timeout test. */
+    const SAMPLE_JCL_SLEEP_10 = [
+      '//STEP1 EXEC PGM=BPXBATCH,REGION=8M',
+      '//STEPLIB  DD   DSN=CEE.SCEERUN,DISP=SHR',
+      '//STDOUT   DD SYSOUT=*',
+      '//STDERR   DD SYSOUT=*',
+      '//STDPARM  DD   *',
+      'SH sleep 10',
+    ].join('\n');
+
     describe.skipIf(!canRunJobsE2E)(
-      `Jobs (submitJob, getJobStatus)${!canRunJobsE2E ? ' [skipped: Job card not configured in config jobCards]' : ''}`,
+      `Jobs (submitJob, getJobStatus, executeJob, listJobFiles, readJobFile, searchJobOutput)${!canRunJobsE2E ? ' [skipped: Job card not configured in config jobCards]' : ''}`,
       () => {
         let submittedJobId: string;
 
@@ -792,6 +802,168 @@ describe.skipIf(!canRunNativeE2E)(
           expect(o.data.name).toBeDefined();
           expect(o.data.status).toBeDefined();
           expect(['INPUT', 'ACTIVE', 'OUTPUT']).toContain(o.data.status);
+        });
+
+        it('listJobFiles and readJobFile when job is in OUTPUT', async () => {
+          expect(submittedJobId).toBeDefined();
+          const deadline = Date.now() + 60_000;
+          let status: string;
+          do {
+            if (Date.now() > deadline) {
+              throw new Error('Job did not reach OUTPUT within 60s');
+            }
+            const { parsed } = await callToolSuccess(client, 'getJobStatus', {
+              jobId: submittedJobId,
+            });
+            const o = parsed as { data: { status: string } };
+            status = o.data.status;
+            if (status !== 'OUTPUT') {
+              await new Promise(r => setTimeout(r, 2000));
+            }
+          } while (status !== 'OUTPUT');
+
+          const { parsed: listParsed } = await callToolSuccess(client, 'listJobFiles', {
+            jobId: submittedJobId,
+          });
+          const listEnvelope = listParsed as {
+            _context: { system: string };
+            _result: { count: number; totalAvailable: number; hasMore: boolean };
+            data: { id: number; ddname?: string; stepname?: string }[];
+          };
+          expect(listEnvelope._context).toBeDefined();
+          expect(listEnvelope._context.system).toBeDefined();
+          expect(Array.isArray(listEnvelope.data)).toBe(true);
+          expect(listEnvelope.data.length).toBeGreaterThanOrEqual(1);
+          const firstFile = listEnvelope.data[0];
+          expect(firstFile.id).toBeDefined();
+          expect(typeof firstFile.id).toBe('number');
+
+          const jobFileId = firstFile.id;
+          const { parsed: readParsed } = await callToolSuccess(client, 'readJobFile', {
+            jobId: submittedJobId,
+            jobFileId,
+          });
+          const readEnvelope = readParsed as {
+            _context: { system: string };
+            _result?: {
+              totalLines: number;
+              startLine: number;
+              returnedLines: number;
+              hasMore: boolean;
+            };
+            data: {
+              text: string;
+              totalLines: number;
+              startLine: number;
+              returnedLines: number;
+              hasMore: boolean;
+              mimeType: string;
+            };
+          };
+          expect(readEnvelope._context).toBeDefined();
+          expect(readEnvelope.data).toBeDefined();
+          expect(typeof readEnvelope.data.text).toBe('string');
+          expect(typeof readEnvelope.data.totalLines).toBe('number');
+          expect(readEnvelope.data.startLine).toBeGreaterThanOrEqual(1);
+          expect(readEnvelope.data.returnedLines).toBeGreaterThanOrEqual(0);
+        });
+
+        it('executeJob with timeoutSeconds=5 times out while job still running', async () => {
+          const { parsed } = await callToolSuccess(client, 'executeJob', {
+            jcl: SAMPLE_JCL_SLEEP_10,
+            timeoutSeconds: 5,
+          });
+          const o = parsed as {
+            data: { jobId: string; status: string; timedOut?: boolean };
+          };
+          expect(o.data).toBeDefined();
+          expect(o.data.timedOut).toBe(true);
+          expect(o.data.jobId).toBeDefined();
+          expect(o.data.status).not.toBe('OUTPUT');
+          const { parsed: statusRes } = await callToolSuccess(client, 'getJobStatus', {
+            jobId: o.data.jobId,
+          });
+          const statusData = (statusRes as { data: { status: string } }).data;
+          expect(['INPUT', 'ACTIVE']).toContain(statusData.status);
+        });
+
+        it('listJobs returns jobs (optional owner filter)', async () => {
+          const { parsed } = await callToolSuccess(client, 'listJobs', { limit: 10 });
+          const o = parsed as {
+            _context: { system: string };
+            _result: { count: number; totalAvailable: number };
+            data: { id: string; name: string; status: string }[];
+          };
+          expect(o._context).toBeDefined();
+          expect(Array.isArray(o.data)).toBe(true);
+          if (o.data.length > 0) {
+            expect(o.data[0].id).toBeDefined();
+            expect(o.data[0].status).toBeDefined();
+            expect(['INPUT', 'ACTIVE', 'OUTPUT']).toContain(o.data[0].status);
+          }
+        });
+
+        it('getJcl returns JCL for submitted job', async () => {
+          expect(submittedJobId).toBeDefined();
+          const deadline = Date.now() + 60_000;
+          let status: string;
+          do {
+            if (Date.now() > deadline) {
+              throw new Error('Job did not reach OUTPUT within 60s');
+            }
+            const { parsed } = await callToolSuccess(client, 'getJobStatus', {
+              jobId: submittedJobId,
+            });
+            const o = parsed as { data: { status: string } };
+            status = o.data.status;
+            if (status !== 'OUTPUT') {
+              await new Promise(r => setTimeout(r, 2000));
+            }
+          } while (status !== 'OUTPUT');
+
+          const { parsed: jclParsed } = await callToolSuccess(client, 'getJcl', {
+            jobId: submittedJobId,
+          });
+          const jclEnvelope = jclParsed as { data: { jcl: string } };
+          expect(jclEnvelope.data).toBeDefined();
+          expect(typeof jclEnvelope.data.jcl).toBe('string');
+          expect(jclEnvelope.data.jcl).toContain('//');
+        });
+
+        it('searchJobOutput finds substring in job output', async () => {
+          expect(submittedJobId).toBeDefined();
+          const deadline = Date.now() + 60_000;
+          let status: string;
+          do {
+            if (Date.now() > deadline) {
+              throw new Error('Job did not reach OUTPUT within 60s');
+            }
+            const { parsed } = await callToolSuccess(client, 'getJobStatus', {
+              jobId: submittedJobId,
+            });
+            const o = parsed as { data: { status: string } };
+            status = o.data.status;
+            if (status !== 'OUTPUT') {
+              await new Promise(r => setTimeout(r, 2000));
+            }
+          } while (status !== 'OUTPUT');
+
+          const { parsed: searchParsed } = await callToolSuccess(client, 'searchJobOutput', {
+            jobId: submittedJobId,
+            searchString: 'INPUT1',
+          });
+          const searchEnvelope = searchParsed as {
+            _context: { system: string };
+            _result: { count: number; totalAvailable: number; hasMore: boolean };
+            data: { jobFileId: number; lineNumber: number; lineText: string }[];
+          };
+          expect(searchEnvelope._context).toBeDefined();
+          expect(Array.isArray(searchEnvelope.data)).toBe(true);
+          expect(searchEnvelope.data.length).toBeGreaterThanOrEqual(1);
+          const first = searchEnvelope.data[0];
+          expect(first.jobFileId).toBeDefined();
+          expect(first.lineNumber).toBeGreaterThanOrEqual(1);
+          expect(first.lineText).toContain('INPUT1');
         });
       }
     );

@@ -25,10 +25,14 @@ import type {
   CreateUssFileOptions,
   DatasetAttributes,
   DatasetEntry,
+  JobEntry,
+  JobFileEntry,
   JobStatusResult,
+  ListJobsOptions,
   ListUssFilesOptions,
   MemberEntry,
   ReadDatasetResult,
+  ReadJobFileResult,
   ReadUssFileResult,
   SearchInDatasetOptions,
   SearchInDatasetResult,
@@ -144,6 +148,16 @@ interface NativeCmdsApi {
   issueUnix(req: { commandText: string }): Promise<{ data?: string }>;
 }
 
+/** ZNP spool item shape (listSpools response). */
+interface ZnpSpoolItem {
+  id?: number;
+  spoolId?: number;
+  ddname?: string;
+  stepname?: string;
+  dsname?: string;
+  procstep?: string;
+}
+
 /** Subset of ZSshClient.jobs we use (ZNP job RPCs). ZNP uses getStatus (not getJobStatus). */
 interface NativeJobsApi {
   submitJcl(req: {
@@ -165,6 +179,41 @@ interface NativeJobsApi {
     phaseName?: string;
     correlator?: string;
   }>;
+  listSpools(req: { jobId: string }): Promise<{ items?: ZnpSpoolItem[] }>;
+  readSpool(req: {
+    jobId: string;
+    spoolId: number;
+    encoding?: string;
+    localEncoding?: string;
+  }): Promise<{ data?: string }>;
+  listJobs(req: {
+    owner?: string;
+    prefix?: string;
+    status?: string;
+    maxItems?: number;
+  }): Promise<{ items?: ZnpJobItem[] }>;
+  getJcl(req: { jobId: string }): Promise<{ jcl?: string; data?: string }>;
+  cancelJob(req: { jobId: string }): Promise<{ success?: boolean }>;
+  holdJob(req: { jobId: string }): Promise<{ success?: boolean }>;
+  releaseJob(req: { jobId: string }): Promise<{ success?: boolean }>;
+  deleteJob(req: { jobId: string }): Promise<{ success?: boolean }>;
+  submitJob(req: { dsname: string }): Promise<{ jobId?: string; jobName?: string }>;
+  submitUss(req: { fspath: string }): Promise<{ jobId?: string; jobName?: string }>;
+}
+
+/** ZNP job item (listJobs response). */
+interface ZnpJobItem {
+  id?: string;
+  name?: string;
+  owner?: string;
+  status?: string;
+  type?: string;
+  class?: string;
+  retcode?: string;
+  subsystem?: string;
+  phase?: number;
+  phaseName?: string;
+  correlator?: string;
 }
 
 function mapDatasetToEntry(item: {
@@ -1081,8 +1130,37 @@ export class NativeBackend {
       );
     }
     const jobsRecord = jobs as unknown as Record<string, unknown>;
-    requireMethods(log, 'ZNP client.jobs', jobsRecord, ['getStatus', 'submitJcl']);
+    requireMethods(log, 'ZNP client.jobs', jobsRecord, [
+      'getStatus',
+      'submitJcl',
+      'listSpools',
+      'readSpool',
+      'listJobs',
+      'getJcl',
+      'cancelJob',
+      'holdJob',
+      'releaseJob',
+      'deleteJob',
+      'submitJob',
+      'submitUss',
+    ]);
     return jobs;
+  }
+
+  private mapZnpJobToEntry(item: ZnpJobItem, jobId: string): JobEntry {
+    return {
+      id: sanitizeZnpString(item.id) ?? jobId,
+      name: sanitizeZnpString(item.name) ?? '',
+      owner: sanitizeZnpString(item.owner) ?? '',
+      status: sanitizeZnpString(item.status) ?? '',
+      type: sanitizeZnpString(item.type) ?? '',
+      class: sanitizeZnpString(item.class) ?? '',
+      retcode: sanitizeZnpString(item.retcode) ?? item.retcode,
+      subsystem: sanitizeZnpString(item.subsystem) ?? item.subsystem,
+      phase: item.phase ?? 0,
+      phaseName: sanitizeZnpString(item.phaseName) ?? '',
+      correlator: sanitizeZnpString(item.correlator) ?? item.correlator,
+    };
   }
 
   async submitJob(
@@ -1167,6 +1245,236 @@ export class NativeBackend {
           matchesExpectation: typeof result.id === 'string' && typeof result.status === 'string',
         });
         return result;
+      },
+      progress
+    );
+  }
+
+  async listJobFiles(
+    systemId: SystemId,
+    jobId: string,
+    progress?: BackendProgressCallback
+  ): Promise<JobFileEntry[]> {
+    return this.withNativeClient(
+      systemId,
+      undefined,
+      async client => {
+        progress?.(`Listing job files for ${jobId}`);
+        const jobs = this.getJobs(client);
+        const jobIdUpper = jobId.toUpperCase();
+        const response = await jobs.listSpools({ jobId: jobIdUpper });
+        const items: ZnpSpoolItem[] = response.items ?? [];
+        const result: JobFileEntry[] = [];
+        for (const item of items) {
+          const id = item.id ?? item.spoolId ?? 0;
+          result.push({
+            id: typeof id === 'number' ? id : parseInt(String(id), 10) || 0,
+            ddname: sanitizeZnpString(item.ddname) ?? item.ddname,
+            stepname: sanitizeZnpString(item.stepname) ?? item.stepname,
+            dsname: sanitizeZnpString(item.dsname) ?? item.dsname,
+            procstep: sanitizeZnpString(item.procstep) ?? item.procstep,
+          });
+        }
+        log.debug('listJobFiles', { jobId: jobIdUpper, count: result.length });
+        return result;
+      },
+      progress
+    );
+  }
+
+  async readJobFile(
+    systemId: SystemId,
+    jobId: string,
+    jobFileId: number,
+    progress?: BackendProgressCallback,
+    _encoding?: string
+  ): Promise<ReadJobFileResult> {
+    return this.withNativeClient(
+      systemId,
+      undefined,
+      async client => {
+        progress?.(`Reading job file ${jobFileId} for job ${jobId}`);
+        const jobs = this.getJobs(client);
+        const jobIdUpper = jobId.toUpperCase();
+        const response = await jobs.readSpool({
+          jobId: jobIdUpper,
+          spoolId: jobFileId,
+          localEncoding: LOCAL_ENCODING_UTF8,
+        });
+        let text = response.data ?? '';
+        if (typeof text === 'string' && /^[A-Za-z0-9+/=]+$/.test(text.trim())) {
+          try {
+            text = Buffer.from(text, 'base64').toString('utf-8');
+          } catch {
+            // leave as-is if not valid base64
+          }
+        }
+        return { text };
+      },
+      progress
+    );
+  }
+
+  async listJobs(
+    systemId: SystemId,
+    options?: ListJobsOptions,
+    progress?: BackendProgressCallback
+  ): Promise<JobEntry[]> {
+    return this.withNativeClient(
+      systemId,
+      undefined,
+      async client => {
+        progress?.(`Listing jobs on ${systemId}`);
+        const jobs = this.getJobs(client);
+        const response = await jobs.listJobs({
+          owner: options?.owner,
+          prefix: options?.prefix,
+          status: options?.status,
+          maxItems: options?.maxItems,
+        });
+        const items: ZnpJobItem[] = response.items ?? [];
+        const result: JobEntry[] = [];
+        for (const item of items) {
+          const id = sanitizeZnpString(item.id) ?? '';
+          result.push(this.mapZnpJobToEntry(item, id));
+        }
+        log.debug('listJobs', { systemId, count: result.length });
+        return result;
+      },
+      progress
+    );
+  }
+
+  async getJcl(
+    systemId: SystemId,
+    jobId: string,
+    progress?: BackendProgressCallback
+  ): Promise<string> {
+    return this.withNativeClient(
+      systemId,
+      undefined,
+      async client => {
+        progress?.(`Getting JCL for job ${jobId}`);
+        const jobs = this.getJobs(client);
+        const jobIdUpper = jobId.toUpperCase();
+        const response = await jobs.getJcl({ jobId: jobIdUpper });
+        const jcl = response.jcl ?? response.data ?? '';
+        return typeof jcl === 'string' ? jcl : '';
+      },
+      progress
+    );
+  }
+
+  async cancelJob(
+    systemId: SystemId,
+    jobId: string,
+    progress?: BackendProgressCallback
+  ): Promise<void> {
+    return this.withNativeClient(
+      systemId,
+      undefined,
+      async client => {
+        progress?.(`Cancelling job ${jobId}`);
+        const jobs = this.getJobs(client);
+        await jobs.cancelJob({ jobId: jobId.toUpperCase() });
+      },
+      progress
+    );
+  }
+
+  async holdJob(
+    systemId: SystemId,
+    jobId: string,
+    progress?: BackendProgressCallback
+  ): Promise<void> {
+    return this.withNativeClient(
+      systemId,
+      undefined,
+      async client => {
+        progress?.(`Holding job ${jobId}`);
+        const jobs = this.getJobs(client);
+        await jobs.holdJob({ jobId: jobId.toUpperCase() });
+      },
+      progress
+    );
+  }
+
+  async releaseJob(
+    systemId: SystemId,
+    jobId: string,
+    progress?: BackendProgressCallback
+  ): Promise<void> {
+    return this.withNativeClient(
+      systemId,
+      undefined,
+      async client => {
+        progress?.(`Releasing job ${jobId}`);
+        const jobs = this.getJobs(client);
+        await jobs.releaseJob({ jobId: jobId.toUpperCase() });
+      },
+      progress
+    );
+  }
+
+  async deleteJob(
+    systemId: SystemId,
+    jobId: string,
+    progress?: BackendProgressCallback
+  ): Promise<void> {
+    return this.withNativeClient(
+      systemId,
+      undefined,
+      async client => {
+        progress?.(`Deleting job ${jobId}`);
+        const jobs = this.getJobs(client);
+        await jobs.deleteJob({ jobId: jobId.toUpperCase() });
+      },
+      progress
+    );
+  }
+
+  async submitJobFromDataset(
+    systemId: SystemId,
+    dsn: string,
+    progress?: BackendProgressCallback
+  ): Promise<SubmitJobResult> {
+    return this.withNativeClient(
+      systemId,
+      undefined,
+      async client => {
+        progress?.(`Submitting job from dataset ${dsn}`);
+        const jobs = this.getJobs(client);
+        const dsnUpper = dsn.toUpperCase();
+        const response = await jobs.submitJob({ dsname: dsnUpper });
+        const jobId = response.jobId ?? '';
+        const jobName = response.jobName ?? '';
+        if (!jobId) {
+          throw new Error('Submit job from dataset did not return a job ID');
+        }
+        return { jobId, jobName };
+      },
+      progress
+    );
+  }
+
+  async submitJobFromUss(
+    systemId: SystemId,
+    path: string,
+    progress?: BackendProgressCallback
+  ): Promise<SubmitJobResult> {
+    return this.withNativeClient(
+      systemId,
+      undefined,
+      async client => {
+        progress?.(`Submitting job from USS ${path}`);
+        const jobs = this.getJobs(client);
+        const response = await jobs.submitUss({ fspath: path });
+        const jobId = response.jobId ?? '';
+        const jobName = response.jobName ?? '';
+        if (!jobId) {
+          throw new Error('Submit job from USS did not return a job ID');
+        }
+        return { jobId, jobName };
       },
       progress
     );

@@ -316,6 +316,43 @@ export interface JobStatusResult {
   correlator?: string;
 }
 
+/** A single job output file (spool) entry from listJobFiles. */
+export interface JobFileEntry {
+  /** Job file (spool) ID. */
+  id: number;
+  /** DD name (e.g. SYSOUT, JESJCL). */
+  ddname?: string;
+  /** Step name. */
+  stepname?: string;
+  /** Dataset name when applicable. */
+  dsname?: string;
+  /** Procedure step name. */
+  procstep?: string;
+}
+
+/** Result of reading one job output file. */
+export interface ReadJobFileResult {
+  /** Content as UTF-8 text. */
+  text: string;
+  /** Encoding used (if known). */
+  encoding?: string;
+}
+
+/** Job list entry (same shape as JobStatusResult for listJobs). */
+export type JobEntry = JobStatusResult;
+
+/** Options for listJobs. */
+export interface ListJobsOptions {
+  /** Filter by owner. */
+  owner?: string;
+  /** Filter by job name prefix. */
+  prefix?: string;
+  /** Filter by status: INPUT, ACTIVE, OUTPUT. */
+  status?: string;
+  /** Maximum items to return (backend may cap). */
+  maxItems?: number;
+}
+
 // ---------------------------------------------------------------------------
 // Backend interface
 // ---------------------------------------------------------------------------
@@ -766,4 +803,109 @@ export interface ZosBackend {
     jobId: string,
     progress?: BackendProgressCallback
   ): Promise<JobStatusResult>;
+
+  /**
+   * List output files (spools) for a job. Job must be in OUTPUT status.
+   *
+   * @param systemId - Target z/OS system.
+   * @param jobId - Job ID (e.g. JOB00123).
+   */
+  listJobFiles(
+    systemId: SystemId,
+    jobId: string,
+    progress?: BackendProgressCallback
+  ): Promise<JobFileEntry[]>;
+
+  /**
+   * Read the content of one job output file (spool).
+   *
+   * @param systemId - Target z/OS system.
+   * @param jobId - Job ID.
+   * @param jobFileId - Job file (spool) ID from listJobFiles.
+   * @param progress - Optional progress callback.
+   * @param encoding - Optional mainframe encoding (resolved by tool layer when omitted).
+   */
+  readJobFile(
+    systemId: SystemId,
+    jobId: string,
+    jobFileId: number,
+    progress?: BackendProgressCallback,
+    encoding?: string
+  ): Promise<ReadJobFileResult>;
+
+  /**
+   * List jobs (with optional filters).
+   *
+   * @param systemId - Target z/OS system.
+   * @param options - Optional owner, prefix, status, maxItems.
+   */
+  listJobs(
+    systemId: SystemId,
+    options?: ListJobsOptions,
+    progress?: BackendProgressCallback
+  ): Promise<JobEntry[]>;
+
+  /**
+   * Get JCL for a job.
+   *
+   * @param systemId - Target z/OS system.
+   * @param jobId - Job ID.
+   */
+  getJcl(systemId: SystemId, jobId: string, progress?: BackendProgressCallback): Promise<string>;
+
+  /**
+   * Cancel a job.
+   *
+   * @param systemId - Target z/OS system.
+   * @param jobId - Job ID.
+   */
+  cancelJob(systemId: SystemId, jobId: string, progress?: BackendProgressCallback): Promise<void>;
+
+  /**
+   * Hold a job.
+   *
+   * @param systemId - Target z/OS system.
+   * @param jobId - Job ID.
+   */
+  holdJob(systemId: SystemId, jobId: string, progress?: BackendProgressCallback): Promise<void>;
+
+  /**
+   * Release a held job.
+   *
+   * @param systemId - Target z/OS system.
+   * @param jobId - Job ID.
+   */
+  releaseJob(systemId: SystemId, jobId: string, progress?: BackendProgressCallback): Promise<void>;
+
+  /**
+   * Delete a job from the output queue.
+   *
+   * @param systemId - Target z/OS system.
+   * @param jobId - Job ID.
+   */
+  deleteJob(systemId: SystemId, jobId: string, progress?: BackendProgressCallback): Promise<void>;
+
+  /**
+   * Submit a job from a dataset (e.g. a PDS member containing JCL).
+   *
+   * @param systemId - Target z/OS system.
+   * @param dsn - Fully-qualified dataset name (and optional member, e.g. USER.JCL.CNTL(MYJOB)).
+   */
+  submitJobFromDataset(
+    systemId: SystemId,
+    dsn: string,
+    progress?: BackendProgressCallback
+  ): Promise<SubmitJobResult>;
+
+  /**
+   * Submit a job from a USS file path.
+   *
+   * @param systemId - Target z/OS system.
+   * @param path - USS path to the JCL file.
+   */
+  submitJobFromUss(
+    systemId: SystemId,
+    path: string,
+    progress?: BackendProgressCallback
+  ): Promise<SubmitJobResult>;
 }

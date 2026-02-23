@@ -42,10 +42,14 @@ import type {
   DatasetAttributes,
   DatasetEntry,
   DatasetOrg,
+  JobEntry,
+  JobFileEntry,
   JobStatusResult,
+  ListJobsOptions,
   ListUssFilesOptions,
   MemberEntry,
   ReadDatasetResult,
+  ReadJobFileResult,
   ReadUssFileResult,
   RecordFormat,
   SearchInDatasetOptions,
@@ -1029,6 +1033,88 @@ export class FilesystemMockBackend implements ZosBackend {
     _jobId: string,
     _progress?: BackendProgressCallback
   ): Promise<JobStatusResult> {
+    return Promise.reject(new Error('Jobs operations are not implemented in the mock backend'));
+  }
+
+  listJobFiles(
+    _systemId: SystemId,
+    _jobId: string,
+    _progress?: BackendProgressCallback
+  ): Promise<JobFileEntry[]> {
+    return Promise.reject(new Error('Jobs operations are not implemented in the mock backend'));
+  }
+
+  readJobFile(
+    _systemId: SystemId,
+    _jobId: string,
+    _jobFileId: number,
+    _progress?: BackendProgressCallback,
+    _encoding?: string
+  ): Promise<ReadJobFileResult> {
+    return Promise.reject(new Error('Jobs operations are not implemented in the mock backend'));
+  }
+
+  listJobs(
+    _systemId: SystemId,
+    _options?: ListJobsOptions,
+    _progress?: BackendProgressCallback
+  ): Promise<JobEntry[]> {
+    return Promise.reject(new Error('Jobs operations are not implemented in the mock backend'));
+  }
+
+  getJcl(
+    _systemId: SystemId,
+    _jobId: string,
+    _progress?: BackendProgressCallback
+  ): Promise<string> {
+    return Promise.reject(new Error('Jobs operations are not implemented in the mock backend'));
+  }
+
+  cancelJob(
+    _systemId: SystemId,
+    _jobId: string,
+    _progress?: BackendProgressCallback
+  ): Promise<void> {
+    return Promise.reject(new Error('Jobs operations are not implemented in the mock backend'));
+  }
+
+  holdJob(
+    _systemId: SystemId,
+    _jobId: string,
+    _progress?: BackendProgressCallback
+  ): Promise<void> {
+    return Promise.reject(new Error('Jobs operations are not implemented in the mock backend'));
+  }
+
+  releaseJob(
+    _systemId: SystemId,
+    _jobId: string,
+    _progress?: BackendProgressCallback
+  ): Promise<void> {
+    return Promise.reject(new Error('Jobs operations are not implemented in the mock backend'));
+  }
+
+  deleteJob(
+    _systemId: SystemId,
+    _jobId: string,
+    _progress?: BackendProgressCallback
+  ): Promise<void> {
+    return Promise.reject(new Error('Jobs operations are not implemented in the mock backend'));
+  }
+
+  submitJobFromDataset(
+    _systemId: SystemId,
+    _dsn: string,
+    _progress?: BackendProgressCallback
+  ): Promise<SubmitJobResult> {
+    return Promise.reject(new Error('Jobs operations are not implemented in the mock backend'));
+  }
+
+  submitJobFromUss(
+    _systemId: SystemId,
+    _path: string,
+    _progress?: BackendProgressCallback
+  ): Promise<SubmitJobResult> {
     return Promise.reject(new Error('Jobs operations are not implemented in the mock backend'));
   }
 

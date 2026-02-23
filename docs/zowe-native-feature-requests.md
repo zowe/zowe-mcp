@@ -66,6 +66,16 @@ Error: Invalid JSON response:          +000000000000016A at address 000000003CEF
 
 ---
 
+## `ZNP-011-CREATE-DS-LIKE` — Dataset: create dataset “allocate like” (copy attributes from existing)
+
+- **Priority**: P2
+- **Request**: New RPC (e.g. `createDatasetLike` or `createDataset` with an optional `likeDsn` parameter) that allocates a new dataset with the same attributes as an existing one (mainframe “allocate like” idiom).
+- **Input**: `{ dsname: string, likeDsn: string }` — the new dataset name and the existing dataset whose attributes (dsorg, recfm, lrecl, blksz, space, dirblk for PDS, etc.) are to be copied. Optional overrides (e.g. primary/secondary space) could be supported later.
+- **Output**: Success (and optionally the attributes applied, e.g. same shape as createDataset response).
+- **Why**: The MCP server can then call a single ZNP API instead of getAttributes(likeDsn) + createDataset(dsn, options). Matches common mainframe workflows. Today the server would need two round-trips and attribute mapping in the tool layer; a native “allocate like” is one round-trip and keeps allocation semantics on the server (e.g. SMS, space rounding) where z/OS handles them correctly.
+
+---
+
 ## `ZNP-003-EXTENDED-ATTR` — Dataset and member: extended attributes (SMS, ISPF, load modules)
 
 - **Priority**: P3

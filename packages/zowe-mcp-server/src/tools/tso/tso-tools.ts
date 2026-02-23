@@ -98,7 +98,11 @@ export function registerTsoTools(server: McpServer, deps: TsoToolDeps, logger: L
       },
     },
     async ({ commandText, system, startLine, lineCount }, extra) => {
-      const progress = createToolProgress(extra, 'Run TSO command');
+      const maxTitleLen = 50;
+      const cmdNorm = commandText.trim().replace(/\s+/g, ' ');
+      const cmdPreview =
+        cmdNorm.length > maxTitleLen ? cmdNorm.slice(0, maxTitleLen) + '…' : cmdNorm;
+      const progress = createToolProgress(extra, `Run TSO command: ${cmdPreview}`);
       await progress.start();
       log.info('runSafeTsoCommand called', { commandText: commandText.slice(0, 80), system });
 

@@ -32,6 +32,7 @@ Use this in chats when implementing new dataset operations or other z/OS tools.
 - **Core**: `info` tool (`src/tools/core/zowe-info.ts`).
 - **Context**: `getContext`, `setSystem`, `listSystems` (`src/tools/context/context-tools.ts`).
 - **USS**: Implemented (`src/tools/uss/uss-tools.ts`). Tools: `getUssHome`, `listUssFiles`, `readUssFile`, `writeUssFile`, `createUssFile`, `deleteUssFile`, `chmodUssFile`, `chownUssFile`, `chtagUssFile`, `runSafeUssCommand`, `getUssTempDir`, `getUssTempPath`, `createTempUssFile`, `createTempUssDir`, `deleteUssTempUnderDir`. See **USS tools** section below.
+- **TSO**: Implemented (`src/tools/tso/tso-tools.ts`). Tool: `runSafeTsoCommand`. See **TSO tools** section below.
 - **Jobs**: `submitJob`, `getJobStatus` (`src/tools/jobs/jobs-tools.ts`). Job cards from config file `jobCards` section or VS Code `zoweMCP.jobCards`. Mock backend throws "Not implemented"; native uses ZNP `client.jobs.submitJcl` and `getJobStatus`.
 
 ---
@@ -119,6 +120,18 @@ USS (UNIX System Services) tools are in `src/tools/uss/`. The backend interface 
 ### Temp tools safety
 
 - **deleteUssTempUnderDir**: Path must contain the segment `tmp` (or `TMP`) and have at least 3 path segments (e.g. `/u/myuser/tmp/xyz`) to avoid accidental mass delete. Enforced in the tool layer.
+
+---
+
+## TSO tools
+
+TSO tools are in `src/tools/tso/`. The backend interface (`ZosBackend`) defines `runTsoCommand(systemId, commandText, userId?, progress?)` → `Promise<string>`. Mock and native backends implement it (native via ZNP `client.cmds.issueTso`).
+
+### TSO command safety (tso-command-patterns.json)
+
+- **Patterns file**: `src/tools/tso/tso-command-patterns.json` — evaluation order: (1) **dangerous** → BLOCK (no question: system dataset DELETE/RENAME, PASSWORD, CALL, ALTER, OSHELL non-pwd), (2) **elicit** → ELICIT (user approval required: DELETE/RENAME own dataset, SUBMIT), (3) **safe** → ALLOW, (4) unknown → ELICIT. Each entry has `id`, optional `message`, and `pattern` (regex; use `\b` for word boundary in JSON). Block is reserved for truly dangerous; destructive-but-allowed-with-approval (e.g. delete own dataset) is in elicit.
+- **Validation**: `src/tools/tso/tso-command-validation.ts` exports `validateTsoCommand(commandText)`. Command is normalized (trim, collapse spaces, uppercase) before matching.
+- **Cache and pagination**: Full output is cached (key: systemId + commandText). When **no** `startLine`/`lineCount` → run command, **set** cache, return first window. When **with** `startLine`/`lineCount` → **getOrFetch** from cache, then `windowContent` and return. So requesting the same command without startLine/lineCount **re-executes** the command.
 
 ---
 
@@ -213,6 +226,8 @@ Raw: [https://raw.githubusercontent.com/zowe/zowe-native-proto/main/packages/sdk
 | USS tools                          | `packages/zowe-mcp-server/src/tools/uss/uss-tools.ts`             |
 | USS path resolution                | `packages/zowe-mcp-server/src/zos/uss-path.ts`                    |
 | USS command/path validation        | `packages/zowe-mcp-server/src/tools/uss/command-validation.ts`      |
+| TSO tools                          | `packages/zowe-mcp-server/src/tools/tso/tso-tools.ts`               |
+| TSO command validation and patterns | `packages/zowe-mcp-server/src/tools/tso/tso-command-validation.ts`, `tso-command-patterns.json` |
 | Response envelope                  | `packages/zowe-mcp-server/src/tools/response.ts`                   |
 | DSN resolution                     | `packages/zowe-mcp-server/src/zos/dsn.ts`                          |
 | Session state                      | `packages/zowe-mcp-server/src/zos/session.ts`                      |

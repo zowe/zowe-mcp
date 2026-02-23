@@ -146,6 +146,7 @@ interface NativeUssApi {
 /** Subset of ZSshClient.cmds we use (ZNP command RPCs). */
 interface NativeCmdsApi {
   issueUnix(req: { commandText: string }): Promise<{ data?: string }>;
+  issueTso(req: { commandText: string }): Promise<{ data?: string }>;
 }
 
 /** ZNP spool item shape (listSpools response). */
@@ -999,6 +1000,36 @@ export class NativeBackend {
     );
   }
 
+  async runTsoCommand(
+    systemId: SystemId,
+    commandText: string,
+    userId?: string,
+    progress?: BackendProgressCallback
+  ): Promise<string> {
+    return this.withNativeClient(
+      systemId,
+      userId,
+      async client => {
+        log.info('runTsoCommand resolving cmds API', { systemId, commandText });
+        const cmds = this.getCmds(client);
+        log.info('runTsoCommand calling issueTso', { systemId, commandText });
+        const response = await cmds.issueTso({ commandText });
+        const data = response.data ?? '';
+        const maxLogOutput = 2000;
+        const outputPreview =
+          data.length <= maxLogOutput ? data : data.slice(0, maxLogOutput) + '... (truncated)';
+        log.debug('runTsoCommand completed', {
+          systemId,
+          commandText,
+          outputLength: data.length,
+          output: outputPreview,
+        });
+        return data;
+      },
+      progress
+    );
+  }
+
   async getUssHome(
     systemId: SystemId,
     userId?: string,
@@ -1010,8 +1041,8 @@ export class NativeBackend {
       async client => {
         log.info('getUssHome resolving cmds API', { systemId });
         const cmds = this.getCmds(client);
-        log.info('getUssHome calling issueUnix(echo $HOME)', { systemId });
         try {
+          log.info('getUssHome calling issueUnix(echo $HOME)', { systemId });
           const response = await cmds.issueUnix({ commandText: 'echo $HOME' });
           const home = (response.data ?? '').trim();
           log.debug('getUssHome issueUnix response', {

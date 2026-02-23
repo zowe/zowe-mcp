@@ -25,6 +25,7 @@ import { registerContextTools } from './tools/context/context-tools.js';
 import { registerCoreTools } from './tools/core/zowe-info.js';
 import { registerDatasetTools } from './tools/datasets/dataset-tools.js';
 import { registerJobTools } from './tools/jobs/jobs-tools.js';
+import { registerTsoTools } from './tools/tso/tso-tools.js';
 import { registerUssTools } from './tools/uss/uss-tools.js';
 import type { ZosBackend } from './zos/backend.js';
 import type { CredentialProvider } from './zos/credentials.js';
@@ -236,6 +237,17 @@ export function createServer(options?: CreateServerOptions): McpServer {
         credentialProvider,
         responseCache: responseCache ?? undefined,
         encodingOptions,
+      },
+      logger
+    );
+    registerTsoTools(
+      server,
+      {
+        backend,
+        systemRegistry,
+        sessionState,
+        credentialProvider,
+        responseCache: responseCache ?? undefined,
       },
       logger
     );

@@ -28,6 +28,8 @@
  *
  * USS: read-only tests (getUssHome, listUssFiles, readUssFile, runSafeUssCommand);
  * no write/delete/temp on real z/OS.
+ *
+ * TSO: runSafeTsoCommand (TIME, SYSTEM); OSHELL and DELETE (system) always block.
  */
 
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
@@ -726,6 +728,84 @@ describe.skipIf(!canRunNativeE2E)(
       });
     });
 
+    describe('TSO (runSafeTsoCommand)', () => {
+      it('runSafeTsoCommand TIME returns output with time/session info', async () => {
+        const { parsed } = await callToolSuccess(client, 'runSafeTsoCommand', {
+          commandText: 'TIME',
+        });
+        const o = parsed as {
+          _context: { system: string };
+          _result: unknown;
+          data: { text: string };
+        };
+        expect(o._context.system).toBe(firstSystemId);
+        expect(o.data.text).toBeDefined();
+        const output = o.data.text.trim();
+        expect(output.length).toBeGreaterThan(0);
+        expect(output.toUpperCase()).toMatch(/TIME|CPU|SERVICE|SESSION|PM|AM|\d{2}:\d{2}:\d{2}/);
+      });
+
+      it('runSafeTsoCommand SYSTEM returns output with system info', async () => {
+        const { parsed } = await callToolSuccess(client, 'runSafeTsoCommand', {
+          commandText: 'SYSTEM',
+        });
+        const o = parsed as {
+          _context: { system: string };
+          _result: unknown;
+          data: { text: string };
+        };
+        expect(o._context.system).toBe(firstSystemId);
+        expect(o.data.text).toBeDefined();
+        const output = o.data.text.trim();
+        expect(output.length).toBeGreaterThan(0);
+        expect(output.toUpperCase()).toMatch(/MVS|ESA|READY|SYSTEM|HBB|VER/);
+      });
+
+      it('runSafeTsoCommand OSHELL pwd returns block error', async () => {
+        const r = await client.callTool({
+          name: 'runSafeTsoCommand',
+          arguments: { commandText: 'OSHELL pwd' },
+        });
+        const text = getResultText(r);
+        const parsed = JSON.parse(text) as { error?: string };
+        expect(parsed.error).toBeDefined();
+        expect(parsed.error!.toLowerCase()).toMatch(/oshell|not allowed/);
+      });
+
+      it('runSafeTsoCommand OSHELL ls returns error', async () => {
+        const r = await client.callTool({
+          name: 'runSafeTsoCommand',
+          arguments: { commandText: 'OSHELL ls' },
+        });
+        const text = getResultText(r);
+        const parsed = JSON.parse(text) as { error?: string };
+        expect(parsed.error).toBeDefined();
+        expect(parsed.error!.length).toBeGreaterThan(0);
+      });
+
+      it('runSafeTsoCommand DELETE user dataset returns error (elicit denied)', async () => {
+        const r = await client.callTool({
+          name: 'runSafeTsoCommand',
+          arguments: { commandText: 'DELETE USER.DATA' },
+        });
+        const text = getResultText(r);
+        const parsed = JSON.parse(text) as { error?: string };
+        expect(parsed.error).toBeDefined();
+        expect(parsed.error!.length).toBeGreaterThan(0);
+      });
+
+      it('runSafeTsoCommand DELETE system dataset returns block error', async () => {
+        const r = await client.callTool({
+          name: 'runSafeTsoCommand',
+          arguments: { commandText: 'DELETE SYS1.PARMLIB' },
+        });
+        const text = getResultText(r);
+        const parsed = JSON.parse(text) as { error?: string };
+        expect(parsed.error).toBeDefined();
+        expect(parsed.error!.toLowerCase()).toMatch(/system|not allowed/);
+      });
+    });
+
     /** Sample JCL body (two IEBGENER steps) without job card. */
     const SAMPLE_JCL_BODY = [
       '//STEP1  EXEC PGM=IEBGENER',
@@ -801,7 +881,7 @@ describe.skipIf(!canRunNativeE2E)(
           expect(o.data.id).toBeDefined();
           expect(o.data.name).toBeDefined();
           expect(o.data.status).toBeDefined();
-          expect(['INPUT', 'ACTIVE', 'OUTPUT']).toContain(o.data.status);
+          expect(['INPUT', 'ACTIVE', 'OUTPUT', 'CONVERSION']).toContain(o.data.status);
         });
 
         it('listJobFiles and readJobFile when job is in OUTPUT', async () => {

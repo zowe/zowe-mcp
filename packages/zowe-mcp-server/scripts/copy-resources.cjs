@@ -1,15 +1,28 @@
 /**
- * Copies src/resources into dist/resources so packaged resources are available at runtime.
+ * Copies src/resources into dist/resources and src/tools/tso/*.json into dist/tools/tso
+ * so packaged resources are available at runtime.
  * Run from package root (packages/zowe-mcp-server) after tsc.
  */
 const fs = require('node:fs');
 const path = require('node:path');
 
-const srcDir = path.join(__dirname, '..', 'src', 'resources');
-const destDir = path.join(__dirname, '..', 'dist', 'resources');
+const pkgRoot = path.join(__dirname, '..');
 
-if (!fs.existsSync(srcDir)) {
-  process.exit(0);
+const srcResources = path.join(pkgRoot, 'src', 'resources');
+const destResources = path.join(pkgRoot, 'dist', 'resources');
+if (fs.existsSync(srcResources)) {
+  fs.mkdirSync(destResources, { recursive: true });
+  fs.cpSync(srcResources, destResources, { recursive: true });
 }
-fs.mkdirSync(destDir, { recursive: true });
-fs.cpSync(srcDir, destDir, { recursive: true });
+
+const srcTso = path.join(pkgRoot, 'src', 'tools', 'tso');
+const destTso = path.join(pkgRoot, 'dist', 'tools', 'tso');
+if (fs.existsSync(srcTso)) {
+  fs.mkdirSync(destTso, { recursive: true });
+  const files = fs.readdirSync(srcTso);
+  for (const f of files) {
+    if (f.endsWith('.json')) {
+      fs.copyFileSync(path.join(srcTso, f), path.join(destTso, f));
+    }
+  }
+}

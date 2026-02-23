@@ -935,6 +935,70 @@ export class FilesystemMockBackend implements ZosBackend {
     return `mock: command not simulated: ${trimmed}`;
   }
 
+  runTsoCommand(
+    _systemId: SystemId,
+    commandText: string,
+    _userId?: string,
+    _progress?: BackendProgressCallback
+  ): Promise<string> {
+    const trimmed = commandText.trim();
+    const upper = trimmed.toUpperCase();
+    const parts = upper.split(/\s+/);
+    const verb = parts[0] ?? '';
+    if (verb === 'LISTDS' || verb === 'LISTD') {
+      return Promise.resolve(
+        `LISTDS mock output\n-- Dataset list (mock) --\nDSNAME=USER.MOCK.DATA\nORG=PS\nRECFM=FB\nLRECL=80`
+      );
+    }
+    if (verb === 'LISTALC' || verb === 'LISTA') {
+      return Promise.resolve(
+        `LISTALC mock output\n-- Allocations (mock) --\nDDNAME   DSN\nSYSIN    USER.INPUT\nSYSOUT   USER.OUTPUT`
+      );
+    }
+    if (verb === 'LISTCAT' || verb === 'LISTC') {
+      return Promise.resolve(
+        `LISTCAT mock output\n-- Catalog (mock) --\nUSER.MOCK.DATA\nUSER.MOCK.PDS`
+      );
+    }
+    if (verb === 'STATUS') {
+      return Promise.resolve(`STATUS mock output\nREADY`);
+    }
+    if (verb === 'HELP' || verb === 'H') {
+      return Promise.resolve(
+        `HELP mock output\nTSO commands (mock): LISTDS, LISTALC, LISTCAT, STATUS, WHO`
+      );
+    }
+    if (verb === 'WHO') {
+      return Promise.resolve(`WHO mock output\nUSER=${_userId ?? 'mockuser'}`);
+    }
+    if (verb === 'TIME') {
+      const now = new Date();
+      const hours = now.getHours();
+      const h12 = hours % 12 || 12;
+      const ampm = hours < 12 ? 'AM' : 'PM';
+      const hh = String(h12).padStart(2, '0');
+      const mm = String(now.getMinutes()).padStart(2, '0');
+      const ss = String(now.getSeconds()).padStart(2, '0');
+      const month = now.toLocaleString('en-US', { month: 'long' }).toUpperCase();
+      const day = now.getDate();
+      const year = now.getFullYear();
+      const timeStr = `TIME-${hh}:${mm}:${ss} ${ampm}. CPU-00:00:00 SERVICE-26895 SESSION-00:01:53 ${month} ${day},${year}`;
+      return Promise.resolve(timeStr);
+    }
+    if (verb === 'SYSTEM') {
+      const sys4 =
+        (_systemId ?? '')
+          .toUpperCase()
+          .replace(/[^A-Z0-9]/g, '')
+          .slice(0, 4)
+          .padEnd(4, ' ') || 'CA32';
+      return Promise.resolve(
+        `MVS/ESA ${sys4} 03.8  3931 11C198 97152K MVR32C VER=SP7.3.2 HBB77F0\nREADY`
+      );
+    }
+    return Promise.resolve(`mock: TSO command not simulated: ${commandText.trim()}`);
+  }
+
   getUssHome(
     systemId: SystemId,
     userId?: string,

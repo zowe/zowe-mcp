@@ -81,6 +81,10 @@ export interface SystemContext {
   mainframeMvsEncoding?: string | null;
   /** Mainframe encoding for USS operations (reserved); null/undefined = use server default. */
   mainframeUssEncoding?: string | null;
+  /** USS home directory path (cached when getUssHome or echo $HOME is used). */
+  ussHome?: string;
+  /** USS current working directory (set by changeUssDirectory). When unset, effective cwd is ussHome. */
+  ussCwd?: string;
 }
 
 /** Serializable summary of a system context (for tool responses). */
@@ -89,6 +93,8 @@ export interface SystemContextSummary {
   userId: string;
   mainframeMvsEncoding?: string | null;
   mainframeUssEncoding?: string | null;
+  ussHome?: string;
+  ussCwd?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -194,6 +200,8 @@ export class SessionState {
       userId: ctx.userId,
       mainframeMvsEncoding: ctx.mainframeMvsEncoding,
       mainframeUssEncoding: ctx.mainframeUssEncoding,
+      ussHome: ctx.ussHome,
+      ussCwd: ctx.ussCwd,
     }));
   }
 

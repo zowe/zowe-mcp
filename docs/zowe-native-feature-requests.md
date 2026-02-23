@@ -4,6 +4,16 @@ List of new functions or behaviors requested from Zowe Native Proto for use by Z
 
 ---
 
+## USS: Unix command execution (unixCommand)
+
+- **Request**: Implement the `unixCommand` (or equivalent) RPC on the ZNP z/OS server so that the client can run arbitrary Unix commands (e.g. `echo $HOME`, `whoami`, `pwd`, `ls`) and receive the command output.
+- **Where**: ZNP server command handling, e.g. [zowe-native-proto/native/zowed/commands.cpp](https://github.com/zowe/zowe-native-proto/blob/main/native/zowed/commands.cpp) (or equivalent); the SDK exposes `client.cmds.issueUnix({ commandText })` but the server must handle the request.
+- **Input**: `{ commandText: string }` (the command line to execute).
+- **Output**: Success + command stdout (e.g. `{ data: string }`).
+- **Why**: Without this, the Zowe MCP server cannot determine the user’s USS home directory (getUssHome uses `echo $HOME`) or run safe allowlisted commands (runSafeUssCommand). The server currently responds with **"Unrecognized command unixCommand"**, getUssHome is **not** disabled: when `echo $HOME` is unavailable, the server probes typical home bases (`/u`, `/a`, `/z`, `/u/users`, `/u/users/group/product`) via `listUssFiles` for a directory matching the user ID (case-insensitive) and defaults to `/u/<lowercase-userId>` with a warning if none is found. runSafeUssCommand remains enabled but will fail until ZNP adds support. All other USS tools (listUssFiles, readUssFile, writeUssFile, createUssFile, deleteUssFile, chmod, chown, chtag, and temp tools) remain enabled and use `client.uss.*` only.
+
+---
+
 ## Dataset: get attributes for one dataset
 
 - **Request**: New RPC (e.g. `getDatasetAttributes` or `getAttributes`).

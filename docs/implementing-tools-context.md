@@ -31,7 +31,8 @@ Use this in chats when implementing new dataset operations or other z/OS tools.
 
 - **Core**: `info` tool (`src/tools/core/zowe-info.ts`).
 - **Context**: `getContext`, `setSystem`, `listSystems` (`src/tools/context/context-tools.ts`).
-- **Future**: `jobs`, `uss` (mentioned in AGENTS.md; not implemented).
+- **USS**: Implemented (`src/tools/uss/uss-tools.ts`). Tools: `getUssHome`, `listUssFiles`, `readUssFile`, `writeUssFile`, `createUssFile`, `deleteUssFile`, `chmodUssFile`, `chownUssFile`, `chtagUssFile`, `runSafeUssCommand`, `getUssTempDir`, `getUssTempPath`, `createTempUssFile`, `createTempUssDir`, `deleteUssTempUnderDir`. See **USS tools** section below.
+- **Future**: `jobs`.
 
 ---
 
@@ -96,7 +97,32 @@ Types: `DatasetEntry`, `MemberEntry`, `ReadDatasetResult`, `WriteDatasetResult`,
 
 ---
 
-## Implementing a new component (e.g. jobs, USS)
+## USS tools
+
+USS (UNIX System Services) tools are in `src/tools/uss/`. The backend interface (`ZosBackend`) defines USS methods: `listUssFiles`, `readUssFile`, `writeUssFile`, `createUssFile`, `deleteUssFile`, `chmodUssFile`, `chownUssFile`, `chtagUssFile`, `runUnixCommand`, `getUssHome`, `getUssTempDir`, `getUssTempPath`, `deleteUssUnderPath`. Mock and native backends implement them (native via ZNP `client.uss.*` and `client.cmds.issueUnix`).
+
+### Encoding and file tag
+
+- **Resolution order**: operation param → per-system `mainframeUssEncoding` (from `setSystem`) → server default (`IBM-1047`). Same as datasets; see encoding in AGENTS.md.
+- **ZNP**: When ZNP follows file tag for encoding, the backend may use the file’s tag; verify in ZNP and document.
+
+### hardstop-patterns (command and path safety)
+
+- **Commands** (`runSafeUssCommand`): Evaluation order is mandatory. (1) `checkBashDangerous(command)` → **BLOCK**. (2) `checkBashSafe(command)` → **ALLOW**. (3) Unknown → **elicit** (if client supports it) or **DENY**. Single tool only: `runSafeUssCommand`; no “run any command” tool.
+- **Read path** (`readUssFile`): (1) `checkReadDangerous(path)` → **BLOCK**. (2) `checkReadSensitive(path)` → **WARN** / elicit. (3) `checkReadSafe(path)` → **ALLOW**. (4) Unknown → elicit or DENY. Implemented in `src/tools/uss/command-validation.ts`.
+
+### Path resolution and context
+
+- **Path**: `resolveUssPath()` in `src/zos/uss-path.ts` normalizes slashes and trims. `ResponseContext` can include `resolvedPath` when different from input.
+- **Home**: `getUssHome` returns the user’s USS home (backend `getUssHome` or `echo $HOME`); result is cached in `SystemContext.ussHome` and included in `getContext` as `activeSystem.ussHome`.
+
+### Temp tools safety
+
+- **deleteUssTempUnderDir**: Path must contain the segment `tmp` (or `TMP`) and have at least 3 path segments (e.g. `/u/myuser/tmp/xyz`) to avoid accidental mass delete. Enforced in the tool layer.
+
+---
+
+## Implementing a new component (e.g. jobs)
 
 1. Create `src/tools/<component>/` and export `register<Component>Tools(server, deps, logger)`.
 2. In `server.ts`, call the registrar; for z/OS backends, only register when `options?.backend` is set.
@@ -184,6 +210,9 @@ Raw: [https://raw.githubusercontent.com/zowe/zowe-native-proto/main/packages/sdk
 | Native backend                     | `packages/zowe-mcp-server/src/zos/native/native-backend.ts`        |
 | Native SSH client cache (uses SDK) | `packages/zowe-mcp-server/src/zos/native/ssh-client-cache.ts`      |
 | Dataset tools                      | `packages/zowe-mcp-server/src/tools/datasets/dataset-tools.ts`     |
+| USS tools                          | `packages/zowe-mcp-server/src/tools/uss/uss-tools.ts`             |
+| USS path resolution                | `packages/zowe-mcp-server/src/zos/uss-path.ts`                    |
+| USS command/path validation        | `packages/zowe-mcp-server/src/tools/uss/command-validation.ts`      |
 | Response envelope                  | `packages/zowe-mcp-server/src/tools/response.ts`                   |
 | DSN resolution                     | `packages/zowe-mcp-server/src/zos/dsn.ts`                          |
 | Session state                      | `packages/zowe-mcp-server/src/zos/session.ts`                      |

@@ -215,6 +215,70 @@ export interface SearchInDatasetResult {
 }
 
 // ---------------------------------------------------------------------------
+// USS types
+// ---------------------------------------------------------------------------
+
+/** A single file or directory entry in a USS listing (aligned with ZNP UssItem). */
+export interface UssFileEntry {
+  /** File or directory name. */
+  name: string;
+  /** Number of links. */
+  links?: number;
+  /** Owner user. */
+  user?: string;
+  /** Owner group. */
+  group?: string;
+  /** Size in bytes (files only). */
+  size?: number;
+  /** z/OS file tag (encoding/type). */
+  filetag?: string;
+  /** Modification time (ISO 8601 or platform string). */
+  mtime?: string;
+  /** Permission string (e.g. drwxr-xr-x). */
+  mode?: string;
+  /** True if this entry is a directory. */
+  isDirectory?: boolean;
+}
+
+/** Result of reading a USS file. */
+export interface ReadUssFileResult {
+  /** Content as UTF-8 text. */
+  text: string;
+  /** ETag for optimistic locking. */
+  etag: string;
+  /** Mainframe (source) encoding used for conversion to UTF-8 (if applicable). */
+  encoding?: string;
+}
+
+/** Result of writing a USS file. */
+export interface WriteUssFileResult {
+  /** New ETag after the write. */
+  etag: string;
+  /** True if a new file was created. */
+  created: boolean;
+}
+
+/** Options for listing USS files. */
+export interface ListUssFilesOptions {
+  /** Include hidden files (names starting with .). */
+  includeHidden?: boolean;
+  /** Return long format (mode, user, group, size, mtime, name). */
+  longFormat?: boolean;
+  /** Depth of subdirectories to list (default 1). */
+  depth?: number;
+  /** Maximum items to return (backend may return fewer; tool layer paginates). */
+  maxItems?: number;
+}
+
+/** Options for creating a USS file or directory. */
+export interface CreateUssFileOptions {
+  /** If true, create a directory; if false, create a regular file. */
+  isDirectory: boolean;
+  /** Permissions (e.g. "755") for the new path. */
+  permissions?: string;
+}
+
+// ---------------------------------------------------------------------------
 // Backend interface
 // ---------------------------------------------------------------------------
 
@@ -420,4 +484,220 @@ export interface ZosBackend {
     options: SearchInDatasetOptions,
     progress?: BackendProgressCallback
   ): Promise<SearchInDatasetResult>;
+
+  // -------------------------------------------------------------------------
+  // USS operations
+  // -------------------------------------------------------------------------
+
+  /**
+   * List files and directories in a USS path.
+   *
+   * @param systemId - Target z/OS system.
+   * @param path - USS path (e.g. /u/myuser).
+   * @param options - Include hidden, long format, depth, maxItems.
+   * @param userId - Optional user ID for backends that need it.
+   */
+  listUssFiles(
+    systemId: SystemId,
+    path: string,
+    options?: ListUssFilesOptions,
+    userId?: string,
+    progress?: BackendProgressCallback
+  ): Promise<UssFileEntry[]>;
+
+  /**
+   * Read the content of a USS file as UTF-8 text.
+   *
+   * @param systemId - Target z/OS system.
+   * @param path - USS file path.
+   * @param encoding - Optional mainframe encoding (resolved by tool layer when omitted).
+   * @param userId - Optional user ID.
+   */
+  readUssFile(
+    systemId: SystemId,
+    path: string,
+    encoding?: string,
+    userId?: string,
+    progress?: BackendProgressCallback
+  ): Promise<ReadUssFileResult>;
+
+  /**
+   * Write content to a USS file (creates or overwrites).
+   *
+   * @param systemId - Target z/OS system.
+   * @param path - USS file path.
+   * @param content - UTF-8 text content.
+   * @param etag - Optional ETag for optimistic locking.
+   * @param encoding - Optional mainframe encoding.
+   * @param userId - Optional user ID.
+   */
+  writeUssFile(
+    systemId: SystemId,
+    path: string,
+    content: string,
+    etag?: string,
+    encoding?: string,
+    userId?: string,
+    progress?: BackendProgressCallback
+  ): Promise<WriteUssFileResult>;
+
+  /**
+   * Create a USS file or directory.
+   *
+   * @param systemId - Target z/OS system.
+   * @param path - USS path to create.
+   * @param options - isDirectory and optional permissions.
+   * @param userId - Optional user ID.
+   */
+  createUssFile(
+    systemId: SystemId,
+    path: string,
+    options: CreateUssFileOptions,
+    userId?: string,
+    progress?: BackendProgressCallback
+  ): Promise<void>;
+
+  /**
+   * Delete a USS file or directory.
+   *
+   * @param systemId - Target z/OS system.
+   * @param path - USS path to delete.
+   * @param recursive - If true, delete directory and contents.
+   * @param userId - Optional user ID.
+   */
+  deleteUssFile(
+    systemId: SystemId,
+    path: string,
+    recursive?: boolean,
+    userId?: string,
+    progress?: BackendProgressCallback
+  ): Promise<void>;
+
+  /**
+   * Change permissions of a USS file or directory.
+   *
+   * @param systemId - Target z/OS system.
+   * @param path - USS path.
+   * @param mode - Octal mode (e.g. "755").
+   * @param recursive - If true, change recursively.
+   * @param userId - Optional user ID.
+   */
+  chmodUssFile(
+    systemId: SystemId,
+    path: string,
+    mode: string,
+    recursive?: boolean,
+    userId?: string,
+    progress?: BackendProgressCallback
+  ): Promise<void>;
+
+  /**
+   * Change owner of a USS file or directory.
+   *
+   * @param systemId - Target z/OS system.
+   * @param path - USS path.
+   * @param owner - New owner.
+   * @param recursive - If true, change recursively.
+   * @param userId - Optional user ID (must be allowed to chown).
+   */
+  chownUssFile(
+    systemId: SystemId,
+    path: string,
+    owner: string,
+    recursive?: boolean,
+    userId?: string,
+    progress?: BackendProgressCallback
+  ): Promise<void>;
+
+  /**
+   * Set the z/OS file tag (encoding/type) for a USS file or directory.
+   *
+   * @param systemId - Target z/OS system.
+   * @param path - USS path.
+   * @param tag - New tag (e.g. ISO8859-1).
+   * @param recursive - If true, set recursively.
+   * @param userId - Optional user ID.
+   */
+  chtagUssFile(
+    systemId: SystemId,
+    path: string,
+    tag: string,
+    recursive?: boolean,
+    userId?: string,
+    progress?: BackendProgressCallback
+  ): Promise<void>;
+
+  /**
+   * Run a Unix command on the z/OS system and return stdout as a string.
+   *
+   * @param systemId - Target z/OS system.
+   * @param commandText - The command line to execute.
+   * @param userId - Optional user ID.
+   */
+  runUnixCommand(
+    systemId: SystemId,
+    commandText: string,
+    userId?: string,
+    progress?: BackendProgressCallback
+  ): Promise<string>;
+
+  /**
+   * Get the USS home directory path for a user on the system.
+   * If not implemented, the tool layer may use runUnixCommand('echo $HOME') and cache the result.
+   *
+   * @param systemId - Target z/OS system.
+   * @param userId - User ID (default from session context).
+   */
+  getUssHome(
+    systemId: SystemId,
+    userId?: string,
+    progress?: BackendProgressCallback
+  ): Promise<string>;
+
+  /**
+   * Return a unique USS directory path under the given base path that does not exist.
+   * Used for temp directories. Backend may use listUssFiles to verify uniqueness.
+   *
+   * @param systemId - Target z/OS system.
+   * @param basePath - Base directory (e.g. $HOME/tmp or /tmp).
+   * @param userId - Optional user ID.
+   */
+  getUssTempDir(
+    systemId: SystemId,
+    basePath: string,
+    userId?: string,
+    progress?: BackendProgressCallback
+  ): Promise<string>;
+
+  /**
+   * Return a unique USS file path under the given directory that does not exist.
+   *
+   * @param systemId - Target z/OS system.
+   * @param dirPath - Parent directory path.
+   * @param prefix - Optional filename prefix.
+   * @param userId - Optional user ID.
+   */
+  getUssTempPath(
+    systemId: SystemId,
+    dirPath: string,
+    prefix?: string,
+    userId?: string,
+    progress?: BackendProgressCallback
+  ): Promise<string>;
+
+  /**
+   * Delete all files and directories under the given USS path (the path itself is removed).
+   * Safety constraints (e.g. path must contain "tmp", minimum depth) are enforced by the tool layer.
+   *
+   * @param systemId - Target z/OS system.
+   * @param path - USS path to delete (recursively).
+   * @param userId - Optional user ID.
+   * @param progress - Optional callback (e.g. before each delete).
+   */
+  deleteUssUnderPath(
+    systemId: SystemId,
+    path: string,
+    userId?: string,
+    progress?: BackendProgressCallback
+  ): Promise<{ deleted: string[] }>;
 }

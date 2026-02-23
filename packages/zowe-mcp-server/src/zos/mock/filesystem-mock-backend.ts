@@ -38,15 +38,20 @@ import type {
   CreateDatasetApplied,
   CreateDatasetOptions,
   CreateDatasetResult,
+  CreateUssFileOptions,
   DatasetAttributes,
   DatasetEntry,
   DatasetOrg,
+  ListUssFilesOptions,
   MemberEntry,
   ReadDatasetResult,
+  ReadUssFileResult,
   RecordFormat,
   SearchInDatasetOptions,
   SearchInDatasetResult,
+  UssFileEntry,
   WriteDatasetResult,
+  WriteUssFileResult,
   ZosBackend,
 } from '../backend.js';
 import { memberPatternToRegExp } from '../member-pattern.js';
@@ -160,6 +165,12 @@ export class FilesystemMockBackend implements ZosBackend {
   /** Resolve the filesystem path for a dataset (file or directory). */
   private datasetPath(systemId: SystemId, dsn: string): string {
     return path.join(this.systemDir(systemId), dsnToRelPath(dsn));
+  }
+
+  /** Resolve the filesystem path for a USS path (e.g. /u/myuser -> mockDir/uss/systemId/u/myuser). */
+  private ussPath(systemId: SystemId, ussPath: string): string {
+    const normalized = ussPath.replace(/\/+/g, '/').replace(/^\//, '').trim() || '';
+    return path.join(this.mockDir, 'uss', systemId, normalized);
   }
 
   async listDatasets(
@@ -657,6 +668,350 @@ export class FilesystemMockBackend implements ZosBackend {
     void _progress;
     const log = getLogger().child('mock');
     return runSearchWithListAndRead(this, systemId, dsn, options, log);
+  }
+
+  // -----------------------------------------------------------------------
+  // USS operations
+  // -----------------------------------------------------------------------
+
+  private async toUssEntry(
+    filePath: string,
+    name: string,
+    longFormat: boolean
+  ): Promise<UssFileEntry> {
+    const entry: UssFileEntry = { name };
+    if (longFormat) {
+      try {
+        const stat = await fs.stat(filePath);
+        entry.size = stat.size;
+        entry.mtime = stat.mtime.toISOString();
+        entry.mode = (stat.mode & 0o777).toString(8).padStart(3, '0');
+        entry.isDirectory = stat.isDirectory();
+      } catch {
+        // keep name only
+      }
+    }
+    return entry;
+  }
+
+  async listUssFiles(
+    systemId: SystemId,
+    ussPath: string,
+    options?: ListUssFilesOptions,
+    _userId?: string,
+    _progress?: BackendProgressCallback
+  ): Promise<UssFileEntry[]> {
+    const localPath = this.ussPath(systemId, ussPath);
+    if (!(await pathExists(localPath))) {
+      throw new Error(`USS path '${ussPath}' not found on ${systemId}.`);
+    }
+    if (!(await isDirectory(localPath))) {
+      throw new Error(`USS path '${ussPath}' is not a directory on ${systemId}.`);
+    }
+    const includeHidden = options?.includeHidden ?? false;
+    const longFormat = options?.longFormat ?? false;
+    const entries = await fs.readdir(localPath, { withFileTypes: true });
+    const results: UssFileEntry[] = [];
+    for (const e of entries) {
+      if (!includeHidden && e.name.startsWith('.')) continue;
+      if (e.name === '_meta.json' || e.name.endsWith('.tag')) continue;
+      const fullPath = path.join(localPath, e.name);
+      results.push(await this.toUssEntry(fullPath, e.name, longFormat));
+    }
+    return results.sort((a, b) => a.name.localeCompare(b.name, 'en'));
+  }
+
+  async readUssFile(
+    systemId: SystemId,
+    ussPath: string,
+    _encoding?: string,
+    _userId?: string,
+    _progress?: BackendProgressCallback
+  ): Promise<ReadUssFileResult> {
+    const localPath = this.ussPath(systemId, ussPath);
+    if (!(await pathExists(localPath))) {
+      throw new Error(`USS file '${ussPath}' not found on ${systemId}.`);
+    }
+    if (await isDirectory(localPath)) {
+      throw new Error(`USS path '${ussPath}' is a directory on ${systemId}, not a file.`);
+    }
+    const content = await fs.readFile(localPath, 'utf-8');
+    const stat = await fs.stat(localPath);
+    const etag = computeEtag(stat.mtimeMs);
+    return { text: content, etag, encoding: 'UTF-8' };
+  }
+
+  async writeUssFile(
+    systemId: SystemId,
+    ussPath: string,
+    content: string,
+    etag?: string,
+    _encoding?: string,
+    _userId?: string,
+    _progress?: BackendProgressCallback
+  ): Promise<WriteUssFileResult> {
+    const localPath = this.ussPath(systemId, ussPath);
+    const existed = await pathExists(localPath);
+    if (etag && existed) {
+      const stat = await fs.stat(localPath);
+      if (computeEtag(stat.mtimeMs) !== etag) {
+        throw new Error(`ETag mismatch writing USS file '${ussPath}' on ${systemId}.`);
+      }
+    }
+    await fs.mkdir(path.dirname(localPath), { recursive: true });
+    await fs.writeFile(localPath, content, 'utf-8');
+    const stat = await fs.stat(localPath);
+    return { etag: computeEtag(stat.mtimeMs), created: !existed };
+  }
+
+  async createUssFile(
+    systemId: SystemId,
+    ussPath: string,
+    options: CreateUssFileOptions,
+    _userId?: string,
+    _progress?: BackendProgressCallback
+  ): Promise<void> {
+    const localPath = this.ussPath(systemId, ussPath);
+    if (await pathExists(localPath)) {
+      throw new Error(`USS path '${ussPath}' already exists on ${systemId}.`);
+    }
+    await fs.mkdir(path.dirname(localPath), { recursive: true });
+    if (options.isDirectory) {
+      await fs.mkdir(localPath, { recursive: true });
+    } else {
+      await fs.writeFile(localPath, '', 'utf-8');
+    }
+    if (options.permissions) {
+      const mode = parseInt(options.permissions, 8);
+      if (!Number.isNaN(mode)) await fs.chmod(localPath, mode);
+    }
+  }
+
+  async deleteUssFile(
+    systemId: SystemId,
+    ussPath: string,
+    recursive?: boolean,
+    _userId?: string,
+    _progress?: BackendProgressCallback
+  ): Promise<void> {
+    const localPath = this.ussPath(systemId, ussPath);
+    if (!(await pathExists(localPath))) {
+      throw new Error(`USS path '${ussPath}' not found on ${systemId}.`);
+    }
+    await fs.rm(localPath, { recursive: recursive ?? false });
+  }
+
+  async chmodUssFile(
+    systemId: SystemId,
+    ussPath: string,
+    mode: string,
+    recursive?: boolean,
+    _userId?: string,
+    _progress?: BackendProgressCallback
+  ): Promise<void> {
+    const localPath = this.ussPath(systemId, ussPath);
+    if (!(await pathExists(localPath))) {
+      throw new Error(`USS path '${ussPath}' not found on ${systemId}.`);
+    }
+    const modeNum = parseInt(mode, 8);
+    if (Number.isNaN(modeNum)) throw new Error(`Invalid mode '${mode}'.`);
+    await fs.chmod(localPath, modeNum);
+    if (recursive && (await isDirectory(localPath))) {
+      const entries = await fs.readdir(localPath, { withFileTypes: true });
+      for (const e of entries) {
+        await this.chmodUssFile(
+          systemId,
+          path.join(ussPath, e.name),
+          mode,
+          true,
+          _userId,
+          _progress
+        );
+      }
+    }
+  }
+
+  async chownUssFile(
+    systemId: SystemId,
+    ussPath: string,
+    _owner: string,
+    recursive?: boolean,
+    _userId?: string,
+    _progress?: BackendProgressCallback
+  ): Promise<void> {
+    const localPath = this.ussPath(systemId, ussPath);
+    if (!(await pathExists(localPath))) {
+      throw new Error(`USS path '${ussPath}' not found on ${systemId}.`);
+    }
+    if (recursive && (await isDirectory(localPath))) {
+      const entries = await fs.readdir(localPath, { withFileTypes: true });
+      for (const e of entries) {
+        await this.chownUssFile(
+          systemId,
+          path.join(ussPath, e.name),
+          _owner,
+          true,
+          _userId,
+          _progress
+        );
+      }
+    }
+  }
+
+  async chtagUssFile(
+    systemId: SystemId,
+    ussPath: string,
+    tag: string,
+    recursive?: boolean,
+    _userId?: string,
+    _progress?: BackendProgressCallback
+  ): Promise<void> {
+    const localPath = this.ussPath(systemId, ussPath);
+    if (!(await pathExists(localPath))) {
+      throw new Error(`USS path '${ussPath}' not found on ${systemId}.`);
+    }
+    const tagPath = `${localPath}.tag`;
+    await fs.writeFile(tagPath, tag, 'utf-8');
+    if (recursive && (await isDirectory(localPath))) {
+      const entries = await fs.readdir(localPath, { withFileTypes: true });
+      for (const e of entries) {
+        await this.chtagUssFile(
+          systemId,
+          path.join(ussPath, e.name),
+          tag,
+          true,
+          _userId,
+          _progress
+        );
+      }
+    }
+  }
+
+  async runUnixCommand(
+    systemId: SystemId,
+    commandText: string,
+    userId?: string,
+    _progress?: BackendProgressCallback
+  ): Promise<string> {
+    const trimmed = commandText.trim();
+    const user = userId ?? 'mockuser';
+    if (/^echo\s+\$HOME\s*$/.test(trimmed)) {
+      return `/u/${user}`;
+    }
+    if (/^whoami\s*$/.test(trimmed)) {
+      return user;
+    }
+    if (/^pwd\s*$/.test(trimmed)) {
+      return `/u/${user}`;
+    }
+    const lsMatch = /^ls\s+(-[a-zA-Z]*)?\s*(.*)$/.exec(trimmed);
+    if (lsMatch) {
+      const pathArg = lsMatch[2]?.trim() || '/';
+      const listPath = pathArg.startsWith('/') ? pathArg : `/u/${user}/${pathArg}`;
+      try {
+        const entries = await this.listUssFiles(systemId, listPath, { longFormat: true });
+        return entries.map(e => (e.mode ? `${e.mode} ${e.name}` : e.name)).join('\n');
+      } catch {
+        return `ls: ${pathArg}: No such file or directory`;
+      }
+    }
+    const catMatch = /^cat\s+(.+)$/.exec(trimmed);
+    if (catMatch) {
+      const pathArg = catMatch[1].trim().replace(/^["']|["']$/g, '');
+      const readPath = pathArg.startsWith('/') ? pathArg : `/u/${user}/${pathArg}`;
+      try {
+        const result = await this.readUssFile(systemId, readPath);
+        return result.text;
+      } catch (err) {
+        return `cat: ${pathArg}: ${(err as Error).message}`;
+      }
+    }
+    return `mock: command not simulated: ${trimmed}`;
+  }
+
+  async getUssHome(
+    systemId: SystemId,
+    userId?: string,
+    _progress?: BackendProgressCallback
+  ): Promise<string> {
+    void systemId;
+    const user = userId ?? 'mockuser';
+    return `/u/${user}`;
+  }
+
+  async getUssTempDir(
+    systemId: SystemId,
+    basePath: string,
+    _userId?: string,
+    _progress?: BackendProgressCallback
+  ): Promise<string> {
+    const base = this.ussPath(systemId, basePath);
+    await fs.mkdir(base, { recursive: true });
+    const randomBytes = (await import('node:crypto')).randomBytes(4).toString('hex');
+    const candidate = path.join(base, `tmp.${randomBytes}`);
+    if (await pathExists(candidate)) {
+      return this.getUssTempDir(systemId, basePath, _userId, _progress);
+    }
+    return basePath.replace(/\/$/, '') + '/' + `tmp.${randomBytes}`;
+  }
+
+  async getUssTempPath(
+    systemId: SystemId,
+    dirPath: string,
+    prefix?: string,
+    _userId?: string,
+    _progress?: BackendProgressCallback
+  ): Promise<string> {
+    const dir = this.ussPath(systemId, dirPath);
+    await fs.mkdir(dir, { recursive: true });
+    const randomBytes = (await import('node:crypto')).randomBytes(4).toString('hex');
+    const name = prefix ? `${prefix}.${randomBytes}` : randomBytes;
+    const candidate = path.join(dir, name);
+    if (await pathExists(candidate)) {
+      return this.getUssTempPath(systemId, dirPath, prefix, _userId, _progress);
+    }
+    return dirPath.replace(/\/$/, '') + '/' + name;
+  }
+
+  async deleteUssUnderPath(
+    systemId: SystemId,
+    ussPath: string,
+    _userId?: string,
+    progress?: BackendProgressCallback
+  ): Promise<{ deleted: string[] }> {
+    const localPath = this.ussPath(systemId, ussPath);
+    if (!(await pathExists(localPath))) {
+      return { deleted: [] };
+    }
+    const deleted: string[] = [];
+    const collect = async (dir: string, rel: string): Promise<string[]> => {
+      const entries = await fs.readdir(dir, { withFileTypes: true });
+      const paths: string[] = [];
+      for (const e of entries) {
+        const full = path.join(dir, e.name);
+        const r = rel ? `${rel}/${e.name}` : e.name;
+        if (e.isDirectory()) {
+          paths.push(...(await collect(full, r)));
+        }
+        paths.push(ussPath.replace(/\/$/, '') + '/' + r);
+      }
+      return paths;
+    };
+    const all = await collect(localPath, '');
+    all.sort((a, b) => b.split('/').length - a.split('/').length);
+    for (const p of all) {
+      const local = this.ussPath(systemId, p);
+      if (await pathExists(local)) {
+        progress?.(`Deleting ${p}`);
+        await fs.rm(local, { recursive: true });
+        deleted.push(p);
+      }
+    }
+    if (await pathExists(localPath)) {
+      await fs.rm(localPath, { recursive: true });
+      deleted.push(ussPath.replace(/\/$/, ''));
+    }
+    return { deleted };
   }
 
   // -----------------------------------------------------------------------

@@ -22,13 +22,18 @@ import type {
   CreateDatasetApplied,
   CreateDatasetOptions,
   CreateDatasetResult,
+  CreateUssFileOptions,
   DatasetAttributes,
   DatasetEntry,
+  ListUssFilesOptions,
   MemberEntry,
   ReadDatasetResult,
+  ReadUssFileResult,
   SearchInDatasetOptions,
   SearchInDatasetResult,
+  UssFileEntry,
   WriteDatasetResult,
+  WriteUssFileResult,
 } from '../backend.js';
 import { memberPatternToRegExp } from '../member-pattern.js';
 import { runSearchWithListAndRead, type SearchBackendAdapter } from '../search-runner.js';
@@ -82,6 +87,58 @@ interface NativeDsApi {
     memberBefore: string;
     memberAfter: string;
   }): Promise<{ success: boolean }>;
+}
+
+/** Subset of ZSshClient.uss we use (ZNP USS RPCs). */
+interface NativeUssApi {
+  listFiles(req: {
+    fspath: string;
+    all?: boolean;
+    long?: boolean;
+    depth?: number;
+    maxItems?: number;
+  }): Promise<{
+    items?: { name: string; size?: number; mode?: string; mtime?: string; filetag?: string }[];
+    returnedRows?: number;
+  }>;
+  readFile(req: { fspath: string; encoding?: string; localEncoding?: string }): Promise<{
+    etag?: string;
+    data?: string;
+    encoding?: string;
+  }>;
+  writeFile(req: {
+    fspath: string;
+    data?: string;
+    etag?: string;
+    encoding?: string;
+    localEncoding?: string;
+  }): Promise<{ etag: string; created?: boolean }>;
+  createFile(req: {
+    fspath: string;
+    isDir?: boolean;
+    permissions?: string;
+  }): Promise<{ success?: boolean }>;
+  deleteFile(req: { fspath: string; recursive?: boolean }): Promise<{ success?: boolean }>;
+  chmodFile(req: {
+    fspath: string;
+    mode: string;
+    recursive?: boolean;
+  }): Promise<{ success?: boolean }>;
+  chownFile(req: {
+    fspath: string;
+    owner: string;
+    recursive?: boolean;
+  }): Promise<{ success?: boolean }>;
+  chtagFile(req: {
+    fspath: string;
+    tag: string;
+    recursive?: boolean;
+  }): Promise<{ success?: boolean }>;
+}
+
+/** Subset of ZSshClient.cmds we use (ZNP command RPCs). */
+interface NativeCmdsApi {
+  issueUnix(req: { commandText: string }): Promise<{ data?: string }>;
 }
 
 function mapDatasetToEntry(item: {
@@ -626,5 +683,363 @@ export class NativeBackend {
         runSearchWithListAndRead(this.makeSearchAdapter(client), systemId, dsn, options, log),
       progress
     );
+  }
+
+  // -------------------------------------------------------------------------
+  // USS operations
+  // -------------------------------------------------------------------------
+
+  private getUss(client: ZSshClient): NativeUssApi {
+    return (client as unknown as { uss: NativeUssApi }).uss;
+  }
+
+  private getCmds(client: ZSshClient): NativeCmdsApi {
+    return (client as unknown as { cmds: NativeCmdsApi }).cmds;
+  }
+
+  private mapUssItem(item: {
+    name: string;
+    size?: number;
+    mode?: string;
+    mtime?: string;
+    filetag?: string;
+  }): UssFileEntry {
+    return {
+      name: item.name,
+      size: item.size,
+      mode: item.mode,
+      mtime: item.mtime,
+      filetag: item.filetag,
+    };
+  }
+
+  async listUssFiles(
+    systemId: SystemId,
+    path: string,
+    options?: ListUssFilesOptions,
+    userId?: string,
+    progress?: BackendProgressCallback
+  ): Promise<UssFileEntry[]> {
+    return this.withNativeClient(
+      systemId,
+      userId,
+      async client => {
+        const uss = this.getUss(client);
+        const response = await uss.listFiles({
+          fspath: path,
+          all: options?.includeHidden,
+          long: options?.longFormat,
+          depth: options?.depth ?? 1,
+          maxItems: options?.maxItems,
+        });
+        const items = response.items ?? [];
+        return items.map(item => this.mapUssItem(item));
+      },
+      progress
+    );
+  }
+
+  async readUssFile(
+    systemId: SystemId,
+    path: string,
+    encoding?: string,
+    userId?: string,
+    progress?: BackendProgressCallback
+  ): Promise<ReadUssFileResult> {
+    return this.withNativeClient(
+      systemId,
+      userId,
+      async client => {
+        const uss = this.getUss(client);
+        const mainframeEncoding = encoding ?? 'IBM-1047';
+        const response = await uss.readFile({
+          fspath: path,
+          encoding: mainframeEncoding,
+          localEncoding: LOCAL_ENCODING_UTF8,
+        });
+        const raw = response.data ?? '';
+        const text = raw.length > 0 ? Buffer.from(raw, 'base64').toString('utf-8') : '';
+        return {
+          text,
+          etag: response.etag ?? '',
+          encoding: response.encoding ?? mainframeEncoding,
+        };
+      },
+      progress
+    );
+  }
+
+  async writeUssFile(
+    systemId: SystemId,
+    path: string,
+    content: string,
+    etag?: string,
+    encoding?: string,
+    userId?: string,
+    progress?: BackendProgressCallback
+  ): Promise<WriteUssFileResult> {
+    return this.withNativeClient(
+      systemId,
+      userId,
+      async client => {
+        const uss = this.getUss(client);
+        const mainframeEncoding = encoding ?? 'IBM-1047';
+        const data = Buffer.from(content, 'utf-8').toString('base64');
+        const response = await uss.writeFile({
+          fspath: path,
+          data,
+          etag,
+          encoding: mainframeEncoding,
+          localEncoding: LOCAL_ENCODING_UTF8,
+        });
+        return {
+          etag: response.etag,
+          created: response.created ?? false,
+        };
+      },
+      progress
+    );
+  }
+
+  async createUssFile(
+    systemId: SystemId,
+    path: string,
+    options: CreateUssFileOptions,
+    userId?: string,
+    progress?: BackendProgressCallback
+  ): Promise<void> {
+    return this.withNativeClient(
+      systemId,
+      userId,
+      async client => {
+        const uss = this.getUss(client);
+        await uss.createFile({
+          fspath: path,
+          isDir: options.isDirectory,
+          permissions: options.permissions,
+        });
+      },
+      progress
+    );
+  }
+
+  async deleteUssFile(
+    systemId: SystemId,
+    path: string,
+    recursive?: boolean,
+    userId?: string,
+    progress?: BackendProgressCallback
+  ): Promise<void> {
+    return this.withNativeClient(
+      systemId,
+      userId,
+      async client => {
+        const uss = this.getUss(client);
+        await uss.deleteFile({ fspath: path, recursive });
+      },
+      progress
+    );
+  }
+
+  async chmodUssFile(
+    systemId: SystemId,
+    path: string,
+    mode: string,
+    recursive?: boolean,
+    userId?: string,
+    progress?: BackendProgressCallback
+  ): Promise<void> {
+    return this.withNativeClient(
+      systemId,
+      userId,
+      async client => {
+        const uss = this.getUss(client);
+        await uss.chmodFile({ fspath: path, mode, recursive });
+      },
+      progress
+    );
+  }
+
+  async chownUssFile(
+    systemId: SystemId,
+    path: string,
+    owner: string,
+    recursive?: boolean,
+    userId?: string,
+    progress?: BackendProgressCallback
+  ): Promise<void> {
+    return this.withNativeClient(
+      systemId,
+      userId,
+      async client => {
+        const uss = this.getUss(client);
+        await uss.chownFile({ fspath: path, owner, recursive });
+      },
+      progress
+    );
+  }
+
+  async chtagUssFile(
+    systemId: SystemId,
+    path: string,
+    tag: string,
+    recursive?: boolean,
+    userId?: string,
+    progress?: BackendProgressCallback
+  ): Promise<void> {
+    return this.withNativeClient(
+      systemId,
+      userId,
+      async client => {
+        const uss = this.getUss(client);
+        await uss.chtagFile({ fspath: path, tag, recursive });
+      },
+      progress
+    );
+  }
+
+  async runUnixCommand(
+    systemId: SystemId,
+    commandText: string,
+    userId?: string,
+    progress?: BackendProgressCallback
+  ): Promise<string> {
+    return this.withNativeClient(
+      systemId,
+      userId,
+      async client => {
+        log.info('runUnixCommand resolving cmds API', { systemId, commandText });
+        const cmds = this.getCmds(client);
+        log.info('runUnixCommand calling issueUnix', { systemId, commandText });
+        const response = await cmds.issueUnix({ commandText });
+        const data = response.data ?? '';
+        log.debug('runUnixCommand completed', {
+          systemId,
+          commandText,
+          outputLength: data.length,
+        });
+        return data;
+      },
+      progress
+    );
+  }
+
+  async getUssHome(
+    systemId: SystemId,
+    userId?: string,
+    progress?: BackendProgressCallback
+  ): Promise<string> {
+    return this.withNativeClient(
+      systemId,
+      userId,
+      async client => {
+        log.info('getUssHome resolving cmds API', { systemId });
+        const cmds = this.getCmds(client);
+        log.info('getUssHome calling issueUnix(echo $HOME)', { systemId });
+        try {
+          const response = await cmds.issueUnix({ commandText: 'echo $HOME' });
+          const home = (response.data ?? '').trim();
+          log.debug('getUssHome issueUnix response', {
+            systemId,
+            homeLength: home.length,
+            home: home || '(empty)',
+          });
+          if (!home) {
+            throw new Error('Could not determine USS home directory (echo $HOME returned empty).');
+          }
+          return home;
+        } catch (err) {
+          log.warning('getUssHome issueUnix failed', {
+            systemId,
+            error: (err as Error).message,
+          });
+          throw err;
+        }
+      },
+      progress
+    );
+  }
+
+  async getUssTempDir(
+    systemId: SystemId,
+    basePath: string,
+    userId?: string,
+    progress?: BackendProgressCallback
+  ): Promise<string> {
+    return this.withNativeClient(
+      systemId,
+      userId,
+      async client => {
+        const uss = this.getUss(client);
+        const existing = await uss.listFiles({
+          fspath: basePath,
+          all: true,
+          maxItems: 5000,
+        });
+        const names = new Set((existing.items ?? []).map(e => e.name));
+        const { randomBytes } = await import('node:crypto');
+        for (let i = 0; i < 20; i++) {
+          const name = `tmp.${randomBytes(4).toString('hex')}`;
+          if (!names.has(name)) {
+            return `${basePath.replace(/\/$/, '')}/${name}`;
+          }
+        }
+        throw new Error('Could not find unique temp directory after 20 attempts.');
+      },
+      progress
+    );
+  }
+
+  async getUssTempPath(
+    systemId: SystemId,
+    dirPath: string,
+    prefix?: string,
+    userId?: string,
+    progress?: BackendProgressCallback
+  ): Promise<string> {
+    return this.withNativeClient(
+      systemId,
+      userId,
+      async client => {
+        const uss = this.getUss(client);
+        const existing = await uss.listFiles({
+          fspath: dirPath,
+          all: true,
+          maxItems: 5000,
+        });
+        const names = new Set((existing.items ?? []).map(e => e.name));
+        const { randomBytes } = await import('node:crypto');
+        for (let i = 0; i < 20; i++) {
+          const name = prefix
+            ? `${prefix}.${randomBytes(4).toString('hex')}`
+            : randomBytes(8).toString('hex');
+          if (!names.has(name)) {
+            return `${dirPath.replace(/\/$/, '')}/${name}`;
+          }
+        }
+        throw new Error('Could not find unique temp path after 20 attempts.');
+      },
+      progress
+    );
+  }
+
+  async deleteUssUnderPath(
+    systemId: SystemId,
+    path: string,
+    userId?: string,
+    progress?: BackendProgressCallback
+  ): Promise<{ deleted: string[] }> {
+    const normalized = path.replace(/\/$/, '') || path;
+    await this.withNativeClient(
+      systemId,
+      userId,
+      async client => {
+        const uss = this.getUss(client);
+        progress?.(`Deleting ${normalized}`);
+        await uss.deleteFile({ fspath: normalized, recursive: true });
+      },
+      progress
+    );
+    return { deleted: [normalized] };
   }
 }

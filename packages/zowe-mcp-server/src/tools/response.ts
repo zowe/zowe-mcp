@@ -54,6 +54,12 @@ export interface ResponseContext {
   resolvedDsn?: string;
   /** Resolved target dataset name for copy/rename (fully qualified). */
   resolvedTargetDsn?: string;
+  /** Resolved USS path (when path normalization changed the input). */
+  resolvedPath?: string;
+  /** USS current working directory (display form: relative or absolute). */
+  currentDirectory?: string;
+  /** USS directory that was listed (listUssFiles; display form). */
+  listedDirectory?: string;
 }
 
 /** Result summary for list operations. */
@@ -179,6 +185,9 @@ export function buildContext(
     resolvedPattern?: string;
     resolvedDsn?: string;
     resolvedTargetDsn?: string;
+    resolvedPath?: string;
+    currentDirectory?: string;
+    listedDirectory?: string;
   }
 ): ResponseContext {
   const ctx: ResponseContext = { system: systemId };
@@ -190,6 +199,15 @@ export function buildContext(
   }
   if (resolved.resolvedTargetDsn !== undefined) {
     ctx.resolvedTargetDsn = resolved.resolvedTargetDsn;
+  }
+  if (resolved.resolvedPath !== undefined) {
+    ctx.resolvedPath = resolved.resolvedPath;
+  }
+  if (resolved.currentDirectory !== undefined) {
+    ctx.currentDirectory = resolved.currentDirectory;
+  }
+  if (resolved.listedDirectory !== undefined) {
+    ctx.listedDirectory = resolved.listedDirectory;
   }
   return ctx;
 }

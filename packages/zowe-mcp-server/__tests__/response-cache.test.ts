@@ -23,10 +23,14 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createServer } from '../src/server.js';
 import type {
   BackendProgressCallback,
+  CreateUssFileOptions,
   DatasetAttributes,
   DatasetEntry,
+  ListUssFilesOptions,
   MemberEntry,
   ReadDatasetResult,
+  SearchInDatasetOptions,
+  SearchInDatasetResult,
   ZosBackend,
 } from '../src/zos/backend.js';
 import type { CredentialProvider } from '../src/zos/credentials.js';
@@ -143,6 +147,141 @@ class CountingBackend implements ZosBackend {
     newMember?: string
   ): Promise<void> {
     return this.inner.renameDataset(systemId, dsn, newDsn, member, newMember);
+  }
+
+  searchInDataset(
+    systemId: SystemId,
+    dsn: string,
+    options: SearchInDatasetOptions,
+    progress?: BackendProgressCallback
+  ): Promise<SearchInDatasetResult> {
+    return this.inner.searchInDataset(systemId, dsn, options, progress);
+  }
+
+  listUssFiles(
+    systemId: SystemId,
+    path: string,
+    options?: ListUssFilesOptions,
+    userId?: string,
+    progress?: BackendProgressCallback
+  ) {
+    return this.inner.listUssFiles(systemId, path, options, userId, progress);
+  }
+
+  readUssFile(
+    systemId: SystemId,
+    path: string,
+    encoding?: string,
+    userId?: string,
+    progress?: BackendProgressCallback
+  ) {
+    return this.inner.readUssFile(systemId, path, encoding, userId, progress);
+  }
+
+  writeUssFile(
+    systemId: SystemId,
+    path: string,
+    content: string,
+    etag?: string,
+    encoding?: string,
+    userId?: string,
+    progress?: BackendProgressCallback
+  ) {
+    return this.inner.writeUssFile(systemId, path, content, etag, encoding, userId, progress);
+  }
+
+  createUssFile(
+    systemId: SystemId,
+    path: string,
+    options: CreateUssFileOptions,
+    userId?: string,
+    progress?: BackendProgressCallback
+  ) {
+    return this.inner.createUssFile(systemId, path, options, userId, progress);
+  }
+
+  deleteUssFile(
+    systemId: SystemId,
+    path: string,
+    recursive?: boolean,
+    userId?: string,
+    progress?: BackendProgressCallback
+  ) {
+    return this.inner.deleteUssFile(systemId, path, recursive, userId, progress);
+  }
+
+  chmodUssFile(
+    systemId: SystemId,
+    path: string,
+    mode: string,
+    recursive?: boolean,
+    userId?: string,
+    progress?: BackendProgressCallback
+  ) {
+    return this.inner.chmodUssFile(systemId, path, mode, recursive, userId, progress);
+  }
+
+  chownUssFile(
+    systemId: SystemId,
+    path: string,
+    owner: string,
+    recursive?: boolean,
+    userId?: string,
+    progress?: BackendProgressCallback
+  ) {
+    return this.inner.chownUssFile(systemId, path, owner, recursive, userId, progress);
+  }
+
+  chtagUssFile(
+    systemId: SystemId,
+    path: string,
+    tag: string,
+    recursive?: boolean,
+    userId?: string,
+    progress?: BackendProgressCallback
+  ) {
+    return this.inner.chtagUssFile(systemId, path, tag, recursive, userId, progress);
+  }
+
+  runUnixCommand(
+    systemId: SystemId,
+    commandText: string,
+    userId?: string,
+    progress?: BackendProgressCallback
+  ) {
+    return this.inner.runUnixCommand(systemId, commandText, userId, progress);
+  }
+
+  getUssHome(systemId: SystemId, userId?: string, progress?: BackendProgressCallback) {
+    return this.inner.getUssHome(systemId, userId, progress);
+  }
+
+  getUssTempDir(
+    systemId: SystemId,
+    basePath: string,
+    userId?: string,
+    progress?: BackendProgressCallback
+  ) {
+    return this.inner.getUssTempDir(systemId, basePath, userId, progress);
+  }
+
+  getUssTempPath(
+    systemId: SystemId,
+    dirPath: string,
+    prefix?: string,
+    userId?: string,
+    progress?: BackendProgressCallback
+  ) {
+    return this.inner.getUssTempPath(systemId, dirPath, prefix, userId, progress);
+  }
+
+  deleteUssUnderPath(
+    systemId: SystemId,
+    path: string,
+    userId?: string,
+    progress?: BackendProgressCallback
+  ) {
+    return this.inner.deleteUssUnderPath(systemId, path, userId, progress);
   }
 }
 
@@ -440,9 +579,10 @@ describe('Response cache', () => {
           arguments: { dsn: `${DEFAULT_USER}.LARGE.DATA`, startLine: 1, lineCount: 10 },
         });
         expect(countingBackend.readDatasetCallCount).toBe(1);
-        const envelope = JSON.parse(
-          (readResult.content?.[0] as { text?: string })?.text ?? '{}'
-        ) as { data?: { text?: string } };
+        const content0 = Array.isArray(readResult.content)
+          ? (readResult.content[0] as { text?: string } | undefined)
+          : undefined;
+        const envelope = JSON.parse(content0?.text ?? '{}') as { data?: { text?: string } };
         expect(envelope.data?.text).toContain('UPDATED_LINE_1');
       } finally {
         await client.close();

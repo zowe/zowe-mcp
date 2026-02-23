@@ -191,6 +191,8 @@ export function registerContextTools(
         userId: string;
         mainframeMvsEncoding?: string | null;
         mainframeUssEncoding?: string | null;
+        ussHome?: string;
+        ussCwd?: string;
       } | null = null;
       if (activeSystemId) {
         const ctx = sessionState.getContext(activeSystemId);
@@ -203,6 +205,10 @@ export function registerContextTools(
             activeSystem.mainframeMvsEncoding = ctx.mainframeMvsEncoding ?? null;
             activeSystem.mainframeUssEncoding = ctx.mainframeUssEncoding ?? null;
           }
+          if (ctx.ussHome !== undefined) {
+            activeSystem.ussHome = ctx.ussHome;
+          }
+          activeSystem.ussCwd = ctx.ussCwd ?? ctx.ussHome ?? undefined;
         }
       }
 

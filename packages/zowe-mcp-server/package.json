@@ -34,6 +34,7 @@
     "@zowe/imperative": "^8.11.0",
     "@zowe/zos-uss-for-zowe-sdk": "^8.11.0",
     "express": "^5.1.0",
+    "hardstop-patterns": "^1.0.0",
     "lru-cache": "^11.2.6",
     "zod": "^3.25.0",
     "zowe-native-proto-sdk": "file:../../bin/zowe-native-proto-sdk-0.2.3.tgz"

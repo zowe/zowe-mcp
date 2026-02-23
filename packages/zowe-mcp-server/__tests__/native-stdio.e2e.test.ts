@@ -25,6 +25,9 @@
  * Skipped when config file (native-config.json) or
  * password (ZOWE_MCP_PASSWORD_<USER>_<HOST> or ZOS_PASSWORD) is missing in
  * the current directory / environment.
+ *
+ * USS: read-only tests (getUssHome, listUssFiles, readUssFile, runSafeUssCommand);
+ * no write/delete/temp on real z/OS.
  */
 
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
@@ -183,6 +186,7 @@ describe.skipIf(!canRunNativeE2E)(
       expect(o.components).toContain('core');
       expect(o.components).toContain('context');
       expect(o.components).toContain('datasets');
+      expect(o.components).toContain('uss');
     });
 
     it('listSystems returns at least one system including config system', async () => {
@@ -483,6 +487,210 @@ describe.skipIf(!canRunNativeE2E)(
         }
       );
       expect(r.isError).toBe(true);
+    });
+
+    describe('USS tools (read-only)', () => {
+      let ussHomePath: string;
+      let expectedUserId: string;
+      /** Set in beforeAll; when false, ZNP does not support unixCommand (e.g. "Unrecognized command unixCommand"). */
+      let unixCommandSupported: boolean;
+
+      beforeAll(async () => {
+        unixCommandSupported = false;
+        const result = await client.callTool({ name: 'getUssHome', arguments: {} });
+        const text = getResultText(result);
+        const parsed = JSON.parse(text) as
+          | { _context: { system: string }; data: { path: string } }
+          | { error: string };
+        if ('error' in parsed && parsed.error) {
+          throw new Error(`getUssHome failed: ${parsed.error}`);
+        }
+        const o = parsed as { _context: { system: string }; data: { path: string } };
+        ussHomePath = o.data.path;
+        if (!ussHomePath || !ussHomePath.startsWith('/') || o._context.system !== firstSystemId) {
+          throw new Error(
+            `getUssHome returned invalid path or system: path=${ussHomePath}, system=${o._context.system}`
+          );
+        }
+        const cmdResult = await client.callTool({
+          name: 'runSafeUssCommand',
+          arguments: { commandText: 'whoami' },
+        });
+        const cmdText = getResultText(cmdResult);
+        const cmdParsed = JSON.parse(cmdText) as { _context?: unknown; error?: string };
+        unixCommandSupported = !cmdParsed.error?.includes('unixCommand');
+      });
+
+      it('getUssHome returns path and envelope', () => {
+        expect(ussHomePath).toBeDefined();
+        expect(ussHomePath.length).toBeGreaterThan(0);
+        expect(ussHomePath.startsWith('/')).toBe(true);
+      });
+
+      it('getContext includes ussHome after getUssHome', async () => {
+        const { parsed } = await callToolSuccess(client, 'getContext', {});
+        const o = parsed as {
+          activeSystem: { system: string; userId: string; ussHome?: string } | null;
+        };
+        expect(o.activeSystem).not.toBeNull();
+        expect(o.activeSystem!.ussHome).toBeDefined();
+        expect(o.activeSystem!.ussHome).toBe(ussHomePath);
+        expectedUserId = o.activeSystem!.userId;
+      });
+
+      it('listUssFiles on home returns envelope', async () => {
+        const { parsed } = await callToolSuccess(client, 'listUssFiles', {
+          path: ussHomePath,
+        });
+        const o = parsed as {
+          _context: { system: string };
+          _result: { count: number; totalAvailable: number; hasMore: boolean };
+          data: { name: string }[];
+        };
+        expect(o._context.system).toBe(firstSystemId);
+        expect(o._result).toBeDefined();
+        expect(o._result.count).toBeDefined();
+        expect(o._result.totalAvailable).toBeDefined();
+        expect(typeof o._result.hasMore).toBe('boolean');
+        expect(Array.isArray(o.data)).toBe(true);
+        for (const entry of o.data) {
+          expect(entry).toHaveProperty('name');
+          expect(typeof entry.name).toBe('string');
+        }
+      });
+
+      it('listUssFiles with longFormat returns mode/size/mtime when present', async () => {
+        const { parsed } = await callToolSuccess(client, 'listUssFiles', {
+          path: ussHomePath,
+          longFormat: true,
+        });
+        const o = parsed as {
+          _context: { system: string };
+          data: { name: string; mode?: string; size?: number; mtime?: string }[];
+        };
+        expect(Array.isArray(o.data)).toBe(true);
+        if (o.data.length > 0) {
+          const first = o.data[0];
+          expect(first.name).toBeDefined();
+          expect(
+            first.mode !== undefined || first.size !== undefined || first.mtime !== undefined
+          ).toBe(true);
+        }
+      });
+
+      it('readUssFile returns envelope when reading a file under home', async () => {
+        const { parsed: listParsed } = await callToolSuccess(client, 'listUssFiles', {
+          path: ussHomePath,
+          limit: 50,
+          longFormat: true,
+        });
+        const listData = (
+          listParsed as {
+            data: { name: string; isDirectory?: boolean; mode?: string }[];
+          }
+        ).data;
+        const firstFile = listData.find(
+          e => e.isDirectory === false || (e.mode !== undefined && !e.mode.startsWith('d'))
+        );
+        if (!firstFile) {
+          expect.fail(
+            `No regular file found under ${ussHomePath} (listed ${listData.length} entries) to run readUssFile envelope test`
+          );
+        }
+        const filePath = ussHomePath.replace(/\/$/, '') + '/' + firstFile.name;
+        const readResult = await client.callTool({
+          name: 'readUssFile',
+          arguments: { path: filePath },
+        });
+        const readParsed = JSON.parse(getResultText(readResult)) as
+          | {
+              _context: { system: string };
+              _result: unknown;
+              data: { text: string; etag: string };
+            }
+          | { error: string };
+        if ('error' in readParsed && readParsed.error) {
+          expect.fail(`readUssFile failed for path ${filePath}: ${readParsed.error}`);
+        }
+        const o = readParsed as {
+          _context: { system: string };
+          _result: {
+            totalLines: number;
+            startLine: number;
+            returnedLines: number;
+            hasMore?: boolean;
+          };
+          data: { text: string; etag: string };
+        };
+        expect(o._context.system).toBe(firstSystemId);
+        expect(o._result).toBeDefined();
+        expect(o._result.totalLines).toBeDefined();
+        expect(o._result.startLine).toBe(1);
+        expect(o._result.returnedLines).toBeDefined();
+        expect(o.data.text).toBeDefined();
+        expect(typeof o.data.text).toBe('string');
+        expect(o.data.etag).toBeDefined();
+      });
+
+      it.skipIf(() => !unixCommandSupported)(
+        'runSafeUssCommand whoami returns userId',
+        async () => {
+          const { parsed } = await callToolSuccess(client, 'runSafeUssCommand', {
+            commandText: 'whoami',
+          });
+          const o = parsed as { _context: { system: string }; data: { text: string } };
+          expect(o._context.system).toBe(firstSystemId);
+          expect(o.data.text).toBeDefined();
+          const output = o.data.text.trim();
+          expect(output).toBe(expectedUserId);
+        }
+      );
+
+      it.skipIf(() => !unixCommandSupported)('runSafeUssCommand pwd returns path', async () => {
+        const { parsed } = await callToolSuccess(client, 'runSafeUssCommand', {
+          commandText: 'pwd',
+        });
+        const o = parsed as { _context: { system: string }; data: { text: string } };
+        expect(o._context.system).toBe(firstSystemId);
+        const output = o.data.text.trim();
+        expect(output.length).toBeGreaterThan(0);
+        expect(output.startsWith('/')).toBe(true);
+      });
+
+      it.skipIf(() => !unixCommandSupported)(
+        'runSafeUssCommand ls on home returns output',
+        async () => {
+          const { parsed } = await callToolSuccess(client, 'runSafeUssCommand', {
+            commandText: `ls ${ussHomePath}`,
+          });
+          const o = parsed as { _context: { system: string }; data: { text: string } };
+          expect(o._context.system).toBe(firstSystemId);
+          expect(o.data.text).toBeDefined();
+          expect(o.data.text.length).toBeGreaterThanOrEqual(0);
+        }
+      );
+
+      it('runSafeUssCommand dangerous command returns error', async () => {
+        const r = await client.callTool({
+          name: 'runSafeUssCommand',
+          arguments: { commandText: 'rm -rf ~/' },
+        });
+        const text = getResultText(r);
+        const parsed = JSON.parse(text) as { error?: string };
+        expect(parsed.error).toBeDefined();
+        expect(parsed.error!.length).toBeGreaterThan(0);
+      });
+
+      it('readUssFile dangerous path returns error', async () => {
+        const r = await client.callTool({
+          name: 'readUssFile',
+          arguments: { path: '/home/user/.ssh/id_rsa' },
+        });
+        const text = getResultText(r);
+        const parsed = JSON.parse(text) as { error?: string };
+        expect(parsed.error).toBeDefined();
+        expect(parsed.error!.length).toBeGreaterThan(0);
+      });
     });
 
     describe('with temporary datasets', () => {

@@ -246,7 +246,7 @@ export function registerJobTools(server: McpServer, deps: JobToolDeps, logger: L
         const result = await deps.backend.submitJob(
           systemId,
           jclToSubmit,
-          extra._meta?.progressToken ? progress.step : undefined
+          extra._meta?.progressToken ? (msg: string) => void progress.step(msg) : undefined
         );
 
         await progress.complete(`Job ${result.jobName} (${result.jobId}) submitted`);
@@ -319,7 +319,7 @@ export function registerJobTools(server: McpServer, deps: JobToolDeps, logger: L
         const status = await deps.backend.getJobStatus(
           systemId,
           parsed.jobId,
-          extra._meta?.progressToken ? progress.step : undefined
+          extra._meta?.progressToken ? (msg: string) => void progress.step(msg) : undefined
         );
 
         await progress.complete(`Job ${status.name} (${status.id}): ${status.status}`);

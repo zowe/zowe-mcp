@@ -40,9 +40,10 @@ describe('Mock USS backend', () => {
     });
   });
 
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-call -- Vitest afterAll type may be unresolved in ESLint context
   afterAll(async () => {
     if (mockDir) {
-      await fs.rm(mockDir, { recursive: true, force: true }).catch(() => {});
+      await fs.rm(mockDir, { recursive: true, force: true }).catch(() => undefined);
     }
   });
 

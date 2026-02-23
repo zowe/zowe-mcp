@@ -87,7 +87,7 @@ describe('USS tools integration', () => {
   afterAll(async () => {
     await client?.close();
     await server?.close();
-    if (mockDir) await fs.rm(mockDir, { recursive: true, force: true }).catch(() => {});
+    if (mockDir) await fs.rm(mockDir, { recursive: true, force: true }).catch(() => undefined);
   });
 
   it('getUssHome returns path and getContext includes ussHome', async () => {
@@ -279,7 +279,7 @@ describe('USS mutation and temp tools (mock)', () => {
   afterAll(async () => {
     await client?.close();
     await server?.close();
-    if (mockDir) await fs.rm(mockDir, { recursive: true, force: true }).catch(() => {});
+    if (mockDir) await fs.rm(mockDir, { recursive: true, force: true }).catch(() => undefined);
   });
 
   it('writeUssFile then readUssFile returns written content', async () => {

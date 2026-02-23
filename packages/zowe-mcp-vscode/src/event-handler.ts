@@ -216,7 +216,7 @@ async function handleRequestJobCard(
 async function handleStoreJobCard(
   log: vscode.LogOutputChannel,
   event: ServerToExtensionEvent,
-  options: NativeSecretsOptions
+  _options: NativeSecretsOptions
 ): Promise<void> {
   if (event.type !== 'store-job-card') return;
   const { connectionSpec, jobCard } = event.data;

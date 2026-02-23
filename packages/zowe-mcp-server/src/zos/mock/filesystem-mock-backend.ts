@@ -931,14 +931,14 @@ export class FilesystemMockBackend implements ZosBackend {
     return `mock: command not simulated: ${trimmed}`;
   }
 
-  async getUssHome(
+  getUssHome(
     systemId: SystemId,
     userId?: string,
     _progress?: BackendProgressCallback
   ): Promise<string> {
     void systemId;
     const user = userId ?? 'mockuser';
-    return `/u/${user}`;
+    return Promise.resolve(`/u/${user}`);
   }
 
   async getUssTempDir(
@@ -1016,20 +1016,20 @@ export class FilesystemMockBackend implements ZosBackend {
     return { deleted };
   }
 
-  async submitJob(
+  submitJob(
     _systemId: SystemId,
     _jcl: string,
     _progress?: BackendProgressCallback
   ): Promise<SubmitJobResult> {
-    throw new Error('Jobs operations are not implemented in the mock backend');
+    return Promise.reject(new Error('Jobs operations are not implemented in the mock backend'));
   }
 
-  async getJobStatus(
+  getJobStatus(
     _systemId: SystemId,
     _jobId: string,
     _progress?: BackendProgressCallback
   ): Promise<JobStatusResult> {
-    throw new Error('Jobs operations are not implemented in the mock backend');
+    return Promise.reject(new Error('Jobs operations are not implemented in the mock backend'));
   }
 
   // -----------------------------------------------------------------------

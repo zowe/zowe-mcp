@@ -19,10 +19,11 @@
   ],
   "license": "EPL-2.0",
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.26.0",
     "@ai-sdk/google": "^2.0.0",
     "@ai-sdk/openai-compatible": "1.0.33",
+    "@modelcontextprotocol/sdk": "^1.26.0",
     "ai": "^5.0.0",
+    "dotenv": "^16.6.1",
     "js-yaml": "^4.1.0"
   },
   "devDependencies": {

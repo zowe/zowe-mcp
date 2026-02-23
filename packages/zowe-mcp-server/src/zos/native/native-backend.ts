@@ -328,7 +328,7 @@ export class NativeBackend {
       let timeoutId: ReturnType<typeof setTimeout>;
       const timeoutPromise = new Promise<never>((_, reject) => {
         timeoutId = setTimeout(
-          () => reject(new Error(`Request timed out after ${timeoutMs} ms`)),
+          () => reject(new Error(`Request timed out after ${timeoutSec} s`)),
           timeoutMs
         );
       });
@@ -365,6 +365,10 @@ export class NativeBackend {
         this.options.onPasswordInvalid?.(spec.user, spec.host, spec.port);
       } else if (isConnectionError) {
         this.options.clientCache.evict(spec);
+        log.info(
+          'Native connection evicted due to backend/connection error; lock released — next request will use a new connection',
+          { key, systemId, host: spec.host, user: spec.user }
+        );
       }
       throw err;
     } finally {

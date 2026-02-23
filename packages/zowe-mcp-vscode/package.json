@@ -77,6 +77,12 @@
         "uiTheme": "vs-dark"
       },
       {
+        "id": "ispf-green",
+        "label": "ISPF Green (Dark)",
+        "path": "./themes/ispf-green-color-theme.json",
+        "uiTheme": "vs-dark"
+      },
+      {
         "id": "ispf-modern-dark",
         "label": "ISPF Modern (Dark)",
         "path": "./themes/ispf-modern-dark-color-theme.json",

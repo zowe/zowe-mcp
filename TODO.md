@@ -26,6 +26,7 @@ Items to address later. Not ordered by priority.
 ## VS Code / UX
 
 - **Language Model API and Chat Participant API**: Consider using VS Code’s Language Model API and Chat Participant API for a better user experience.
+- **Zowe Explorer integration — open in editor**: Integrate with Zowe Explorer so the AI (or user) can open z/OS artifacts in the VS Code editor for manual view/edit. For example: "open this dataset/member in the editor" or "show me that job's output" could trigger opening the dataset member, USS file, or job/job file in Zowe Explorer's editor. Ideas: MCP tools or extension commands that resolve a DSN/member, USS path, or job/spool ID and then invoke Zowe Explorer's "open" behavior (e.g. via VS Code API or Zowe Explorer's own commands/URI scheme), so the user can inspect or edit in the existing Zowe Explorer experience instead of only in chat.
 
 ## Authentication / UX
 
@@ -40,6 +41,8 @@ Items to address later. Not ordered by priority.
 - **Search tools**: Add tool(s) to find datasets that contain a specific member (e.g. by name or pattern). Inputs: list of datasets and/or DSN/member wildcards; output: datasets that have matching members.
 - **Working set**: Introduce a concept of a working set — a defined set of datasets (with optional member subset or wildcards) that can be reused as input for search or other operations (e.g. “search in my working set”).
 - **Efficient editing**: Support efficient, targeted edits similar to Ansible’s `ansible.builtin.replace` (change multiple similar lines by pattern) and `ansible.builtin.blockinfile` (insert/update/remove a block of lines). Avoid full read–edit–write when only a few lines or one block change; reduce risk of corrupting large datasets.
+- **Viewing binary files (hex mode)**: Support viewing binary datasets and USS files in hex mode (e.g. hex dump or hex+ASCII) so the AI or user can inspect non-text content (load modules, binary data) without corrupting or misinterpreting bytes as text.
+- **Editing files with unprintable characters**: Support reading and editing dataset members or USS files that contain unprintable/control characters (e.g. EBCDIC control chars, mixed binary and text). Today unprintables are replaced with `.` for display; allow a mode or encoding that preserves or represents them for safe round-trip edit (e.g. escape sequences, hex in place, or binary-safe read/write path).
 
 ## Features / Components
 

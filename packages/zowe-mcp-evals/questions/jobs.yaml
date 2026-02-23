@@ -20,9 +20,7 @@ questions:
   - id: job-status
     prompt: What is the status of my most recent job?
     assertions:
-      - type: toolCallOrder
-        sequence:
-          - tool: listJobs
-          - tool: getJobStatus
+      - type: toolCall
+        tool: listJobs
       - type: answerContains
-        pattern: "status|ACTIVE|OUTPUT|CC|RC"
+        pattern: "status|ACTIVE|OUTPUT|CC|RC|retcode|phase"

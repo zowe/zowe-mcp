@@ -26,7 +26,7 @@ Items to address later. Not ordered by priority.
 ## VS Code / UX
 
 - **Language Model API and Chat Participant API**: Consider using VS Code’s Language Model API and Chat Participant API for a better user experience.
-- **Zowe Explorer integration — open in editor**: Integrate with Zowe Explorer so the AI (or user) can open z/OS artifacts in the VS Code editor for manual view/edit. For example: "open this data set/member in the editor" or "show me that job's output" could trigger opening the data set member, USS file, or job/job file in Zowe Explorer's editor. Ideas: MCP tools or extension commands that resolve a DSN/member, USS path, or job/spool ID and then invoke Zowe Explorer's "open" behavior (e.g. via VS Code API or Zowe Explorer's own commands/URI scheme), so the user can inspect or edit in the existing Zowe Explorer experience instead of only in chat.
+- ✅ **Zowe Explorer integration — open in editor**: Integrate with Zowe Explorer so the AI (or user) can open z/OS artifacts in the VS Code editor for manual view/edit. For example: "open this data set/member in the editor" or "show me that job's output" could trigger opening the data set member, USS file, or job/job file in Zowe Explorer's editor. Ideas: MCP tools or extension commands that resolve a DSN/member, USS path, or job/spool ID and then invoke Zowe Explorer's "open" behavior (e.g. via VS Code API or Zowe Explorer's own commands/URI scheme), so the user can inspect or edit in the existing Zowe Explorer experience instead of only in chat.
 
 ## Authentication / UX
 

@@ -174,7 +174,11 @@ function parseArgs(): ParsedArgs {
         y.options({
           mock: { type: 'string', describe: 'Mock data directory (or --mock=<dir>)' },
           native: { type: 'boolean', describe: 'Use native (SSH) backend' },
-          config: { type: 'string', describe: 'JSON config path with "systems" array' },
+          config: {
+            type: 'string',
+            describe:
+              'JSON config path with "systems" (or "connections") array of connection specs (user@host)',
+          },
           system: {
             type: 'array',
             string: true,
@@ -218,7 +222,8 @@ function parseArgs(): ParsedArgs {
       },
       config: {
         type: 'string',
-        describe: 'JSON file with { "systems": ["user@host", ...] } (used with --native)',
+        describe:
+          'JSON file with { "systems": ["user@host", ...] } — connection specs (used with --native)',
       },
       system: {
         type: 'array',
@@ -357,7 +362,7 @@ async function main(): Promise<void> {
 
   // Connect to VS Code extension pipe (if env vars are set)
   const extensionClient = await connectExtensionClient(logger);
-  /** Captured from systems-update sent on connect (before native setup); applied when native is ready. */
+  /** Captured from connections-update sent on connect (before native setup); applied when native is ready. */
   let pendingSystemsUpdate: string[] | undefined;
   if (extensionClient) {
     logger.attachExtension(extensionClient);
@@ -370,10 +375,10 @@ async function main(): Promise<void> {
         logger.setLevel(level);
       }
     });
-    // Capture systems-update sent on connect (extension sends current list when we connect)
+    // Capture connections-update sent on connect (extension sends current list when we connect)
     extensionClient.onEvent(event => {
-      if (event.type === 'systems-update') {
-        pendingSystemsUpdate = event.data.systems;
+      if (event.type === 'connections-update') {
+        pendingSystemsUpdate = event.data.connections;
       }
     });
   }
@@ -602,14 +607,14 @@ async function main(): Promise<void> {
     const updateSystems = nativeSetup.updateSystems;
     if (extensionClient?.connected && updateSystems) {
       extensionClient.onEvent(event => {
-        if (event.type === 'systems-update') {
-          const { systems } = event.data;
-          if (systems.length > 0) {
-            logger.info('Applying systems-update from VS Code extension', {
-              count: systems.length,
-              systems,
+        if (event.type === 'connections-update') {
+          const { connections } = event.data;
+          if (connections.length > 0) {
+            logger.info('Applying connections-update from VS Code extension', {
+              count: connections.length,
+              connections,
             });
-            updateSystems(systems);
+            updateSystems(connections);
           }
         }
         if (event.type === 'native-options-update') {

@@ -341,7 +341,7 @@ export type ServerToExtensionEvent =
 export type ExtensionToServerEvent =
   | McpEvent<'log-level', LogLevelEventData>
   | McpEvent<'password', PasswordEventData>
-  | McpEvent<'systems-update', SystemsUpdateEventData>;
+  | McpEvent<'connections-update', ConnectionsUpdateEventData>;
 ```
 
 ---
@@ -365,7 +365,7 @@ Define two unions: events **server → extension** and **extension → server**.
 |------------------|---------------------------|-----------------------------------|
 | `log-level`      | Change server log level   | `{ level }`                       |
 | `password`       | Supply requested password | `{ user, host, port?, password }` |
-| `systems-update` | Update list of systems    | `{ systems: string[] }`           |
+| `connections-update` | Update list of connection specs | `{ connections: string[] }`       |
 
 You can add your own event types; keep the same envelope and document `type` and `data` for each.
 

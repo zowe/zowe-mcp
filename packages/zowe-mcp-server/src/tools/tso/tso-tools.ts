@@ -38,10 +38,11 @@ import { validateTsoCommand } from './tso-command-validation.js';
 
 async function ensureContext(
   deps: { sessionState: SessionState; credentialProvider: CredentialProvider },
-  systemId: string
+  systemId: string,
+  userId?: string
 ): Promise<void> {
   if (deps.sessionState.getContext(systemId)) return;
-  const credentials = await deps.credentialProvider.getCredentials(systemId);
+  const credentials = await deps.credentialProvider.getCredentials(systemId, userId);
   deps.sessionState.setActiveSystem(systemId, credentials.user);
 }
 
@@ -163,8 +164,12 @@ export function registerTsoTools(server: McpServer, deps: TsoToolDeps, logger: L
           }
         }
 
-        const systemId = resolveSystemForTool(deps.systemRegistry, deps.sessionState, system);
-        await ensureContext(deps, systemId);
+        const { systemId, userId: resolvedUserId } = resolveSystemForTool(
+          deps.systemRegistry,
+          deps.sessionState,
+          system
+        );
+        await ensureContext(deps, systemId, resolvedUserId);
 
         const userId = deps.sessionState.getContext(systemId)?.userId;
         const progressCb = extra._meta?.progressToken

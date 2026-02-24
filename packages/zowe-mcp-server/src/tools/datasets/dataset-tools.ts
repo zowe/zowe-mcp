@@ -33,7 +33,7 @@ import {
   resolvePattern,
   validateListPattern,
 } from '../../zos/dsn.js';
-import { type EncodingOptions, resolveDatasetEncoding } from '../../zos/encoding.js';
+import { resolveDatasetEncoding, type EncodingOptions } from '../../zos/encoding.js';
 import {
   buildCacheKey,
   buildScopeDsn,
@@ -117,9 +117,13 @@ export interface DatasetToolDeps {
  * This helper lazily initializes the context using the credential
  * provider, mirroring what `setSystem` does.
  */
-async function ensureContext(deps: DatasetToolDeps, systemId: string): Promise<void> {
+async function ensureContext(
+  deps: DatasetToolDeps,
+  systemId: string,
+  userId?: string
+): Promise<void> {
   if (deps.sessionState.getContext(systemId)) return;
-  const credentials = await deps.credentialProvider.getCredentials(systemId);
+  const credentials = await deps.credentialProvider.getCredentials(systemId, userId);
   deps.sessionState.setActiveSystem(systemId, credentials.user);
 }
 
@@ -136,15 +140,15 @@ async function resolveInput(
   system: string | undefined,
   log: Logger
 ) {
-  const systemId = resolveSystemForTool(deps.systemRegistry, deps.sessionState, system);
-  await ensureContext(deps, systemId);
+  const resolvedSystem = resolveSystemForTool(deps.systemRegistry, deps.sessionState, system);
+  await ensureContext(deps, resolvedSystem.systemId, resolvedSystem.userId);
   const resolved = resolveDsn(dsn, member);
   log.debug('resolved input', {
-    systemId,
+    systemId: resolvedSystem.systemId,
     dsn: resolved.dsn,
     member: resolved.member,
   });
-  return { systemId, ...resolved };
+  return { systemId: resolvedSystem.systemId, ...resolved };
 }
 
 /** Format an error for LLM consumption. */
@@ -189,7 +193,7 @@ export function registerDatasetTools(
           .string()
           .optional()
           .describe(
-            'Target z/OS system: fully qualified or unqualified hostname (e.g. sys1.example.com or sys1 when unambiguous). Defaults to the active system.'
+            'Target z/OS system: host (e.g. sys1.example.com) or connection spec (user@host) when multiple connections exist for that host. Defaults to active system.'
           ),
         volser: z.string().optional().describe('Volume serial for uncataloged data sets.'),
         offset: z
@@ -225,15 +229,19 @@ export function registerDatasetTools(
       log.info('listDatasets called', { dsnPattern, system, volser, offset, limit, attributes });
 
       try {
-        const systemId = resolveSystemForTool(deps.systemRegistry, deps.sessionState, system);
-        await ensureContext(deps, systemId);
+        const { systemId, userId: resolvedUserId } = resolveSystemForTool(
+          deps.systemRegistry,
+          deps.sessionState,
+          system
+        );
+        await ensureContext(deps, systemId, resolvedUserId);
 
         const resolvedPattern = resolvePattern(dsnPattern);
         validateListPattern(resolvedPattern);
 
         log.debug('listDatasets resolved', { systemId, resolvedPattern });
 
-        const userId = deps.sessionState.getContext(systemId)?.userId;
+        const userId = deps.sessionState.getContext(systemId)?.userId ?? resolvedUserId ?? '';
         const progressCb = extra._meta?.progressToken
           ? (msg: string) => void progress.step(msg)
           : undefined;
@@ -312,7 +320,7 @@ export function registerDatasetTools(
           .string()
           .optional()
           .describe(
-            'Target z/OS system: fully qualified or unqualified hostname (e.g. sys1.example.com or sys1 when unambiguous). Defaults to the active system.'
+            'Target z/OS system: host (e.g. sys1.example.com) or connection spec (user@host) when multiple connections exist for that host. Defaults to active system.'
           ),
         offset: z
           .number()
@@ -344,7 +352,7 @@ export function registerDatasetTools(
           system,
           log
         );
-        const userId = deps.sessionState.getContext(systemId)?.userId;
+        const userId = deps.sessionState.getContext(systemId)?.userId ?? '';
         const progressCb = extra._meta?.progressToken
           ? (msg: string) => void progress.step(msg)
           : undefined;
@@ -599,7 +607,7 @@ export function registerDatasetTools(
           .string()
           .optional()
           .describe(
-            'Target z/OS system: fully qualified or unqualified hostname (e.g. sys1.example.com or sys1 when unambiguous). Defaults to the active system.'
+            'Target z/OS system: host (e.g. sys1.example.com) or connection spec (user@host) when multiple connections exist for that host. Defaults to active system.'
           ),
       },
     },
@@ -677,7 +685,7 @@ export function registerDatasetTools(
           .string()
           .optional()
           .describe(
-            'Target z/OS system: fully qualified or unqualified hostname (e.g. sys1.example.com or sys1 when unambiguous). Defaults to the active system.'
+            'Target z/OS system: host (e.g. sys1.example.com) or connection spec (user@host) when multiple connections exist for that host. Defaults to active system.'
           ),
         encoding: z
           .string()
@@ -814,7 +822,7 @@ export function registerDatasetTools(
           .string()
           .optional()
           .describe(
-            'Target z/OS system: fully qualified or unqualified hostname (e.g. sys1.example.com or sys1 when unambiguous). Defaults to the active system.'
+            'Target z/OS system: host (e.g. sys1.example.com) or connection spec (user@host) when multiple connections exist for that host. Defaults to active system.'
           ),
         etag: z
           .string()
@@ -947,9 +955,13 @@ export function registerDatasetTools(
       log.info('getTempDatasetPrefix called', { prefix, suffix, system });
 
       try {
-        const systemId = resolveSystemForTool(deps.systemRegistry, deps.sessionState, system);
-        await ensureContext(deps, systemId);
-        const userId = deps.sessionState.getContext(systemId)?.userId ?? '';
+        const { systemId, userId: resolvedUserId } = resolveSystemForTool(
+          deps.systemRegistry,
+          deps.sessionState,
+          system
+        );
+        await ensureContext(deps, systemId, resolvedUserId);
+        const userId = deps.sessionState.getContext(systemId)?.userId ?? resolvedUserId ?? '';
         const effectivePrefix = prefix?.trim()
           ? prefix.trim().toUpperCase()
           : `${userId}.${REQUIRED_SAFETY_QUALIFIER}`;
@@ -1019,9 +1031,13 @@ export function registerDatasetTools(
       log.info('getTempDatasetName called', { prefix, qualifier, system });
 
       try {
-        const systemId = resolveSystemForTool(deps.systemRegistry, deps.sessionState, system);
-        await ensureContext(deps, systemId);
-        const userId = deps.sessionState.getContext(systemId)?.userId ?? '';
+        const { systemId, userId: resolvedUserId } = resolveSystemForTool(
+          deps.systemRegistry,
+          deps.sessionState,
+          system
+        );
+        await ensureContext(deps, systemId, resolvedUserId);
+        const userId = deps.sessionState.getContext(systemId)?.userId ?? resolvedUserId ?? '';
         const effectivePrefix = prefix?.trim()
           ? prefix.trim().toUpperCase()
           : `${userId}.${REQUIRED_SAFETY_QUALIFIER}`;
@@ -1075,7 +1091,7 @@ export function registerDatasetTools(
           .string()
           .optional()
           .describe(
-            'Target z/OS system: fully qualified or unqualified hostname (e.g. sys1.example.com or sys1 when unambiguous). Defaults to the active system.'
+            'Target z/OS system: host (e.g. sys1.example.com) or connection spec (user@host) when multiple connections exist for that host. Defaults to active system.'
           ),
         recfm: z
           .string()
@@ -1246,9 +1262,13 @@ export function registerDatasetTools(
               : type;
 
       try {
-        const systemId = resolveSystemForTool(deps.systemRegistry, deps.sessionState, system);
-        await ensureContext(deps, systemId);
-        const userId = deps.sessionState.getContext(systemId)?.userId ?? '';
+        const { systemId, userId: resolvedUserId } = resolveSystemForTool(
+          deps.systemRegistry,
+          deps.sessionState,
+          system
+        );
+        await ensureContext(deps, systemId, resolvedUserId);
+        const userId = deps.sessionState.getContext(systemId)?.userId ?? resolvedUserId ?? '';
         const effectivePrefix = prefix?.trim()
           ? prefix.trim().toUpperCase()
           : `${userId}.${REQUIRED_SAFETY_QUALIFIER}`;
@@ -1335,7 +1355,7 @@ export function registerDatasetTools(
           .string()
           .optional()
           .describe(
-            'Target z/OS system: fully qualified or unqualified hostname (e.g. sys1.example.com or sys1 when unambiguous). Defaults to the active system.'
+            'Target z/OS system: host (e.g. sys1.example.com) or connection spec (user@host) when multiple connections exist for that host. Defaults to active system.'
           ),
       },
     },
@@ -1426,9 +1446,13 @@ export function registerDatasetTools(
       log.info('deleteDatasetsUnderPrefix called', { dsnPrefix, system });
 
       try {
-        const systemId = resolveSystemForTool(deps.systemRegistry, deps.sessionState, system);
-        await ensureContext(deps, systemId);
-        const userId = deps.sessionState.getContext(systemId)?.userId ?? '';
+        const { systemId, userId: resolvedUserId } = resolveSystemForTool(
+          deps.systemRegistry,
+          deps.sessionState,
+          system
+        );
+        await ensureContext(deps, systemId, resolvedUserId);
+        const userId = deps.sessionState.getContext(systemId)?.userId ?? resolvedUserId ?? '';
         const progressCb = extra._meta?.progressToken
           ? (msg: string) => void progress.step(msg)
           : undefined;
@@ -1488,7 +1512,7 @@ export function registerDatasetTools(
           .string()
           .optional()
           .describe(
-            'Target z/OS system: fully qualified or unqualified hostname (e.g. sys1.example.com or sys1 when unambiguous). Defaults to the active system.'
+            'Target z/OS system: host (e.g. sys1.example.com) or connection spec (user@host) when multiple connections exist for that host. Defaults to active system.'
           ),
       },
     },
@@ -1505,8 +1529,12 @@ export function registerDatasetTools(
       });
 
       try {
-        const systemId = resolveSystemForTool(deps.systemRegistry, deps.sessionState, system);
-        await ensureContext(deps, systemId);
+        const { systemId, userId: resolvedUserId } = resolveSystemForTool(
+          deps.systemRegistry,
+          deps.sessionState,
+          system
+        );
+        await ensureContext(deps, systemId, resolvedUserId);
         const resolvedSource = resolveDsn(sourceDsn, sourceMember);
         const resolvedTarget = resolveDsn(targetDsn, targetMember);
         log.debug('copyDataset resolved', {
@@ -1589,7 +1617,7 @@ export function registerDatasetTools(
           .string()
           .optional()
           .describe(
-            'Target z/OS system: fully qualified or unqualified hostname (e.g. sys1.example.com or sys1 when unambiguous). Defaults to the active system.'
+            'Target z/OS system: host (e.g. sys1.example.com) or connection spec (user@host) when multiple connections exist for that host. Defaults to active system.'
           ),
       },
     },
@@ -1600,8 +1628,12 @@ export function registerDatasetTools(
       log.info('renameDataset called', { dsn, newDsn, member, newMember, system });
 
       try {
-        const systemId = resolveSystemForTool(deps.systemRegistry, deps.sessionState, system);
-        await ensureContext(deps, systemId);
+        const { systemId, userId: resolvedUserId } = resolveSystemForTool(
+          deps.systemRegistry,
+          deps.sessionState,
+          system
+        );
+        await ensureContext(deps, systemId, resolvedUserId);
         const resolvedOld = resolveDsn(dsn, member);
         const resolvedNew = resolveDsn(newDsn, newMember);
         log.debug('renameDataset resolved', {
@@ -1625,7 +1657,7 @@ export function registerDatasetTools(
         );
 
         if (deps.responseCache) {
-          const userId = deps.sessionState.getContext(systemId)?.userId ?? '';
+          const userId = deps.sessionState.getContext(systemId)?.userId ?? resolvedUserId ?? '';
           applyCacheAfterMutation(deps.responseCache, 'rename', {
             systemId,
             userId,

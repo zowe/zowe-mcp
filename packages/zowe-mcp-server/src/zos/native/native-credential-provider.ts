@@ -90,7 +90,7 @@ export class NativeCredentialProvider implements CredentialProvider {
     this._applySpecs(options.connectionSpecs);
   }
 
-  /** Replace connection specs (e.g. when VS Code sends systems-update). Preserves useEnvForPassword, passwordStore, and callbacks. */
+  /** Replace connection specs (e.g. when VS Code sends connections-update). Preserves useEnvForPassword, passwordStore, and callbacks. */
   updateSpecs(specs: ParsedConnectionSpec[]): void {
     this._applySpecs(specs);
   }

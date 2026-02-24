@@ -59,14 +59,14 @@ export function registerDatasetPrompts(
           .string()
           .optional()
           .describe(
-            'Target z/OS system: fully qualified or unqualified hostname (e.g. sys1.example.com or sys1 when unambiguous). Defaults to the active system.'
+            'Target z/OS system: host (e.g. sys1.example.com) or connection spec (user@host) when multiple connections exist. Defaults to active system.'
           ),
       },
     },
     async ({ dsn, member, system }) => {
       log.info('reviewJcl prompt called', { dsn, member, system });
 
-      const systemId = resolveSystemForTool(systemRegistry, sessionState, system);
+      const { systemId } = resolveSystemForTool(systemRegistry, sessionState, system);
       const resolved = resolveDsn(dsn, member);
 
       const result = await backend.readDataset(systemId, resolved.dsn, resolved.member);
@@ -113,14 +113,14 @@ export function registerDatasetPrompts(
           .string()
           .optional()
           .describe(
-            'Target z/OS system: fully qualified or unqualified hostname (e.g. sys1.example.com or sys1 when unambiguous). Defaults to the active system.'
+            'Target z/OS system: host (e.g. sys1.example.com) or connection spec (user@host) when multiple connections exist. Defaults to active system.'
           ),
       },
     },
     async ({ dsn, system }) => {
       log.info('explainDataset prompt called', { dsn, system });
 
-      const systemId = resolveSystemForTool(systemRegistry, sessionState, system);
+      const { systemId } = resolveSystemForTool(systemRegistry, sessionState, system);
       const resolved = resolveDsn(dsn);
 
       const attrs = await backend.getAttributes(systemId, resolved.dsn);
@@ -196,14 +196,14 @@ export function registerDatasetPrompts(
           .string()
           .optional()
           .describe(
-            'Target z/OS system: fully qualified or unqualified hostname (e.g. sys1.example.com or sys1 when unambiguous). Defaults to the active system.'
+            'Target z/OS system: host (e.g. sys1.example.com) or connection spec (user@host) when multiple connections exist. Defaults to active system.'
           ),
       },
     },
     async ({ dsn, member1, member2, system }) => {
       log.info('compareMembers prompt called', { dsn, member1, member2, system });
 
-      const systemId = resolveSystemForTool(systemRegistry, sessionState, system);
+      const { systemId } = resolveSystemForTool(systemRegistry, sessionState, system);
       const resolved = resolveDsn(dsn);
 
       const [content1, content2] = await Promise.all([

@@ -82,7 +82,7 @@ export function registerZoweExplorerTools(
             .string()
             .optional()
             .describe(
-              'MCP system id (e.g. user@host) to match a Zowe profile. Omit to use the current active system.'
+              'Target z/OS system: host or connection spec (user@host). Omit to use the current active system. Used to match a Zowe profile.'
             ),
         },
       },
@@ -141,7 +141,7 @@ export function registerZoweExplorerTools(
             .string()
             .optional()
             .describe(
-              'MCP system id (e.g. user@host) to match a Zowe profile. Omit to use the current active system.'
+              'Target z/OS system: host or connection spec (user@host). Omit to use the current active system. Used to match a Zowe profile.'
             ),
         },
       },
@@ -196,7 +196,7 @@ export function registerZoweExplorerTools(
             .string()
             .optional()
             .describe(
-              'MCP system id (e.g. user@host) to match a Zowe profile. Omit to use the current active system.'
+              'Target z/OS system: host or connection spec (user@host). Omit to use the current active system. Used to match a Zowe profile.'
             ),
         },
       },

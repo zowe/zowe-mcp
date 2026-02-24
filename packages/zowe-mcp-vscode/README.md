@@ -48,28 +48,28 @@ Or set the path manually:
 To connect to real z/OS systems over SSH:
 
 1. Open Settings and search for **Zowe MCP**.
-2. Set **Native Systems** to an array of connection specs, e.g. `["USERID@sys1.example.com"]` or `["USERID@host:22"]`.
+2. Set **Native connections** to an array of connection specs, e.g. `["USERID@sys1.example.com"]` or `["USERID@host:22"]`. Each entry is one connection (user@host or user@host:port); you can have multiple connections to the same z/OS system (e.g. different user IDs or roles).
 3. Reload the window.
 
 When the server needs a password, the extension will prompt you. Passwords are stored in VS Code Secret Storage under the shared Zowe key so other Zowe extensions can reuse them.
 
-**Note:** If both Mock Data Dir and Native Systems are set, the native backend is used.
+**Note:** If both Mock Data Dir and Native connections are set, the native backend is used.
 
 ## Settings
 
 | Setting | Description |
 | --- | --- |
-| **Native Systems** | Connection specs for SSH: `user@host` or `user@host:port` (e.g. `USERID@sys1.example.com`). With default configuration the server runs in native (SSH) mode; add systems here to connect. Passwords are stored in VS Code Secret Storage (Zowe namespace). Changes require reloading the window. |
+| **Native connections** | SSH connection specs: `user@host` or `user@host:port` (e.g. `USERID@sys1.example.com`). Each entry defines access to a z/OS system; you can have multiple connections to the same host. With default configuration the server runs in native (SSH) mode; add connections here to connect. Passwords are stored in VS Code Secret Storage (Zowe namespace). Changes require reloading the window. |
 | **Log Level** | Minimum log level (e.g. `info`, `debug`). Takes effect immediately without restart. |
 | **Install Zowe Native Server Automatically** | When enabled (default), the extension automatically installs the Zowe Native server on the host when "Server not found" is detected. Disable to use a pre-installed server only. Changes are sent to the server and apply to future connections. |
 | **Zowe Native Server Path** | Remote path for the Zowe Native server on the host (default: `~/.zowe-server`). Changes are sent to the server and apply to future connections. |
 | **Native Response Timeout** | Response timeout in seconds for each Zowe Native (ZNP) request (default: 60). Increase on overloaded systems. Changes apply to future connections. |
-| **Mock Data Directory** | Absolute path to a mock data directory. When set **and** Native Systems is empty, the server uses mock z/OS data. Leave empty to use native (SSH) mode. Changes require reloading the window. |
+| **Mock Data Directory** | Absolute path to a mock data directory. When set **and** Native connections is empty, the server uses mock z/OS data. Leave empty to use native (SSH) mode. Changes require reloading the window. |
 | **Default Mainframe MVS Encoding** | Default EBCDIC encoding for data set read/write (e.g. `IBM-037`, `IBM-1047`). Takes effect immediately. |
 | **Default Mainframe USS Encoding** | Default EBCDIC encoding for USS file operations (e.g. `IBM-1047`). Takes effect immediately. |
 | **Job Cards** | JCL job cards per connection spec (key: `user@host` or `user@host:port`). Use placeholders `{jobname}` and `{programmer}` for `submitJob`. Takes effect immediately. |
 
-**Mode behavior:** With default configuration (empty Mock Data Directory and empty Native Systems), the server runs in **native** mode with no systems; add entries to Native Systems to connect. Mock mode is active only when Mock Data Directory is set and Native Systems is empty.
+**Mode behavior:** With default configuration (empty Mock Data Directory and empty Native connections), the server runs in **native** mode with no connections; add entries to Native connections to connect. Mock mode is active only when Mock Data Directory is set and Native connections is empty.
 
 ## User-facing options reference
 
@@ -79,12 +79,12 @@ All options that affect the MCP server are documented below. The extension uses 
 
 | Setting ID | Type | Default | Description |
 | --- | --- | --- | --- |
-| `zoweMCP.nativeSystems` | array of string | `[]` | Connection specs: `user@host` or `user@host:port`. Format is validated in Settings UI. |
+| `zoweMCP.nativeConnections` | array of string | `[]` | SSH connection specs: `user@host` or `user@host:port`. Each entry is one connection; you can have multiple connections to the same z/OS system. Format is validated in Settings UI. |
 | `zoweMCP.logLevel` | string | `"info"` | Log level: `debug`, `info`, `notice`, `warning`, `error`, `critical`, `alert`, `emergency`. |
 | `zoweMCP.installZoweNativeServerAutomatically` | boolean | `true` | Auto-install Zowe Native server on host when "Server not found". |
 | `zoweMCP.zoweNativeServerPath` | string | `"~/.zowe-server"` | Remote path for Zowe Native server install/run. |
 | `zoweMCP.nativeResponseTimeout` | number | `60` | Response timeout in seconds for each ZNP request. |
-| `zoweMCP.mockDataDirectory` | string | `""` | Absolute path to mock data directory. Mock mode only when set and Native Systems is empty. |
+| `zoweMCP.mockDataDirectory` | string | `""` | Absolute path to mock data directory. Mock mode only when set and Native connections is empty. |
 | `zoweMCP.defaultMainframeMvsEncoding` | string | `"IBM-037"` | Default EBCDIC encoding for data set read/write. |
 | `zoweMCP.defaultMainframeUssEncoding` | string | `"IBM-1047"` | Default EBCDIC encoding for USS file operations. |
 | `zoweMCP.jobCards` | object | `{}` | JCL job cards per connection spec; keys `user@host` or `user@host:port`, value array of lines or string. Placeholders: `{jobname}`, `{programmer}`. |

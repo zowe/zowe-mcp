@@ -97,7 +97,7 @@ export function startPipeServer(context: vscode.ExtensionContext): PipeServerInf
     connectedClients.push(socket);
 
     sendInitialLogLevel();
-    sendInitialSystems();
+    sendInitialConnections();
     sendInitialNativeOptions();
     sendInitialEncodingOptions();
     sendInitialJobCards();
@@ -215,20 +215,26 @@ function sendInitialLogLevel(): void {
 }
 
 /**
- * Sends the current nativeSystems setting to all connected servers.
- * Called when a new server connects.
+ * Sends the current native connections setting to all connected servers.
+ * Called when a new server connects. Uses nativeConnections with migration from nativeSystems.
  */
-function sendInitialSystems(): void {
+function sendInitialConnections(): void {
   const config = vscode.workspace.getConfiguration('zoweMCP');
-  const systems = (config.get<string[]>('nativeSystems', []) ?? []).filter(
-    (s): s is string => typeof s === 'string' && s.trim().length > 0
-  );
-  if (systems.length > 0) {
+  let connections = config.get<string[]>('nativeConnections', []) ?? [];
+  if (connections.length === 0) {
+    const legacy = config.get<string[]>('nativeSystems', []) ?? [];
+    connections = legacy.filter((s): s is string => typeof s === 'string' && s.trim().length > 0);
+  } else {
+    connections = connections.filter(
+      (s): s is string => typeof s === 'string' && s.trim().length > 0
+    );
+  }
+  if (connections.length > 0) {
     sendEventToServers({
-      type: 'systems-update',
-      data: { systems },
+      type: 'connections-update',
+      data: { connections },
       timestamp: Date.now(),
-    });
+    } as ExtensionToServerEvent);
   }
 }
 
@@ -277,11 +283,11 @@ function sendInitialEncodingOptions(): void {
 }
 
 /**
- * Sends a systems-update event to all connected MCP server instances.
- * Call when zoweMCP.nativeSystems configuration changes.
+ * Sends a connections-update event to all connected MCP server instances.
+ * Call when zoweMCP.nativeConnections configuration changes.
  */
-export function sendSystemsUpdateEvent(): void {
-  sendInitialSystems();
+export function sendConnectionsUpdateEvent(): void {
+  sendInitialConnections();
 }
 
 /**

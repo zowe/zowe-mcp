@@ -20,11 +20,11 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import { getDisplayName, getLog, initLog } from './log';
 import {
+  sendConnectionsUpdateEvent,
   sendEncodingOptionsUpdateEvent,
   sendJobCardsUpdateEvent,
   sendLogLevelEvent,
   sendNativeOptionsUpdateEvent,
-  sendSystemsUpdateEvent,
   startPipeServer,
 } from './pipe-server';
 import { getNativePasswordKey } from './secrets';
@@ -48,7 +48,7 @@ export function activate(context: vscode.ExtensionContext): void {
         const args = [serverModule, '--stdio'];
         const config = vscode.workspace.getConfiguration('zoweMCP');
         const mockDataDirectory = config.get<string>('mockDataDirectory', '').trim();
-        const nativeSystems = config.get<string[]>('nativeSystems', []) ?? [];
+        const nativeConnections = getNativeConnectionsWithMigration(config);
         const installZoweNativeServerAutomatically = config.get<boolean>(
           'installZoweNativeServerAutomatically',
           true
@@ -64,13 +64,13 @@ export function activate(context: vscode.ExtensionContext): void {
           'IBM-1047'
         );
 
-        // Mock only when mock directory is set and native systems is empty; otherwise native mode.
-        if (mockDataDirectory && nativeSystems.length === 0) {
+        // Mock only when mock directory is set and native connections is empty; otherwise native mode.
+        if (mockDataDirectory && nativeConnections.length === 0) {
           args.push('--mock', mockDataDirectory);
           log.info(`Mock mode enabled: ${mockDataDirectory}`);
         } else {
           args.push('--native');
-          for (const spec of nativeSystems) {
+          for (const spec of nativeConnections) {
             if (typeof spec === 'string' && spec.trim()) {
               args.push('--system', spec.trim());
             }
@@ -84,7 +84,7 @@ export function activate(context: vscode.ExtensionContext): void {
           if (nativeResponseTimeout > 0 && nativeResponseTimeout !== 60) {
             args.push('--native-response-timeout', String(nativeResponseTimeout));
           }
-          log.info(`Native (SSH) mode enabled: ${nativeSystems.length} system(s)`);
+          log.info(`Native (SSH) mode enabled: ${nativeConnections.length} connection(s)`);
         }
         if (defaultMainframeMvsEncoding?.trim()) {
           args.push('--default-mvs-encoding', defaultMainframeMvsEncoding.trim());
@@ -146,9 +146,9 @@ export function activate(context: vscode.ExtensionContext): void {
           sendLogLevelEvent(level);
         });
       }
-      if (e.affectsConfiguration('zoweMCP.nativeSystems')) {
-        log.info('Native systems setting changed, forwarding to MCP servers');
-        sendSystemsUpdateEvent();
+      if (e.affectsConfiguration('zoweMCP.nativeConnections')) {
+        log.info('Native connections setting changed, forwarding to MCP servers');
+        sendConnectionsUpdateEvent();
       }
       if (
         e.affectsConfiguration('zoweMCP.installZoweNativeServerAutomatically') ||
@@ -335,6 +335,24 @@ async function initMockData(
 }
 
 /**
+ * Returns the list of native connection specs, migrating from the old
+ * nativeSystems setting to nativeConnections on first read if needed.
+ */
+function getNativeConnectionsWithMigration(config: vscode.WorkspaceConfiguration): string[] {
+  const connections = config.get<string[]>('nativeConnections', []) ?? [];
+  if (connections.length > 0) {
+    return connections.filter((s): s is string => typeof s === 'string' && s.trim().length > 0);
+  }
+  const legacy = config.get<string[]>('nativeSystems', []) ?? [];
+  const valid = legacy.filter((s): s is string => typeof s === 'string' && s.trim().length > 0);
+  if (valid.length > 0) {
+    void config.update('nativeConnections', valid, vscode.ConfigurationTarget.Global);
+    return valid;
+  }
+  return [];
+}
+
+/**
  * Parses a connection spec (user@host or user@host:port) into user and host.
  */
 function parseConnectionSpec(spec: string): { user: string; host: string } | undefined {
@@ -355,13 +373,11 @@ function parseConnectionSpec(spec: string): { user: string; host: string } | und
 async function clearStoredPassword(context: vscode.ExtensionContext): Promise<void> {
   const log = getLog();
   const config = vscode.workspace.getConfiguration('zoweMCP');
-  const nativeSystems = (config.get<string[]>('nativeSystems', []) ?? []).filter(
-    (s): s is string => typeof s === 'string' && s.trim().length > 0
-  );
+  const nativeConnections = getNativeConnectionsWithMigration(config);
 
   let spec: string;
-  if (nativeSystems.length > 0) {
-    const chosen = await vscode.window.showQuickPick(nativeSystems, {
+  if (nativeConnections.length > 0) {
+    const chosen = await vscode.window.showQuickPick(nativeConnections, {
       title: 'Zowe MCP: Clear Stored Password',
       placeHolder: 'Select connection (user@host) to clear stored password',
       matchOnDescription: false,

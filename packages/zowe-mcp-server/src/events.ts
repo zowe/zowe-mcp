@@ -187,13 +187,14 @@ export interface PasswordEventData {
 /** Supplies a password for user@host (after request-password or from SecretStorage). */
 export type PasswordEvent = McpEvent<'password', PasswordEventData>;
 
-/** Payload for a `systems-update` event (extension → server). */
-export interface SystemsUpdateEventData {
-  systems: string[];
+/** Payload for a `connections-update` event (extension → server). */
+export interface ConnectionsUpdateEventData {
+  /** Connection specs (user@host or user@host:port). Multiple specs can target the same z/OS system. */
+  connections: string[];
 }
 
 /** Updates the list of connection specs (user@host) for native mode. */
-export type SystemsUpdateEvent = McpEvent<'systems-update', SystemsUpdateEventData>;
+export type ConnectionsUpdateEvent = McpEvent<'connections-update', ConnectionsUpdateEventData>;
 
 /** Payload for a `native-options-update` event (extension → server). */
 export interface NativeOptionsUpdateEventData {
@@ -263,7 +264,7 @@ export type ServerToExtensionEvent =
 export type ExtensionToServerEvent =
   | LogLevelEvent
   | PasswordEvent
-  | SystemsUpdateEvent
+  | ConnectionsUpdateEvent
   | NativeOptionsUpdateEvent
   | EncodingOptionsUpdateEvent
   | JobCardsUpdateEvent

@@ -55,7 +55,7 @@ export function registerCoreTools(
   const backendDescription = hasBackend
     ? ''
     : 'When no z/OS backend is configured, only this tool is available. ' +
-      'Configure a backend to enable z/OS tools: mock (VS Code "zoweMCP.mockDataDirectory" or standalone --mock / ZOWE_MCP_MOCK_DIR) or native SSH (VS Code "zoweMCP.nativeSystems" or standalone --native --system user@host).';
+      'Configure a backend to enable z/OS tools: mock (VS Code "zoweMCP.mockDataDirectory" or standalone --mock / ZOWE_MCP_MOCK_DIR) or native SSH (VS Code "zoweMCP.nativeConnections" or standalone --native --system user@host).';
 
   server.registerTool(
     'info',
@@ -90,7 +90,7 @@ export function registerCoreTools(
           'To enable all z/OS tools, configure a backend:\n' +
           '  - Mock: VS Code — run "Zowe MCP: Generate Mock Data" or set "zoweMCP.mockDataDirectory"; ' +
           'Standalone — --mock <dir> or ZOWE_MCP_MOCK_DIR\n' +
-          '  - Native (SSH): VS Code — set "zoweMCP.nativeSystems" (e.g. ["user@host"]); ' +
+          '  - Native (SSH): VS Code — set "zoweMCP.nativeConnections" (e.g. ["user@host"]); ' +
           'Standalone — --native --system user@host (or --config <path>)';
       }
 

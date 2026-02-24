@@ -70,10 +70,14 @@ export interface JobToolDeps {
   jobCardStore: JobCardStore;
 }
 
-async function ensureContext(deps: JobToolDeps, systemId: string): Promise<{ userId: string }> {
+async function ensureContext(
+  deps: JobToolDeps,
+  systemId: string,
+  userId?: string
+): Promise<{ userId: string }> {
   const ctx = deps.sessionState.getContext(systemId);
   if (ctx) return { userId: ctx.userId };
-  const credentials = await deps.credentialProvider.getCredentials(systemId);
+  const credentials = await deps.credentialProvider.getCredentials(systemId, userId);
   deps.sessionState.setActiveSystem(systemId, credentials.user);
   return { userId: credentials.user };
 }
@@ -238,12 +242,12 @@ export function registerJobTools(server: McpServer, deps: JobToolDeps, logger: L
           })
           .parse(args);
 
-        const systemId = resolveSystemForTool(
+        const { systemId, userId: resolvedUserId } = resolveSystemForTool(
           deps.systemRegistry,
           deps.sessionState,
           parsed.system
         );
-        await ensureContext(deps, systemId);
+        await ensureContext(deps, systemId, resolvedUserId);
         const ctx = deps.sessionState.getContext(systemId);
         const userId = ctx?.userId ?? '';
         const connectionSpec = connectionSpecFor(systemId, userId);
@@ -370,12 +374,12 @@ export function registerJobTools(server: McpServer, deps: JobToolDeps, logger: L
           })
           .parse(args);
 
-        const systemId = resolveSystemForTool(
+        const { systemId, userId: resolvedUserId } = resolveSystemForTool(
           deps.systemRegistry,
           deps.sessionState,
           parsed.system
         );
-        await ensureContext(deps, systemId);
+        await ensureContext(deps, systemId, resolvedUserId);
 
         const status = await deps.backend.getJobStatus(
           systemId,
@@ -460,12 +464,12 @@ export function registerJobTools(server: McpServer, deps: JobToolDeps, logger: L
           })
           .parse(args);
 
-        const systemId = resolveSystemForTool(
+        const { systemId, userId: resolvedUserId } = resolveSystemForTool(
           deps.systemRegistry,
           deps.sessionState,
           parsed.system
         );
-        await ensureContext(deps, systemId);
+        await ensureContext(deps, systemId, resolvedUserId);
         const ctx = deps.sessionState.getContext(systemId);
         const userId = ctx?.userId ?? '';
         const connectionSpec = connectionSpecFor(systemId, userId);
@@ -613,12 +617,12 @@ export function registerJobTools(server: McpServer, deps: JobToolDeps, logger: L
           })
           .parse(args);
 
-        const systemId = resolveSystemForTool(
+        const { systemId, userId: resolvedUserId } = resolveSystemForTool(
           deps.systemRegistry,
           deps.sessionState,
           parsed.system
         );
-        await ensureContext(deps, systemId);
+        await ensureContext(deps, systemId, resolvedUserId);
 
         const allFiles = await deps.backend.listJobFiles(
           systemId,
@@ -699,12 +703,12 @@ export function registerJobTools(server: McpServer, deps: JobToolDeps, logger: L
           })
           .parse(args);
 
-        const systemId = resolveSystemForTool(
+        const { systemId, userId: resolvedUserId } = resolveSystemForTool(
           deps.systemRegistry,
           deps.sessionState,
           parsed.system
         );
-        await ensureContext(deps, systemId);
+        await ensureContext(deps, systemId, resolvedUserId);
 
         const result = await deps.backend.readJobFile(
           systemId,
@@ -812,12 +816,12 @@ export function registerJobTools(server: McpServer, deps: JobToolDeps, logger: L
           })
           .parse(args);
 
-        const systemId = resolveSystemForTool(
+        const { systemId, userId: resolvedUserId } = resolveSystemForTool(
           deps.systemRegistry,
           deps.sessionState,
           parsed.system
         );
-        await ensureContext(deps, systemId);
+        await ensureContext(deps, systemId, resolvedUserId);
 
         const status = await deps.backend.getJobStatus(
           systemId,
@@ -975,12 +979,12 @@ export function registerJobTools(server: McpServer, deps: JobToolDeps, logger: L
           })
           .parse(args);
 
-        const systemId = resolveSystemForTool(
+        const { systemId, userId: resolvedUserId } = resolveSystemForTool(
           deps.systemRegistry,
           deps.sessionState,
           parsed.system
         );
-        await ensureContext(deps, systemId);
+        await ensureContext(deps, systemId, resolvedUserId);
 
         const allFiles = await deps.backend.listJobFiles(
           systemId,
@@ -1107,12 +1111,12 @@ export function registerJobTools(server: McpServer, deps: JobToolDeps, logger: L
           })
           .parse(args);
 
-        const systemId = resolveSystemForTool(
+        const { systemId, userId: resolvedUserId } = resolveSystemForTool(
           deps.systemRegistry,
           deps.sessionState,
           parsed.system
         );
-        await ensureContext(deps, systemId);
+        await ensureContext(deps, systemId, resolvedUserId);
 
         const allJobs = await deps.backend.listJobs(
           systemId,
@@ -1170,12 +1174,12 @@ export function registerJobTools(server: McpServer, deps: JobToolDeps, logger: L
       await progress.start();
       try {
         const parsed = z.object({ jobId: z.string(), system: z.string().optional() }).parse(args);
-        const systemId = resolveSystemForTool(
+        const { systemId, userId: resolvedUserId } = resolveSystemForTool(
           deps.systemRegistry,
           deps.sessionState,
           parsed.system
         );
-        await ensureContext(deps, systemId);
+        await ensureContext(deps, systemId, resolvedUserId);
         const jcl = await deps.backend.getJcl(
           systemId,
           parsed.jobId,
@@ -1228,12 +1232,12 @@ export function registerJobTools(server: McpServer, deps: JobToolDeps, logger: L
           const parsed = z
             .object({ jobId: z.string(), system: z.string().optional() })
             .parse(args);
-          const systemId = resolveSystemForTool(
+          const { systemId, userId: resolvedUserId } = resolveSystemForTool(
             deps.systemRegistry,
             deps.sessionState,
             parsed.system
           );
-          await ensureContext(deps, systemId);
+          await ensureContext(deps, systemId, resolvedUserId);
           await backendMethod(
             systemId,
             parsed.jobId,
@@ -1310,12 +1314,12 @@ export function registerJobTools(server: McpServer, deps: JobToolDeps, logger: L
       await progress.start();
       try {
         const parsed = z.object({ dsn: z.string(), system: z.string().optional() }).parse(args);
-        const systemId = resolveSystemForTool(
+        const { systemId, userId: resolvedUserId } = resolveSystemForTool(
           deps.systemRegistry,
           deps.sessionState,
           parsed.system
         );
-        await ensureContext(deps, systemId);
+        await ensureContext(deps, systemId, resolvedUserId);
         const result = await deps.backend.submitJobFromDataset(
           systemId,
           parsed.dsn,
@@ -1362,12 +1366,12 @@ export function registerJobTools(server: McpServer, deps: JobToolDeps, logger: L
       await progress.start();
       try {
         const parsed = z.object({ path: z.string(), system: z.string().optional() }).parse(args);
-        const systemId = resolveSystemForTool(
+        const { systemId, userId: resolvedUserId } = resolveSystemForTool(
           deps.systemRegistry,
           deps.sessionState,
           parsed.system
         );
-        await ensureContext(deps, systemId);
+        await ensureContext(deps, systemId, resolvedUserId);
         const result = await deps.backend.submitJobFromUss(
           systemId,
           parsed.path,

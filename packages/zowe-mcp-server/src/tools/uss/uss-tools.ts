@@ -43,10 +43,11 @@ import { validateCommand, validateReadPath } from './command-validation.js';
 
 async function ensureContext(
   deps: { sessionState: SessionState; credentialProvider: CredentialProvider },
-  systemId: string
+  systemId: string,
+  userId?: string
 ): Promise<void> {
   if (deps.sessionState.getContext(systemId)) return;
-  const credentials = await deps.credentialProvider.getCredentials(systemId);
+  const credentials = await deps.credentialProvider.getCredentials(systemId, userId);
   deps.sessionState.setActiveSystem(systemId, credentials.user);
 }
 
@@ -139,8 +140,12 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
       log.info('getUssHome called', { system });
 
       try {
-        const systemId = resolveSystemForTool(deps.systemRegistry, deps.sessionState, system);
-        await ensureContext(deps, systemId);
+        const { systemId, userId: resolvedUserId } = resolveSystemForTool(
+          deps.systemRegistry,
+          deps.sessionState,
+          system
+        );
+        await ensureContext(deps, systemId, resolvedUserId);
 
         const ctx = deps.sessionState.getContext(systemId);
         if (ctx?.ussHome) {
@@ -243,8 +248,12 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
       log.info('changeUssDirectory called', { path: pathArg, system });
 
       try {
-        const systemId = resolveSystemForTool(deps.systemRegistry, deps.sessionState, system);
-        await ensureContext(deps, systemId);
+        const { systemId, userId: resolvedUserId } = resolveSystemForTool(
+          deps.systemRegistry,
+          deps.sessionState,
+          system
+        );
+        await ensureContext(deps, systemId, resolvedUserId);
 
         const ctx = deps.sessionState.getContext(systemId);
         const effectiveCwd = ctx?.ussCwd ?? ctx?.ussHome;
@@ -327,8 +336,12 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
       log.info('listUssFiles called', { path: pathArg, system });
 
       try {
-        const systemId = resolveSystemForTool(deps.systemRegistry, deps.sessionState, system);
-        await ensureContext(deps, systemId);
+        const { systemId, userId: resolvedUserId } = resolveSystemForTool(
+          deps.systemRegistry,
+          deps.sessionState,
+          system
+        );
+        await ensureContext(deps, systemId, resolvedUserId);
 
         const ctx = deps.sessionState.getContext(systemId);
         const effectiveCwd = ctx?.ussCwd ?? ctx?.ussHome;
@@ -443,8 +456,12 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
       log.info('readUssFile called', { path: pathArg, system });
 
       try {
-        const systemId = resolveSystemForTool(deps.systemRegistry, deps.sessionState, system);
-        await ensureContext(deps, systemId);
+        const { systemId, userId: resolvedUserId } = resolveSystemForTool(
+          deps.systemRegistry,
+          deps.sessionState,
+          system
+        );
+        await ensureContext(deps, systemId, resolvedUserId);
 
         const sessionCtx = deps.sessionState.getContext(systemId);
         const effectiveCwd = sessionCtx?.ussCwd ?? sessionCtx?.ussHome;
@@ -649,8 +666,12 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
           }
         }
 
-        const systemId = resolveSystemForTool(deps.systemRegistry, deps.sessionState, system);
-        await ensureContext(deps, systemId);
+        const { systemId, userId: resolvedUserId } = resolveSystemForTool(
+          deps.systemRegistry,
+          deps.sessionState,
+          system
+        );
+        await ensureContext(deps, systemId, resolvedUserId);
 
         const userId = deps.sessionState.getContext(systemId)?.userId;
         const progressCb = extra._meta?.progressToken
@@ -689,7 +710,12 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
             'USS file path: absolute (starts with /) or relative to current working directory (see getContext.ussCwd).'
           ),
         content: z.string().describe('UTF-8 text content to write.'),
-        system: z.string().optional().describe('Target z/OS system. Defaults to active system.'),
+        system: z
+          .string()
+          .optional()
+          .describe(
+            'Target z/OS system: host (e.g. sys1.example.com) or connection spec (user@host) when multiple connections exist for that host. Defaults to active system.'
+          ),
         etag: z.string().optional().describe('ETag for optimistic locking.'),
         encoding: z.string().optional().describe('Mainframe encoding. Omit for default.'),
       },
@@ -698,8 +724,12 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
       const progress = createToolProgress(extra, `Write USS file ${pathArg}`);
       await progress.start();
       try {
-        const systemId = resolveSystemForTool(deps.systemRegistry, deps.sessionState, system);
-        await ensureContext(deps, systemId);
+        const { systemId, userId: resolvedUserId } = resolveSystemForTool(
+          deps.systemRegistry,
+          deps.sessionState,
+          system
+        );
+        await ensureContext(deps, systemId, resolvedUserId);
         const ctx = deps.sessionState.getContext(systemId);
         const effectiveCwd = ctx?.ussCwd ?? ctx?.ussHome;
         const resolvedPath = resolveUssPath(pathArg, effectiveCwd);
@@ -749,7 +779,12 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
             'USS path to create: absolute or relative to current working directory (see getContext.ussCwd).'
           ),
         isDirectory: z.boolean().describe('True to create a directory, false for a regular file.'),
-        system: z.string().optional().describe('Target z/OS system.'),
+        system: z
+          .string()
+          .optional()
+          .describe(
+            'Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system.'
+          ),
         permissions: z.string().optional().describe('Octal permissions (e.g. 755).'),
       },
     },
@@ -760,8 +795,12 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
       );
       await progress.start();
       try {
-        const systemId = resolveSystemForTool(deps.systemRegistry, deps.sessionState, system);
-        await ensureContext(deps, systemId);
+        const { systemId, userId: resolvedUserId } = resolveSystemForTool(
+          deps.systemRegistry,
+          deps.sessionState,
+          system
+        );
+        await ensureContext(deps, systemId, resolvedUserId);
         const ctx = deps.sessionState.getContext(systemId);
         const effectiveCwd = ctx?.ussCwd ?? ctx?.ussHome;
         const resolvedPath = resolveUssPath(pathArg, effectiveCwd);
@@ -800,7 +839,12 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
           .describe(
             'USS path to delete: absolute or relative to current working directory (see getContext.ussCwd).'
           ),
-        system: z.string().optional().describe('Target z/OS system.'),
+        system: z
+          .string()
+          .optional()
+          .describe(
+            'Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system.'
+          ),
         recursive: z
           .boolean()
           .optional()
@@ -812,8 +856,12 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
       const progress = createToolProgress(extra, `Delete USS ${pathArg}`);
       await progress.start();
       try {
-        const systemId = resolveSystemForTool(deps.systemRegistry, deps.sessionState, system);
-        await ensureContext(deps, systemId);
+        const { systemId, userId: resolvedUserId } = resolveSystemForTool(
+          deps.systemRegistry,
+          deps.sessionState,
+          system
+        );
+        await ensureContext(deps, systemId, resolvedUserId);
         const ctx = deps.sessionState.getContext(systemId);
         const effectiveCwd = ctx?.ussCwd ?? ctx?.ussHome;
         const resolvedPath = resolveUssPath(pathArg, effectiveCwd);
@@ -847,7 +895,12 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
             'USS path: absolute or relative to current working directory (see getContext.ussCwd).'
           ),
         mode: z.string().describe('Octal mode (e.g. 755).'),
-        system: z.string().optional().describe('Target z/OS system.'),
+        system: z
+          .string()
+          .optional()
+          .describe(
+            'Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system.'
+          ),
         recursive: z.boolean().optional().default(false).describe('Apply recursively.'),
       },
     },
@@ -855,8 +908,12 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
       const progress = createToolProgress(extra, `Chmod USS ${pathArg}`);
       await progress.start();
       try {
-        const systemId = resolveSystemForTool(deps.systemRegistry, deps.sessionState, system);
-        await ensureContext(deps, systemId);
+        const { systemId, userId: resolvedUserId } = resolveSystemForTool(
+          deps.systemRegistry,
+          deps.sessionState,
+          system
+        );
+        await ensureContext(deps, systemId, resolvedUserId);
         const ctx = deps.sessionState.getContext(systemId);
         const effectiveCwd = ctx?.ussCwd ?? ctx?.ussHome;
         const resolvedPath = resolveUssPath(pathArg, effectiveCwd);
@@ -890,7 +947,12 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
             'USS path: absolute or relative to current working directory (see getContext.ussCwd).'
           ),
         owner: z.string().describe('New owner.'),
-        system: z.string().optional().describe('Target z/OS system.'),
+        system: z
+          .string()
+          .optional()
+          .describe(
+            'Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system.'
+          ),
         recursive: z.boolean().optional().default(false).describe('Apply recursively.'),
       },
     },
@@ -898,8 +960,12 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
       const progress = createToolProgress(extra, `Chown USS ${pathArg}`);
       await progress.start();
       try {
-        const systemId = resolveSystemForTool(deps.systemRegistry, deps.sessionState, system);
-        await ensureContext(deps, systemId);
+        const { systemId, userId: resolvedUserId } = resolveSystemForTool(
+          deps.systemRegistry,
+          deps.sessionState,
+          system
+        );
+        await ensureContext(deps, systemId, resolvedUserId);
         const ctx = deps.sessionState.getContext(systemId);
         const effectiveCwd = ctx?.ussCwd ?? ctx?.ussHome;
         const resolvedPath = resolveUssPath(pathArg, effectiveCwd);
@@ -933,7 +999,12 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
             'USS path: absolute or relative to current working directory (see getContext.ussCwd).'
           ),
         tag: z.string().describe('Tag (e.g. ISO8859-1).'),
-        system: z.string().optional().describe('Target z/OS system.'),
+        system: z
+          .string()
+          .optional()
+          .describe(
+            'Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system.'
+          ),
         recursive: z.boolean().optional().default(false).describe('Apply recursively.'),
       },
     },
@@ -941,8 +1012,12 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
       const progress = createToolProgress(extra, `Chtag USS ${pathArg}`);
       await progress.start();
       try {
-        const systemId = resolveSystemForTool(deps.systemRegistry, deps.sessionState, system);
-        await ensureContext(deps, systemId);
+        const { systemId, userId: resolvedUserId } = resolveSystemForTool(
+          deps.systemRegistry,
+          deps.sessionState,
+          system
+        );
+        await ensureContext(deps, systemId, resolvedUserId);
         const ctx = deps.sessionState.getContext(systemId);
         const effectiveCwd = ctx?.ussCwd ?? ctx?.ussHome;
         const resolvedPath = resolveUssPath(pathArg, effectiveCwd);
@@ -984,15 +1059,24 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
           .describe(
             'Base directory: absolute or relative to current working directory (see getContext.ussCwd).'
           ),
-        system: z.string().optional().describe('Target z/OS system.'),
+        system: z
+          .string()
+          .optional()
+          .describe(
+            'Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system.'
+          ),
       },
     },
     async ({ basePath, system }, extra) => {
       const progress = createToolProgress(extra, 'Get USS temp dir');
       await progress.start();
       try {
-        const systemId = resolveSystemForTool(deps.systemRegistry, deps.sessionState, system);
-        await ensureContext(deps, systemId);
+        const { systemId, userId: resolvedUserId } = resolveSystemForTool(
+          deps.systemRegistry,
+          deps.sessionState,
+          system
+        );
+        await ensureContext(deps, systemId, resolvedUserId);
         const ctx = deps.sessionState.getContext(systemId);
         const effectiveCwd = ctx?.ussCwd ?? ctx?.ussHome;
         const resolved = resolveUssPath(basePath, effectiveCwd);
@@ -1028,15 +1112,24 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
             'Parent directory: absolute or relative to current working directory (see getContext.ussCwd).'
           ),
         prefix: z.string().optional().describe('Optional filename prefix.'),
-        system: z.string().optional().describe('Target z/OS system.'),
+        system: z
+          .string()
+          .optional()
+          .describe(
+            'Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system.'
+          ),
       },
     },
     async ({ dirPath, prefix, system }, extra) => {
       const progress = createToolProgress(extra, 'Get USS temp path');
       await progress.start();
       try {
-        const systemId = resolveSystemForTool(deps.systemRegistry, deps.sessionState, system);
-        await ensureContext(deps, systemId);
+        const { systemId, userId: resolvedUserId } = resolveSystemForTool(
+          deps.systemRegistry,
+          deps.sessionState,
+          system
+        );
+        await ensureContext(deps, systemId, resolvedUserId);
         const ctx = deps.sessionState.getContext(systemId);
         const effectiveCwd = ctx?.ussCwd ?? ctx?.ussHome;
         const resolved = resolveUssPath(dirPath, effectiveCwd);
@@ -1070,7 +1163,12 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
           .describe(
             'USS directory path: absolute or relative to current working directory (see getContext.ussCwd).'
           ),
-        system: z.string().optional().describe('Target z/OS system.'),
+        system: z
+          .string()
+          .optional()
+          .describe(
+            'Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system.'
+          ),
         permissions: z.string().optional().describe('Octal permissions (e.g. 755).'),
       },
     },
@@ -1078,8 +1176,12 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
       const progress = createToolProgress(extra, `Create temp USS dir ${pathArg}`);
       await progress.start();
       try {
-        const systemId = resolveSystemForTool(deps.systemRegistry, deps.sessionState, system);
-        await ensureContext(deps, systemId);
+        const { systemId, userId: resolvedUserId } = resolveSystemForTool(
+          deps.systemRegistry,
+          deps.sessionState,
+          system
+        );
+        await ensureContext(deps, systemId, resolvedUserId);
         const ctx = deps.sessionState.getContext(systemId);
         const effectiveCwd = ctx?.ussCwd ?? ctx?.ussHome;
         const resolvedPath = resolveUssPath(pathArg, effectiveCwd);
@@ -1119,15 +1221,24 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
           .describe(
             'USS file path: absolute or relative to current working directory (see getContext.ussCwd).'
           ),
-        system: z.string().optional().describe('Target z/OS system.'),
+        system: z
+          .string()
+          .optional()
+          .describe(
+            'Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system.'
+          ),
       },
     },
     async ({ path: pathArg, system }, extra) => {
       const progress = createToolProgress(extra, `Create temp USS file ${pathArg}`);
       await progress.start();
       try {
-        const systemId = resolveSystemForTool(deps.systemRegistry, deps.sessionState, system);
-        await ensureContext(deps, systemId);
+        const { systemId, userId: resolvedUserId } = resolveSystemForTool(
+          deps.systemRegistry,
+          deps.sessionState,
+          system
+        );
+        await ensureContext(deps, systemId, resolvedUserId);
         const ctx = deps.sessionState.getContext(systemId);
         const effectiveCwd = ctx?.ussCwd ?? ctx?.ussHome;
         const resolvedPath = resolveUssPath(pathArg, effectiveCwd);
@@ -1163,15 +1274,24 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
           .describe(
             'USS path to delete recursively: absolute or relative to current working directory (see getContext.ussCwd); must contain "tmp" and min depth.'
           ),
-        system: z.string().optional().describe('Target z/OS system.'),
+        system: z
+          .string()
+          .optional()
+          .describe(
+            'Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system.'
+          ),
       },
     },
     async ({ path: pathArg, system }, extra) => {
       const progress = createToolProgress(extra, `Delete USS temp under ${pathArg}`);
       await progress.start();
       try {
-        const systemId = resolveSystemForTool(deps.systemRegistry, deps.sessionState, system);
-        await ensureContext(deps, systemId);
+        const { systemId, userId: resolvedUserId } = resolveSystemForTool(
+          deps.systemRegistry,
+          deps.sessionState,
+          system
+        );
+        await ensureContext(deps, systemId, resolvedUserId);
         const ctx = deps.sessionState.getContext(systemId);
         const effectiveCwd = ctx?.ussCwd ?? ctx?.ussHome;
         const resolvedPath = resolveUssPath(pathArg, effectiveCwd);

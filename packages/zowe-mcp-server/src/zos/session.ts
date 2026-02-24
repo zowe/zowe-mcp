@@ -21,28 +21,36 @@
  * per-system context map.
  */
 
+import { parseConnectionSpec } from './native/connection-spec.js';
 import type { SystemId, SystemRegistry } from './system.js';
 
 // ---------------------------------------------------------------------------
-// Resolve system parameter (FQDN or unqualified)
+// Resolve system parameter (host or connection spec)
 // ---------------------------------------------------------------------------
+
+/** Result of resolving the system parameter; userId is set when disambiguating multiple connections. */
+export interface ResolvedSystem {
+  systemId: SystemId;
+  userId?: string;
+}
 
 /**
  * Resolve the system parameter for tools that accept an optional system.
- * Accepts either a fully qualified hostname (FQDN) or an unqualified
- * hostname when unambiguous, consistent with setSystem behavior.
+ * Accepts a hostname (FQDN or unqualified when unambiguous) or a connection
+ * spec (user@host or user@host:port) when multiple connections exist for a host.
+ * When multiple connections exist and only the host is given, throws with valid values.
  *
- * @param systemRegistry - Registry of known systems (for getOrResolve).
+ * @param systemRegistry - Registry of known systems (for getOrResolve and connectionSpecs).
  * @param sessionState - Session state (for active system when system is omitted).
- * @param system - Optional hostname from the tool/prompt argument.
- * @returns The resolved system ID (canonical hostname).
- * @throws {Error} if no system is active and none provided, or if the given system is not found.
+ * @param system - Optional hostname or connection spec from the tool/prompt argument.
+ * @returns The resolved system ID and optional user ID for that connection.
+ * @throws {Error} if no system is active and none provided, system not found, or multiple connections and host-only given.
  */
 export function resolveSystemForTool(
   systemRegistry: SystemRegistry,
   sessionState: SessionState,
   system?: string
-): SystemId {
+): ResolvedSystem {
   if (system === undefined || system === '') {
     const active = sessionState.getActiveSystem();
     if (active === undefined) {
@@ -50,17 +58,72 @@ export function resolveSystemForTool(
         'No active z/OS system. Use setSystem to select a system, or pass the "system" parameter explicitly.'
       );
     }
-    return active;
+    const ctx = sessionState.getContext(active);
+    return { systemId: active, userId: ctx?.userId };
   }
 
-  const sysInfo = systemRegistry.getOrResolve(system);
+  const trimmed = system.trim();
+  const isConnectionSpec = trimmed.includes('@');
+
+  if (isConnectionSpec) {
+    let parsed: { user: string; host: string };
+    try {
+      const p = parseConnectionSpec(trimmed);
+      parsed = { user: p.user, host: p.host };
+    } catch {
+      throw new Error(
+        `Invalid connection spec "${system}". Expected user@host or user@host:port. Use listSystems to see configured systems and their connections.`
+      );
+    }
+    const sysInfo = systemRegistry.getOrResolve(parsed.host);
+    if (!sysInfo) {
+      const available = systemRegistry.list().join(', ');
+      throw new Error(
+        `System for connection '${system}' not found. Available systems (hosts): ${available}. Use listSystems to see all configured systems and their connections.`
+      );
+    }
+    const connectionSpecs = sysInfo.connectionSpecs;
+    if (connectionSpecs && connectionSpecs.length > 0) {
+      const match = connectionSpecs.some(specStr => {
+        try {
+          const s = parseConnectionSpec(specStr);
+          return s.user === parsed.user && s.host === parsed.host;
+        } catch {
+          return false;
+        }
+      });
+      if (!match) {
+        const valid = connectionSpecs.join(', ');
+        throw new Error(`Unknown connection "${system}". Valid values for this system: ${valid}`);
+      }
+    }
+    return { systemId: sysInfo.host, userId: parsed.user };
+  }
+
+  // Host only
+  const sysInfo = systemRegistry.getOrResolve(trimmed);
   if (!sysInfo) {
     const available = systemRegistry.list().join(', ');
     throw new Error(
-      `System '${system}' not found. Available systems: ${available}. Use listSystems to see all configured systems.`
+      `System '${trimmed}' not found. Available systems (hosts): ${available}. Use listSystems to see all configured systems and their connections.`
     );
   }
-  return sysInfo.host;
+  const connectionSpecs = sysInfo.connectionSpecs;
+  if (!connectionSpecs || connectionSpecs.length === 0) {
+    return { systemId: sysInfo.host };
+  }
+  if (connectionSpecs.length === 1) {
+    try {
+      const one = parseConnectionSpec(connectionSpecs[0]);
+      return { systemId: sysInfo.host, userId: one.user };
+    } catch {
+      return { systemId: sysInfo.host };
+    }
+  }
+  const valid = connectionSpecs.join(', ');
+  throw new Error(
+    `Multiple connections exist for system ${sysInfo.host}. Specify which connection using user@host form. Valid values: ${valid}`
+  );
 }
 
 // ---------------------------------------------------------------------------

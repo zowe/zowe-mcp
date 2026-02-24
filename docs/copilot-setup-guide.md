@@ -41,21 +41,22 @@ The **Zowe** MCP server is registered with Copilot.
 To connect to real z/OS systems over SSH (native backend):
 
 1. Open **Settings** (<kbd>Ctrl+,</kbd> / <kbd>Cmd+,</kbd>) and search for **Zowe MCP**.
-2. Find **Native Systems**.
+2. Find **Native connections**.
 3. Add connection specs as `user@host` or `user@host:port`, e.g.:
    - `USERID@sys1.example.com`
    - `USERID@host.example.com:22`
+   Each entry is one connection; you can have multiple connections to the same z/OS system (e.g. different user IDs).
 4. In the JSON editor it looks like:
 
    ```json
-   "zoweMCP.nativeSystems": [
+   "zoweMCP.nativeConnections": [
      "USERID@sys1.example.com"
    ]
    ```
 
-5. The native backend is active by default. New or changed **Native Systems** are sent to the server automatically; no restart needed. When the server needs a password, the extension will prompt you; it is stored in VS Code Secret Storage under the shared Zowe key. Restart the Zowe MCP server only when switching to mock mode (e.g. after setting **Mock Data Directory**).
+5. The native backend is active by default. New or changed **Native connections** are sent to the server automatically; no restart needed. When the server needs a password, the extension will prompt you; it is stored in VS Code Secret Storage under the shared Zowe key. Restart the Zowe MCP server only when switching to mock mode (e.g. after setting **Mock Data Directory**).
 
-To use **mock data** instead of a real system (no mainframe), use **Zowe MCP: Generate Mock Data** from the Command Palette or set **Mock Data Directory** to an existing mock data directory. If both **Mock Data Directory** and **Native Systems** are set, **Native Systems** is used.
+To use **mock data** instead of a real system (no mainframe), use **Zowe MCP: Generate Mock Data** from the Command Palette or set **Mock Data Directory** to an existing mock data directory. If both **Mock Data Directory** and **Native connections** are set, **Native connections** is used.
 
 ## 4. Check that Copilot sees the Zowe tools
 
@@ -77,7 +78,7 @@ Tool names in Copilot are prefixed with `mcp_zowe_` (e.g. `mcp_zowe_info`, `mcp_
 ### Restart an MCP server
 
 - Run **MCP: List Servers**, select **Zowe** (or the server you want), then choose **Restart** (or the equivalent action).
-  Needed when switching to mock mode (e.g. after setting **Mock Data Directory**). **Native Systems** changes are sent to the server automatically.
+  Needed when switching to mock mode (e.g. after setting **Mock Data Directory**). **Native connections** changes are sent to the server automatically.
 
 ### See MCP server output (Zowe MCP server process)
 
@@ -105,7 +106,7 @@ Tool names in Copilot are prefixed with `mcp_zowe_` (e.g. `mcp_zowe_info`, `mcp_
 | ---- | ------ |
 | 1 | (Broadcom) Get OneTrust approval and Gemini API key; add Gemini in Copilot **Manage Models** and select it. |
 | 2 | Download the `.vsix` from [Releases](https://github.com/plavjanik/zowe-mcp/releases) and **Install from VSIX** in VS Code; reload. |
-| 3 | Set **Zowe MCP → Native Systems** to `["user@host"]` (or use **Mock Data Directory** for mock mode; restart the server when switching to mock). |
+| 3 | Set **Zowe MCP → Native connections** to `["user@host"]` (or use **Mock Data Directory** for mock mode; restart the server when switching to mock). |
 | 4 | In Copilot Chat, ensure Zowe tools are enabled and try *“Use the info tool to show the Zowe MCP server version.”* |
 | 5 | Use **MCP: List Servers** to restart the Zowe MCP server or **Show Output**; use **Output → Zowe MCP** for extension logs. |
 

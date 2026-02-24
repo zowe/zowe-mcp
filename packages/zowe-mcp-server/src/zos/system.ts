@@ -37,12 +37,16 @@ export interface ZosSystem {
   basePath?: string;
   /** Human-readable description (e.g. `"Development LPAR"`). */
   description?: string;
+  /** Connection specs (user@host or user@host:port) that target this system. Set by native loader; mock leaves unset. */
+  connectionSpecs?: string[];
 }
 
 /** Summary information returned to agents by `listSystems`. */
 export interface SystemInfo {
   host: string;
   description?: string;
+  /** Connection specs for this system (when multiple connections exist for the same host). */
+  connections?: string[];
 }
 
 // ---------------------------------------------------------------------------
@@ -58,7 +62,7 @@ export interface SystemInfo {
 export class SystemRegistry {
   private readonly systems = new Map<SystemId, ZosSystem>();
 
-  /** Remove all registered systems. Used when applying a new list (e.g. systems-update from VS Code). */
+  /** Remove all registered systems. Used when applying a new list (e.g. connections-update from VS Code). */
   clear(): void {
     this.systems.clear();
   }
@@ -111,6 +115,9 @@ export class SystemRegistry {
     return [...this.systems.values()].map(s => ({
       host: s.host,
       description: s.description,
+      ...(s.connectionSpecs && s.connectionSpecs.length > 0
+        ? { connections: s.connectionSpecs }
+        : {}),
     }));
   }
 

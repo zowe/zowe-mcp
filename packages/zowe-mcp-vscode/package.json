@@ -116,7 +116,7 @@
     "configuration": {
       "title": "Zowe MCP",
       "properties": {
-        "zoweMCP.nativeSystems": {
+        "zoweMCP.nativeConnections": {
           "type": "array",
           "items": {
             "type": "string",
@@ -124,8 +124,8 @@
             "patternErrorMessage": "Must be user@host or user@host:port"
           },
           "default": [],
-          "description": "Connection specs for Zowe Native (SSH) backend: user@hostname or user@hostname:port (e.g. USERID@sys1.example.com). When non-empty, the MCP server starts with the native backend. Passwords are stored in the shared Zowe secret namespace (zowe.ssh.password.*).",
-          "markdownDescription": "Connection specs for Zowe Native (SSH) backend: `user@hostname` or `user@hostname:port` (e.g. `USERID@sys1.example.com`). When non-empty, the MCP server starts with the native backend. Passwords are stored in the shared Zowe secret namespace (`zowe.ssh.password.*`).",
+          "description": "SSH connection specs (user@host or user@host:port) that define access to z/OS systems. Each entry is one connection (e.g. USERID@sys1.example.com). You can have multiple connections to the same z/OS system (e.g. different user IDs). When non-empty, the MCP server starts with the native backend. Passwords are stored in the shared Zowe secret namespace (zowe.ssh.password.*).",
+          "markdownDescription": "SSH connection specs (`user@host` or `user@host:port`) that define access to z/OS systems. Each entry is one connection (e.g. `USERID@sys1.example.com`). You can have multiple connections to the same z/OS system (e.g. different user IDs). When non-empty, the MCP server starts with the native backend. Passwords are stored in the shared Zowe secret namespace (`zowe.ssh.password.*`).",
           "order": 1
         },
         "zoweMCP.logLevel": {
@@ -178,8 +178,8 @@
           "default": "",
           "pattern": "^[^\u0000-\u001f]*$",
           "patternErrorMessage": "Must not contain control characters. Use an absolute path for your OS (e.g. /path, C:\\path, or ~/path).",
-          "description": "Local absolute path to a mock data directory. When set and Native Systems is empty, the MCP server starts in mock mode. Use the 'Zowe MCP: Generate Mock Data' command to create one. Leave empty to use native (SSH) mode. Changes require running 'Developer: Reload Window' command.",
-          "markdownDescription": "Local absolute path to a mock data directory (e.g. `/path`, `C:\\\\path`, or `~/path`). When set and **Native Systems** is empty, the MCP server starts in mock mode. Use the **Zowe MCP: Generate Mock Data** command to create one. Leave empty to use native (SSH) mode. Changes require running **Developer: Reload Window** command.",
+          "description": "Local absolute path to a mock data directory. When set and Native connections is empty, the MCP server starts in mock mode. Use the 'Zowe MCP: Generate Mock Data' command to create one. Leave empty to use native (SSH) mode. Changes require running 'Developer: Reload Window' command.",
+          "markdownDescription": "Local absolute path to a mock data directory (e.g. `/path`, `C:\\\\path`, or `~/path`). When set and **Native connections** is empty, the MCP server starts in mock mode. Use the **Zowe MCP: Generate Mock Data** command to create one. Leave empty to use native (SSH) mode. Changes require running **Developer: Reload Window** command.",
           "order": 6
         },
         "zoweMCP.defaultMainframeMvsEncoding": {

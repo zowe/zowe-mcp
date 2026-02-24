@@ -169,8 +169,8 @@ process.
 ### VS Code extension
 
 1. Open Settings and search for **Zowe MCP**
-2. Set **Native Systems** to an array of connection specs, e.g.
-   `["USERID@sys1.example.com"]`
+2. Set **Native connections** to an array of SSH connection specs, e.g.
+   `["USERID@sys1.example.com"]`. Each entry is one connection (user@host or user@host:port); you can have multiple connections to the same z/OS system (e.g. different user IDs).
 3. Reload the window so the MCP server restarts with `--native`
 
 When the server needs a password it sends a request to the extension; the

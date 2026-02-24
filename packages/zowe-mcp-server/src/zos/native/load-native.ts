@@ -32,7 +32,7 @@ import {
 } from './ssh-client-cache.js';
 
 export interface LoadNativeOptions {
-  /** Connection specs: "user@host" or "user@host:port". May be empty when extension will send systems via systems-update. */
+  /** Connection specs: "user@host" or "user@host:port". May be empty when extension will send connections via connections-update. */
   systems: string[];
   /**
    * true = standalone: passwords from env vars.
@@ -63,7 +63,7 @@ export interface NativeSetup {
   backend: ZosBackend;
   credentialProvider: CredentialProvider;
   systemRegistry: SystemRegistry;
-  /** When set (VS Code mode), updates systems from a new list (e.g. systems-update event). */
+  /** When set (VS Code mode), updates connection list from a new list (e.g. connections-update event). */
   updateSystems?: (systems: string[]) => void;
 }
 
@@ -105,8 +105,14 @@ export function loadNative(options: LoadNativeOptions): NativeSetup {
         }
   );
 
-  /** Mutable ref so getSpec and updateSystems see the same list (used for systems-update from VS Code). */
+  /** Mutable ref so getSpec and updateSystems see the same list (used for connections-update from VS Code). */
   const specsRef = { current: specs };
+
+  function formatConnectionSpec(spec: ParsedConnectionSpec): string {
+    return spec.port === 22
+      ? `${spec.user}@${spec.host}`
+      : `${spec.user}@${spec.host}:${spec.port}`;
+  }
 
   function getSpec(systemId: string, userId?: string): ParsedConnectionSpec | undefined {
     const forHost = specsRef.current.filter(s => s.host === systemId);
@@ -131,16 +137,21 @@ export function loadNative(options: LoadNativeOptions): NativeSetup {
 
   function registerSystemsFromSpecs(specList: ParsedConnectionSpec[]): void {
     systemRegistry.clear();
-    const seenHosts = new Set<string>();
+    const byHost = new Map<string, ParsedConnectionSpec[]>();
     for (const spec of specList) {
-      if (!seenHosts.has(spec.host)) {
-        seenHosts.add(spec.host);
-        systemRegistry.register({
-          host: spec.host,
-          port: spec.port,
-          description: `SSH (${spec.host})`,
-        });
-      }
+      const list = byHost.get(spec.host) ?? [];
+      list.push(spec);
+      byHost.set(spec.host, list);
+    }
+    for (const [host, hostSpecs] of byHost) {
+      const first = hostSpecs[0];
+      const connectionSpecs = hostSpecs.map(s => formatConnectionSpec(s));
+      systemRegistry.register({
+        host,
+        port: first.port,
+        description: `SSH (${host})`,
+        connectionSpecs,
+      });
     }
   }
 

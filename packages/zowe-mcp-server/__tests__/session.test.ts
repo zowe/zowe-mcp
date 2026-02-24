@@ -124,7 +124,7 @@ describe('resolveSystemForTool', () => {
     registry.register({ host: 'sys1.example.com', port: 443 });
     const state = new SessionState();
     state.setActiveSystem('sys1.example.com', 'USER');
-    expect(resolveSystemForTool(registry, state)).toBe('sys1.example.com');
+    expect(resolveSystemForTool(registry, state).systemId).toBe('sys1.example.com');
   });
 
   it('should throw when no system param and no active system', () => {
@@ -138,21 +138,23 @@ describe('resolveSystemForTool', () => {
     const registry = new SystemRegistry();
     registry.register({ host: 'sys1.example.com', port: 443 });
     const state = new SessionState();
-    expect(resolveSystemForTool(registry, state, 'sys1.example.com')).toBe('sys1.example.com');
+    expect(resolveSystemForTool(registry, state, 'sys1.example.com').systemId).toBe(
+      'sys1.example.com'
+    );
   });
 
   it('should resolve unqualified hostname to FQDN when unambiguous', () => {
     const registry = new SystemRegistry();
     registry.register({ host: 'sys1.example.com', port: 443 });
     const state = new SessionState();
-    expect(resolveSystemForTool(registry, state, 'sys1')).toBe('sys1.example.com');
+    expect(resolveSystemForTool(registry, state, 'sys1').systemId).toBe('sys1.example.com');
   });
 
   it('should resolve case-insensitively', () => {
     const registry = new SystemRegistry();
     registry.register({ host: 'Sys1.Example.COM', port: 443 });
     const state = new SessionState();
-    expect(resolveSystemForTool(registry, state, 'SYS1')).toBe('Sys1.Example.COM');
+    expect(resolveSystemForTool(registry, state, 'SYS1').systemId).toBe('Sys1.Example.COM');
   });
 
   it('should throw when system not found', () => {

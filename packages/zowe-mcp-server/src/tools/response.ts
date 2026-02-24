@@ -46,7 +46,7 @@ export const MAX_READ_LINES = 1000;
 
 /** Resolution context — how the input was interpreted. */
 export interface ResponseContext {
-  /** Resolved system ID. */
+  /** Resolved z/OS system (host). */
   system: string;
   /** Resolved pattern for list tools (fully qualified). */
   resolvedPattern?: string;

@@ -21,7 +21,7 @@ import { z } from 'zod';
 import type { Logger } from '../../log.js';
 import type { CredentialProvider } from '../../zos/credentials.js';
 import type { JobCardStore } from '../../zos/job-cards.js';
-import type { SessionState } from '../../zos/session.js';
+import { resolveSystemForTool, type SessionState } from '../../zos/session.js';
 import type { SystemRegistry } from '../../zos/system.js';
 import { createToolProgress } from '../progress.js';
 
@@ -60,8 +60,8 @@ export function registerContextTools(
     'listSystems',
     {
       description:
-        'List all configured z/OS systems with their descriptions. ' +
-        'Use this to discover available systems before connecting with setSystem.',
+        'List all z/OS systems you have access to. Each system is a host; multiple configured connections (user@host) to the same host appear as one system with a connections list. ' +
+        'Use setSystem to select which system (and optionally which connection) to use.',
       annotations: { readOnlyHint: true },
     },
     async extra => {
@@ -95,14 +95,14 @@ export function registerContextTools(
     'setSystem',
     {
       description:
-        'Set the active z/OS system. This restores the per-system context (user ID, encoding overrides) if the system was previously used. ' +
-        'Hostname can be fully qualified (e.g. sys1.example.com) or unqualified when unambiguous (e.g. sys1, SYS1). ' +
+        'Set the active z/OS system. The system parameter can be a host (e.g. ca32.lvn.broadcom.net) when only one connection exists for that host, or a connection spec (e.g. PLAPE03@ca32.lvn.broadcom.net) when multiple connections exist for the same host. ' +
+        'If you pass only a host and multiple connections exist, the tool fails and lists valid connection values. ' +
         'Optionally set mainframe encodings for this system (data set and USS); omit to leave existing overrides unchanged, or pass null to use MCP server default.',
       inputSchema: {
         system: z
           .string()
           .describe(
-            'Hostname of the z/OS system to activate (e.g. "sys1.example.com" or "sys1" when unambiguous).'
+            'Hostname of the z/OS system to activate (e.g. sys1.example.com or sys1 when unambiguous), or connection spec (user@host) when multiple connections exist for that host.'
           ),
         mainframeMvsEncoding: optionalEncoding,
         mainframeUssEncoding: optionalEncoding,
@@ -114,42 +114,49 @@ export function registerContextTools(
       await progress.start();
       log.info('setSystem called', { system, mainframeMvsEncoding, mainframeUssEncoding });
 
-      const sysInfo = systemRegistry.getOrResolve(system);
-      if (!sysInfo) {
-        const available = systemRegistry.list().join(', ');
-        await progress.complete(`system not found`);
+      let resolvedSystemId: string;
+      let resolvedUserId: string | undefined;
+      try {
+        const resolved = resolveSystemForTool(systemRegistry, sessionState, system);
+        resolvedSystemId = resolved.systemId;
+        resolvedUserId = resolved.userId;
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        await progress.complete('failed');
         return {
-          content: [
-            {
-              type: 'text' as const,
-              text:
-                `System '${system}' not found. Available systems: ${available}. ` +
-                'Use listSystems to see all configured systems.',
-            },
-          ],
+          content: [{ type: 'text' as const, text: message }],
           isError: true,
         };
       }
 
-      const resolvedHost = sysInfo.host;
-      const resolvedFromShortName = resolvedHost.toLowerCase() !== system.toLowerCase();
+      const sysInfo = systemRegistry.get(resolvedSystemId);
+      const resolvedFromShortName =
+        system.trim() !== resolvedSystemId &&
+        !system.includes('@') &&
+        system.toLowerCase() !== resolvedSystemId.toLowerCase();
       const messages = resolvedFromShortName
         ? [`System resolved from unqualified name '${system}'.`]
         : [];
 
-      const credentials = await credentialProvider.getCredentials(resolvedHost, undefined, {
-        progress: msg => void progress.step(msg),
-      });
+      const credentials = await credentialProvider.getCredentials(
+        resolvedSystemId,
+        resolvedUserId,
+        { progress: msg => void progress.step(msg) }
+      );
       const encodingOverrides =
         mainframeMvsEncoding !== undefined || mainframeUssEncoding !== undefined
           ? { mainframeMvsEncoding, mainframeUssEncoding }
           : undefined;
-      const ctx = sessionState.setActiveSystem(resolvedHost, credentials.user, encodingOverrides);
+      const ctx = sessionState.setActiveSystem(
+        resolvedSystemId,
+        credentials.user,
+        encodingOverrides
+      );
 
       const response: Record<string, unknown> = {
-        activeSystem: resolvedHost,
+        activeSystem: resolvedSystemId,
         userId: ctx.userId,
-        description: sysInfo.description,
+        description: sysInfo?.description,
         messages,
       };
       if (ctx.mainframeMvsEncoding !== undefined || ctx.mainframeUssEncoding !== undefined) {
@@ -176,8 +183,8 @@ export function registerContextTools(
     'getContext',
     {
       description:
-        'Return the current session context: active system, user ID, ' +
-        'all known systems, and recently used systems (those with saved context).',
+        'Return the current session context: active system, active connection (user@host), user ID, ' +
+        'all known systems (with their connections when multiple exist), and recently used systems (those with saved context).',
       annotations: { readOnlyHint: true },
     },
     async extra => {
@@ -192,6 +199,8 @@ export function registerContextTools(
       let activeSystem: {
         system: string;
         userId: string;
+        /** Active connection spec (user@host) for this system. */
+        activeConnection?: string;
         mainframeMvsEncoding?: string | null;
         mainframeUssEncoding?: string | null;
         ussHome?: string;
@@ -205,6 +214,7 @@ export function registerContextTools(
           activeSystem = {
             system: activeSystemId,
             userId: ctx.userId,
+            activeConnection: `${ctx.userId}@${activeSystemId}`,
           };
           if (ctx.mainframeMvsEncoding !== undefined || ctx.mainframeUssEncoding !== undefined) {
             activeSystem.mainframeMvsEncoding = ctx.mainframeMvsEncoding ?? null;
@@ -227,6 +237,7 @@ export function registerContextTools(
       const allSystems = allConfigured.map(s => ({
         host: s.host,
         description: s.description,
+        ...(s.connections && s.connections.length > 0 ? { connections: s.connections } : {}),
         active: s.host === activeSystemId,
       }));
 

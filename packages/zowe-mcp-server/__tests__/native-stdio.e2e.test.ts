@@ -518,7 +518,7 @@ describe.skipIf(!canRunNativeE2E)(
         'listDatasets',
         { dsnPattern: "'SYS1.*'", system: 'nonexistent-host.example.com' },
         {
-          match: /System 'nonexistent-host\.example\.com' not found\. Available systems:/,
+          match: /System 'nonexistent-host\.example\.com' not found\. Available systems/,
         }
       );
       expect(r.isError).toBe(true);

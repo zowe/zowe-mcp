@@ -19,6 +19,7 @@ import { getConfigDir, loadEvalsConfig } from './config.js';
 import { getSystemPrompt, initMockData, McpEvalHarness } from './harness.js';
 import { listSetNames, loadSet } from './load-questions.js';
 import { log } from './log.js';
+import { plural } from './plural.js';
 import { writeReport } from './report.js';
 import type { Question, RunResult } from './types.js';
 
@@ -122,7 +123,7 @@ async function main(): Promise<void> {
     log.error('No question sets found. Add YAML files to packages/zowe-mcp-evals/questions/');
     process.exit(1);
   }
-  log.info('Question set(s)', { sets: setNames.join(', ') });
+  log.info(`Question ${plural(setNames.length, 'set', 'sets')}`, { sets: setNames.join(', ') });
 
   const serverPath = SERVER_PATH;
   if (!existsSync(serverPath)) {

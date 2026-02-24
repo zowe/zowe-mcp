@@ -9,6 +9,7 @@
  *
  */
 
+import { plural } from './plural.js';
 import type { Assertion, ToolCallRecord } from './types.js';
 
 /** Check if actual value matches expected, or (when expected is an array) any of the allowed values. */
@@ -133,7 +134,7 @@ export function runAssertions(
         if (count < expected.minCount) {
           return {
             passed: false,
-            failedAssertion: `Expected at least ${expected.minCount} call(s) to "${expected.tool}", got ${count}`,
+            failedAssertion: `Expected at least ${expected.minCount} ${plural(expected.minCount, 'call', 'calls')} to "${expected.tool}", got ${count} ${plural(count, 'call', 'calls')}`,
           };
         }
         break;
@@ -145,7 +146,7 @@ export function runAssertions(
         if (calls.length < expected.sequence.length) {
           return {
             passed: false,
-            failedAssertion: `Expected at least ${expected.sequence.length} call(s) to "${expected.tool}", got ${calls.length}`,
+            failedAssertion: `Expected at least ${expected.sequence.length} ${plural(expected.sequence.length, 'call', 'calls')} to "${expected.tool}", got ${calls.length} ${plural(calls.length, 'call', 'calls')}`,
           };
         }
         for (let i = 0; i < expected.sequence.length; i++) {

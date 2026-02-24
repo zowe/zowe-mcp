@@ -48,6 +48,7 @@ Items to address later. Not ordered by priority.
 
 - ✅ **System parameter: accept FQDN or unqualified**: All tools that take a system parameter should accept both fully qualified hostnames (FQDN) or unqualified hostnames, consistent with `setSystem` behavior, so the agent can use either form.
 - ✅ **Jobs component**: Implement `jobs` tool component (submit job, list jobs, get job output, etc.) as in AGENTS.md; register in server when backend supports it.
+- **TODO: Check if there is a way how to get results (CC) for each step to help to focus on failed steps**
 - ✅ **USS component**: Implement `uss` (UNIX System Services) tool component for file/path operations on z/OS; register in server when backend supports it.
 - ✅ **Native backend — full ZosBackend**: Implement remaining `ZosBackend` methods in `NativeBackend`: `readDataset`, `writeDataset`, `createDataset`, `deleteDataset`, `getAttributes`, `copyDataset`, `renameDataset`. Currently only `listDatasets` and `listMembers` are implemented; others throw "Not implemented".
 - **Upload from local filesystem**: Add tool(s) to upload files and data sets from the local filesystem to z/OS — e.g. upload a local file to a USS path, upload a local file or directory to a PDS/PDSE (multiple members), upload a local file to a sequential dataset. Enables “copy from my machine to mainframe” workflows for single files, directories, and multi-member datasets.

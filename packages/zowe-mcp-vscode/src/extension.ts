@@ -27,6 +27,7 @@ import {
   sendNativeOptionsUpdateEvent,
   startPipeServer,
 } from './pipe-server';
+import { plural } from './plural';
 import { getNativePasswordKey } from './secrets';
 import { logLanguageModels, logStartupInfo } from './startup-log';
 
@@ -84,7 +85,9 @@ export function activate(context: vscode.ExtensionContext): void {
           if (nativeResponseTimeout > 0 && nativeResponseTimeout !== 60) {
             args.push('--native-response-timeout', String(nativeResponseTimeout));
           }
-          log.info(`Native (SSH) mode enabled: ${nativeConnections.length} connection(s)`);
+          log.info(
+            `Native (SSH) mode enabled: ${nativeConnections.length} ${plural(nativeConnections.length, 'connection', 'connections')}`
+          );
         }
         if (defaultMainframeMvsEncoding?.trim()) {
           args.push('--default-mvs-encoding', defaultMainframeMvsEncoding.trim());

@@ -21,6 +21,7 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import type { Logger } from '../../log.js';
+import { plural } from '../../plural.js';
 import type { JobFileEntry, JobStatusResult, ZosBackend } from '../../zos/backend.js';
 import type { CredentialProvider } from '../../zos/credentials.js';
 import type { JobCardStore } from '../../zos/job-cards.js';
@@ -635,7 +636,7 @@ export function registerJobTools(server: McpServer, deps: JobToolDeps, logger: L
         const { data, meta } = paginateList(allFiles, offset, limit);
 
         await progress.complete(
-          `Listed ${data.length} job file(s) for job ${parsed.jobId} (${meta.totalAvailable} total)`
+          `Listed ${data.length} ${plural(data.length, 'job file', 'job files')} for job ${parsed.jobId} (${meta.totalAvailable} total)`
         );
         const responseCtx = buildContext(systemId, {});
         const messages = getListMessages(meta);
@@ -889,7 +890,7 @@ export function registerJobTools(server: McpServer, deps: JobToolDeps, logger: L
         }
 
         await progress.complete(
-          `Returned ${outputEntries.length} job file(s) for job ${parsed.jobId} (${meta.totalAvailable} total)`
+          `Returned ${outputEntries.length} ${plural(outputEntries.length, 'job file', 'job files')} for job ${parsed.jobId} (${meta.totalAvailable} total)`
         );
         const responseCtx = buildContext(systemId, {});
         const messages = getListMessages(meta);
@@ -1133,7 +1134,9 @@ export function registerJobTools(server: McpServer, deps: JobToolDeps, logger: L
         const limit = parsed.limit ?? LIST_JOBS_DEFAULT_LIMIT;
         const { data, meta } = paginateList(allJobs, offset, limit);
 
-        await progress.complete(`Listed ${data.length} job(s) (${meta.totalAvailable} total)`);
+        await progress.complete(
+          `Listed ${data.length} ${plural(data.length, 'job', 'jobs')} (${meta.totalAvailable} total)`
+        );
         const responseCtx = buildContext(systemId, {});
         const messages = getListMessages(meta);
         return wrapResponse(responseCtx, meta, data, messages);

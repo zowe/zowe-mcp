@@ -338,54 +338,57 @@ describe('ExtensionClient', () => {
   // setLevel via log-level event
   // -----------------------------------------------------------------------
 
-  it('should update logger level when receiving a log-level event', async () => {
-    const logger = new Logger({ level: 'info' });
-    const client = new ExtensionClient();
+  it.skipIf(process.env.ZOWE_MCP_LOG_LEVEL !== undefined)(
+    'should update logger level when receiving a log-level event',
+    async () => {
+      const logger = new Logger({ level: 'info' });
+      const client = new ExtensionClient();
 
-    // Register the log-level handler (same as index.ts does)
-    client.onEvent(event => {
-      if (event.type === 'log-level') {
-        const { level } = event.data;
-        logger.setLevel(level);
-      }
-    });
+      // Register the log-level handler (same as index.ts does)
+      client.onEvent(event => {
+        if (event.type === 'log-level') {
+          const { level } = event.data;
+          logger.setLevel(level);
+        }
+      });
 
-    await client.connect(discoveryDir, workspaceId, logger);
+      await client.connect(discoveryDir, workspaceId, logger);
 
-    // Wait for server socket
-    await new Promise<void>(resolve => {
-      const check = () => {
-        if (serverSocket) resolve();
-        else setTimeout(check, 10);
+      // Wait for server socket
+      await new Promise<void>(resolve => {
+        const check = () => {
+          if (serverSocket) resolve();
+          else setTimeout(check, 10);
+        };
+        check();
+      });
+
+      // Verify info is logged but debug is not
+      logger.debug('should be suppressed');
+      const debugCalls = (stderrSpy.mock.calls as string[][]).filter(
+        c => typeof c[0] === 'string' && c[0].includes('should be suppressed')
+      );
+      expect(debugCalls).toHaveLength(0);
+
+      // Send a log-level event to change to debug
+      const event: LogLevelEvent = {
+        type: 'log-level',
+        data: { level: 'debug' },
+        timestamp: Date.now(),
       };
-      check();
-    });
+      serverSocket!.write(JSON.stringify(event) + '\n');
 
-    // Verify info is logged but debug is not
-    logger.debug('should be suppressed');
-    const debugCalls = (stderrSpy.mock.calls as string[][]).filter(
-      c => typeof c[0] === 'string' && c[0].includes('should be suppressed')
-    );
-    expect(debugCalls).toHaveLength(0);
+      // Wait for the event to be processed
+      await new Promise<void>(resolve => setTimeout(resolve, 100));
 
-    // Send a log-level event to change to debug
-    const event: LogLevelEvent = {
-      type: 'log-level',
-      data: { level: 'debug' },
-      timestamp: Date.now(),
-    };
-    serverSocket!.write(JSON.stringify(event) + '\n');
+      // Now debug should be logged
+      logger.debug('should now be visible');
+      const visibleCalls = (stderrSpy.mock.calls as string[][]).filter(
+        c => typeof c[0] === 'string' && c[0].includes('should now be visible')
+      );
+      expect(visibleCalls).toHaveLength(1);
 
-    // Wait for the event to be processed
-    await new Promise<void>(resolve => setTimeout(resolve, 100));
-
-    // Now debug should be logged
-    logger.debug('should now be visible');
-    const visibleCalls = (stderrSpy.mock.calls as string[][]).filter(
-      c => typeof c[0] === 'string' && c[0].includes('should now be visible')
-    );
-    expect(visibleCalls).toHaveLength(1);
-
-    client.close();
-  });
+      client.close();
+    }
+  );
 });

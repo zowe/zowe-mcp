@@ -1289,13 +1289,13 @@ export function registerJobTools(server: McpServer, deps: JobToolDeps, logger: L
     'submitJobFromDataset',
     {
       description:
-        'Submit a job from a dataset (e.g. a PDS/PDSE member containing JCL). The dataset must contain valid JCL including a job card.',
+        'Submit a job from a data set (e.g. a PDS/PDSE member containing JCL). The data set must contain valid JCL including a job card.',
       annotations: { destructiveHint: true },
       inputSchema: {
         dsn: z
           .string()
           .describe(
-            'Fully-qualified dataset name, optionally with member in parentheses (e.g. USER.JCL.CNTL(MYJOB)).'
+            'Fully-qualified data set name, optionally with member in parentheses (e.g. USER.JCL.CNTL(MYJOB)).'
           ),
         system: z
           .string()
@@ -1306,7 +1306,7 @@ export function registerJobTools(server: McpServer, deps: JobToolDeps, logger: L
       },
     },
     async (args, extra) => {
-      const progress = createToolProgress(extra, 'Submit job from dataset');
+      const progress = createToolProgress(extra, 'Submit job from data set');
       await progress.start();
       try {
         const parsed = z.object({ dsn: z.string(), system: z.string().optional() }).parse(args);
@@ -1321,7 +1321,7 @@ export function registerJobTools(server: McpServer, deps: JobToolDeps, logger: L
           parsed.dsn,
           extra._meta?.progressToken ? (msg: string) => void progress.step(msg) : undefined
         );
-        await progress.complete(`Job ${result.jobName} (${result.jobId}) submitted from dataset`);
+        await progress.complete(`Job ${result.jobName} (${result.jobId}) submitted from data set`);
         const responseCtx = buildContext(systemId, {});
         return wrapResponse(responseCtx, { success: true }, result, []);
       } catch (err) {

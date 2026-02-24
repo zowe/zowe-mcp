@@ -13,8 +13,8 @@
  * TSO command validation using tso-command-patterns.json.
  *
  * Evaluation order is mandatory:
- * 1. dangerous → BLOCK (no question; e.g. system dataset DELETE/RENAME, PASSWORD, CALL)
- * 2. elicit → ELICIT (user approval required; e.g. DELETE/RENAME own dataset, SUBMIT)
+ * 1. dangerous → BLOCK (no question; e.g. system data set DELETE/RENAME, PASSWORD, CALL)
+ * 2. elicit → ELICIT (user approval required; e.g. DELETE/RENAME own data set, SUBMIT)
  * 3. safe → ALLOW
  * 4. unknown → ELICIT
  */
@@ -34,7 +34,7 @@ interface PatternEntry {
 
 interface TsoPatternsSchema {
   dangerous: PatternEntry[];
-  /** Commands that require user approval (e.g. DELETE own dataset) but are not blocked. */
+  /** Commands that require user approval (e.g. DELETE own data set) but are not blocked. */
   elicit: PatternEntry[];
   safe: Omit<PatternEntry, 'message'>[];
 }

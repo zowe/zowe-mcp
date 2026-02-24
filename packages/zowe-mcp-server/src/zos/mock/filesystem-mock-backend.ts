@@ -12,7 +12,7 @@
 /**
  * Filesystem-backed mock implementation of {@link ZosBackend}.
  *
- * Uses a local directory that mirrors the z/OS dataset namespace with
+ * Uses a local directory that mirrors the z/OS data set namespace with
  * a DSFS-inspired layout:
  *
  * ```
@@ -22,10 +22,10 @@
  *     USER/                     # HLQ directory
  *       SRC.COBOL/                 # PDS/PDSE → directory
  *         HELLO.cbl               # member → file
- *       LOAD.JCL                  # sequential dataset → file
+ *       LOAD.JCL                  # sequential data set → file
  * ```
  *
- * Metadata is stored in `_meta.json` files alongside datasets.
+ * Metadata is stored in `_meta.json` files alongside data sets.
  * ETags are derived from file modification timestamps.
  */
 
@@ -70,7 +70,7 @@ import type { MockDatasetMeta } from './mock-types.js';
 // ---------------------------------------------------------------------------
 
 /**
- * Convert a fully-qualified dataset name to a filesystem path relative
+ * Convert a fully-qualified data set name to a filesystem path relative
  * to the system directory.
  *
  * `USER.SRC.COBOL` → `USER/SRC.COBOL`
@@ -126,14 +126,14 @@ async function pathExists(p: string): Promise<boolean> {
 }
 
 /**
- * Match a dataset name against a z/OS-style pattern.
+ * Match a data set name against a z/OS-style pattern.
  *
  * - `*` matches any characters within a single qualifier
  * - `**` matches any number of qualifiers
  * - A trailing `*` as the last qualifier (e.g. `USER.*`) is treated
  *   as `**` — matching across any number of remaining qualifiers.
  *   This follows the standard ISPF 3.4 convention where `USER.*`
- *   lists all datasets under the USER HLQ.
+ *   lists all data sets under the USER HLQ.
  */
 export function matchPattern(dsn: string, pattern: string): boolean {
   const qualifiers = pattern.split('.');
@@ -168,7 +168,7 @@ export class FilesystemMockBackend implements ZosBackend {
     return path.join(this.mockDir, systemId);
   }
 
-  /** Resolve the filesystem path for a dataset (file or directory). */
+  /** Resolve the filesystem path for a data set (file or directory). */
   private datasetPath(systemId: SystemId, dsn: string): string {
     return path.join(this.systemDir(systemId), dsnToRelPath(dsn));
   }
@@ -250,8 +250,8 @@ export class FilesystemMockBackend implements ZosBackend {
     const dsPath = this.datasetPath(systemId, dsn);
     if (!(await isDirectory(dsPath))) {
       throw new Error(
-        `Dataset '${dsn}' is not a PDS/PDSE on ${systemId}, or does not exist. ` +
-          'Only partitioned datasets have members.'
+        `Data set '${dsn}' is not a PDS/PDSE on ${systemId}, or does not exist. ` +
+          'Only partitioned data sets have members.'
       );
     }
 
@@ -278,7 +278,7 @@ export class FilesystemMockBackend implements ZosBackend {
   }
 
   /**
-   * Reads dataset content. Result is always UTF-8. Mainframe encoding is ignored in mock (files are UTF-8).
+   * Reads data set content. Result is always UTF-8. Mainframe encoding is ignored in mock (files are UTF-8).
    */
   async readDataset(
     systemId: SystemId,
@@ -292,27 +292,27 @@ export class FilesystemMockBackend implements ZosBackend {
     let filePath: string;
 
     if (member) {
-      // PDS/PDSE member — find the file in the dataset directory
+      // PDS/PDSE member — find the file in the data set directory
       const found = await this.findMemberFile(dsPath, member);
       if (!found) {
         throw new Error(
-          `Member '${member}' not found in dataset '${dsn}' on ${systemId}. ` +
+          `Member '${member}' not found in data set '${dsn}' on ${systemId}. ` +
             'Use listMembers to see available members.'
         );
       }
       filePath = found;
     } else {
-      // Sequential dataset — the dataset itself is a file
+      // Sequential data set — the data set itself is a file
       if (await isDirectory(dsPath)) {
         throw new Error(
-          `Dataset '${dsn}' is a PDS/PDSE on ${systemId}. ` +
+          `Data set '${dsn}' is a PDS/PDSE on ${systemId}. ` +
             'Specify a member name to read, or use listMembers to see available members.'
         );
       }
       if (!(await pathExists(dsPath))) {
         throw new Error(
-          `Dataset '${dsn}' not found on ${systemId}. ` +
-            'Use listDatasets to see available datasets.'
+          `Data set '${dsn}' not found on ${systemId}. ` +
+            'Use listDatasets to see available data sets.'
         );
       }
       filePath = dsPath;
@@ -348,8 +348,8 @@ export class FilesystemMockBackend implements ZosBackend {
       // Ensure the PDS directory exists
       if (!(await pathExists(dsPath))) {
         throw new Error(
-          `Dataset '${dsn}' not found on ${systemId}. ` +
-            'Create the dataset first with createDataset.'
+          `Data set '${dsn}' not found on ${systemId}. ` +
+            'Create the data set first with createDataset.'
         );
       }
       const found = await this.findMemberFile(dsPath, member);
@@ -357,7 +357,7 @@ export class FilesystemMockBackend implements ZosBackend {
     } else {
       if (await isDirectory(dsPath)) {
         throw new Error(
-          `Dataset '${dsn}' is a PDS/PDSE on ${systemId}. ` + 'Specify a member name to write.'
+          `Data set '${dsn}' is a PDS/PDSE on ${systemId}. ` + 'Specify a member name to write.'
         );
       }
       filePath = dsPath;
@@ -380,8 +380,8 @@ export class FilesystemMockBackend implements ZosBackend {
         const currentEtag = computeEtag(stat.mtimeMs);
         if (currentEtag !== etag) {
           throw new Error(
-            'Write failed: dataset was modified since your last read (ETag mismatch). ' +
-              'Re-read the dataset to get the latest content and ETag before writing.'
+            'Write failed: data set was modified since your last read (ETag mismatch). ' +
+              'Re-read the data set to get the latest content and ETag before writing.'
           );
         }
       }
@@ -416,8 +416,8 @@ export class FilesystemMockBackend implements ZosBackend {
           const currentEtag = computeEtag(stat.mtimeMs);
           if (currentEtag !== etag) {
             throw new Error(
-              'Write failed: dataset was modified since your last read (ETag mismatch). ' +
-                'Re-read the dataset to get the latest content and ETag before writing.'
+              'Write failed: data set was modified since your last read (ETag mismatch). ' +
+                'Re-read the data set to get the latest content and ETag before writing.'
             );
           }
         } catch (err) {
@@ -453,7 +453,7 @@ export class FilesystemMockBackend implements ZosBackend {
 
     if (await pathExists(dsPath)) {
       throw new Error(
-        `Dataset '${dsn}' already exists on ${systemId}. ` +
+        `Data set '${dsn}' already exists on ${systemId}. ` +
           'Delete it first if you want to recreate it.'
       );
     }
@@ -483,7 +483,7 @@ export class FilesystemMockBackend implements ZosBackend {
     messages.push(`Volume ${MOCK_VOLSER} assigned by storage.`);
     if (options.type === 'PO') {
       if (options.dirblk === undefined) {
-        messages.push(`dirblk defaulted to ${appliedDirblk} for partitioned dataset.`);
+        messages.push(`dirblk defaulted to ${appliedDirblk} for partitioned data set.`);
       }
     }
     if (options.primary !== undefined || options.secondary !== undefined) {
@@ -540,12 +540,12 @@ export class FilesystemMockBackend implements ZosBackend {
     if (member) {
       const found = await this.findMemberFile(dsPath, member);
       if (!found) {
-        throw new Error(`Member '${member}' not found in dataset '${dsn}' on ${systemId}.`);
+        throw new Error(`Member '${member}' not found in data set '${dsn}' on ${systemId}.`);
       }
       await fs.unlink(found);
     } else {
       if (!(await pathExists(dsPath))) {
-        throw new Error(`Dataset '${dsn}' not found on ${systemId}.`);
+        throw new Error(`Data set '${dsn}' not found on ${systemId}.`);
       }
       if (await isDirectory(dsPath)) {
         await fs.rm(dsPath, { recursive: true });
@@ -570,8 +570,8 @@ export class FilesystemMockBackend implements ZosBackend {
 
     if (!(await pathExists(dsPath))) {
       throw new Error(
-        `Dataset '${dsn}' not found on ${systemId}. ` +
-          'Use listDatasets to see available datasets.'
+        `Data set '${dsn}' not found on ${systemId}. ` +
+          'Use listDatasets to see available data sets.'
       );
     }
 
@@ -611,7 +611,7 @@ export class FilesystemMockBackend implements ZosBackend {
       const sourceFile = await this.findMemberFile(sourcePath, sourceMember);
       if (!sourceFile) {
         throw new Error(
-          `Source member '${sourceMember}' not found in dataset '${sourceDsn}' on ${systemId}.`
+          `Source member '${sourceMember}' not found in data set '${sourceDsn}' on ${systemId}.`
         );
       }
       const destMember = targetMember ?? sourceMember;
@@ -622,7 +622,7 @@ export class FilesystemMockBackend implements ZosBackend {
       await fs.mkdir(targetPath, { recursive: true });
       await fs.copyFile(sourceFile, destFile);
     } else {
-      // Copy entire dataset
+      // Copy entire data set
       if (await isDirectory(sourcePath)) {
         await fs.cp(sourcePath, targetPath, { recursive: true });
       } else {
@@ -642,22 +642,22 @@ export class FilesystemMockBackend implements ZosBackend {
   ): Promise<void> {
     void _progress;
     if (member && newMember) {
-      // Rename a member within the same dataset
+      // Rename a member within the same data set
       const dsPath = this.datasetPath(systemId, dsn);
       const sourceFile = await this.findMemberFile(dsPath, member);
       if (!sourceFile) {
-        throw new Error(`Member '${member}' not found in dataset '${dsn}' on ${systemId}.`);
+        throw new Error(`Member '${member}' not found in data set '${dsn}' on ${systemId}.`);
       }
       const ext = path.extname(sourceFile);
       const destFile = path.join(dsPath, `${newMember.toUpperCase()}${ext}`);
       await fs.rename(sourceFile, destFile);
     } else {
-      // Rename the dataset itself
+      // Rename the data set itself
       const sourcePath = this.datasetPath(systemId, dsn);
       const targetPath = this.datasetPath(systemId, newDsn);
 
       if (!(await pathExists(sourcePath))) {
-        throw new Error(`Dataset '${dsn}' not found on ${systemId}.`);
+        throw new Error(`Data set '${dsn}' not found on ${systemId}.`);
       }
 
       await fs.mkdir(path.dirname(targetPath), { recursive: true });

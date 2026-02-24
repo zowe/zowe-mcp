@@ -73,7 +73,7 @@ interface ParsedArgs {
   nativeServerPath?: string;
   /** Response timeout in seconds for ZNP requests (native mode). Default 60. */
   nativeResponseTimeout?: number;
-  /** Default mainframe encoding for MVS datasets (e.g. IBM-037). */
+  /** Default mainframe encoding for MVS data sets (e.g. IBM-037). */
   defaultMvsEncoding?: string;
   /** Default mainframe encoding for USS files (e.g. IBM-1047). */
   defaultUssEncoding?: string;
@@ -143,7 +143,7 @@ function parseArgs(): ParsedArgs {
     .scriptName('zowe-mcp-server')
     .version(SERVER_VERSION)
     .usage(
-      'Model Context Protocol server for z/OS (datasets, jobs, USS).\n\n' +
+      'Model Context Protocol server for z/OS (data sets, jobs, USS).\n\n' +
         'Usage:\n  $0 [options]                    Start the MCP server (default: stdio)\n' +
         '  $0 init-mock [options]                 Generate a mock data directory\n' +
         '  $0 call-tool [options] [tool-name ...]  Call MCP tools via CLI'
@@ -257,7 +257,7 @@ function parseArgs(): ParsedArgs {
       },
       'default-mvs-encoding': {
         type: 'string',
-        describe: `Default mainframe encoding for datasets (e.g. IBM-037; or ZOWE_MCP_DEFAULT_MVS_ENCODING)`,
+        describe: `Default mainframe encoding for data sets (e.g. IBM-037; or ZOWE_MCP_DEFAULT_MVS_ENCODING)`,
       },
       'default-uss-encoding': {
         type: 'string',

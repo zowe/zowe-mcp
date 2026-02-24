@@ -82,7 +82,7 @@ function stepFinishPayload(result: {
 }
 
 const DEFAULT_SYSTEM_PROMPT =
-  'You are an assistant with access to z/OS dataset tools. Use the provided tools to answer the user. ';
+  'You are an assistant with access to z/OS data set tools. Use the provided tools to answer the user. ';
 
 const MAX_STEPS = 10;
 

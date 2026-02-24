@@ -11,7 +11,7 @@
 
 /**
  * Resolves Zowe Explorer profile names from Zowe team config (ProfileInfo API or CLI).
- * Used when opening datasets in the editor so the extension can build zowe-ds URIs.
+ * Used when opening data sets in the editor so the extension can build zowe-ds URIs.
  */
 
 import * as childProcess from 'child_process';

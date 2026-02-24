@@ -10,12 +10,12 @@
  */
 
 /**
- * Dataset tools for the Zowe MCP Server.
+ * Data set tools for the Zowe MCP Server.
  *
  * Provides tools for listing, reading, writing, creating, deleting,
- * copying, and renaming z/OS datasets and PDS/PDSE members.
+ * copying, and renaming z/OS data sets and PDS/PDSE members.
  *
- * All dataset names are fully qualified (e.g. USER.SRC.COBOL).
+ * All data set names are fully qualified (e.g. USER.SRC.COBOL).
  */
 
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
@@ -86,7 +86,7 @@ const DSLEVEL_FALLBACK =
   'DSLEVEL pattern: first qualifier literal, max 44 chars. Wildcards: % (one char), * (one qualifier), ** (across qualifiers). No leading wildcard.';
 
 /**
- * DSLEVEL pattern description for dataset list operations (listDatasets).
+ * DSLEVEL pattern description for data set list operations (listDatasets).
  * Loaded from the packaged resource file at runtime.
  */
 export function getDslevelPatternDescription(): string {
@@ -97,7 +97,7 @@ export function getDslevelPatternDescription(): string {
   }
 }
 
-/** Dependencies injected into dataset tool registration. */
+/** Dependencies injected into data set tool registration. */
 export interface DatasetToolDeps {
   backend: ZosBackend;
   systemRegistry: SystemRegistry;
@@ -105,14 +105,14 @@ export interface DatasetToolDeps {
   credentialProvider: CredentialProvider;
   /** When set, listDatasets and listMembers use it to cache backend results (avoids repeated backend calls when paginating). */
   responseCache?: ResponseCache;
-  /** Default mainframe encodings (MVS datasets, USS). Used when no per-system or per-operation override. */
+  /** Default mainframe encodings (MVS data sets, USS). Used when no per-system or per-operation override. */
   encodingOptions: EncodingOptions;
 }
 
 /**
  * Ensure a system context exists for the given system ID.
  *
- * When the LLM passes an explicit `system` parameter to a dataset tool
+ * When the LLM passes an explicit `system` parameter to a data set tool
  * without first calling `setSystem`, no context (userId) exists yet.
  * This helper lazily initializes the context using the credential
  * provider, mirroring what `setSystem` does.
@@ -124,7 +124,7 @@ async function ensureContext(deps: DatasetToolDeps, systemId: string): Promise<v
 }
 
 /**
- * Helper to resolve a dataset name and system from tool input.
+ * Helper to resolve a data set name and system from tool input.
  * Returns the resolved system ID, dsn, and optional member.
  *
  * Lazily initializes the system context if it doesn't exist yet.
@@ -156,7 +156,7 @@ function errorResult(message: string) {
 }
 
 /**
- * Registers all dataset tools on the given MCP server.
+ * Registers all data set tools on the given MCP server.
  */
 export function registerDatasetTools(
   server: McpServer,
@@ -173,7 +173,7 @@ export function registerDatasetTools(
     'listDatasets',
     {
       description:
-        'List datasets matching a DSLEVEL pattern. Results are paginated (default 500, max 1000 per page). ' +
+        'List data sets matching a DSLEVEL pattern. Results are paginated (default 500, max 1000 per page). ' +
         'When _result.hasMore is true, more items exist—you must call this tool again with offset and limit to get the next page (offset = current offset + _result.count, same limit). ' +
         'Do not answer using only the first page; fetch all pages until _result.hasMore is false. Parameters: offset (0-based), limit (items per page). ' +
         'Set attributes to false for names-only (default true includes dsorg, recfm, lrecl, etc.). ' +
@@ -183,7 +183,7 @@ export function registerDatasetTools(
         dsnPattern: z
           .string()
           .describe(
-            `Fully qualified dataset list pattern (e.g. USER.* or USER.**). ${dslevelDescription}`
+            `Fully qualified data set list pattern (e.g. USER.* or USER.**). ${dslevelDescription}`
           ),
         system: z
           .string()
@@ -191,7 +191,7 @@ export function registerDatasetTools(
           .describe(
             'Target z/OS system: fully qualified or unqualified hostname (e.g. sys1.example.com or sys1 when unambiguous). Defaults to the active system.'
           ),
-        volser: z.string().optional().describe('Volume serial for uncataloged datasets.'),
+        volser: z.string().optional().describe('Volume serial for uncataloged data sets.'),
         offset: z
           .number()
           .int()
@@ -210,15 +210,15 @@ export function registerDatasetTools(
           .optional()
           .default(true)
           .describe(
-            'When true (default), include dataset attributes (dsorg, recfm, lrecl, blksz, volser, creationDate). When false, return only dataset names.'
+            'When true (default), include data set attributes (dsorg, recfm, lrecl, blksz, volser, creationDate). When false, return only data set names.'
           ),
       },
     },
     async ({ dsnPattern, system, volser, offset, limit, attributes }, extra) => {
       const range = formatListProgressRange(offset, limit, DEFAULT_LIST_LIMIT);
       const title = range
-        ? `List datasets matching ${dsnPattern} ${range}`
-        : `List datasets matching ${dsnPattern}`;
+        ? `List data sets matching ${dsnPattern} ${range}`
+        : `List data sets matching ${dsnPattern}`;
       const progress = createToolProgress(extra, title);
       await progress.start();
       const wantAttrs = attributes ?? true;
@@ -280,7 +280,7 @@ export function registerDatasetTools(
           resolvedPattern: resolvedOnlyIfDifferent(resolvedPattern, dsnPattern),
         });
 
-        await progress.complete(`${meta.count} datasets`);
+        await progress.complete(`${meta.count} data sets`);
         return wrapResponse(ctx, meta, data, getListMessages(meta));
       } catch (err) {
         await progress.complete((err as Error).message);
@@ -296,12 +296,12 @@ export function registerDatasetTools(
     'listMembers',
     {
       description:
-        'List members of a PDS/PDSE dataset. Results are paginated (default 500, max 1000 per page). ' +
+        'List members of a PDS/PDSE data set. Results are paginated (default 500, max 1000 per page). ' +
         'When _result.hasMore is true, more members exist—you must call this tool again with offset and limit to get the next page (offset = current offset + _result.count, same limit). ' +
         'Do not answer using only the first page; fetch all pages until _result.hasMore is false. Parameters: offset (0-based), limit (members per page).',
       annotations: { readOnlyHint: true },
       inputSchema: {
-        dsn: z.string().describe('Fully qualified dataset name (e.g. USER.SRC.COBOL).'),
+        dsn: z.string().describe('Fully qualified data set name (e.g. USER.SRC.COBOL).'),
         memberPattern: z
           .string()
           .optional()
@@ -393,7 +393,7 @@ export function registerDatasetTools(
     {
       description:
         'Do not answer with only the first page of results; fetch all pages until _result.hasMore is false. ' +
-        'Search for a string in a sequential dataset or in a PDS/PDSE (all members or one member). ' +
+        'Search for a string in a sequential data set or in a PDS/PDSE (all members or one member). ' +
         'Returns matching lines with line numbers and a summary. ' +
         'Results are paginated by member (offset/limit); when _result.hasMore is true, call again with the next offset and limit. ' +
         'Full result is cached so paging does not re-run the search. ' +
@@ -402,8 +402,8 @@ export function registerDatasetTools(
       inputSchema: {
         dsn: z
           .string()
-          .describe('Fully qualified dataset name (e.g. USER.SRC.COBOL or SYS1.SAMPLIB).'),
-        string: z.string().describe('Search string (literal) to find in the dataset or members.'),
+          .describe('Fully qualified data set name (e.g. USER.SRC.COBOL or SYS1.SAMPLIB).'),
+        string: z.string().describe('Search string (literal) to find in the data set or members.'),
         system: z
           .string()
           .optional()
@@ -414,13 +414,13 @@ export function registerDatasetTools(
           .string()
           .optional()
           .describe(
-            'Mainframe encoding (EBCDIC) for reading dataset content. Overrides system and server default when set.'
+            'Mainframe encoding (EBCDIC) for reading data set content. Overrides system and server default when set.'
           ),
         member: z
           .string()
           .optional()
           .describe(
-            'For PDS/PDSE only, limit search to this member (e.g. IEANTCOB). Omit to search all members or a sequential dataset.'
+            'For PDS/PDSE only, limit search to this member (e.g. IEANTCOB). Omit to search all members or a sequential data set.'
           ),
         offset: z
           .number()
@@ -590,11 +590,11 @@ export function registerDatasetTools(
     'getDatasetAttributes',
     {
       description:
-        'Get detailed attributes of a dataset: organization, record format, ' +
+        'Get detailed attributes of a data set: organization, record format, ' +
         'record length, block size, volume, SMS classes, dates, and more.',
       annotations: { readOnlyHint: true },
       inputSchema: {
-        dsn: z.string().describe('Fully qualified dataset name (e.g. USER.SRC.COBOL).'),
+        dsn: z.string().describe('Fully qualified data set name (e.g. USER.SRC.COBOL).'),
         system: z
           .string()
           .optional()
@@ -663,7 +663,7 @@ export function registerDatasetTools(
     'readDataset',
     {
       description:
-        'Read the content of a sequential dataset or PDS/PDSE member. ' +
+        'Read the content of a sequential data set or PDS/PDSE member. ' +
         'Results are paginated by lines. When _result.hasMore is true, more lines exist—you must call this tool again with startLine and lineCount to get the next page. ' +
         'Do not answer using only the first page; fetch until _result.hasMore is false. ' +
         'Large files are automatically truncated to the first 2000 lines when no window is requested. ' +
@@ -671,8 +671,8 @@ export function registerDatasetTools(
         'Pass the ETag to writeDataset to prevent overwriting concurrent changes.',
       annotations: { readOnlyHint: true },
       inputSchema: {
-        dsn: z.string().describe('Fully qualified dataset name (e.g. USER.SRC.COBOL).'),
-        member: z.string().optional().describe('Member name for PDS/PDSE datasets.'),
+        dsn: z.string().describe('Fully qualified data set name (e.g. USER.SRC.COBOL).'),
+        member: z.string().optional().describe('Member name for PDS/PDSE data sets.'),
         system: z
           .string()
           .optional()
@@ -799,17 +799,17 @@ export function registerDatasetTools(
     'writeDataset',
     {
       description:
-        'Write UTF-8 content to a sequential dataset or PDS/PDSE member. ' +
-        'When startLine and endLine are provided, the block of records from startLine to endLine (inclusive) is replaced by the given content; the number of lines need not match (dataset can grow or shrink). ' +
+        'Write UTF-8 content to a sequential data set or PDS/PDSE member. ' +
+        'When startLine and endLine are provided, the block of records from startLine to endLine (inclusive) is replaced by the given content; the number of lines need not match (data set can grow or shrink). ' +
         'When only startLine is provided, the same number of lines as in content are replaced starting at startLine. ' +
-        'When both are omitted, the entire dataset or member is replaced. ' +
+        'When both are omitted, the entire data set or member is replaced. ' +
         'If an ETag is provided (from a previous readDataset call), the write ' +
-        'fails if the dataset was modified since the read — preventing overwrites. ' +
+        'fails if the data set was modified since the read — preventing overwrites. ' +
         'Returns a new ETag for the written content.',
       inputSchema: {
-        dsn: z.string().describe('Fully qualified dataset name (e.g. USER.SRC.COBOL).'),
+        dsn: z.string().describe('Fully qualified data set name (e.g. USER.SRC.COBOL).'),
         content: z.string().describe('UTF-8 text content to write.'),
-        member: z.string().optional().describe('Member name for PDS/PDSE datasets.'),
+        member: z.string().optional().describe('Member name for PDS/PDSE data sets.'),
         system: z
           .string()
           .optional()
@@ -918,7 +918,7 @@ export function registerDatasetTools(
     'getTempDatasetPrefix',
     {
       description:
-        'For automation and testing. Returns a unique DSN prefix (HLQ) under which temporary datasets can be created. ' +
+        'For automation and testing. Returns a unique DSN prefix (HLQ) under which temporary data sets can be created. ' +
         `The prefix is verified not to exist on the system. Default is current user + .${REQUIRED_SAFETY_QUALIFIER} (e.g. USER.${REQUIRED_SAFETY_QUALIFIER}.XXXXXXXX.YYYYYYYY); configurable via parameters.`,
       annotations: { readOnlyHint: true },
       inputSchema: {
@@ -941,7 +941,7 @@ export function registerDatasetTools(
       },
     },
     async ({ prefix, suffix, system }, extra) => {
-      const title = 'Get temp dataset prefix';
+      const title = 'Get temp data set prefix';
       const progress = createToolProgress(extra, title);
       await progress.start();
       log.info('getTempDatasetPrefix called', { prefix, suffix, system });
@@ -984,7 +984,7 @@ export function registerDatasetTools(
     'getTempDatasetName',
     {
       description:
-        'Returns a single unique full temporary dataset name (for one dataset). ' +
+        'Returns a single unique full temporary data set name (for one data set). ' +
         'The DSN is verified not to exist on the system. Same prefix/suffix defaults as getTempDatasetPrefix.',
       annotations: { readOnlyHint: true },
       inputSchema: {
@@ -1013,7 +1013,7 @@ export function registerDatasetTools(
       },
     },
     async ({ prefix, suffix: _suffix, qualifier, system }, extra) => {
-      const title = 'Get temp dataset name';
+      const title = 'Get temp data set name';
       const progress = createToolProgress(extra, title);
       await progress.start();
       log.info('getTempDatasetName called', { prefix, qualifier, system });
@@ -1062,10 +1062,10 @@ export function registerDatasetTools(
     'createDataset',
     {
       description:
-        'Create a new sequential or partitioned dataset. Specify the type ' +
+        'Create a new sequential or partitioned data set. Specify the type ' +
         '(PS/SEQUENTIAL, PO/PDS, PO-E/PDSE/LIBRARY) and optional attributes.',
       inputSchema: {
-        dsn: z.string().describe('Fully qualified dataset name (e.g. USER.SRC.COBOL).'),
+        dsn: z.string().describe('Fully qualified data set name (e.g. USER.SRC.COBOL).'),
         type: z
           .enum(['PS', 'PO', 'PO-E', 'SEQUENTIAL', 'PDS', 'PDSE', 'LIBRARY'])
           .describe(
@@ -1089,7 +1089,7 @@ export function registerDatasetTools(
       },
     },
     async ({ dsn, type, system, recfm, lrecl, blksz, primary, secondary, dirblk }, extra) => {
-      const title = `Create dataset ${dsn}`;
+      const title = `Create data set ${dsn}`;
       const progress = createToolProgress(extra, title);
       await progress.start();
       log.info('createDataset called', { dsn, type, system });
@@ -1174,7 +1174,7 @@ export function registerDatasetTools(
     'createTempDataset',
     {
       description:
-        'Creates a new dataset with a unique temporary name in a single call. ' +
+        'Creates a new data set with a unique temporary name in a single call. ' +
         `Returns the created DSN for subsequent steps or cleanup. Same creation options as createDataset; optional prefix/suffix/qualifier for naming. Default prefix: current user + .${REQUIRED_SAFETY_QUALIFIER}.`,
       inputSchema: {
         type: z
@@ -1231,7 +1231,7 @@ export function registerDatasetTools(
       },
       extra
     ) => {
-      const title = 'Create temp dataset';
+      const title = 'Create temp data set';
       const progress = createToolProgress(extra, title);
       await progress.start();
       log.info('createTempDataset called', { type, system, prefix });
@@ -1322,15 +1322,15 @@ export function registerDatasetTools(
     'deleteDataset',
     {
       description:
-        'Delete a dataset or a specific PDS/PDSE member. ' +
+        'Delete a data set or a specific PDS/PDSE member. ' +
         'This is a destructive operation that cannot be undone.',
       annotations: { destructiveHint: true },
       inputSchema: {
-        dsn: z.string().describe('Fully qualified dataset name (e.g. USER.SRC.COBOL).'),
+        dsn: z.string().describe('Fully qualified data set name (e.g. USER.SRC.COBOL).'),
         member: z
           .string()
           .optional()
-          .describe('Member name to delete (if omitting, the entire dataset is deleted).'),
+          .describe('Member name to delete (if omitting, the entire data set is deleted).'),
         system: z
           .string()
           .optional()
@@ -1402,14 +1402,14 @@ export function registerDatasetTools(
     'deleteDatasetsUnderPrefix',
     {
       description:
-        'Destructive. Deletes all datasets whose names start with the given prefix (e.g. a prefix returned by getTempDatasetPrefix). ' +
-        `For automation: create temp datasets under one prefix, then call this once to clean up. Prefix must have at least 3 qualifiers and contain ${REQUIRED_SAFETY_QUALIFIER} (e.g. USER.${REQUIRED_SAFETY_QUALIFIER}.XXXXXXXX.YYYYYYYY).`,
+        'Destructive. Deletes all data sets whose names start with the given prefix (e.g. a prefix returned by getTempDatasetPrefix). ' +
+        `For automation: create temp data sets under one prefix, then call this once to clean up. Prefix must have at least 3 qualifiers and contain ${REQUIRED_SAFETY_QUALIFIER} (e.g. USER.${REQUIRED_SAFETY_QUALIFIER}.XXXXXXXX.YYYYYYYY).`,
       annotations: { destructiveHint: true },
       inputSchema: {
         dsnPrefix: z
           .string()
           .describe(
-            `Fully qualified prefix (e.g. USER.${REQUIRED_SAFETY_QUALIFIER}.A1B2C3D4.E5F6G7H8). All datasets matching this prefix will be deleted. Must have at least 3 qualifiers and contain ${REQUIRED_SAFETY_QUALIFIER}.`
+            `Fully qualified prefix (e.g. USER.${REQUIRED_SAFETY_QUALIFIER}.A1B2C3D4.E5F6G7H8). All data sets matching this prefix will be deleted. Must have at least 3 qualifiers and contain ${REQUIRED_SAFETY_QUALIFIER}.`
           ),
         system: z
           .string()
@@ -1420,7 +1420,7 @@ export function registerDatasetTools(
       },
     },
     async ({ dsnPrefix, system }, extra) => {
-      const title = `Delete datasets under ${dsnPrefix}`;
+      const title = `Delete data sets under ${dsnPrefix}`;
       const progress = createToolProgress(extra, title);
       await progress.start();
       log.info('deleteDatasetsUnderPrefix called', { dsnPrefix, system });
@@ -1468,14 +1468,14 @@ export function registerDatasetTools(
   server.registerTool(
     'copyDataset',
     {
-      description: 'Copy a dataset or PDS/PDSE member within a single z/OS system.',
+      description: 'Copy a data set or PDS/PDSE member within a single z/OS system.',
       inputSchema: {
         sourceDsn: z
           .string()
-          .describe('Fully qualified source dataset name (e.g. USER.SRC.COBOL).'),
+          .describe('Fully qualified source data set name (e.g. USER.SRC.COBOL).'),
         targetDsn: z
           .string()
-          .describe('Fully qualified target dataset name (e.g. USER.SRC.BACKUP).'),
+          .describe('Fully qualified target data set name (e.g. USER.SRC.BACKUP).'),
         sourceMember: z
           .string()
           .optional()
@@ -1576,10 +1576,10 @@ export function registerDatasetTools(
   server.registerTool(
     'renameDataset',
     {
-      description: 'Rename a dataset or PDS/PDSE member.',
+      description: 'Rename a data set or PDS/PDSE member.',
       inputSchema: {
-        dsn: z.string().describe('Fully qualified dataset name (e.g. USER.SRC.COBOL).'),
-        newDsn: z.string().describe('Fully qualified new dataset name (e.g. USER.SRC.NEW).'),
+        dsn: z.string().describe('Fully qualified data set name (e.g. USER.SRC.COBOL).'),
+        newDsn: z.string().describe('Fully qualified new data set name (e.g. USER.SRC.NEW).'),
         member: z
           .string()
           .optional()

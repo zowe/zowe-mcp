@@ -13,7 +13,7 @@ List of new functions or behaviors requested from Zowe Native Proto for use by Z
 - **Request**: Fix the server-side crash so `listDatasets` (and any other operations that hit the same code path) complete successfully or return a proper error instead of abending.
 - **ZNP version**: No version reported in the ZNP log messages. Client SDK in use: zowe-native-proto-sdk 0.2.3 (from `bin/zowe-native-proto-sdk-0.2.3.tgz`).
 - **z/OS system**: Host: ca32.lvn.broadcom.net.
-- **Observed context**: Occurred when listing datasets (e.g. patterns like `PLAPE03.**`, `TEST4Z.**`) over SSH to a z/OS system; the server had successfully connected and was running the first list operation when the abend occurred.
+- **Observed context**: Occurred when listing data sets (e.g. patterns like `PLAPE03.**`, `TEST4Z.**`) over SSH to a z/OS system; the server had successfully connected and was running the first list operation when the abend occurred.
 - **Log details** (from MCP server stderr when the client receives the invalid response):
 
 ```text
@@ -34,13 +34,13 @@ Error: Invalid JSON response:          +000000000000016A at address 000000003CEF
 
 ---
 
-## `ZNP-004-RENAME-MEMBER` — Dataset: rename PDS/PDSE member (renameMember)
+## `ZNP-004-RENAME-MEMBER` — Data set: rename PDS/PDSE member (renameMember)
 
 - **Priority**: P1
 - **Request**: Implement the `renameMember` command on the ZNP z/OS server so that PDS/PDSE members can be renamed in place.
-- **Input**: `{ dsname: string, memberBefore: string, memberAfter: string }` (dataset name, current member name, new member name).
+- **Input**: `{ dsname: string, memberBefore: string, memberAfter: string }` (data set name, current member name, new member name).
 - **Output**: Success or error (e.g. member not found, new name already exists).
-- **Why**: The Zowe MCP server exposes a `renameDataset` tool that supports renaming a member within the same dataset (dsn and newDsn equal, member and newMember specified). When the client calls this, the native backend invokes `ds.renameMember(...)`. The ZNP server on z/OS responds with **"Unrecognized command renameMember"**, so the operation is not available. Zowe zos-files (z/OSMF) provides `rename data-set-member`; the Native Proto server should offer equivalent capability for SSH-based workflows. The MCP server's native-stdio E2E test 7.2 (renameDataset member) is skipped until ZNP supports this.
+- **Why**: The Zowe MCP server exposes a `renameDataset` tool that supports renaming a member within the same data set (dsn and newDsn equal, member and newMember specified). When the client calls this, the native backend invokes `ds.renameMember(...)`. The ZNP server on z/OS responds with **"Unrecognized command renameMember"**, so the operation is not available. Zowe zos-files (z/OSMF) provides `rename data-set-member`; the Native Proto server should offer equivalent capability for SSH-based workflows. The MCP server's native-stdio E2E test 7.2 (renameDataset member) is skipped until ZNP supports this.
 - **Observed**: SDK in use (zowe-native-proto-sdk 0.2.3); server returns "Unrecognized command renameMember" when the client sends the renameMember request.
 
 ---
@@ -56,12 +56,12 @@ Error: Invalid JSON response:          +000000000000016A at address 000000003CEF
 
 ---
 
-## `ZNP-002-GET-DS-ATTR` — Dataset: get attributes for one dataset
+## `ZNP-002-GET-DS-ATTR` — Data set: get attributes for one data set
 
 - **Priority**: P2
 - **Request**: New RPC (e.g. `getDatasetAttributes` or `getAttributes`).
 - **Input**: `{ command: "getDatasetAttributes", dsname: string }`.
-- **Output**: Success + single object with dataset attributes (e.g. same shape as `common.Dataset`: dsn, dsorg, recfm, lrecl, blksz, volser, creationDate, referenceDate, optional SMS/usage fields).
+- **Output**: Success + single object with data set attributes (e.g. same shape as `common.Dataset`: dsn, dsorg, recfm, lrecl, blksz, volser, creationDate, referenceDate, optional SMS/usage fields).
 - **Why**: Callers need attributes for a single DSN without listing; today there is no dedicated API.
 
 ---
@@ -69,8 +69,8 @@ Error: Invalid JSON response:          +000000000000016A at address 000000003CEF
 ## `ZNP-011-CREATE-DS-LIKE` — Dataset: create dataset “allocate like” (copy attributes from existing)
 
 - **Priority**: P2
-- **Request**: New RPC (e.g. `createDatasetLike` or `createDataset` with an optional `likeDsn` parameter) that allocates a new dataset with the same attributes as an existing one (mainframe “allocate like” idiom).
-- **Input**: `{ dsname: string, likeDsn: string }` — the new dataset name and the existing dataset whose attributes (dsorg, recfm, lrecl, blksz, space, dirblk for PDS, etc.) are to be copied. Optional overrides (e.g. primary/secondary space) could be supported later.
+- **Request**: New RPC (e.g. `createDatasetLike` or `createDataset` with an optional `likeDsn` parameter) that allocates a new data set with the same attributes as an existing one (mainframe “allocate like” idiom).
+- **Input**: `{ dsname: string, likeDsn: string }` — the new data set name and the existing data set whose attributes (dsorg, recfm, lrecl, blksz, space, dirblk for PDS, etc.) are to be copied. Optional overrides (e.g. primary/secondary space) could be supported later.
 - **Output**: Success (and optionally the attributes applied, e.g. same shape as createDataset response).
 - **Why**: The MCP server can then call a single ZNP API instead of getAttributes(likeDsn) + createDataset(dsn, options). Matches common mainframe workflows. Today the server would need two round-trips and attribute mapping in the tool layer; a native “allocate like” is one round-trip and keeps allocation semantics on the server (e.g. SMS, space rounding) where z/OS handles them correctly.
 
@@ -82,8 +82,8 @@ Error: Invalid JSON response:          +000000000000016A at address 000000003CEF
 - **Request**: Expose additional attributes so tools and AI agents can reason about storage, editing, and executable metadata:
   - **Datasets**: SMS-related fields (e.g. storage class, management class, data class, volume serials, space/usage if available from catalog or DFHSM).
   - **Members**: ISPF statistics (e.g. size, modified date, created date, version, line count, TTR) and, for load libraries, load module attributes (e.g. AMODE, RMODE, size, entry point, aliases).
-- **Where**: In `getDatasetAttributes` (and list with `attributes: true`) for dataset-level SMS attributes; in `listDsMembers` (and any future get-member-attributes) for member-level ISPF and load-module attributes.
-- **Why**: AI agents need to distinguish load modules from source, understand member history, or advise on SMS/space; today only basic dataset attributes (dsorg, recfm, lrecl, etc.) are exposed.
+- **Where**: In `getDatasetAttributes` (and list with `attributes: true`) for data set-level SMS attributes; in `listDsMembers` (and any future get-member-attributes) for member-level ISPF and load-module attributes.
+- **Why**: AI agents need to distinguish load modules from source, understand member history, or advise on SMS/space; today only basic data set attributes (dsorg, recfm, lrecl, etc.) are exposed.
 
 ---
 
@@ -91,37 +91,37 @@ Error: Invalid JSON response:          +000000000000016A at address 000000003CEF
 
 - **Priority**: P2
 - **Request**: Add optional member-name pattern (or filter) parameter to `listDsMembers` so the server can filter by member name (e.g. `A*`, `%`).
-- **Why**: Enables server-side filtering instead of client-side only; consistent with pattern semantics for datasets.
+- **Why**: Enables server-side filtering instead of client-side only; consistent with pattern semantics for data sets.
 
 ---
 
 ## `ZNP-006-PARTIAL-RW` — Dataset: partial read/write with change detection
 
 - **Priority**: P2
-- **Request**: Support reading or writing a range of records/lines (e.g. by record number or line offset) so the client does not need to transfer the entire dataset. In addition, provide a way to detect that the dataset (or member) has changed between reads.
-- **Why**: The MCP server currently caches the full dataset for pagination and applies line windowing in the tool layer. For large datasets this is inefficient and can serve stale data. We need either:
-  - **Server-side range read**: Native API that accepts something like `startRecord`, `recordCount` (or line-based) and returns only that slice, so we avoid caching the whole dataset; and/or
+- **Request**: Support reading or writing a range of records/lines (e.g. by record number or line offset) so the client does not need to transfer the entire data set. In addition, provide a way to detect that the data set (or member) has changed between reads.
+- **Why**: The MCP server currently caches the full data set for pagination and applies line windowing in the tool layer. For large data sets this is inefficient and can serve stale data. We need either:
+  - **Server-side range read**: Native API that accepts something like `startRecord`, `recordCount` (or line-based) and returns only that slice, so we avoid caching the whole data set; and/or
   - **Stable change token**: A version/ETag or last-modified indicator returned with list/read that we can send on a subsequent read so the backend can tell us “content changed” and we can invalidate cache or warn the user.
-- **Open question**: How does the Native Proto backend today (or in future) represent “same content” vs “changed” (e.g. generation, timestamp, ETag) so we can safely paginate without re-reading the full dataset each time?
+- **Open question**: How does the Native Proto backend today (or in future) represent “same content” vs “changed” (e.g. generation, timestamp, ETag) so we can safely paginate without re-reading the full data set each time?
 
 ---
 
 ## `ZNP-007-LIST-HLQ` — Dataset: list high-level qualifiers (HLQs)
 
 - **Priority**: P2
-- **Request**: New RPC (e.g. `listHighLevelQualifiers` or `listHLQs`) that returns the set of high-level qualifiers (first qualifier of dataset names) visible to the user, without listing all datasets.
+- **Request**: New RPC (e.g. `listHighLevelQualifiers` or `listHLQs`) that returns the set of high-level qualifiers (first qualifier of data set names) visible to the user, without listing all data sets.
 - **Input**: Optional scope (e.g. system, volume, or catalog).
 - **Output**: List of HLQ strings (e.g. `["SYS1", "USER", "ISP"]`).
-- **Why**: AI agents and UIs often need to discover “what prefixes exist” before building patterns or drilling down. Listing all datasets under `*` is expensive and unnecessary when only HLQs are needed.
+- **Why**: AI agents and UIs often need to discover “what prefixes exist” before building patterns or drilling down. Listing all data sets under `*` is expensive and unnecessary when only HLQs are needed.
 
 ---
 
-## `ZNP-008-SEARCH` — Search: dataset names, member names, and content
+## `ZNP-008-SEARCH` — Search: data set names, member names, and content
 
 - **Priority**: P3
 - **Request**: Search capabilities in the Native Proto layer:
-  - **By name**: Search dataset names and/or member names by pattern (e.g. wildcard, SUPERCE-style, or regex if supported on the platform).
-  - **By content**: Search inside dataset or member content (e.g. SUPERC/SUPERCE or grep-like) with pattern (string or regex), optionally scoped to a DSN pattern, member pattern, or list of members.
+  - **By name**: Search data set names and/or member names by pattern (e.g. wildcard, SUPERCE-style, or regex if supported on the platform).
+  - **By content**: Search inside data set or member content (e.g. SUPERC/SUPERCE or grep-like) with pattern (string or regex), optionally scoped to a DSN pattern, member pattern, or list of members.
 - **Input**: Pattern type (name vs content), pattern (string/regex), scope (HLQ, DSN pattern, member pattern), optional content search options (case-sensitive, whole record, etc.).
-- **Output**: List of matches with location (dataset, member if applicable, record/line number, matched text or snippet).
-- **Why**: Enables “find where this symbol is used” or “which members reference this copybook” without the client reading every dataset and member; essential for large systems and better UX in MCP tools.
+- **Output**: List of matches with location (data set, member if applicable, record/line number, matched text or snippet).
+- **Why**: Enables “find where this symbol is used” or “which members reference this copybook” without the client reading every data set and member; essential for large systems and better UX in MCP tools.

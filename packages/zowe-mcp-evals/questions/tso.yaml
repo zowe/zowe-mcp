@@ -10,7 +10,7 @@ config:
 
 questions:
   - id: tso-list-allocations
-    prompt: What datasets are currently allocated in my TSO session?
+    prompt: What data sets are currently allocated in my TSO session?
     assertions:
       - type: toolCall
         tool: runSafeTsoCommand
@@ -22,7 +22,7 @@ questions:
         pattern: "SYSIN|USER.INPUT|Allocations|allocated"
 
   - id: tso-list-dataset-attributes
-    prompt: Run TSO to show the attributes of a dataset (like RECFM, LRECL).
+    prompt: Run TSO to show the attributes of a data set (like RECFM, LRECL).
     assertions:
       - type: toolCall
         tool: runSafeTsoCommand

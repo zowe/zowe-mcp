@@ -10,7 +10,10 @@
       "type": "object",
       "description": "Set-level eval config (repetitions, success rate, backend, system prompt)",
       "properties": {
-        "name": { "type": "string", "description": "Set name (e.g. datasets, pagination)" },
+        "name": {
+          "type": "string",
+          "description": "Set name (e.g. datasets, pagination)"
+        },
         "description": { "type": "string", "description": "Short description of the set" },
         "repetitions": {
           "type": "integer",

@@ -1,8 +1,8 @@
 # yaml-language-server: $schema=../schemas/evals-question-set.schema.json
-# Mutation evals: write and delete (temp datasets so mock state is cleaned up).
+# Mutation evals: write and delete (temp data sets so mock state is cleaned up).
 config:
   name: mutations
-  description: Agent must create temp datasets, write content, delete members, and clean up
+  description: Agent must create temp data sets, write content, delete members, and clean up
   repetitions: 10
   minSuccessRate: 0.8
   mock:
@@ -10,7 +10,7 @@ config:
 
 questions:
   - id: write-temp-then-read
-    prompt: Create a temporary sequential dataset, write the single line "Evals write test" to it, read it back, and tell me what the first line says. Then delete all datasets under that temp prefix.
+    prompt: Create a temporary sequential data set, write the single line "Evals write test" to it, read it back, and tell me what the first line says. Then delete all data sets under that temp prefix.
     assertions:
       - type: toolCallOrder
         sequence:
@@ -28,7 +28,7 @@ questions:
         substring: "Evals write test"
 
   - id: create-pds-write-member-delete-member-cleanup
-    prompt: First create a temporary PDS with createTempDataset, then add member EVALMEM with content "temp content" using writeDataset, then delete that member with deleteDataset, then delete all datasets under that temp prefix with deleteDatasetsUnderPrefix.
+    prompt: First create a temporary PDS with createTempDataset, then add member EVALMEM with content "temp content" using writeDataset, then delete that member with deleteDataset, then delete all data sets under that temp prefix with deleteDatasetsUnderPrefix.
     assertions:
       - type: toolCallOrder
         sequence:

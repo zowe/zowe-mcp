@@ -2,7 +2,7 @@
 # Search eval set: agent must use searchInDataset with correct dsn/string (mock, default preset).
 config:
   name: search
-  description: Agent must use searchInDataset to find a string in a dataset or member
+  description: Agent must use searchInDataset to find a string in a data set or member
   repetitions: 2
   minSuccessRate: 0.8
   mock:
@@ -10,7 +10,7 @@ config:
 
 questions:
   - id: search-in-pds
-    prompt: Search for the string DIVISION in dataset USER.SRC.COBOL and tell me what you find.
+    prompt: Search for the string DIVISION in data set USER.SRC.COBOL and tell me what you find.
     assertions:
       - type: toolCall
         tool: searchInDataset

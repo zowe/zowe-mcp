@@ -1,6 +1,6 @@
 # Context for Implementing Not-Yet-Implemented Tools (Zowe MCP)
 
-Use this in chats when implementing new dataset operations or other z/OS tools.
+Use this in chats when implementing new data set operations or other z/OS tools.
 
 ---
 
@@ -25,7 +25,7 @@ Use this in chats when implementing new dataset operations or other z/OS tools.
 | `deleteDatasetsUnderPrefix` | `listDatasets()` + `deleteDataset()` | ✅ | ✅                                                                                 |
 
 - **Mock backend**: `FilesystemMockBackend` in `src/zos/mock/` — implements full `ZosBackend`.
-- **Native backend**: `NativeBackend` in `src/zos/native/native-backend.ts` — implements all dataset methods. `getAttributes()` is implemented via `listDatasets` with `attributes: true` (pattern = DSN, then exact-name match). `writeDataset` supports optional `startLine` (block-of-records replace). `copyDataset` is implemented as read + write (target must exist).
+- **Native backend**: `NativeBackend` in `src/zos/native/native-backend.ts` — implements all data set methods. `getAttributes()` is implemented via `listDatasets` with `attributes: true` (pattern = DSN, then exact-name match). `writeDataset` supports optional `startLine` (block-of-records replace). `copyDataset` is implemented as read + write (target must exist).
 
 ### Other components
 
@@ -39,7 +39,7 @@ Use this in chats when implementing new dataset operations or other z/OS tools.
 
 ## Backend interface (`src/zos/backend.ts`)
 
-`ZosBackend` defines these methods. Any new dataset operation must:
+`ZosBackend` defines these methods. Any new data set operation must:
 
 1. Add a method to the interface (if not already there).
 2. Implement it in `FilesystemMockBackend` and in `NativeBackend` (or throw with a clear message).
@@ -49,7 +49,7 @@ Signatures (see `backend.ts` for full JSDoc):
 - `listDatasets(systemId, pattern, volser?, userId?)` → `Promise<DatasetEntry[]>`
 - `listMembers(systemId, dsn, pattern?)` → `Promise<MemberEntry[]>`
 - `readDataset(systemId, dsn, member?, encoding?)` → `Promise<ReadDatasetResult>`
-- `writeDataset(systemId, dsn, content, member?, etag?, encoding?, startLine?, endLine?, progress?)` → `Promise<WriteDatasetResult>` — when both `startLine` and `endLine` are provided, the block of records from startLine to endLine (inclusive) is replaced by content; the number of lines need not match (dataset can grow or shrink). When only `startLine` is provided, the same number of lines as in content are replaced. Mock and native both support it.
+- `writeDataset(systemId, dsn, content, member?, etag?, encoding?, startLine?, endLine?, progress?)` → `Promise<WriteDatasetResult>` — when both `startLine` and `endLine` are provided, the block of records from startLine to endLine (inclusive) is replaced by content; the number of lines need not match (data set can grow or shrink). When only `startLine` is provided, the same number of lines as in content are replaced. Mock and native both support it.
 - `createDataset(systemId, dsn, options)` → `Promise<CreateDatasetResult>`
 - `deleteDataset(systemId, dsn, member?)` → `Promise<void>`
 - `getAttributes(systemId, dsn)` → `Promise<DatasetAttributes>`
@@ -60,7 +60,7 @@ Types: `DatasetEntry`, `MemberEntry`, `ReadDatasetResult`, `WriteDatasetResult`,
 
 ---
 
-## Implementing a new dataset tool (or a new backend method)
+## Implementing a new data set tool (or a new backend method)
 
 ### 1. Backend
 
@@ -69,7 +69,7 @@ Types: `DatasetEntry`, `MemberEntry`, `ReadDatasetResult`, `WriteDatasetResult`,
 
 ### 2. Tool layer
 
-- **Dataset tools**: Add or adjust in `packages/zowe-mcp-server/src/tools/datasets/dataset-tools.ts`.
+- **Data set tools**: Add or adjust in `packages/zowe-mcp-server/src/tools/datasets/dataset-tools.ts`.
   - Use `DatasetToolDeps`: `{ backend, systemRegistry, sessionState, credentialProvider }`.
   - Resolve system + DSN with `resolveInput(deps, dsn, member, system, log)` (which calls `ensureContext` and `resolveDsn`).
   - DSN convention: all names are fully qualified. Use `resolveDsn(dsn, member)` or `resolvePattern(dsnPattern)` from `src/zos/dsn.ts` for validation and resolution.
@@ -78,7 +78,7 @@ Types: `DatasetEntry`, `MemberEntry`, `ReadDatasetResult`, `WriteDatasetResult`,
     - List: `paginateList(items, offset, limit)` → `ListResultMeta`; use `getListMessages(meta)` for the envelope `messages` array when there are more pages; Read: sanitize text with `sanitizeTextForDisplay(result.text)`, then `windowContent(text, startLine, lineCount)` → `ReadResultMeta` (includes `hasMore`); use `getReadMessages(meta)` for the envelope `messages` array when there are more lines; Mutations: `MutationResultMeta` with `{ success: true }`.
     - `wrapResponse(ctx, meta, data, messages)` to build the final JSON envelope. For list tools, pass `getListMessages(meta)`; for read tools, pass `getReadMessages(meta)` so the agent is directed to fetch the next page when `hasMore` is true.
   - Tool names: **camelCase** (e.g. `listDatasets`). Annotations: `readOnlyHint: true` for read-only, `destructiveHint: true` for delete.
-  - Describe dataset/pattern parameters as fully qualified (e.g. USER.SRC.COBOL).
+  - Describe data set/pattern parameters as fully qualified (e.g. USER.SRC.COBOL).
 
 ### 3. DSN utilities (`src/zos/dsn.ts`)
 
@@ -129,7 +129,7 @@ TSO tools are in `src/tools/tso/`. The backend interface (`ZosBackend`) defines 
 
 ### TSO command safety (tso-command-patterns.json)
 
-- **Patterns file**: `src/tools/tso/tso-command-patterns.json` — evaluation order: (1) **dangerous** → BLOCK (no question: system dataset DELETE/RENAME, PASSWORD, CALL, ALTER, OSHELL non-pwd), (2) **elicit** → ELICIT (user approval required: DELETE/RENAME own dataset, SUBMIT), (3) **safe** → ALLOW, (4) unknown → ELICIT. Each entry has `id`, optional `message`, and `pattern` (regex; use `\b` for word boundary in JSON). Block is reserved for truly dangerous; destructive-but-allowed-with-approval (e.g. delete own dataset) is in elicit.
+- **Patterns file**: `src/tools/tso/tso-command-patterns.json` — evaluation order: (1) **dangerous** → BLOCK (no question: system data set DELETE/RENAME, PASSWORD, CALL, ALTER, OSHELL non-pwd), (2) **elicit** → ELICIT (user approval required: DELETE/RENAME own data set, SUBMIT), (3) **safe** → ALLOW, (4) unknown → ELICIT. Each entry has `id`, optional `message`, and `pattern` (regex; use `\b` for word boundary in JSON). Block is reserved for truly dangerous; destructive-but-allowed-with-approval (e.g. delete own data set) is in elicit.
 - **Validation**: `src/tools/tso/tso-command-validation.ts` exports `validateTsoCommand(commandText)`. Command is normalized (trim, collapse spaces, uppercase) before matching.
 - **Cache and pagination**: Full output is cached (key: systemId + commandText). When **no** `startLine`/`lineCount` → run command, **set** cache, return first window. When **with** `startLine`/`lineCount` → **getOrFetch** from cache, then `windowContent` and return. So requesting the same command without startLine/lineCount **re-executes** the command.
 
@@ -152,13 +152,13 @@ The **Zowe Native Proto SDK** is used by the native (SSH) backend. We use only t
 
 | What                           | Path                                                                                                                                                                                           |
 | ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **SDK source (reference)**     | `zowe-native-proto` repo: `/Users/plape03/workspace/github.com/zowe/zowe-native-proto`. SDK code lives in `**packages/sdk`** (e.g. `src/ZSshClient.ts`, `src/doc/rpc/ds.ts` for dataset RPCs). |
+| **SDK source (reference)**     | `zowe-native-proto` repo: `/Users/plape03/workspace/github.com/zowe/zowe-native-proto`. SDK code lives in `**packages/sdk`** (e.g. `src/ZSshClient.ts`, `src/doc/rpc/ds.ts` for data set RPCs). |
 | **Tgz (this repo)**            | `bin/zowe-native-proto-sdk-0.2.3.tgz` — built from the SDK source; copied into this repo for install.                                                                                          |
 | **Server dependency**          | `packages/zowe-mcp-server/package.json`: `"zowe-native-proto-sdk": "file:../../bin/zowe-native-proto-sdk-0.2.3.tgz"`                                                                           |
 | **After `npm install`**        | `packages/zowe-mcp-server/node_modules/zowe-native-proto-sdk` (or `packages/zowe-mcp-vscode/server/node_modules/zowe-native-proto-sdk` in bundled extension)                                   |
 | **Our code that uses the SDK** | `packages/zowe-mcp-server/src/zos/native/` — `ssh-client-cache.ts`, `native-backend.ts`                                                                                                        |
 
-### Minimal example: list datasets
+### Minimal example: list data sets
 
 In the **zowe-native-proto** repo, see:
 
@@ -166,9 +166,9 @@ In the **zowe-native-proto** repo, see:
 
 - Uses `SshSession` from `@zowe/zos-uss-for-zowe-sdk` and `ZSshClient` from `zowe-native-proto-sdk`.
 - `using client = await ZSshClient.create(session);`
-- `const response = await client.ds.listDatasets({ pattern });` → `response.items` (array of dataset items).
+- `const response = await client.ds.listDatasets({ pattern });` → `response.items` (array of data set items).
 
-Use this as the reference for calling dataset APIs from the SDK.
+Use this as the reference for calling data set APIs from the SDK.
 
 ### SSH client cache reference
 
@@ -196,7 +196,7 @@ Raw: [https://raw.githubusercontent.com/zowe/zowe-native-proto/main/packages/sdk
 Raw: [https://raw.githubusercontent.com/zowe/zowe-native-proto/main/packages/sdk/src/doc/rpc/common.ts](https://raw.githubusercontent.com/zowe/zowe-native-proto/main/packages/sdk/src/doc/rpc/common.ts)
 - **Example usage**: repo root `example/index.ts` (listDatasets only; no listMembers example in tree).
 
-**How to discover "list members"**: In `RpcClientApi.ts`, the `ds` object lists all dataset commands (`listDatasets`, `listDsMembers`, `readDataset`, etc.). The method name is `**listDsMembers`** (not `listMembers`). Then open `ds.ts` for `ListDsMembersRequest` / `ListDsMembersResponse` and `common.ts` for `DsMember`.
+**How to discover "list members"**: In `RpcClientApi.ts`, the `ds` object lists all data set commands (`listDatasets`, `listDsMembers`, `readDataset`, etc.). The method name is `**listDsMembers`** (not `listMembers`). Then open `ds.ts` for `ListDsMembersRequest` / `ListDsMembersResponse` and `common.ts` for `DsMember`.
 
 ### Insights for native backend methods
 
@@ -222,7 +222,7 @@ Raw: [https://raw.githubusercontent.com/zowe/zowe-native-proto/main/packages/sdk
 | Mock backend                       | `packages/zowe-mcp-server/src/zos/mock/filesystem-mock-backend.ts` |
 | Native backend                     | `packages/zowe-mcp-server/src/zos/native/native-backend.ts`        |
 | Native SSH client cache (uses SDK) | `packages/zowe-mcp-server/src/zos/native/ssh-client-cache.ts`      |
-| Dataset tools                      | `packages/zowe-mcp-server/src/tools/datasets/dataset-tools.ts`     |
+| Data set tools                     | `packages/zowe-mcp-server/src/tools/datasets/dataset-tools.ts`     |
 | USS tools                          | `packages/zowe-mcp-server/src/tools/uss/uss-tools.ts`             |
 | USS path resolution                | `packages/zowe-mcp-server/src/zos/uss-path.ts`                    |
 | USS command/path validation        | `packages/zowe-mcp-server/src/tools/uss/command-validation.ts`      |

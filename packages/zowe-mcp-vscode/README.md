@@ -18,6 +18,7 @@ When the extension is configured with a backend (mock or native), your AI assist
 - **UNIX System Services (USS)** — List, read, write, create, and delete USS files; run safe USS commands; temp dir/path helpers; chmod/chown/chtag
 - **TSO** — Run safe TSO commands (block/elicit/safe patterns)
 - **Context** — Switch between z/OS systems; get current system and USS working directory
+- **Open in Zowe Explorer** — When [Zowe Explorer](https://marketplace.visualstudio.com/items?itemName=Zowe.vscode-extension-for-zowe) is installed, the AI can open data sets, USS files, and jobs in the editor: `openDatasetInEditor`, `openUssFileInEditor`, `openJobInEditor`. Each opens the resource in Zowe Explorer's editor (zowe-ds, zowe-uss, or zowe-jobs URI). The extension resolves the Zowe profile (session cache, default from team config or `zowe config list --rfj`, or match by system) or prompts you to pick or type a profile name and remembers it for the session.
 - **Slash commands** — Use prompts such as “review JCL” or “explain data set” in chat
 
 Without a backend, only the server **info** tool is available; the extension will prompt you to set up mock data or a connection.
@@ -64,7 +65,7 @@ When the server needs a password, the extension will prompt you. Passwords are s
 | **Zowe Native Server Path** | Remote path for the Zowe Native server on the host (default: `~/.zowe-server`). Changes are sent to the server and apply to future connections. |
 | **Native Response Timeout** | Response timeout in seconds for each Zowe Native (ZNP) request (default: 60). Increase on overloaded systems. Changes apply to future connections. |
 | **Mock Data Directory** | Absolute path to a mock data directory. When set **and** Native Systems is empty, the server uses mock z/OS data. Leave empty to use native (SSH) mode. Changes require reloading the window. |
-| **Default Mainframe MVS Encoding** | Default EBCDIC encoding for dataset read/write (e.g. `IBM-037`, `IBM-1047`). Takes effect immediately. |
+| **Default Mainframe MVS Encoding** | Default EBCDIC encoding for data set read/write (e.g. `IBM-037`, `IBM-1047`). Takes effect immediately. |
 | **Default Mainframe USS Encoding** | Default EBCDIC encoding for USS file operations (e.g. `IBM-1047`). Takes effect immediately. |
 | **Job Cards** | JCL job cards per connection spec (key: `user@host` or `user@host:port`). Use placeholders `{jobname}` and `{programmer}` for `submitJob`. Takes effect immediately. |
 
@@ -84,7 +85,7 @@ All options that affect the MCP server are documented below. The extension uses 
 | `zoweMCP.zoweNativeServerPath` | string | `"~/.zowe-server"` | Remote path for Zowe Native server install/run. |
 | `zoweMCP.nativeResponseTimeout` | number | `60` | Response timeout in seconds for each ZNP request. |
 | `zoweMCP.mockDataDirectory` | string | `""` | Absolute path to mock data directory. Mock mode only when set and Native Systems is empty. |
-| `zoweMCP.defaultMainframeMvsEncoding` | string | `"IBM-037"` | Default EBCDIC encoding for dataset read/write. |
+| `zoweMCP.defaultMainframeMvsEncoding` | string | `"IBM-037"` | Default EBCDIC encoding for data set read/write. |
 | `zoweMCP.defaultMainframeUssEncoding` | string | `"IBM-1047"` | Default EBCDIC encoding for USS file operations. |
 | `zoweMCP.jobCards` | object | `{}` | JCL job cards per connection spec; keys `user@host` or `user@host:port`, value array of lines or string. Placeholders: `{jobname}`, `{programmer}`. |
 
@@ -107,12 +108,24 @@ When running `npx zowe-mcp-server` (or the bundled server) outside VS Code:
 - `ZOWE_MCP_NATIVE_SERVER_AUTO_INSTALL` — `false` or `0` to disable auto-install
 - `ZOWE_MCP_NATIVE_SERVER_PATH` — Remote path for Zowe Native server
 - `ZOWE_MCP_NATIVE_RESPONSE_TIMEOUT` — Response timeout in seconds for ZNP (default 60)
-- `ZOWE_MCP_DEFAULT_MVS_ENCODING` — Default EBCDIC for datasets (e.g. IBM-037)
+- `ZOWE_MCP_DEFAULT_MVS_ENCODING` — Default EBCDIC for data sets (e.g. IBM-037)
 - `ZOWE_MCP_DEFAULT_USS_ENCODING` — Default EBCDIC for USS (e.g. IBM-1047)
 - `ZOWE_MCP_RESPONSE_CACHE_DISABLE` — `1` or `true` to disable response cache
 - `ZOWE_MCP_RESPONSE_CACHE_TTL_MINUTES` — Cache entry TTL in minutes (default 10). Legacy: `ZOWE_MCP_RESPONSE_CACHE_TTL_MS` (milliseconds) is still supported.
 - `ZOWE_MCP_RESPONSE_CACHE_MAX_BYTES` — Max cache size in bytes
 - `ZOWE_MCP_PASSWORD_<USER>_<HOST>` — Password for native SSH (e.g. `ZOWE_MCP_PASSWORD_MYUSER_MYHOST_EXAMPLE_COM`)
+
+## Zowe Explorer integration
+
+When the **Zowe Explorer** extension (`Zowe.vscode-extension-for-zowe`) is installed, the MCP server registers three read-only tools that open resources in Zowe Explorer’s editor:
+
+| Tool | Description |
+| --- | --- |
+| **openDatasetInEditor** | Open a sequential data set or PDS/PDSE member (zowe-ds URI). |
+| **openUssFileInEditor** | Open a USS file or directory (zowe-uss URI). |
+| **openJobInEditor** | Open a job or a specific job spool file (zowe-jobs URI). Use `jobFileId` from `listJobFiles` to open a spool; omit to open the job node. |
+
+Profile resolution (which Zowe profile to use for the URI) runs in this order: (1) session cache for the current system, (2) default zosmf profile from team config (ProfileInfo or `zowe config list --rfj` with workspace cwd), (3) profile matched by MCP system (host/user), (4) if none found — quick pick of zosmf profiles or an input box to type the profile name. The chosen profile is remembered for the session so the next open is immediate. Path segments in URIs are percent-encoded so names like member `###` work correctly; documents open with **preview: false** so multiple opens do not replace the previous tab.
 
 ## Commands
 

@@ -63,7 +63,7 @@ To use **mock data** instead of a real system (no mainframe), use **Zowe MCP: Ge
 2. In the chat header, open the **tools** (or context) picker and ensure **Zowe** (or the Zowe MCP server) is enabled so its tools are available.
 3. Try a prompt, for example:
    - *“Use the info tool to show the Zowe MCP server version.”*
-   - With native/mock configured: *“List the available z/OS systems.”* or *“Set the active system to &lt;your-host&gt; and list datasets matching USER.\*”*
+   - With native/mock configured: *“List the available z/OS systems.”* or *“Set the active system to &lt;your-host&gt; and list data sets matching USER.\*”*
 
 Tool names in Copilot are prefixed with `mcp_zowe_` (e.g. `mcp_zowe_info`, `mcp_zowe_listDatasets`, `mcp_zowe_setSystem`).
 

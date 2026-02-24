@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=../schemas/evals-question-set.schema.json
 # Pagination eval set: listMembers and listDatasets. Asserts every call has correct dsn/pattern, offset, and limit.
-# Uses pagination preset: USER.INVNTORY (2000 members => 4 pages), USER.PEOPLE.* (1000 datasets => 2 pages).
+# Uses pagination preset: USER.INVNTORY (2000 members => 4 pages), USER.PEOPLE.* (1000 data sets => 2 pages).
 config:
   name: pagination
   description: Agent must page through listMembers and listDatasets with correct parameters each call
@@ -32,7 +32,7 @@ questions:
 
   # listDatasets USER.PEOPLE.*: 2 pages (offset 0, 500 with limit 500 each).
   - id: list-datasets-people-all-pages
-    prompt: List datasets under USER.PEOPLE
+    prompt: List data sets under USER.PEOPLE
     assertions:
       - type: toolCallSequence
         tool: listDatasets

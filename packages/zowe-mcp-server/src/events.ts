@@ -117,9 +117,9 @@ export type StoreJobCardEvent = McpEvent<'store-job-card', StoreJobCardEventData
 export interface OpenDatasetInEditorEventData {
   /** Zowe profile name for the zowe-ds URI. When omitted, extension resolves via default or match-by-system. */
   profile?: string;
-  /** Fully qualified dataset name. */
+  /** Fully qualified data set name. */
   dsn: string;
-  /** PDS/PDSE member name; omit for sequential datasets. */
+  /** PDS/PDSE member name; omit for sequential data sets. */
   member?: string;
   /** Current MCP system id (e.g. user@host) for match-by-system resolution. */
   system?: string;
@@ -127,7 +127,7 @@ export interface OpenDatasetInEditorEventData {
   connectionKind?: 'native' | 'zosmf';
 }
 
-/** Asks the extension to open a dataset or member in Zowe Explorer's editor (zowe-ds URI). */
+/** Asks the extension to open a data set or member in Zowe Explorer's editor (zowe-ds URI). */
 export type OpenDatasetInEditorEvent = McpEvent<
   'open-dataset-in-editor',
   OpenDatasetInEditorEventData

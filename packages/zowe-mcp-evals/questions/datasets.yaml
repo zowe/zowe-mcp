@@ -2,7 +2,7 @@
 # Dataset-focused eval set (mock, default preset)
 config:
   name: datasets
-  description: List datasets and basic context
+  description: List data sets and basic context
   repetitions: 2
   minSuccessRate: 0.8
   mock:
@@ -15,7 +15,7 @@ questions:
       - type: singleToolCall
         tool: listSystems
   - id: list-datasets-user
-    prompt: List all my datasets under USER.
+    prompt: List all my data sets under USER.
     assertions:
       - type: toolCall
         tool: listDatasets

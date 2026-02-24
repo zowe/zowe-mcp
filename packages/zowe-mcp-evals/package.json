@@ -1,7 +1,7 @@
 {
   "name": "zowe-mcp-evals",
   "version": "0.2.0",
-  "description": "AI evaluations for Zowe MCP dataset/member tools",
+  "description": "AI evaluations for Zowe MCP data set/member tools",
   "type": "module",
   "main": "dist/run.js",
   "scripts": {

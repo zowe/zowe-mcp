@@ -112,7 +112,7 @@ export interface CreateServerOptions {
    */
   responseCache?: ResponseCacheOptions | ResponseCache | false;
   /**
-   * Default mainframe encodings. When not provided, uses IBM-037 for MVS datasets and IBM-1047 for USS.
+   * Default mainframe encodings. When not provided, uses IBM-037 for MVS data sets and IBM-1047 for USS.
    * Can be a mutable ref so runtime updates (e.g. encoding-options-update from VS Code) can change defaults without recreating the server.
    */
   encodingOptions?: EncodingOptions | { current: EncodingOptions };
@@ -123,7 +123,7 @@ export interface CreateServerOptions {
   jobCardStore?: JobCardStore;
   /**
    * When provided (and Zowe Explorer is available), registers open-in-editor tools
-   * that send events to the VS Code extension (dataset, USS file, job/spool).
+   * that send events to the VS Code extension (data set, USS file, job/spool).
    */
   openInZoweEditor?: (payload: OpenDatasetInEditorEventData) => void;
   openUssFileInZoweEditor?: (payload: OpenUssFileInEditorEventData) => void;
@@ -297,7 +297,7 @@ export function createServer(options?: CreateServerOptions): McpServer {
       });
     }
 
-    logger.info('z/OS dataset tools, resources, and prompts registered', {
+    logger.info('z/OS data set tools, resources, and prompts registered', {
       systems,
     });
   } else {

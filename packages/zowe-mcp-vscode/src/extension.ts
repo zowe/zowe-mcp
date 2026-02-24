@@ -238,10 +238,10 @@ async function initMockData(
     {
       id: 'minimal',
       label: 'Minimal',
-      description: '1 system, 1 user, 5 datasets, 3 members — fastest',
+      description: '1 system, 1 user, 5 data sets, 3 members — fastest',
     },
-    { id: 'default', label: 'Default', description: '2 systems, 2 users, 8 datasets, 5 members' },
-    { id: 'large', label: 'Large', description: '5 systems, 3 users, 20 datasets, 15 members' },
+    { id: 'default', label: 'Default', description: '2 systems, 2 users, 8 data sets, 5 members' },
+    { id: 'large', label: 'Large', description: '5 systems, 3 users, 20 data sets, 15 members' },
     {
       id: 'inventory',
       label: 'Inventory',
@@ -250,7 +250,7 @@ async function initMockData(
     {
       id: 'pagination',
       label: 'Pagination',
-      description: 'Inventory + 1000 PEOPLE datasets (for evals)',
+      description: 'Inventory + 1000 PEOPLE data sets (for evals)',
     },
   ];
   const chosen = await vscode.window.showQuickPick(presets, {

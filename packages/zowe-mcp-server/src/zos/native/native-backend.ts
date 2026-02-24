@@ -397,7 +397,7 @@ export class NativeBackend {
     return members.sort((a, b) => a.name.localeCompare(b.name));
   }
 
-  /** Read dataset using an already-acquired client (avoids re-entering withNativeClient). */
+  /** Read data set using an already-acquired client (avoids re-entering withNativeClient). */
   private async _readDatasetWithClient(
     client: ZSshClient,
     dsn: string,
@@ -483,7 +483,7 @@ export class NativeBackend {
   }
 
   /**
-   * Reads dataset content. Result is always UTF-8 (local encoding).
+   * Reads data set content. Result is always UTF-8 (local encoding).
    * localEncoding is always UTF-8. The encoding argument is the mainframe (EBCDIC) encoding (tool layer resolves default).
    */
   async readDataset(
@@ -674,8 +674,8 @@ export class NativeBackend {
     const exact = entries.find(e => e.dsn.toUpperCase() === dsn.toUpperCase());
     if (!exact) {
       throw new Error(
-        `Dataset '${dsn}' not found on ${systemId}. ` +
-          'Use listDatasets to see available datasets.'
+        `Data set '${dsn}' not found on ${systemId}. ` +
+          'Use listDatasets to see available data sets.'
       );
     }
     return {
@@ -1477,14 +1477,14 @@ export class NativeBackend {
       systemId,
       undefined,
       async client => {
-        progress?.(`Submitting job from dataset ${dsn}`);
+        progress?.(`Submitting job from data set ${dsn}`);
         const jobs = this.getJobs(client);
         const dsnUpper = dsn.toUpperCase();
         const response = await jobs.submitJob({ dsname: dsnUpper });
         const jobId = response.jobId ?? '';
         const jobName = response.jobName ?? '';
         if (!jobId) {
-          throw new Error('Submit job from dataset did not return a job ID');
+          throw new Error('Submit job from data set did not return a job ID');
         }
         return { jobId, jobName };
       },

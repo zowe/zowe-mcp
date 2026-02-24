@@ -170,7 +170,7 @@
           "minimum": 1,
           "maximum": 3600,
           "description": "Response timeout in seconds for each Zowe Native (ZNP) request. Increase on overloaded systems to avoid timeouts. Changes are sent to the server and apply to future connections.",
-          "markdownDescription": "Response timeout in seconds for each Zowe Native (ZNP) request (e.g. list datasets, read dataset). Increase on overloaded systems to avoid timeouts. Changes are sent to the server and apply to future connections.",
+          "markdownDescription": "Response timeout in seconds for each Zowe Native (ZNP) request (e.g. list data sets, read data set). Increase on overloaded systems to avoid timeouts. Changes are sent to the server and apply to future connections.",
           "order": 5
         },
         "zoweMCP.mockDataDirectory": {
@@ -187,8 +187,8 @@
           "default": "IBM-037",
           "pattern": "^IBM-[0-9]+$",
           "patternErrorMessage": "Must be a valid IBM encoding format (e.g. IBM-037, IBM-1047)",
-          "description": "Default mainframe encoding (EBCDIC) for dataset read/write (e.g. IBM-037, IBM-1047). Use the encoding used at your site. Changes are sent to the server and take effect immediately.",
-          "markdownDescription": "Default mainframe encoding (EBCDIC) for dataset read/write (e.g. `IBM-037`, `IBM-1047`). Use the encoding used at your site. Changes are sent to the server and take effect immediately.",
+          "description": "Default mainframe encoding (EBCDIC) for data set read/write (e.g. IBM-037, IBM-1047). Use the encoding used at your site. Changes are sent to the server and take effect immediately.",
+          "markdownDescription": "Default mainframe encoding (EBCDIC) for data set read/write (e.g. `IBM-037`, `IBM-1047`). Use the encoding used at your site. Changes are sent to the server and take effect immediately.",
           "order": 7
         },
         "zoweMCP.defaultMainframeUssEncoding": {

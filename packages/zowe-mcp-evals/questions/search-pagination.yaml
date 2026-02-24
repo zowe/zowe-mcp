@@ -10,7 +10,7 @@ config:
 
 questions:
   - id: search-inventory-many-members
-    prompt: Search for the string "name" in dataset USER.INVNTORY and tell me how many members contain a match.
+    prompt: Search for the string "name" in data set USER.INVNTORY and tell me how many members contain a match.
     assertions:
       - type: minToolCalls
         tool: searchInDataset

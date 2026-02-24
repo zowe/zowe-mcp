@@ -97,7 +97,7 @@ export function registerContextTools(
       description:
         'Set the active z/OS system. This restores the per-system context (user ID, encoding overrides) if the system was previously used. ' +
         'Hostname can be fully qualified (e.g. sys1.example.com) or unqualified when unambiguous (e.g. sys1, SYS1). ' +
-        'Optionally set mainframe encodings for this system (dataset and USS); omit to leave existing overrides unchanged, or pass null to use MCP server default.',
+        'Optionally set mainframe encodings for this system (data set and USS); omit to leave existing overrides unchanged, or pass null to use MCP server default.',
       inputSchema: {
         system: z
           .string()

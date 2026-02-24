@@ -10,11 +10,11 @@
  */
 
 /**
- * Backend-agnostic interface for z/OS dataset operations.
+ * Backend-agnostic interface for z/OS data set operations.
  *
  * The {@link ZosBackend} interface is the abstraction boundary between
  * the MCP tool/resource layer and the actual z/OS API. Any API that can
- * perform dataset operations (z/OSMF, Zowe SDK, Zowe CLI, proprietary
+ * perform data set operations (z/OSMF, Zowe SDK, Zowe CLI, proprietary
  * APIs, filesystem mock, etc.) can be plugged in as a backend.
  *
  * The tool and resource layer is completely backend-agnostic.
@@ -42,11 +42,11 @@ export interface SmsClasses {
   management?: string;
 }
 
-/** Dataset attributes as returned by the backend. */
+/** Data set attributes as returned by the backend. */
 export interface DatasetAttributes {
-  /** Fully-qualified dataset name. */
+  /** Fully-qualified data set name. */
   dsn: string;
-  /** Dataset organization. */
+  /** Data set organization. */
   dsorg?: DatasetOrg;
   /** Record format. */
   recfm?: RecordFormat;
@@ -68,11 +68,11 @@ export interface DatasetAttributes {
   usedExtents?: number;
 }
 
-/** Summary info for a dataset in a listing. */
+/** Summary info for a data set in a listing. */
 export interface DatasetEntry {
-  /** Fully-qualified dataset name. */
+  /** Fully-qualified data set name. */
   dsn: string;
-  /** Dataset organization. */
+  /** Data set organization. */
   dsorg?: DatasetOrg;
   /** Record format. */
   recfm?: RecordFormat;
@@ -92,7 +92,7 @@ export interface MemberEntry {
   name: string;
 }
 
-/** Result of reading a dataset or member. */
+/** Result of reading a data set or member. */
 export interface ReadDatasetResult {
   /** Content as UTF-8 text (local/client encoding). */
   text: string;
@@ -102,13 +102,13 @@ export interface ReadDatasetResult {
   encoding: string;
 }
 
-/** Result of writing a dataset or member. */
+/** Result of writing a data set or member. */
 export interface WriteDatasetResult {
   /** New ETag after the write. */
   etag: string;
 }
 
-/** Options for creating a new dataset. */
+/** Options for creating a new data set. */
 export interface CreateDatasetOptions {
   /** Dataset organization type to create. */
   type: 'PS' | 'PO' | 'PO-E';
@@ -126,7 +126,7 @@ export interface CreateDatasetOptions {
   dirblk?: number;
 }
 
-/** Attributes actually applied when a dataset is created (may differ from requested due to defaults or SMS). */
+/** Attributes actually applied when a data set is created (may differ from requested due to defaults or SMS). */
 export interface CreateDatasetApplied {
   /** Dataset organization applied. */
   dsorg: DatasetOrg;
@@ -148,7 +148,7 @@ export interface CreateDatasetApplied {
   smsClass?: SmsClasses;
 }
 
-/** Result of creating a dataset: applied attributes and allocation messages. */
+/** Result of creating a data set: applied attributes and allocation messages. */
 export interface CreateDatasetResult {
   /** Attributes actually used for the allocation (defaults and SMS may have changed requested values). */
   applied: CreateDatasetApplied;
@@ -170,7 +170,7 @@ export interface SearchMatchEntry {
 
 /** Search result for one member: name and matching lines. */
 export interface SearchMemberResult {
-  /** Member name (or synthetic name for sequential dataset). */
+  /** Member name (or synthetic name for sequential data set). */
   name: string;
   /** Matching lines with line numbers. */
   matches: SearchMatchEntry[];
@@ -200,13 +200,13 @@ export interface SearchInDatasetOptions {
   member?: string;
   /** SuperC process options string (e.g. "ANYC COBOL"), built from natural options. */
   parms: string;
-  /** Mainframe (EBCDIC) encoding for reading dataset content. Resolved by tool layer (operation → system → server default). */
+  /** Mainframe (EBCDIC) encoding for reading data set content. Resolved by tool layer (operation → system → server default). */
   encoding?: string;
 }
 
-/** Full result of a search in a dataset (all members with matches and summary). */
+/** Full result of a search in a data set (all members with matches and summary). */
 export interface SearchInDatasetResult {
-  /** Resolved dataset name. */
+  /** Resolved data set name. */
   dataset: string;
   /** Members (or single entry for sequential) with their matching lines. */
   members: SearchMemberResult[];
@@ -282,7 +282,7 @@ export interface CreateUssFileOptions {
 // Job types
 // ---------------------------------------------------------------------------
 
-/** Result of submitting a job (JCL or from dataset/USS). */
+/** Result of submitting a job (JCL or from data set/USS). */
 export interface SubmitJobResult {
   /** Job ID assigned by JES (e.g. JOB00123). */
   jobId: string;
@@ -358,7 +358,7 @@ export interface ListJobsOptions {
 // ---------------------------------------------------------------------------
 
 /**
- * Backend-agnostic interface for z/OS dataset operations.
+ * Backend-agnostic interface for z/OS data set operations.
  *
  * All methods accept a `systemId` to identify the target z/OS system.
  * The backend implementation resolves credentials and connection details
@@ -366,7 +366,7 @@ export interface ListJobsOptions {
  */
 export interface ZosBackend {
   /**
-   * List datasets matching a pattern.
+   * List data sets matching a pattern.
    *
    * The pattern follows z/OS conventions:
    * - `*` matches any characters within a single qualifier
@@ -376,10 +376,10 @@ export interface ZosBackend {
    * resource links); when true or omitted, return full attributes when supported.
    *
    * @param systemId - Target z/OS system.
-   * @param pattern - Dataset name pattern (e.g. `"USER.*"`).
-   * @param volser - Optional volume serial for uncataloged datasets.
+   * @param pattern - Data set name pattern (e.g. `"USER.*"`).
+   * @param volser - Optional volume serial for uncataloged data sets.
    * @param userId - Optional user ID (for backends that need it, e.g. SSH per-user session).
-   * @param attributes - When false, return only dataset names; when true or omitted, include attributes when supported.
+   * @param attributes - When false, return only data set names; when true or omitted, include attributes when supported.
    */
   listDatasets(
     systemId: SystemId,
@@ -409,7 +409,7 @@ export interface ZosBackend {
   ): Promise<MemberEntry[]>;
 
   /**
-   * Read the content of a sequential dataset or PDS/PDSE member.
+   * Read the content of a sequential data set or PDS/PDSE member.
    *
    * Returned text is always UTF-8 (local/client encoding). The optional
    * encoding parameter is the mainframe (source) EBCDIC encoding used to
@@ -417,7 +417,7 @@ export interface ZosBackend {
    * value (system override or MCP server default).
    *
    * @param systemId - Target z/OS system.
-   * @param dsn - Fully-qualified dataset name.
+   * @param dsn - Fully-qualified data set name.
    * @param member - Member name (for PDS/PDSE).
    * @param encoding - Mainframe EBCDIC encoding (resolved by tool layer when omitted).
    */
@@ -430,7 +430,7 @@ export interface ZosBackend {
   ): Promise<ReadDatasetResult>;
 
   /**
-   * Write content to a sequential dataset or PDS/PDSE member.
+   * Write content to a sequential data set or PDS/PDSE member.
    *
    * Content is provided as UTF-8 text. The backend converts to the
    * target encoding. When not provided, the tool layer supplies the
@@ -438,13 +438,13 @@ export interface ZosBackend {
    *
    * When both startLine and endLine are provided, the backend replaces the
    * block of records from startLine to endLine (1-based, inclusive) with the
-   * given content; the number of lines in content need not match (dataset can
+   * given content; the number of lines in content need not match (data set can
    * grow or shrink). When only startLine is provided, the block replaced
    * has the same number of lines as content. When both are omitted, the
-   * entire dataset or member is replaced.
+   * entire data set or member is replaced.
    *
    * @param systemId - Target z/OS system.
-   * @param dsn - Fully-qualified dataset name.
+   * @param dsn - Fully-qualified data set name.
    * @param content - UTF-8 text content to write.
    * @param member - Member name (for PDS/PDSE).
    * @param etag - Optional ETag for optimistic locking.
@@ -467,14 +467,14 @@ export interface ZosBackend {
   ): Promise<WriteDatasetResult>;
 
   /**
-   * Create a new dataset.
+   * Create a new data set.
    *
    * Returns the attributes actually applied (which may differ from the request
    * due to defaults or SMS) and messages describing any defaults or SMS decisions.
    *
    * @param systemId - Target z/OS system.
-   * @param dsn - Fully-qualified dataset name.
-   * @param options - Dataset creation options (type, recfm, lrecl, etc.).
+   * @param dsn - Fully-qualified data set name.
+   * @param options - Data set creation options (type, recfm, lrecl, etc.).
    */
   createDataset(
     systemId: SystemId,
@@ -484,10 +484,10 @@ export interface ZosBackend {
   ): Promise<CreateDatasetResult>;
 
   /**
-   * Delete a dataset or a specific PDS/PDSE member.
+   * Delete a data set or a specific PDS/PDSE member.
    *
    * @param systemId - Target z/OS system.
-   * @param dsn - Fully-qualified dataset name.
+   * @param dsn - Fully-qualified data set name.
    * @param member - If provided, delete only this member.
    */
   deleteDataset(
@@ -498,10 +498,10 @@ export interface ZosBackend {
   ): Promise<void>;
 
   /**
-   * Get detailed attributes of a dataset.
+   * Get detailed attributes of a data set.
    *
    * @param systemId - Target z/OS system.
-   * @param dsn - Fully-qualified dataset name.
+   * @param dsn - Fully-qualified data set name.
    */
   getAttributes(
     systemId: SystemId,
@@ -510,11 +510,11 @@ export interface ZosBackend {
   ): Promise<DatasetAttributes>;
 
   /**
-   * Copy a dataset or member within a single system.
+   * Copy a data set or member within a single system.
    *
    * @param systemId - Target z/OS system.
-   * @param sourceDsn - Source dataset name.
-   * @param targetDsn - Target dataset name.
+   * @param sourceDsn - Source data set name.
+   * @param targetDsn - Target data set name.
    * @param sourceMember - Source member name (for PDS/PDSE).
    * @param targetMember - Target member name (for PDS/PDSE).
    */
@@ -528,11 +528,11 @@ export interface ZosBackend {
   ): Promise<void>;
 
   /**
-   * Rename a dataset or PDS/PDSE member.
+   * Rename a data set or PDS/PDSE member.
    *
    * @param systemId - Target z/OS system.
-   * @param dsn - Current dataset name.
-   * @param newDsn - New dataset name.
+   * @param dsn - Current data set name.
+   * @param newDsn - New data set name.
    * @param member - Current member name (for member rename).
    * @param newMember - New member name (for member rename).
    */
@@ -546,11 +546,11 @@ export interface ZosBackend {
   ): Promise<void>;
 
   /**
-   * Search for a string in a sequential dataset or PDS/PDSE (all members or one member).
+   * Search for a string in a sequential data set or PDS/PDSE (all members or one member).
    * Returns matching lines with line numbers and a summary.
    *
    * @param systemId - Target z/OS system.
-   * @param dsn - Fully-qualified dataset name.
+   * @param dsn - Fully-qualified data set name.
    * @param options - Search string, optional member, and parms (process options).
    */
   searchInDataset(
@@ -902,10 +902,10 @@ export interface ZosBackend {
   deleteJob(systemId: SystemId, jobId: string, progress?: BackendProgressCallback): Promise<void>;
 
   /**
-   * Submit a job from a dataset (e.g. a PDS member containing JCL).
+   * Submit a job from a data set (e.g. a PDS member containing JCL).
    *
    * @param systemId - Target z/OS system.
-   * @param dsn - Fully-qualified dataset name (and optional member, e.g. USER.JCL.CNTL(MYJOB)).
+   * @param dsn - Fully-qualified data set name (and optional member, e.g. USER.JCL.CNTL(MYJOB)).
    */
   submitJobFromDataset(
     systemId: SystemId,

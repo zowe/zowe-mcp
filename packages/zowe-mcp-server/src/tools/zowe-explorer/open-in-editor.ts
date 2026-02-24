@@ -10,10 +10,10 @@
  */
 
 /**
- * Zowe Explorer integration: open dataset or PDS member in the VS Code editor.
+ * Zowe Explorer integration: open data set or PDS member in the VS Code editor.
  *
  * When Zowe Explorer is installed, this tool sends an event to the extension
- * to open the given dataset (or member) in Zowe Explorer's editor via the
+ * to open the given data set (or member) in Zowe Explorer's editor via the
  * zowe-ds URI scheme.
  */
 
@@ -31,7 +31,7 @@ import { createToolProgress } from '../progress.js';
 
 /** Dependencies for the open-in-editor tools. */
 export interface OpenInZoweEditorDeps {
-  /** Callback to open a dataset or member in Zowe Explorer. */
+  /** Callback to open a data set or member in Zowe Explorer. */
   openInZoweEditor?: (payload: OpenDatasetInEditorEventData) => void;
   /** Callback to open a USS file in Zowe Explorer. */
   openUssFileInZoweEditor?: (payload: OpenUssFileInEditorEventData) => void;
@@ -67,17 +67,17 @@ export function registerZoweExplorerTools(
       {
         annotations: { readOnlyHint: true },
         description:
-          'Open a sequential dataset or a PDS/PDSE member in the VS Code editor via Zowe Explorer. ' +
-          "The dataset opens in Zowe Explorer's editor so the user can view or edit it. " +
+          'Open a sequential data set or a PDS/PDSE member in the VS Code editor via Zowe Explorer. ' +
+          "The data set opens in Zowe Explorer's editor so the user can view or edit it. " +
           'Requires Zowe Explorer to be installed. The extension resolves the Zowe profile (default or match by system) or prompts to choose one and remembers it for the session.',
         inputSchema: {
           dsn: z
             .string()
-            .describe('Fully qualified dataset name (e.g. USER.SRC.COBOL or USER.PDS).'),
+            .describe('Fully qualified data set name (e.g. USER.SRC.COBOL or USER.PDS).'),
           member: z
             .string()
             .optional()
-            .describe('Member name for a PDS/PDSE; omit for sequential datasets.'),
+            .describe('Member name for a PDS/PDSE; omit for sequential data sets.'),
           system: z
             .string()
             .optional()
@@ -87,7 +87,7 @@ export function registerZoweExplorerTools(
         },
       },
       async ({ dsn, member, system: systemArg }, extra) => {
-        const progress = createToolProgress(extra, 'Open dataset in Zowe Explorer');
+        const progress = createToolProgress(extra, 'Open data set in Zowe Explorer');
         await progress.start();
 
         try {
@@ -108,7 +108,7 @@ export function registerZoweExplorerTools(
             content: [
               {
                 type: 'text' as const,
-                text: 'Opening dataset in Zowe Explorer. The document should appear in your editor shortly.',
+                text: 'Opening data set in Zowe Explorer. The document should appear in your editor shortly.',
               },
             ],
           };

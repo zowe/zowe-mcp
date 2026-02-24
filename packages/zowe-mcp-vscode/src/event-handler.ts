@@ -348,7 +348,7 @@ const ZOWE_EDITOR_REQUIRED_MSG =
   'Zowe Explorer is required to open this resource. Install the Zowe Explorer extension.';
 
 /**
- * Handles open-dataset-in-editor: resolve profile, build zowe-ds URI, open in Zowe Explorer.
+ * Handles open-dataset-in-editor: resolve profile, build zowe-ds URI, open data set in Zowe Explorer.
  */
 async function handleOpenDatasetInEditor(
   log: vscode.LogOutputChannel,

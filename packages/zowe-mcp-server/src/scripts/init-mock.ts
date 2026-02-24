@@ -35,9 +35,9 @@ interface MockPreset {
   usersPerSystem: number;
   datasetsPerUser: number;
   membersPerPds: number;
-  /** When set, generate one INVENTORY dataset with this many members (ITEM0001..ITEMnnnn). */
+  /** When set, generate one INVENTORY data set with this many members (ITEM0001..ITEMnnnn). */
   inventoryMembers?: number;
-  /** When set, generate USER.PEOPLE.firstname.lastname PS datasets (unique English names, ≤8 chars each). */
+  /** When set, generate USER.PEOPLE.firstname.lastname PS data sets (unique English names, ≤8 chars each). */
   peopleDatasets?: number;
 }
 
@@ -467,7 +467,7 @@ async function generateUserDatasets(
   const hlqDir = path.join(sysDir, hlq);
   await fs.mkdir(hlqDir, { recursive: true });
 
-  // Always create core datasets
+  // Always create core data sets
   const cobolDir = path.join(hlqDir, 'SRC.COBOL');
   await fs.mkdir(cobolDir, { recursive: true });
   await writeMeta(cobolDir, `${hlq}.SRC.COBOL`, 'PO-E');
@@ -507,7 +507,7 @@ async function generateUserDatasets(
     blksz: 32760,
   });
 
-  // Sequential datasets
+  // Sequential data sets
   await fs.writeFile(path.join(hlqDir, 'DATA.INPUT'), generateSequentialData('input'), 'utf-8');
 
   // LISTING: FBA 133 with ASA printer control in column 1 (see IBM machine code printer control)
@@ -535,7 +535,7 @@ async function generateUserDatasets(
     'utf-8'
   );
 
-  // Generate additional datasets if requested
+  // Generate additional data sets if requested
   let extraCount = datasetsPerUser - 7; // 7 = 4 PDS (SRC.COBOL, SRC.COPYBOOK, JCL.CNTL, LOADLIB) + 3 sequential above
   for (let i = 1; extraCount > 0 && i <= 20; i++, extraCount--) {
     if (i % 2 === 0) {
@@ -554,7 +554,7 @@ async function generateUserDatasets(
       // Extra sequential
       await fs.writeFile(
         path.join(hlqDir, `DATA.FILE${String(i).padStart(2, '0')}`),
-        `* Sequential dataset ${hlq}.DATA.FILE${String(i).padStart(2, '0')}\n* Generated mock data\n`,
+        `* Sequential data set ${hlq}.DATA.FILE${String(i).padStart(2, '0')}\n* Generated mock data\n`,
         'utf-8'
       );
     }
@@ -595,7 +595,7 @@ async function generateSystemDatasets(sysDir: string): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
-// Inventory dataset (fake goods: ITEM0001..ITEMnnnn, YAML cards, multi-locale)
+// Inventory data set (fake goods: ITEM0001..ITEMnnnn, YAML cards, multi-locale)
 // ---------------------------------------------------------------------------
 
 /**
@@ -637,7 +637,7 @@ async function generateInventoryDataset(
 }
 
 /**
- * Generate one large sequential dataset (e.g. USER.LARGE.SEQ) with 2200 lines for readDataset pagination tests.
+ * Generate one large sequential data set (e.g. USER.LARGE.SEQ) with 2200 lines for readDataset pagination tests.
  * With MAX_READ_LINES=1000 the agent must do 3 reads: 1–1000, 1001–2000, 2001–2200. LUKE is on the last chunk.
  */
 async function generateLargeSequentialDataset(sysDir: string, hlq: string): Promise<void> {
@@ -656,7 +656,7 @@ async function generateLargeSequentialDataset(sysDir: string, hlq: string): Prom
 }
 
 // ---------------------------------------------------------------------------
-// People datasets (USER.PEOPLE.firstname.lastname, PS, unique English names ≤8 chars)
+// People data sets (USER.PEOPLE.firstname.lastname, PS, unique English names ≤8 chars)
 // ---------------------------------------------------------------------------
 
 /** Sanitize to DSN qualifier: ASCII letters only, max 8 chars, uppercase. */
@@ -718,7 +718,7 @@ async function writeMetaFile(
 }
 
 /**
- * Generate USER.PEOPLE.firstname.lastname PS datasets (configurable count).
+ * Generate USER.PEOPLE.firstname.lastname PS data sets (configurable count).
  * Names are unique, English, no special characters, first and last each ≤8 chars.
  * Uses the same seed as inventory for reproducibility.
  */
@@ -833,14 +833,14 @@ async function main(): Promise<void> {
   console.log(`Generating mock data in: ${args.output}`);
   console.log(
     `  Systems: ${args.systems}, Users/system: ${args.usersPerSystem}, ` +
-      `Datasets/user: ${args.datasetsPerUser}, Members/PDS: ${args.membersPerPds}`
+      `Data sets/user: ${args.datasetsPerUser}, Members/PDS: ${args.membersPerPds}`
   );
   if (args.inventoryMembers > 0) {
-    console.log(`  Inventory dataset: ${args.inventoryMembers} members, seed: ${args.seed}`);
+    console.log(`  Inventory data set: ${args.inventoryMembers} members, seed: ${args.seed}`);
   }
   if (args.peopleDatasets > 0) {
     console.log(
-      `  People datasets: ${args.peopleDatasets} (USER.PEOPLE.first.last), seed: ${args.seed}`
+      `  People data sets: ${args.peopleDatasets} (USER.PEOPLE.first.last), seed: ${args.seed}`
     );
   }
 
@@ -868,16 +868,16 @@ async function main(): Promise<void> {
     const sysDir = path.join(args.output, template.host);
     await fs.mkdir(sysDir, { recursive: true });
 
-    // Generate datasets for each user
+    // Generate data sets for each user
     for (let u = 0; u < users.length; u++) {
       console.log(`  User ${u + 1}/${users.length}: ${users[u]}...`);
       await generateUserDatasets(sysDir, users[u], args.datasetsPerUser, args.membersPerPds);
     }
 
-    // Generate system datasets
+    // Generate system data sets
     await generateSystemDatasets(sysDir);
 
-    // Optional: one INVENTORY dataset for first system / first user
+    // Optional: one INVENTORY data set for first system / first user
     if (s === 0 && args.inventoryMembers > 0) {
       const addLargeMember = args.inventoryMembers >= 2000 && args.peopleDatasets > 0;
       await generateInventoryDataset(
@@ -888,7 +888,7 @@ async function main(): Promise<void> {
         addLargeMember
       );
     }
-    // Optional: USER.PEOPLE.firstname.lastname PS datasets for first system / first user
+    // Optional: USER.PEOPLE.firstname.lastname PS data sets for first system / first user
     if (s === 0 && args.peopleDatasets > 0) {
       await generatePeopleDatasets(sysDir, defaultUser, args.peopleDatasets, args.seed);
     }
@@ -935,13 +935,13 @@ async function main(): Promise<void> {
 
   console.log(`\nGenerated:`);
   console.log(`  ${config.systems.length} systems`);
-  console.log(`  ${totalDatasets} datasets`);
+  console.log(`  ${totalDatasets} data sets`);
   console.log(`  ${totalMembers} members`);
   if (args.inventoryMembers > 0) {
     console.log(`  Inventory: ${args.inventoryMembers} members`);
   }
   if (args.peopleDatasets > 0) {
-    console.log(`  People: ${args.peopleDatasets} datasets`);
+    console.log(`  People: ${args.peopleDatasets} data sets`);
   }
   console.log(`\nMock data directory: ${path.resolve(args.output)}`);
 }

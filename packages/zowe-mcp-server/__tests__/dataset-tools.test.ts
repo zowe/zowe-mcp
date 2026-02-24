@@ -1083,7 +1083,7 @@ describe('Dataset tools with mock backend', () => {
       expect(envelope.data.allocation.applied.dsorg).toBe('PO');
       expect(envelope.data.allocation.applied.dirblk).toBe(5);
       expect(envelope.data.allocation.messages).toContain(
-        'dirblk defaulted to 5 for partitioned dataset.'
+        'dirblk defaulted to 5 for partitioned data set.'
       );
     });
   });

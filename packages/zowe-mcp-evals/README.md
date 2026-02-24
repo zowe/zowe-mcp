@@ -96,14 +96,14 @@ Question sets are YAML files in `questions/`. Each file has:
 
 ### Mutations (write and delete)
 
-- **Set** `mutations` (run with `--set mutations`): Two questions. (1) Create a temp sequential dataset, write a line, read it back, then delete under the temp prefix. (2) Create a temp PDS, write a member, delete that member, then delete under the temp prefix. Uses **toolCallOrder** to assert the flow.
+- **Set** `mutations` (run with `--set mutations`): Two questions. (1) Create a temp sequential data set, write a line, read it back, then delete under the temp prefix. (2) Create a temp PDS, write a member, delete that member, then delete under the temp prefix. Uses **toolCallOrder** to assert the flow.
 
 ### Context and core
 
 - **Set** `context` (run with `--set context`): getContext and setSystem/listSystems then getContext. Mock, default preset.
 - **Set** `core` (run with `--set core`): info tool to report server and backend type. Mock, default preset.
 
-### Dataset attributes and copy/rename
+### Data set attributes and copy/rename
 
 - **Set** `dataset-attributes` (run with `--set dataset-attributes`): getDatasetAttributes for RECFM, LRECL, DSORG. Mock, default preset.
 - **Set** `dataset-copy-rename` (run with `--set dataset-copy-rename`): copyDataset (member to temp PDS) and renameDataset (temp sequential) with cleanup. Mock, default preset.

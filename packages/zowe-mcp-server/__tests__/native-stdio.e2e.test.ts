@@ -18,9 +18,9 @@
  * using temp datasets (USER.TMP.*) so production data is not modified.
  *
  * Some tests are skipped when the system or ZNP server does not support them:
- * PDSE (LIBRARY), deleteDatasetsUnderPrefix with listDatasets(prefix.**), and
- * renameDataset member (renameMember). Re-enable by changing skipIf(true) to
- * skipIf(false) when the backend supports the feature.
+ * PDSE (LIBRARY) and renameDataset member (renameMember). Re-enable by changing
+ * skipIf(true) to skipIf(false) when the backend supports the feature.
+ * deleteDatasetsUnderPrefix (prefix.**) runs with retries for intermittent ZNP.
  *
  * Skipped when config file (native-config.json) or
  * password (ZOWE_MCP_PASSWORD_<USER>_<HOST> or ZOS_PASSWORD) is missing in
@@ -1158,8 +1158,9 @@ describe.skipIf(!canRunNativeE2E)(
         await callToolSuccess(client, 'deleteDataset', { dsn: q(dsn) });
       });
 
-      it.skipIf(true)(
-        '1.7 deleteDatasetsUnderPrefix removes all under prefix - skipped when listDatasets(prefix.**) unsupported',
+      it(
+        '1.7 deleteDatasetsUnderPrefix removes all under prefix (prefix.** supported; retried on intermittent ZNP failure)',
+        { retry: 2 },
         async () => {
           const { parsed: prefixRes } = await callToolSuccess(client, 'getTempDatasetPrefix', {});
           const prefix = (prefixRes as { data: { prefix: string } }).data.prefix;

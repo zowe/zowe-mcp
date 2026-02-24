@@ -43,7 +43,10 @@ export function getToolsUnderTest(assertions: Assertion[]): string[] {
     if (a.type === 'toolCallOrder') {
       for (const step of a.sequence) {
         if (step.tool) names.add(step.tool.trim());
+        if (step.tools) for (const t of step.tools) names.add(t.trim());
       }
+    } else if (a.type === 'toolCallOneOf') {
+      for (const spec of a.oneOf) names.add(spec.tool.trim());
     } else if ('tool' in a && typeof (a as { tool?: string }).tool === 'string') {
       names.add((a as { tool: string }).tool.trim());
     }

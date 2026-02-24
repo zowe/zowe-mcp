@@ -84,7 +84,8 @@ Question sets are YAML files in `questions/`. Each file has:
 - **toolOnly** — At least one call to `tool` with optional `args`; answer content not checked.
 - **minToolCalls** — The tool must have been called at least `minCount` times (e.g. for pagination evals).
 - **toolCallSequence** — The tool must have been called in order with args matching each element of `sequence` (partial match per call). Use to assert every pagination call has correct parameters (e.g. `dsn`, `offset`, `limit` for list tools; `dsn`, `member`, `startLine`, `lineCount` for readDataset).
-- **toolCallOrder** — Tools must be called in this order (other tools may appear in between). Each step has `tool` and optional `args` (partial match). Use for mutation flows (e.g. createTempDataset → writeDataset → deleteDatasetsUnderPrefix).
+- **toolCallOrder** — Tools must be called in this order (other tools may appear in between). Each step has `tool` (single) or `tools` (array—step matches if any of these tools was called) and optional `args` (partial match). Use `tools` to allow multiple valid flows (e.g. setSystem or getContext).
+- **toolCallOneOf** — At least one of the given tool specs must have a matching call. Use when multiple tools are valid (e.g. getContext or runSafeTsoCommand WHO for "who am I").
 
 ### readDataset pagination
 

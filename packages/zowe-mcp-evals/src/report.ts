@@ -131,25 +131,53 @@ export function writeReport(
     if (failed.length === 0) continue;
     const totalRunsForQuestion = runs.length;
     failures.push(`### ${qid}`);
-    failures.push(`- Prompt: ${failed[0].prompt ?? failed[0].questionId}`);
+    failures.push('');
+    failures.push('- **Prompt:**');
+    failures.push('');
+    failures.push((failed[0].prompt ?? failed[0].questionId ?? '').trim());
+    failures.push('');
     failures.push(`- Failed runs: ${failed.length}/${totalRunsForQuestion}`);
     failures.push('');
     failed.forEach(run => {
       const runLabel = `Run ${run.runIndex + 1}/${totalRunsForQuestion}`;
-      failures.push(`#### ${runLabel}`);
+      failures.push(`#### ${qid} - ${runLabel}`);
+      failures.push('');
       failures.push('- Tool calls:');
       for (let i = 0; i < run.toolCalls.length; i++) {
         const tc = run.toolCalls[i];
         const argsJson = JSON.stringify(tc.arguments, null, 2);
         failures.push(`  ${i + 1}. **${tc.name}**`);
         failures.push(`     Args: \`${argsJson.replace(/\n/g, ' ')}\``);
+        failures.push('');
         if (tc.result !== undefined) {
           const preview =
             tc.result.length > 800 ? tc.result.slice(0, 800) + '… [truncated]' : tc.result;
-          failures.push(`     Result:`);
-          failures.push('     ```');
-          failures.push(preview);
-          failures.push('     ```');
+          failures.push('     Result:');
+          failures.push('');
+          let isJson = false;
+          try {
+            JSON.parse(tc.result);
+            isJson = true;
+          } catch {
+            // not JSON
+          }
+          if (isJson) {
+            const formatted = JSON.stringify(JSON.parse(tc.result), null, 2);
+            const formattedPreview =
+              formatted.length > 800 ? formatted.slice(0, 800) + '… [truncated]' : formatted;
+            failures.push('     ```json');
+            for (const line of formattedPreview.split('\n')) {
+              failures.push('     ' + line);
+            }
+            failures.push('     ```');
+          } else {
+            failures.push('     ```text');
+            for (const line of preview.split('\n')) {
+              failures.push('     ' + line);
+            }
+            failures.push('     ```');
+          }
+          failures.push('');
         }
       }
       failures.push(`- Error/assertion: ${run.assertionFailed ?? run.error ?? 'unknown'}`);

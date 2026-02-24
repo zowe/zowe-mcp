@@ -1239,24 +1239,23 @@ describe('Dataset tools with mock backend', () => {
   // Temp dataset tools (getTempDatasetPrefix, getTempDatasetName, createTempDataset, deleteDatasetsUnderPrefix)
   // -----------------------------------------------------------------------
   describe('temp dataset tools', () => {
-    it('getTempDatasetPrefix should return a valid prefix containing .TMP', async () => {
+    it('getTempDatasetPrefix should return tempDsnPrefix containing .TMP', async () => {
       const result = await client.callTool({
         name: 'getTempDatasetPrefix',
         arguments: {},
       });
-      const data = parseData<{ prefix: string }>(result);
-      expect(data.prefix).toMatch(/^TESTUSER\.TMP\.[A-Z0-9]{8}\.[A-Z0-9]{8}$/);
-      expect(data.prefix).toContain('.TMP.');
+      const data = parseData<{ tempDsnPrefix: string }>(result);
+      expect(data.tempDsnPrefix).toMatch(/^TESTUSER\.TMP\.[A-Z0-9]{8}\.[A-Z0-9]{8}$/);
+      expect(data.tempDsnPrefix).toContain('.TMP.');
     });
 
-    it('getTempDatasetName should return dsn and prefix', async () => {
+    it('getTempDatasetName should return tempDsn only', async () => {
       const result = await client.callTool({
         name: 'getTempDatasetName',
         arguments: {},
       });
-      const data = parseData<{ dsn: string; prefix: string }>(result);
-      expect(data.dsn).toMatch(/^TESTUSER\.TMP\.[A-Z0-9]{8}\.[A-Z0-9]{8}\.[A-Z0-9]{8}$/);
-      expect(data.prefix).toBe(data.dsn.split('.').slice(0, -1).join('.'));
+      const data = parseData<{ tempDsn: string }>(result);
+      expect(data.tempDsn).toMatch(/^TESTUSER\.TMP\.[A-Z0-9]{8}\.[A-Z0-9]{8}\.[A-Z0-9]{8}$/);
     });
 
     it('createTempDataset should create a dataset and return dsn', async () => {
@@ -1293,8 +1292,8 @@ describe('Dataset tools with mock backend', () => {
         name: 'getTempDatasetPrefix',
         arguments: {},
       });
-      const prefixData = parseData<{ prefix: string }>(prefixResult);
-      const prefix = prefixData.prefix;
+      const prefixData = parseData<{ tempDsnPrefix: string }>(prefixResult);
+      const prefix = prefixData.tempDsnPrefix;
       await client.callTool({
         name: 'createDataset',
         arguments: { dsn: `${prefix}.A`, type: 'PS' },

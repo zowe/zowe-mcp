@@ -80,6 +80,31 @@ describe('getToolsUnderTest', () => {
     ).toEqual(['createTempDataset', 'getTempDatasetPrefix']);
   });
 
+  it('returns all tool names for toolCallOrder with tools (any of) steps', () => {
+    expect(
+      getToolsUnderTest([
+        {
+          type: 'toolCallOrder',
+          sequence: [{ tool: 'listSystems' }, { tools: ['setSystem', 'getContext'] }],
+        },
+      ])
+    ).toEqual(['getContext', 'listSystems', 'setSystem']);
+  });
+
+  it('returns all tool names for toolCallOneOf', () => {
+    expect(
+      getToolsUnderTest([
+        {
+          type: 'toolCallOneOf',
+          oneOf: [
+            { tool: 'getContext' },
+            { tool: 'runSafeTsoCommand', args: { commandText: 'WHO' } },
+          ],
+        },
+      ])
+    ).toEqual(['getContext', 'runSafeTsoCommand']);
+  });
+
   it('deduplicates when same tool appears in multiple assertions', () => {
     const assertions: Assertion[] = [
       { type: 'toolCall', tool: 'listDatasets', args: { dsnPattern: 'USER.*' } },

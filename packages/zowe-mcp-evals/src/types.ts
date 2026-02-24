@@ -108,13 +108,26 @@ export interface AssertToolCallSequence {
 
 /**
  * Assertion: tools must be called in this order (any other tools may appear in between).
- * Each step can have optional args (partial match). Use for mutation flows (e.g. createTempDataset
- * then writeDataset then deleteDatasetsUnderPrefix).
+ * Each step: single tool or tools (any of), plus optional args (partial match).
+ * Use tools array to allow multiple valid solutions (e.g. setSystem or getContext).
  */
 export interface AssertToolCallOrder {
   type: 'toolCallOrder';
-  /** Expected tool calls in order. Each step: tool name and optional args. */
-  sequence: { tool: string; args?: Record<string, unknown> }[];
+  /** Expected tool calls in order. Each step: tool (single) or tools (array), plus optional args. */
+  sequence: {
+    tool?: string;
+    tools?: string[];
+    args?: Record<string, unknown>;
+  }[];
+}
+
+/**
+ * Assertion: at least one of the given tool specs must have a matching call.
+ * Use when multiple tools are valid (e.g. getContext or runSafeTsoCommand WHO for "who am I").
+ */
+export interface AssertToolCallOneOf {
+  type: 'toolCallOneOf';
+  oneOf: { tool: string; args?: Record<string, unknown> }[];
 }
 
 export type Assertion =
@@ -124,7 +137,8 @@ export type Assertion =
   | AssertToolOnly
   | AssertMinToolCalls
   | AssertToolCallSequence
-  | AssertToolCallOrder;
+  | AssertToolCallOrder
+  | AssertToolCallOneOf;
 
 /**
  * One question in a set.

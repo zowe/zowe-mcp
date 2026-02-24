@@ -1065,25 +1065,25 @@ describe.skipIf(!canRunNativeE2E)(
       // -----------------------------------------------------------------------
       // 1. Temp tools (getTempDatasetPrefix, getTempDatasetName, createTempDataset, deleteDatasetsUnderPrefix)
       // -----------------------------------------------------------------------
-      it('1.1 getTempDatasetPrefix returns prefix and it is unique', async () => {
+      it('1.1 getTempDatasetPrefix returns tempDsnPrefix and it is unique', async () => {
         const { parsed } = await callToolSuccess(client, 'getTempDatasetPrefix', {});
-        const o = parsed as { data: { prefix: string } };
+        const o = parsed as { data: { tempDsnPrefix: string } };
         expect(o.data).toBeDefined();
-        expect(o.data.prefix).toBeDefined();
-        expect(typeof o.data.prefix).toBe('string');
-        expect(o.data.prefix.split('.').length).toBeGreaterThanOrEqual(4);
-        expect(o.data.prefix).toContain('TMP');
+        expect(o.data.tempDsnPrefix).toBeDefined();
+        expect(typeof o.data.tempDsnPrefix).toBe('string');
+        expect(o.data.tempDsnPrefix.split('.').length).toBeGreaterThanOrEqual(4);
+        expect(o.data.tempDsnPrefix).toContain('TMP');
       });
 
-      it('1.2 getTempDatasetName returns unique DSN', async () => {
+      it('1.2 getTempDatasetName returns unique tempDsn', async () => {
         const { parsed } = await callToolSuccess(client, 'getTempDatasetName', {});
-        const o = parsed as { data: { dsn: string; prefix: string } };
-        expect(o.data.dsn).toBeDefined();
-        expect(typeof o.data.dsn).toBe('string');
-        expect(o.data.dsn).toContain('TMP');
+        const o = parsed as { data: { tempDsn: string } };
+        expect(o.data.tempDsn).toBeDefined();
+        expect(typeof o.data.tempDsn).toBe('string');
+        expect(o.data.tempDsn).toContain('TMP');
         const r = await client.callTool({
           name: 'getDatasetAttributes',
-          arguments: { dsn: q(o.data.dsn) },
+          arguments: { dsn: q(o.data.tempDsn) },
         });
         expect(r.isError).toBe(true);
       });
@@ -1163,7 +1163,7 @@ describe.skipIf(!canRunNativeE2E)(
         { retry: 2 },
         async () => {
           const { parsed: prefixRes } = await callToolSuccess(client, 'getTempDatasetPrefix', {});
-          const prefix = (prefixRes as { data: { prefix: string } }).data.prefix;
+          const prefix = (prefixRes as { data: { tempDsnPrefix: string } }).data.tempDsnPrefix;
           await callToolSuccess(client, 'createTempDataset', {
             type: 'PS',
             prefix,
@@ -1259,7 +1259,7 @@ describe.skipIf(!canRunNativeE2E)(
       // -----------------------------------------------------------------------
       it('3.1 createDataset with explicit temp DSN', async () => {
         const { parsed: nameRes } = await callToolSuccess(client, 'getTempDatasetName', {});
-        const dsn = (nameRes as { data: { dsn: string } }).data.dsn;
+        const dsn = (nameRes as { data: { tempDsn: string } }).data.tempDsn;
         await callToolSuccess(client, 'createDataset', {
           dsn: q(dsn),
           type: 'PS',
@@ -1392,7 +1392,7 @@ describe.skipIf(!canRunNativeE2E)(
         const source = (createRes as { data: { dsn: string } }).data.dsn;
         await callToolSuccess(client, 'writeDataset', { dsn: q(source), content: 'COPYME' });
         const { parsed: nameRes } = await callToolSuccess(client, 'getTempDatasetName', {});
-        const targetDsn = (nameRes as { data: { dsn: string } }).data.dsn;
+        const targetDsn = (nameRes as { data: { tempDsn: string } }).data.tempDsn;
         await callToolSuccess(client, 'createDataset', {
           dsn: q(targetDsn),
           type: 'PS',
@@ -1450,7 +1450,7 @@ describe.skipIf(!canRunNativeE2E)(
         const dsn = (createRes as { data: { dsn: string } }).data.dsn;
         await callToolSuccess(client, 'writeDataset', { dsn: q(dsn), content: 'RENAME_TEST' });
         const { parsed: nameRes } = await callToolSuccess(client, 'getTempDatasetName', {});
-        const newDsn = (nameRes as { data: { dsn: string } }).data.dsn;
+        const newDsn = (nameRes as { data: { tempDsn: string } }).data.tempDsn;
         await callToolSuccess(client, 'renameDataset', { dsn: q(dsn), newDsn: q(newDsn) });
         await callToolSuccess(client, 'getDatasetAttributes', { dsn: q(newDsn) });
         const { parsed: readRes } = await callToolSuccess(client, 'readDataset', {

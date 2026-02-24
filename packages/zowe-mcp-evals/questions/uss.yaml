@@ -6,7 +6,7 @@ config:
   repetitions: 2
   minSuccessRate: 0.8
   mock:
-    initArgs: --preset default
+    initArgs: --preset minimal
 
 questions:
   - id: uss-home
@@ -40,14 +40,19 @@ questions:
   - id: uss-write-temp-read-cleanup
     prompt: Create a temporary file under a temp directory in my USS home, write "USS eval test" to it, read it back, then delete all temp files under that temp directory.
     assertions:
+      # getUssTempDir then createTempUssFile or getUssTempPath; cleanup via deleteUssTempUnderDir or deleteUssFile
       - type: toolCallOrder
         sequence:
           - tool: getUssTempDir
-          - tool: createTempUssFile
+          - tools:
+              - createTempUssFile
+              - getUssTempPath
           - tool: writeUssFile
             args:
               content: "USS eval test"
           - tool: readUssFile
-          - tool: deleteUssTempUnderDir
+          - tools:
+              - deleteUssTempUnderDir
+              - deleteUssFile
       - type: answerContains
         substring: "USS eval test"

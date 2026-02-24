@@ -97,5 +97,76 @@ describe('runAssertions', () => {
       expect(result.passed).toBe(false);
       expect(result.failedAssertion).toContain('args matching');
     });
+
+    it('passes when step uses tools (any of) and second tool is called', () => {
+      const assertions: Assertion[] = [
+        {
+          type: 'toolCallOrder',
+          sequence: [{ tool: 'listSystems' }, { tools: ['setSystem', 'getContext'] }],
+        },
+      ];
+      const toolCalls: ToolCallRecord[] = [
+        tc('listSystems'),
+        tc('setSystem', { system: 'mainframe.example.com' }),
+      ];
+      expect(runAssertions(assertions, toolCalls, '')).toEqual({ passed: true });
+    });
+
+    it('passes when step uses tools (any of) and first alternative is called', () => {
+      const assertions: Assertion[] = [
+        {
+          type: 'toolCallOrder',
+          sequence: [{ tool: 'listSystems' }, { tools: ['setSystem', 'getContext'] }],
+        },
+      ];
+      const toolCalls: ToolCallRecord[] = [tc('listSystems'), tc('getContext')];
+      expect(runAssertions(assertions, toolCalls, '')).toEqual({ passed: true });
+    });
+  });
+
+  describe('toolCallOneOf', () => {
+    it('passes when one of the tool specs matches', () => {
+      const assertions: Assertion[] = [
+        {
+          type: 'toolCallOneOf',
+          oneOf: [
+            { tool: 'getContext' },
+            { tool: 'runSafeTsoCommand', args: { commandText: 'WHO' } },
+          ],
+        },
+      ];
+      const toolCalls: ToolCallRecord[] = [tc('getContext')];
+      expect(runAssertions(assertions, toolCalls, '')).toEqual({ passed: true });
+    });
+
+    it('passes when the other spec matches', () => {
+      const assertions: Assertion[] = [
+        {
+          type: 'toolCallOneOf',
+          oneOf: [
+            { tool: 'getContext' },
+            { tool: 'runSafeTsoCommand', args: { commandText: 'WHO' } },
+          ],
+        },
+      ];
+      const toolCalls: ToolCallRecord[] = [tc('runSafeTsoCommand', { commandText: 'WHO' })];
+      expect(runAssertions(assertions, toolCalls, '')).toEqual({ passed: true });
+    });
+
+    it('fails when none of the specs match', () => {
+      const assertions: Assertion[] = [
+        {
+          type: 'toolCallOneOf',
+          oneOf: [
+            { tool: 'getContext' },
+            { tool: 'runSafeTsoCommand', args: { commandText: 'WHO' } },
+          ],
+        },
+      ];
+      const toolCalls: ToolCallRecord[] = [tc('listSystems')];
+      const result = runAssertions(assertions, toolCalls, '');
+      expect(result.passed).toBe(false);
+      expect(result.failedAssertion).toContain('one of');
+    });
   });
 });

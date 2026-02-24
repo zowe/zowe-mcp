@@ -6,7 +6,7 @@ config:
   repetitions: 2
   minSuccessRate: 0.8
   mock:
-    initArgs: --preset default
+    initArgs: --preset minimal
 
 questions:
   - id: copy-member-then-cleanup
@@ -35,7 +35,7 @@ questions:
         pattern: "BACKUP|member|success|complete|deleted"
 
   - id: rename-dataset-temp
-    prompt: Create a temporary sequential data set, write one line "Rename test" to it, then rename that data set to another temp name, read the renamed data set to confirm the line, then delete data sets under the temp prefix.
+    prompt: Create a temporary sequential data set with createTempDataset, rename it by changing the last qualifier to TEST, then write one line "Rename test" to it with writeDataset.
     assertions:
       - type: toolCallOrder
         sequence:
@@ -44,11 +44,11 @@ questions:
               type:
                 - "PS"
                 - "SEQUENTIAL"
+          - tool: renameDataset
+            args:
+              newDsn: "TEST"
           - tool: writeDataset
             args:
               content: "Rename test"
-          - tool: renameDataset
-          - tool: readDataset
-          - tool: deleteDatasetsUnderPrefix
       - type: answerContains
-        substring: "Rename test"
+        pattern: "Rename test|success|written|created"

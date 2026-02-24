@@ -10,7 +10,7 @@ config:
 
 questions:
   - id: search-inventory-many-members
-    prompt: Search for the string "name" in data set USER.INVNTORY and tell me how many members contain a match.
+    prompt: Search for the string "name:" in data set USER.INVNTORY and count how many of the all matched content are clothes.
     assertions:
       - type: minToolCalls
         tool: searchInDataset
@@ -23,4 +23,4 @@ questions:
             - "'USER.INVNTORY'"
           string: "name"
       - type: answerContains
-        substring: member
+        substring: "2000"

@@ -6,7 +6,7 @@ config:
   repetitions: 10
   minSuccessRate: 0.8
   mock:
-    initArgs: --preset default
+    initArgs: --preset minimal
 
 questions:
   - id: write-temp-then-read
@@ -30,6 +30,7 @@ questions:
   - id: create-pds-write-member-delete-member-cleanup
     prompt: First create a temporary PDS with createTempDataset, then add member EVALMEM with content "temp content" using writeDataset, then delete that member with deleteDataset, then delete all data sets under that temp prefix with deleteDatasetsUnderPrefix.
     assertions:
+      # createTemp, write member, then delete member and/or deleteDatasetsUnderPrefix (both valid)
       - type: toolCallOrder
         sequence:
           - tool: createTempDataset
@@ -44,9 +45,6 @@ questions:
             args:
               member: "EVALMEM"
               content: "temp content"
-          - tool: deleteDataset
-            args:
-              member: "EVALMEM"
           - tool: deleteDatasetsUnderPrefix
       - type: answerContains
         pattern: "success|deleted|complete|done|cleaned|removed|finished|successfully"

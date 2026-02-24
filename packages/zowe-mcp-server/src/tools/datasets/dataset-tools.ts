@@ -400,11 +400,10 @@ export function registerDatasetTools(
     'searchInDataset',
     {
       description:
-        'Do not answer with only the first page of results; fetch all pages until _result.hasMore is false. ' +
+        'When the response has _result.hasMore true, you must call again with offset and limit (e.g. offset=500, limit=500) before giving a final count or answer—do not answer with only the first page. ' +
         'Search for a string in a sequential data set or in a PDS/PDSE (all members or one member). ' +
         'Returns matching lines with line numbers and a summary. ' +
         'Results are paginated by member (offset/limit); when _result.hasMore is true, call again with the next offset and limit. ' +
-        'Full result is cached so paging does not re-run the search. ' +
         'Options: caseSensitive (default false), cobol (ignore cols 1–6), ignoreSequenceNumbers, doNotProcessComments (asterisk, cobolComment, fortran, cpp, pli, pascal, pcAssembly, ada).',
       annotations: { readOnlyHint: true },
       inputSchema: {
@@ -978,7 +977,7 @@ export function registerDatasetTools(
         );
         const ctx = buildContext(systemId, {});
         await progress.complete('prefix ready');
-        return wrapResponse(ctx, { success: true }, { prefix: resultPrefix }, []);
+        return wrapResponse(ctx, { success: true }, { tempDsnPrefix: resultPrefix }, []);
       } catch (err) {
         await progress.complete(err instanceof Error ? err.message : String(err));
         if (err instanceof DsnError) {
@@ -1052,15 +1051,9 @@ export function registerDatasetTools(
           effectivePrefix,
           qualifier?.trim() ?? undefined
         );
-        const prefixPart = dsn.split('.').slice(0, -1).join('.');
         const ctx = buildContext(systemId, {});
         await progress.complete('DSN ready');
-        return wrapResponse(
-          ctx,
-          { success: true },
-          { dsn: formatResolved(dsn), prefix: prefixPart },
-          []
-        );
+        return wrapResponse(ctx, { success: true }, { tempDsn: formatResolved(dsn) }, []);
       } catch (err) {
         await progress.complete(err instanceof Error ? err.message : String(err));
         if (err instanceof DsnError) {
@@ -1422,7 +1415,7 @@ export function registerDatasetTools(
     'deleteDatasetsUnderPrefix',
     {
       description:
-        'Destructive. Deletes all data sets whose names start with the given prefix (e.g. a prefix returned by getTempDatasetPrefix). ' +
+        'Destructive. Deletes all data sets whose names start with the given prefix (e.g. tempDsnPrefix returned by getTempDatasetPrefix). ' +
         `For automation: create temp data sets under one prefix, then call this once to clean up. Prefix must have at least 3 qualifiers and contain ${REQUIRED_SAFETY_QUALIFIER} (e.g. USER.${REQUIRED_SAFETY_QUALIFIER}.XXXXXXXX.YYYYYYYY).`,
       annotations: { destructiveHint: true },
       inputSchema: {

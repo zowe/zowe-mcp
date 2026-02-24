@@ -85,12 +85,40 @@ function parseAssertion(raw: unknown): Assertion {
         if (!s || typeof s !== 'object')
           throw new Error('toolCallOrder sequence step must be object');
         const step = s as Record<string, unknown>;
-        const tool = step.tool as string;
+        const tool = step.tool as string | undefined;
+        const tools = step.tools as string[] | undefined;
+        if (tool !== undefined && typeof tool === 'string' && tool.trim())
+          return {
+            tool: tool.trim(),
+            args: step.args as Record<string, unknown> | undefined,
+          };
+        if (Array.isArray(tools) && tools.length > 0)
+          return {
+            tools: tools.map((t: unknown) => String(t).trim()),
+            args: step.args as Record<string, unknown> | undefined,
+          };
+        throw new Error(
+          'toolCallOrder sequence step must have tool (string) or tools (non-empty array)'
+        );
+      }),
+    };
+  }
+  if (type === 'toolCallOneOf') {
+    const oneOf = o.oneOf;
+    if (!Array.isArray(oneOf) || oneOf.length === 0)
+      throw new Error('toolCallOneOf assertion requires non-empty oneOf array');
+    return {
+      type: 'toolCallOneOf',
+      oneOf: oneOf.map((spec: unknown) => {
+        if (!spec || typeof spec !== 'object')
+          throw new Error('toolCallOneOf oneOf entry must be object');
+        const s = spec as Record<string, unknown>;
+        const tool = s.tool as string;
         if (!tool || typeof tool !== 'string')
-          throw new Error('toolCallOrder sequence step must have tool string');
+          throw new Error('toolCallOneOf oneOf entry must have tool string');
         return {
           tool: tool.trim(),
-          args: step.args as Record<string, unknown> | undefined,
+          args: s.args as Record<string, unknown> | undefined,
         };
       }),
     };

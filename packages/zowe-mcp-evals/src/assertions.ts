@@ -166,17 +166,42 @@ export function runAssertions(
         let lastIndex = -1;
         for (let i = 0; i < expected.sequence.length; i++) {
           const step = expected.sequence[i];
-          const tool = step.tool.trim();
-          const idx = toolCalls.findIndex(
-            (tc, pos) => pos > lastIndex && tc.name === tool && argsMatch(step.args, tc.arguments)
-          );
+          const stepMatches = (tc: ToolCallRecord) => {
+            const name = tc.name.trim();
+            const toolMatch =
+              step.tool !== undefined
+                ? name === step.tool.trim()
+                : step.tools !== undefined && step.tools.some((t: string) => t.trim() === name);
+            return toolMatch && argsMatch(step.args, tc.arguments);
+          };
+          const idx = toolCalls.findIndex((tc, pos) => pos > lastIndex && stepMatches(tc));
           if (idx === -1) {
+            const label =
+              step.tool !== undefined
+                ? `"${step.tool}"`
+                : `one of [${(step.tools ?? []).join(', ')}]`;
             return {
               passed: false,
-              failedAssertion: `Expected a call to "${tool}" (step ${i + 1}) after index ${lastIndex}, with args matching ${JSON.stringify(step.args ?? {})}`,
+              failedAssertion: `Expected a call to ${label} (step ${i + 1}) after index ${lastIndex}, with args matching ${JSON.stringify(step.args ?? {})}`,
             };
           }
           lastIndex = idx;
+        }
+        break;
+      }
+      case 'toolCallOneOf': {
+        const expected = a;
+        const anyMatch = expected.oneOf.some(spec =>
+          findMatchingToolCall(toolCalls, spec.tool, spec.args)
+        );
+        if (!anyMatch) {
+          const labels = expected.oneOf.map(
+            spec => `${spec.tool}${spec.args ? ` ${JSON.stringify(spec.args)}` : ''}`
+          );
+          return {
+            passed: false,
+            failedAssertion: `Expected one of these tool calls: ${labels.join(' OR ')}`,
+          };
         }
         break;
       }

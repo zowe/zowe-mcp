@@ -18,7 +18,11 @@
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { createRequire } from 'node:module';
-import type { OpenDatasetInEditorEventData } from './events.js';
+import type {
+  OpenDatasetInEditorEventData,
+  OpenJobInEditorEventData,
+  OpenUssFileInEditorEventData,
+} from './events.js';
 import { Logger } from './log.js';
 import { registerDatasetPrompts } from './prompts/dataset-prompts.js';
 import { registerDatasetResources } from './resources/dataset-resources.js';
@@ -118,10 +122,12 @@ export interface CreateServerOptions {
    */
   jobCardStore?: JobCardStore;
   /**
-   * When provided (and Zowe Explorer is available), registers openDatasetInEditor tool
-   * that sends open-dataset-in-editor events to the VS Code extension.
+   * When provided (and Zowe Explorer is available), registers open-in-editor tools
+   * that send events to the VS Code extension (dataset, USS file, job/spool).
    */
   openInZoweEditor?: (payload: OpenDatasetInEditorEventData) => void;
+  openUssFileInZoweEditor?: (payload: OpenUssFileInEditorEventData) => void;
+  openJobInZoweEditor?: (payload: OpenJobInEditorEventData) => void;
 }
 
 /** Known backend kind names for the info tool. */
@@ -302,11 +308,17 @@ export function createServer(options?: CreateServerOptions): McpServer {
     );
   }
 
-  if (options?.openInZoweEditor) {
+  if (
+    options?.openInZoweEditor ||
+    options?.openUssFileInZoweEditor ||
+    options?.openJobInZoweEditor
+  ) {
     registerZoweExplorerTools(
       server,
       {
         openInZoweEditor: options.openInZoweEditor,
+        openUssFileInZoweEditor: options.openUssFileInZoweEditor,
+        openJobInZoweEditor: options.openJobInZoweEditor,
         sessionState: sessionStateForZe,
         backendKind: backendKindForZe,
       },

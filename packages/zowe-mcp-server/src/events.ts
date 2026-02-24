@@ -133,6 +133,37 @@ export type OpenDatasetInEditorEvent = McpEvent<
   OpenDatasetInEditorEventData
 >;
 
+/** Payload for an `open-uss-file-in-editor` event (server → extension). */
+export interface OpenUssFileInEditorEventData {
+  /** USS file or directory path (absolute or relative to home). */
+  path: string;
+  /** Current MCP system id (e.g. user@host) for match-by-system resolution. */
+  system?: string;
+  /** When 'native', extension prefers ssh profile when matching by system. */
+  connectionKind?: 'native' | 'zosmf';
+}
+
+/** Asks the extension to open a USS file in Zowe Explorer's editor (zowe-uss URI). */
+export type OpenUssFileInEditorEvent = McpEvent<
+  'open-uss-file-in-editor',
+  OpenUssFileInEditorEventData
+>;
+
+/** Payload for an `open-job-in-editor` event (server → extension). */
+export interface OpenJobInEditorEventData {
+  /** Job ID (e.g. JOB00123). */
+  jobId: string;
+  /** Optional job file (spool) ID from listJobFiles; when omitted, opens the job node. */
+  jobFileId?: number;
+  /** Current MCP system id (e.g. user@host) for match-by-system resolution. */
+  system?: string;
+  /** When 'native', extension prefers ssh profile when matching by system. */
+  connectionKind?: 'native' | 'zosmf';
+}
+
+/** Asks the extension to open a job or spool file in Zowe Explorer's editor (zowe-jobs URI). */
+export type OpenJobInEditorEvent = McpEvent<'open-job-in-editor', OpenJobInEditorEventData>;
+
 // ---------------------------------------------------------------------------
 // Extension → Server events
 // ---------------------------------------------------------------------------
@@ -224,7 +255,9 @@ export type ServerToExtensionEvent =
   | StorePasswordEvent
   | RequestJobCardEvent
   | StoreJobCardEvent
-  | OpenDatasetInEditorEvent;
+  | OpenDatasetInEditorEvent
+  | OpenUssFileInEditorEvent
+  | OpenJobInEditorEvent;
 
 /** Events that flow from the VS Code extension to the MCP server. */
 export type ExtensionToServerEvent =

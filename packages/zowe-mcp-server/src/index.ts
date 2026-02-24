@@ -34,7 +34,11 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
-import type { OpenDatasetInEditorEventData } from './events.js';
+import type {
+  OpenDatasetInEditorEventData,
+  OpenJobInEditorEventData,
+  OpenUssFileInEditorEventData,
+} from './events.js';
 import { connectExtensionClient } from './extension-client.js';
 import type { CreateServerOptions } from './server.js';
 import { createServer, getLogger, SERVER_VERSION } from './server.js';
@@ -661,15 +665,28 @@ async function main(): Promise<void> {
   }
 
   if (process.env.ZOWE_EXPLORER_AVAILABLE === '1' && extensionClient?.connected === true) {
-    const openInZoweEditor = (payload: OpenDatasetInEditorEventData) => {
+    serverOptions ??= {};
+    serverOptions.openInZoweEditor = (payload: OpenDatasetInEditorEventData) => {
       extensionClient.sendEvent({
         type: 'open-dataset-in-editor',
         data: payload,
         timestamp: Date.now(),
       });
     };
-    serverOptions ??= {};
-    serverOptions.openInZoweEditor = openInZoweEditor;
+    serverOptions.openUssFileInZoweEditor = (payload: OpenUssFileInEditorEventData) => {
+      extensionClient.sendEvent({
+        type: 'open-uss-file-in-editor',
+        data: payload,
+        timestamp: Date.now(),
+      });
+    };
+    serverOptions.openJobInZoweEditor = (payload: OpenJobInEditorEventData) => {
+      extensionClient.sendEvent({
+        type: 'open-job-in-editor',
+        data: payload,
+        timestamp: Date.now(),
+      });
+    };
   }
 
   if (transport === 'stdio') {

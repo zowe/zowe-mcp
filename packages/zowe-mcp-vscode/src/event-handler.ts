@@ -37,6 +37,114 @@ import {
 /** Session cache: profile name per system key (empty string = default). Cleared when extension deactivates. */
 const sessionProfileBySystem = new Map<string, string>();
 
+/**
+ * Resolves Zowe profile for opening a resource in Zowe Explorer.
+ * Returns profile name or null if user cancelled. Uses session cache, team config default, CLI default, system match, or prompts (quick pick / input).
+ */
+async function resolveProfileForZoweEditor(
+  log: vscode.LogOutputChannel,
+  logLabel: string,
+  workspaceDir: string | undefined,
+  sessionKey: string,
+  systemId: string | undefined,
+  connectionKind: 'native' | 'zosmf' | undefined
+): Promise<string | null> {
+  let profile: string | undefined;
+
+  if (sessionProfileBySystem.has(sessionKey)) {
+    profile = sessionProfileBySystem.get(sessionKey)!;
+    log.info(`${logLabel}: using session profile for system`, {
+      system: sessionKey === '' ? '(default)' : sessionKey,
+      profile,
+    });
+  }
+  if (!profile) {
+    profile = (await getDefaultZosmfProfileName()) ?? undefined;
+    if (profile) {
+      sessionProfileBySystem.set(sessionKey, profile);
+      log.info(`${logLabel}: using default zosmf profile from team config`, { profile });
+    }
+  }
+  if (!profile) {
+    const cliResult = await getZosmfProfilesFromZoweCli(workspaceDir);
+    if (cliResult.defaultName) {
+      profile = cliResult.defaultName;
+      sessionProfileBySystem.set(sessionKey, profile);
+      log.info(`${logLabel}: using default zosmf profile from zowe config list`, { profile });
+    }
+  }
+  if (!profile && (systemId ?? '').trim()) {
+    const resolved = await resolveProfileFromSystem(systemId!, connectionKind === 'native');
+    profile = resolved ?? undefined;
+    if (profile) {
+      sessionProfileBySystem.set(sessionKey, profile);
+      log.info(`${logLabel}: resolved profile from system`, { system: systemId, profile });
+    }
+  }
+  if (!profile) {
+    log.info(`${logLabel}: no profile found; listing profiles or prompting for name`);
+    const names = await getAllZosmfProfileNames(workspaceDir);
+    if (names.length > 0) {
+      const picked = await vscode.window.showQuickPick(names, {
+        title: 'Choose Zowe Explorer profile for this session',
+        placeHolder: 'Select a profile to open the resource',
+        matchOnDescription: false,
+        matchOnDetail: false,
+      });
+      if (picked == null) return null;
+      profile = picked;
+    } else {
+      const entered = await vscode.window.showInputBox({
+        title: 'Zowe Explorer profile',
+        prompt:
+          'Enter the zosmf profile name (e.g. zosmf). Used when config is project-local or not detected.',
+        placeHolder: 'e.g. zosmf',
+        validateInput: value => {
+          const t = value?.trim() ?? '';
+          return t.length === 0 ? 'Profile name is required' : null;
+        },
+      });
+      if (entered == null || entered.trim() === '') return null;
+      profile = entered.trim();
+    }
+    sessionProfileBySystem.set(sessionKey, profile);
+    log.info(`${logLabel}: user selected profile, remembered for session`, {
+      system: sessionKey === '' ? '(default)' : sessionKey,
+      profile,
+    });
+  }
+  return profile ?? null;
+}
+
+/**
+ * Stats a Zowe URI with fetch=true then opens it in the editor (preview: false).
+ */
+async function openZoweUriInEditor(
+  log: vscode.LogOutputChannel,
+  uri: vscode.Uri,
+  logLabel: string,
+  pathDisplay: string
+): Promise<void> {
+  const uriWithFetch = uri.with({ query: 'fetch=true' });
+  try {
+    await vscode.workspace.fs.stat(uriWithFetch);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    log.warn(`${logLabel}: stat failed for ${pathDisplay}`, { message });
+    void vscode.window.showErrorMessage(`Could not open in Zowe Explorer: ${message}`);
+    return;
+  }
+  const uriToOpen = uriWithFetch.with({ query: '' });
+  try {
+    const doc = await vscode.workspace.openTextDocument(uriToOpen);
+    await vscode.window.showTextDocument(doc, { preview: false });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    log.warn(`${logLabel}: openTextDocument failed`, { pathDisplay, message });
+    void vscode.window.showErrorMessage(`Could not open in editor: ${message}`);
+  }
+}
+
 /** Hash of password for log correlation only; never log the plain password. */
 function passwordHash(password: string): string {
   if (password === '') return '<empty>';
@@ -236,10 +344,11 @@ async function handleStoreJobCard(
   log.info(`Stored job card for ${connectionSpec} in settings`);
 }
 
+const ZOWE_EDITOR_REQUIRED_MSG =
+  'Zowe Explorer is required to open this resource. Install the Zowe Explorer extension.';
+
 /**
  * Handles open-dataset-in-editor: resolve profile, build zowe-ds URI, open in Zowe Explorer.
- * Resolves profile in order: session cache for system, default from team config, match by system;
- * if still none, shows a profile picker and remembers the choice for the session.
  */
 async function handleOpenDatasetInEditor(
   log: vscode.LogOutputChannel,
@@ -254,120 +363,122 @@ async function handleOpenDatasetInEditor(
   };
   const { dsn, member, system: systemId } = data;
 
-  const zeExt = vscode.extensions.getExtension('Zowe.vscode-extension-for-zowe');
-  if (!zeExt) {
-    void vscode.window.showWarningMessage(
-      'Zowe Explorer is required to open datasets in the editor. Install the Zowe Explorer extension.'
-    );
+  if (!vscode.extensions.getExtension('Zowe.vscode-extension-for-zowe')) {
+    void vscode.window.showWarningMessage(ZOWE_EDITOR_REQUIRED_MSG);
     return;
   }
 
   const workspaceDir = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
   const sessionKey = (systemId ?? '').trim();
-  let profile: string | undefined;
-
-  if (sessionProfileBySystem.has(sessionKey)) {
-    profile = sessionProfileBySystem.get(sessionKey)!;
-    log.info(`open-dataset-in-editor: using session profile for system`, {
-      system: sessionKey === '' ? '(default)' : sessionKey,
-      profile,
-    });
-  }
-  if (!profile) {
-    profile = (await getDefaultZosmfProfileName()) ?? undefined;
-    if (profile) {
-      sessionProfileBySystem.set(sessionKey, profile);
-      log.info(`open-dataset-in-editor: using default zosmf profile from team config`, {
-        profile,
-      });
-    }
-  }
-  if (!profile) {
-    const cliResult = await getZosmfProfilesFromZoweCli(workspaceDir);
-    if (cliResult.defaultName) {
-      profile = cliResult.defaultName;
-      sessionProfileBySystem.set(sessionKey, profile);
-      log.info(`open-dataset-in-editor: using default zosmf profile from zowe config list`, {
-        profile,
-      });
-    }
-  }
-  if (!profile && (systemId ?? '').trim()) {
-    const resolved = await resolveProfileFromSystem(systemId!, data.connectionKind === 'native');
-    profile = resolved ?? undefined;
-    if (profile) {
-      sessionProfileBySystem.set(sessionKey, profile);
-      log.info(`open-dataset-in-editor: resolved profile from system`, {
-        system: systemId,
-        profile,
-      });
-    }
-  }
-  if (!profile) {
-    log.info(`open-dataset-in-editor: no profile found; listing profiles or prompting for name`);
-    const names = await getAllZosmfProfileNames(workspaceDir);
-    if (names.length > 0) {
-      const picked = await vscode.window.showQuickPick(names, {
-        title: 'Choose Zowe Explorer profile for this session',
-        placeHolder: 'Select a profile to open the dataset',
-        matchOnDescription: false,
-        matchOnDetail: false,
-      });
-      if (picked == null) {
-        log.info(`open-dataset-in-editor: user cancelled profile picker`);
-        return;
-      }
-      profile = picked;
-    } else {
-      log.info(
-        `open-dataset-in-editor: no zosmf profiles from config; prompting for profile name`
-      );
-      const entered = await vscode.window.showInputBox({
-        title: 'Zowe Explorer profile',
-        prompt:
-          'Enter the zosmf profile name (e.g. zosmf). Used when config is project-local or not detected.',
-        placeHolder: 'e.g. zosmf',
-        validateInput: value => {
-          const t = value?.trim() ?? '';
-          return t.length === 0 ? 'Profile name is required' : null;
-        },
-      });
-      if (entered == null || entered.trim() === '') {
-        log.info(`open-dataset-in-editor: user cancelled or left profile name empty`);
-        return;
-      }
-      profile = entered.trim();
-    }
-    sessionProfileBySystem.set(sessionKey, profile);
-    log.info(`open-dataset-in-editor: user selected profile, remembered for session`, {
-      system: sessionKey === '' ? '(default)' : sessionKey,
-      profile,
-    });
-  }
+  const profile = await resolveProfileForZoweEditor(
+    log,
+    'open-dataset-in-editor',
+    workspaceDir,
+    sessionKey,
+    systemId,
+    data.connectionKind
+  );
+  if (!profile) return;
 
   const pathSegments = member ? [dsn, member] : [dsn];
   const pathPart = pathSegments.map(seg => encodeURIComponent(seg)).join('/');
   const uri = vscode.Uri.parse(`zowe-ds:/${encodeURIComponent(profile)}/${pathPart}`);
-  const uriWithFetch = uri.with({ query: 'fetch=true' });
+  await openZoweUriInEditor(log, uri, 'open-dataset-in-editor', pathPart);
+}
 
-  try {
-    await vscode.workspace.fs.stat(uriWithFetch);
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    log.warn(`open-dataset-in-editor: stat failed for ${pathPart}`, { profile, message });
-    void vscode.window.showErrorMessage(`Could not open dataset in Zowe Explorer: ${message}`);
+/**
+ * Handles open-uss-file-in-editor: resolve profile, build zowe-uss URI, open in Zowe Explorer.
+ */
+async function handleOpenUssFileInEditor(
+  log: vscode.LogOutputChannel,
+  event: ServerToExtensionEvent
+): Promise<void> {
+  if (event.type !== 'open-uss-file-in-editor') return;
+  const data = event.data as {
+    path: string;
+    system?: string;
+    connectionKind?: 'native' | 'zosmf';
+  };
+  const { path: pathArg, system: systemId } = data;
+
+  if (!vscode.extensions.getExtension('Zowe.vscode-extension-for-zowe')) {
+    void vscode.window.showWarningMessage(ZOWE_EDITOR_REQUIRED_MSG);
     return;
   }
 
-  const uriToOpen = uriWithFetch.with({ query: '' });
-  try {
-    const doc = await vscode.workspace.openTextDocument(uriToOpen);
-    await vscode.window.showTextDocument(doc, { preview: false });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    log.warn(`open-dataset-in-editor: openTextDocument failed`, { pathPart, message });
-    void vscode.window.showErrorMessage(`Could not open dataset in editor: ${message}`);
+  const workspaceDir = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+  const sessionKey = (systemId ?? '').trim();
+  const profile = await resolveProfileForZoweEditor(
+    log,
+    'open-uss-file-in-editor',
+    workspaceDir,
+    sessionKey,
+    systemId,
+    data.connectionKind
+  );
+  if (!profile) return;
+
+  const trimmed = pathArg.trim();
+  const pathPart = trimmed.startsWith('/')
+    ? '/' +
+      trimmed
+        .slice(1)
+        .split('/')
+        .map(seg => encodeURIComponent(seg))
+        .join('/')
+    : trimmed
+        .split('/')
+        .map(seg => encodeURIComponent(seg))
+        .join('/');
+  const uri = vscode.Uri.parse(`zowe-uss:/${encodeURIComponent(profile)}/${pathPart}`);
+  await openZoweUriInEditor(log, uri, 'open-uss-file-in-editor', trimmed);
+}
+
+/**
+ * Handles open-job-in-editor: resolve profile, build zowe-jobs URI, open job or spool in Zowe Explorer.
+ */
+async function handleOpenJobInEditor(
+  log: vscode.LogOutputChannel,
+  event: ServerToExtensionEvent
+): Promise<void> {
+  if (event.type !== 'open-job-in-editor') return;
+  const data = event.data as {
+    jobId: string;
+    jobFileId?: number;
+    system?: string;
+    connectionKind?: 'native' | 'zosmf';
+  };
+  const { jobId, jobFileId, system: systemId } = data;
+
+  if (!vscode.extensions.getExtension('Zowe.vscode-extension-for-zowe')) {
+    void vscode.window.showWarningMessage(ZOWE_EDITOR_REQUIRED_MSG);
+    return;
   }
+
+  const workspaceDir = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+  const sessionKey = (systemId ?? '').trim();
+  const profile = await resolveProfileForZoweEditor(
+    log,
+    'open-job-in-editor',
+    workspaceDir,
+    sessionKey,
+    systemId,
+    data.connectionKind
+  );
+  if (!profile) return;
+
+  const jobIdEnc = encodeURIComponent(jobId.trim());
+  const pathPart =
+    jobFileId !== undefined && jobFileId !== null
+      ? `${jobIdEnc}/${String(jobFileId)}`
+      : `${jobIdEnc}/`;
+  const uri = vscode.Uri.parse(`zowe-jobs:/${encodeURIComponent(profile)}/${pathPart}`);
+  await openZoweUriInEditor(
+    log,
+    uri,
+    'open-job-in-editor',
+    jobFileId !== undefined && jobFileId !== null ? `${jobId} spool ${jobFileId}` : jobId
+  );
 }
 
 /**
@@ -404,6 +515,12 @@ export function handleServerEvent(
       break;
     case 'open-dataset-in-editor':
       void handleOpenDatasetInEditor(log, event);
+      break;
+    case 'open-uss-file-in-editor':
+      void handleOpenUssFileInEditor(log, event);
+      break;
+    case 'open-job-in-editor':
+      void handleOpenJobInEditor(log, event);
       break;
     default:
       log.warn(`Unknown event type from MCP server: ${(event as { type: string }).type}`);

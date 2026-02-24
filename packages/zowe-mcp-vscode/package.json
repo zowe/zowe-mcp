@@ -244,6 +244,7 @@
     "postinstall": "npm run download-api"
   },
   "dependencies": {
+    "@zowe/imperative": "^7.0.0",
     "zowe-mcp-server": "0.2.0"
   },
   "devDependencies": {

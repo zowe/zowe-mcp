@@ -108,6 +108,8 @@ export interface UssToolDeps {
   credentialProvider: CredentialProvider;
   responseCache?: ResponseCache;
   encodingOptions: EncodingOptions;
+  /** MCP server instance for elicitation (confirm unknown commands or sensitive paths). */
+  mcpServer: McpServer;
 }
 
 export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: Logger): void {
@@ -455,10 +457,50 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
           return errorResult(msg);
         }
         if (pathValidation.action === 'warn' || pathValidation.action === 'elicit') {
-          await progress.complete('Path requires user confirmation; elicitation not available.');
-          return errorResult(
-            'Path requires user confirmation (sensitive or unknown path). Elicitation is not available; access denied.'
-          );
+          const caps = deps.mcpServer.server.getClientCapabilities();
+          // Per MCP spec, empty elicitation object defaults to form mode
+          if (!caps?.elicitation) {
+            await progress.complete('Path requires user confirmation; elicitation not available.');
+            return errorResult(
+              'Path requires user confirmation (sensitive or unknown path). Elicitation is not available; access denied.'
+            );
+          }
+          try {
+            const result = await deps.mcpServer.server.elicitInput({
+              mode: 'form',
+              message:
+                'Path requires user confirmation (sensitive or unknown path). Do you want to read this file?',
+              requestedSchema: {
+                type: 'object',
+                properties: {
+                  confirm: {
+                    type: 'boolean',
+                    title: 'Read file',
+                    description: resolvedPath,
+                  },
+                },
+                required: ['confirm'],
+              },
+            });
+            if (result.action !== 'accept' || result.content?.confirm !== true) {
+              const declined =
+                result.action === 'decline'
+                  ? 'User declined.'
+                  : result.action === 'cancel'
+                    ? 'Cancelled.'
+                    : 'Confirmation required.';
+              await progress.complete(declined);
+              return errorResult(declined);
+            }
+          } catch (err) {
+            log.debug('Elicitation failed', {
+              error: err instanceof Error ? err.message : String(err),
+            });
+            await progress.complete('User confirmation failed.');
+            return errorResult(
+              'Path requires user confirmation (sensitive or unknown path). Elicitation failed; access denied.'
+            );
+          }
         }
 
         const enc = resolveDatasetEncoding(
@@ -559,12 +601,52 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
           return errorResult(msg);
         }
         if (validation.action === 'elicit') {
-          await progress.complete(
-            'Command requires user confirmation; elicitation not available.'
-          );
-          return errorResult(
-            'Command requires user confirmation (unknown command). Elicitation is not available; execution denied.'
-          );
+          const caps = deps.mcpServer.server.getClientCapabilities();
+          // Per MCP spec, empty elicitation object defaults to form mode
+          if (!caps?.elicitation) {
+            await progress.complete(
+              'Command requires user confirmation; elicitation not available.'
+            );
+            return errorResult(
+              'Command requires user confirmation (unknown command). Elicitation is not available; execution denied.'
+            );
+          }
+          try {
+            const result = await deps.mcpServer.server.elicitInput({
+              mode: 'form',
+              message:
+                'Command requires user confirmation (unknown command). Do you want to run this USS command?',
+              requestedSchema: {
+                type: 'object',
+                properties: {
+                  confirm: {
+                    type: 'boolean',
+                    title: 'Run command',
+                    description: commandText.trim(),
+                  },
+                },
+                required: ['confirm'],
+              },
+            });
+            if (result.action !== 'accept' || result.content?.confirm !== true) {
+              const declined =
+                result.action === 'decline'
+                  ? 'User declined.'
+                  : result.action === 'cancel'
+                    ? 'Cancelled.'
+                    : 'Confirmation required.';
+              await progress.complete(declined);
+              return errorResult(declined);
+            }
+          } catch (err) {
+            log.debug('Elicitation failed', {
+              error: err instanceof Error ? err.message : String(err),
+            });
+            await progress.complete('User confirmation failed.');
+            return errorResult(
+              'Command requires user confirmation (unknown command). Elicitation failed; execution denied.'
+            );
+          }
         }
 
         const systemId = resolveSystemForTool(deps.systemRegistry, deps.sessionState, system);

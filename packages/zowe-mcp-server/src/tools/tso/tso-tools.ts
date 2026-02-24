@@ -57,6 +57,8 @@ export interface TsoToolDeps {
   sessionState: SessionState;
   credentialProvider: CredentialProvider;
   responseCache?: ResponseCache;
+  /** MCP server instance for elicitation (confirm unknown commands). */
+  mcpServer: McpServer;
 }
 
 export function registerTsoTools(server: McpServer, deps: TsoToolDeps, logger: Logger): void {
@@ -118,10 +120,47 @@ export function registerTsoTools(server: McpServer, deps: TsoToolDeps, logger: L
           const elicitMsg =
             validation.pattern?.message ??
             'Command requires user confirmation (unknown TSO command).';
-          await progress.complete(
-            'Command requires user confirmation; elicitation not available.'
-          );
-          return errorResult(`${elicitMsg} Elicitation is not available; execution denied.`);
+          const caps = deps.mcpServer.server.getClientCapabilities();
+          // Per MCP spec, empty elicitation object defaults to form mode
+          if (!caps?.elicitation) {
+            await progress.complete(
+              'Command requires user confirmation; elicitation not available.'
+            );
+            return errorResult(`${elicitMsg} Elicitation is not available; execution denied.`);
+          }
+          try {
+            const result = await deps.mcpServer.server.elicitInput({
+              mode: 'form',
+              message: `${elicitMsg} Do you want to run this TSO command?`,
+              requestedSchema: {
+                type: 'object',
+                properties: {
+                  confirm: {
+                    type: 'boolean',
+                    title: 'Run command',
+                    description: `Run: ${cmdNorm}`,
+                  },
+                },
+                required: ['confirm'],
+              },
+            });
+            if (result.action !== 'accept' || result.content?.confirm !== true) {
+              const declined =
+                result.action === 'decline'
+                  ? 'User declined.'
+                  : result.action === 'cancel'
+                    ? 'Cancelled.'
+                    : 'Confirmation required.';
+              await progress.complete(declined);
+              return errorResult(declined);
+            }
+          } catch (err) {
+            log.debug('Elicitation failed', {
+              error: err instanceof Error ? err.message : String(err),
+            });
+            await progress.complete('User confirmation failed.');
+            return errorResult(`${elicitMsg} Elicitation failed; execution denied.`);
+          }
         }
 
         const systemId = resolveSystemForTool(deps.systemRegistry, deps.sessionState, system);

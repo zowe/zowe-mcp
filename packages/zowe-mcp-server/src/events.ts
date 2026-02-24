@@ -113,6 +113,26 @@ export interface StoreJobCardEventData {
 /** Asks the extension to persist a job card (e.g. after elicitation) to settings or storage. */
 export type StoreJobCardEvent = McpEvent<'store-job-card', StoreJobCardEventData>;
 
+/** Payload for an `open-dataset-in-editor` event (server → extension). */
+export interface OpenDatasetInEditorEventData {
+  /** Zowe profile name for the zowe-ds URI. When omitted, extension resolves via default or match-by-system. */
+  profile?: string;
+  /** Fully qualified dataset name. */
+  dsn: string;
+  /** PDS/PDSE member name; omit for sequential datasets. */
+  member?: string;
+  /** Current MCP system id (e.g. user@host) for match-by-system resolution. */
+  system?: string;
+  /** When 'native', extension prefers ssh profile when matching by system. */
+  connectionKind?: 'native' | 'zosmf';
+}
+
+/** Asks the extension to open a dataset or member in Zowe Explorer's editor (zowe-ds URI). */
+export type OpenDatasetInEditorEvent = McpEvent<
+  'open-dataset-in-editor',
+  OpenDatasetInEditorEventData
+>;
+
 // ---------------------------------------------------------------------------
 // Extension → Server events
 // ---------------------------------------------------------------------------
@@ -203,7 +223,8 @@ export type ServerToExtensionEvent =
   | PasswordInvalidEvent
   | StorePasswordEvent
   | RequestJobCardEvent
-  | StoreJobCardEvent;
+  | StoreJobCardEvent
+  | OpenDatasetInEditorEvent;
 
 /** Events that flow from the VS Code extension to the MCP server. */
 export type ExtensionToServerEvent =

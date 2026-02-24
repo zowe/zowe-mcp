@@ -27,6 +27,15 @@ import type {
   ServerToExtensionEvent,
 } from 'zowe-mcp-server/dist/events.js';
 import { getNativePasswordKey } from './secrets';
+import {
+  getAllZosmfProfileNames,
+  getDefaultZosmfProfileName,
+  getZosmfProfilesFromZoweCli,
+  resolveProfileFromSystem,
+} from './zowe-profile';
+
+/** Session cache: profile name per system key (empty string = default). Cleared when extension deactivates. */
+const sessionProfileBySystem = new Map<string, string>();
 
 /** Hash of password for log correlation only; never log the plain password. */
 function passwordHash(password: string): string {
@@ -228,6 +237,140 @@ async function handleStoreJobCard(
 }
 
 /**
+ * Handles open-dataset-in-editor: resolve profile, build zowe-ds URI, open in Zowe Explorer.
+ * Resolves profile in order: session cache for system, default from team config, match by system;
+ * if still none, shows a profile picker and remembers the choice for the session.
+ */
+async function handleOpenDatasetInEditor(
+  log: vscode.LogOutputChannel,
+  event: ServerToExtensionEvent
+): Promise<void> {
+  if (event.type !== 'open-dataset-in-editor') return;
+  const data = event.data as {
+    dsn: string;
+    member?: string;
+    system?: string;
+    connectionKind?: 'native' | 'zosmf';
+  };
+  const { dsn, member, system: systemId } = data;
+
+  const zeExt = vscode.extensions.getExtension('Zowe.vscode-extension-for-zowe');
+  if (!zeExt) {
+    void vscode.window.showWarningMessage(
+      'Zowe Explorer is required to open datasets in the editor. Install the Zowe Explorer extension.'
+    );
+    return;
+  }
+
+  const workspaceDir = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+  const sessionKey = (systemId ?? '').trim();
+  let profile: string | undefined;
+
+  if (sessionProfileBySystem.has(sessionKey)) {
+    profile = sessionProfileBySystem.get(sessionKey)!;
+    log.info(`open-dataset-in-editor: using session profile for system`, {
+      system: sessionKey === '' ? '(default)' : sessionKey,
+      profile,
+    });
+  }
+  if (!profile) {
+    profile = (await getDefaultZosmfProfileName()) ?? undefined;
+    if (profile) {
+      sessionProfileBySystem.set(sessionKey, profile);
+      log.info(`open-dataset-in-editor: using default zosmf profile from team config`, {
+        profile,
+      });
+    }
+  }
+  if (!profile) {
+    const cliResult = await getZosmfProfilesFromZoweCli(workspaceDir);
+    if (cliResult.defaultName) {
+      profile = cliResult.defaultName;
+      sessionProfileBySystem.set(sessionKey, profile);
+      log.info(`open-dataset-in-editor: using default zosmf profile from zowe config list`, {
+        profile,
+      });
+    }
+  }
+  if (!profile && (systemId ?? '').trim()) {
+    const resolved = await resolveProfileFromSystem(systemId!, data.connectionKind === 'native');
+    profile = resolved ?? undefined;
+    if (profile) {
+      sessionProfileBySystem.set(sessionKey, profile);
+      log.info(`open-dataset-in-editor: resolved profile from system`, {
+        system: systemId,
+        profile,
+      });
+    }
+  }
+  if (!profile) {
+    log.info(`open-dataset-in-editor: no profile found; listing profiles or prompting for name`);
+    const names = await getAllZosmfProfileNames(workspaceDir);
+    if (names.length > 0) {
+      const picked = await vscode.window.showQuickPick(names, {
+        title: 'Choose Zowe Explorer profile for this session',
+        placeHolder: 'Select a profile to open the dataset',
+        matchOnDescription: false,
+        matchOnDetail: false,
+      });
+      if (picked == null) {
+        log.info(`open-dataset-in-editor: user cancelled profile picker`);
+        return;
+      }
+      profile = picked;
+    } else {
+      log.info(
+        `open-dataset-in-editor: no zosmf profiles from config; prompting for profile name`
+      );
+      const entered = await vscode.window.showInputBox({
+        title: 'Zowe Explorer profile',
+        prompt:
+          'Enter the zosmf profile name (e.g. zosmf). Used when config is project-local or not detected.',
+        placeHolder: 'e.g. zosmf',
+        validateInput: value => {
+          const t = value?.trim() ?? '';
+          return t.length === 0 ? 'Profile name is required' : null;
+        },
+      });
+      if (entered == null || entered.trim() === '') {
+        log.info(`open-dataset-in-editor: user cancelled or left profile name empty`);
+        return;
+      }
+      profile = entered.trim();
+    }
+    sessionProfileBySystem.set(sessionKey, profile);
+    log.info(`open-dataset-in-editor: user selected profile, remembered for session`, {
+      system: sessionKey === '' ? '(default)' : sessionKey,
+      profile,
+    });
+  }
+
+  const pathSegments = member ? [dsn, member] : [dsn];
+  const pathPart = pathSegments.map(seg => encodeURIComponent(seg)).join('/');
+  const uri = vscode.Uri.parse(`zowe-ds:/${encodeURIComponent(profile)}/${pathPart}`);
+  const uriWithFetch = uri.with({ query: 'fetch=true' });
+
+  try {
+    await vscode.workspace.fs.stat(uriWithFetch);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    log.warn(`open-dataset-in-editor: stat failed for ${pathPart}`, { profile, message });
+    void vscode.window.showErrorMessage(`Could not open dataset in Zowe Explorer: ${message}`);
+    return;
+  }
+
+  const uriToOpen = uriWithFetch.with({ query: '' });
+  try {
+    const doc = await vscode.workspace.openTextDocument(uriToOpen);
+    await vscode.window.showTextDocument(doc, { preview: false });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    log.warn(`open-dataset-in-editor: openTextDocument failed`, { pathPart, message });
+    void vscode.window.showErrorMessage(`Could not open dataset in editor: ${message}`);
+  }
+}
+
+/**
  * Handles a single event received from the MCP server over the named pipe.
  *
  * @param options - When provided, enables request-password and password-invalid handling (native mode).
@@ -258,6 +401,9 @@ export function handleServerEvent(
       break;
     case 'store-job-card':
       if (options) void handleStoreJobCard(log, event, options);
+      break;
+    case 'open-dataset-in-editor':
+      void handleOpenDatasetInEditor(log, event);
       break;
     default:
       log.warn(`Unknown event type from MCP server: ${(event as { type: string }).type}`);

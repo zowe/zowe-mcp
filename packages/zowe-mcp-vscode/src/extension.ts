@@ -44,7 +44,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
   context.subscriptions.push(
     vscode.lm.registerMcpServerDefinitionProvider('zowe', {
-      provideMcpServerDefinitions: () => {
+      provideMcpServerDefinitions: async () => {
         const args = [serverModule, '--stdio'];
         const config = vscode.workspace.getConfiguration('zoweMCP');
         const mockDataDirectory = config.get<string>('mockDataDirectory', '').trim();
@@ -93,12 +93,29 @@ export function activate(context: vscode.ExtensionContext): void {
           args.push('--default-uss-encoding', defaultMainframeUssEncoding.trim());
         }
 
-        return [
-          new vscode.McpStdioServerDefinition('Zowe', 'node', args, {
-            MCP_DISCOVERY_DIR: discoveryDir,
-            WORKSPACE_ID: workspaceId,
-          }),
-        ];
+        // Detect Zowe Explorer: check once, then wait briefly and re-check so we see it when
+        // the extension list is still settling (e.g. on first MCP use after startup).
+        let zeExt = vscode.extensions.getExtension('Zowe.vscode-extension-for-zowe');
+        if (!zeExt) {
+          await new Promise(r => setTimeout(r, 400));
+          zeExt = vscode.extensions.getExtension('Zowe.vscode-extension-for-zowe');
+        }
+        if (zeExt) {
+          try {
+            await zeExt.activate();
+          } catch {
+            // Extension present but activation failed; still set env so server can register the tool.
+          }
+        }
+        const zoweExplorerAvailable = zeExt != null;
+        const env: Record<string, string> = {
+          MCP_DISCOVERY_DIR: discoveryDir,
+          WORKSPACE_ID: workspaceId,
+        };
+        if (zoweExplorerAvailable) {
+          env.ZOWE_EXPLORER_AVAILABLE = '1';
+        }
+        return [new vscode.McpStdioServerDefinition('Zowe', 'node', args, env)];
       },
     })
   );

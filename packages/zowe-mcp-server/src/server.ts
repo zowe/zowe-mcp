@@ -18,6 +18,7 @@
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { createRequire } from 'node:module';
+import type { OpenDatasetInEditorEventData } from './events.js';
 import { Logger } from './log.js';
 import { registerDatasetPrompts } from './prompts/dataset-prompts.js';
 import { registerDatasetResources } from './resources/dataset-resources.js';
@@ -27,6 +28,7 @@ import { registerDatasetTools } from './tools/datasets/dataset-tools.js';
 import { registerJobTools } from './tools/jobs/jobs-tools.js';
 import { registerTsoTools } from './tools/tso/tso-tools.js';
 import { registerUssTools } from './tools/uss/uss-tools.js';
+import { registerZoweExplorerTools } from './tools/zowe-explorer/open-in-editor.js';
 import type { ZosBackend } from './zos/backend.js';
 import type { CredentialProvider } from './zos/credentials.js';
 import {
@@ -115,6 +117,11 @@ export interface CreateServerOptions {
    * When not provided but a backend is present, a new empty store is used so job tools can register.
    */
   jobCardStore?: JobCardStore;
+  /**
+   * When provided (and Zowe Explorer is available), registers openDatasetInEditor tool
+   * that sends open-dataset-in-editor events to the VS Code extension.
+   */
+  openInZoweEditor?: (payload: OpenDatasetInEditorEventData) => void;
 }
 
 /** Known backend kind names for the info tool. */
@@ -177,6 +184,8 @@ export function createServer(options?: CreateServerOptions): McpServer {
 
   const hasBackend = !!(options?.backend && options.credentialProvider);
   const backendKind = hasBackend ? getBackendKind(options.backend!) : null;
+  let sessionStateForZe: SessionState | undefined;
+  let backendKindForZe: string | null = null;
 
   // Register core tools (info) — always available
   registerCoreTools(server, SERVER_VERSION, logger, { backend: backendKind });
@@ -187,6 +196,8 @@ export function createServer(options?: CreateServerOptions): McpServer {
     const systemRegistry = options.systemRegistry ?? new SystemRegistry();
     const credentialProvider = options.credentialProvider!;
     const sessionState = new SessionState();
+    sessionStateForZe = sessionState;
+    backendKindForZe = getBackendKind(backend);
     const encodingOpt = options.encodingOptions;
     const encodingOptions: EncodingOptions =
       encodingOpt === undefined
@@ -237,6 +248,7 @@ export function createServer(options?: CreateServerOptions): McpServer {
         credentialProvider,
         responseCache: responseCache ?? undefined,
         encodingOptions,
+        mcpServer: server,
       },
       logger
     );
@@ -248,6 +260,7 @@ export function createServer(options?: CreateServerOptions): McpServer {
         sessionState,
         credentialProvider,
         responseCache: responseCache ?? undefined,
+        mcpServer: server,
       },
       logger
     );
@@ -286,6 +299,18 @@ export function createServer(options?: CreateServerOptions): McpServer {
       'No z/OS backend configured — only the "info" tool is available. ' +
         'To enable all z/OS tools: in VS Code run "Zowe MCP: Generate Mock Data" from the Command Palette, ' +
         'or use --mock <dir> / ZOWE_MCP_MOCK_DIR for standalone mode.'
+    );
+  }
+
+  if (options?.openInZoweEditor) {
+    registerZoweExplorerTools(
+      server,
+      {
+        openInZoweEditor: options.openInZoweEditor,
+        sessionState: sessionStateForZe,
+        backendKind: backendKindForZe,
+      },
+      logger
     );
   }
 

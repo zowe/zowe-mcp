@@ -34,6 +34,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
+import type { OpenDatasetInEditorEventData } from './events.js';
 import { connectExtensionClient } from './extension-client.js';
 import type { CreateServerOptions } from './server.js';
 import { createServer, getLogger, SERVER_VERSION } from './server.js';
@@ -476,7 +477,8 @@ async function main(): Promise<void> {
             const s = serverRef.current;
             if (!s) return undefined;
             const caps = s.server.getClientCapabilities();
-            if (!caps?.elicitation?.form) return undefined;
+            // Per MCP spec, empty elicitation object defaults to form mode
+            if (!caps?.elicitation) return undefined;
             const portNum = port ?? 22;
             const message =
               portNum === 22
@@ -656,6 +658,18 @@ async function main(): Promise<void> {
 
   if (serverOptions && responseCacheConfig !== undefined) {
     serverOptions.responseCache = responseCacheConfig;
+  }
+
+  if (process.env.ZOWE_EXPLORER_AVAILABLE === '1' && extensionClient?.connected === true) {
+    const openInZoweEditor = (payload: OpenDatasetInEditorEventData) => {
+      extensionClient.sendEvent({
+        type: 'open-dataset-in-editor',
+        data: payload,
+        timestamp: Date.now(),
+      });
+    };
+    serverOptions ??= {};
+    serverOptions.openInZoweEditor = openInZoweEditor;
   }
 
   if (transport === 'stdio') {

@@ -2,6 +2,21 @@
 
 All notable changes to the Zowe MCP extension will be documented in this file.
 
+## `0.3.0`
+
+### New features and enhancements
+
+- **Zowe Explorer — open in editor**: Open data set members, USS files, and job output in the VS Code editor from MCP tools (e.g. “open this data set in the editor”). Requires Zowe Explorer; profile resolution is cached per system.
+- **TSO command tools**: New `runSafeTsoCommand` tool runs TSO commands with safety validation (block/elicit/safe). Dangerous commands are blocked; others may require user confirmation. Output is paginated.
+- **Jobs tools**: Submit jobs, get status, list jobs and job files, read and search job output, get JCL, and cancel/hold/release/delete jobs. Job card can be configured per connection (VS Code setting or config file); when JCL has no JOB card, the server prepends it. `executeJob` submits and waits for OUTPUT with configurable timeout.
+- **USS (UNIX System Services) tools**: List, read, write, create, and delete USS files; run safe USS commands; temp file/dir helpers; get USS home; change current directory. Paths can be absolute or relative to the current USS directory.
+- **Temporary dataset tools**: Create and delete temporary data sets (prefix, unique name, create temp PS/PDS/PDSE, delete under prefix) for short-lived workflows.
+- **Progress and UX**: MCP progress notifications for long-running operations; progress titles show operation context (e.g. dataset name, TSO command). Mock data presets (minimal, default, large, inventory, pagination) and streaming progress in the extension.
+- **Zowe Native options**: Configurable response timeout for the Zowe Native Protocol (CLI, env, or `zoweMCP.nativeResponseTimeout`). Connection locking and request timeouts to avoid hangs.
+- **Themes and icons**: Eight color themes — **Zowe Dark (Classic)**, **Zowe Light (Classic)**, **Zowe Dark (Official)**, **Zowe Light (Official)**, **ISPF Classic (Dark)**, **ISPF Green (Dark)**, **ISPF Modern (Dark)**, **ISPF Modern (Light)** — and three file icon themes — **Zowe Mainframe**, **ISPF**, **ISPF Modern**. File type–specific icons for common languages and formats are included.
+- **Encoding and search**: Mainframe encoding (EBCDIC) configurable (MVS and USS defaults) via settings or per-system; updates apply at runtime. `searchInDataset` tool to search for text in data sets with options (case, COBOL sequence, comments).
+- **Other**: Log level setting no longer exposes critical/alert/emergency. Improved singular/plural wording in tool messages. Standardized “data set” terminology in docs and prompts.
+
 ## `0.2.0`
 
 ### Breaking changes

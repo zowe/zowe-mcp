@@ -13,11 +13,56 @@ import yaml from 'js-yaml';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { Assertion, Question, QuestionSet, SetConfig } from './types.js';
+import type {
+  Assertion,
+  AssertionBlock,
+  AssertionItem,
+  Question,
+  QuestionSet,
+  SetConfig,
+} from './types.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const QUESTIONS_DIR = resolve(__dirname, '..', 'questions');
+
+/**
+ * Parse assertions block: array (treated as allOf), or { allOf: [...] }, or { anyOf: [...] }.
+ */
+function parseAssertionBlock(raw: unknown): AssertionBlock {
+  if (Array.isArray(raw)) {
+    return { mode: 'all', items: raw.map(parseAssertionItem) };
+  }
+  if (raw && typeof raw === 'object') {
+    const o = raw as Record<string, unknown>;
+    if (Array.isArray(o.allOf) && o.allOf.length > 0) {
+      return { mode: 'all', items: o.allOf.map(parseAssertionItem) };
+    }
+    if (Array.isArray(o.anyOf) && o.anyOf.length > 0) {
+      return { mode: 'any', items: o.anyOf.map(parseAssertionItem) };
+    }
+  }
+  throw new Error(
+    'assertions must be an array or an object with allOf or anyOf (non-empty array)'
+  );
+}
+
+/**
+ * Parse one assertion item: leaf assertion (type: toolCall, etc.) or composite { allOf/anyOf: [...] }.
+ */
+function parseAssertionItem(raw: unknown): AssertionItem {
+  if (!raw || typeof raw !== 'object') throw new Error('Invalid assertion item');
+  const o = raw as Record<string, unknown>;
+  if (o.type === undefined && (Array.isArray(o.allOf) || Array.isArray(o.anyOf))) {
+    if (Array.isArray(o.allOf) && o.allOf.length > 0) {
+      return { allOf: o.allOf.map(parseAssertionItem) };
+    }
+    if (Array.isArray(o.anyOf) && o.anyOf.length > 0) {
+      return { anyOf: o.anyOf.map(parseAssertionItem) };
+    }
+  }
+  return parseAssertion(raw);
+}
 
 function parseAssertion(raw: unknown): Assertion {
   if (!raw || typeof raw !== 'object') throw new Error('Invalid assertion');
@@ -131,14 +176,16 @@ function parseQuestion(raw: unknown): Question {
   const o = raw as Record<string, unknown>;
   const id = o.id as string;
   const prompt = o.prompt as string;
-  const assertions = o.assertions as unknown[];
-  if (!id || !prompt || !Array.isArray(assertions))
-    throw new Error('Question must have id, prompt, assertions');
+  const assertionsRaw = o.assertions;
+  if (!id || !prompt) throw new Error('Question must have id, prompt');
+  if (assertionsRaw === undefined || assertionsRaw === null)
+    throw new Error('Question must have assertions (array or allOf/anyOf object)');
+  const assertionBlock = parseAssertionBlock(assertionsRaw);
   return {
     id,
     prompt,
     preset: o.preset as 'default' | 'inventory' | undefined,
-    assertions: assertions.map(parseAssertion),
+    assertionBlock,
   };
 }
 

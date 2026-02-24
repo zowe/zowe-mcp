@@ -13,7 +13,7 @@ import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { Assertion, ToolCallRecord } from './types.js';
+import type { Assertion, AssertionBlock, AssertionItem, ToolCallRecord } from './types.js';
 
 /** Result shape stored in cache and returned by harness.runOne(). */
 export interface CachedRunResult {
@@ -34,10 +34,27 @@ const KEY_LENGTH = 16;
 const CACHE_FILE_SUFFIX = '.json';
 
 /**
- * Returns unique tool names from assertions that reference a tool
- * (all assertion types except answerContains).
+ * Flatten assertion block items to leaf assertions (recursively through allOf/anyOf).
  */
-export function getToolsUnderTest(assertions: Assertion[]): string[] {
+function flattenAssertionItems(items: AssertionItem[]): Assertion[] {
+  const out: Assertion[] = [];
+  for (const item of items) {
+    if ('allOf' in item && Array.isArray(item.allOf)) {
+      out.push(...flattenAssertionItems(item.allOf));
+    } else if ('anyOf' in item && Array.isArray(item.anyOf)) {
+      out.push(...flattenAssertionItems(item.anyOf));
+    } else {
+      out.push(item as Assertion);
+    }
+  }
+  return out;
+}
+
+/**
+ * Returns unique tool names from the assertion block (all leaf assertions that reference a tool).
+ */
+export function getToolsUnderTest(block: AssertionBlock): string[] {
+  const assertions = flattenAssertionItems(block.items);
   const names = new Set<string>();
   for (const a of assertions) {
     if (a.type === 'toolCallOrder') {

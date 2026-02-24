@@ -36,3 +36,28 @@ questions:
             - "'USER.SRC.COBOL'"
       - type: answerContains
         substring: CUSTFILE
+
+  - id: list-members-with-prefix
+    prompt: List the members of the data set USER.SRC.COBOL that start with the prefix CUST.
+    assertions:
+      - type: toolCall
+        tool: listMembers
+        args:
+          dsn:
+            - "USER.SRC.COBOL"
+            - "'USER.SRC.COBOL'"
+      - type: answerContains
+        substring: CUSTFILE
+
+  - id: read-member-summarize
+    prompt: Read the content of member CUSTFILE from USER.SRC.COBOL and tell me what program name appears in the IDENTIFICATION DIVISION.
+    assertions:
+      - type: toolCall
+        tool: readDataset
+        args:
+          dsn:
+            - "USER.SRC.COBOL"
+            - "'USER.SRC.COBOL'"
+          member: CUSTFILE
+      - type: answerContains
+        pattern: "CUSTFILE|PROGRAM-ID"

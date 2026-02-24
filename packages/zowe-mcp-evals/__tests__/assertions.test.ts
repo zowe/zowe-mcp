@@ -11,10 +11,14 @@
 
 import { describe, expect, it } from 'vitest';
 import { runAssertions } from '../src/assertions.js';
-import type { Assertion, ToolCallRecord } from '../src/types.js';
+import type { Assertion, AssertionBlock, AssertionItem, ToolCallRecord } from '../src/types.js';
 
 function tc(name: string, args: Record<string, unknown> = {}): ToolCallRecord {
   return { name, arguments: args };
+}
+
+function block(items: AssertionItem[]): AssertionBlock {
+  return { mode: 'all', items };
 }
 
 describe('runAssertions', () => {
@@ -34,7 +38,7 @@ describe('runAssertions', () => {
         tc('getTempDatasetPrefix'),
         tc('createTempDataset', { type: 'PS', dsn: 'USER.TMP.ABC.DEF' }),
       ];
-      expect(runAssertions(assertions, toolCalls, 'Done')).toEqual({ passed: true });
+      expect(runAssertions(block(assertions), toolCalls, 'Done')).toEqual({ passed: true });
     });
 
     it('passes when step args are partial match', () => {
@@ -47,7 +51,7 @@ describe('runAssertions', () => {
       const toolCalls: ToolCallRecord[] = [
         tc('writeDataset', { dsn: 'USER.TMP.X', content: 'Hello', member: 'M1' }),
       ];
-      expect(runAssertions(assertions, toolCalls, '')).toEqual({ passed: true });
+      expect(runAssertions(block(assertions), toolCalls, '')).toEqual({ passed: true });
     });
 
     it('fails when a required tool is missing', () => {
@@ -61,7 +65,7 @@ describe('runAssertions', () => {
         },
       ];
       const toolCalls: ToolCallRecord[] = [tc('getTempDatasetPrefix')];
-      const result = runAssertions(assertions, toolCalls, '');
+      const result = runAssertions(block(assertions), toolCalls, '');
       expect(result.passed).toBe(false);
       expect(result.failedAssertion).toContain('createTempDataset');
     });
@@ -80,7 +84,7 @@ describe('runAssertions', () => {
         tc('writeDataset', { dsn: 'X', content: 'x' }),
         tc('createTempDataset', { type: 'PS' }),
       ];
-      const result = runAssertions(assertions, toolCalls, '');
+      const result = runAssertions(block(assertions), toolCalls, '');
       expect(result.passed).toBe(false);
       expect(result.failedAssertion).toContain('writeDataset');
     });
@@ -93,7 +97,7 @@ describe('runAssertions', () => {
         },
       ];
       const toolCalls: ToolCallRecord[] = [tc('createTempDataset', { type: 'PS' })];
-      const result = runAssertions(assertions, toolCalls, '');
+      const result = runAssertions(block(assertions), toolCalls, '');
       expect(result.passed).toBe(false);
       expect(result.failedAssertion).toContain('args matching');
     });
@@ -109,7 +113,7 @@ describe('runAssertions', () => {
         tc('listSystems'),
         tc('setSystem', { system: 'mainframe.example.com' }),
       ];
-      expect(runAssertions(assertions, toolCalls, '')).toEqual({ passed: true });
+      expect(runAssertions(block(assertions), toolCalls, '')).toEqual({ passed: true });
     });
 
     it('passes when step uses tools (any of) and first alternative is called', () => {
@@ -120,7 +124,7 @@ describe('runAssertions', () => {
         },
       ];
       const toolCalls: ToolCallRecord[] = [tc('listSystems'), tc('getContext')];
-      expect(runAssertions(assertions, toolCalls, '')).toEqual({ passed: true });
+      expect(runAssertions(block(assertions), toolCalls, '')).toEqual({ passed: true });
     });
   });
 
@@ -136,7 +140,7 @@ describe('runAssertions', () => {
         },
       ];
       const toolCalls: ToolCallRecord[] = [tc('getContext')];
-      expect(runAssertions(assertions, toolCalls, '')).toEqual({ passed: true });
+      expect(runAssertions(block(assertions), toolCalls, '')).toEqual({ passed: true });
     });
 
     it('passes when the other spec matches', () => {
@@ -150,7 +154,7 @@ describe('runAssertions', () => {
         },
       ];
       const toolCalls: ToolCallRecord[] = [tc('runSafeTsoCommand', { commandText: 'WHO' })];
-      expect(runAssertions(assertions, toolCalls, '')).toEqual({ passed: true });
+      expect(runAssertions(block(assertions), toolCalls, '')).toEqual({ passed: true });
     });
 
     it('fails when none of the specs match', () => {
@@ -164,7 +168,7 @@ describe('runAssertions', () => {
         },
       ];
       const toolCalls: ToolCallRecord[] = [tc('listSystems')];
-      const result = runAssertions(assertions, toolCalls, '');
+      const result = runAssertions(block(assertions), toolCalls, '');
       expect(result.passed).toBe(false);
       expect(result.failedAssertion).toContain('one of');
     });

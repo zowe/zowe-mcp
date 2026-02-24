@@ -192,7 +192,7 @@ async function main(): Promise<void> {
 
       for (const q of questions) {
         const questionResults: RunResult[] = [];
-        const toolNames = getToolsUnderTest(q.assertions);
+        const toolNames = getToolsUnderTest(q.assertionBlock);
         const toolDefs: Record<string, { description?: string; inputSchema?: unknown }> = {};
         if (toolDefinitions) {
           for (const name of toolNames) {
@@ -219,7 +219,11 @@ async function main(): Promise<void> {
             const { finalText, toolCalls } = cached;
             for (const tc of toolCalls)
               allToolCalls.push({ name: tc.name, arguments: tc.arguments });
-            const { passed, failedAssertion } = runAssertions(q.assertions, toolCalls, finalText);
+            const { passed, failedAssertion } = runAssertions(
+              q.assertionBlock,
+              toolCalls,
+              finalText
+            );
             const result: RunResult = {
               questionId: q.id,
               prompt: q.prompt,
@@ -248,7 +252,7 @@ async function main(): Promise<void> {
               for (const tc of toolCalls)
                 allToolCalls.push({ name: tc.name, arguments: tc.arguments });
               const { passed, failedAssertion } = runAssertions(
-                q.assertions,
+                q.assertionBlock,
                 toolCalls,
                 finalText
               );

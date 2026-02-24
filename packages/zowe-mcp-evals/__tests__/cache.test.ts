@@ -21,11 +21,15 @@ import {
   type CacheKeyPayload,
   type CachedRunResult,
 } from '../src/cache.js';
-import type { Assertion } from '../src/types.js';
+import type { Assertion, AssertionBlock } from '../src/types.js';
+
+function block(items: Assertion[]): AssertionBlock {
+  return { mode: 'all', items };
+}
 
 describe('getToolsUnderTest', () => {
   it('returns empty array for empty assertions', () => {
-    expect(getToolsUnderTest([])).toEqual([]);
+    expect(getToolsUnderTest(block([]))).toEqual([]);
   });
 
   it('returns empty array when only answerContains assertions', () => {
@@ -33,75 +37,83 @@ describe('getToolsUnderTest', () => {
       { type: 'answerContains', substring: 'foo' },
       { type: 'answerContains', pattern: 'bar' },
     ];
-    expect(getToolsUnderTest(assertions)).toEqual([]);
+    expect(getToolsUnderTest(block(assertions))).toEqual([]);
   });
 
   it('returns tool name for toolCall assertion', () => {
-    expect(getToolsUnderTest([{ type: 'toolCall', tool: 'listDatasets' }])).toEqual([
+    expect(getToolsUnderTest(block([{ type: 'toolCall', tool: 'listDatasets' }]))).toEqual([
       'listDatasets',
     ]);
   });
 
   it('returns tool name for singleToolCall assertion', () => {
-    expect(getToolsUnderTest([{ type: 'singleToolCall', tool: 'listSystems' }])).toEqual([
+    expect(getToolsUnderTest(block([{ type: 'singleToolCall', tool: 'listSystems' }]))).toEqual([
       'listSystems',
     ]);
   });
 
   it('returns tool name for toolOnly assertion', () => {
-    expect(getToolsUnderTest([{ type: 'toolOnly', tool: 'getContext' }])).toEqual(['getContext']);
+    expect(getToolsUnderTest(block([{ type: 'toolOnly', tool: 'getContext' }]))).toEqual([
+      'getContext',
+    ]);
   });
 
   it('returns tool name for minToolCalls assertion', () => {
     expect(
-      getToolsUnderTest([{ type: 'minToolCalls', tool: 'listMembers', minCount: 2 }])
+      getToolsUnderTest(block([{ type: 'minToolCalls', tool: 'listMembers', minCount: 2 }]))
     ).toEqual(['listMembers']);
   });
 
   it('returns tool name for toolCallSequence assertion', () => {
     expect(
-      getToolsUnderTest([
-        { type: 'toolCallSequence', tool: 'listDatasets', sequence: [{ dsn: 'USER.*' }] },
-      ])
+      getToolsUnderTest(
+        block([{ type: 'toolCallSequence', tool: 'listDatasets', sequence: [{ dsn: 'USER.*' }] }])
+      )
     ).toEqual(['listDatasets']);
   });
 
   it('returns all tool names for toolCallOrder assertion', () => {
     expect(
-      getToolsUnderTest([
-        {
-          type: 'toolCallOrder',
-          sequence: [
-            { tool: 'getTempDatasetPrefix' },
-            { tool: 'createTempDataset', args: { type: 'PS' } },
-          ],
-        },
-      ])
+      getToolsUnderTest(
+        block([
+          {
+            type: 'toolCallOrder',
+            sequence: [
+              { tool: 'getTempDatasetPrefix' },
+              { tool: 'createTempDataset', args: { type: 'PS' } },
+            ],
+          },
+        ])
+      )
     ).toEqual(['createTempDataset', 'getTempDatasetPrefix']);
   });
 
   it('returns all tool names for toolCallOrder with tools (any of) steps', () => {
     expect(
-      getToolsUnderTest([
-        {
-          type: 'toolCallOrder',
-          sequence: [{ tool: 'listSystems' }, { tools: ['setSystem', 'getContext'] }],
-        },
-      ])
+      getToolsUnderTest(
+        block([
+          {
+            type: 'toolCallOrder',
+            sequence: [{ tool: 'listSystems' }, { tools: ['setSystem', 'getContext'] }],
+          },
+        ])
+      )
     ).toEqual(['getContext', 'listSystems', 'setSystem']);
   });
 
   it('returns all tool names for toolCallOneOf', () => {
     expect(
-      getToolsUnderTest([
-        {
-          type: 'toolCallOneOf',
-          oneOf: [
-            { tool: 'getContext' },
-            { tool: 'runSafeTsoCommand', args: { commandText: 'WHO' } },
-          ],
-        },
-      ])
+      getToolsUnderTest(
+        block([
+          {
+            type: 'toolCallOneOf',
+            oneOf: [
+              { tool: 'getContext' },
+              { tool: 'runSafeTsoCommand', args: { commandText: 'WHO' } },
+            ],
+          },
+        ])
+      )
     ).toEqual(['getContext', 'runSafeTsoCommand']);
   });
 
@@ -111,7 +123,7 @@ describe('getToolsUnderTest', () => {
       { type: 'answerContains', substring: 'SRC' },
       { type: 'toolCall', tool: 'listDatasets' },
     ];
-    expect(getToolsUnderTest(assertions)).toEqual(['listDatasets']);
+    expect(getToolsUnderTest(block(assertions))).toEqual(['listDatasets']);
   });
 
   it('returns all unique tool names for multiple different tools', () => {
@@ -121,11 +133,11 @@ describe('getToolsUnderTest', () => {
       { type: 'answerContains', substring: 'x' },
       { type: 'minToolCalls', tool: 'listDatasets', minCount: 1 },
     ];
-    expect(getToolsUnderTest(assertions)).toEqual(['listDatasets', 'listMembers']);
+    expect(getToolsUnderTest(block(assertions))).toEqual(['listDatasets', 'listMembers']);
   });
 
   it('trims tool names', () => {
-    expect(getToolsUnderTest([{ type: 'toolCall', tool: '  listDatasets  ' }])).toEqual([
+    expect(getToolsUnderTest(block([{ type: 'toolCall', tool: '  listDatasets  ' }]))).toEqual([
       'listDatasets',
     ]);
   });

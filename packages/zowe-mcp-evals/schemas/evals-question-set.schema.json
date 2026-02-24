@@ -94,10 +94,38 @@
           "description": "Override mock preset for this question when using mock backend. If omitted, the set-level mock initArgs (e.g. --preset default) applies."
         },
         "assertions": {
-          "type": "array",
-          "description": "Assertions that must all pass. Each item is one of: toolCall, answerContains, singleToolCall, toolOnly, minToolCalls, toolCallSequence, toolCallOrder. Order does not affect evaluation.",
-          "minItems": 1,
-          "items": { "$ref": "#/$defs/Assertion" }
+          "description": "Assertions block. Use an array (all must pass, default) or an object with allOf (all must pass) or anyOf (at least one must pass). Items can be leaf assertions or nested allOf/anyOf.",
+          "oneOf": [
+            {
+              "type": "array",
+              "minItems": 1,
+              "items": { "$ref": "#/$defs/AssertionItem" }
+            },
+            {
+              "type": "object",
+              "properties": {
+                "allOf": {
+                  "type": "array",
+                  "minItems": 1,
+                  "items": { "$ref": "#/$defs/AssertionItem" }
+                }
+              },
+              "required": ["allOf"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "anyOf": {
+                  "type": "array",
+                  "minItems": 1,
+                  "items": { "$ref": "#/$defs/AssertionItem" }
+                }
+              },
+              "required": ["anyOf"],
+              "additionalProperties": false
+            }
+          ]
         }
       },
       "additionalProperties": false
@@ -113,7 +141,37 @@
         { "$ref": "#/$defs/AssertToolCallOrder" },
         { "$ref": "#/$defs/AssertToolCallOneOf" }
       ],
-      "description": "One assertion: either a tool-call check (toolCall, singleToolCall, toolOnly, minToolCalls, toolCallSequence, toolCallOrder, toolCallOneOf) or an answer check (answerContains)."
+      "description": "Leaf assertion: tool-call check or answerContains. No nested allOf/anyOf."
+    },
+    "AssertionItem": {
+      "description": "One assertion item: leaf assertion or composite (allOf/anyOf with nested items).",
+      "oneOf": [
+        { "$ref": "#/$defs/Assertion" },
+        {
+          "type": "object",
+          "properties": {
+            "allOf": {
+              "type": "array",
+              "minItems": 1,
+              "items": { "$ref": "#/$defs/AssertionItem" }
+            }
+          },
+          "required": ["allOf"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "anyOf": {
+              "type": "array",
+              "minItems": 1,
+              "items": { "$ref": "#/$defs/AssertionItem" }
+            }
+          },
+          "required": ["anyOf"],
+          "additionalProperties": false
+        }
+      ]
     },
     "ToolNameEnum": {
       "type": "string",

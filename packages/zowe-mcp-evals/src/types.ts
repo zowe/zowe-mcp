@@ -130,6 +130,7 @@ export interface AssertToolCallOneOf {
   oneOf: { tool: string; args?: Record<string, unknown> }[];
 }
 
+/** Leaf assertion (no nested allOf/anyOf). */
 export type Assertion =
   | AssertToolCall
   | AssertAnswerContains
@@ -141,6 +142,35 @@ export type Assertion =
   | AssertToolCallOneOf;
 
 /**
+ * Composite: all nested items must pass (logical AND).
+ */
+export interface AssertAllOf {
+  allOf: AssertionItem[];
+}
+
+/**
+ * Composite: at least one nested item must pass (logical OR).
+ */
+export interface AssertAnyOf {
+  anyOf: AssertionItem[];
+}
+
+/**
+ * One assertion: either a leaf assertion or a composite (allOf/anyOf).
+ * Composites can be nested (e.g. allOf containing an anyOf).
+ */
+export type AssertionItem = Assertion | AssertAllOf | AssertAnyOf;
+
+/**
+ * Normalized assertion block for a question. Default is allOf (all items must pass).
+ * Backward compat: a YAML array of assertions is treated as allOf.
+ */
+export interface AssertionBlock {
+  mode: 'all' | 'any';
+  items: AssertionItem[];
+}
+
+/**
  * One question in a set.
  */
 export interface Question {
@@ -148,7 +178,8 @@ export interface Question {
   prompt: string;
   /** Mock preset when using mock backend (default | inventory). Overridden by set-level mock.preset when set. */
   preset?: 'default' | 'inventory';
-  assertions: Assertion[];
+  /** Normalized assertion block (all items must pass when mode is 'all'; any item must pass when mode is 'any'). */
+  assertionBlock: AssertionBlock;
 }
 
 /**

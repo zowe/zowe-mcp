@@ -101,6 +101,7 @@ export function startPipeServer(context: vscode.ExtensionContext): PipeServerInf
     sendInitialNativeOptions();
     sendInitialEncodingOptions();
     sendInitialJobCards();
+    sendInitialZoweExplorerStatus();
 
     let buffer = '';
     socket.on('data', (data: Buffer) => {
@@ -350,4 +351,33 @@ function sendInitialJobCards(): void {
  */
 export function sendJobCardsUpdateEvent(): void {
   sendInitialJobCards();
+}
+
+const ZOWE_EXPLORER_EXTENSION_ID = 'Zowe.vscode-extension-for-zowe';
+
+/**
+ * Returns whether the Zowe Explorer extension is installed (and thus available for open-in-editor tools).
+ */
+function isZoweExplorerAvailable(): boolean {
+  return vscode.extensions.getExtension(ZOWE_EXPLORER_EXTENSION_ID) != null;
+}
+
+/**
+ * Sends the current Zowe Explorer availability to all connected servers.
+ * Called when a new server connects to the pipe.
+ */
+function sendInitialZoweExplorerStatus(): void {
+  sendZoweExplorerUpdateEvent(isZoweExplorerAvailable());
+}
+
+/**
+ * Sends a zowe-explorer-update event to all connected MCP server instances.
+ * Call when Zowe Explorer is installed, activated, or disabled.
+ */
+export function sendZoweExplorerUpdateEvent(available: boolean): void {
+  sendEventToServers({
+    type: 'zowe-explorer-update',
+    data: { available },
+    timestamp: Date.now(),
+  } as ExtensionToServerEvent);
 }

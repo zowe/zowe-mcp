@@ -243,6 +243,18 @@ export interface JobCardEventData {
 /** Supplies a job card for user@host (after request-job-card or from settings). */
 export type JobCardEvent = McpEvent<'job-card', JobCardEventData>;
 
+/** Payload for a `zowe-explorer-update` event (extension → server). */
+export interface ZoweExplorerUpdateEventData {
+  /** Whether Zowe Explorer is installed and available for open-in-editor tools. */
+  available: boolean;
+}
+
+/** Notifies the server that Zowe Explorer availability changed (e.g. installed or activated). */
+export type ZoweExplorerUpdateEvent = McpEvent<
+  'zowe-explorer-update',
+  ZoweExplorerUpdateEventData
+>;
+
 // ---------------------------------------------------------------------------
 // Union types
 // ---------------------------------------------------------------------------
@@ -268,7 +280,8 @@ export type ExtensionToServerEvent =
   | NativeOptionsUpdateEvent
   | EncodingOptionsUpdateEvent
   | JobCardsUpdateEvent
-  | JobCardEvent;
+  | JobCardEvent
+  | ZoweExplorerUpdateEvent;
 
 /** Union of all event types exchanged over the pipe. */
 export type AnyMcpEvent = ServerToExtensionEvent | ExtensionToServerEvent;

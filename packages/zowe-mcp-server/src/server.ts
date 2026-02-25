@@ -130,6 +130,27 @@ export interface CreateServerOptions {
   openJobInZoweEditor?: (payload: OpenJobInEditorEventData) => void;
 }
 
+/** Callbacks required to register Zowe Explorer open-in-editor tools (e.g. for late registration). */
+export interface ZoweExplorerCallbacks {
+  openInZoweEditor: (payload: OpenDatasetInEditorEventData) => void;
+  openUssFileInZoweEditor: (payload: OpenUssFileInEditorEventData) => void;
+  openJobInZoweEditor: (payload: OpenJobInEditorEventData) => void;
+}
+
+/** Result of createServer: server only, or server plus late Zowe Explorer tool registration. */
+export type CreateServerResult =
+  | McpServer
+  | {
+      server: McpServer;
+      registerZoweExplorerTools: (callbacks: ZoweExplorerCallbacks) => void;
+    };
+
+/** Returns the McpServer from a CreateServerResult (for callers that only need the server). */
+export function getServer(result: CreateServerResult): McpServer {
+  const s = 'server' in result ? result.server : result;
+  return s as McpServer;
+}
+
 /** Known backend kind names for the info tool. */
 const BACKEND_KIND_NAMES: Record<string, string> = {
   FilesystemMockBackend: 'mock',
@@ -149,8 +170,12 @@ function getBackendKind(backend: ZosBackend): string {
  *
  * The logging capability is declared so that `sendLoggingMessage()` can
  * forward structured log messages to the connected MCP client.
+ *
+ * When a backend is configured, returns { server, registerZoweExplorerTools } so
+ * callers can register the open-in-editor tools later (e.g. when Zowe Explorer
+ * becomes available via a pipe event).
  */
-export function createServer(options?: CreateServerOptions): McpServer {
+export function createServer(options?: CreateServerOptions): CreateServerResult {
   const logger = getLogger();
 
   logger.info('Creating Zowe MCP Server', {
@@ -163,7 +188,7 @@ export function createServer(options?: CreateServerOptions): McpServer {
     mockMode: !!options?.backend,
   });
 
-  const server = new McpServer(
+  const server: McpServer = new McpServer(
     {
       name: 'zowe-mcp-server',
       version: SERVER_VERSION,
@@ -328,5 +353,19 @@ export function createServer(options?: CreateServerOptions): McpServer {
 
   logger.info('Server created, tools registered');
 
+  if (hasBackend) {
+    const registerLater = (callbacks: ZoweExplorerCallbacks): void => {
+      registerZoweExplorerTools(
+        server,
+        {
+          ...callbacks,
+          sessionState: sessionStateForZe,
+          backendKind: backendKindForZe,
+        },
+        logger
+      );
+    };
+    return { server, registerZoweExplorerTools: registerLater };
+  }
   return server;
 }

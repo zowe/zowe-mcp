@@ -216,8 +216,7 @@ describe('Logger', () => {
 
     logger.info('forwarded');
 
-    expect(mockServer.sendLoggingMessage).toHaveBeenCalledOnce();
-    expect(mockServer.sendLoggingMessage).toHaveBeenCalledWith({
+    expect(mockServer.sendLoggingMessage).toHaveBeenCalledExactlyOnceWith({
       level: 'info',
       logger: undefined,
       data: 'forwarded',

@@ -20,7 +20,7 @@ import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { createServer } from '../src/server.js';
+import { createServer, getServer } from '../src/server.js';
 import type {
   BackendProgressCallback,
   CreateUssFileOptions,
@@ -364,12 +364,14 @@ describe('Response cache', () => {
       });
     }
 
-    const server = createServer({
-      backend: countingBackend,
-      systemRegistry,
-      credentialProvider,
-      responseCache: createResponseCache({ ttlMs: 60_000, maxSizeBytes: 10 * 1024 * 1024 }),
-    });
+    const server = getServer(
+      createServer({
+        backend: countingBackend,
+        systemRegistry,
+        credentialProvider,
+        responseCache: createResponseCache({ ttlMs: 60_000, maxSizeBytes: 10 * 1024 * 1024 }),
+      })
+    );
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
     const client = new Client({ name: 'test', version: '1.0.0' });
     await Promise.all([client.connect(clientTransport), server.connect(serverTransport)]);
@@ -408,12 +410,14 @@ describe('Response cache', () => {
       });
     }
 
-    const server = createServer({
-      backend: countingBackend,
-      systemRegistry,
-      credentialProvider,
-      responseCache: createResponseCache({ ttlMs: 60_000, maxSizeBytes: 10 * 1024 * 1024 }),
-    });
+    const server = getServer(
+      createServer({
+        backend: countingBackend,
+        systemRegistry,
+        credentialProvider,
+        responseCache: createResponseCache({ ttlMs: 60_000, maxSizeBytes: 10 * 1024 * 1024 }),
+      })
+    );
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
     const client = new Client({ name: 'test', version: '1.0.0' });
     await Promise.all([client.connect(clientTransport), server.connect(serverTransport)]);
@@ -452,12 +456,14 @@ describe('Response cache', () => {
       });
     }
 
-    const server = createServer({
-      backend: countingBackend,
-      systemRegistry,
-      credentialProvider,
-      responseCache: createResponseCache({ ttlMs: 60_000, maxSizeBytes: 10 * 1024 * 1024 }),
-    });
+    const server = getServer(
+      createServer({
+        backend: countingBackend,
+        systemRegistry,
+        credentialProvider,
+        responseCache: createResponseCache({ ttlMs: 60_000, maxSizeBytes: 10 * 1024 * 1024 }),
+      })
+    );
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
     const client = new Client({ name: 'test', version: '1.0.0' });
     await Promise.all([client.connect(clientTransport), server.connect(serverTransport)]);
@@ -496,12 +502,14 @@ describe('Response cache', () => {
       });
     }
 
-    const server = createServer({
-      backend: countingBackend,
-      systemRegistry,
-      credentialProvider,
-      responseCache: false,
-    });
+    const server = getServer(
+      createServer({
+        backend: countingBackend,
+        systemRegistry,
+        credentialProvider,
+        responseCache: false,
+      })
+    );
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
     const client = new Client({ name: 'test', version: '1.0.0' });
     await Promise.all([client.connect(clientTransport), server.connect(serverTransport)]);
@@ -541,12 +549,14 @@ describe('Response cache', () => {
           description: sys.description,
         });
       }
-      const server = createServer({
-        backend: countingBackend,
-        systemRegistry,
-        credentialProvider,
-        responseCache: createResponseCache({ ttlMs: 60_000, maxSizeBytes: 10 * 1024 * 1024 }),
-      });
+      const server = getServer(
+        createServer({
+          backend: countingBackend,
+          systemRegistry,
+          credentialProvider,
+          responseCache: createResponseCache({ ttlMs: 60_000, maxSizeBytes: 10 * 1024 * 1024 }),
+        })
+      );
       const [_clientTransport, _serverTransport] = InMemoryTransport.createLinkedPair();
       const client = new Client({ name: 'test', version: '1.0.0' });
       return { server, client, countingBackend };
@@ -676,12 +686,14 @@ describe('Response cache', () => {
           description: sys.description,
         });
       }
-      const server = createServer({
-        backend: countingBackend,
-        systemRegistry,
-        credentialProvider,
-        responseCache: cache,
-      });
+      const server = getServer(
+        createServer({
+          backend: countingBackend,
+          systemRegistry,
+          credentialProvider,
+          responseCache: cache,
+        })
+      );
       const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
       const client = new Client({ name: 'test', version: '1.0.0' });
       await Promise.all([client.connect(clientTransport), server.connect(serverTransport)]);

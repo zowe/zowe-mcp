@@ -25,6 +25,7 @@ import {
   sendJobCardsUpdateEvent,
   sendLogLevelEvent,
   sendNativeOptionsUpdateEvent,
+  sendZoweExplorerUpdateEvent,
   startPipeServer,
 } from './pipe-server';
 import { plural } from './plural';
@@ -172,6 +173,16 @@ export function activate(context: vscode.ExtensionContext): void {
         log.info('Job cards setting changed, forwarding to MCP servers');
         sendJobCardsUpdateEvent();
       }
+    })
+  );
+
+  // When extensions are installed or enabled/disabled, update Zowe Explorer status so the MCP server can register open-in-editor tools dynamically
+  const ZOWE_EXPLORER_EXTENSION_ID = 'Zowe.vscode-extension-for-zowe';
+  context.subscriptions.push(
+    vscode.extensions.onDidChange(() => {
+      const available = vscode.extensions.getExtension(ZOWE_EXPLORER_EXTENSION_ID) != null;
+      log.info(`Zowe Explorer availability changed, notifying MCP servers: ${available}`);
+      sendZoweExplorerUpdateEvent(available);
     })
   );
 

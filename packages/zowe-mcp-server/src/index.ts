@@ -40,8 +40,8 @@ import type {
   OpenUssFileInEditorEventData,
 } from './events.js';
 import { connectExtensionClient } from './extension-client.js';
-import type { CreateServerOptions } from './server.js';
-import { createServer, getLogger, SERVER_VERSION } from './server.js';
+import type { CreateServerOptions, CreateServerResult, ZoweExplorerCallbacks } from './server.js';
+import { createServer, getLogger, getServer, SERVER_VERSION } from './server.js';
 import { startHttp } from './transports/http.js';
 import { startStdio } from './transports/stdio.js';
 import {
@@ -396,7 +396,13 @@ async function main(): Promise<void> {
   let serverOptions: CreateServerOptions | undefined;
   let encodingOptionsRef: { current: EncodingOptions } | undefined;
   /** Set in native mode; used to pass server to elicitation callback after createServer (stdio only). */
-  let serverRef: { current: ReturnType<typeof createServer> | null } | undefined;
+  let serverRef: { current: CreateServerResult | null } | undefined;
+  /** Current Zowe Explorer callbacks; set at startup or on zowe-explorer-update. Used by HTTP factory and late registration. */
+  const zoweExplorerCallbacksRef: { current: ZoweExplorerCallbacks | null } = {
+    current: null,
+  };
+  /** True after we've registered Zowe Explorer tools on the stdio server (avoids double registration). */
+  const zoweExplorerToolsRegisteredRef = { current: false };
   if (mockDir) {
     const { loadMock } = await import('./zos/mock/load-mock.js');
     const mock = await loadMock(mockDir);
@@ -485,7 +491,8 @@ async function main(): Promise<void> {
             if (!serverRef) return undefined;
             const s = serverRef.current;
             if (!s) return undefined;
-            const caps = s.server.getClientCapabilities();
+            const server = getServer(s);
+            const caps = server.server.getClientCapabilities();
             // Per MCP spec, empty elicitation object defaults to form mode
             if (!caps?.elicitation) return undefined;
             const portNum = port ?? 22;
@@ -494,7 +501,7 @@ async function main(): Promise<void> {
                 ? `Enter SSH password for ${user}@${host}`
                 : `Enter SSH password for ${user}@${host}:${portNum}`;
             try {
-              const result = await s.server.elicitInput({
+              const result = await server.server.elicitInput({
                 mode: 'form',
                 message,
                 requestedSchema: {
@@ -665,43 +672,102 @@ async function main(): Promise<void> {
     });
   }
 
+  if (extensionClient?.connected) {
+    extensionClient.onEvent(event => {
+      if (event.type === 'zowe-explorer-update') {
+        const { available } = event.data;
+        const callbacks = available ? buildZoweExplorerCallbacks() : null;
+        zoweExplorerCallbacksRef.current = callbacks;
+        if (available && callbacks) {
+          if (serverRef?.current && 'registerZoweExplorerTools' in serverRef.current) {
+            if (!zoweExplorerToolsRegisteredRef.current) {
+              serverRef.current.registerZoweExplorerTools(callbacks);
+              zoweExplorerToolsRegisteredRef.current = true;
+              logger.info('Registered Zowe Explorer open-in-editor tools (dynamic update)');
+            }
+            return;
+          }
+          if (transport === 'http') {
+            logger.info(
+              'Zowe Explorer available; new HTTP sessions will have open-in-editor tools'
+            );
+          }
+        } else if (!available) {
+          logger.info('Zowe Explorer no longer reported available by extension');
+        }
+      }
+    });
+  }
+
   if (serverOptions && responseCacheConfig !== undefined) {
     serverOptions.responseCache = responseCacheConfig;
   }
 
+  const buildZoweExplorerCallbacks = (): ZoweExplorerCallbacks | null => {
+    if (!extensionClient?.connected) return null;
+    return {
+      openInZoweEditor: (payload: OpenDatasetInEditorEventData) => {
+        extensionClient.sendEvent({
+          type: 'open-dataset-in-editor',
+          data: payload,
+          timestamp: Date.now(),
+        });
+      },
+      openUssFileInZoweEditor: (payload: OpenUssFileInEditorEventData) => {
+        extensionClient.sendEvent({
+          type: 'open-uss-file-in-editor',
+          data: payload,
+          timestamp: Date.now(),
+        });
+      },
+      openJobInZoweEditor: (payload: OpenJobInEditorEventData) => {
+        extensionClient.sendEvent({
+          type: 'open-job-in-editor',
+          data: payload,
+          timestamp: Date.now(),
+        });
+      },
+    };
+  };
+
   if (process.env.ZOWE_EXPLORER_AVAILABLE === '1' && extensionClient?.connected === true) {
-    serverOptions ??= {};
-    serverOptions.openInZoweEditor = (payload: OpenDatasetInEditorEventData) => {
-      extensionClient.sendEvent({
-        type: 'open-dataset-in-editor',
-        data: payload,
-        timestamp: Date.now(),
-      });
-    };
-    serverOptions.openUssFileInZoweEditor = (payload: OpenUssFileInEditorEventData) => {
-      extensionClient.sendEvent({
-        type: 'open-uss-file-in-editor',
-        data: payload,
-        timestamp: Date.now(),
-      });
-    };
-    serverOptions.openJobInZoweEditor = (payload: OpenJobInEditorEventData) => {
-      extensionClient.sendEvent({
-        type: 'open-job-in-editor',
-        data: payload,
-        timestamp: Date.now(),
-      });
-    };
+    const callbacks = buildZoweExplorerCallbacks();
+    if (callbacks) {
+      serverOptions ??= {};
+      serverOptions.openInZoweEditor = callbacks.openInZoweEditor;
+      serverOptions.openUssFileInZoweEditor = callbacks.openUssFileInZoweEditor;
+      serverOptions.openJobInZoweEditor = callbacks.openJobInZoweEditor;
+      zoweExplorerCallbacksRef.current = callbacks;
+    }
   }
 
   if (transport === 'stdio') {
-    const server = createServer(serverOptions);
+    const created = createServer(serverOptions);
+    const server = getServer(created);
     if (serverRef) {
-      serverRef.current = server;
+      serverRef.current = created;
+    }
+    if (zoweExplorerCallbacksRef.current && 'registerZoweExplorerTools' in created) {
+      zoweExplorerToolsRegisteredRef.current = true;
     }
     await startStdio(server, logger);
   } else {
-    await startHttp(() => createServer(serverOptions), port, logger);
+    await startHttp(
+      () => {
+        const opts: CreateServerOptions | undefined = serverOptions
+          ? { ...serverOptions }
+          : undefined;
+        if (opts && zoweExplorerCallbacksRef.current) {
+          opts.openInZoweEditor = zoweExplorerCallbacksRef.current.openInZoweEditor;
+          opts.openUssFileInZoweEditor = zoweExplorerCallbacksRef.current.openUssFileInZoweEditor;
+          opts.openJobInZoweEditor = zoweExplorerCallbacksRef.current.openJobInZoweEditor;
+        }
+        const result = createServer(opts);
+        return getServer(result);
+      },
+      port,
+      logger
+    );
   }
 
   // Notify the VS Code extension if no backend is configured

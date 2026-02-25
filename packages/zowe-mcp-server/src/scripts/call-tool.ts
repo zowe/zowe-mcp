@@ -55,7 +55,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { readFileSync } from 'node:fs';
 import { Logger } from '../log.js';
-import { createServer, type CreateServerOptions } from '../server.js';
+import { createServer, getServer, type CreateServerOptions } from '../server.js';
 import { loadMock } from '../zos/mock/load-mock.js';
 import { loadNative } from '../zos/native/load-native.js';
 
@@ -204,13 +204,14 @@ async function main(): Promise<void> {
     log.info('No backend — only core tools (e.g. info) available');
   }
 
-  const server = serverOptions
+  const created = serverOptions
     ? createServer({
         backend: serverOptions.backend,
         systemRegistry: serverOptions.systemRegistry,
         credentialProvider: serverOptions.credentialProvider,
       })
     : createServer();
+  const server = getServer(created);
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   const client = new Client({ name: 'call-tool-cli', version: '1.0.0' });
 

@@ -29,7 +29,7 @@ import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { createServer } from '../src/server.js';
+import { createServer, getServer } from '../src/server.js';
 import type {
   ListResultMeta,
   ReadResultMeta,
@@ -188,7 +188,7 @@ async function createMockServer(
     systemRegistry.register({ host: sys.host, port: sys.port, description: sys.description });
   }
 
-  const server = createServer({ backend, systemRegistry, credentialProvider });
+  const server = getServer(createServer({ backend, systemRegistry, credentialProvider }));
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   const client = new Client({ name: 'test-client', version: '1.0.0' });
   await Promise.all([client.connect(clientTransport), server.connect(serverTransport)]);

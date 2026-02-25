@@ -19,7 +19,7 @@ import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { createServer } from '../src/server.js';
+import { createServer, getServer } from '../src/server.js';
 import type { CredentialProvider } from '../src/zos/credentials.js';
 import { FilesystemMockBackend } from '../src/zos/mock/filesystem-mock-backend.js';
 import { MockCredentialProvider } from '../src/zos/mock/mock-credential-provider.js';
@@ -49,7 +49,7 @@ function getResultText(result: Awaited<ReturnType<Client['callTool']>>): string 
 describe('TSO tools integration', () => {
   let mockDir: string;
   let client: Client;
-  let server: Awaited<ReturnType<typeof createServer>>;
+  let server: import('@modelcontextprotocol/sdk/server/mcp.js').McpServer;
 
   beforeAll(async () => {
     mockDir = await fs.mkdtemp(path.join(os.tmpdir(), 'zowe-mcp-tso-'));
@@ -69,7 +69,7 @@ describe('TSO tools integration', () => {
       });
     }
 
-    server = createServer({ backend, systemRegistry, credentialProvider });
+    server = getServer(createServer({ backend, systemRegistry, credentialProvider }));
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
     client = new Client({ name: 'tso-test', version: '1.0.0' });
     await Promise.all([client.connect(clientTransport), server.connect(serverTransport)]);

@@ -20,7 +20,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { afterEach, describe, expect, it } from 'vitest';
-import { createServer } from '../src/server.js';
+import { createServer, getServer } from '../src/server.js';
 import type { ListResultMeta, ToolResponseEnvelope } from '../src/tools/response.js';
 import type { ParsedConnectionSpec } from '../src/zos/native/connection-spec.js';
 import { NativeBackend } from '../src/zos/native/native-backend.js';
@@ -120,7 +120,7 @@ async function createNativeServer(): Promise<{ client: Client; server: McpServer
     getSpec,
   });
 
-  const server = createServer({ backend, systemRegistry, credentialProvider });
+  const server = getServer(createServer({ backend, systemRegistry, credentialProvider }));
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   const client = new Client({ name: 'test-client', version: '1.0.0' });
   await Promise.all([client.connect(clientTransport), server.connect(serverTransport)]);

@@ -19,7 +19,7 @@ import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { createServer } from '../src/server.js';
+import { createServer, getServer } from '../src/server.js';
 import type { CredentialProvider } from '../src/zos/credentials.js';
 import { FilesystemMockBackend } from '../src/zos/mock/filesystem-mock-backend.js';
 import { MockCredentialProvider } from '../src/zos/mock/mock-credential-provider.js';
@@ -77,7 +77,7 @@ describe('USS tools integration', () => {
       });
     }
 
-    server = createServer({ backend, systemRegistry, credentialProvider });
+    server = getServer(createServer({ backend, systemRegistry, credentialProvider }));
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
     client = new Client({ name: 'uss-test', version: '1.0.0' });
     await Promise.all([client.connect(clientTransport), server.connect(serverTransport)]);
@@ -269,7 +269,7 @@ describe('USS mutation and temp tools (mock)', () => {
       });
     }
 
-    server = createServer({ backend, systemRegistry, credentialProvider });
+    server = getServer(createServer({ backend, systemRegistry, credentialProvider }));
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
     client = new Client({ name: 'uss-mut-test', version: '1.0.0' });
     await Promise.all([client.connect(clientTransport), server.connect(serverTransport)]);

@@ -370,6 +370,7 @@ describe('Response cache', () => {
         systemRegistry,
         credentialProvider,
         responseCache: createResponseCache({ ttlMs: 60_000, maxSizeBytes: 10 * 1024 * 1024 }),
+        logToolCalls: true,
       })
     );
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
@@ -416,6 +417,7 @@ describe('Response cache', () => {
         systemRegistry,
         credentialProvider,
         responseCache: createResponseCache({ ttlMs: 60_000, maxSizeBytes: 10 * 1024 * 1024 }),
+        logToolCalls: true,
       })
     );
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
@@ -462,6 +464,7 @@ describe('Response cache', () => {
         systemRegistry,
         credentialProvider,
         responseCache: createResponseCache({ ttlMs: 60_000, maxSizeBytes: 10 * 1024 * 1024 }),
+        logToolCalls: true,
       })
     );
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
@@ -508,6 +511,7 @@ describe('Response cache', () => {
         systemRegistry,
         credentialProvider,
         responseCache: false,
+        logToolCalls: true,
       })
     );
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
@@ -555,6 +559,7 @@ describe('Response cache', () => {
           systemRegistry,
           credentialProvider,
           responseCache: createResponseCache({ ttlMs: 60_000, maxSizeBytes: 10 * 1024 * 1024 }),
+          logToolCalls: true,
         })
       );
       const [_clientTransport, _serverTransport] = InMemoryTransport.createLinkedPair();
@@ -692,6 +697,7 @@ describe('Response cache', () => {
           systemRegistry,
           credentialProvider,
           responseCache: cache,
+          logToolCalls: true,
         })
       );
       const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();

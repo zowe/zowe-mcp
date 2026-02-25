@@ -51,7 +51,7 @@ export function createInMemoryProvider(): TransportProvider {
   return {
     name: 'in-memory',
     async setup() {
-      const server = createServer();
+      const server = createServer({ logToolCalls: true });
       const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
 
       client = new Client({ name: 'test-client', version: '1.0.0' });

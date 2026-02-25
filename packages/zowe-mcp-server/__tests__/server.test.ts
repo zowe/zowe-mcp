@@ -30,7 +30,7 @@ describe('Zowe MCP Server (in-memory specific)', () => {
   let cleanup: () => Promise<void>;
 
   beforeEach(async () => {
-    server = createServer();
+    server = createServer({ logToolCalls: true });
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
 
     client = new Client({ name: 'test-client', version: '1.0.0' });

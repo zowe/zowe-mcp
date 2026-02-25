@@ -28,7 +28,7 @@
   ],
   "license": "EPL-2.0",
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.26.0",
+    "@modelcontextprotocol/sdk": "^1.27.1",
     "@faker-js/faker": "^9.0.0",
     "yargs": "^17.7.2",
     "@zowe/imperative": "^8.30.1",

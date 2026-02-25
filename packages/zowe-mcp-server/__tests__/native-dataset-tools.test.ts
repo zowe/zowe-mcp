@@ -120,7 +120,14 @@ async function createNativeServer(): Promise<{ client: Client; server: McpServer
     getSpec,
   });
 
-  const server = getServer(createServer({ backend, systemRegistry, credentialProvider }));
+  const server = getServer(
+    createServer({
+      backend,
+      systemRegistry,
+      credentialProvider,
+      logToolCalls: true,
+    })
+  );
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   const client = new Client({ name: 'test-client', version: '1.0.0' });
   await Promise.all([client.connect(clientTransport), server.connect(serverTransport)]);

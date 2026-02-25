@@ -26,6 +26,7 @@ import type {
 import { Logger } from './log.js';
 import { registerDatasetPrompts } from './prompts/dataset-prompts.js';
 import { registerDatasetResources } from './resources/dataset-resources.js';
+import { installToolCallLogging } from './tool-call-logging.js';
 import { registerContextTools } from './tools/context/context-tools.js';
 import { registerCoreTools } from './tools/core/zowe-info.js';
 import { registerDatasetTools } from './tools/datasets/dataset-tools.js';
@@ -122,6 +123,11 @@ export interface CreateServerOptions {
    */
   jobCardStore?: JobCardStore;
   /**
+   * When true, every tool call is logged with full input and full response (and backend type).
+   * When false or omitted, no tool-call logging. Can be overridden by env ZOWE_MCP_LOG_TOOL_CALLS=1 or true.
+   */
+  logToolCalls?: boolean;
+  /**
    * When provided (and Zowe Explorer is available), registers open-in-editor tools
    * that send events to the VS Code extension (data set, USS file, job/spool).
    */
@@ -215,8 +221,16 @@ export function createServer(options?: CreateServerOptions): CreateServerResult 
 
   const hasBackend = !!(options?.backend && options.credentialProvider);
   const backendKind = hasBackend ? getBackendKind(options.backend!) : null;
+  const logToolCalls =
+    options?.logToolCalls ??
+    (process.env.ZOWE_MCP_LOG_TOOL_CALLS === '1' ||
+      process.env.ZOWE_MCP_LOG_TOOL_CALLS === 'true');
   let sessionStateForZe: SessionState | undefined;
   let backendKindForZe: string | null = null;
+
+  if (logToolCalls) {
+    installToolCallLogging(server, logger, backendKind);
+  }
 
   // Register core tools (info) — always available
   registerCoreTools(server, SERVER_VERSION, logger, { backend: backendKind });

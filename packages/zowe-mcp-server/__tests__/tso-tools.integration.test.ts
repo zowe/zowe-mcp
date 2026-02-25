@@ -69,7 +69,14 @@ describe('TSO tools integration', () => {
       });
     }
 
-    server = getServer(createServer({ backend, systemRegistry, credentialProvider }));
+    server = getServer(
+      createServer({
+        backend,
+        systemRegistry,
+        credentialProvider,
+        logToolCalls: true,
+      })
+    );
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
     client = new Client({ name: 'tso-test', version: '1.0.0' });
     await Promise.all([client.connect(clientTransport), server.connect(serverTransport)]);

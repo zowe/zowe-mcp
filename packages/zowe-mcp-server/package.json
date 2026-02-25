@@ -31,19 +31,19 @@
     "@modelcontextprotocol/sdk": "^1.26.0",
     "@faker-js/faker": "^9.0.0",
     "yargs": "^17.7.2",
-    "@zowe/imperative": "^8.11.0",
-    "@zowe/zos-uss-for-zowe-sdk": "^8.11.0",
+    "@zowe/imperative": "^8.30.1",
+    "@zowe/zos-uss-for-zowe-sdk": "^8.30.1",
     "express": "^5.1.0",
     "hardstop-patterns": "^1.0.0",
     "lru-cache": "^11.2.6",
     "zod": "^3.25.0",
-    "zowe-native-proto-sdk": "file:../../bin/zowe-native-proto-sdk-0.2.3.tgz"
+    "zowe-native-proto-sdk": "^0.2.4"
   },
   "devDependencies": {
     "@types/express": "^5.0.0",
     "@types/node": "^22.0.0",
     "@types/ssh2": "^1.15.5",
     "ssh2": "^1.17.0",
-    "vitest": "^3.0.0"
+    "vitest": "^4.0.18"
   }
 }

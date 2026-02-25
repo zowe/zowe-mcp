@@ -153,8 +153,8 @@ The **Zowe Native Proto SDK** is used by the native (SSH) backend. We use only t
 | What                           | Path                                                                                                                                                                                           |
 | ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **SDK source (reference)**     | `zowe-native-proto` repo: `/Users/plape03/workspace/github.com/zowe/zowe-native-proto`. SDK code lives in `**packages/sdk`** (e.g. `src/ZSshClient.ts`, `src/doc/rpc/ds.ts` for data set RPCs). |
-| **Tgz (this repo)**            | `bin/zowe-native-proto-sdk-0.2.3.tgz` — built from the SDK source; copied into this repo for install.                                                                                          |
-| **Server dependency**          | `packages/zowe-mcp-server/package.json`: `"zowe-native-proto-sdk": "file:../../bin/zowe-native-proto-sdk-0.2.3.tgz"`                                                                           |
+| **SDK source (Artifactory)**   | Zowe Artifactory: `https://zowe.jfrog.io/artifactory/npm-release/zowe-native-proto-sdk/` (version 0.2.4). Project uses registry in `.npmrc`. |
+| **Server dependency**          | `packages/zowe-mcp-server/package.json`: `"zowe-native-proto-sdk": "0.2.4"`                                                                                                                     |
 | **After `npm install`**        | `packages/zowe-mcp-server/node_modules/zowe-native-proto-sdk` (or `packages/zowe-mcp-vscode/server/node_modules/zowe-native-proto-sdk` in bundled extension)                                   |
 | **Our code that uses the SDK** | `packages/zowe-mcp-server/src/zos/native/` — `ssh-client-cache.ts`, `native-backend.ts`                                                                                                        |
 

@@ -11,7 +11,7 @@ List of new functions or behaviors requested from Zowe Native Proto for use by Z
 - **Priority**: P0
 - **Summary**: The ZNP server on z/OS abends with a protection exception (System Completion Code 0C4) while handling requests (observed during `listDatasets`). The client then receives abend/dump output instead of JSON, logs "Invalid JSON response", and the request can hang until timeout.
 - **Request**: Fix the server-side crash so `listDatasets` (and any other operations that hit the same code path) complete successfully or return a proper error instead of abending.
-- **ZNP version**: No version reported in the ZNP log messages. Client SDK in use: zowe-native-proto-sdk 0.2.3 (from `bin/zowe-native-proto-sdk-0.2.3.tgz`).
+- **ZNP version**: No version reported in the ZNP log messages. Client SDK in use: zowe-native-proto-sdk 0.2.4 (from Zowe Artifactory npm-release).
 - **z/OS system**: Host: ca32.lvn.broadcom.net.
 - **Observed context**: Occurred when listing data sets (e.g. patterns like `PLAPE03.**`, `TEST4Z.**`) over SSH to a z/OS system; the server had successfully connected and was running the first list operation when the abend occurred.
 - **Log details** (from MCP server stderr when the client receives the invalid response):
@@ -41,7 +41,7 @@ Error: Invalid JSON response:          +000000000000016A at address 000000003CEF
 - **Input**: `{ dsname: string, memberBefore: string, memberAfter: string }` (data set name, current member name, new member name).
 - **Output**: Success or error (e.g. member not found, new name already exists).
 - **Why**: The Zowe MCP server exposes a `renameDataset` tool that supports renaming a member within the same data set (dsn and newDsn equal, member and newMember specified). When the client calls this, the native backend invokes `ds.renameMember(...)`. The ZNP server on z/OS responds with **"Unrecognized command renameMember"**, so the operation is not available. Zowe zos-files (z/OSMF) provides `rename data-set-member`; the Native Proto server should offer equivalent capability for SSH-based workflows. The MCP server's native-stdio E2E test 7.2 (renameDataset member) is skipped until ZNP supports this.
-- **Observed**: SDK in use (zowe-native-proto-sdk 0.2.3); server returns "Unrecognized command renameMember" when the client sends the renameMember request.
+- **Observed**: SDK in use (zowe-native-proto-sdk 0.2.4); server returns "Unrecognized command renameMember" when the client sends the renameMember request.
 
 ---
 

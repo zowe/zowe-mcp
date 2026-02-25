@@ -32,6 +32,9 @@ import { plural } from './plural';
 import { getNativePasswordKey } from './secrets';
 import { logLanguageModels, logStartupInfo } from './startup-log';
 
+/** Set when we register the Zowe MCP server with Cursor's API; used for config updates and deactivate. */
+let cursorMcpRegistered = false;
+
 export function activate(context: vscode.ExtensionContext): void {
   const log = initLog(context);
 
@@ -47,82 +50,29 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
     vscode.lm.registerMcpServerDefinitionProvider('zowe', {
       provideMcpServerDefinitions: async () => {
-        const args = [serverModule, '--stdio'];
-        const config = vscode.workspace.getConfiguration('zoweMCP');
-        const mockDataDirectory = config.get<string>('mockDataDirectory', '').trim();
-        const nativeConnections = getNativeConnectionsWithMigration(config);
-        const installZoweNativeServerAutomatically = config.get<boolean>(
-          'installZoweNativeServerAutomatically',
-          true
+        const serverConfig = await buildServerConfig(
+          context,
+          serverModule,
+          discoveryDir,
+          workspaceId,
+          log
         );
-        const zoweNativeServerPath = config.get<string>('zoweNativeServerPath', '~/.zowe-server');
-        const nativeResponseTimeout = config.get<number>('nativeResponseTimeout', 60);
-        const defaultMainframeMvsEncoding = config.get<string>(
-          'defaultMainframeMvsEncoding',
-          'IBM-037'
-        );
-        const defaultMainframeUssEncoding = config.get<string>(
-          'defaultMainframeUssEncoding',
-          'IBM-1047'
-        );
-
-        // Mock only when mock directory is set and native connections is empty; otherwise native mode.
-        if (mockDataDirectory && nativeConnections.length === 0) {
-          args.push('--mock', mockDataDirectory);
-          log.info(`Mock mode enabled: ${mockDataDirectory}`);
-        } else {
-          args.push('--native');
-          for (const spec of nativeConnections) {
-            if (typeof spec === 'string' && spec.trim()) {
-              args.push('--system', spec.trim());
-            }
-          }
-          if (!installZoweNativeServerAutomatically) {
-            args.push('--native-server-auto-install=false');
-          }
-          if (zoweNativeServerPath?.trim()) {
-            args.push('--native-server-path', zoweNativeServerPath.trim());
-          }
-          if (nativeResponseTimeout > 0 && nativeResponseTimeout !== 60) {
-            args.push('--native-response-timeout', String(nativeResponseTimeout));
-          }
-          log.info(
-            `Native (SSH) mode enabled: ${nativeConnections.length} ${plural(nativeConnections.length, 'connection', 'connections')}`
-          );
-        }
-        if (defaultMainframeMvsEncoding?.trim()) {
-          args.push('--default-mvs-encoding', defaultMainframeMvsEncoding.trim());
-        }
-        if (defaultMainframeUssEncoding?.trim()) {
-          args.push('--default-uss-encoding', defaultMainframeUssEncoding.trim());
-        }
-
-        // Detect Zowe Explorer: check once, then wait briefly and re-check so we see it when
-        // the extension list is still settling (e.g. on first MCP use after startup).
-        let zeExt = vscode.extensions.getExtension('Zowe.vscode-extension-for-zowe');
-        if (!zeExt) {
-          await new Promise(r => setTimeout(r, 400));
-          zeExt = vscode.extensions.getExtension('Zowe.vscode-extension-for-zowe');
-        }
-        if (zeExt) {
-          try {
-            await zeExt.activate();
-          } catch {
-            // Extension present but activation failed; still set env so server can register the tool.
-          }
-        }
-        const zoweExplorerAvailable = zeExt != null;
-        const env: Record<string, string> = {
-          MCP_DISCOVERY_DIR: discoveryDir,
-          WORKSPACE_ID: workspaceId,
-        };
-        if (zoweExplorerAvailable) {
-          env.ZOWE_EXPLORER_AVAILABLE = '1';
-        }
-        return [new vscode.McpStdioServerDefinition('Zowe', 'node', args, env)];
+        return [
+          new vscode.McpStdioServerDefinition(
+            'Zowe',
+            serverConfig.command,
+            serverConfig.args,
+            serverConfig.env
+          ),
+        ];
       },
     })
   );
+
+  // When running in Cursor, register the MCP server with Cursor's API so users don't need mcp.json
+  if (typeof vscode.cursor?.mcp?.registerServer === 'function') {
+    void registerWithCursor(context, serverModule, discoveryDir, workspaceId, log);
+  }
 
   // Register the "Generate Mock Data" command
   context.subscriptions.push(
@@ -173,6 +123,23 @@ export function activate(context: vscode.ExtensionContext): void {
         log.info('Job cards setting changed, forwarding to MCP servers');
         sendJobCardsUpdateEvent();
       }
+      // When running in Cursor, update Cursor's stored MCP config so the next server start uses current settings
+      const affectsServerStartup =
+        e.affectsConfiguration('zoweMCP.mockDataDirectory') ||
+        e.affectsConfiguration('zoweMCP.nativeConnections') ||
+        e.affectsConfiguration('zoweMCP.installZoweNativeServerAutomatically') ||
+        e.affectsConfiguration('zoweMCP.zoweNativeServerPath') ||
+        e.affectsConfiguration('zoweMCP.nativeResponseTimeout') ||
+        e.affectsConfiguration('zoweMCP.defaultMainframeMvsEncoding') ||
+        e.affectsConfiguration('zoweMCP.defaultMainframeUssEncoding') ||
+        e.affectsConfiguration('zoweMCP.jobCards');
+      if (
+        affectsServerStartup &&
+        cursorMcpRegistered &&
+        typeof vscode.cursor?.mcp?.registerServer === 'function'
+      ) {
+        void updateCursorRegistration(context, serverModule, discoveryDir, workspaceId, log);
+      }
     })
   );
 
@@ -218,6 +185,159 @@ async function refreshLanguageModels(): Promise<void> {
  */
 function resolveServerPath(context: vscode.ExtensionContext): string {
   return path.join(context.extensionPath, 'server', 'index.js');
+}
+
+/**
+ * Builds the command, args, and env used to start the Zowe MCP server.
+ * Shared by the VS Code MCP provider and Cursor's registerServer.
+ */
+async function buildServerConfig(
+  _context: vscode.ExtensionContext,
+  serverModule: string,
+  discoveryDir: string,
+  workspaceId: string,
+  log: ReturnType<typeof initLog>
+): Promise<{ command: string; args: string[]; env: Record<string, string> }> {
+  const args = [serverModule, '--stdio'];
+  const config = vscode.workspace.getConfiguration('zoweMCP');
+  const mockDataDirectory = config.get<string>('mockDataDirectory', '').trim();
+  const nativeConnections = getNativeConnectionsWithMigration(config);
+  const installZoweNativeServerAutomatically = config.get<boolean>(
+    'installZoweNativeServerAutomatically',
+    true
+  );
+  const zoweNativeServerPath = config.get<string>('zoweNativeServerPath', '~/.zowe-server');
+  const nativeResponseTimeout = config.get<number>('nativeResponseTimeout', 60);
+  const defaultMainframeMvsEncoding = config.get<string>('defaultMainframeMvsEncoding', 'IBM-037');
+  const defaultMainframeUssEncoding = config.get<string>(
+    'defaultMainframeUssEncoding',
+    'IBM-1047'
+  );
+
+  if (mockDataDirectory && nativeConnections.length === 0) {
+    args.push('--mock', mockDataDirectory);
+    log.info(`Mock mode enabled: ${mockDataDirectory}`);
+  } else {
+    args.push('--native');
+    for (const spec of nativeConnections) {
+      if (typeof spec === 'string' && spec.trim()) {
+        args.push('--system', spec.trim());
+      }
+    }
+    if (!installZoweNativeServerAutomatically) {
+      args.push('--native-server-auto-install=false');
+    }
+    if (zoweNativeServerPath?.trim()) {
+      args.push('--native-server-path', zoweNativeServerPath.trim());
+    }
+    if (nativeResponseTimeout > 0 && nativeResponseTimeout !== 60) {
+      args.push('--native-response-timeout', String(nativeResponseTimeout));
+    }
+    log.info(
+      `Native (SSH) mode enabled: ${nativeConnections.length} ${plural(nativeConnections.length, 'connection', 'connections')}`
+    );
+  }
+  if (defaultMainframeMvsEncoding?.trim()) {
+    args.push('--default-mvs-encoding', defaultMainframeMvsEncoding.trim());
+  }
+  if (defaultMainframeUssEncoding?.trim()) {
+    args.push('--default-uss-encoding', defaultMainframeUssEncoding.trim());
+  }
+
+  let zeExt = vscode.extensions.getExtension('Zowe.vscode-extension-for-zowe');
+  if (!zeExt) {
+    await new Promise(r => setTimeout(r, 400));
+    zeExt = vscode.extensions.getExtension('Zowe.vscode-extension-for-zowe');
+  }
+  if (zeExt) {
+    try {
+      await zeExt.activate();
+    } catch {
+      // Extension present but activation failed; still set env so server can register the tool.
+    }
+  }
+  const zoweExplorerAvailable = zeExt != null;
+  const env: Record<string, string> = {
+    MCP_DISCOVERY_DIR: discoveryDir,
+    WORKSPACE_ID: workspaceId,
+  };
+  if (zoweExplorerAvailable) {
+    env.ZOWE_EXPLORER_AVAILABLE = '1';
+  }
+  return { command: 'node', args, env };
+}
+
+/**
+ * Registers the Zowe MCP server with Cursor's MCP API when running in Cursor.
+ * Sets cursorMcpRegistered on success.
+ */
+async function registerWithCursor(
+  context: vscode.ExtensionContext,
+  serverModule: string,
+  discoveryDir: string,
+  workspaceId: string,
+  log: ReturnType<typeof initLog>
+): Promise<void> {
+  if (typeof vscode.cursor?.mcp?.registerServer !== 'function') {
+    return;
+  }
+  try {
+    const serverConfig = await buildServerConfig(
+      context,
+      serverModule,
+      discoveryDir,
+      workspaceId,
+      log
+    );
+    vscode.cursor.mcp.registerServer({
+      name: 'zowe',
+      server: {
+        command: serverConfig.command,
+        args: serverConfig.args,
+        env: serverConfig.env,
+      },
+    });
+    cursorMcpRegistered = true;
+    log.info('Registered Zowe MCP server with Cursor');
+  } catch (err) {
+    log.warn(`Cursor MCP registration failed: ${String(err)}`);
+  }
+}
+
+/**
+ * Unregisters and re-registers the Zowe MCP server with Cursor so the next server start uses current settings.
+ */
+async function updateCursorRegistration(
+  context: vscode.ExtensionContext,
+  serverModule: string,
+  discoveryDir: string,
+  workspaceId: string,
+  log: ReturnType<typeof initLog>
+): Promise<void> {
+  if (typeof vscode.cursor?.mcp?.unregisterServer !== 'function') {
+    return;
+  }
+  vscode.cursor.mcp.unregisterServer('zowe');
+  try {
+    const serverConfig = await buildServerConfig(
+      context,
+      serverModule,
+      discoveryDir,
+      workspaceId,
+      log
+    );
+    vscode.cursor.mcp.registerServer({
+      name: 'zowe',
+      server: {
+        command: serverConfig.command,
+        args: serverConfig.args,
+        env: serverConfig.env,
+      },
+    });
+    log.info('Updated Cursor MCP server registration with new settings');
+  } catch (err) {
+    log.warn(`Cursor MCP re-registration failed: ${String(err)}`);
+  }
 }
 
 /**
@@ -431,5 +551,8 @@ async function clearStoredPassword(context: vscode.ExtensionContext): Promise<vo
 }
 
 export function deactivate(): void {
-  // Cleanup is handled by VS Code disposing subscriptions
+  if (cursorMcpRegistered && typeof vscode.cursor?.mcp?.unregisterServer === 'function') {
+    vscode.cursor.mcp.unregisterServer('zowe');
+    cursorMcpRegistered = false;
+  }
 }

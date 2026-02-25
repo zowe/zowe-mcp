@@ -2,6 +2,15 @@
 
 All notable changes to the Zowe MCP extension will be documented in this file.
 
+## `0.4.0`
+
+### New features and enhancements
+
+- **Cursor IDE support**: The extension automatically registers the Zowe MCP server when used in Cursor, so MCP tools are available without extra setup.
+- **MCP output schemas**: All tools now declare structured output schemas so AI clients can validate and use tool responses reliably.
+- **Dynamic Zowe Explorer tools**: Open-in-editor tools (data set, USS file, job) are registered when Zowe Explorer is installed or activated; no need to restart the MCP server.
+- **Tool-call logging**: Optional logging of full tool request and response (enabled via server option or `ZOWE_MCP_LOG_TOOL_CALLS=1`) for debugging.
+
 ## `0.3.0`
 
 ### New features and enhancements

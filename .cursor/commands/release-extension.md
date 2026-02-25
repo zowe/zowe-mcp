@@ -52,11 +52,12 @@ Only after the user has approved the changelog:
 4. **Release**: Run **`npm run release-vsix`** from the repo root. This script uses the version from **`packages/zowe-mcp-vscode/package.json`** to build, tag, and create the GitHub release with the VSIX. Do not pass a tag unless the user asked for a specific tag.
 5. **Update release description**: Set the GitHub release body to the new version’s changelog. From **`packages/zowe-mcp-vscode/CHANGELOG.md`**, extract the first version block (from the first `## \`X.Y.Z\`` heading through the line before the next `## \` or end of file). Omit the first line (the `## \`0.2.0\``heading) so the body contains only the sections and bullets. Write that content to a temporary file, run **`gh release edit v<VERSION> --notes-file <tempfile>`** (e.g.`gh release edit v0.2.0 --notes-file /tmp/release-notes.md`), then delete the temp file. If`gh` is not available or the release edit fails, report and continue; do not fail the workflow.
 6. If anything fails (e.g. tag already exists, `gh` not authenticated), report the error and stop; do not force-push or overwrite tags without explicit user request.
+7. **Set development version and push**: Run **`node scripts/set-version.js <next-minor>-dev`** (e.g. after releasing 0.4.0 run `node scripts/set-version.js 0.5.0-dev`). Commit the version change (e.g. "chore: set development version to 0.5.0-dev") and **`git push origin <branch>`** so the repo is ready for the next development cycle.
 
-## 7. Closing message
+## 8. Closing message
 
 After a successful release, say something short and positive about the release (e.g. “Ship it. v0.2.0 is out.” or “Release v0.2.0 is live. Nice work.”). Keep it one sentence and professional but a bit celebratory.
 
 ---
 
-**Summary**: Tests → clean git → checklist → suggest version → draft changelog → **wait for user “ok”** → bump version, update CHANGELOG, commit, push, `npm run release-vsix`, update GitHub release description with changelog → short congrats.
+**Summary**: Tests → clean git → checklist → suggest version → draft changelog → **wait for user “ok”** → bump version, update CHANGELOG, commit, push, `npm run release-vsix`, update GitHub release description with changelog → set dev version (e.g. 0.5.0-dev), commit and push → short congrats.

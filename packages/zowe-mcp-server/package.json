@@ -1,6 +1,6 @@
 {
   "name": "zowe-mcp-server",
-  "version": "0.4.0",
+  "version": "0.5.0-dev",
   "description": "Zowe MCP Server - Model Context Protocol server providing tools for z/OS",
   "type": "module",
   "main": "dist/index.js",

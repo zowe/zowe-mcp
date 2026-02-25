@@ -24,6 +24,11 @@ import type { JobCardStore } from '../../zos/job-cards.js';
 import { resolveSystemForTool, type SessionState } from '../../zos/session.js';
 import type { SystemRegistry } from '../../zos/system.js';
 import { createToolProgress } from '../progress.js';
+import {
+  getContextOutputSchema,
+  listSystemsOutputSchema,
+  setSystemOutputSchema,
+} from './context-output-schemas.js';
 
 /** Zod schema for optional string or null (null = use server default). */
 const optionalEncoding = z
@@ -63,6 +68,7 @@ export function registerContextTools(
         'List all z/OS systems you have access to. Each system is a host; multiple configured connections (user@host) to the same host appear as one system with a connections list. ' +
         'Use setSystem to select which system (and optionally which connection) to use.',
       annotations: { readOnlyHint: true },
+      outputSchema: listSystemsOutputSchema,
     },
     async extra => {
       const progress = createToolProgress(extra, 'List configured systems');
@@ -76,14 +82,16 @@ export function registerContextTools(
         active: s.host === activeSystem,
       }));
 
+      const payload = { systems: result, messages: [] as string[] };
       await progress.complete(`${result.length} systems`);
       return {
         content: [
           {
             type: 'text' as const,
-            text: JSON.stringify({ systems: result, messages: [] as string[] }, null, 2),
+            text: JSON.stringify(payload, null, 2),
           },
         ],
+        structuredContent: payload as Record<string, unknown>,
       };
     }
   );
@@ -98,6 +106,7 @@ export function registerContextTools(
         'Set the active z/OS system. The system parameter can be a host (e.g. ca32.lvn.broadcom.net) when only one connection exists for that host, or a connection spec (e.g. PLAPE03@ca32.lvn.broadcom.net) when multiple connections exist for the same host. ' +
         'If you pass only a host and multiple connections exist, the tool fails and lists valid connection values. ' +
         'Optionally set mainframe encodings for this system (data set and USS); omit to leave existing overrides unchanged, or pass null to use MCP server default.',
+      outputSchema: setSystemOutputSchema,
       inputSchema: {
         system: z
           .string()
@@ -172,6 +181,7 @@ export function registerContextTools(
             text: JSON.stringify(response, null, 2),
           },
         ],
+        structuredContent: response,
       };
     }
   );
@@ -186,6 +196,7 @@ export function registerContextTools(
         'Return the current session context: active system, active connection (user@host), user ID, ' +
         'all known systems (with their connections when multiple exist), and recently used systems (those with saved context).',
       annotations: { readOnlyHint: true },
+      outputSchema: getContextOutputSchema,
     },
     async extra => {
       const progress = createToolProgress(extra, 'Get current session context');
@@ -241,23 +252,21 @@ export function registerContextTools(
         active: s.host === activeSystemId,
       }));
 
+      const payload = {
+        activeSystem,
+        allSystems,
+        recentlyUsedSystems: recentlyUsed,
+        messages: [] as string[],
+      };
       await progress.complete('done');
       return {
         content: [
           {
             type: 'text' as const,
-            text: JSON.stringify(
-              {
-                activeSystem,
-                allSystems,
-                recentlyUsedSystems: recentlyUsed,
-                messages: [] as string[],
-              },
-              null,
-              2
-            ),
+            text: JSON.stringify(payload, null, 2),
           },
         ],
+        structuredContent: payload as Record<string, unknown>,
       };
     }
   );

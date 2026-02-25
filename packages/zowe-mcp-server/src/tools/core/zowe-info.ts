@@ -16,18 +16,23 @@
  */
 
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { z } from 'zod';
 import type { Logger } from '../../log.js';
 import { createToolProgress } from '../progress.js';
 
-export interface ZoweInfoResponse {
-  name: string;
-  version: string;
-  description: string;
-  components: string[];
-  /** Backend type when connected (e.g. "mock", "native") or null when none. */
-  backend: string | null;
-  notice?: string;
-}
+/** MCP output schema for the info tool (exposed in tools/list and used to validate structuredContent). */
+export const infoOutputSchema = z.object({
+  name: z.string().describe('Server display name'),
+  version: z.string().describe('Semantic version'),
+  description: z.string().describe('Short server description'),
+  components: z
+    .array(z.string())
+    .describe('Registered component names (e.g. core, datasets, uss)'),
+  backend: z.string().nullable().describe('Active backend: mock, native, or null'),
+  notice: z.string().optional().describe('Guidance when no backend is configured'),
+});
+
+export type ZoweInfoResponse = z.infer<typeof infoOutputSchema>;
 
 /** Options for configuring core tool registration. */
 export interface CoreToolOptions {
@@ -64,6 +69,7 @@ export function registerCoreTools(
         'Provides information about the Zowe MCP server, its version, and backend connection status. ' +
         backendDescription,
       annotations: { readOnlyHint: true },
+      outputSchema: infoOutputSchema,
     },
     async extra => {
       const progress = createToolProgress(extra, 'Server info');
@@ -102,6 +108,7 @@ export function registerCoreTools(
             text: JSON.stringify(info, null, 2),
           },
         ],
+        structuredContent: info,
       };
     }
   );

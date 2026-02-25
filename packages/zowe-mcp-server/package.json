@@ -14,6 +14,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json && node scripts/copy-resources.cjs",
     "dev": "tsc -p tsconfig.build.json --watch",
+    "pretest": "npm run build",
     "test": "vitest run",
     "test:watch": "vitest",
     "format": "prettier --write \"**/*.{ts,js,mjs,json,jsonc}\"",
@@ -28,14 +29,14 @@
   ],
   "license": "EPL-2.0",
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.27.1",
     "@faker-js/faker": "^9.0.0",
-    "yargs": "^17.7.2",
+    "@modelcontextprotocol/sdk": "^1.27.1",
     "@zowe/imperative": "^8.30.1",
     "@zowe/zos-uss-for-zowe-sdk": "^8.30.1",
     "express": "^5.1.0",
     "hardstop-patterns": "^1.0.0",
     "lru-cache": "^11.2.6",
+    "yargs": "^17.7.2",
     "zod": "^3.25.0",
     "zowe-native-proto-sdk": "^0.2.4"
   },

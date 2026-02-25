@@ -35,6 +35,7 @@ import {
   wrapResponse,
 } from '../response.js';
 import { validateTsoCommand } from './tso-command-validation.js';
+import { runSafeTsoCommandOutputSchema } from './tso-output-schemas.js';
 
 async function ensureContext(
   deps: { sessionState: SessionState; credentialProvider: CredentialProvider },
@@ -46,9 +47,13 @@ async function ensureContext(
   deps.sessionState.setActiveSystem(systemId, credentials.user);
 }
 
-function errorResult(message: string): { content: { type: 'text'; text: string }[] } {
+function errorResult(message: string): {
+  content: { type: 'text'; text: string }[];
+  isError: true;
+} {
   return {
     content: [{ type: 'text' as const, text: JSON.stringify({ error: message }) }],
+    isError: true,
   };
 }
 
@@ -68,6 +73,7 @@ export function registerTsoTools(server: McpServer, deps: TsoToolDeps, logger: L
   server.registerTool(
     'runSafeTsoCommand',
     {
+      outputSchema: runSafeTsoCommandOutputSchema,
       description:
         'Run a TSO command on z/OS. Only allowlisted (safe) commands run automatically. ' +
         'Unknown commands require user confirmation (elicitation); if the client does not support elicitation, execution is denied. ' +

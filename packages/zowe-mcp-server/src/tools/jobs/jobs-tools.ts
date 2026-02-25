@@ -39,6 +39,23 @@ import {
   windowContent,
   wrapResponse,
 } from '../response.js';
+import {
+  cancelJobOutputSchema,
+  deleteJobOutputSchema,
+  executeJobOutputSchema,
+  getJclOutputSchema,
+  getJobOutputOutputSchema,
+  getJobStatusOutputSchema,
+  holdJobOutputSchema,
+  listJobFilesOutputSchema,
+  listJobsOutputSchema,
+  readJobFileOutputSchema,
+  releaseJobOutputSchema,
+  searchJobOutputOutputSchema,
+  submitJobFromDatasetOutputSchema,
+  submitJobFromUssOutputSchema,
+  submitJobOutputSchema,
+} from './jobs-output-schemas.js';
 
 /** Default wait for job to reach OUTPUT (seconds). */
 const DEFAULT_EXECUTE_JOB_TIMEOUT_SECONDS = 300;
@@ -201,6 +218,7 @@ export function registerJobTools(server: McpServer, deps: JobToolDeps, logger: L
   server.registerTool(
     'submitJob',
     {
+      outputSchema: submitJobOutputSchema,
       description:
         'Submit JCL to the current (or specified) z/OS system. A job card is added from config when JCL has none; include a job card only when your JCL already has a full JOB statement. Submitting runs work on z/OS—use with care.',
       annotations: { destructiveHint: true },
@@ -351,6 +369,7 @@ export function registerJobTools(server: McpServer, deps: JobToolDeps, logger: L
   server.registerTool(
     'getJobStatus',
     {
+      outputSchema: getJobStatusOutputSchema,
       description:
         'Get the current status of a z/OS job (e.g. INPUT, ACTIVE, OUTPUT) and its return code when complete.',
       annotations: { readOnlyHint: true },
@@ -414,6 +433,7 @@ export function registerJobTools(server: McpServer, deps: JobToolDeps, logger: L
   server.registerTool(
     'executeJob',
     {
+      outputSchema: executeJobOutputSchema,
       description:
         'Submit JCL and wait for the job to reach OUTPUT (or timeout). Default timeout 5 minutes; after timeout the job keeps running on z/OS—use getJobStatus or getJobOutput next. May include failed-step output when the job completes with a non-zero return code.',
       annotations: { destructiveHint: true },
@@ -577,6 +597,7 @@ export function registerJobTools(server: McpServer, deps: JobToolDeps, logger: L
   server.registerTool(
     'listJobFiles',
     {
+      outputSchema: listJobFilesOutputSchema,
       description:
         'List output files (spools) for a z/OS job. The job must be in OUTPUT status. Use getJobStatus to check status first.',
       annotations: { readOnlyHint: true },
@@ -664,6 +685,7 @@ export function registerJobTools(server: McpServer, deps: JobToolDeps, logger: L
   server.registerTool(
     'readJobFile',
     {
+      outputSchema: readJobFileOutputSchema,
       description:
         'Read the content of one job output file (spool). Use listJobFiles to get job file IDs. Optional startLine and lineCount for partial reads.',
       annotations: { readOnlyHint: true },
@@ -762,6 +784,7 @@ export function registerJobTools(server: McpServer, deps: JobToolDeps, logger: L
   server.registerTool(
     'getJobOutput',
     {
+      outputSchema: getJobOutputOutputSchema,
       description:
         'Get aggregated output from job files for a completed job. By default returns output from failed steps only when the job has a non-zero return code. Optional jobFileIds to limit to specific files.',
       annotations: { readOnlyHint: true },
@@ -924,6 +947,7 @@ export function registerJobTools(server: McpServer, deps: JobToolDeps, logger: L
   server.registerTool(
     'searchJobOutput',
     {
+      outputSchema: searchJobOutputOutputSchema,
       description:
         "Search for a substring in a job's output files (all files or one by jobFileId). Returns matching lines with location and text. Use offset/limit to page results.",
       annotations: { readOnlyHint: true },
@@ -1072,6 +1096,7 @@ export function registerJobTools(server: McpServer, deps: JobToolDeps, logger: L
   server.registerTool(
     'listJobs',
     {
+      outputSchema: listJobsOutputSchema,
       description:
         'List jobs on the z/OS system with optional filters (owner, prefix, status). Use offset/limit to page results.',
       annotations: { readOnlyHint: true },
@@ -1160,6 +1185,7 @@ export function registerJobTools(server: McpServer, deps: JobToolDeps, logger: L
   server.registerTool(
     'getJcl',
     {
+      outputSchema: getJclOutputSchema,
       description: 'Get the JCL for a job.',
       annotations: { readOnlyHint: true },
       inputSchema: {
@@ -1211,11 +1237,13 @@ export function registerJobTools(server: McpServer, deps: JobToolDeps, logger: L
       systemId: string,
       jobId: string,
       progress?: (msg: string) => void
-    ) => Promise<void>
+    ) => Promise<void>,
+    outputSchema: z.ZodType
   ): void {
     server.registerTool(
       name,
       {
+        outputSchema,
         description,
         annotations: destructive ? { destructiveHint: true } : {},
         inputSchema: {
@@ -1271,30 +1299,35 @@ export function registerJobTools(server: McpServer, deps: JobToolDeps, logger: L
     'cancelJob',
     'Cancel a job on the z/OS system.',
     true,
-    (systemId, jobId, progress) => deps.backend.cancelJob(systemId, jobId, progress)
+    (systemId, jobId, progress) => deps.backend.cancelJob(systemId, jobId, progress),
+    cancelJobOutputSchema
   );
   registerJobControlTool(
     'holdJob',
     'Hold a job on the z/OS system.',
     true,
-    (systemId, jobId, progress) => deps.backend.holdJob(systemId, jobId, progress)
+    (systemId, jobId, progress) => deps.backend.holdJob(systemId, jobId, progress),
+    holdJobOutputSchema
   );
   registerJobControlTool(
     'releaseJob',
     'Release a held job on the z/OS system.',
     false,
-    (systemId, jobId, progress) => deps.backend.releaseJob(systemId, jobId, progress)
+    (systemId, jobId, progress) => deps.backend.releaseJob(systemId, jobId, progress),
+    releaseJobOutputSchema
   );
   registerJobControlTool(
     'deleteJob',
     'Delete a job from the output queue.',
     true,
-    (systemId, jobId, progress) => deps.backend.deleteJob(systemId, jobId, progress)
+    (systemId, jobId, progress) => deps.backend.deleteJob(systemId, jobId, progress),
+    deleteJobOutputSchema
   );
 
   server.registerTool(
     'submitJobFromDataset',
     {
+      outputSchema: submitJobFromDatasetOutputSchema,
       description:
         'Submit a job from a data set (e.g. a PDS/PDSE member containing JCL). The data set must contain valid JCL including a job card.',
       annotations: { destructiveHint: true },
@@ -1351,6 +1384,7 @@ export function registerJobTools(server: McpServer, deps: JobToolDeps, logger: L
   server.registerTool(
     'submitJobFromUss',
     {
+      outputSchema: submitJobFromUssOutputSchema,
       description:
         'Submit a job from a USS file path. The file must contain valid JCL including a job card.',
       annotations: { destructiveHint: true },

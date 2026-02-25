@@ -40,6 +40,24 @@ import {
   wrapResponse,
 } from '../response.js';
 import { validateCommand, validateReadPath } from './command-validation.js';
+import {
+  changeUssDirectoryOutputSchema,
+  chmodUssFileOutputSchema,
+  chownUssFileOutputSchema,
+  chtagUssFileOutputSchema,
+  createTempUssDirOutputSchema,
+  createTempUssFileOutputSchema,
+  createUssFileOutputSchema,
+  deleteUssFileOutputSchema,
+  deleteUssTempUnderDirOutputSchema,
+  getUssHomeOutputSchema,
+  getUssTempDirOutputSchema,
+  getUssTempPathOutputSchema,
+  listUssFilesOutputSchema,
+  readUssFileOutputSchema,
+  runSafeUssCommandOutputSchema,
+  writeUssFileOutputSchema,
+} from './uss-output-schemas.js';
 
 async function ensureContext(
   deps: { sessionState: SessionState; credentialProvider: CredentialProvider },
@@ -51,9 +69,13 @@ async function ensureContext(
   deps.sessionState.setActiveSystem(systemId, credentials.user);
 }
 
-function errorResult(message: string): { content: { type: 'text'; text: string }[] } {
+function errorResult(message: string): {
+  content: { type: 'text'; text: string }[];
+  isError: true;
+} {
   return {
     content: [{ type: 'text' as const, text: JSON.stringify({ error: message }) }],
+    isError: true,
   };
 }
 
@@ -125,6 +147,7 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
       description:
         "Return the current user's USS home directory for the active (or specified) system. ",
       annotations: { readOnlyHint: true },
+      outputSchema: getUssHomeOutputSchema,
       inputSchema: {
         system: z
           .string()
@@ -228,6 +251,7 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
         'Path can be absolute (starts with /) or relative to the current working directory. ' +
         'The new cwd is used to resolve relative paths in other USS tools and is shown in getContext as ussCwd.',
       annotations: { readOnlyHint: true },
+      outputSchema: changeUssDirectoryOutputSchema,
       inputSchema: {
         path: z
           .string()
@@ -293,6 +317,7 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
   server.registerTool(
     'listUssFiles',
     {
+      outputSchema: listUssFilesOutputSchema,
       description:
         'List files and directories in a USS path. Results are paginated (default 500, max 1000 per page). ' +
         'When _result.hasMore is true, call again with offset and limit to get the next page. ' +
@@ -414,6 +439,7 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
   server.registerTool(
     'readUssFile',
     {
+      outputSchema: readUssFileOutputSchema,
       description:
         'Read the content of a USS file. Results may be line-windowed; when _result.hasMore is true, call again with startLine and lineCount to get the next lines. ' +
         'Do not answer using only the first window; fetch until _result.hasMore is false.',
@@ -575,6 +601,7 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
   server.registerTool(
     'runSafeUssCommand',
     {
+      outputSchema: runSafeUssCommandOutputSchema,
       description:
         'Run a Unix command on z/OS USS. Only allowlisted (safe) commands run automatically. ' +
         'Unknown commands require user confirmation (elicitation); if the client does not support elicitation, execution is denied. ' +
@@ -703,6 +730,7 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
     'writeUssFile',
     {
       description: 'Write or overwrite a USS file. Creates the file if it does not exist.',
+      outputSchema: writeUssFileOutputSchema,
       inputSchema: {
         path: z
           .string()
@@ -772,6 +800,7 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
     'createUssFile',
     {
       description: 'Create a USS file or directory.',
+      outputSchema: createUssFileOutputSchema,
       inputSchema: {
         path: z
           .string()
@@ -833,6 +862,7 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
     {
       description: 'Delete a USS file or directory. Use recursive for directories.',
       annotations: { destructiveHint: true },
+      outputSchema: deleteUssFileOutputSchema,
       inputSchema: {
         path: z
           .string()
@@ -888,6 +918,7 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
     'chmodUssFile',
     {
       description: 'Change permissions of a USS file or directory.',
+      outputSchema: chmodUssFileOutputSchema,
       inputSchema: {
         path: z
           .string()
@@ -940,6 +971,7 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
     'chownUssFile',
     {
       description: 'Change owner of a USS file or directory.',
+      outputSchema: chownUssFileOutputSchema,
       inputSchema: {
         path: z
           .string()
@@ -992,6 +1024,7 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
     'chtagUssFile',
     {
       description: 'Set the z/OS file tag (encoding/type) for a USS file or directory.',
+      outputSchema: chtagUssFileOutputSchema,
       inputSchema: {
         path: z
           .string()
@@ -1053,6 +1086,7 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
         'Return a unique USS directory path under the given base path (e.g. $HOME/tmp or /tmp) for temporary use. ' +
         'The path is verified not to exist. Use createUssFile with isDirectory true to create it.',
       annotations: { readOnlyHint: true },
+      outputSchema: getUssTempDirOutputSchema,
       inputSchema: {
         basePath: z
           .string()
@@ -1105,6 +1139,7 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
         'Return a unique USS file path under the given directory (e.g. from getUssTempDir). ' +
         'The path is verified not to exist. Use writeUssFile or createUssFile to create the file.',
       annotations: { readOnlyHint: true },
+      outputSchema: getUssTempPathOutputSchema,
       inputSchema: {
         dirPath: z
           .string()
@@ -1157,6 +1192,7 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
       description:
         'Create a temporary USS directory. Typically use a path from getUssTempDir. ' +
         'Creates the directory and any missing parents.',
+      outputSchema: createTempUssDirOutputSchema,
       inputSchema: {
         path: z
           .string()
@@ -1215,6 +1251,7 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
       description:
         'Create an empty USS file at the given path (e.g. from getUssTempPath). ' +
         'Creates parent directories if needed.',
+      outputSchema: createTempUssFileOutputSchema,
       inputSchema: {
         path: z
           .string()
@@ -1268,6 +1305,7 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
         'Delete all files and directories under the given USS path (the path itself is removed). ' +
         'Safety: path must contain the segment "tmp" (or "TMP") and have at least 3 path segments (e.g. /u/myuser/tmp/xyz).',
       annotations: { destructiveHint: true },
+      outputSchema: deleteUssTempUnderDirOutputSchema,
       inputSchema: {
         path: z
           .string()

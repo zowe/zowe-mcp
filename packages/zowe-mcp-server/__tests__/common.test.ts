@@ -51,7 +51,21 @@ for (const createProvider of allProviders) {
       expect(tools[0].description).toContain('Zowe MCP server');
     });
 
-    it('should call info and return server information', async () => {
+    it('should list info tool with outputSchema (MCP output schema)', async () => {
+      const { tools } = await client.listTools();
+      expect(tools[0].name).toBe('info');
+      expect(tools[0].outputSchema).toBeDefined();
+      expect(tools[0].outputSchema).toHaveProperty('type', 'object');
+      expect(tools[0].outputSchema).toHaveProperty('properties');
+      const props =
+        (tools[0].outputSchema as { properties?: Record<string, unknown> }).properties ?? {};
+      expect(props).toHaveProperty('name');
+      expect(props).toHaveProperty('version');
+      expect(props).toHaveProperty('components');
+      expect(props).toHaveProperty('backend');
+    });
+
+    it('should call info and return server information with structuredContent', async () => {
       const result = await client.callTool({ name: 'info', arguments: {} });
       expect(result.content).toHaveLength(1);
 
@@ -68,6 +82,13 @@ for (const createProvider of allProviders) {
       expect(info.version).toBe(packageJson.version);
       expect(info.description).toContain('z/OS');
       expect(info.components).toContain('core');
+
+      expect(result.structuredContent).toBeDefined();
+      const structured = result.structuredContent as Record<string, unknown>;
+      expect(structured.name).toBe('Zowe MCP Server');
+      expect(structured.version).toBe(packageJson.version);
+      expect(structured.components).toEqual(info.components);
+      expect(structured.backend).toBeNull();
     });
 
     it('should return version matching package.json', async () => {

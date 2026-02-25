@@ -72,6 +72,22 @@ import {
   wrapResponse,
 } from '../response.js';
 import { applyCacheAfterMutation } from './dataset-cache.js';
+import {
+  copyDatasetOutputSchema,
+  createDatasetOutputSchema,
+  createTempDatasetOutputSchema,
+  deleteDatasetOutputSchema,
+  deleteDatasetsUnderPrefixOutputSchema,
+  getDatasetAttributesOutputSchema,
+  getTempDatasetNameOutputSchema,
+  getTempDatasetPrefixOutputSchema,
+  listDatasetsOutputSchema,
+  listMembersOutputSchema,
+  readDatasetOutputSchema,
+  renameDatasetOutputSchema,
+  searchInDatasetOutputSchema,
+  writeDatasetOutputSchema,
+} from './dataset-output-schemas.js';
 
 const RESOURCES_DSLEVEL_PATH = path.join(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -183,6 +199,7 @@ export function registerDatasetTools(
         'Set attributes to false for names-only (default true includes dsorg, recfm, lrecl, etc.). ' +
         dslevelDescription,
       annotations: { readOnlyHint: true },
+      outputSchema: listDatasetsOutputSchema,
       inputSchema: {
         dsnPattern: z
           .string()
@@ -308,6 +325,7 @@ export function registerDatasetTools(
         'When _result.hasMore is true, more members exist—you must call this tool again with offset and limit to get the next page (offset = current offset + _result.count, same limit). ' +
         'Do not answer using only the first page; fetch all pages until _result.hasMore is false. Parameters: offset (0-based), limit (members per page).',
       annotations: { readOnlyHint: true },
+      outputSchema: listMembersOutputSchema,
       inputSchema: {
         dsn: z.string().describe('Fully qualified data set name (e.g. USER.SRC.COBOL).'),
         memberPattern: z
@@ -406,6 +424,7 @@ export function registerDatasetTools(
         'Results are paginated by member (offset/limit); when _result.hasMore is true, call again with the next offset and limit. ' +
         'Options: caseSensitive (default false), cobol (ignore cols 1–6), ignoreSequenceNumbers, doNotProcessComments (asterisk, cobolComment, fortran, cpp, pli, pascal, pcAssembly, ada).',
       annotations: { readOnlyHint: true },
+      outputSchema: searchInDatasetOutputSchema,
       inputSchema: {
         dsn: z
           .string()
@@ -600,6 +619,7 @@ export function registerDatasetTools(
         'Get detailed attributes of a data set: organization, record format, ' +
         'record length, block size, volume, SMS classes, dates, and more.',
       annotations: { readOnlyHint: true },
+      outputSchema: getDatasetAttributesOutputSchema,
       inputSchema: {
         dsn: z.string().describe('Fully qualified data set name (e.g. USER.SRC.COBOL).'),
         system: z
@@ -677,6 +697,7 @@ export function registerDatasetTools(
         'Returns UTF-8 text, an ETag for optimistic locking, and the source encoding. ' +
         'Pass the ETag to writeDataset to prevent overwriting concurrent changes.',
       annotations: { readOnlyHint: true },
+      outputSchema: readDatasetOutputSchema,
       inputSchema: {
         dsn: z.string().describe('Fully qualified data set name (e.g. USER.SRC.COBOL).'),
         member: z.string().optional().describe('Member name for PDS/PDSE data sets.'),
@@ -813,6 +834,7 @@ export function registerDatasetTools(
         'If an ETag is provided (from a previous readDataset call), the write ' +
         'fails if the data set was modified since the read — preventing overwrites. ' +
         'Returns a new ETag for the written content.',
+      outputSchema: writeDatasetOutputSchema,
       inputSchema: {
         dsn: z.string().describe('Fully qualified data set name (e.g. USER.SRC.COBOL).'),
         content: z.string().describe('UTF-8 text content to write.'),
@@ -928,6 +950,7 @@ export function registerDatasetTools(
         'For automation and testing. Returns a unique DSN prefix (HLQ) under which temporary data sets can be created. ' +
         `The prefix is verified not to exist on the system. Default is current user + .${REQUIRED_SAFETY_QUALIFIER} (e.g. USER.${REQUIRED_SAFETY_QUALIFIER}.XXXXXXXX.YYYYYYYY); configurable via parameters.`,
       annotations: { readOnlyHint: true },
+      outputSchema: getTempDatasetPrefixOutputSchema,
       inputSchema: {
         prefix: z
           .string()
@@ -998,6 +1021,7 @@ export function registerDatasetTools(
         'Returns a single unique full temporary data set name (for one data set). ' +
         'The DSN is verified not to exist on the system. Same prefix/suffix defaults as getTempDatasetPrefix.',
       annotations: { readOnlyHint: true },
+      outputSchema: getTempDatasetNameOutputSchema,
       inputSchema: {
         prefix: z
           .string()
@@ -1073,6 +1097,7 @@ export function registerDatasetTools(
       description:
         'Create a new sequential or partitioned data set. Specify the type ' +
         '(PS/SEQUENTIAL, PO/PDS, PO-E/PDSE/LIBRARY) and optional attributes.',
+      outputSchema: createDatasetOutputSchema,
       inputSchema: {
         dsn: z.string().describe('Fully qualified data set name (e.g. USER.SRC.COBOL).'),
         type: z
@@ -1185,6 +1210,7 @@ export function registerDatasetTools(
       description:
         'Creates a new data set with a unique temporary name in a single call. ' +
         `Returns the created DSN for subsequent steps or cleanup. Same creation options as createDataset; optional prefix/suffix/qualifier for naming. Default prefix: current user + .${REQUIRED_SAFETY_QUALIFIER}.`,
+      outputSchema: createTempDatasetOutputSchema,
       inputSchema: {
         type: z
           .enum(['PS', 'PO', 'PO-E', 'SEQUENTIAL', 'PDS', 'PDSE', 'LIBRARY'])
@@ -1338,6 +1364,7 @@ export function registerDatasetTools(
         'Delete a data set or a specific PDS/PDSE member. ' +
         'This is a destructive operation that cannot be undone.',
       annotations: { destructiveHint: true },
+      outputSchema: deleteDatasetOutputSchema,
       inputSchema: {
         dsn: z.string().describe('Fully qualified data set name (e.g. USER.SRC.COBOL).'),
         member: z
@@ -1418,6 +1445,7 @@ export function registerDatasetTools(
         'Destructive. Deletes all data sets whose names start with the given prefix (e.g. tempDsnPrefix returned by getTempDatasetPrefix). ' +
         `For automation: create temp data sets under one prefix, then call this once to clean up. Prefix must have at least 3 qualifiers and contain ${REQUIRED_SAFETY_QUALIFIER} (e.g. USER.${REQUIRED_SAFETY_QUALIFIER}.XXXXXXXX.YYYYYYYY).`,
       annotations: { destructiveHint: true },
+      outputSchema: deleteDatasetsUnderPrefixOutputSchema,
       inputSchema: {
         dsnPrefix: z
           .string()
@@ -1486,6 +1514,7 @@ export function registerDatasetTools(
     'copyDataset',
     {
       description: 'Copy a data set or PDS/PDSE member within a single z/OS system.',
+      outputSchema: copyDatasetOutputSchema,
       inputSchema: {
         sourceDsn: z
           .string()
@@ -1598,6 +1627,7 @@ export function registerDatasetTools(
     'renameDataset',
     {
       description: 'Rename a data set or PDS/PDSE member.',
+      outputSchema: renameDatasetOutputSchema,
       inputSchema: {
         dsn: z.string().describe('Fully qualified data set name (e.g. USER.SRC.COBOL).'),
         newDsn: z.string().describe('Fully qualified new data set name (e.g. USER.SRC.NEW).'),

@@ -370,7 +370,10 @@ export function sanitizeTextForDisplay(text: string): string {
 }
 
 /**
- * Assemble the final envelope and return it as MCP `content` array.
+ * Assemble the final envelope and return it as MCP content and structuredContent.
+ *
+ * When a tool declares an outputSchema, returning structuredContent allows
+ * clients to consume typed, validated output without parsing content[0].text.
  *
  * @param messages - Optional list of operational messages (default empty array).
  */
@@ -379,7 +382,7 @@ export function wrapResponse<T>(
   result: ResultMeta | undefined,
   data: T,
   messages: string[] = []
-): { content: { type: 'text'; text: string }[] } {
+): { content: { type: 'text'; text: string }[]; structuredContent: Record<string, unknown> } {
   const envelope: ToolResponseEnvelope<T> = {
     _context: context,
     messages,
@@ -390,5 +393,6 @@ export function wrapResponse<T>(
   }
   return {
     content: [{ type: 'text' as const, text: JSON.stringify(envelope, null, 2) }],
+    structuredContent: envelope as unknown as Record<string, unknown>,
   };
 }

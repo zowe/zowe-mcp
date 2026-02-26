@@ -270,6 +270,18 @@ export type ZoweExplorerUpdateEvent = McpEvent<
   ZoweExplorerUpdateEventData
 >;
 
+/** Payload for an `active-connection-changed` event (server → extension). */
+export interface ActiveConnectionChangedEventData {
+  /** Connection spec (e.g. user@host) or null when no active system. */
+  activeConnection: string | null;
+}
+
+/** Notifies the extension that the MCP server's active z/OS connection changed (e.g. after setSystem or auto-activation). */
+export type ActiveConnectionChangedEvent = McpEvent<
+  'active-connection-changed',
+  ActiveConnectionChangedEventData
+>;
+
 // ---------------------------------------------------------------------------
 // Union types
 // ---------------------------------------------------------------------------
@@ -286,7 +298,8 @@ export type ServerToExtensionEvent =
   | OpenDatasetInEditorEvent
   | OpenUssFileInEditorEvent
   | OpenJobInEditorEvent
-  | CeedumpCollectedEvent;
+  | CeedumpCollectedEvent
+  | ActiveConnectionChangedEvent;
 
 /** Events that flow from the VS Code extension to the MCP server. */
 export type ExtensionToServerEvent =

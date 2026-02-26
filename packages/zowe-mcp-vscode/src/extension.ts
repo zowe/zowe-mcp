@@ -31,6 +31,7 @@ import {
 import { plural } from './plural';
 import { getNativePasswordKey } from './secrets';
 import { logLanguageModels, logStartupInfo } from './startup-log';
+import { initZoweMcpStatusBar } from './status-bar';
 
 /** Set when we register the Zowe MCP server with Cursor's API; used for config updates and deactivate. */
 let cursorMcpRegistered = false;
@@ -44,6 +45,8 @@ export function activate(context: vscode.ExtensionContext): void {
   // Start the named-pipe server for bidirectional communication with MCP servers
   const { workspaceId, discoveryDir } = startPipeServer(context);
   log.info(`Pipe server started`, { workspaceId, discoveryDir });
+
+  initZoweMcpStatusBar(context);
 
   const serverModule = resolveServerPath(context);
 

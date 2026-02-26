@@ -755,6 +755,17 @@ async function main(): Promise<void> {
     }
   }
 
+  if (extensionClient?.connected === true) {
+    serverOptions ??= {};
+    serverOptions.onActiveConnectionChanged = (activeConnection: string | null) => {
+      extensionClient.sendEvent({
+        type: 'active-connection-changed',
+        data: { activeConnection },
+        timestamp: Date.now(),
+      });
+    };
+  }
+
   if (transport === 'stdio') {
     const created = createServer(serverOptions);
     const server = getServer(created);

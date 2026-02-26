@@ -28,6 +28,7 @@ import type {
   ServerToExtensionEvent,
 } from 'zowe-mcp-server/dist/events.js';
 import { getNativePasswordKey } from './secrets';
+import { updateZoweMcpStatusBar } from './status-bar';
 import {
   getAllZosmfProfileNames,
   getDefaultZosmfProfileName,
@@ -553,6 +554,11 @@ export function handleServerEvent(
       break;
     case 'ceedump-collected':
       showCeedumpCollected(log, event);
+      break;
+    case 'active-connection-changed':
+      if (options?.context) {
+        updateZoweMcpStatusBar(event.data.activeConnection, options.context);
+      }
       break;
     default:
       log.warn(`Unknown event type from MCP server: ${(event as { type: string }).type}`);

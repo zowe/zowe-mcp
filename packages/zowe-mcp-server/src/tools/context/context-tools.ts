@@ -45,6 +45,8 @@ export interface ContextToolDeps {
   credentialProvider: CredentialProvider;
   /** When provided, getContext includes the job card for the active system (if configured). */
   jobCardStore?: JobCardStore;
+  /** When provided, called after setSystem succeeds with the new connection spec (e.g. user@host). */
+  onActiveConnectionChanged?: (activeConnection: string) => void;
 }
 
 /**
@@ -56,7 +58,13 @@ export function registerContextTools(
   logger: Logger
 ): void {
   const log = logger.child('context');
-  const { systemRegistry, sessionState, credentialProvider, jobCardStore } = deps;
+  const {
+    systemRegistry,
+    sessionState,
+    credentialProvider,
+    jobCardStore,
+    onActiveConnectionChanged,
+  } = deps;
 
   // -----------------------------------------------------------------------
   // listSystems
@@ -161,6 +169,9 @@ export function registerContextTools(
         credentials.user,
         encodingOverrides
       );
+
+      const connectionSpec = `${ctx.userId}@${resolvedSystemId}`;
+      onActiveConnectionChanged?.(connectionSpec);
 
       const response: Record<string, unknown> = {
         activeSystem: resolvedSystemId,

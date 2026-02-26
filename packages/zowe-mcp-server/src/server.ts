@@ -135,6 +135,11 @@ export interface CreateServerOptions {
   openInZoweEditor?: (payload: OpenDatasetInEditorEventData) => void;
   openUssFileInZoweEditor?: (payload: OpenUssFileInEditorEventData) => void;
   openJobInZoweEditor?: (payload: OpenJobInEditorEventData) => void;
+  /**
+   * When provided, called whenever the active z/OS connection changes (e.g. after setSystem or single-system auto-activation).
+   * Receives the connection spec (e.g. user@host) or null when there is no active system.
+   */
+  onActiveConnectionChanged?: (activeConnection: string | null) => void;
 }
 
 /** Callbacks required to register Zowe Explorer open-in-editor tools (e.g. for late registration). */
@@ -273,7 +278,13 @@ export function createServer(options?: CreateServerOptions): CreateServerResult 
 
     registerContextTools(
       server,
-      { systemRegistry, sessionState, credentialProvider, jobCardStore },
+      {
+        systemRegistry,
+        sessionState,
+        credentialProvider,
+        jobCardStore,
+        onActiveConnectionChanged: options.onActiveConnectionChanged,
+      },
       logger
     );
     registerDatasetTools(
@@ -331,12 +342,15 @@ export function createServer(options?: CreateServerOptions): CreateServerResult 
     const systems = systemRegistry.list();
     if (systems.length === 1) {
       const singleSystem = systems[0];
+      const onActiveConnectionChanged = options.onActiveConnectionChanged;
       void credentialProvider.getCredentials(singleSystem).then(credentials => {
         sessionState.setActiveSystem(singleSystem, credentials.user);
         logger.info('Auto-activated single system', {
           system: singleSystem,
           userId: credentials.user,
         });
+        const connectionSpec = `${credentials.user}@${singleSystem}`;
+        onActiveConnectionChanged?.(connectionSpec);
       });
     }
 

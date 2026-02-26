@@ -183,9 +183,14 @@ export class SshClientCache {
         user: spec.user,
         serverPath: opts.serverPath,
       });
+      const installTimeoutSec = (opts.responseTimeout ?? DEFAULT_NATIVE_RESPONSE_TIMEOUT_SEC) * 2;
+      const createOptsAfterInstall = {
+        ...createOpts,
+        responseTimeout: installTimeoutSec,
+      };
       try {
         await ZSshUtils.installServer(session, opts.serverPath);
-        client = await ZSshClient.create(session, createOpts);
+        client = await ZSshClient.create(session, createOptsAfterInstall);
       } catch (installErr) {
         const installMsg = installErr instanceof Error ? installErr.message : String(installErr);
         const installCode =
@@ -213,6 +218,11 @@ export class SshClientCache {
       cacheSize: this.clients.size,
     });
     return client;
+  }
+
+  /** Returns true if a client for the given key is already cached (no connect/install needed). */
+  hasKey(key: string): boolean {
+    return this.clients.has(key);
   }
 
   /** Removes the client for the given key and disposes it. */

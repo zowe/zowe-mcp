@@ -366,7 +366,10 @@ export class NativeBackend {
       const unbindStderr = installStderrAbendCapture(key, (snippet: string) => {
         rejectAbend(new Error(snippet));
       });
-      const timeoutSec = this.options.getResponseTimeout?.() ?? 60;
+      const baseTimeoutSec = this.options.getResponseTimeout?.() ?? 60;
+      const timeoutSec = this.options.clientCache.hasKey(key)
+        ? baseTimeoutSec
+        : baseTimeoutSec * 2;
       const timeoutMs = timeoutSec * 1000;
       let timeoutId: ReturnType<typeof setTimeout>;
       const timeoutPromise = new Promise<never>((_, reject) => {

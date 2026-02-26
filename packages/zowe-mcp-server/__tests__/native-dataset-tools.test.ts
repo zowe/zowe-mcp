@@ -108,6 +108,7 @@ async function createNativeServer(): Promise<{ client: Client; server: McpServer
     evict: (): void => {
       /* no-op for test */
     },
+    hasKey: () => true,
   } as unknown as SshClientCache;
 
   function getSpec(systemId: string): ParsedConnectionSpec | undefined {

@@ -89,6 +89,7 @@ function createOptions(
   const markInvalid = vi.fn();
   const getOrCreate = vi.fn().mockResolvedValue(fakeClient);
   const evict = vi.fn();
+  const hasKey = vi.fn().mockReturnValue(true);
   const onPasswordInvalid = overrides?.onPasswordInvalid ?? vi.fn();
 
   return {
@@ -100,6 +101,7 @@ function createOptions(
     clientCache: overrides?.clientCache ?? {
       getOrCreate,
       evict,
+      hasKey,
     },
     onPasswordInvalid,
   };
@@ -165,6 +167,7 @@ describe('NativeBackend', () => {
             .fn()
             .mockResolvedValue(createFakeClient({ listDatasets: listDatasetsSpy })),
           evict: vi.fn(),
+          hasKey: vi.fn().mockReturnValue(true),
         },
       });
       const backend = new NativeBackend(options);
@@ -184,6 +187,7 @@ describe('NativeBackend', () => {
             .fn()
             .mockResolvedValue(createFakeClient({ listDatasets: listDatasetsSpy })),
           evict: vi.fn(),
+          hasKey: vi.fn().mockReturnValue(true),
         },
       });
       const backend = new NativeBackend(options);
@@ -201,6 +205,7 @@ describe('NativeBackend', () => {
         clientCache: {
           getOrCreate: vi.fn().mockRejectedValue(authError),
           evict: vi.fn(),
+          hasKey: vi.fn().mockReturnValue(true),
         },
       });
       const backend = new NativeBackend(options);
@@ -220,6 +225,7 @@ describe('NativeBackend', () => {
         clientCache: {
           getOrCreate: vi.fn().mockRejectedValue(authError),
           evict: vi.fn(),
+          hasKey: vi.fn().mockReturnValue(true),
         },
       });
       const backend = new NativeBackend(options);
@@ -240,6 +246,7 @@ describe('NativeBackend', () => {
         clientCache: {
           getOrCreate: vi.fn().mockRejectedValue(otherError),
           evict: vi.fn(),
+          hasKey: vi.fn().mockReturnValue(true),
         },
       });
       const backend = new NativeBackend(options);
@@ -265,6 +272,7 @@ describe('NativeBackend', () => {
             })
           ),
           evict: vi.fn(),
+          hasKey: vi.fn().mockReturnValue(true),
         },
       });
       const backend = new NativeBackend(options);
@@ -286,6 +294,7 @@ describe('NativeBackend', () => {
             })
           ),
           evict: vi.fn(),
+          hasKey: vi.fn().mockReturnValue(true),
         },
       });
       const backend = new NativeBackend(options);
@@ -313,6 +322,7 @@ describe('NativeBackend', () => {
             })
           ),
           evict: vi.fn(),
+          hasKey: vi.fn().mockReturnValue(true),
         },
       });
       const backend = new NativeBackend(options);
@@ -334,6 +344,7 @@ describe('NativeBackend', () => {
             })
           ),
           evict: vi.fn(),
+          hasKey: vi.fn().mockReturnValue(true),
         },
       });
       const backend = new NativeBackend(options);
@@ -360,6 +371,7 @@ describe('NativeBackend', () => {
         clientCache: {
           getOrCreate: vi.fn().mockRejectedValue(authError),
           evict: vi.fn(),
+          hasKey: vi.fn().mockReturnValue(true),
         },
       });
       const backend = new NativeBackend(options);
@@ -405,6 +417,7 @@ describe('NativeBackend', () => {
             .fn()
             .mockResolvedValue(createFakeClient({ readDataset: readDatasetMock })),
           evict: vi.fn(),
+          hasKey: vi.fn().mockReturnValue(true),
         },
       });
       const backend = new NativeBackend(options);
@@ -430,6 +443,7 @@ describe('NativeBackend', () => {
             .fn()
             .mockResolvedValue(createFakeClient({ readDataset: readDatasetMock })),
           evict: vi.fn(),
+          hasKey: vi.fn().mockReturnValue(true),
         },
       });
       const backend = new NativeBackend(options);
@@ -452,6 +466,7 @@ describe('NativeBackend', () => {
             .fn()
             .mockResolvedValue(createFakeClient({ readDataset: readDatasetMock })),
           evict: vi.fn(),
+          hasKey: vi.fn().mockReturnValue(true),
         },
       });
       const backend = new NativeBackend(options);
@@ -474,6 +489,7 @@ describe('NativeBackend', () => {
             })
           ),
           evict: vi.fn(),
+          hasKey: vi.fn().mockReturnValue(true),
         },
       });
       const backend = new NativeBackend(options);

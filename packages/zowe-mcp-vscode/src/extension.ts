@@ -257,10 +257,14 @@ async function buildServerConfig(
     }
   }
   const zoweExplorerAvailable = zeExt != null;
+  const firstFolder = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
   const env: Record<string, string> = {
     MCP_DISCOVERY_DIR: discoveryDir,
     WORKSPACE_ID: workspaceId,
   };
+  if (firstFolder) {
+    env.ZOWE_MCP_WORKSPACE_DIR = firstFolder;
+  }
   if (zoweExplorerAvailable) {
     env.ZOWE_EXPLORER_AVAILABLE = '1';
   }

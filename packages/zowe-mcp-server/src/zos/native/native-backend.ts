@@ -15,6 +15,9 @@
  * Implements listDatasets, listMembers, and readDataset; other methods throw "not implemented".
  */
 
+import { dump as yamlDump } from 'js-yaml';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 import type { ZSshClient } from 'zowe-native-proto-sdk';
 import { getLogger } from '../../server.js';
 import type {
@@ -47,12 +50,16 @@ import type { SystemId } from '../system.js';
 import type { ParsedConnectionSpec } from './connection-spec.js';
 import type { NativeCredentialProvider } from './native-credential-provider.js';
 import { cacheKey, type SshClientCache } from './ssh-client-cache.js';
+import { installStderrAbendCapture, takeAbendSnippet } from './stderr-abend-capture.js';
 import { logZnpResponse, requireMethods, sanitizeZnpString } from './znp-debug.js';
 
 const log = getLogger().child('native');
 
 /** Per connection (user@host:port) lock so only one request uses the client at a time. */
 const connectionLocks = new Map<string, Promise<void>>();
+
+/** Typical USS base paths to probe for home when echo $HOME is unavailable (same as uss-tools). */
+const USS_HOME_PROBE_BASES = ['/u', '/a', '/z', '/u/users', '/u/users/group/product'] as const;
 
 /** Local encoding for ZNP read result; data in the MCP server is always UTF-8. */
 const LOCAL_ENCODING_UTF8 = 'utf-8';
@@ -271,6 +278,22 @@ function classifyNativeError(message: string): {
   return { isConnectionError, isInvalidPassword };
 }
 
+/**
+ * Returns true if the error message indicates the ZNP server on z/OS abended
+ * (e.g. CEE3204S protection exception 0C4). Used to trigger CEEDUMP collection
+ * and to surface a clearer error to the client.
+ */
+function isAbendError(message: string): boolean {
+  const lower = message.toLowerCase();
+  return (
+    lower.includes('invalid json') ||
+    lower.includes('protection exception') ||
+    lower.includes('completion code') ||
+    /\b0c4\b/i.test(message) ||
+    /cee3204s/i.test(message)
+  );
+}
+
 export interface NativeBackendOptions {
   credentialProvider: NativeCredentialProvider;
   clientCache: SshClientCache;
@@ -285,11 +308,13 @@ export interface NativeBackendOptions {
 export class NativeBackend {
   constructor(private readonly options: NativeBackendOptions) {}
 
+  /** Optional context for CEEDUMP metadata when the ZNP server abends. */
   private async withNativeClient<T>(
     systemId: SystemId,
     userId: string | undefined,
     fn: (client: ZSshClient) => Promise<T>,
-    progress?: BackendProgressCallback
+    progress?: BackendProgressCallback,
+    operationContext?: { operation: string; params: Record<string, unknown> }
   ): Promise<T> {
     const spec = this.options.getSpec(systemId, userId);
     if (!spec) {
@@ -323,6 +348,13 @@ export class NativeBackend {
       log.debug('Native backend: got client, running operation', { key, systemId });
       progress?.('Running Zowe Native operation');
 
+      let rejectAbend: (err: Error) => void;
+      const abendPromise = new Promise<never>((_, reject) => {
+        rejectAbend = reject;
+      });
+      const unbindStderr = installStderrAbendCapture(key, (snippet: string) => {
+        rejectAbend(new Error(snippet));
+      });
       const timeoutSec = this.options.getResponseTimeout?.() ?? 60;
       const timeoutMs = timeoutSec * 1000;
       let timeoutId: ReturnType<typeof setTimeout>;
@@ -332,19 +364,28 @@ export class NativeBackend {
           timeoutMs
         );
       });
-      const result = await Promise.race([
-        fn(client).finally(() => clearTimeout(timeoutId!)),
-        timeoutPromise,
-      ]);
-      log.debug('Native backend: operation completed', { key, systemId });
-      return result;
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
+      try {
+        const result = await Promise.race([
+          fn(client).finally(() => clearTimeout(timeoutId!)),
+          timeoutPromise,
+          abendPromise,
+        ]);
+        log.debug('Native backend: operation completed', { key, systemId });
+        return result;
+      } finally {
+        unbindStderr();
+      }
+    } catch (err: unknown) {
+      const abendSnippet = takeAbendSnippet(key);
+      const isTimeout = err instanceof Error && err.message.includes('timed out');
+      const toThrow = abendSnippet && isTimeout ? new Error(abendSnippet) : err;
+      const msg = toThrow instanceof Error ? toThrow.message : String(toThrow);
       const code =
-        err && typeof err === 'object' && 'code' in err
-          ? String((err as { code: unknown }).code)
+        toThrow && typeof toThrow === 'object' && 'code' in toThrow
+          ? String((toThrow as { code: unknown }).code)
           : undefined;
       const { isConnectionError, isInvalidPassword } = classifyNativeError(msg);
+      const abendDetected = isAbendError(msg);
       log.info('Native backend error (SSH/connection or auth)', {
         message: msg,
         errorCode: code,
@@ -354,9 +395,16 @@ export class NativeBackend {
         user: spec.user,
         isConnectionError,
         isInvalidPassword,
+        abendDetected,
       });
+      if (abendDetected) {
+        log.notice(
+          'ZNP server on z/OS abended (e.g. CEE3204S/0C4). Connection evicted; next request will use a new connection. Set ZOWE_MCP_CEEDUMP_SAVE_DIR to collect CEEDUMPs.',
+          { systemId, host: spec.host, user: spec.user }
+        );
+      }
       log.debug('Native backend error detail', {
-        err: err instanceof Error ? err.stack : String(err),
+        err: toThrow instanceof Error ? toThrow.stack : String(toThrow),
       });
 
       if (isInvalidPassword) {
@@ -369,11 +417,170 @@ export class NativeBackend {
           'Native connection evicted due to backend/connection error; lock released — next request will use a new connection',
           { key, systemId, host: spec.host, user: spec.user }
         );
+        if (abendDetected) {
+          void this.collectCeedumpAfterAbend(spec, systemId, userId, msg, operationContext);
+        }
       }
-      throw err;
+      throw toThrow;
     } finally {
       release!();
       log.debug('Native backend: connection lock released', { key, systemId });
+    }
+  }
+
+  /**
+   * Probe typical USS base paths for a directory matching the user ID (case-insensitive).
+   * Used for CEEDUMP collection when echo $HOME is unavailable (e.g. ZNP unixCommand not implemented).
+   * Returns the first existing path or '' if none found.
+   */
+  private async probeUssHomeFromBases(uss: NativeUssApi, userId: string): Promise<string> {
+    const lower = userId.toLowerCase();
+    for (const base of USS_HOME_PROBE_BASES) {
+      try {
+        const res = await uss.listFiles({
+          fspath: base,
+          all: true,
+          maxItems: 500,
+        });
+        const items = res.items ?? [];
+        const entry = items.find(
+          e => (e.name === userId || e.name === lower) && (e.mode?.startsWith('d') ?? true)
+        );
+        if (entry) {
+          const homePath = `${base.replace(/\/$/, '')}/${entry.name}`;
+          log.info('CEEDUMP collection: resolved USS home via directory probe', {
+            path: homePath,
+            base,
+          });
+          return homePath;
+        }
+        const fallback = items.find(e => e.name === userId || e.name === lower);
+        if (fallback) {
+          const homePath = `${base.replace(/\/$/, '')}/${fallback.name}`;
+          log.info('CEEDUMP collection: resolved USS home via directory probe', {
+            path: homePath,
+            base,
+          });
+          return homePath;
+        }
+      } catch {
+        // Base may not exist or be listable; skip
+      }
+    }
+    return '';
+  }
+
+  /**
+   * After a ZNP server abend, connect with a new session, locate CEEDUMP in the user's
+   * USS home, and save it locally (YAML meta + dump in one file). Runs fire-and-forget.
+   * Save dir: ZOWE_MCP_CEEDUMP_SAVE_DIR ?? ZOWE_MCP_WORKSPACE_DIR ?? process.cwd().
+   */
+  private async collectCeedumpAfterAbend(
+    spec: ParsedConnectionSpec,
+    systemId: SystemId,
+    userId: string | undefined,
+    errorMessage: string,
+    operationContext?: { operation: string; params: Record<string, unknown> }
+  ): Promise<void> {
+    const explicitDir =
+      process.env.ZOWE_MCP_CEEDUMP_SAVE_DIR?.trim() ?? process.env.ZOWE_MCP_WORKSPACE_DIR?.trim();
+    const saveDir = explicitDir !== undefined && explicitDir !== '' ? explicitDir : process.cwd();
+    let client: ZSshClient | undefined;
+    try {
+      const credentials = await this.options.credentialProvider.getCredentials(
+        systemId,
+        userId,
+        {}
+      );
+      client = await this.options.clientCache.getOrCreate(spec, credentials);
+      const uss = this.getUss(client);
+      const cmds = this.getCmds(client);
+
+      let home: string;
+      try {
+        const res = await cmds.issueUnix({ commandText: 'echo $HOME' });
+        home = (res.data ?? '').trim();
+      } catch {
+        home = '';
+      }
+      if (!home) {
+        log.debug('CEEDUMP collection: echo $HOME failed or empty, probing typical home bases');
+        home = await this.probeUssHomeFromBases(uss, spec.user);
+      }
+      if (!home) {
+        home = `/u/${spec.user.toLowerCase()}`;
+        log.debug('CEEDUMP collection: no home found under typical bases, using fallback', {
+          home,
+        });
+      }
+
+      const listRes = await uss.listFiles({
+        fspath: home,
+        all: true,
+        maxItems: 500,
+      });
+      const items = listRes.items ?? [];
+      const ceedumps = items.filter(e => /^CEEDUMP/i.test(e.name));
+      if (ceedumps.length === 0) {
+        log.info('CEEDUMP collection: no CEEDUMP files found in USS home', {
+          systemId,
+          home,
+          user: spec.user,
+        });
+        return;
+      }
+      ceedumps.sort((a, b) => {
+        const ta = 'mtime' in a && typeof a.mtime === 'string' ? a.mtime : '';
+        const tb = 'mtime' in b && typeof b.mtime === 'string' ? b.mtime : '';
+        return tb.localeCompare(ta);
+      });
+      const newest = ceedumps[0];
+      const dumpPath = `${home.replace(/\/$/, '')}/${newest.name}`;
+      const readRes = await uss.readFile({
+        fspath: dumpPath,
+        localEncoding: LOCAL_ENCODING_UTF8,
+      });
+      const raw = readRes.data ?? '';
+      const content = raw.length > 0 ? Buffer.from(raw, 'base64').toString('utf-8') : '';
+
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const safeHost = spec.host.replace(/[^a-zA-Z0-9.-]/g, '_');
+      const baseName = `zowe-ceedump-${timestamp}-${safeHost}-${spec.user}`;
+      const meta = {
+        operation: operationContext?.operation ?? 'unknown',
+        params: operationContext?.params ?? {},
+        systemId,
+        host: spec.host,
+        user: spec.user,
+        timestamp: new Date().toISOString(),
+        errorMessage: errorMessage.slice(0, 2000),
+        ussHome: home,
+        dumpFileName: newest.name,
+      };
+
+      if (!fs.existsSync(saveDir)) {
+        fs.mkdirSync(saveDir, { recursive: true });
+      }
+      const yamlBlock = yamlDump(meta, { lineWidth: -1 });
+      const combined = `${yamlBlock}\n---\n${content}`;
+      const filePath = path.join(saveDir, `${baseName}.txt`);
+      fs.writeFileSync(filePath, combined, 'utf-8');
+      log.info('CEEDUMP saved after abend', {
+        systemId,
+        operation: meta.operation,
+        filePath,
+      });
+    } catch (collectErr) {
+      log.warning('CEEDUMP collection failed', {
+        systemId,
+        host: spec.host,
+        user: spec.user,
+        error: collectErr instanceof Error ? collectErr.message : String(collectErr),
+      });
+    } finally {
+      if (client) {
+        this.options.clientCache.evict(spec);
+      }
     }
   }
 
@@ -449,7 +656,8 @@ export class NativeBackend {
         });
         return (response.items ?? []).map(mapDatasetToEntry);
       },
-      progress
+      progress,
+      { operation: 'listDatasets', params: { pattern, attributes } }
     );
   }
 
@@ -478,7 +686,8 @@ export class NativeBackend {
 
         return members.sort((a, b) => a.name.localeCompare(b.name));
       },
-      progress
+      progress,
+      { operation: 'listMembers', params: { dsn, pattern } }
     );
   }
 
@@ -527,7 +736,8 @@ export class NativeBackend {
           encoding: mainframeEncoding,
         };
       },
-      progress
+      progress,
+      { operation: 'readDataset', params: { dsn, member, encoding } }
     );
   }
 

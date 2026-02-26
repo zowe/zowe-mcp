@@ -65,18 +65,18 @@ describe('validateReadPath', () => {
   });
 
   it('returns allow for path under allowedPrefix (e.g. USS home)', () => {
-    const home = '/a/plape03';
-    const r = validateReadPath('/a/plape03/all_bytes_37_to_utf8.bin', home);
+    const home = '/a/user';
+    const r = validateReadPath('/a/user/all_bytes_37_to_utf8.bin', home);
     expect(r.action).toBe('allow');
   });
 
   it('returns elicit for path not under allowedPrefix when path would otherwise be unknown', () => {
-    const r = validateReadPath('/tmp/unknown-file.xyz', '/a/plape03');
+    const r = validateReadPath('/tmp/unknown-file.xyz', '/a/user');
     expect(r.action).toBe('elicit');
   });
 
   it('returns block for path under allowedPrefix when path is dangerous', () => {
-    const r = validateReadPath('/a/plape03/.ssh/id_rsa', '/a/plape03');
+    const r = validateReadPath('/a/user/.ssh/id_rsa', '/a/user');
     expect(r.action).toBe('block');
   });
 });

@@ -991,7 +991,7 @@ export class FilesystemMockBackend implements ZosBackend {
           .toUpperCase()
           .replace(/[^A-Z0-9]/g, '')
           .slice(0, 4)
-          .padEnd(4, ' ') || 'CA32';
+          .padEnd(4, ' ') || 'MOCK1';
       return Promise.resolve(
         `MVS/ESA ${sys4} 03.8  3931 11C198 97152K MVR32C VER=SP7.3.2 HBB77F0\nREADY`
       );

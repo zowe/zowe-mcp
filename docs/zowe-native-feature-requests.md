@@ -12,8 +12,8 @@ List of new functions or behaviors requested from Zowe Native Proto for use by Z
 - **Summary**: The ZNP server on z/OS abends with a protection exception (System Completion Code 0C4) while handling requests (observed during `listDatasets`). The client then receives abend/dump output instead of JSON, logs "Invalid JSON response", and the request can hang until timeout.
 - **Request**: Fix the server-side crash so `listDatasets` (and any other operations that hit the same code path) complete successfully or return a proper error instead of abending.
 - **ZNP version**: No version reported in the ZNP log messages. Client SDK in use: zowe-native-proto-sdk 0.2.4 (from Zowe Artifactory npm-release).
-- **z/OS system**: Host: ca32.lvn.broadcom.net.
-- **Observed context**: Occurred when listing data sets (e.g. patterns like `PLAPE03.**`, `TEST4Z.**`) over SSH to a z/OS system; the server had successfully connected and was running the first list operation when the abend occurred.
+- **z/OS system**: Host: zos.example.com (example; use your system hostname when reporting).
+- **Observed context**: Occurred when listing data sets (e.g. patterns like `USER.**`, `SAMPLE.**`) over SSH to a z/OS system; the server had successfully connected and was running the first list operation when the abend occurred.
 - **Log details** (from MCP server stderr when the client receives the invalid response):
 
 ```text

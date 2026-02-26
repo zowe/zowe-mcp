@@ -219,7 +219,7 @@
           },
           "default": {},
           "description": "JCL job cards per connection spec (key: user@host or user@host:port). Prefer array of lines, e.g. [\"//{jobname}  JOB (ACCT),'{programmer}',CLASS=A,...\", \"/*JOBPARM S=*\"]. Use placeholders {jobname} and {programmer}; submitJob substitutes them. Changes are sent to the server and take effect immediately.",
-          "markdownDescription": "JCL job cards per connection spec. Key is `user@host` or `user@host:port`. **Prefer an array of lines** (one string per line), for example:\n\n```json\n\"PLAPE03@ca32.lvn.broadcom.net\": [\n  \"//{jobname}  JOB (129300000),'{programmer}',CLASS=A,MSGCLASS=X,NOTIFY=&SYSUID\",\n  \"/*JOBPARM S=*\"\n]\n```\n\nUse placeholders `{jobname}` and `{programmer}`; `submitJob` substitutes them. You can also use a single string with `\\n` for newlines. Changes are sent to the server and take effect immediately.",
+          "markdownDescription": "JCL job cards per connection spec. Key is `user@host` or `user@host:port`. **Prefer an array of lines** (one string per line), for example:\n\n```json\n\"USER@zos.example.com\": [\n  \"//{jobname}  JOB (ACCT),'{programmer}',CLASS=A,MSGCLASS=X,NOTIFY=&SYSUID\",\n  \"/*JOBPARM S=*\"\n]\n```\n\nUse placeholders `{jobname}` and `{programmer}`; `submitJob` substitutes them. You can also use a single string with `\\n` for newlines. Changes are sent to the server and take effect immediately.",
           "order": 9
         }
       }

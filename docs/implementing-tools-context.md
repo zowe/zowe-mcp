@@ -152,7 +152,7 @@ The **Zowe Native Proto SDK** is used by the native (SSH) backend. We use only t
 
 | What                           | Path                                                                                                                                                                                           |
 | ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **SDK source (reference)**     | `zowe-native-proto` repo: `/Users/plape03/workspace/github.com/zowe/zowe-native-proto`. SDK code lives in `**packages/sdk`** (e.g. `src/ZSshClient.ts`, `src/doc/rpc/ds.ts` for data set RPCs). |
+| **SDK source (reference)**     | `zowe-native-proto` repo: `<workspace>/zowe-native-proto`. SDK code lives in `**packages/sdk`** (e.g. `src/ZSshClient.ts`, `src/doc/rpc/ds.ts` for data set RPCs). |
 | **SDK source (Artifactory)**   | Zowe Artifactory: `https://zowe.jfrog.io/artifactory/npm-release/zowe-native-proto-sdk/` (version 0.2.4). Project uses registry in `.npmrc`. |
 | **Server dependency**          | `packages/zowe-mcp-server/package.json`: `"zowe-native-proto-sdk": "0.2.4"`                                                                                                                     |
 | **After `npm install`**        | `packages/zowe-mcp-server/node_modules/zowe-native-proto-sdk` (or `packages/zowe-mcp-vscode/server/node_modules/zowe-native-proto-sdk` in bundled extension)                                   |
@@ -162,7 +162,7 @@ The **Zowe Native Proto SDK** is used by the native (SSH) backend. We use only t
 
 In the **zowe-native-proto** repo, see:
 
-`**/Users/plape03/workspace/github.com/zowe/zowe-native-proto/example/index.ts`**
+`<workspace>/zowe-native-proto/example/index.ts`
 
 - Uses `SshSession` from `@zowe/zos-uss-for-zowe-sdk` and `ZSshClient` from `zowe-native-proto-sdk`.
 - `using client = await ZSshClient.create(session);`
@@ -174,7 +174,7 @@ Use this as the reference for calling data set APIs from the SDK.
 
 The **zowe-native-proto** VS Code extension uses a cache that is a good reference for our native backend cache:
 
-`**/Users/plape03/workspace/github.com/zowe/zowe-native-proto/packages/vsce/src/SshClientCache.ts`**
+`<workspace>/zowe-native-proto/packages/vsce/src/SshClientCache.ts`
 
 - Singleton cache keyed by client id (e.g. profile name + type).
 - `connect(profile, restart?)` → get or create `ZSshClient`; uses mutex per client id; supports restart and server deploy/checksums.

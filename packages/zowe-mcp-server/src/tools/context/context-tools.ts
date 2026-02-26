@@ -103,7 +103,7 @@ export function registerContextTools(
     'setSystem',
     {
       description:
-        'Set the active z/OS system. The system parameter can be a host (e.g. ca32.lvn.broadcom.net) when only one connection exists for that host, or a connection spec (e.g. PLAPE03@ca32.lvn.broadcom.net) when multiple connections exist for the same host. ' +
+        'Set the active z/OS system. The system parameter can be a host (e.g. zos.example.com) when only one connection exists for that host, or a connection spec (e.g. USER@zos.example.com) when multiple connections exist for the same host. ' +
         'If you pass only a host and multiple connections exist, the tool fails and lists valid connection values. ' +
         'Optionally set mainframe encodings for this system (data set and USS); omit to leave existing overrides unchanged, or pass null to use MCP server default.',
       outputSchema: setSystemOutputSchema,

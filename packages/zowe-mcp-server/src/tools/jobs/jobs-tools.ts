@@ -12,7 +12,7 @@
 /**
  * Jobs tools for the Zowe MCP Server.
  *
- * Provides submitJob and getJobStatus. Job cards (JOB statement) can be
+ * Provides submitJob (with optional wait) and getJobStatus. Job cards (JOB statement) can be
  * configured per connection in the config file (jobCards section) or VS Code
  * settings; when JCL is submitted without a job card, the server prepends
  * the configured card for the current connection.
@@ -42,7 +42,6 @@ import {
 import {
   cancelJobOutputSchema,
   deleteJobOutputSchema,
-  executeJobOutputSchema,
   getJclOutputSchema,
   getJobOutputOutputSchema,
   getJobStatusOutputSchema,
@@ -220,7 +219,8 @@ export function registerJobTools(server: McpServer, deps: JobToolDeps, logger: L
     {
       outputSchema: submitJobOutputSchema,
       description:
-        'Submit JCL to the current (or specified) z/OS system. A job card is added from config when JCL has none; include a job card only when your JCL already has a full JOB statement. Submitting runs work on z/OS—use with care.',
+        'Submit JCL to the current (or specified) z/OS system. A job card is added from config when JCL has none; include a job card only when your JCL already has a full JOB statement. ' +
+        'To wait for the job to complete, set wait: true (and optionally timeoutSeconds); the tool will then return status and optional output info. Submitting runs work on z/OS—use with care.',
       annotations: { destructiveHint: true },
       inputSchema: {
         jcl: z
@@ -246,6 +246,20 @@ export function registerJobTools(server: McpServer, deps: JobToolDeps, logger: L
           .describe(
             'Programmer field in the JOB statement when using a template (max 19 chars). Typically describes what the job does. Default: empty. Ignored if JCL already contains a job card.'
           ),
+        wait: z
+          .boolean()
+          .optional()
+          .describe(
+            'When true, wait for the job to reach OUTPUT (or timeout) and return status, timedOut, and optionally failedStepJobFiles.'
+          ),
+        timeoutSeconds: z
+          .number()
+          .int()
+          .min(1)
+          .optional()
+          .describe(
+            `When wait is true, how long to wait for OUTPUT (seconds). Default ${DEFAULT_EXECUTE_JOB_TIMEOUT_SECONDS}. The job keeps running on z/OS after timeout.`
+          ),
       },
     },
     async (args, extra) => {
@@ -258,6 +272,8 @@ export function registerJobTools(server: McpServer, deps: JobToolDeps, logger: L
             system: z.string().optional(),
             jobName: z.string().optional(),
             programmer: z.string().optional(),
+            wait: z.boolean().optional(),
+            timeoutSeconds: z.number().int().min(1).optional(),
           })
           .parse(args);
 
@@ -333,17 +349,74 @@ export function registerJobTools(server: McpServer, deps: JobToolDeps, logger: L
           extra._meta?.progressToken ? (msg: string) => void progress.step(msg) : undefined
         );
 
-        await progress.complete(`Job ${result.jobName} (${result.jobId}) submitted`);
-        const responseCtx = buildContext(systemId, {});
-        if (addedJobCard) {
-          messages.push('Job card added (prepended to JCL):\n' + addedJobCard);
-        }
-        const data: { jobId: string; jobName: string; jobCardAdded?: string } = {
+        let data: {
+          jobId: string;
+          jobName: string;
+          jobCardAdded?: string;
+          status?: string;
+          id?: string;
+          name?: string;
+          owner?: string;
+          type?: string;
+          class?: string;
+          retcode?: string;
+          subsystem?: string;
+          phase?: number;
+          phaseName?: string;
+          correlator?: string;
+          timedOut?: boolean;
+          failedStepJobFiles?: JobFileEntry[];
+        } = {
           jobId: result.jobId,
           jobName: result.jobName,
         };
         if (addedJobCard) {
           data.jobCardAdded = addedJobCard;
+        }
+
+        if (parsed.wait === true) {
+          const timeoutSec = parsed.timeoutSeconds ?? DEFAULT_EXECUTE_JOB_TIMEOUT_SECONDS;
+          await progress.step('Waiting for job to complete...');
+          const { status, timedOut } = await executeJobPollUntilDone(
+            deps.backend,
+            systemId,
+            result.jobId,
+            timeoutSec,
+            extra._meta?.progressToken ? (msg: string) => void progress.step(msg) : undefined
+          );
+          if (timedOut) {
+            await progress.complete('Timeout waiting for job (job continues on z/OS)');
+          } else {
+            await progress.complete(`Job ${status.name} (${status.id}): ${status.status}`);
+          }
+          data = {
+            ...data,
+            ...status,
+            jobId: status.id,
+            jobName: status.name,
+            timedOut: timedOut ? true : undefined,
+          };
+          if (!timedOut && status.retcode !== undefined && status.retcode !== '0000') {
+            try {
+              const failedStepJobFiles = await deps.backend.listJobFiles(
+                systemId,
+                status.id,
+                undefined
+              );
+              if (failedStepJobFiles.length > 0) {
+                data.failedStepJobFiles = failedStepJobFiles;
+              }
+            } catch {
+              // ignore if listJobFiles not supported or fails
+            }
+          }
+        } else {
+          await progress.complete(`Job ${result.jobName} (${result.jobId}) submitted`);
+        }
+
+        const responseCtx = buildContext(systemId, {});
+        if (addedJobCard) {
+          messages.push('Job card added (prepended to JCL):\n' + addedJobCard);
         }
         return wrapResponse(responseCtx, { success: true }, data, messages);
       } catch (err) {
@@ -413,170 +486,6 @@ export function registerJobTools(server: McpServer, deps: JobToolDeps, logger: L
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         log.debug('getJobStatus error', { error: message });
-        await progress.complete(message);
-        return {
-          content: [
-            {
-              type: 'text' as const,
-              text: JSON.stringify({
-                isError: true,
-                message,
-              }),
-            },
-          ],
-          isError: true,
-        };
-      }
-    }
-  );
-
-  server.registerTool(
-    'executeJob',
-    {
-      outputSchema: executeJobOutputSchema,
-      description:
-        'Submit JCL and wait for the job to reach OUTPUT (or timeout). Default timeout 5 minutes; after timeout the job keeps running on z/OS—use getJobStatus or getJobOutput next. May include failed-step output when the job completes with a non-zero return code.',
-      annotations: { destructiveHint: true },
-      inputSchema: {
-        jcl: z
-          .string()
-          .describe(
-            'JCL to submit. Omit the job card to use the one configured for this connection; include it only when your JCL already has a full JOB statement.'
-          ),
-        system: z
-          .string()
-          .optional()
-          .describe(
-            'Optional z/OS system (hostname). If omitted, the active system from setSystem is used.'
-          ),
-        timeoutSeconds: z
-          .number()
-          .int()
-          .min(1)
-          .optional()
-          .describe(
-            `How long to wait for the job to reach OUTPUT (seconds). Default ${DEFAULT_EXECUTE_JOB_TIMEOUT_SECONDS} (5 minutes). The job keeps running on z/OS after timeout.`
-          ),
-        jobName: z
-          .string()
-          .optional()
-          .describe(
-            'Job name for the JOB statement when using a template (max 8 chars). Ignored if JCL already contains a job card.'
-          ),
-        programmer: z
-          .string()
-          .optional()
-          .describe(
-            'Programmer field in the JOB statement when using a template. Ignored if JCL already contains a job card.'
-          ),
-      },
-    },
-    async (args, extra) => {
-      const progress = createToolProgress(extra, 'Execute job');
-      await progress.start();
-      try {
-        const parsed = z
-          .object({
-            jcl: z.string(),
-            system: z.string().optional(),
-            timeoutSeconds: z.number().int().min(1).optional(),
-            jobName: z.string().optional(),
-            programmer: z.string().optional(),
-          })
-          .parse(args);
-
-        const { systemId, userId: resolvedUserId } = resolveSystemForTool(
-          deps.systemRegistry,
-          deps.sessionState,
-          parsed.system
-        );
-        await ensureContext(deps, systemId, resolvedUserId);
-        const ctx = deps.sessionState.getContext(systemId);
-        const userId = ctx?.userId ?? '';
-        const connectionSpec = connectionSpecFor(systemId, userId);
-
-        let jclToSubmit = parsed.jcl.trim();
-        if (!hasJobCardInJcl(jclToSubmit)) {
-          const template = deps.jobCardStore.get(connectionSpec);
-          if (!template) {
-            await progress.complete(
-              `No job card configured for ${connectionSpec}. Add a "jobCards" entry in config or VS Code settings.`
-            );
-            return {
-              content: [
-                {
-                  type: 'text' as const,
-                  text: JSON.stringify({
-                    isError: true,
-                    message: `No job card configured for ${connectionSpec}. Add a "jobCards" entry in config or VS Code settings.`,
-                  }),
-                },
-              ],
-              isError: true,
-            };
-          }
-          const { jobCard } = applyJobCardTemplateWithLengthCheck(
-            template,
-            {
-              userId,
-              jobName: parsed.jobName,
-              programmer: parsed.programmer,
-            },
-            log
-          );
-          jclToSubmit = jobCard + '\n' + jclToSubmit;
-        }
-
-        await progress.step('Submitting job...');
-        const submitResult = await deps.backend.submitJob(
-          systemId,
-          jclToSubmit,
-          extra._meta?.progressToken ? (msg: string) => void progress.step(msg) : undefined
-        );
-
-        const timeoutSec = parsed.timeoutSeconds ?? DEFAULT_EXECUTE_JOB_TIMEOUT_SECONDS;
-        await progress.step('Waiting for job to complete...');
-        const { status, timedOut } = await executeJobPollUntilDone(
-          deps.backend,
-          systemId,
-          submitResult.jobId,
-          timeoutSec,
-          extra._meta?.progressToken ? (msg: string) => void progress.step(msg) : undefined
-        );
-
-        if (timedOut) {
-          await progress.complete('Timeout waiting for job (job continues on z/OS)');
-        } else {
-          await progress.complete(`Job ${status.name} (${status.id}): ${status.status}`);
-        }
-
-        const responseCtx = buildContext(systemId, {});
-        const data: JobStatusResult & { timedOut?: boolean; jobId?: string; jobName?: string } = {
-          ...status,
-        };
-        if (timedOut) {
-          data.timedOut = true;
-        }
-        data.jobId = status.id;
-        data.jobName = status.name;
-
-        let failedStepJobFiles: JobFileEntry[] | undefined;
-        if (!timedOut && status.retcode !== undefined && status.retcode !== '0000') {
-          try {
-            failedStepJobFiles = await deps.backend.listJobFiles(systemId, status.id, undefined);
-          } catch {
-            // optional: ignore if listJobFiles not supported or fails
-          }
-        }
-        if (failedStepJobFiles !== undefined && failedStepJobFiles.length > 0) {
-          (data as { failedStepJobFiles?: JobFileEntry[] }).failedStepJobFiles =
-            failedStepJobFiles;
-        }
-
-        return wrapResponse(responseCtx, undefined, data, []);
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        log.debug('executeJob error', { error: message });
         await progress.complete(message);
         return {
           content: [
@@ -1435,6 +1344,6 @@ export function registerJobTools(server: McpServer, deps: JobToolDeps, logger: L
   );
 
   log.debug(
-    'Job tools registered: submitJob, getJobStatus, executeJob, getJobOutput, listJobFiles, readJobFile, searchJobOutput, listJobs, getJcl, cancelJob, holdJob, releaseJob, deleteJob, submitJobFromDataset, submitJobFromUss'
+    'Job tools registered: submitJob, getJobStatus, getJobOutput, listJobFiles, readJobFile, searchJobOutput, listJobs, getJcl, cancelJob, holdJob, releaseJob, deleteJob, submitJobFromDataset, submitJobFromUss'
   );
 }

@@ -646,7 +646,7 @@ describe('Response cache', () => {
           arguments: {
             dsn: `${DEFAULT_USER}.CACHE.OLD`,
             type: 'PS',
-            primary: 1,
+            primarySpace: 1,
           },
         });
         await client.callTool({
@@ -721,7 +721,7 @@ describe('Response cache', () => {
           arguments: {
             dsn: `${DEFAULT_USER}.CACHE.CREATED`,
             type: 'PS',
-            primary: 1,
+            primarySpace: 1,
           },
         });
 

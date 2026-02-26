@@ -29,6 +29,7 @@ import type { CredentialProvider } from '../../zos/credentials.js';
 import {
   buildDsUri,
   DsnError,
+  parseDsnAndMember,
   resolveDsn,
   resolvePattern,
   validateListPattern,
@@ -41,7 +42,6 @@ import {
   buildScopeSystem,
   type ResponseCache,
 } from '../../zos/response-cache.js';
-import type { SearchCommentType } from '../../zos/search-options.js';
 import { buildParmsFromOptions, SEARCH_COMMENT_TYPES } from '../../zos/search-options.js';
 import { resolveSystemForTool, type SessionState } from '../../zos/session.js';
 import type { SystemRegistry } from '../../zos/system.js';
@@ -71,6 +71,7 @@ import {
   windowContent,
   wrapResponse,
 } from '../response.js';
+import { datasetTypeSchema, enumInsensitiveLower, recfmSchema } from '../schema-utils.js';
 import { applyCacheAfterMutation } from './dataset-cache.js';
 import {
   copyDatasetOutputSchema,
@@ -158,7 +159,11 @@ async function resolveInput(
 ) {
   const resolvedSystem = resolveSystemForTool(deps.systemRegistry, deps.sessionState, system);
   await ensureContext(deps, resolvedSystem.systemId, resolvedSystem.userId);
-  const resolved = resolveDsn(dsn, member);
+  const parsed = parseDsnAndMember(dsn);
+  const hasExplicitMember = member !== undefined && member.trim().length > 0;
+  const effectiveDsn = parsed.dsn;
+  const effectiveMember = hasExplicitMember ? member : parsed.member;
+  const resolved = resolveDsn(effectiveDsn, effectiveMember);
   log.debug('resolved input', {
     systemId: resolvedSystem.systemId,
     dsn: resolved.dsn,
@@ -413,7 +418,7 @@ export function registerDatasetTools(
   // -----------------------------------------------------------------------
   // searchInDataset
   // -----------------------------------------------------------------------
-  const searchCommentEnum = z.enum(SEARCH_COMMENT_TYPES as unknown as [string, ...string[]]);
+  const searchCommentSchema = enumInsensitiveLower(SEARCH_COMMENT_TYPES);
   server.registerTool(
     'searchInDataset',
     {
@@ -422,7 +427,8 @@ export function registerDatasetTools(
         'Search for a string in a sequential data set or in a PDS/PDSE (all members or one member). ' +
         'Returns matching lines with line numbers and a summary. ' +
         'Results are paginated by member (offset/limit); when _result.hasMore is true, call again with the next offset and limit. ' +
-        'Options: caseSensitive (default false), cobol (ignore cols 1–6), ignoreSequenceNumbers, doNotProcessComments (asterisk, cobolComment, fortran, cpp, pli, pascal, pcAssembly, ada).',
+        'Options: caseSensitive (default false), cobol (ignore cols 1–6), ignoreSequenceNumbers, doNotProcessComments (asterisk, cobolComment, fortran, cpp, pli, pascal, pcAssembly, ada). ' +
+        'You may pass dsn as USER.LIB(MEM) and omit member.',
       annotations: { readOnlyHint: true },
       outputSchema: searchInDatasetOutputSchema,
       inputSchema: {
@@ -478,10 +484,10 @@ export function registerDatasetTools(
             'When true (default), ignore cols 73–80 as sequence numbers. When false, treat as data.'
           ),
         doNotProcessComments: z
-          .array(searchCommentEnum)
+          .array(searchCommentSchema)
           .optional()
           .describe(
-            'Comment types to exclude from search: asterisk, cobolComment, fortran, cpp, pli, pascal, pcAssembly, ada.'
+            'Comment types to exclude from search: asterisk, cobolComment, fortran, cpp, pli, pascal, pcAssembly, ada (case-insensitive).'
           ),
       },
     },
@@ -527,7 +533,7 @@ export function registerDatasetTools(
           caseSensitive,
           cobol,
           ignoreSequenceNumbers,
-          doNotProcessComments: doNotProcessComments as SearchCommentType[] | undefined,
+          doNotProcessComments: doNotProcessComments,
         });
 
         const searchOptions = {
@@ -617,7 +623,8 @@ export function registerDatasetTools(
     {
       description:
         'Get detailed attributes of a data set: organization, record format, ' +
-        'record length, block size, volume, SMS classes, dates, and more.',
+        'record length, block size, volume, SMS classes, dates, and more. ' +
+        'You may pass dsn as USER.LIB(MEM) and omit member.',
       annotations: { readOnlyHint: true },
       outputSchema: getDatasetAttributesOutputSchema,
       inputSchema: {
@@ -695,7 +702,8 @@ export function registerDatasetTools(
         'Do not answer using only the first page; fetch until _result.hasMore is false. ' +
         'Large files are automatically truncated to the first 2000 lines when no window is requested. ' +
         'Returns UTF-8 text, an ETag for optimistic locking, and the source encoding. ' +
-        'Pass the ETag to writeDataset to prevent overwriting concurrent changes.',
+        'Pass the ETag to writeDataset to prevent overwriting concurrent changes. ' +
+        'You may pass dsn as USER.LIB(MEM) and omit member.',
       annotations: { readOnlyHint: true },
       outputSchema: readDatasetOutputSchema,
       inputSchema: {
@@ -833,7 +841,8 @@ export function registerDatasetTools(
         'When both are omitted, the entire data set or member is replaced. ' +
         'If an ETag is provided (from a previous readDataset call), the write ' +
         'fails if the data set was modified since the read — preventing overwrites. ' +
-        'Returns a new ETag for the written content.',
+        'Returns a new ETag for the written content. ' +
+        'You may pass dsn as USER.LIB(MEM) and omit member.',
       outputSchema: writeDatasetOutputSchema,
       inputSchema: {
         dsn: z.string().describe('Fully qualified data set name (e.g. USER.SRC.COBOL).'),
@@ -1096,33 +1105,45 @@ export function registerDatasetTools(
     {
       description:
         'Create a new sequential or partitioned data set. Specify the type ' +
-        '(PS/SEQUENTIAL, PO/PDS, PO-E/PDSE/LIBRARY) and optional attributes.',
+        '(PS/SEQUENTIAL, PO/PDS, PO-E/PDSE/LIBRARY) and optional attributes. ' +
+        'Use primarySpace, secondarySpace, blockSize (Zowe CLI naming). Type and recfm are case-insensitive.',
       outputSchema: createDatasetOutputSchema,
       inputSchema: {
         dsn: z.string().describe('Fully qualified data set name (e.g. USER.SRC.COBOL).'),
-        type: z
-          .enum(['PS', 'PO', 'PO-E', 'SEQUENTIAL', 'PDS', 'PDSE', 'LIBRARY'])
-          .describe(
-            'Dataset type: PS or SEQUENTIAL (sequential), PO or PDS (PDS), PO-E or PDSE or LIBRARY (PDSE).'
-          ),
+        type: datasetTypeSchema.describe(
+          'Dataset type: PS or SEQUENTIAL (sequential), PO or PDS (PDS), PO-E or PDSE or LIBRARY (PDSE). Case-insensitive.'
+        ),
         system: z
           .string()
           .optional()
           .describe(
             'Target z/OS system: host (e.g. sys1.example.com) or connection spec (user@host) when multiple connections exist for that host. Defaults to active system.'
           ),
-        recfm: z
-          .string()
+        recfm: recfmSchema
           .optional()
-          .describe('Record format. Supported: F, FB, V, VB, U, FBA, VBA. Default: FB.'),
+          .describe(
+            'Record format. Supported: F, FB, V, VB, U, FBA, VBA. Default: FB. Case-insensitive.'
+          ),
         lrecl: z.number().optional().describe('Logical record length. Default: 80.'),
-        blksz: z.number().optional().describe('Block size. Default: 27920.'),
-        primary: z.number().optional().describe('Primary space allocation in tracks.'),
-        secondary: z.number().optional().describe('Secondary space allocation in tracks.'),
+        blockSize: z
+          .number()
+          .optional()
+          .describe('Block size. Default: 27920.'),
+        primarySpace: z
+          .number()
+          .optional()
+          .describe('Primary space allocation.'),
+        secondarySpace: z
+          .number()
+          .optional()
+          .describe('Secondary space allocation.'),
         dirblk: z.number().optional().describe('Directory blocks (PDS only).'),
       },
     },
-    async ({ dsn, type, system, recfm, lrecl, blksz, primary, secondary, dirblk }, extra) => {
+    async (
+      { dsn, type, system, recfm, lrecl, blockSize, primarySpace, secondarySpace, dirblk },
+      extra
+    ) => {
       const title = `Create data set ${dsn}`;
       const progress = createToolProgress(extra, title);
       await progress.start();
@@ -1155,9 +1176,9 @@ export function registerDatasetTools(
             type: canonicalType,
             recfm: recfm as CreateDatasetOptions['recfm'],
             lrecl,
-            blksz,
-            primary,
-            secondary,
+            blksz: blockSize,
+            primary: primarySpace,
+            secondary: secondarySpace,
             dirblk,
           },
           progressCb
@@ -1209,14 +1230,13 @@ export function registerDatasetTools(
     {
       description:
         'Creates a new data set with a unique temporary name in a single call. ' +
-        `Returns the created DSN for subsequent steps or cleanup. Same creation options as createDataset; optional prefix/suffix/qualifier for naming. Default prefix: current user + .${REQUIRED_SAFETY_QUALIFIER}.`,
+        `Returns the created DSN for subsequent steps or cleanup. Same creation options as createDataset; optional prefix/suffix/qualifier for naming. Default prefix: current user + .${REQUIRED_SAFETY_QUALIFIER}. ` +
+        'Use primarySpace, secondarySpace, blockSize (Zowe CLI naming). Type and recfm are case-insensitive.',
       outputSchema: createTempDatasetOutputSchema,
       inputSchema: {
-        type: z
-          .enum(['PS', 'PO', 'PO-E', 'SEQUENTIAL', 'PDS', 'PDSE', 'LIBRARY'])
-          .describe(
-            'Dataset type: PS or SEQUENTIAL (sequential), PO or PDS (PDS), PO-E or PDSE or LIBRARY (PDSE).'
-          ),
+        type: datasetTypeSchema.describe(
+          'Dataset type: PS or SEQUENTIAL (sequential), PO or PDS (PDS), PO-E or PDSE or LIBRARY (PDSE). Case-insensitive.'
+        ),
         system: z
           .string()
           .optional()
@@ -1239,14 +1259,24 @@ export function registerDatasetTools(
           .describe(
             'Last qualifier for the DSN (1–8 chars). If omitted, a unique qualifier is generated.'
           ),
-        recfm: z
-          .string()
+        recfm: recfmSchema
           .optional()
-          .describe('Record format. Supported: F, FB, V, VB, U, FBA, VBA. Default: FB.'),
+          .describe(
+            'Record format. Supported: F, FB, V, VB, U, FBA, VBA. Default: FB. Case-insensitive.'
+          ),
         lrecl: z.number().optional().describe('Logical record length. Default: 80.'),
-        blksz: z.number().optional().describe('Block size. Default: 27920.'),
-        primary: z.number().optional().describe('Primary space allocation in tracks.'),
-        secondary: z.number().optional().describe('Secondary space allocation in tracks.'),
+        blockSize: z
+          .number()
+          .optional()
+          .describe('Block size. Default: 27920.'),
+        primarySpace: z
+          .number()
+          .optional()
+          .describe('Primary space allocation.'),
+        secondarySpace: z
+          .number()
+          .optional()
+          .describe('Secondary space allocation.'),
         dirblk: z.number().optional().describe('Directory blocks (PDS only).'),
       },
     },
@@ -1259,9 +1289,9 @@ export function registerDatasetTools(
         qualifier,
         recfm,
         lrecl,
-        blksz,
-        primary,
-        secondary,
+        blockSize,
+        primarySpace,
+        secondarySpace,
         dirblk,
       },
       extra
@@ -1312,9 +1342,9 @@ export function registerDatasetTools(
             type: canonicalType,
             recfm: recfm as CreateDatasetOptions['recfm'],
             lrecl,
-            blksz,
-            primary,
-            secondary,
+            blksz: blockSize,
+            primary: primarySpace,
+            secondary: secondarySpace,
             dirblk,
           },
           progressCb
@@ -1362,7 +1392,8 @@ export function registerDatasetTools(
     {
       description:
         'Delete a data set or a specific PDS/PDSE member. ' +
-        'This is a destructive operation that cannot be undone.',
+        'This is a destructive operation that cannot be undone. ' +
+        'You may pass dsn as USER.LIB(MEM) and omit member.',
       annotations: { destructiveHint: true },
       outputSchema: deleteDatasetOutputSchema,
       inputSchema: {
@@ -1513,7 +1544,9 @@ export function registerDatasetTools(
   server.registerTool(
     'copyDataset',
     {
-      description: 'Copy a data set or PDS/PDSE member within a single z/OS system.',
+      description:
+        'Copy a data set or PDS/PDSE member within a single z/OS system. ' +
+        'You may pass source or target dsn as USER.LIB(MEM) and omit the corresponding member.',
       outputSchema: copyDatasetOutputSchema,
       inputSchema: {
         sourceDsn: z
@@ -1626,7 +1659,9 @@ export function registerDatasetTools(
   server.registerTool(
     'renameDataset',
     {
-      description: 'Rename a data set or PDS/PDSE member.',
+      description:
+        'Rename a data set or PDS/PDSE member. ' +
+        'You may pass dsn as USER.LIB(MEM) and omit member.',
       outputSchema: renameDatasetOutputSchema,
       inputSchema: {
         dsn: z.string().describe('Fully qualified data set name (e.g. USER.SRC.COBOL).'),

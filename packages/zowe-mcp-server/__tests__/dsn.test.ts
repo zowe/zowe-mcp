@@ -21,6 +21,7 @@ import {
   buildDsUri,
   DsnError,
   inferMimeType,
+  parseDsnAndMember,
   resolveDsn,
   resolvePattern,
   validateDsn,
@@ -479,6 +480,52 @@ describe('inferMimeType', () => {
       const text = ['000100 SOME LINE', '000200 ANOTHER LINE'].join('\n');
       // Only 2 lines — below the 5-line threshold
       expect(inferMimeType(text)).toBe('text/plain');
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// parseDsnAndMember — DSN(MEMBER) parsing
+// ---------------------------------------------------------------------------
+
+describe('parseDsnAndMember', () => {
+  it('returns dsn and member when input is DSN(MEMBER) with valid member', () => {
+    expect(parseDsnAndMember('USER.LIB(MEM)')).toEqual({ dsn: 'USER.LIB', member: 'MEM' });
+    expect(parseDsnAndMember('  USER.SRC.COBOL(HELLO)  ')).toEqual({
+      dsn: 'USER.SRC.COBOL',
+      member: 'HELLO',
+    });
+    expect(parseDsnAndMember('SYS1.SAMPLIB(IEANTCOB)')).toEqual({
+      dsn: 'SYS1.SAMPLIB',
+      member: 'IEANTCOB',
+    });
+  });
+
+  it('returns only dsn when input has no parentheses', () => {
+    expect(parseDsnAndMember('USER.SRC.COBOL')).toEqual({ dsn: 'USER.SRC.COBOL' });
+    expect(parseDsnAndMember('USER.**')).toEqual({ dsn: 'USER.**' });
+  });
+
+  it('returns only dsn when parenthesized part is empty', () => {
+    expect(parseDsnAndMember('USER.LIB()')).toEqual({ dsn: 'USER.LIB()' });
+  });
+
+  it('returns only dsn when member part exceeds 8 characters', () => {
+    expect(parseDsnAndMember('USER.LIB(TOOLONGMM)')).toEqual({ dsn: 'USER.LIB(TOOLONGMM)' });
+  });
+
+  it('returns only dsn when member part has invalid characters', () => {
+    expect(parseDsnAndMember('USER.LIB(BAD!MEM)')).toEqual({ dsn: 'USER.LIB(BAD!MEM)' });
+  });
+
+  it('returns only dsn when member part starts with digit', () => {
+    expect(parseDsnAndMember('USER.LIB(1MEM)')).toEqual({ dsn: 'USER.LIB(1MEM)' });
+  });
+
+  it('trims whitespace around base dsn and member', () => {
+    expect(parseDsnAndMember('  USER.LIB  (  MEM  )  ')).toEqual({
+      dsn: 'USER.LIB',
+      member: 'MEM',
     });
   });
 });

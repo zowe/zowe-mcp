@@ -107,6 +107,44 @@ export function resolveDsn(input: string, member?: string): ResolvedDsn {
 }
 
 /**
+ * Result of parsing a DSN string that may include a member in parentheses.
+ */
+export interface ParsedDsnAndMember {
+  /** Data set name (base name when input was DSN(MEMBER)). */
+  dsn: string;
+  /** Member name when input matched DSN(MEMBER) and the parenthesized part was valid. */
+  member?: string;
+}
+
+/**
+ * Parse a string that may be in the form DSN(MEMBER) into base DSN and member.
+ * If the input has a single trailing parenthesized suffix and the content is a
+ * valid member name (1–8 chars, valid characters), returns { dsn, member }.
+ * Otherwise returns { dsn: input }.
+ *
+ * @param input - Dataset name as provided (e.g. USER.LIB(MEM) or USER.LIB).
+ * @returns Object with dsn and optional member.
+ */
+export function parseDsnAndMember(input: string): ParsedDsnAndMember {
+  const trimmed = input.trim();
+  const match = /^(.+?)\(([^)]+)\)$/.exec(trimmed);
+  if (!match) {
+    return { dsn: trimmed };
+  }
+  const baseDsn = match[1].trim();
+  const memberPart = match[2].trim();
+  if (memberPart.length === 0 || memberPart.length > MAX_MEMBER_LENGTH) {
+    return { dsn: trimmed };
+  }
+  try {
+    validateMember(memberPart.toUpperCase());
+  } catch {
+    return { dsn: trimmed };
+  }
+  return { dsn: baseDsn, member: memberPart };
+}
+
+/**
  * Validate a resolved list pattern for listDatasets.
  * Rejects patterns with empty qualifiers (e.g. '...' or 'USER..BAR').
  * The Zowe Native backend (z/OS server) appends `.**` to patterns that do not

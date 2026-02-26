@@ -827,7 +827,7 @@ describe.skipIf(!canRunNativeE2E)(
       '//SYSUT2   DD SYSOUT=*',
     ].join('\n');
 
-    /** JCL body for a job that runs ~10s (BPXBATCH sleep 10). Used for executeJob timeout test. */
+    /** JCL body for a job that runs ~10s (BPXBATCH sleep 10). Used for submitJob wait timeout test. */
     const SAMPLE_JCL_SLEEP_10 = [
       '//STEP1 EXEC PGM=BPXBATCH,REGION=8M',
       '//STEPLIB  DD   DSN=CEE.SCEERUN,DISP=SHR',
@@ -838,7 +838,7 @@ describe.skipIf(!canRunNativeE2E)(
     ].join('\n');
 
     describe.skipIf(!canRunJobsE2E)(
-      `Jobs (submitJob, getJobStatus, executeJob, listJobFiles, readJobFile, searchJobOutput)${!canRunJobsE2E ? ' [skipped: Job card not configured in config jobCards]' : ''}`,
+      `Jobs (submitJob, getJobStatus, listJobFiles, readJobFile, searchJobOutput)${!canRunJobsE2E ? ' [skipped: Job card not configured in config jobCards]' : ''}`,
       () => {
         let submittedJobId: string;
 
@@ -952,9 +952,10 @@ describe.skipIf(!canRunNativeE2E)(
           expect(readEnvelope.data.returnedLines).toBeGreaterThanOrEqual(0);
         });
 
-        it('executeJob with timeoutSeconds=5 times out while job still running', async () => {
-          const { parsed } = await callToolSuccess(client, 'executeJob', {
+        it('submitJob with wait: true and timeoutSeconds=5 times out while job still running', async () => {
+          const { parsed } = await callToolSuccess(client, 'submitJob', {
             jcl: SAMPLE_JCL_SLEEP_10,
+            wait: true,
             timeoutSeconds: 5,
           });
           const o = parsed as {

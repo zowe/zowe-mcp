@@ -213,7 +213,6 @@
         "deleteUssTempUnderDir",
         "submitJob",
         "getJobStatus",
-        "executeJob",
         "listJobFiles",
         "readJobFile",
         "getJobOutput",

@@ -57,7 +57,7 @@ function envelopeSchema<T extends z.ZodType>(
 // Data shapes
 // ---------------------------------------------------------------------------
 
-const submitJobDataSchema = z.object({
+const submitJobBaseDataSchema = z.object({
   jobId: z.string().describe('Job ID assigned by JES (e.g. JOB00123).'),
   jobName: z.string().describe('Job name from the JOB statement.'),
   jobCardAdded: z
@@ -80,26 +80,28 @@ const jobStatusResultSchema = z.object({
   correlator: z.string().optional().describe('Correlator (JES3).'),
 });
 
-const executeJobDataSchema = jobStatusResultSchema.extend({
-  timedOut: z
-    .boolean()
-    .optional()
-    .describe('True if wait for OUTPUT timed out; job continues on z/OS.'),
-  jobId: z.string().optional().describe('Job ID (convenience).'),
-  jobName: z.string().optional().describe('Job name (convenience).'),
-  failedStepJobFiles: z
-    .array(
-      z.object({
-        id: z.number(),
-        ddname: z.string().optional(),
-        stepname: z.string().optional(),
-        dsname: z.string().optional(),
-        procstep: z.string().optional(),
-      })
-    )
-    .optional()
-    .describe('Job file entries for failed steps when retcode is non-zero.'),
-});
+const failedStepJobFilesSchema = z
+  .array(
+    z.object({
+      id: z.number(),
+      ddname: z.string().optional(),
+      stepname: z.string().optional(),
+      dsname: z.string().optional(),
+      procstep: z.string().optional(),
+    })
+  )
+  .optional()
+  .describe('Job file entries for failed steps when retcode is non-zero.');
+
+const submitJobDataSchema = submitJobBaseDataSchema.merge(
+  jobStatusResultSchema.partial().extend({
+    timedOut: z
+      .boolean()
+      .optional()
+      .describe('True if wait for OUTPUT timed out; job continues on z/OS.'),
+    failedStepJobFiles: failedStepJobFilesSchema,
+  })
+);
 
 const jobFileEntrySchema = z.object({
   id: z.number().describe('Job file (spool) ID.'),
@@ -161,19 +163,13 @@ const submitJobFromSourceDataSchema = z.object({
 export const submitJobOutputSchema = envelopeSchema(
   submitJobDataSchema,
   mutationResultMetaSchema,
-  'Result of submitting JCL. data has jobId, jobName, and optional jobCardAdded; _result.success is true.'
+  'Result of submitting JCL. data has jobId, jobName, optional jobCardAdded; when wait=true also has status, timedOut, failedStepJobFiles; _result.success is true.'
 );
 
 export const getJobStatusOutputSchema = envelopeSchema(
   jobStatusResultSchema,
   undefined,
   'Job status. data has id, name, owner, status, type, class, retcode (when complete), phase, phaseName.'
-);
-
-export const executeJobOutputSchema = envelopeSchema(
-  executeJobDataSchema,
-  undefined,
-  'Result of submit and wait. data is job status plus optional timedOut and failedStepJobFiles.'
 );
 
 export const listJobFilesOutputSchema = envelopeSchema(

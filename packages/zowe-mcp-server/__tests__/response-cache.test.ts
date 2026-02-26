@@ -580,12 +580,12 @@ describe('Response cache', () => {
         });
         expect(countingBackend.readDatasetCallCount).toBe(1);
 
-        const newContent = 'UPDATED_LINE_1\nUPDATED_LINE_2';
+        const newContent = ['UPDATED_LINE_1', 'UPDATED_LINE_2'];
         await client.callTool({
           name: 'writeDataset',
           arguments: {
             dsn: `${DEFAULT_USER}.LARGE.DATA`,
-            content: newContent,
+            lines: newContent,
           },
         });
 
@@ -597,8 +597,8 @@ describe('Response cache', () => {
         const content0 = Array.isArray(readResult.content)
           ? (readResult.content[0] as { text?: string } | undefined)
           : undefined;
-        const envelope = JSON.parse(content0?.text ?? '{}') as { data?: { text?: string } };
-        expect(envelope.data?.text).toContain('UPDATED_LINE_1');
+        const envelope = JSON.parse(content0?.text ?? '{}') as { data?: { lines?: string[] } };
+        expect(envelope.data?.lines?.join('\n')).toContain(newContent[0]);
       } finally {
         await client.close();
         await server.close();
@@ -651,7 +651,7 @@ describe('Response cache', () => {
         });
         await client.callTool({
           name: 'writeDataset',
-          arguments: { dsn: `${DEFAULT_USER}.CACHE.OLD`, content: 'original' },
+          arguments: { dsn: `${DEFAULT_USER}.CACHE.OLD`, lines: ['original'] },
         });
         await client.callTool({
           name: 'readDataset',

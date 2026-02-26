@@ -45,11 +45,11 @@ describe('runAssertions', () => {
       const assertions: Assertion[] = [
         {
           type: 'toolCallOrder',
-          sequence: [{ tool: 'writeDataset', args: { content: 'Hello' } }],
+          sequence: [{ tool: 'writeDataset', args: { lines: ['Hello'] } }],
         },
       ];
       const toolCalls: ToolCallRecord[] = [
-        tc('writeDataset', { dsn: 'USER.TMP.X', content: 'Hello', member: 'M1' }),
+        tc('writeDataset', { dsn: 'USER.TMP.X', lines: ['Hello'], member: 'M1' }),
       ];
       expect(runAssertions(block(assertions), toolCalls, '')).toEqual({ passed: true });
     });
@@ -76,12 +76,12 @@ describe('runAssertions', () => {
           type: 'toolCallOrder',
           sequence: [
             { tool: 'createTempDataset', args: { type: 'PS' } },
-            { tool: 'writeDataset', args: { content: 'x' } },
+            { tool: 'writeDataset', args: { lines: ['x'] } },
           ],
         },
       ];
       const toolCalls: ToolCallRecord[] = [
-        tc('writeDataset', { dsn: 'X', content: 'x' }),
+        tc('writeDataset', { dsn: 'X', lines: ['x'] }),
         tc('createTempDataset', { type: 'PS' }),
       ];
       const result = runAssertions(block(assertions), toolCalls, '');

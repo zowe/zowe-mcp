@@ -63,11 +63,13 @@ import {
   formatResolved,
   getListMessages,
   getReadMessages,
+  linesToText,
   MAX_LIST_LIMIT,
   paginateList,
   paginateSearchResult,
   resolvedOnlyIfDifferent,
   sanitizeTextForDisplay,
+  textToLines,
   windowContent,
   wrapResponse,
 } from '../response.js';
@@ -808,11 +810,12 @@ export function registerDatasetTools(
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const { startLine: s, returnedLines: r, totalLines: total } = windowed.meta;
         await progress.complete(`${r} records`);
+        const lines = textToLines(windowed.text);
         return wrapResponse(
           responseCtx,
           windowed.meta,
           {
-            text: windowed.text,
+            lines,
             etag: result.etag,
             encoding: result.encoding,
           },
@@ -836,8 +839,8 @@ export function registerDatasetTools(
     {
       description:
         'Write UTF-8 content to a sequential data set or PDS/PDSE member. ' +
-        'When startLine and endLine are provided, the block of records from startLine to endLine (inclusive) is replaced by the given content; the number of lines need not match (data set can grow or shrink). ' +
-        'When only startLine is provided, the same number of lines as in content are replaced starting at startLine. ' +
+        'When startLine and endLine are provided, the block of records from startLine to endLine (inclusive) is replaced by the given lines; the number of lines need not match (data set can grow or shrink). ' +
+        'When only startLine is provided, the same number of lines as in the lines array are replaced starting at startLine. ' +
         'When both are omitted, the entire data set or member is replaced. ' +
         'If an ETag is provided (from a previous readDataset call), the write ' +
         'fails if the data set was modified since the read — preventing overwrites. ' +
@@ -846,7 +849,9 @@ export function registerDatasetTools(
       outputSchema: writeDatasetOutputSchema,
       inputSchema: {
         dsn: z.string().describe('Fully qualified data set name (e.g. USER.SRC.COBOL).'),
-        content: z.string().describe('UTF-8 text content to write.'),
+        lines: z
+          .array(z.string())
+          .describe('UTF-8 content to write as an array of lines (one string per record).'),
         member: z.string().optional().describe('Member name for PDS/PDSE data sets.'),
         system: z
           .string()
@@ -874,11 +879,12 @@ export function registerDatasetTools(
           .number()
           .optional()
           .describe(
-            '1-based last line of the block to replace (inclusive). When provided with startLine, the replaced block can grow or shrink to match the number of lines in content.'
+            '1-based last line of the block to replace (inclusive). When provided with startLine, the replaced block can grow or shrink to match the number of lines in the lines array.'
           ),
       },
     },
-    async ({ dsn, content, member, system, etag, encoding, startLine, endLine }, extra) => {
+    async ({ dsn, lines, member, system, etag, encoding, startLine, endLine }, extra) => {
+      const content = linesToText(lines ?? []);
       const displayDsn = member ? `${dsn}(${member})` : dsn;
       const title = `Write to ${displayDsn}`;
       const progress = createToolProgress(extra, title);
@@ -1125,18 +1131,9 @@ export function registerDatasetTools(
             'Record format. Supported: F, FB, V, VB, U, FBA, VBA. Default: FB. Case-insensitive.'
           ),
         lrecl: z.number().optional().describe('Logical record length. Default: 80.'),
-        blockSize: z
-          .number()
-          .optional()
-          .describe('Block size. Default: 27920.'),
-        primarySpace: z
-          .number()
-          .optional()
-          .describe('Primary space allocation.'),
-        secondarySpace: z
-          .number()
-          .optional()
-          .describe('Secondary space allocation.'),
+        blockSize: z.number().optional().describe('Block size. Default: 27920.'),
+        primarySpace: z.number().optional().describe('Primary space allocation.'),
+        secondarySpace: z.number().optional().describe('Secondary space allocation.'),
         dirblk: z.number().optional().describe('Directory blocks (PDS only).'),
       },
     },
@@ -1265,18 +1262,9 @@ export function registerDatasetTools(
             'Record format. Supported: F, FB, V, VB, U, FBA, VBA. Default: FB. Case-insensitive.'
           ),
         lrecl: z.number().optional().describe('Logical record length. Default: 80.'),
-        blockSize: z
-          .number()
-          .optional()
-          .describe('Block size. Default: 27920.'),
-        primarySpace: z
-          .number()
-          .optional()
-          .describe('Primary space allocation.'),
-        secondarySpace: z
-          .number()
-          .optional()
-          .describe('Secondary space allocation.'),
+        blockSize: z.number().optional().describe('Block size. Default: 27920.'),
+        primarySpace: z.number().optional().describe('Primary space allocation.'),
+        secondarySpace: z.number().optional().describe('Secondary space allocation.'),
         dirblk: z.number().optional().describe('Directory blocks (PDS only).'),
       },
     },

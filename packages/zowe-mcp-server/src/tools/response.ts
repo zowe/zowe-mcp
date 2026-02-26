@@ -40,6 +40,20 @@ export const MAX_LIST_LIMIT = 1000;
 /** Auto-truncation limit for readDataset when no window is requested. */
 export const MAX_READ_LINES = 1000;
 
+/**
+ * Split text into lines (handles \\n and \\r\\n). Empty string returns [].
+ */
+export function textToLines(text: string): string[] {
+  return text === '' ? [] : text.split(/\r?\n/);
+}
+
+/**
+ * Join lines into a single string with \\n. Empty array returns ''.
+ */
+export function linesToText(lines: string[]): string {
+  return lines.join('\n');
+}
+
 // ---------------------------------------------------------------------------
 // Envelope types
 // ---------------------------------------------------------------------------

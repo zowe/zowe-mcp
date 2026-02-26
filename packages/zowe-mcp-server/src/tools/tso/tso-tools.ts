@@ -31,6 +31,7 @@ import {
   getReadMessages,
   MAX_READ_LINES,
   sanitizeTextForDisplay,
+  textToLines,
   windowContent,
   wrapResponse,
 } from '../response.js';
@@ -224,11 +225,12 @@ export function registerTsoTools(server: McpServer, deps: TsoToolDeps, logger: L
           startLine ?? 1,
           lineCount ?? (isPaging ? undefined : MAX_READ_LINES)
         );
+        const lines = textToLines(text);
 
         const ctx = buildContext(systemId, {});
 
         await progress.complete(`${meta.returnedLines} lines`);
-        return wrapResponse(ctx, meta, { text, mimeType }, getReadMessages(meta));
+        return wrapResponse(ctx, meta, { lines, mimeType }, getReadMessages(meta));
       } catch (err) {
         await progress.complete((err as Error).message);
         return errorResult((err as Error).message);

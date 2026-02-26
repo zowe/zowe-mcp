@@ -154,10 +154,10 @@ const memberEntrySchema = z.object({
 });
 
 const readDatasetDataSchema = z.object({
-  text: z
-    .string()
+  lines: z
+    .array(z.string())
     .describe(
-      'Content as UTF-8 text. May be a line window when _result.hasMore is true; call again with startLine/lineCount to get more.'
+      'Content as array of lines (UTF-8). When _result.hasMore is true, call again with startLine/lineCount to get more.'
     ),
   etag: z
     .string()
@@ -334,7 +334,7 @@ export const searchInDatasetOutputSchema = envelopeSchema(
 export const readDatasetOutputSchema = envelopeSchema(
   readDatasetDataSchema,
   readResultMetaSchema,
-  'Content of a data set or member. data has text, etag, encoding; _result has totalLines, startLine, returnedLines, hasMore for line windowing.'
+  'Content of a data set or member. data has lines (array of UTF-8 lines), etag, encoding; _result has totalLines, startLine, returnedLines, hasMore for line windowing.'
 );
 
 export const getDatasetAttributesOutputSchema = envelopeSchema(

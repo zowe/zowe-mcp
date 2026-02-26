@@ -21,7 +21,7 @@ questions:
                 - "SEQUENTIAL"
           - tool: writeDataset
             args:
-              content: "Evals write test"
+              lines: ["Evals write test"]
           - tool: readDataset
           - tool: deleteDatasetsUnderPrefix
       - type: answerContains
@@ -44,7 +44,7 @@ questions:
           - tool: writeDataset
             args:
               member: "EVALMEM"
-              content: "temp content"
+              lines: ["temp content"]
           - tool: deleteDatasetsUnderPrefix
       - type: answerContains
         pattern: "success|deleted|complete|done|cleaned|removed|finished|successfully"

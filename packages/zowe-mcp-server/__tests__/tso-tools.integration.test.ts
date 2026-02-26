@@ -98,11 +98,12 @@ describe('TSO tools integration', () => {
     const envelope = JSON.parse(text) as {
       _context: { system: string };
       _result: { totalLines: number; hasMore: boolean };
-      data: { text: string };
+      data: { lines: string[] };
     };
     expect(envelope._context.system).toBe(SYSTEM_HOST);
-    expect(envelope.data.text).toContain('LISTDS');
-    expect(envelope.data.text).toContain('mock');
+    const output = envelope.data.lines.join('\n');
+    expect(output).toContain('LISTDS');
+    expect(output).toContain('mock');
   });
 
   it('runSafeTsoCommand DELETE user dataset returns elicit-denied error', async () => {
@@ -159,10 +160,10 @@ describe('TSO tools integration', () => {
     const firstText = getResultText(first);
     const firstEnvelope = JSON.parse(firstText) as {
       _result: { totalLines: number; returnedLines: number; hasMore: boolean };
-      data: { text: string };
+      data: { lines: string[] };
     };
     expect(firstEnvelope._result.totalLines).toBeGreaterThan(0);
-    expect(firstEnvelope.data.text.length).toBeGreaterThan(0);
+    expect(firstEnvelope.data.lines.length).toBeGreaterThan(0);
 
     const second = await client.callTool({
       name: 'runSafeTsoCommand',
@@ -171,7 +172,7 @@ describe('TSO tools integration', () => {
     const secondText = getResultText(second);
     const secondEnvelope = JSON.parse(secondText) as {
       _result: { startLine: number; returnedLines: number };
-      data: { text: string };
+      data: { lines: string[] };
     };
     expect(secondEnvelope._result.startLine).toBe(1);
     expect(secondEnvelope._result.returnedLines).toBeLessThanOrEqual(2);

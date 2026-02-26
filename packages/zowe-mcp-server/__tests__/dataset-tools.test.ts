@@ -379,7 +379,7 @@ describe('Dataset tools with mock backend', () => {
         arguments: { dsn: 'TESTUSER.DATA.INPUT' },
       });
 
-      const envelope = parseEnvelope<{ text: string }>(result);
+      const envelope = parseEnvelope<{ lines: string[] }>(result);
       expect(envelope._context.resolvedDsn).toBeUndefined();
     });
   });
@@ -711,14 +711,14 @@ describe('Dataset tools with mock backend', () => {
         arguments: { dsn: 'TESTUSER.DATA.INPUT' },
       });
 
-      const envelope = parseEnvelope<{ text: string; etag: string; encoding: string }>(result);
+      const envelope = parseEnvelope<{ lines: string[]; etag: string; encoding: string }>(result);
       const meta = envelope._result as ReadResultMeta;
       expect(meta.totalLines).toBeGreaterThanOrEqual(1);
       expect(meta.startLine).toBe(1);
       expect(meta.returnedLines).toBe(meta.totalLines);
       expect(meta.contentLength).toBeGreaterThan(0);
       expect(meta.mimeType).toBeDefined();
-      expect(envelope.data.text).toContain('HELLO WORLD');
+      expect(envelope.data.lines.join('\n')).toContain('HELLO WORLD');
       expect(envelope.data.etag).toBeDefined();
       expect(envelope.data.encoding).toBeDefined();
     });
@@ -729,14 +729,14 @@ describe('Dataset tools with mock backend', () => {
         arguments: { dsn: 'TESTUSER.LARGE.DATA', startLine: 10, lineCount: 5 },
       });
 
-      const envelope = parseEnvelope<{ text: string }>(result);
+      const envelope = parseEnvelope<{ lines: string[] }>(result);
       const meta = envelope._result as ReadResultMeta;
       expect(meta.startLine).toBe(10);
       expect(meta.returnedLines).toBe(5);
       expect(meta.totalLines).toBe(50);
       // Verify content starts at line 10
-      expect(envelope.data.text).toContain('LINE 010');
-      expect(envelope.data.text).not.toContain('LINE 001');
+      expect(envelope.data.lines.join('\n')).toContain('LINE 010');
+      expect(envelope.data.lines.join('\n')).not.toContain('LINE 001');
     });
 
     it('should support lineCount parameter', async () => {
@@ -745,7 +745,7 @@ describe('Dataset tools with mock backend', () => {
         arguments: { dsn: 'TESTUSER.LARGE.DATA', lineCount: 3 },
       });
 
-      const envelope = parseEnvelope<{ text: string }>(result);
+      const envelope = parseEnvelope<{ lines: string[] }>(result);
       const meta = envelope._result as ReadResultMeta;
       expect(meta.startLine).toBe(1);
       expect(meta.returnedLines).toBe(3);
@@ -769,9 +769,9 @@ describe('Dataset tools with mock backend', () => {
         arguments: { dsn: 'TESTUSER.DATA.INPUT', startLine: 1, lineCount: 5 },
       });
 
-      const envelope = parseEnvelope<{ text: string }>(result);
+      const envelope = parseEnvelope<{ lines: string[] }>(result);
       const meta = envelope._result as ReadResultMeta;
-      expect(meta.contentLength).toBe(envelope.data.text.length);
+      expect(meta.contentLength).toBe(envelope.data.lines.join('\n').length);
     });
 
     it('should set hasMore true and include message when more lines exist', async () => {
@@ -780,7 +780,7 @@ describe('Dataset tools with mock backend', () => {
         arguments: { dsn: 'TESTUSER.LARGE.DATA', lineCount: 10 },
       });
 
-      const envelope = parseEnvelope<{ text: string }>(result);
+      const envelope = parseEnvelope<{ lines: string[] }>(result);
       const meta = envelope._result as ReadResultMeta;
       expect(meta.totalLines).toBe(50);
       expect(meta.returnedLines).toBe(10);
@@ -797,14 +797,14 @@ describe('Dataset tools with mock backend', () => {
         arguments: { dsn: 'TESTUSER.LARGE.DATA', startLine: 11, lineCount: 10 },
       });
 
-      const envelope = parseEnvelope<{ text: string }>(result);
+      const envelope = parseEnvelope<{ lines: string[] }>(result);
       const meta = envelope._result as ReadResultMeta;
       expect(meta.startLine).toBe(11);
       expect(meta.returnedLines).toBe(10);
       expect(meta.totalLines).toBe(50);
       expect(meta.hasMore).toBe(true);
-      expect(envelope.data.text).toContain('LINE 011');
-      expect(envelope.data.text).not.toContain('LINE 001');
+      expect(envelope.data.lines.join('\n')).toContain('LINE 011');
+      expect(envelope.data.lines.join('\n')).not.toContain('LINE 001');
     });
 
     it('should set hasMore false and empty messages when all lines fit in one window', async () => {
@@ -813,7 +813,7 @@ describe('Dataset tools with mock backend', () => {
         arguments: { dsn: 'TESTUSER.LARGE.DATA', startLine: 1, lineCount: 50 },
       });
 
-      const envelope = parseEnvelope<{ text: string }>(result);
+      const envelope = parseEnvelope<{ lines: string[] }>(result);
       const meta = envelope._result as ReadResultMeta;
       expect(meta.hasMore).toBe(false);
       expect(meta.returnedLines).toBe(50);
@@ -826,10 +826,11 @@ describe('Dataset tools with mock backend', () => {
         arguments: { dsn: 'TESTUSER.RAW.DATA' },
       });
 
-      const envelope = parseEnvelope<{ text: string }>(result);
-      expect(envelope.data.text).toContain('hello.world');
-      expect(envelope.data.text).not.toContain('\x01');
-      expect(envelope.data.text).toContain('line2');
+      const envelope = parseEnvelope<{ lines: string[] }>(result);
+      const text = envelope.data.lines.join('\n');
+      expect(text).toContain('hello.world');
+      expect(text).not.toContain('\x01');
+      expect(text).toContain('line2');
     });
 
     it('should return server default encoding (IBM-037) when encoding param is omitted', async () => {
@@ -838,7 +839,7 @@ describe('Dataset tools with mock backend', () => {
         arguments: { dsn: 'TESTUSER.DATA.INPUT' },
       });
 
-      const envelope = parseEnvelope<{ text: string; etag: string; encoding: string }>(result);
+      const envelope = parseEnvelope<{ lines: string[]; etag: string; encoding: string }>(result);
       expect(envelope.data.encoding).toBe('IBM-037');
     });
   });
@@ -906,8 +907,8 @@ describe('Dataset tools with mock backend', () => {
         arguments: { dsn: "'TESTUSER.DATA.INPUT'", system: SYSTEM_HOST },
       });
 
-      const envelope = parseEnvelope<{ text: string }>(result);
-      expect(envelope.data.text).toContain('HELLO WORLD');
+      const envelope = parseEnvelope<{ lines: string[] }>(result);
+      expect(envelope.data.lines.join('\n')).toContain('HELLO WORLD');
       expect(envelope._context.system).toBe(SYSTEM_HOST);
     });
 
@@ -1108,14 +1109,14 @@ describe('Dataset tools with mock backend', () => {
         name: 'writeDataset',
         arguments: {
           dsn: 'TESTUSER.WRITE.BLOCK',
-          content: 'LINE1\nLINE2\nLINE3',
+          lines: ['LINE1', 'LINE2', 'LINE3'],
         },
       });
       const writeResult = await client.callTool({
         name: 'writeDataset',
         arguments: {
           dsn: 'TESTUSER.WRITE.BLOCK',
-          content: 'REPLACED2\nREPLACED3',
+          lines: ['REPLACED2', 'REPLACED3'],
           startLine: 2,
         },
       });
@@ -1126,8 +1127,8 @@ describe('Dataset tools with mock backend', () => {
         name: 'readDataset',
         arguments: { dsn: 'TESTUSER.WRITE.BLOCK' },
       });
-      const readEnvelope = parseEnvelope<{ text: string }>(readResult);
-      const lines = (readEnvelope.data.text ?? '').split(/\r?\n/);
+      const readEnvelope = parseEnvelope<{ lines: string[] }>(readResult);
+      const lines = readEnvelope.data.lines ?? [];
       expect(lines[0]).toBe('LINE1');
       expect(lines[1]).toBe('REPLACED2');
       expect(lines[2]).toBe('REPLACED3');
@@ -1142,7 +1143,7 @@ describe('Dataset tools with mock backend', () => {
         name: 'writeDataset',
         arguments: {
           dsn: 'TESTUSER.WRITE.RANGE',
-          content: 'A\nB\nC\nD\nE',
+          lines: ['A', 'B', 'C', 'D', 'E'],
         },
       });
       // Replace lines 2-4 (B,C,D) with one line X -> dataset shrinks to A, X, E
@@ -1150,7 +1151,7 @@ describe('Dataset tools with mock backend', () => {
         name: 'writeDataset',
         arguments: {
           dsn: 'TESTUSER.WRITE.RANGE',
-          content: 'X',
+          lines: ['X'],
           startLine: 2,
           endLine: 4,
         },
@@ -1159,7 +1160,7 @@ describe('Dataset tools with mock backend', () => {
         name: 'readDataset',
         arguments: { dsn: 'TESTUSER.WRITE.RANGE' },
       });
-      let lines = (parseEnvelope<{ text: string }>(readResult).data.text ?? '').split(/\r?\n/);
+      let lines = parseEnvelope<{ lines: string[] }>(readResult).data.lines ?? [];
       expect(lines).toHaveLength(3);
       expect(lines[0]).toBe('A');
       expect(lines[1]).toBe('X');
@@ -1174,14 +1175,14 @@ describe('Dataset tools with mock backend', () => {
         name: 'writeDataset',
         arguments: {
           dsn: 'TESTUSER.WRITE.RANGE2',
-          content: 'A\nX\nE',
+          lines: ['A', 'X', 'E'],
         },
       });
       await client.callTool({
         name: 'writeDataset',
         arguments: {
           dsn: 'TESTUSER.WRITE.RANGE2',
-          content: 'P\nQ\nR',
+          lines: ['P', 'Q', 'R'],
           startLine: 2,
           endLine: 2,
         },
@@ -1190,7 +1191,7 @@ describe('Dataset tools with mock backend', () => {
         name: 'readDataset',
         arguments: { dsn: 'TESTUSER.WRITE.RANGE2' },
       });
-      lines = (parseEnvelope<{ text: string }>(readResult).data.text ?? '').split(/\r?\n/);
+      lines = parseEnvelope<{ lines: string[] }>(readResult).data.lines ?? [];
       expect(lines).toHaveLength(5);
       expect(lines[0]).toBe('A');
       expect(lines[1]).toBe('P');

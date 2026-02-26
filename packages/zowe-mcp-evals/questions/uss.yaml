@@ -49,7 +49,7 @@ questions:
               - getUssTempPath
           - tool: writeUssFile
             args:
-              content: "USS eval test"
+              lines: ["USS eval test"]
           - tool: readUssFile
           - tools:
               - deleteUssTempUnderDir

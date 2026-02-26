@@ -33,9 +33,11 @@ import {
   DEFAULT_LIST_LIMIT,
   getListMessages,
   getReadMessages,
+  linesToText,
   MAX_LIST_LIMIT,
   paginateList,
   sanitizeTextForDisplay,
+  textToLines,
   windowContent,
   wrapResponse,
 } from '../response.js';
@@ -223,10 +225,10 @@ export function registerJobTools(server: McpServer, deps: JobToolDeps, logger: L
         'To wait for the job to complete, set wait: true (and optionally timeoutSeconds); the tool will then return status and optional output info. Submitting runs work on z/OS—use with care.',
       annotations: { destructiveHint: true },
       inputSchema: {
-        jcl: z
-          .string()
+        lines: z
+          .array(z.string())
           .describe(
-            'JCL to submit. Omit the job card to use the one configured for this connection; include it only when your JCL already has a full JOB statement.'
+            'JCL to submit as array of lines. Omit the job card to use the one configured for this connection; include it only when your JCL already has a full JOB statement.'
           ),
         system: z
           .string()
@@ -268,7 +270,7 @@ export function registerJobTools(server: McpServer, deps: JobToolDeps, logger: L
       try {
         const parsed = z
           .object({
-            jcl: z.string(),
+            lines: z.array(z.string()),
             system: z.string().optional(),
             jobName: z.string().optional(),
             programmer: z.string().optional(),
@@ -288,7 +290,7 @@ export function registerJobTools(server: McpServer, deps: JobToolDeps, logger: L
         const connectionSpec = connectionSpecFor(systemId, userId);
 
         const messages: string[] = [];
-        let jclToSubmit = parsed.jcl.trim();
+        let jclToSubmit = linesToText(parsed.lines ?? []).trim();
         let addedJobCard: string | undefined;
         if (!hasJobCardInJcl(jclToSubmit)) {
           const template = deps.jobCardStore.get(connectionSpec);
@@ -352,7 +354,7 @@ export function registerJobTools(server: McpServer, deps: JobToolDeps, logger: L
         let data: {
           jobId: string;
           jobName: string;
-          jobCardAdded?: string;
+          jobCardAddedLines?: string[];
           status?: string;
           id?: string;
           name?: string;
@@ -371,7 +373,7 @@ export function registerJobTools(server: McpServer, deps: JobToolDeps, logger: L
           jobName: result.jobName,
         };
         if (addedJobCard) {
-          data.jobCardAdded = addedJobCard;
+          data.jobCardAddedLines = textToLines(addedJobCard);
         }
 
         if (parsed.wait === true) {
@@ -655,6 +657,7 @@ export function registerJobTools(server: McpServer, deps: JobToolDeps, logger: L
           parsed.startLine,
           parsed.lineCount
         );
+        const lines = textToLines(text);
 
         await progress.complete(
           `Read job file ${parsed.jobFileId} (lines ${meta.startLine}–${meta.startLine + meta.returnedLines - 1} of ${meta.totalLines})`
@@ -662,7 +665,7 @@ export function registerJobTools(server: McpServer, deps: JobToolDeps, logger: L
         const responseCtx = buildContext(systemId, {});
         const messages = getReadMessages(meta);
         const data = {
-          text,
+          lines,
           totalLines: meta.totalLines,
           startLine: meta.startLine,
           returnedLines: meta.returnedLines,
@@ -799,7 +802,7 @@ export function registerJobTools(server: McpServer, deps: JobToolDeps, logger: L
           jobFileId: number;
           ddname?: string;
           stepname?: string;
-          text: string;
+          lines: string[];
           lineCount: number;
         }[] = [];
 
@@ -811,13 +814,13 @@ export function registerJobTools(server: McpServer, deps: JobToolDeps, logger: L
             undefined
           );
           const sanitized = sanitizeTextForDisplay(result.text);
-          const lines = sanitized.split(/\n/);
+          const fileLines = textToLines(sanitized);
           outputEntries.push({
             jobFileId: file.id,
             ddname: file.ddname,
             stepname: file.stepname,
-            text: sanitized,
-            lineCount: lines.length,
+            lines: fileLines,
+            lineCount: fileLines.length,
           });
         }
 
@@ -1125,7 +1128,7 @@ export function registerJobTools(server: McpServer, deps: JobToolDeps, logger: L
         );
         await progress.complete(`Retrieved JCL for job ${parsed.jobId}`);
         const responseCtx = buildContext(systemId, {});
-        return wrapResponse(responseCtx, undefined, { jcl }, []);
+        return wrapResponse(responseCtx, undefined, { lines: textToLines(jcl) }, []);
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         log.debug('getJcl error', { error: message });

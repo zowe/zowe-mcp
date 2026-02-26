@@ -82,13 +82,15 @@ const ussListEntrySchema = z.object({
 });
 
 const readUssFileDataSchema = z.object({
-  text: z.string().describe('File content as UTF-8 text; may be a line window.'),
+  lines: z
+    .array(z.string())
+    .describe('File content as UTF-8 array of lines; may be a line window.'),
   etag: z.string().describe('Opaque version token for optimistic locking on write.'),
   mimeType: z.string().describe('Inferred content type (e.g. text/plain, text/x-cobol).'),
 });
 
 const runSafeUssCommandDataSchema = z.object({
-  text: z.string().describe('Command stdout (UTF-8).'),
+  lines: z.array(z.string()).describe('Command stdout (UTF-8) as array of lines.'),
   mimeType: z.string().describe('Content type (e.g. text/plain).'),
 });
 
@@ -130,13 +132,13 @@ export const listUssFilesOutputSchema = envelopeSchema(
 export const readUssFileOutputSchema = envelopeSchema(
   readUssFileDataSchema,
   readResultMetaSchema,
-  'Content of a USS file. data has text, etag, mimeType; _result has line-window metadata (totalLines, startLine, hasMore).'
+  'Content of a USS file. data has lines, etag, mimeType; _result has line-window metadata (totalLines, startLine, hasMore).'
 );
 
 export const runSafeUssCommandOutputSchema = envelopeSchema(
   runSafeUssCommandDataSchema,
   readResultMetaSchema,
-  'Output of a safe USS command. data has text and mimeType; _result has line metadata. Can return error when command is blocked or requires confirmation.'
+  'Output of a safe USS command. data has lines and mimeType; _result has line metadata. Can return error when command is blocked or requires confirmation.'
 );
 
 export const writeUssFileOutputSchema = envelopeSchema(

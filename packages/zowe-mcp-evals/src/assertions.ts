@@ -20,6 +20,7 @@ import type { Assertion, AssertionBlock, AssertionItem, ToolCallRecord } from '.
  */
 function valueMatches(expected: unknown, actual: unknown): boolean {
   if (Array.isArray(expected)) {
+    if (Array.isArray(actual) && JSON.stringify(expected) === JSON.stringify(actual)) return true;
     return expected.some(alt => valueMatches(alt, actual));
   }
   if (

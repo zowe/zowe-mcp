@@ -49,6 +49,6 @@ questions:
               newDsn: "TEST"
           - tool: writeDataset
             args:
-              content: "Rename test"
+              lines: ["Rename test"]
       - type: answerContains
         pattern: "Rename test|success|written|created"

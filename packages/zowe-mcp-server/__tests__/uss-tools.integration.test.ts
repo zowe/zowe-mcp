@@ -202,10 +202,10 @@ describe('USS tools integration', () => {
     const envelope = JSON.parse(text) as {
       _context: { system: string };
       _result: { totalLines: number; hasMore: boolean };
-      data: { text: string; etag: string };
+      data: { lines: string[]; etag: string };
     };
     expect(envelope._context.system).toBe(SYSTEM_HOST);
-    expect(envelope.data.text).toBe('hello from USS');
+    expect(envelope.data.lines.join('\n')).toBe('hello from USS');
     expect(envelope.data.etag).toBeDefined();
   });
 
@@ -226,9 +226,12 @@ describe('USS tools integration', () => {
       arguments: { commandText: 'whoami' },
     });
     const text = getResultText(result);
-    const envelope = JSON.parse(text) as { _context: { system: string }; data: { text: string } };
+    const envelope = JSON.parse(text) as {
+      _context: { system: string };
+      data: { lines: string[] };
+    };
     expect(envelope._context.system).toBe(SYSTEM_HOST);
-    expect(envelope.data.text.trim()).toBe(DEFAULT_USER);
+    expect(envelope.data.lines.join('\n').trim()).toBe(DEFAULT_USER);
   });
 
   it('runSafeUssCommand dangerous command returns error', async () => {
@@ -301,7 +304,7 @@ describe('USS mutation and temp tools (mock)', () => {
     const content = 'written by test';
     const writeResult = await client.callTool({
       name: 'writeUssFile',
-      arguments: { path: p, content },
+      arguments: { path: p, lines: [content] },
     });
     const writeText = getResultText(writeResult);
     const writeEnvelope = JSON.parse(writeText) as { error?: string; data?: { etag: string } };
@@ -313,8 +316,8 @@ describe('USS mutation and temp tools (mock)', () => {
       arguments: { path: p },
     });
     const readText = getResultText(readResult);
-    const readEnvelope = JSON.parse(readText) as { data?: { text: string } };
-    expect(readEnvelope.data?.text).toBe(content);
+    const readEnvelope = JSON.parse(readText) as { data?: { lines: string[] } };
+    expect(readEnvelope.data?.lines?.join('\n')).toBe(content);
   });
 
   it('createUssFile directory then listUssFiles shows it', async () => {
@@ -347,15 +350,15 @@ describe('USS mutation and temp tools (mock)', () => {
       arguments: { path: filePath },
     });
     const readText = getResultText(readResult);
-    const readEnvelope = JSON.parse(readText) as { data?: { text: string } };
-    expect(readEnvelope.data?.text).toBe('');
+    const readEnvelope = JSON.parse(readText) as { data?: { lines: string[] } };
+    expect(readEnvelope.data?.lines).toEqual([]);
   });
 
   it('deleteUssFile removes file', async () => {
     const p = '/u/testuser/to-delete.txt';
     await client.callTool({
       name: 'writeUssFile',
-      arguments: { path: p, content: 'x' },
+      arguments: { path: p, lines: ['x'] },
     });
     const delResult = await client.callTool({
       name: 'deleteUssFile',
@@ -422,7 +425,7 @@ describe('USS mutation and temp tools (mock)', () => {
     });
     const writeResp = await client.callTool({
       name: 'writeUssFile',
-      arguments: { path: tempFile, content: 'temp content' },
+      arguments: { path: tempFile, lines: ['temp content'] },
     });
     const writeParsed = JSON.parse(getResultText(writeResp)) as { error?: string };
     expect(writeParsed.error).toBeUndefined();

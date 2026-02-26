@@ -60,10 +60,10 @@ function envelopeSchema<T extends z.ZodType>(
 const submitJobBaseDataSchema = z.object({
   jobId: z.string().describe('Job ID assigned by JES (e.g. JOB00123).'),
   jobName: z.string().describe('Job name from the JOB statement.'),
-  jobCardAdded: z
-    .string()
+  jobCardAddedLines: z
+    .array(z.string())
     .optional()
-    .describe('Job card text that was prepended when JCL had no job card.'),
+    .describe('Job card lines that were prepended when JCL had no job card.'),
 });
 
 const jobStatusResultSchema = z.object({
@@ -112,7 +112,11 @@ const jobFileEntrySchema = z.object({
 });
 
 const readJobFileDataSchema = z.object({
-  text: z.string().describe('File content; may be a line window when _result.hasMore is true.'),
+  lines: z
+    .array(z.string())
+    .describe(
+      'File content as array of lines; may be a line window when _result.hasMore is true.'
+    ),
   totalLines: z.number().describe('Total lines in the full file.'),
   startLine: z.number().describe('1-based first line in this window.'),
   returnedLines: z.number().describe('Number of lines returned.'),
@@ -124,8 +128,8 @@ const getJobOutputFileEntrySchema = z.object({
   jobFileId: z.number().describe('Job file (spool) ID.'),
   ddname: z.string().optional().describe('DD name.'),
   stepname: z.string().optional().describe('Step name.'),
-  text: z.string().describe('Full content of this job file.'),
-  lineCount: z.number().describe('Number of lines in text.'),
+  lines: z.array(z.string()).describe('Full content of this job file as array of lines.'),
+  lineCount: z.number().describe('Number of lines.'),
 });
 
 const getJobOutputDataSchema = z.object({
@@ -144,7 +148,7 @@ const searchJobOutputMatchSchema = z.object({
 });
 
 const getJclDataSchema = z.object({
-  jcl: z.string().describe('JCL for the job.'),
+  lines: z.array(z.string()).describe('JCL for the job as array of lines.'),
 });
 
 const jobControlDataSchema = z.object({
@@ -163,7 +167,7 @@ const submitJobFromSourceDataSchema = z.object({
 export const submitJobOutputSchema = envelopeSchema(
   submitJobDataSchema,
   mutationResultMetaSchema,
-  'Result of submitting JCL. data has jobId, jobName, optional jobCardAdded; when wait=true also has status, timedOut, failedStepJobFiles; _result.success is true.'
+  'Result of submitting JCL. data has jobId, jobName, optional jobCardAddedLines; when wait=true also has status, timedOut, failedStepJobFiles; _result.success is true.'
 );
 
 export const getJobStatusOutputSchema = envelopeSchema(
@@ -181,7 +185,7 @@ export const listJobFilesOutputSchema = envelopeSchema(
 export const readJobFileOutputSchema = envelopeSchema(
   readJobFileDataSchema,
   readResultMetaSchema,
-  'Content of one job file. data has text, totalLines, startLine, returnedLines, hasMore, mimeType; _result has line-window metadata.'
+  'Content of one job file. data has lines, totalLines, startLine, returnedLines, hasMore, mimeType; _result has line-window metadata.'
 );
 
 export const getJobOutputOutputSchema = envelopeSchema(
@@ -205,7 +209,7 @@ export const listJobsOutputSchema = envelopeSchema(
 export const getJclOutputSchema = envelopeSchema(
   getJclDataSchema,
   undefined,
-  'JCL for a job. data.jcl is the full JCL text.'
+  'JCL for a job. data.lines is the full JCL as array of lines.'
 );
 
 export const cancelJobOutputSchema = envelopeSchema(

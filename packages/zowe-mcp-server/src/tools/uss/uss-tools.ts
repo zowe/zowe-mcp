@@ -34,8 +34,10 @@ import {
   DEFAULT_LIST_LIMIT,
   getListMessages,
   getReadMessages,
+  linesToText,
   paginateList,
   sanitizeTextForDisplay,
+  textToLines,
   windowContent,
   wrapResponse,
 } from '../response.js';
@@ -571,6 +573,7 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
 
         const sanitized = sanitizeTextForDisplay(result.text);
         const { text, meta, mimeType } = windowContent(sanitized, startLine, lineCount);
+        const lines = textToLines(text);
 
         const pathDisplay = relativizeForDisplay(resolvedPath, effectiveCwd);
         const currentDirDisplay = effectiveCwd
@@ -585,7 +588,7 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
         return wrapResponse(
           responseCtx,
           meta,
-          { text, etag: result.etag, mimeType },
+          { lines, etag: result.etag, mimeType },
           getReadMessages(meta)
         );
       } catch (err) {
@@ -714,11 +717,12 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
 
         const sanitized = sanitizeTextForDisplay(output);
         const { text, meta, mimeType } = windowContent(sanitized, startLine, lineCount);
+        const lines = textToLines(text);
 
         const ctx = buildContext(systemId, {});
 
         await progress.complete(`${meta.returnedLines} lines`);
-        return wrapResponse(ctx, meta, { text, mimeType }, getReadMessages(meta));
+        return wrapResponse(ctx, meta, { lines, mimeType }, getReadMessages(meta));
       } catch (err) {
         await progress.complete((err as Error).message);
         return errorResult((err as Error).message);
@@ -737,7 +741,9 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
           .describe(
             'USS file path: absolute (starts with /) or relative to current working directory (see getContext.ussCwd).'
           ),
-        content: z.string().describe('UTF-8 text content to write.'),
+        lines: z
+          .array(z.string())
+          .describe('UTF-8 content to write as an array of lines (one string per line).'),
         system: z
           .string()
           .optional()
@@ -748,7 +754,8 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
         encoding: z.string().optional().describe('Mainframe encoding. Omit for default.'),
       },
     },
-    async ({ path: pathArg, content, system, etag, encoding }, extra) => {
+    async ({ path: pathArg, lines, system, etag, encoding }, extra) => {
+      const content = linesToText(lines ?? []);
       const progress = createToolProgress(extra, `Write USS file ${pathArg}`);
       await progress.start();
       try {

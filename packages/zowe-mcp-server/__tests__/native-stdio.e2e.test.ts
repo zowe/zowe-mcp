@@ -393,13 +393,13 @@ describe.skipIf(!canRunNativeE2E)(
           returnedLines: number;
           hasMore?: boolean;
         };
-        data: { text: string; etag: string; encoding: string };
+        data: { lines: string[]; etag: string; encoding: string };
       };
       expect(o._context).toBeDefined();
       expect(o._context.system).toBeDefined();
       expect(o.data).toBeDefined();
-      expect(typeof o.data.text).toBe('string');
-      expect(o.data.text.length).toBeGreaterThan(0);
+      expect(Array.isArray(o.data.lines)).toBe(true);
+      expect(o.data.lines.length).toBeGreaterThan(0);
       expect(typeof o.data.etag).toBe('string');
       expect(typeof o.data.encoding).toBe('string');
       if (o._result) {
@@ -675,15 +675,14 @@ describe.skipIf(!canRunNativeE2E)(
             returnedLines: number;
             hasMore?: boolean;
           };
-          data: { text: string; etag: string };
+          data: { lines: string[]; etag: string };
         };
         expect(o._context.system).toBe(firstSystemId);
         expect(o._result).toBeDefined();
         expect(o._result.totalLines).toBeDefined();
         expect(o._result.startLine).toBe(1);
         expect(o._result.returnedLines).toBeDefined();
-        expect(o.data.text).toBeDefined();
-        expect(typeof o.data.text).toBe('string');
+        expect(Array.isArray(o.data.lines)).toBe(true);
         expect(o.data.etag).toBeDefined();
       });
 
@@ -693,10 +692,10 @@ describe.skipIf(!canRunNativeE2E)(
           const { parsed } = await callToolSuccess(client, 'runSafeUssCommand', {
             commandText: 'whoami',
           });
-          const o = parsed as { _context: { system: string }; data: { text: string } };
+          const o = parsed as { _context: { system: string }; data: { lines: string[] } };
           expect(o._context.system).toBe(firstSystemId);
-          expect(o.data.text).toBeDefined();
-          const output = o.data.text.trim();
+          expect(o.data.lines).toBeDefined();
+          const output = o.data.lines.join('\n').trim();
           expect(output).toBe(expectedUserId);
         }
       );
@@ -705,9 +704,9 @@ describe.skipIf(!canRunNativeE2E)(
         const { parsed } = await callToolSuccess(client, 'runSafeUssCommand', {
           commandText: 'pwd',
         });
-        const o = parsed as { _context: { system: string }; data: { text: string } };
+        const o = parsed as { _context: { system: string }; data: { lines: string[] } };
         expect(o._context.system).toBe(firstSystemId);
-        const output = o.data.text.trim();
+        const output = o.data.lines.join('\n').trim();
         expect(output.length).toBeGreaterThan(0);
         expect(output.startsWith('/')).toBe(true);
       });
@@ -718,10 +717,10 @@ describe.skipIf(!canRunNativeE2E)(
           const { parsed } = await callToolSuccess(client, 'runSafeUssCommand', {
             commandText: `ls ${ussHomePath}`,
           });
-          const o = parsed as { _context: { system: string }; data: { text: string } };
+          const o = parsed as { _context: { system: string }; data: { lines: string[] } };
           expect(o._context.system).toBe(firstSystemId);
-          expect(o.data.text).toBeDefined();
-          expect(o.data.text.length).toBeGreaterThanOrEqual(0);
+          expect(o.data.lines).toBeDefined();
+          expect(o.data.lines.length).toBeGreaterThanOrEqual(0);
         }
       );
 
@@ -756,11 +755,11 @@ describe.skipIf(!canRunNativeE2E)(
         const o = parsed as {
           _context: { system: string };
           _result: unknown;
-          data: { text: string };
+          data: { lines: string[] };
         };
         expect(o._context.system).toBe(firstSystemId);
-        expect(o.data.text).toBeDefined();
-        const output = o.data.text.trim();
+        expect(o.data.lines).toBeDefined();
+        const output = o.data.lines.join('\n').trim();
         expect(output.length).toBeGreaterThan(0);
         expect(output.toUpperCase()).toMatch(/TIME|CPU|SERVICE|SESSION|PM|AM|\d{2}:\d{2}:\d{2}/);
       });
@@ -847,7 +846,9 @@ describe.skipIf(!canRunNativeE2E)(
             userId: firstSpec?.user ?? 'USER',
           });
           const fullJcl = jobCardStr.trimEnd() + '\n' + SAMPLE_JCL_BODY;
-          const { parsed } = await callToolSuccess(client, 'submitJob', { jcl: fullJcl });
+          const { parsed } = await callToolSuccess(client, 'submitJob', {
+            lines: fullJcl.split(/\r?\n/),
+          });
           const o = parsed as { data: { jobId: string; jobName: string } };
           expect(o.data).toBeDefined();
           expect(o.data.jobId).toBeDefined();
@@ -859,7 +860,7 @@ describe.skipIf(!canRunNativeE2E)(
 
         it('submitJob with JCL body only (no job card) prepends config job card and submits', async () => {
           const { parsed } = await callToolSuccess(client, 'submitJob', {
-            jcl: SAMPLE_JCL_BODY,
+            lines: SAMPLE_JCL_BODY.split(/\r?\n/),
           });
           const o = parsed as { data: { jobId: string; jobName: string } };
           expect(o.data).toBeDefined();
@@ -936,7 +937,7 @@ describe.skipIf(!canRunNativeE2E)(
               hasMore: boolean;
             };
             data: {
-              text: string;
+              lines: string[];
               totalLines: number;
               startLine: number;
               returnedLines: number;
@@ -946,7 +947,7 @@ describe.skipIf(!canRunNativeE2E)(
           };
           expect(readEnvelope._context).toBeDefined();
           expect(readEnvelope.data).toBeDefined();
-          expect(typeof readEnvelope.data.text).toBe('string');
+          expect(Array.isArray(readEnvelope.data.lines)).toBe(true);
           expect(typeof readEnvelope.data.totalLines).toBe('number');
           expect(readEnvelope.data.startLine).toBeGreaterThanOrEqual(1);
           expect(readEnvelope.data.returnedLines).toBeGreaterThanOrEqual(0);
@@ -954,7 +955,7 @@ describe.skipIf(!canRunNativeE2E)(
 
         it('submitJob with wait: true and timeoutSeconds=5 times out while job still running', async () => {
           const { parsed } = await callToolSuccess(client, 'submitJob', {
-            jcl: SAMPLE_JCL_SLEEP_10,
+            lines: SAMPLE_JCL_SLEEP_10.split(/\r?\n/),
             wait: true,
             timeoutSeconds: 5,
           });
@@ -1011,10 +1012,10 @@ describe.skipIf(!canRunNativeE2E)(
           const { parsed: jclParsed } = await callToolSuccess(client, 'getJcl', {
             jobId: submittedJobId,
           });
-          const jclEnvelope = jclParsed as { data: { jcl: string } };
+          const jclEnvelope = jclParsed as { data: { lines: string[] } };
           expect(jclEnvelope.data).toBeDefined();
-          expect(typeof jclEnvelope.data.jcl).toBe('string');
-          expect(jclEnvelope.data.jcl).toContain('//');
+          expect(Array.isArray(jclEnvelope.data.lines)).toBe(true);
+          expect(jclEnvelope.data.lines.join('\n')).toContain('//');
         });
 
         it('searchJobOutput finds substring in job output', async () => {
@@ -1275,7 +1276,7 @@ describe.skipIf(!canRunNativeE2E)(
         });
         await callToolSuccess(client, 'getDatasetAttributes', { dsn: q(dsn) });
         const { parsed: readRes } = await callToolSuccess(client, 'readDataset', { dsn: q(dsn) });
-        expect((readRes as { data: { text: string } }).data.text).toBe('');
+        expect((readRes as { data: { lines: string[] } }).data.lines).toEqual([]);
         await callToolSuccess(client, 'deleteDataset', { dsn: q(dsn) });
       });
 
@@ -1288,9 +1289,13 @@ describe.skipIf(!canRunNativeE2E)(
         });
         const dsn = (createRes as { data: { dsn: string } }).data.dsn;
         const content = 'LINE1\nLINE2\n';
-        await callToolSuccess(client, 'writeDataset', { dsn: q(dsn), content });
+        await callToolSuccess(client, 'writeDataset', {
+          dsn: q(dsn),
+          lines: content.trim().split(/\n/).filter(Boolean),
+        });
         const { parsed: readRes } = await callToolSuccess(client, 'readDataset', { dsn: q(dsn) });
-        const readText = (readRes as { data: { text: string } }).data.text;
+        const readLines = (readRes as { data: { lines: string[] } }).data.lines;
+        const readText = readLines.join('\n');
         expect(readText === content || readText === content.replace(/\n$/, '')).toBe(true);
         await callToolSuccess(client, 'deleteDataset', { dsn: q(dsn) });
       });
@@ -1304,7 +1309,7 @@ describe.skipIf(!canRunNativeE2E)(
         await callToolSuccess(client, 'writeDataset', {
           dsn: q(dsn),
           member: 'MEM1',
-          content,
+          lines: [content],
         });
         const { parsed: listRes } = await callToolSuccess(client, 'listMembers', {
           dsn: q(dsn),
@@ -1316,7 +1321,9 @@ describe.skipIf(!canRunNativeE2E)(
           dsn: q(dsn),
           member: 'MEM1',
         });
-        expect((readRes as { data: { text: string } }).data.text.trim()).toBe(content);
+        expect((readRes as { data: { lines: string[] } }).data.lines.join('\n').trim()).toBe(
+          content
+        );
         await callToolSuccess(client, 'deleteDataset', { dsn: q(dsn) });
       });
 
@@ -1326,16 +1333,18 @@ describe.skipIf(!canRunNativeE2E)(
         });
         const dsn = (createRes as { data: { dsn: string } }).data.dsn;
         const initial = 'L1\nL2\nL3\nL4\nL5\n';
-        await callToolSuccess(client, 'writeDataset', { dsn: q(dsn), content: initial });
         await callToolSuccess(client, 'writeDataset', {
           dsn: q(dsn),
-          content: 'NEW2\nNEW3\n',
+          lines: initial.trim().split(/\n/).filter(Boolean),
+        });
+        await callToolSuccess(client, 'writeDataset', {
+          dsn: q(dsn),
+          lines: ['NEW2', 'NEW3'],
           startLine: 2,
           endLine: 3,
         });
         const { parsed: readRes } = await callToolSuccess(client, 'readDataset', { dsn: q(dsn) });
-        const text = (readRes as { data: { text: string } }).data.text;
-        const lines = text.split(/\n/).filter(Boolean);
+        const lines = (readRes as { data: { lines: string[] } }).data.lines.filter(Boolean);
         expect(lines).toContain('L1');
         expect(lines).toContain('NEW2');
         expect(lines).toContain('NEW3');
@@ -1372,7 +1381,7 @@ describe.skipIf(!canRunNativeE2E)(
         await callToolSuccess(client, 'writeDataset', {
           dsn: q(dsn),
           member: 'M1',
-          content: 'X',
+          lines: ['X'],
         });
         await callToolSuccess(client, 'deleteDataset', { dsn: q(dsn), member: 'M1' });
         const { parsed: listRes } = await callToolSuccess(client, 'listMembers', {
@@ -1397,7 +1406,7 @@ describe.skipIf(!canRunNativeE2E)(
           type: 'PS',
         });
         const source = (createRes as { data: { dsn: string } }).data.dsn;
-        await callToolSuccess(client, 'writeDataset', { dsn: q(source), content: 'COPYME' });
+        await callToolSuccess(client, 'writeDataset', { dsn: q(source), lines: ['COPYME'] });
         const { parsed: nameRes } = await callToolSuccess(client, 'getTempDatasetName', {});
         const targetDsn = (nameRes as { data: { tempDsn: string } }).data.tempDsn;
         await callToolSuccess(client, 'createDataset', {
@@ -1413,7 +1422,9 @@ describe.skipIf(!canRunNativeE2E)(
         const { parsed: readRes } = await callToolSuccess(client, 'readDataset', {
           dsn: q(targetDsn),
         });
-        expect((readRes as { data: { text: string } }).data.text.trim()).toBe('COPYME');
+        expect((readRes as { data: { lines: string[] } }).data.lines.join('\n').trim()).toBe(
+          'COPYME'
+        );
         await callToolSuccess(client, 'deleteDataset', { dsn: q(source) });
         await callToolSuccess(client, 'deleteDataset', { dsn: q(targetDsn) });
       });
@@ -1426,7 +1437,7 @@ describe.skipIf(!canRunNativeE2E)(
         await callToolSuccess(client, 'writeDataset', {
           dsn: q(source),
           member: 'SRC',
-          content: 'MEMBER_CONTENT',
+          lines: ['MEMBER_CONTENT'],
         });
         const { parsed: createTgt } = await callToolSuccess(client, 'createTempDataset', {
           type: 'PDS',
@@ -1442,7 +1453,9 @@ describe.skipIf(!canRunNativeE2E)(
           dsn: q(target),
           member: 'TGT',
         });
-        expect((readRes as { data: { text: string } }).data.text.trim()).toBe('MEMBER_CONTENT');
+        expect((readRes as { data: { lines: string[] } }).data.lines.join('\n').trim()).toBe(
+          'MEMBER_CONTENT'
+        );
         await callToolSuccess(client, 'deleteDataset', { dsn: q(source) });
         await callToolSuccess(client, 'deleteDataset', { dsn: q(target) });
       });
@@ -1455,7 +1468,7 @@ describe.skipIf(!canRunNativeE2E)(
           type: 'PS',
         });
         const dsn = (createRes as { data: { dsn: string } }).data.dsn;
-        await callToolSuccess(client, 'writeDataset', { dsn: q(dsn), content: 'RENAME_TEST' });
+        await callToolSuccess(client, 'writeDataset', { dsn: q(dsn), lines: ['RENAME_TEST'] });
         const { parsed: nameRes } = await callToolSuccess(client, 'getTempDatasetName', {});
         const newDsn = (nameRes as { data: { tempDsn: string } }).data.tempDsn;
         await callToolSuccess(client, 'renameDataset', { dsn: q(dsn), newDsn: q(newDsn) });
@@ -1463,7 +1476,9 @@ describe.skipIf(!canRunNativeE2E)(
         const { parsed: readRes } = await callToolSuccess(client, 'readDataset', {
           dsn: q(newDsn),
         });
-        expect((readRes as { data: { text: string } }).data.text.trim()).toBe('RENAME_TEST');
+        expect((readRes as { data: { lines: string[] } }).data.lines.join('\n').trim()).toBe(
+          'RENAME_TEST'
+        );
         const rOld = await client.callTool({
           name: 'getDatasetAttributes',
           arguments: { dsn: q(dsn) },
@@ -1482,7 +1497,7 @@ describe.skipIf(!canRunNativeE2E)(
           await callToolSuccess(client, 'writeDataset', {
             dsn: q(dsn),
             member: 'OLD',
-            content: 'X',
+            lines: ['X'],
           });
           await callToolSuccess(client, 'renameDataset', {
             dsn: q(dsn),
@@ -1501,7 +1516,9 @@ describe.skipIf(!canRunNativeE2E)(
             dsn: q(dsn),
             member: 'NEW',
           });
-          expect((readRes as { data: { text: string } }).data.text.trim()).toBe('X');
+          expect((readRes as { data: { lines: string[] } }).data.lines.join('\n').trim()).toBe(
+            'X'
+          );
           await callToolSuccess(client, 'deleteDataset', { dsn: q(dsn) });
         }
       );
@@ -1530,8 +1547,8 @@ describe.skipIf(!canRunNativeE2E)(
           type: 'PDS',
         });
         const dsn = (createRes as { data: { dsn: string } }).data.dsn;
-        await callToolSuccess(client, 'writeDataset', { dsn: q(dsn), member: 'M1', content: 'A' });
-        await callToolSuccess(client, 'writeDataset', { dsn: q(dsn), member: 'M2', content: 'B' });
+        await callToolSuccess(client, 'writeDataset', { dsn: q(dsn), member: 'M1', lines: ['A'] });
+        await callToolSuccess(client, 'writeDataset', { dsn: q(dsn), member: 'M2', lines: ['B'] });
         const { parsed: listRes } = await callToolSuccess(client, 'listMembers', {
           dsn: q(dsn),
           limit: 100,

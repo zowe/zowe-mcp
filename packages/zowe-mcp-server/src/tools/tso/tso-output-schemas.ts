@@ -51,7 +51,9 @@ function envelopeSchema<T extends z.ZodType>(
 // ---------------------------------------------------------------------------
 
 const runSafeTsoCommandDataSchema = z.object({
-  text: z.string().describe('TSO command output (UTF-8); may be a line window.'),
+  lines: z
+    .array(z.string())
+    .describe('TSO command output (UTF-8) as array of lines; may be a line window.'),
   mimeType: z.string().describe('Content type (e.g. text/plain, text/x-jcl).'),
 });
 
@@ -62,5 +64,5 @@ const runSafeTsoCommandDataSchema = z.object({
 export const runSafeTsoCommandOutputSchema = envelopeSchema(
   runSafeTsoCommandDataSchema,
   readResultMetaSchema,
-  'TSO command output. data has text and mimeType; _result has totalLines, startLine, returnedLines, hasMore. Can return tool execution error when command is blocked or requires confirmation.'
+  'TSO command output. data has lines and mimeType; _result has totalLines, startLine, returnedLines, hasMore. Can return tool execution error when command is blocked or requires confirmation.'
 );

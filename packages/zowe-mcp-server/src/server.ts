@@ -25,6 +25,7 @@ import type {
 } from './events.js';
 import { Logger } from './log.js';
 import { registerDatasetPrompts } from './prompts/dataset-prompts.js';
+import { registerImprovementPrompts } from './prompts/improvement-prompts.js';
 import { registerDatasetResources } from './resources/dataset-resources.js';
 import { installToolCallLogging } from './tool-call-logging.js';
 import { registerContextTools } from './tools/context/context-tools.js';
@@ -234,6 +235,9 @@ export function createServer(options?: CreateServerOptions): CreateServerResult 
 
   // Register core tools (info) — always available
   registerCoreTools(server, SERVER_VERSION, logger, { backend: backendKind });
+
+  // Register improvement prompts (for repos that use Zowe MCP) — always available
+  registerImprovementPrompts(server, logger);
 
   // Register z/OS tools, resources, and prompts if a backend is provided
   if (hasBackend) {

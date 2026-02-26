@@ -160,7 +160,34 @@ export function activate(context: vscode.ExtensionContext): void {
     })
   );
 
+  void showNoConnectionsNotificationIfNeeded();
+
   log.info(`${getDisplayName()} extension activated`);
+}
+
+/**
+ * If no Zowe MCP connections are configured (no native connections and no mock
+ * data directory), shows a one-time notification with a button to open Settings.
+ * Exported for tests.
+ */
+export function showNoConnectionsNotificationIfNeeded(): void {
+  const config = vscode.workspace.getConfiguration('zoweMCP');
+  const nativeConnections = getNativeConnectionsWithMigration(config);
+  const mockDataDirectory = config.get<string>('mockDataDirectory', '').trim();
+  if (nativeConnections.length > 0 || mockDataDirectory) {
+    return;
+  }
+  const openSettings = 'Open Settings';
+  void vscode.window
+    .showInformationMessage(
+      'Zowe MCP: No connections are configured. Add connections in Settings to connect to z/OS.',
+      openSettings
+    )
+    .then(choice => {
+      if (choice === openSettings) {
+        void vscode.commands.executeCommand('workbench.action.openSettings', 'zoweMCP');
+      }
+    });
 }
 
 /**

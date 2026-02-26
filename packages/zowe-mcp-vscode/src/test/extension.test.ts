@@ -18,6 +18,7 @@
 
 import * as assert from 'assert';
 import * as vscode from 'vscode';
+import { showNoConnectionsNotificationIfNeeded } from '../extension';
 import { getDisplayName, getLog } from '../log';
 
 /**
@@ -80,6 +81,150 @@ suite('Zowe MCP VS Code Extension', () => {
         log.warn('Integration test: warn message');
         log.debug('Integration test: debug message');
       }, 'Writing to the log output channel should not throw');
+    });
+  });
+
+  suite('No-connections startup notification', () => {
+    const originalGetConfiguration = vscode.workspace.getConfiguration.bind(vscode.workspace);
+    const originalShowInformationMessage = vscode.window.showInformationMessage.bind(
+      vscode.window
+    );
+
+    teardown(() => {
+      (
+        vscode.workspace as { getConfiguration: typeof originalGetConfiguration }
+      ).getConfiguration = originalGetConfiguration;
+      (
+        vscode.window as {
+          showInformationMessage: typeof originalShowInformationMessage;
+        }
+      ).showInformationMessage = originalShowInformationMessage;
+    });
+
+    test('Shows notification when no connections are configured', async () => {
+      const mockConfig: vscode.WorkspaceConfiguration = {
+        get: (key: string, defaultValue?: unknown) => {
+          if (key === 'nativeConnections') return [];
+          if (key === 'nativeSystems') return [];
+          if (key === 'mockDataDirectory') return '';
+          return defaultValue;
+        },
+        has: () => false,
+        inspect: () => undefined,
+        update: () => Promise.resolve(),
+      };
+      (
+        vscode.workspace as {
+          getConfiguration: (section: string) => vscode.WorkspaceConfiguration;
+        }
+      ).getConfiguration = (section: string) => {
+        assert.strictEqual(section, 'zoweMCP');
+        return mockConfig;
+      };
+
+      const showMessageArgs: [string, string][] = [];
+      (
+        vscode.window as {
+          showInformationMessage: (
+            message: string,
+            ...items: string[]
+          ) => Thenable<string | undefined>;
+        }
+      ).showInformationMessage = (message: string, ...items: string[]) => {
+        showMessageArgs.push([message, items[0] ?? '']);
+        return Promise.resolve(undefined);
+      };
+
+      showNoConnectionsNotificationIfNeeded();
+
+      await new Promise(resolve => setTimeout(resolve, 0));
+
+      assert.strictEqual(showMessageArgs.length, 1);
+      assert.ok(
+        showMessageArgs[0][0].includes('No connections are configured'),
+        'Message should explain that no connections are configured'
+      );
+      assert.strictEqual(
+        showMessageArgs[0][1],
+        'Open Settings',
+        'Should offer Open Settings button'
+      );
+    });
+
+    test('Does not show notification when native connections are set', () => {
+      const mockConfig: vscode.WorkspaceConfiguration = {
+        get: (key: string, defaultValue?: unknown) => {
+          if (key === 'nativeConnections') return ['user@host'];
+          if (key === 'nativeSystems') return [];
+          if (key === 'mockDataDirectory') return '';
+          return defaultValue;
+        },
+        has: () => false,
+        inspect: () => undefined,
+        update: () => Promise.resolve(),
+      };
+      (
+        vscode.workspace as {
+          getConfiguration: (section: string) => vscode.WorkspaceConfiguration;
+        }
+      ).getConfiguration = () => mockConfig;
+
+      let showCalls = 0;
+      (
+        vscode.window as {
+          showInformationMessage: (
+            _message: string,
+            ..._items: string[]
+          ) => Thenable<string | undefined>;
+        }
+      ).showInformationMessage = () => {
+        showCalls++;
+        return Promise.resolve(undefined);
+      };
+
+      showNoConnectionsNotificationIfNeeded();
+
+      assert.strictEqual(showCalls, 0, 'Should not show notification when connections are set');
+    });
+
+    test('Does not show notification when mock data directory is set', () => {
+      const mockConfig: vscode.WorkspaceConfiguration = {
+        get: (key: string, defaultValue?: unknown) => {
+          if (key === 'nativeConnections') return [];
+          if (key === 'nativeSystems') return [];
+          if (key === 'mockDataDirectory') return '/path/to/mock';
+          return defaultValue;
+        },
+        has: () => false,
+        inspect: () => undefined,
+        update: () => Promise.resolve(),
+      };
+      (
+        vscode.workspace as {
+          getConfiguration: (section: string) => vscode.WorkspaceConfiguration;
+        }
+      ).getConfiguration = () => mockConfig;
+
+      let showCalls = 0;
+      (
+        vscode.window as {
+          showInformationMessage: (
+            _message: string,
+            ..._items: string[]
+          ) => Thenable<string | undefined>;
+        }
+      ).showInformationMessage = () => {
+        showCalls++;
+        return Promise.resolve(undefined);
+      };
+
+      showNoConnectionsNotificationIfNeeded();
+
+      assert.strictEqual(
+        showCalls,
+        0,
+        'Should not show notification when mock data directory is set'
+      );
     });
   });
 });

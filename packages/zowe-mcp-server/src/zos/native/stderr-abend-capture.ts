@@ -16,6 +16,14 @@
  * abend and evict the connection / run CEEDUMP collection.
  */
 
+/** Removes trailing dots and spaces from an abend/error message for logs and user display. */
+export function sanitizeAbendMessage(msg: string): string {
+  return msg
+    .trim()
+    .replace(/\s*\.+\s*$/, '')
+    .trim();
+}
+
 const abendSnippetsByKey = new Map<string, string>();
 
 function isAbendStderrChunk(chunk: string): boolean {
@@ -60,7 +68,7 @@ export function installStderrAbendCapture(
       }
       if (str && isAbendStderrChunk(str)) {
         fired = true;
-        const snippet = str.trim().slice(0, 2000);
+        const snippet = sanitizeAbendMessage(str).slice(0, 2000);
         abendSnippetsByKey.set(connectionKey, snippet);
         onAbend(snippet);
       }

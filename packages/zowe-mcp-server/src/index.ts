@@ -555,6 +555,20 @@ async function main(): Promise<void> {
             });
           }
         : undefined,
+      onCeedumpCollected: extensionClient?.connected
+        ? data => {
+            extensionClient.sendEvent({
+              type: 'ceedump-collected',
+              data: {
+                path: data.path,
+                reason: data.reason,
+                znpOperation: data.znpOperation,
+                mcpTool: data.mcpTool,
+              },
+              timestamp: Date.now(),
+            });
+          }
+        : undefined,
       autoInstallZnp: parsed.nativeServerAutoInstall ?? true,
       nativeServerPath: parsed.nativeServerPath,
       responseTimeout: parsed.nativeResponseTimeout ?? defaultResponseTimeout,

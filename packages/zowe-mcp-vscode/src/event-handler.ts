@@ -15,6 +15,7 @@
  * Handles:
  * - `log` events → VS Code LogOutputChannel
  * - `notification` events → VS Code information/warning/error message dialogs
+ * - `ceedump-collected` → info message with reason/ZNP/MCP context, "Open Dump" button, and output channel line with full path
  * - `request-password` → get from SecretStorage or prompt, send password event
  * - `password-invalid` → delete secret for that user@host
  * - `store-password` → store password in SecretStorage (e.g. after successful use of elicited password)
@@ -215,6 +216,34 @@ function showNotification(event: ServerToExtensionEvent): void {
         'workbench.action.openSettings',
         'zoweMCP.mockDataDirectory'
       );
+    }
+  });
+}
+
+/**
+ * Shows a message that a CEEDUMP was collected after a ZNP abend, with reason,
+ * ZNP operation, MCP tool, and an "Open Dump" button. Also logs to the Zowe MCP
+ * output channel with the full dump path.
+ */
+function showCeedumpCollected(log: vscode.LogOutputChannel, event: ServerToExtensionEvent): void {
+  if (event.type !== 'ceedump-collected') return;
+
+  const { path: filePath, reason, znpOperation, mcpTool } = event.data;
+  const reasonPart = reason ? ` ${reason.endsWith('.') ? reason.trimEnd() : reason}.` : '';
+  const znpPart = znpOperation ? ` Zowe Native operation: ${znpOperation}.` : '';
+  const mcpPart = mcpTool && mcpTool !== 'unknown' ? ` MCP tool: ${mcpTool}.` : '';
+  const notificationMessage = `Zowe MCP: CEEDUMP collected after ZNP abend.${reasonPart}${znpPart}${mcpPart} Saved to: ${filePath}`;
+  const openLabel = 'Open Dump';
+
+  log.error(
+    `CEEDUMP collected after ZNP abend.${reasonPart}${znpPart}${mcpPart} Full path: ${filePath}`
+  );
+
+  void vscode.window.showInformationMessage(notificationMessage, openLabel).then(choice => {
+    if (choice === openLabel) {
+      void vscode.window.showTextDocument(vscode.Uri.file(filePath), {
+        preview: false,
+      });
     }
   });
 }
@@ -521,6 +550,9 @@ export function handleServerEvent(
       break;
     case 'open-job-in-editor':
       void handleOpenJobInEditor(log, event);
+      break;
+    case 'ceedump-collected':
+      showCeedumpCollected(log, event);
       break;
     default:
       log.warn(`Unknown event type from MCP server: ${(event as { type: string }).type}`);

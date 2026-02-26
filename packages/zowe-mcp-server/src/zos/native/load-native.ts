@@ -17,6 +17,7 @@
  */
 
 import { ZSshClient } from 'zowe-native-proto-sdk';
+import type { CeedumpCollectedEventData } from '../../events.js';
 import type { ZosBackend } from '../backend.js';
 import type { CredentialProvider } from '../credentials.js';
 import { SystemRegistry } from '../system.js';
@@ -57,6 +58,8 @@ export interface LoadNativeOptions {
   responseTimeout?: number;
   /** When set, native options are read at connection time (allows runtime updates from extension). */
   getNativeOptions?: () => NativeOptions;
+  /** VS Code mode: call when a CEEDUMP file was saved after an abend (sends ceedump-collected event). */
+  onCeedumpCollected?: (data: CeedumpCollectedEventData) => void;
 }
 
 export interface NativeSetup {
@@ -133,6 +136,7 @@ export function loadNative(options: LoadNativeOptions): NativeSetup {
       options.getNativeOptions != null
         ? () => options.getNativeOptions!().responseTimeout ?? DEFAULT_NATIVE_RESPONSE_TIMEOUT_SEC
         : () => options.responseTimeout ?? DEFAULT_NATIVE_RESPONSE_TIMEOUT_SEC,
+    onCeedumpCollected: options.onCeedumpCollected,
   });
 
   function registerSystemsFromSpecs(specList: ParsedConnectionSpec[]): void {

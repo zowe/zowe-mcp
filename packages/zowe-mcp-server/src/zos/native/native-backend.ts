@@ -19,6 +19,8 @@ import { dump as yamlDump } from 'js-yaml';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import type { ZSshClient } from 'zowe-native-proto-sdk';
+import type { CeedumpCollectedEventData } from '../../events.js';
+import { getCurrentMcpTool } from '../../mcp-tool-context.js';
 import { getLogger } from '../../server.js';
 import type {
   BackendProgressCallback,
@@ -50,10 +52,17 @@ import type { SystemId } from '../system.js';
 import type { ParsedConnectionSpec } from './connection-spec.js';
 import type { NativeCredentialProvider } from './native-credential-provider.js';
 import { cacheKey, type SshClientCache } from './ssh-client-cache.js';
-import { installStderrAbendCapture, takeAbendSnippet } from './stderr-abend-capture.js';
+import {
+  installStderrAbendCapture,
+  sanitizeAbendMessage,
+  takeAbendSnippet,
+} from './stderr-abend-capture.js';
 import { logZnpResponse, requireMethods, sanitizeZnpString } from './znp-debug.js';
 
 const log = getLogger().child('native');
+
+/** Suggested link for reporting ZNP server abends (CEE3204S/0C4, etc.). */
+const ZNP_ISSUES_URL = 'https://github.com/zowe/zowe-native-proto/issues';
 
 /** Per connection (user@host:port) lock so only one request uses the client at a time. */
 const connectionLocks = new Map<string, Promise<void>>();
@@ -303,6 +312,8 @@ export interface NativeBackendOptions {
   onPasswordInvalid?: (user: string, host: string, port?: number) => void;
   /** Current response timeout in seconds. When set, operations are limited to this duration so a hung SDK does not block the lock. */
   getResponseTimeout?: () => number;
+  /** VS Code mode: call when a CEEDUMP file was saved after an abend; extension can show a message and offer to open the file. */
+  onCeedumpCollected?: (data: CeedumpCollectedEventData) => void;
 }
 
 export class NativeBackend {
@@ -386,6 +397,13 @@ export class NativeBackend {
           : undefined;
       const { isConnectionError, isInvalidPassword } = classifyNativeError(msg);
       const abendDetected = isAbendError(msg);
+      const znpOperation = operationContext?.operation ?? 'unknown';
+      const mcpTool = getCurrentMcpTool() ?? 'unknown';
+      // Error message used as display string only (sanitized for trailing dots/spaces)
+
+      const abendReason: string | undefined = abendDetected
+        ? sanitizeAbendMessage(String(msg))
+        : undefined;
       log.info('Native backend error (SSH/connection or auth)', {
         message: msg,
         errorCode: code,
@@ -399,8 +417,11 @@ export class NativeBackend {
       });
       if (abendDetected) {
         log.notice(
-          'ZNP server on z/OS abended (e.g. CEE3204S/0C4). Connection evicted; next request will use a new connection. Set ZOWE_MCP_CEEDUMP_SAVE_DIR to collect CEEDUMPs.',
-          { systemId, host: spec.host, user: spec.user }
+          `Zowe Native server on z/OS abended during Zowe Native operation '${znpOperation}' (MCP tool: '${mcpTool}'). ${abendReason}. Connection evicted; next request will use a new connection. Set ZOWE_MCP_CEEDUMP_SAVE_DIR to collect CEEDUMPs. Please report via GitHub issues: ${ZNP_ISSUES_URL}`,
+          { systemId, host: spec.host, user: spec.user, znpOperation, mcpTool, abendReason }
+        );
+        log.error(
+          `Zowe Native unexpected internal error: abend during Zowe Native call '${znpOperation}' (MCP tool: '${mcpTool}'). Details: ${abendReason}. Please report via GitHub issues: ${ZNP_ISSUES_URL}`
         );
       }
       log.debug('Native backend error detail', {
@@ -418,8 +439,19 @@ export class NativeBackend {
           { key, systemId, host: spec.host, user: spec.user }
         );
         if (abendDetected) {
-          void this.collectCeedumpAfterAbend(spec, systemId, userId, msg, operationContext);
+          void this.collectCeedumpAfterAbend(
+            spec,
+            systemId,
+            userId,
+            String(abendReason ?? msg),
+            operationContext,
+            mcpTool
+          );
         }
+      }
+      if (abendDetected) {
+        const userMessage = `An unexpected internal error occurred in Zowe Native (z/OS). Details: ${abendReason}. Please report via GitHub issues: ${ZNP_ISSUES_URL}`;
+        throw new Error(userMessage);
       }
       throw toThrow;
     } finally {
@@ -480,7 +512,8 @@ export class NativeBackend {
     systemId: SystemId,
     userId: string | undefined,
     errorMessage: string,
-    operationContext?: { operation: string; params: Record<string, unknown> }
+    operationContext?: { operation: string; params: Record<string, unknown> },
+    mcpTool?: string
   ): Promise<void> {
     const explicitDir =
       process.env.ZOWE_MCP_CEEDUMP_SAVE_DIR?.trim() ?? process.env.ZOWE_MCP_WORKSPACE_DIR?.trim();
@@ -565,10 +598,17 @@ export class NativeBackend {
       const combined = `${yamlBlock}\n---\n${content}`;
       const filePath = path.join(saveDir, `${baseName}.txt`);
       fs.writeFileSync(filePath, combined, 'utf-8');
+      const absolutePath = path.resolve(filePath);
       log.info('CEEDUMP saved after abend', {
         systemId,
         operation: meta.operation,
-        filePath,
+        filePath: absolutePath,
+      });
+      this.options.onCeedumpCollected?.({
+        path: absolutePath,
+        reason: errorMessage.slice(0, 500),
+        znpOperation: meta.operation,
+        mcpTool: mcpTool ?? undefined,
       });
     } catch (collectErr) {
       log.warning('CEEDUMP collection failed', {

@@ -164,6 +164,21 @@ export interface OpenJobInEditorEventData {
 /** Asks the extension to open a job or spool file in Zowe Explorer's editor (zowe-jobs URI). */
 export type OpenJobInEditorEvent = McpEvent<'open-job-in-editor', OpenJobInEditorEventData>;
 
+/** Payload for a `ceedump-collected` event (server → extension). */
+export interface CeedumpCollectedEventData {
+  /** Absolute path to the saved CEEDUMP file (YAML metadata + dump content). */
+  path: string;
+  /** Abend reason text (e.g. CEE3204S protection exception 0C4). Present when the dump was collected after a ZNP abend. */
+  reason?: string;
+  /** Zowe Native operation that was in progress when the abend occurred (e.g. listDatasets, readDataset). */
+  znpOperation?: string;
+  /** MCP tool that was in progress when the abend occurred (e.g. listDatasets, searchInDataset). */
+  mcpTool?: string;
+}
+
+/** Notifies the extension that a CEEDUMP was collected after a ZNP abend; extension can show a message and offer to open the file. */
+export type CeedumpCollectedEvent = McpEvent<'ceedump-collected', CeedumpCollectedEventData>;
+
 // ---------------------------------------------------------------------------
 // Extension → Server events
 // ---------------------------------------------------------------------------
@@ -270,7 +285,8 @@ export type ServerToExtensionEvent =
   | StoreJobCardEvent
   | OpenDatasetInEditorEvent
   | OpenUssFileInEditorEvent
-  | OpenJobInEditorEvent;
+  | OpenJobInEditorEvent
+  | CeedumpCollectedEvent;
 
 /** Events that flow from the VS Code extension to the MCP server. */
 export type ExtensionToServerEvent =

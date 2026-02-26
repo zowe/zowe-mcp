@@ -18,6 +18,7 @@
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { Logger } from './log.js';
+import { runWithMcpTool } from './mcp-tool-context.js';
 
 /**
  * Installs tool-call logging on the given server by replacing registerTool
@@ -43,36 +44,38 @@ export function installToolCallLogging(
     const wrappedCb = async (
       ...invocationArgs: unknown[]
     ): Promise<Awaited<ReturnType<typeof cb>>> => {
-      const input = invocationArgs.length >= 2 ? invocationArgs[0] : undefined;
-      toolLog.info('Tool call', {
-        tool: name,
-        backend: backendKind,
-        input,
-      });
-      let result: Awaited<ReturnType<typeof cb>>;
-      try {
-        const invoked =
-          invocationArgs.length >= 2
-            ? (cb as (args: unknown, extra: unknown) => ReturnType<typeof cb>)(
-                invocationArgs[0],
-                invocationArgs[1]
-              )
-            : (cb as (extra: unknown) => ReturnType<typeof cb>)(invocationArgs[0]);
-        result = await Promise.resolve(invoked);
-      } catch (e) {
-        toolLog.info('Tool call error', {
+      return runWithMcpTool(name, async () => {
+        const input = invocationArgs.length >= 2 ? invocationArgs[0] : undefined;
+        toolLog.info('Tool call', {
           tool: name,
           backend: backendKind,
-          error: e instanceof Error ? e.message : String(e),
+          input,
         });
-        throw e;
-      }
-      toolLog.info('Tool call result', {
-        tool: name,
-        backend: backendKind,
-        result,
+        let result: Awaited<ReturnType<typeof cb>>;
+        try {
+          const invoked =
+            invocationArgs.length >= 2
+              ? (cb as (args: unknown, extra: unknown) => ReturnType<typeof cb>)(
+                  invocationArgs[0],
+                  invocationArgs[1]
+                )
+              : (cb as (extra: unknown) => ReturnType<typeof cb>)(invocationArgs[0]);
+          result = await Promise.resolve(invoked);
+        } catch (e) {
+          toolLog.info('Tool call error', {
+            tool: name,
+            backend: backendKind,
+            error: e instanceof Error ? e.message : String(e),
+          });
+          throw e;
+        }
+        toolLog.info('Tool call result', {
+          tool: name,
+          backend: backendKind,
+          result,
+        });
+        return result;
       });
-      return result;
     };
     return originalRegisterTool(
       name,

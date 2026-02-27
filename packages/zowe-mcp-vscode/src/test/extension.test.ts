@@ -17,8 +17,9 @@
  */
 
 import * as assert from 'assert';
+import * as path from 'path';
 import * as vscode from 'vscode';
-import { showNoConnectionsNotificationIfNeeded } from '../extension';
+import { buildServerConfig, showNoConnectionsNotificationIfNeeded } from '../extension';
 import { getDisplayName, getLog } from '../log';
 
 /**
@@ -224,6 +225,72 @@ suite('Zowe MCP VS Code Extension', () => {
         showCalls,
         0,
         'Should not show notification when mock data directory is set'
+      );
+    });
+  });
+
+  suite('Fresh config server startup', () => {
+    const originalGetConfiguration = vscode.workspace.getConfiguration.bind(vscode.workspace);
+
+    suiteSetup(async () => {
+      const zoweMcp = findZoweMcpExtension();
+      if (zoweMcp && !zoweMcp.isActive) {
+        await zoweMcp.activate();
+      }
+    });
+
+    teardown(() => {
+      (
+        vscode.workspace as { getConfiguration: typeof originalGetConfiguration }
+      ).getConfiguration = originalGetConfiguration;
+    });
+
+    test('With fresh config (no connections, no mock dir), server gets native backend and zero systems', async () => {
+      const mockConfig: vscode.WorkspaceConfiguration = {
+        get: (key: string, defaultValue?: unknown) => {
+          if (key === 'nativeConnections') return [];
+          if (key === 'nativeSystems') return [];
+          if (key === 'mockDataDirectory') return '';
+          return defaultValue;
+        },
+        has: () => false,
+        inspect: () => undefined,
+        update: () => Promise.resolve(),
+      };
+      (
+        vscode.workspace as {
+          getConfiguration: (section: string) => vscode.WorkspaceConfiguration;
+        }
+      ).getConfiguration = (section: string) => {
+        assert.strictEqual(section, 'zoweMCP');
+        return mockConfig;
+      };
+
+      const zoweMcp = findZoweMcpExtension();
+      assert.ok(zoweMcp, 'Extension should be present');
+      const dummyContext = {
+        extensionPath: zoweMcp.extensionPath,
+      } as vscode.ExtensionContext;
+      const serverModule = path.join(dummyContext.extensionPath, 'server', 'index.js');
+      const log = getLog();
+      assert.ok(log, 'Log should be initialized after activation');
+
+      const serverConfig = await buildServerConfig(
+        dummyContext,
+        serverModule,
+        '/tmp/discovery',
+        'test-workspace-id',
+        log
+      );
+
+      const args = serverConfig.args;
+      assert.ok(args.includes('--native'), 'Fresh config should use native (SSH) backend');
+      assert.ok(!args.includes('--mock'), 'Fresh config should not use mock mode');
+      const systemFlagCount = args.filter((a: string) => a === '--system').length;
+      assert.strictEqual(
+        systemFlagCount,
+        0,
+        'Fresh config should pass zero systems (no --system args)'
       );
     });
   });

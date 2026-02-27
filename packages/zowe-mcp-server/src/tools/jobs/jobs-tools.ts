@@ -145,6 +145,55 @@ async function executeJobPollUntilDone(
   }
 }
 
+/**
+ * Optionally wait for a submitted job to reach OUTPUT and enrich base data with status.
+ * When wait is true, calls executeJobPollUntilDone and merges status, timedOut, and failedStepJobFiles into baseData.
+ * Caller is responsible for progress.step('Waiting for job to complete...') before calling when wait is true, and progress.complete(...) after.
+ */
+async function enrichSubmitResultWithWait(params: {
+  backend: ZosBackend;
+  systemId: string;
+  jobId: string;
+  jobName: string;
+  wait: boolean | undefined;
+  timeoutSeconds: number;
+  progressStep?: (msg: string) => void;
+  baseData: Record<string, unknown>;
+}): Promise<Record<string, unknown>> {
+  if (params.wait !== true) {
+    return { ...params.baseData };
+  }
+  const { status, timedOut } = await executeJobPollUntilDone(
+    params.backend,
+    params.systemId,
+    params.jobId,
+    params.timeoutSeconds,
+    params.progressStep
+  );
+  const data: Record<string, unknown> = {
+    ...params.baseData,
+    ...status,
+    jobId: status.id,
+    jobName: status.name,
+    timedOut: timedOut ? true : undefined,
+  };
+  if (!timedOut && status.retcode !== undefined && status.retcode !== '0000') {
+    try {
+      const failedStepJobFiles = await params.backend.listJobFiles(
+        params.systemId,
+        status.id,
+        undefined
+      );
+      if (failedStepJobFiles.length > 0) {
+        data.failedStepJobFiles = failedStepJobFiles;
+      }
+    } catch {
+      // ignore if listJobFiles not supported or fails
+    }
+  }
+  return data;
+}
+
 /** JCL job name max length (one qualifier). */
 const JOB_NAME_MAX_LEN = 8;
 /** Programmer name max length in JOB statement (IBM: 20 chars including quotes; we use 19 for value). */
@@ -351,66 +400,39 @@ export function registerJobTools(server: McpServer, deps: JobToolDeps, logger: L
           extra._meta?.progressToken ? (msg: string) => void progress.step(msg) : undefined
         );
 
-        let data: {
-          jobId: string;
-          jobName: string;
-          jobCardAddedLines?: string[];
-          status?: string;
-          id?: string;
-          name?: string;
-          owner?: string;
-          type?: string;
-          class?: string;
-          retcode?: string;
-          subsystem?: string;
-          phase?: number;
-          phaseName?: string;
-          correlator?: string;
-          timedOut?: boolean;
-          failedStepJobFiles?: JobFileEntry[];
-        } = {
+        const baseData: Record<string, unknown> = {
           jobId: result.jobId,
           jobName: result.jobName,
         };
         if (addedJobCard) {
-          data.jobCardAddedLines = textToLines(addedJobCard);
+          baseData.jobCardAddedLines = textToLines(addedJobCard);
         }
 
         if (parsed.wait === true) {
-          const timeoutSec = parsed.timeoutSeconds ?? DEFAULT_EXECUTE_JOB_TIMEOUT_SECONDS;
           await progress.step('Waiting for job to complete...');
-          const { status, timedOut } = await executeJobPollUntilDone(
-            deps.backend,
-            systemId,
-            result.jobId,
-            timeoutSec,
-            extra._meta?.progressToken ? (msg: string) => void progress.step(msg) : undefined
-          );
+        }
+        const timeoutSec = parsed.timeoutSeconds ?? DEFAULT_EXECUTE_JOB_TIMEOUT_SECONDS;
+        const data = await enrichSubmitResultWithWait({
+          backend: deps.backend,
+          systemId,
+          jobId: result.jobId,
+          jobName: result.jobName,
+          wait: parsed.wait,
+          timeoutSeconds: timeoutSec,
+          progressStep: extra._meta?.progressToken
+            ? (msg: string) => void progress.step(msg)
+            : undefined,
+          baseData,
+        });
+
+        if (parsed.wait === true) {
+          const timedOut = data.timedOut === true;
           if (timedOut) {
             await progress.complete('Timeout waiting for job (job continues on z/OS)');
           } else {
-            await progress.complete(`Job ${status.name} (${status.id}): ${status.status}`);
-          }
-          data = {
-            ...data,
-            ...status,
-            jobId: status.id,
-            jobName: status.name,
-            timedOut: timedOut ? true : undefined,
-          };
-          if (!timedOut && status.retcode !== undefined && status.retcode !== '0000') {
-            try {
-              const failedStepJobFiles = await deps.backend.listJobFiles(
-                systemId,
-                status.id,
-                undefined
-              );
-              if (failedStepJobFiles.length > 0) {
-                data.failedStepJobFiles = failedStepJobFiles;
-              }
-            } catch {
-              // ignore if listJobFiles not supported or fails
-            }
+            await progress.complete(
+              `Job ${String(data.name)} (${String(data.id)}): ${String(data.status)}`
+            );
           }
         } else {
           await progress.complete(`Job ${result.jobName} (${result.jobId}) submitted`);
@@ -1241,7 +1263,7 @@ export function registerJobTools(server: McpServer, deps: JobToolDeps, logger: L
     {
       outputSchema: submitJobFromDatasetOutputSchema,
       description:
-        'Submit a job from a data set (e.g. a PDS/PDSE member containing JCL). The data set must contain valid JCL including a job card.',
+        'Submit a job from a data set (e.g. a PDS/PDSE member containing JCL). The data set must contain valid JCL including a job card. Set wait: true to wait for the job to reach OUTPUT and return status.',
       annotations: { destructiveHint: true },
       inputSchema: {
         dsn: z
@@ -1255,13 +1277,34 @@ export function registerJobTools(server: McpServer, deps: JobToolDeps, logger: L
           .describe(
             'Optional z/OS system (hostname). If omitted, the active system from setSystem is used.'
           ),
+        wait: z
+          .boolean()
+          .optional()
+          .describe(
+            'When true, wait for the job to reach OUTPUT (or timeout) and return status, timedOut, and optionally failedStepJobFiles.'
+          ),
+        timeoutSeconds: z
+          .number()
+          .int()
+          .min(1)
+          .optional()
+          .describe(
+            `When wait is true, how long to wait for OUTPUT (seconds). Default ${DEFAULT_EXECUTE_JOB_TIMEOUT_SECONDS}. The job keeps running on z/OS after timeout.`
+          ),
       },
     },
     async (args, extra) => {
       const progress = createToolProgress(extra, 'Submit job from data set');
       await progress.start();
       try {
-        const parsed = z.object({ dsn: z.string(), system: z.string().optional() }).parse(args);
+        const parsed = z
+          .object({
+            dsn: z.string(),
+            system: z.string().optional(),
+            wait: z.boolean().optional(),
+            timeoutSeconds: z.number().int().min(1).optional(),
+          })
+          .parse(args);
         const { systemId, userId: resolvedUserId } = resolveSystemForTool(
           deps.systemRegistry,
           deps.sessionState,
@@ -1273,9 +1316,42 @@ export function registerJobTools(server: McpServer, deps: JobToolDeps, logger: L
           parsed.dsn,
           extra._meta?.progressToken ? (msg: string) => void progress.step(msg) : undefined
         );
-        await progress.complete(`Job ${result.jobName} (${result.jobId}) submitted from data set`);
+        const baseData: Record<string, unknown> = {
+          jobId: result.jobId,
+          jobName: result.jobName,
+        };
+        if (parsed.wait === true) {
+          await progress.step('Waiting for job to complete...');
+        }
+        const timeoutSec = parsed.timeoutSeconds ?? DEFAULT_EXECUTE_JOB_TIMEOUT_SECONDS;
+        const data = await enrichSubmitResultWithWait({
+          backend: deps.backend,
+          systemId,
+          jobId: result.jobId,
+          jobName: result.jobName,
+          wait: parsed.wait,
+          timeoutSeconds: timeoutSec,
+          progressStep: extra._meta?.progressToken
+            ? (msg: string) => void progress.step(msg)
+            : undefined,
+          baseData,
+        });
+        if (parsed.wait === true) {
+          const timedOut = data.timedOut === true;
+          if (timedOut) {
+            await progress.complete('Timeout waiting for job (job continues on z/OS)');
+          } else {
+            await progress.complete(
+              `Job ${String(data.name)} (${String(data.id)}): ${String(data.status)}`
+            );
+          }
+        } else {
+          await progress.complete(
+            `Job ${result.jobName} (${result.jobId}) submitted from data set`
+          );
+        }
         const responseCtx = buildContext(systemId, {});
-        return wrapResponse(responseCtx, { success: true }, result, []);
+        return wrapResponse(responseCtx, { success: true }, data, []);
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         log.debug('submitJobFromDataset error', { error: message });
@@ -1298,7 +1374,7 @@ export function registerJobTools(server: McpServer, deps: JobToolDeps, logger: L
     {
       outputSchema: submitJobFromUssOutputSchema,
       description:
-        'Submit a job from a USS file path. The file must contain valid JCL including a job card.',
+        'Submit a job from a USS file path. The file must contain valid JCL including a job card. Set wait: true to wait for the job to reach OUTPUT and return status.',
       annotations: { destructiveHint: true },
       inputSchema: {
         path: z.string().describe('USS path to the JCL file (e.g. /u/myuser/job.jcl).'),
@@ -1308,13 +1384,34 @@ export function registerJobTools(server: McpServer, deps: JobToolDeps, logger: L
           .describe(
             'Optional z/OS system (hostname). If omitted, the active system from setSystem is used.'
           ),
+        wait: z
+          .boolean()
+          .optional()
+          .describe(
+            'When true, wait for the job to reach OUTPUT (or timeout) and return status, timedOut, and optionally failedStepJobFiles.'
+          ),
+        timeoutSeconds: z
+          .number()
+          .int()
+          .min(1)
+          .optional()
+          .describe(
+            `When wait is true, how long to wait for OUTPUT (seconds). Default ${DEFAULT_EXECUTE_JOB_TIMEOUT_SECONDS}. The job keeps running on z/OS after timeout.`
+          ),
       },
     },
     async (args, extra) => {
       const progress = createToolProgress(extra, 'Submit job from USS');
       await progress.start();
       try {
-        const parsed = z.object({ path: z.string(), system: z.string().optional() }).parse(args);
+        const parsed = z
+          .object({
+            path: z.string(),
+            system: z.string().optional(),
+            wait: z.boolean().optional(),
+            timeoutSeconds: z.number().int().min(1).optional(),
+          })
+          .parse(args);
         const { systemId, userId: resolvedUserId } = resolveSystemForTool(
           deps.systemRegistry,
           deps.sessionState,
@@ -1326,9 +1423,40 @@ export function registerJobTools(server: McpServer, deps: JobToolDeps, logger: L
           parsed.path,
           extra._meta?.progressToken ? (msg: string) => void progress.step(msg) : undefined
         );
-        await progress.complete(`Job ${result.jobName} (${result.jobId}) submitted from USS`);
+        const baseData: Record<string, unknown> = {
+          jobId: result.jobId,
+          jobName: result.jobName,
+        };
+        if (parsed.wait === true) {
+          await progress.step('Waiting for job to complete...');
+        }
+        const timeoutSec = parsed.timeoutSeconds ?? DEFAULT_EXECUTE_JOB_TIMEOUT_SECONDS;
+        const data = await enrichSubmitResultWithWait({
+          backend: deps.backend,
+          systemId,
+          jobId: result.jobId,
+          jobName: result.jobName,
+          wait: parsed.wait,
+          timeoutSeconds: timeoutSec,
+          progressStep: extra._meta?.progressToken
+            ? (msg: string) => void progress.step(msg)
+            : undefined,
+          baseData,
+        });
+        if (parsed.wait === true) {
+          const timedOut = data.timedOut === true;
+          if (timedOut) {
+            await progress.complete('Timeout waiting for job (job continues on z/OS)');
+          } else {
+            await progress.complete(
+              `Job ${String(data.name)} (${String(data.id)}): ${String(data.status)}`
+            );
+          }
+        } else {
+          await progress.complete(`Job ${result.jobName} (${result.jobId}) submitted from USS`);
+        }
         const responseCtx = buildContext(systemId, {});
-        return wrapResponse(responseCtx, { success: true }, result, []);
+        return wrapResponse(responseCtx, { success: true }, data, []);
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         log.debug('submitJobFromUss error', { error: message });

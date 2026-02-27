@@ -111,6 +111,11 @@
         "command": "zowe-mcp.clearStoredPassword",
         "title": "Clear Stored Password",
         "category": "Zowe MCP"
+      },
+      {
+        "command": "zowe-mcp.resetAllSettingsAndState",
+        "title": "Reset All Settings and State",
+        "category": "Zowe MCP"
       }
     ],
     "configuration": {

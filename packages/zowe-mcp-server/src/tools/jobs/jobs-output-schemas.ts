@@ -160,6 +160,17 @@ const submitJobFromSourceDataSchema = z.object({
   jobName: z.string().describe('Job name from the JOB statement.'),
 });
 
+/** Submit-from-source (dataset/USS) result; when wait=true also has status, timedOut, failedStepJobFiles. */
+const submitJobFromSourceWithWaitDataSchema = submitJobFromSourceDataSchema.merge(
+  jobStatusResultSchema.partial().extend({
+    timedOut: z
+      .boolean()
+      .optional()
+      .describe('True if wait for OUTPUT timed out; job continues on z/OS.'),
+    failedStepJobFiles: failedStepJobFilesSchema,
+  })
+);
+
 // ---------------------------------------------------------------------------
 // Per-tool output schemas
 // ---------------------------------------------------------------------------
@@ -237,13 +248,13 @@ export const deleteJobOutputSchema = envelopeSchema(
 );
 
 export const submitJobFromDatasetOutputSchema = envelopeSchema(
-  submitJobFromSourceDataSchema,
+  submitJobFromSourceWithWaitDataSchema,
   mutationResultMetaSchema,
-  'Result of submitting a job from a data set. data has jobId, jobName; _result.success is true.'
+  'Result of submitting a job from a data set. data has jobId, jobName; when wait=true also has status, timedOut, failedStepJobFiles; _result.success is true.'
 );
 
 export const submitJobFromUssOutputSchema = envelopeSchema(
-  submitJobFromSourceDataSchema,
+  submitJobFromSourceWithWaitDataSchema,
   mutationResultMetaSchema,
-  'Result of submitting a job from a USS file. data has jobId, jobName; _result.success is true.'
+  'Result of submitting a job from a USS file. data has jobId, jobName; when wait=true also has status, timedOut, failedStepJobFiles; _result.success is true.'
 );

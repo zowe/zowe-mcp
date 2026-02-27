@@ -31,7 +31,7 @@ import {
 import { plural } from './plural';
 import { getNativePasswordKey } from './secrets';
 import { logLanguageModels, logStartupInfo } from './startup-log';
-import { initZoweMcpStatusBar } from './status-bar';
+import { initZoweMcpStatusBar, updateZoweMcpStatusBar } from './status-bar';
 
 /** Set when we register the Zowe MCP server with Cursor's API; used for config updates and deactivate. */
 let cursorMcpRegistered = false;
@@ -88,6 +88,13 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
     vscode.commands.registerCommand('zowe-mcp.clearStoredPassword', () =>
       clearStoredPassword(context)
+    )
+  );
+
+  // Register the "Reset All Settings and State" command
+  context.subscriptions.push(
+    vscode.commands.registerCommand('zowe-mcp.resetAllSettingsAndState', () =>
+      clearAllZoweMcpSettingsAndState(context)
     )
   );
 
@@ -220,8 +227,9 @@ function resolveServerPath(context: vscode.ExtensionContext): string {
 /**
  * Builds the command, args, and env used to start the Zowe MCP server.
  * Shared by the VS Code MCP provider and Cursor's registerServer.
+ * Exported for tests (fresh-config server args).
  */
-async function buildServerConfig(
+export async function buildServerConfig(
   _context: vscode.ExtensionContext,
   serverModule: string,
   discoveryDir: string,
@@ -582,6 +590,64 @@ async function clearStoredPassword(context: vscode.ExtensionContext): Promise<vo
   void vscode.window.showInformationMessage(
     `Stored password cleared for ${parsed.user}@${parsed.host}.`
   );
+}
+
+/** zoweMCP configuration keys to reset (without the "zoweMCP." prefix). */
+const ZOWE_MCP_CONFIG_KEYS = [
+  'nativeConnections',
+  'logLevel',
+  'installZoweNativeServerAutomatically',
+  'zoweNativeServerPath',
+  'nativeResponseTimeout',
+  'mockDataDirectory',
+  'defaultMainframeMvsEncoding',
+  'defaultMainframeUssEncoding',
+  'jobCards',
+] as const;
+
+/**
+ * Clears all Zowe MCP settings and global state so you can test first-time user experience.
+ * Resets zoweMCP.* settings to defaults, clears stored SSH passwords for current connections,
+ * clears last-active-connection state, and offers to reload the window so the MCP server
+ * restarts with a clean slate.
+ */
+async function clearAllZoweMcpSettingsAndState(context: vscode.ExtensionContext): Promise<void> {
+  const log = getLog();
+  const config = vscode.workspace.getConfiguration('zoweMCP');
+  const nativeConnections = getNativeConnectionsWithMigration(config);
+
+  // Clear stored passwords for all currently configured connections
+  for (const spec of nativeConnections) {
+    const parsed = parseConnectionSpec(spec);
+    if (parsed) {
+      const key = getNativePasswordKey(parsed.user, parsed.host);
+      await context.secrets.delete(key);
+      log.info(`Cleared stored password for ${parsed.user}@${parsed.host}`);
+    }
+  }
+
+  // Clear global state and update status bar
+  updateZoweMcpStatusBar(null, context);
+
+  // Reset all zoweMCP settings to default (remove overrides in Global and Workspace)
+  const hasWorkspace =
+    vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0;
+  for (const key of ZOWE_MCP_CONFIG_KEYS) {
+    await config.update(key, undefined, vscode.ConfigurationTarget.Global);
+    if (hasWorkspace) {
+      await config.update(key, undefined, vscode.ConfigurationTarget.Workspace);
+    }
+  }
+
+  log.info('Zowe MCP: reset all settings and state');
+  const reload = 'Reload Window';
+  const chosen = await vscode.window.showInformationMessage(
+    'Zowe MCP settings and state have been reset (connections, mock path, encodings, job cards, stored passwords, last connection). Reload the window so the MCP server restarts with a clean slate.',
+    reload
+  );
+  if (chosen === reload) {
+    void vscode.commands.executeCommand('workbench.action.reloadWindow');
+  }
 }
 
 export function deactivate(): void {

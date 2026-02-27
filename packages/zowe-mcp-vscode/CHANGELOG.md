@@ -2,6 +2,19 @@
 
 All notable changes to the Zowe MCP extension will be documented in this file.
 
+## `0.5.0`
+
+### New features and enhancements
+
+- **Status bar**: Active Zowe MCP connection is shown in the VS Code status bar; the extension notifies when the active connection changes.
+- **Startup notification**: When no Zowe MCP connections (native or mock) are configured, a notification is shown to help you set up.
+- **submitJob wait**: `submitJob` can wait for the job to reach OUTPUT with optional `wait: true` and `timeoutSeconds`; the former `executeJob` flow is merged into `submitJob`.
+- **DSN(MEMBER) syntax**: Data set tools accept fully qualified names in the form `USER.DSN(MEMBER)` so you can pass data set and member in a single parameter.
+- **Abend handling and CEEDUMP**: When the Zowe Native server on z/OS abends, the MCP server detects it, collects the CEEDUMP to a local file, and notifies the extension; you can open the dump from the notification.
+- **Improvement prompt**: New prompt for reflecting on Zowe MCP usage (e.g. in Cursor or Copilot).
+- **Reset command**: New command **Zowe MCP: Reset All Settings and State** to clear stored passwords and reset extension state.
+- **Zowe Native**: Extended SSH response timeout for initial connections to allow more time to auto-deploy the Zowe Native server when it is not yet installed.
+
 ## `0.4.0`
 
 ### New features and enhancements

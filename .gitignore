@@ -58,6 +58,9 @@ coverage/
 temp/
 tmp/
 
+# SDK PR artifacts
+sdk-pr/
+
 # Mock data
 zowe-mcp-mock-data/
 

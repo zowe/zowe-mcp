@@ -157,12 +157,42 @@ interface NativeUssApi {
     tag: string;
     recursive?: boolean;
   }): Promise<{ success?: boolean }>;
+  issueCmd(req: { commandText: string }): Promise<{ data?: string }>;
 }
 
-/** Subset of ZSshClient.cmds we use (ZNP command RPCs). */
-interface NativeCmdsApi {
-  issueUnix(req: { commandText: string }): Promise<{ data?: string }>;
-  issueTso(req: { commandText: string }): Promise<{ data?: string }>;
+/** Subset of ZSshClient.tso we use (ZNP TSO RPCs — SDK 0.3.0+). */
+interface NativeTsoApi {
+  issueCmd(req: { commandText: string }): Promise<{ data?: string }>;
+}
+
+/** Subset of ZSshClient.tool we use (ZNP tool RPCs — SDK 0.3.0+). */
+interface NativeToolApi {
+  search(req: { dsname: string; string: string; parms?: string }): Promise<{ data?: string }>;
+}
+
+/** Shape returned by UtilsApi.tools.parseSearchOutput (SDK 0.3.0+). */
+interface ZnpParsedSearchResult {
+  dataset: string;
+  header: string;
+  members: {
+    name: string;
+    matches: {
+      lineNumber: number;
+      content: string;
+      beforeContext: string[];
+      afterContext: string[];
+    }[];
+  }[];
+  summary: {
+    linesFound: number;
+    linesProcessed: number;
+    membersWithLines: number;
+    membersWithoutLines: number;
+    compareColumns: string;
+    longestLine: number;
+    processOptions: string;
+    searchPattern: string;
+  };
 }
 
 /** ZNP spool item shape (listSpools response). */
@@ -530,11 +560,10 @@ export class NativeBackend {
       );
       client = await this.options.clientCache.getOrCreate(spec, credentials);
       const uss = this.getUss(client);
-      const cmds = this.getCmds(client);
 
       let home: string;
       try {
-        const res = await cmds.issueUnix({ commandText: 'echo $HOME' });
+        const res = await uss.issueCmd({ commandText: 'echo $HOME' });
         home = (res.data ?? '').trim();
       } catch {
         home = '';
@@ -1006,16 +1035,106 @@ export class NativeBackend {
     options: SearchInDatasetOptions,
     progress?: BackendProgressCallback
   ): Promise<SearchInDatasetResult> {
-    // Use the client we already hold so we don't re-enter withNativeClient (listMembers/readDataset
-    // would otherwise acquire the same connection lock again). When ZNP client.tool.search is
-    // available (see https://github.com/zowe/zowe-native-proto/pull/809), call it here instead.
     return this.withNativeClient(
       systemId,
       undefined,
-      client =>
-        runSearchWithListAndRead(this.makeSearchAdapter(client), systemId, dsn, options, log),
+      async client => {
+        const clientObj = client as unknown as Record<string, unknown>;
+        if (clientObj.tool != null) {
+          try {
+            return await this.searchWithToolApi(client, dsn, options);
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err);
+            if (/unrecognized command/i.test(msg)) {
+              log.info('tool.search not supported by z/OS server, falling back to list-and-read', {
+                dsn,
+                error: msg,
+              });
+            } else {
+              throw err;
+            }
+          }
+        }
+        return runSearchWithListAndRead(
+          this.makeSearchAdapter(client),
+          systemId,
+          dsn,
+          options,
+          log
+        );
+      },
       progress
     );
+  }
+
+  /**
+   * Search using ZNP tool.search (SuperC on z/OS) + UtilsApi.tools.parseSearchOutput.
+   * Falls back to list-and-read when the member filter cannot be expressed via SuperC.
+   */
+  private async searchWithToolApi(
+    client: ZSshClient,
+    dsn: string,
+    options: SearchInDatasetOptions
+  ): Promise<SearchInDatasetResult> {
+    const tool = this.getTool(client);
+    const searchDsn = options.member ? `${dsn}(${options.member})` : dsn;
+    const parms = options.parms || undefined;
+    log.info('searchInDataset using tool.search', {
+      dsn: searchDsn,
+      string: options.string,
+      parms,
+    });
+
+    const response = await tool.search({
+      dsname: searchDsn,
+      string: options.string,
+      parms,
+    });
+    const rawOutput = response.data ?? '';
+    if (!rawOutput) {
+      return {
+        dataset: dsn,
+        members: [],
+        summary: {
+          linesFound: 0,
+          linesProcessed: 0,
+          membersWithLines: 0,
+          membersWithoutLines: 0,
+          searchPattern: options.string,
+          processOptions: options.parms,
+        },
+      };
+    }
+
+    const sdk = (await import('zowe-native-proto-sdk')) as {
+      UtilsApi: {
+        tools: {
+          parseSearchOutput: (output: string) => ZnpParsedSearchResult;
+        };
+      };
+    };
+    const parsed = sdk.UtilsApi.tools.parseSearchOutput(rawOutput);
+
+    const members = parsed.members.map(m => ({
+      name: m.name,
+      matches: m.matches.map(match => ({
+        lineNumber: match.lineNumber,
+        content: match.content,
+      })),
+    }));
+
+    return {
+      dataset: parsed.dataset ?? dsn,
+      members,
+      summary: {
+        linesFound: parsed.summary.linesFound,
+        linesProcessed: parsed.summary.linesProcessed,
+        membersWithLines: parsed.summary.membersWithLines,
+        membersWithoutLines: parsed.summary.membersWithoutLines,
+        searchPattern: parsed.summary.searchPattern ?? options.string,
+        processOptions: parsed.summary.processOptions ?? options.parms,
+      },
+    };
   }
 
   // -------------------------------------------------------------------------
@@ -1026,8 +1145,12 @@ export class NativeBackend {
     return (client as unknown as { uss: NativeUssApi }).uss;
   }
 
-  private getCmds(client: ZSshClient): NativeCmdsApi {
-    return (client as unknown as { cmds: NativeCmdsApi }).cmds;
+  private getTso(client: ZSshClient): NativeTsoApi {
+    return (client as unknown as { tso: NativeTsoApi }).tso;
+  }
+
+  private getTool(client: ZSshClient): NativeToolApi {
+    return (client as unknown as { tool: NativeToolApi }).tool;
   }
 
   private mapUssItem(item: {
@@ -1241,10 +1364,10 @@ export class NativeBackend {
       systemId,
       userId,
       async client => {
-        log.info('runUnixCommand resolving cmds API', { systemId, commandText });
-        const cmds = this.getCmds(client);
-        log.info('runUnixCommand calling issueUnix', { systemId, commandText });
-        const response = await cmds.issueUnix({ commandText });
+        log.info('runUnixCommand resolving uss API', { systemId, commandText });
+        const uss = this.getUss(client);
+        log.info('runUnixCommand calling uss.issueCmd', { systemId, commandText });
+        const response = await uss.issueCmd({ commandText });
         const data = response.data ?? '';
         log.debug('runUnixCommand completed', {
           systemId,
@@ -1267,10 +1390,10 @@ export class NativeBackend {
       systemId,
       userId,
       async client => {
-        log.info('runTsoCommand resolving cmds API', { systemId, commandText });
-        const cmds = this.getCmds(client);
-        log.info('runTsoCommand calling issueTso', { systemId, commandText });
-        const response = await cmds.issueTso({ commandText });
+        log.info('runTsoCommand resolving tso API', { systemId, commandText });
+        const tso = this.getTso(client);
+        log.info('runTsoCommand calling tso.issueCmd', { systemId, commandText });
+        const response = await tso.issueCmd({ commandText });
         const data = response.data ?? '';
         const maxLogOutput = 2000;
         const outputPreview =
@@ -1296,11 +1419,11 @@ export class NativeBackend {
       systemId,
       userId,
       async client => {
-        log.info('getUssHome resolving cmds API', { systemId });
-        const cmds = this.getCmds(client);
+        log.info('getUssHome resolving uss API', { systemId });
+        const uss = this.getUss(client);
         try {
-          log.info('getUssHome calling issueUnix(echo $HOME)', { systemId });
-          const response = await cmds.issueUnix({ commandText: 'echo $HOME' });
+          log.info('getUssHome calling uss.issueCmd(echo $HOME)', { systemId });
+          const response = await uss.issueCmd({ commandText: 'echo $HOME' });
           const home = (response.data ?? '').trim();
           log.debug('getUssHome issueUnix response', {
             systemId,
@@ -1312,7 +1435,7 @@ export class NativeBackend {
           }
           return home;
         } catch (err) {
-          log.warning('getUssHome issueUnix failed', {
+          log.warning('getUssHome uss.issueCmd failed', {
             systemId,
             error: (err as Error).message,
           });

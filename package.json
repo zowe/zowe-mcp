@@ -25,7 +25,9 @@
     "test:vscode": "npm run test -w packages/zowe-mcp-vscode",
     "test": "npm run test -w packages/zowe-mcp-server",
     "validate-tool-calls": "npm run validate-tool-calls -w packages/zowe-mcp-server",
-    "release-vsix": "bash scripts/release-vsix.sh"
+    "release-vsix": "bash scripts/release-vsix.sh",
+    "sdk:zowe-artifactory": "node scripts/sdk-switch.js zowe-artifactory",
+    "sdk:pr": "node scripts/sdk-switch.js pr"
   },
   "devDependencies": {
     "@vitest/eslint-plugin": "^1.6.7",

@@ -1041,19 +1041,7 @@ export class NativeBackend {
       async client => {
         const clientObj = client as unknown as Record<string, unknown>;
         if (clientObj.tool != null) {
-          try {
-            return await this.searchWithToolApi(client, dsn, options);
-          } catch (err) {
-            const msg = err instanceof Error ? err.message : String(err);
-            if (/unrecognized command/i.test(msg)) {
-              log.info('tool.search not supported by z/OS server, falling back to list-and-read', {
-                dsn,
-                error: msg,
-              });
-            } else {
-              throw err;
-            }
-          }
+          return this.searchWithToolApi(client, dsn, options);
         }
         return runSearchWithListAndRead(
           this.makeSearchAdapter(client),
@@ -1124,7 +1112,7 @@ export class NativeBackend {
     }));
 
     return {
-      dataset: parsed.dataset ?? dsn,
+      dataset: dsn,
       members,
       summary: {
         linesFound: parsed.summary.linesFound,

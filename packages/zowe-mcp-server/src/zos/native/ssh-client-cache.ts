@@ -158,6 +158,23 @@ export class SshClientCache {
         host: spec.host,
         port: spec.port,
       });
+
+      const outdated = await ZSshUtils.checkIfOutdated(client.serverChecksums);
+      if (outdated && opts.autoInstallZnp) {
+        log.info('ZNP server on z/OS is outdated, redeploying', {
+          key,
+          host: spec.host,
+          port: spec.port,
+        });
+        progress?.(`Updating Zowe Native server on ${spec.host}`);
+        client.dispose();
+        await ZSshUtils.installServer(session, opts.serverPath);
+        const reconnectOpts = {
+          ...createOpts,
+          responseTimeout: (opts.responseTimeout ?? DEFAULT_NATIVE_RESPONSE_TIMEOUT_SEC) * 2,
+        };
+        client = await ZSshClient.create(session, reconnectOpts);
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       const code =

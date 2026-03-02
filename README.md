@@ -4,6 +4,16 @@ Model Context Protocol (MCP) server and VS Code extension that gives AI
 assistants tools for working with z/OS systems -- data sets, jobs, and UNIX
 System Services.
 
+## Use case examples
+
+The AI can combine multiple tools and reason over results to:
+
+- **AI-assisted development** — Browse, search, read, and open data sets and USS in natural language; get explanations and open in editor.
+- **Job failure diagnostics** — "Why did this job fail?" The assistant fetches status and spool, finds errors/ABENDs, and explains cause and next steps.
+- **Search and trace** — Find where a program, copybook, or string is used or defined across libraries; get a short report and suggested next reads.
+
+See [Use cases](docs/use-cases.md) for the full list and more detail.
+
 ## Repository layout
 
 ```text

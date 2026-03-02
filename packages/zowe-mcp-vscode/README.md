@@ -23,6 +23,14 @@ When the extension is configured with a backend (mock or native), your AI assist
 
 Without a backend, only the server **info** tool is available; the extension will prompt you to set up mock data or a connection.
 
+### Example use cases
+
+- **AI-assisted development** — Browse, search, read, and open data sets and USS in natural language; get explanations and open in editor.
+- **Job failure diagnostics** — "Why did this job fail?" The assistant fetches status and spool, finds errors/ABENDs, and explains cause and next steps.
+- **Search and trace** — Find where a program, copybook, or string is used or defined across libraries; get a short report and suggested next reads.
+
+Other high-value uses include explaining programs and batch flows, assembling context for a task ("get me everything for payroll"), generating and validating code, operational picture of jobs, mainframe actions (TSO/USS/batch), discovery and mapping, and many more.
+
 ## Installation
 
 The extension is not yet on the Marketplace. For build and install instructions, see the [repository README](https://github.com/zowe/zowe-mcp). After installation, reload VS Code; the extension registers a **Zowe** MCP server — ensure it is enabled for your AI chat (e.g. in Copilot settings).

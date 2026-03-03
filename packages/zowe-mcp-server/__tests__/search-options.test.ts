@@ -61,4 +61,14 @@ describe('buildParmsFromOptions', () => {
     expect(parms).toContain('SEQ');
     expect(parms).toContain('DPCBCMT');
   });
+
+  it('should add LPSF when includeContextLines is true', () => {
+    const parms = buildParmsFromOptions({ includeContextLines: true });
+    expect(parms).toContain('LPSF');
+  });
+
+  it('should not add LPSF when includeContextLines is false or omitted', () => {
+    expect(buildParmsFromOptions({})).not.toContain('LPSF');
+    expect(buildParmsFromOptions({ includeContextLines: false })).not.toContain('LPSF');
+  });
 });

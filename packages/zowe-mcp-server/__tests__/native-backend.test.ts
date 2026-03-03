@@ -16,15 +16,127 @@
  */
 /* eslint-disable @typescript-eslint/unbound-method -- expect(mock.method).toHaveBeenCalledWith is safe in tests */
 
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ParsedConnectionSpec } from '../src/zos/native/connection-spec.js';
 import type { NativeBackendOptions } from '../src/zos/native/native-backend.js';
 import { NativeBackend } from '../src/zos/native/native-backend.js';
 
+/**
+ * Minimal parseSearchOutput for tests (SDK 0.2.x lacks UtilsApi).
+ * Parses the subset of SuperC output used in test fixtures.
+ */
+function fakeParseSearchOutput(output: string) {
+  const lines = output.split('\n');
+  const members: {
+    name: string;
+    matches: {
+      lineNumber: number;
+      content: string;
+      beforeContext: string[];
+      afterContext: string[];
+    }[];
+  }[] = [];
+  let currentMember: (typeof members)[0] | undefined;
+  let linesFound = 0;
+  const linesProcessed = 0;
+  let membersWithLines = 0;
+  let membersWithoutLines = 0;
+  let searchPattern = '';
+  let processOptions = '';
+  const contextBuf: string[] = [];
+  let prevMatch: (typeof members)[0]['matches'][0] | undefined;
+
+  for (const line of lines) {
+    const srchFor = /^\s*SRCHFOR\s+'(.+)'/.exec(line);
+    if (srchFor) {
+      searchPattern = srchFor[1];
+      continue;
+    }
+    const procOpts = /^\s*PROCESS OPTIONS USED:\s*(.+)/.exec(line);
+    if (procOpts) {
+      processOptions = procOpts[1].trim();
+      continue;
+    }
+    const memberHeader = /^\s{2}(\S+)\s+--------- STRING\(S\) FOUND/.exec(line);
+    if (memberHeader) {
+      currentMember = { name: memberHeader[1], matches: [] };
+      members.push(currentMember);
+      contextBuf.length = 0;
+      prevMatch = undefined;
+      continue;
+    }
+    const contextLine = /^\s+\*\s{2}(.*)$/.exec(line);
+    if (contextLine && currentMember) {
+      if (prevMatch) {
+        prevMatch.afterContext.push(contextLine[1]);
+      } else {
+        contextBuf.push(contextLine[1]);
+      }
+      continue;
+    }
+    const summary = /^\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+\d+:\d+\s+\d+/.exec(line);
+    if (summary && currentMember) {
+      linesFound += parseInt(summary[1], 10);
+      membersWithLines += parseInt(summary[3], 10);
+      membersWithoutLines += parseInt(summary[4], 10);
+      currentMember = undefined;
+      prevMatch = undefined;
+      continue;
+    }
+    const matchLine = /^\s+(\d+)\s{2}(.*)$/.exec(line);
+    if (matchLine && currentMember) {
+      if (prevMatch && contextBuf.length > 0) {
+        prevMatch.afterContext.push(...contextBuf.splice(0));
+      }
+      const m = {
+        lineNumber: parseInt(matchLine[1], 10),
+        content: matchLine[2],
+        beforeContext: [...contextBuf],
+        afterContext: [] as string[],
+      };
+      contextBuf.length = 0;
+      currentMember.matches.push(m);
+      prevMatch = m;
+      continue;
+    }
+  }
+
+  return {
+    dataset: '',
+    header: '',
+    members,
+    summary: {
+      linesFound,
+      linesProcessed,
+      membersWithLines,
+      membersWithoutLines,
+      compareColumns: '',
+      longestLine: 0,
+      processOptions,
+      searchPattern,
+    },
+  };
+}
+
+vi.mock('zowe-native-proto-sdk', async importOriginal => {
+  const actual = await importOriginal();
+  if (!actual.UtilsApi) {
+    return {
+      ...actual,
+      UtilsApi: {
+        tools: {
+          parseSearchOutput: fakeParseSearchOutput,
+        },
+      },
+    };
+  }
+  return actual;
+});
+
 const SYSTEM_ID = 'host.example.com';
 const SPEC: ParsedConnectionSpec = { user: 'USER', host: 'host.example.com', port: 22 };
 
-/** Fake SDK client shape used by listDatasets / listDsMembers / readDataset. */
+/** Fake SDK client shape used by listDatasets / listDsMembers / readDataset / tool.search. */
 function createFakeClient(overrides?: {
   listDatasets?: (req: { pattern: string; attributes?: boolean }) => Promise<{
     items?: {
@@ -42,6 +154,11 @@ function createFakeClient(overrides?: {
     etag?: string;
     data?: string;
   }>;
+  toolSearch?: (req: {
+    dsname: string;
+    string: string;
+    parms?: string;
+  }) => Promise<{ data?: string }>;
 }) {
   const defaultReadDataset = (req: { dsname: string }) => {
     void req;
@@ -63,7 +180,7 @@ function createFakeClient(overrides?: {
     },
   ];
 
-  return {
+  const client: Record<string, unknown> = {
     ds: {
       listDatasets:
         overrides?.listDatasets ?? (() => Promise.resolve({ items: defaultListDatasetsItems })),
@@ -73,6 +190,12 @@ function createFakeClient(overrides?: {
       readDataset: overrides?.readDataset ?? defaultReadDataset,
     },
   };
+
+  if (overrides?.toolSearch) {
+    client.tool = { search: overrides.toolSearch };
+  }
+
+  return client;
 }
 
 function createOptions(
@@ -510,6 +633,150 @@ describe('NativeBackend', () => {
       );
 
       expect(options.clientCache.getOrCreate).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('searchInDataset', () => {
+    const SUPERC_OUTPUT = [
+      ' ASMFSUPC - MVS FILE/LINE/WORD/BYTE/SFOR COMPARE UTILITY- V1R6M0 (2021/11/01) 2026/02/20 9.05',
+      ' SRCH DSN: USER.SRC.COBOL',
+      " SRCHFOR 'HELLO'",
+      ' PROCESS OPTIONS USED: ANYC SEQ',
+      '  MEMBER1                    --------- STRING(S) FOUND -------------------',
+      '      5  HELLO WORLD LINE FIVE',
+      '     10  SAY HELLO AGAIN',
+      '      3      0      1      0      1:80      80',
+    ].join('\n');
+
+    const SUPERC_OUTPUT_WITH_CONTEXT = [
+      ' ASMFSUPC - MVS FILE/LINE/WORD/BYTE/SFOR COMPARE UTILITY- V1R6M0 (2021/11/01) 2026/02/20 9.05',
+      ' SRCH DSN: USER.SRC.COBOL',
+      " SRCHFOR 'HELLO'",
+      ' PROCESS OPTIONS USED: ANYC SEQ LPSF',
+      '  MEMBER1                    --------- STRING(S) FOUND -------------------',
+      '      *  LINE BEFORE MATCH',
+      '      5  HELLO WORLD LINE FIVE',
+      '      *  LINE AFTER MATCH',
+      '      3      0      1      0      1:80      80',
+    ].join('\n');
+
+    afterEach(() => {
+      delete process.env.ZOWE_MCP_SEARCH_FORCE_FALLBACK;
+    });
+
+    it('uses tool.search and returns mapped SearchInDatasetResult', async () => {
+      const toolSearchMock = vi.fn().mockResolvedValue({ data: SUPERC_OUTPUT });
+      const options = createOptions({
+        clientCache: {
+          getOrCreate: vi.fn().mockResolvedValue(createFakeClient({ toolSearch: toolSearchMock })),
+          evict: vi.fn(),
+          hasKey: vi.fn().mockReturnValue(true),
+        },
+      });
+      const backend = new NativeBackend(options);
+
+      const result = await backend.searchInDataset(SYSTEM_ID, 'USER.SRC.COBOL', {
+        string: 'HELLO',
+        parms: 'ANYC SEQ',
+      });
+
+      expect(toolSearchMock).toHaveBeenCalledWith({
+        dsname: 'USER.SRC.COBOL',
+        string: 'HELLO',
+        parms: 'ANYC SEQ',
+      });
+      expect(result.dataset).toBe('USER.SRC.COBOL');
+      expect(result.members).toHaveLength(1);
+      expect(result.members[0].name).toBe('MEMBER1');
+      expect(result.members[0].matches).toHaveLength(2);
+      expect(result.members[0].matches[0]).toEqual({
+        lineNumber: 5,
+        content: 'HELLO WORLD LINE FIVE',
+      });
+      expect(result.members[0].matches[1]).toEqual({
+        lineNumber: 10,
+        content: 'SAY HELLO AGAIN',
+      });
+      expect(result.summary.linesFound).toBe(3);
+      expect(result.summary.membersWithLines).toBe(1);
+    });
+
+    it('uses fallback when ZOWE_MCP_SEARCH_FORCE_FALLBACK=1', async () => {
+      process.env.ZOWE_MCP_SEARCH_FORCE_FALLBACK = '1';
+
+      const toolSearchMock = vi.fn().mockResolvedValue({ data: SUPERC_OUTPUT });
+      const listDsMembersMock = vi.fn().mockResolvedValue({
+        items: [{ name: 'MEMBER1' }],
+      });
+      const readDatasetMock = vi.fn().mockResolvedValue({
+        etag: 'e',
+        data: Buffer.from('line1\nHELLO WORLD\nline3', 'utf-8').toString('base64'),
+      });
+      const options = createOptions({
+        clientCache: {
+          getOrCreate: vi.fn().mockResolvedValue(
+            createFakeClient({
+              toolSearch: toolSearchMock,
+              listDsMembers: listDsMembersMock,
+              readDataset: readDatasetMock,
+            })
+          ),
+          evict: vi.fn(),
+          hasKey: vi.fn().mockReturnValue(true),
+        },
+      });
+      const backend = new NativeBackend(options);
+
+      const result = await backend.searchInDataset(SYSTEM_ID, 'USER.SRC.COBOL', {
+        string: 'HELLO',
+        parms: 'ANYC SEQ',
+      });
+
+      expect(toolSearchMock).not.toHaveBeenCalled();
+      expect(listDsMembersMock).toHaveBeenCalled();
+      expect(readDatasetMock).toHaveBeenCalled();
+      expect(result.members).toHaveLength(1);
+      expect(result.members[0].matches[0].content).toBe('HELLO WORLD');
+    });
+
+    it('maps beforeContext/afterContext when LPSF is in parms', async () => {
+      const toolSearchMock = vi.fn().mockResolvedValue({ data: SUPERC_OUTPUT_WITH_CONTEXT });
+      const options = createOptions({
+        clientCache: {
+          getOrCreate: vi.fn().mockResolvedValue(createFakeClient({ toolSearch: toolSearchMock })),
+          evict: vi.fn(),
+          hasKey: vi.fn().mockReturnValue(true),
+        },
+      });
+      const backend = new NativeBackend(options);
+
+      const result = await backend.searchInDataset(SYSTEM_ID, 'USER.SRC.COBOL', {
+        string: 'HELLO',
+        parms: 'ANYC SEQ LPSF',
+      });
+
+      expect(result.members[0].matches[0].beforeContext).toEqual(['LINE BEFORE MATCH']);
+      expect(result.members[0].matches[0].afterContext).toEqual(['LINE AFTER MATCH']);
+    });
+
+    it('returns empty result when tool.search returns empty data', async () => {
+      const toolSearchMock = vi.fn().mockResolvedValue({ data: '' });
+      const options = createOptions({
+        clientCache: {
+          getOrCreate: vi.fn().mockResolvedValue(createFakeClient({ toolSearch: toolSearchMock })),
+          evict: vi.fn(),
+          hasKey: vi.fn().mockReturnValue(true),
+        },
+      });
+      const backend = new NativeBackend(options);
+
+      const result = await backend.searchInDataset(SYSTEM_ID, 'USER.SRC.COBOL', {
+        string: 'NOTFOUND',
+        parms: 'ANYC SEQ',
+      });
+
+      expect(result.members).toHaveLength(0);
+      expect(result.summary.linesFound).toBe(0);
     });
   });
 });

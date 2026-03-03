@@ -1035,21 +1035,28 @@ export class NativeBackend {
     options: SearchInDatasetOptions,
     progress?: BackendProgressCallback
   ): Promise<SearchInDatasetResult> {
+    const forceFallback =
+      process.env.ZOWE_MCP_SEARCH_FORCE_FALLBACK === '1' ||
+      process.env.ZOWE_MCP_SEARCH_FORCE_FALLBACK === 'true';
+
     return this.withNativeClient(
       systemId,
       undefined,
       async client => {
-        const clientObj = client as unknown as Record<string, unknown>;
-        if (clientObj.tool != null) {
-          return this.searchWithToolApi(client, dsn, options);
+        if (forceFallback) {
+          log.info('searchInDataset using fallback (ZOWE_MCP_SEARCH_FORCE_FALLBACK)', {
+            dsn,
+            string: options.string,
+          });
+          return runSearchWithListAndRead(
+            this.makeSearchAdapter(client),
+            systemId,
+            dsn,
+            options,
+            log
+          );
         }
-        return runSearchWithListAndRead(
-          this.makeSearchAdapter(client),
-          systemId,
-          dsn,
-          options,
-          log
-        );
+        return this.searchWithToolApi(client, dsn, options);
       },
       progress
     );
@@ -1094,13 +1101,18 @@ export class NativeBackend {
       };
     }
 
-    const sdk = (await import('zowe-native-proto-sdk')) as {
-      UtilsApi: {
+    const sdk = (await import('zowe-native-proto-sdk')) as unknown as {
+      UtilsApi?: {
         tools: {
           parseSearchOutput: (output: string) => ZnpParsedSearchResult;
         };
       };
     };
+    if (!sdk.UtilsApi?.tools?.parseSearchOutput) {
+      throw new Error(
+        'SDK does not export UtilsApi.tools.parseSearchOutput. Upgrade to zowe-native-proto-sdk 0.3.0+ or set ZOWE_MCP_SEARCH_FORCE_FALLBACK=1 to use the list+read fallback.'
+      );
+    }
     const parsed = sdk.UtilsApi.tools.parseSearchOutput(rawOutput);
 
     const members = parsed.members.map(m => ({
@@ -1108,6 +1120,8 @@ export class NativeBackend {
       matches: m.matches.map(match => ({
         lineNumber: match.lineNumber,
         content: match.content,
+        ...(match.beforeContext?.length ? { beforeContext: match.beforeContext } : {}),
+        ...(match.afterContext?.length ? { afterContext: match.afterContext } : {}),
       })),
     }));
 

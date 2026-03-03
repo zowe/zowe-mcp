@@ -174,6 +174,18 @@ const searchMatchSchema = z.object({
   content: z
     .string()
     .describe('The full line content (UTF-8); unprintable characters may be replaced with a dot.'),
+  beforeContext: z
+    .array(z.string())
+    .optional()
+    .describe(
+      'Lines before the match (up to 6). Present only when includeContextLines is true and the native ZNP backend is used with LPSF.'
+    ),
+  afterContext: z
+    .array(z.string())
+    .optional()
+    .describe(
+      'Lines after the match (up to 6). Present only when includeContextLines is true and the native ZNP backend is used with LPSF.'
+    ),
 });
 
 const searchMemberSchema = z.object({

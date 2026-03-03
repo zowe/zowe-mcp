@@ -274,7 +274,15 @@ export function getListMessages(meta: ListResultMeta): string[] {
 export function paginateSearchResult(
   fullResult: {
     dataset: string;
-    members: { name: string; matches: { lineNumber: number; content: string }[] }[];
+    members: {
+      name: string;
+      matches: {
+        lineNumber: number;
+        content: string;
+        beforeContext?: string[];
+        afterContext?: string[];
+      }[];
+    }[];
     summary: {
       linesFound: number;
       linesProcessed: number;

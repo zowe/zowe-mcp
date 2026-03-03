@@ -51,19 +51,29 @@ function isCacheValid(currentHash) {
 }
 
 /**
- * Copy any file:../../bin/*.tgz dependencies into server/.tgz/ and rewrite
- * package.json so "npm install" from server/ can resolve them.
+ * Directories (relative to repo root) that may contain file: tgz dependencies.
+ * Each entry maps the prefix used in package.json (e.g. "file:../../bin/") to
+ * the absolute directory where the tgz lives.
+ */
+const fileDepDirs = [
+  { prefix: 'file:../../bin/', absDir: binDir },
+  { prefix: 'file:../../sdk-pr/', absDir: path.join(repoRoot, 'sdk-pr') },
+];
+
+/**
+ * Copy any file:../../{bin,sdk-pr}/*.tgz dependencies into server/.tgz/ and
+ * rewrite package.json so "npm install" from server/ can resolve them.
  */
 function prepareFileDepsForBundle(targetPackageJsonPath) {
   const pkg = JSON.parse(fs.readFileSync(targetPackageJsonPath, 'utf-8'));
   const deps = pkg.dependencies || {};
   let changed = false;
   for (const [name, spec] of Object.entries(deps)) {
-    const match =
-      typeof spec === 'string' && spec.startsWith('file:../../bin/') && spec.endsWith('.tgz');
-    if (!match) continue;
+    if (typeof spec !== 'string' || !spec.endsWith('.tgz')) continue;
+    const matched = fileDepDirs.find(d => spec.startsWith(d.prefix));
+    if (!matched) continue;
     const tgzName = path.basename(spec.replace(/^file:/, ''));
-    const srcTgz = path.join(binDir, tgzName);
+    const srcTgz = path.join(matched.absDir, tgzName);
     if (!fs.existsSync(srcTgz)) {
       throw new Error(`Server dependency ${name} points to ${spec} but ${srcTgz} does not exist.`);
     }
@@ -85,7 +95,7 @@ const cacheHit = isCacheValid(depsHash);
 
 // Clean and recreate target (always — dist files may have changed)
 if (fs.existsSync(targetDir)) {
-  fs.rmSync(targetDir, { recursive: true });
+  fs.rmSync(targetDir, { recursive: true, maxRetries: 3, retryDelay: 100 });
 }
 fs.mkdirSync(targetDir, { recursive: true });
 
@@ -119,7 +129,11 @@ if (cacheHit) {
   console.log('Caching dependencies for next build...');
   fs.mkdirSync(cacheDir, { recursive: true });
   if (fs.existsSync(path.join(cacheDir, 'node_modules'))) {
-    fs.rmSync(path.join(cacheDir, 'node_modules'), { recursive: true });
+    fs.rmSync(path.join(cacheDir, 'node_modules'), {
+      recursive: true,
+      maxRetries: 3,
+      retryDelay: 100,
+    });
   }
   fs.cpSync(path.join(targetDir, 'node_modules'), path.join(cacheDir, 'node_modules'), {
     recursive: true,

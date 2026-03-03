@@ -429,7 +429,7 @@ export function registerDatasetTools(
         'Search for a string in a sequential data set or in a PDS/PDSE (all members or one member). ' +
         'Returns matching lines with line numbers and a summary. ' +
         'Results are paginated by member (offset/limit); when _result.hasMore is true, call again with the next offset and limit. ' +
-        'Options: caseSensitive (default false), cobol (ignore cols 1–6), ignoreSequenceNumbers, doNotProcessComments (asterisk, cobolComment, fortran, cpp, pli, pascal, pcAssembly, ada). ' +
+        'Options: caseSensitive (default false), cobol (ignore cols 1–6), ignoreSequenceNumbers, doNotProcessComments (asterisk, cobolComment, fortran, cpp, pli, pascal, pcAssembly, ada), includeContextLines (±6 lines around each match via LPSF). ' +
         'You may pass dsn as USER.LIB(MEM) and omit member.',
       annotations: { readOnlyHint: true },
       outputSchema: searchInDatasetOutputSchema,
@@ -491,6 +491,12 @@ export function registerDatasetTools(
           .describe(
             'Comment types to exclude from search: asterisk, cobolComment, fortran, cpp, pli, pascal, pcAssembly, ada (case-insensitive).'
           ),
+        includeContextLines: z
+          .boolean()
+          .optional()
+          .describe(
+            'When true, include ±6 lines of context (beforeContext/afterContext) around each match via SuperC LPSF. Only effective with the native ZNP backend; ignored by the fallback grep path. Default: false.'
+          ),
       },
     },
     async (
@@ -506,6 +512,7 @@ export function registerDatasetTools(
         cobol,
         ignoreSequenceNumbers,
         doNotProcessComments,
+        includeContextLines,
       },
       extra
     ) => {
@@ -536,6 +543,7 @@ export function registerDatasetTools(
           cobol,
           ignoreSequenceNumbers,
           doNotProcessComments: doNotProcessComments,
+          includeContextLines,
         });
 
         const searchOptions = {
@@ -580,12 +588,17 @@ export function registerDatasetTools(
           limit ?? DEFAULT_LIST_LIMIT
         );
 
-        // Sanitize match content just before returning (single point for unprintable → '.')
         const sanitizedMembers = slicedMembers.map(m => ({
           name: m.name,
           matches: m.matches.map(mat => ({
             lineNumber: mat.lineNumber,
             content: sanitizeTextForDisplay(mat.content),
+            ...(mat.beforeContext?.length
+              ? { beforeContext: mat.beforeContext.map(sanitizeTextForDisplay) }
+              : {}),
+            ...(mat.afterContext?.length
+              ? { afterContext: mat.afterContext.map(sanitizeTextForDisplay) }
+              : {}),
           })),
         }));
 

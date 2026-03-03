@@ -49,6 +49,8 @@ export interface SearchOptionsInput {
   ignoreSequenceNumbers?: boolean;
   /** Comment types to exclude from search (each adds one SuperC option). */
   doNotProcessComments?: SearchCommentType[];
+  /** When true, add LPSF (List Previous-Search-Following) to get ±6 context lines around each match. Only effective with ZNP tool.search; ignored by the fallback grep path. */
+  includeContextLines?: boolean;
 }
 
 /**
@@ -75,6 +77,10 @@ export function buildParmsFromOptions(options: SearchOptionsInput = {}): string 
     if (commentTypes.includes(t)) {
       parts.push(COMMENT_TO_PARMS[t]);
     }
+  }
+
+  if (options.includeContextLines === true) {
+    parts.push('LPSF');
   }
 
   return parts.join(' ');

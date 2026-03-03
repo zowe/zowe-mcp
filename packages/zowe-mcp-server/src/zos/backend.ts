@@ -166,6 +166,10 @@ export interface SearchMatchEntry {
   lineNumber: number;
   /** Line content (UTF-8). */
   content: string;
+  /** Lines before the match (LPSF context, ±6 lines). Present only when ZNP tool.search is used with LPSF parms. */
+  beforeContext?: string[];
+  /** Lines after the match (LPSF context, ±6 lines). Present only when ZNP tool.search is used with LPSF parms. */
+  afterContext?: string[];
 }
 
 /** Search result for one member: name and matching lines. */

@@ -12,8 +12,8 @@ questions:
   - id: copy-member-then-cleanup
     prompt: Create a temporary PDS, copy member CUSTFILE from USER.SRC.COBOL into that PDS as member BACKUP, then list the members of the temp PDS to confirm, then delete all data sets under that temp prefix.
     assertions:
-      - type: toolCallOrder
-        sequence:
+      - name: create temp PDS, copy member, list, cleanup
+        toolCallOrder:
           - tool: createTempDataset
             args:
               type:
@@ -31,14 +31,14 @@ questions:
               targetMember: "BACKUP"
           - tool: listMembers
           - tool: deleteDatasetsUnderPrefix
-      - type: answerContains
-        pattern: "BACKUP|member|success|complete|deleted"
+      - answerContains:
+          pattern: "BACKUP|member|success|complete|deleted"
 
   - id: rename-dataset-temp
     prompt: Create a temporary sequential data set with createTempDataset, rename it by changing the last qualifier to TEST, then write one line "Rename test" to it with writeDataset.
     assertions:
-      - type: toolCallOrder
-        sequence:
+      - name: create temp, rename, write
+        toolCallOrder:
           - tool: createTempDataset
             args:
               type:
@@ -50,5 +50,5 @@ questions:
           - tool: writeDataset
             args:
               lines: ["Rename test"]
-      - type: answerContains
-        pattern: "Rename test|success|written|created"
+      - answerContains:
+          pattern: "Rename test|success|written|created"

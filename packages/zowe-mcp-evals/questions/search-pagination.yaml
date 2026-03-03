@@ -12,15 +12,15 @@ questions:
   - id: search-inventory-many-members
     prompt: Search for the string "name:" in data set USER.INVNTORY and count how many of the all matched content are clothes.
     assertions:
-      - type: minToolCalls
-        tool: searchInDataset
-        minCount: 2
-      - type: toolCall
-        tool: searchInDataset
-        args:
-          dsn:
-            - "USER.INVNTORY"
-            - "'USER.INVNTORY'"
-          string: "name"
-      - type: answerContains
-        substring: "2000"
+      - toolCall:
+          tool: searchInDataset
+          minCount: 2
+      - toolCall:
+          tool: searchInDataset
+          args:
+            dsn:
+              - "USER.INVNTORY"
+              - "'USER.INVNTORY'"
+            string: "name"
+      - answerContains:
+          substring: "2000"

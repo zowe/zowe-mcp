@@ -57,15 +57,15 @@ export function getToolsUnderTest(block: AssertionBlock): string[] {
   const assertions = flattenAssertionItems(block.items);
   const names = new Set<string>();
   for (const a of assertions) {
-    if (a.type === 'toolCallOrder') {
+    if (a.type === 'toolCall') {
+      if (a.tool) names.add(a.tool.trim());
+      if (a.tools) for (const t of a.tools) names.add(t.trim());
+      if (a.oneOf) for (const spec of a.oneOf) names.add(spec.tool.trim());
+    } else if (a.type === 'toolCallOrder') {
       for (const step of a.sequence) {
         if (step.tool) names.add(step.tool.trim());
         if (step.tools) for (const t of step.tools) names.add(t.trim());
       }
-    } else if (a.type === 'toolCallOneOf') {
-      for (const spec of a.oneOf) names.add(spec.tool.trim());
-    } else if ('tool' in a && typeof (a as { tool?: string }).tool === 'string') {
-      names.add((a as { tool: string }).tool.trim());
     }
   }
   return [...names].sort();

@@ -59,6 +59,10 @@ function findMatchingToolCall(
   return toolCalls.some(tc => tc.name === normalized && argsMatch(args, tc.arguments));
 }
 
+function withName(name: string | undefined, msg: string): string {
+  return name ? `[${name}] ${msg}` : msg;
+}
+
 /**
  * Run a single assertion item (leaf or composite). Composites recurse.
  */
@@ -87,8 +91,12 @@ function runAssertionItem(
   return runLeafAssertion(item as Assertion, toolCalls, finalText);
 }
 
+function fail(name: string | undefined, msg: string): { passed: false; failedAssertion: string } {
+  return { passed: false, failedAssertion: withName(name, msg) };
+}
+
 /**
- * Run leaf assertions only (no allOf/anyOf).
+ * Run leaf assertions (3 consolidated types).
  */
 function runLeafAssertion(
   a: Assertion,
@@ -97,119 +105,89 @@ function runLeafAssertion(
 ): { passed: boolean; failedAssertion?: string } {
   switch (a.type) {
     case 'toolCall': {
-      const expected = a;
-      const lastRelevant = [...toolCalls].reverse().find(tc => tc.name === expected.tool);
-      if (!lastRelevant) {
-        return {
-          passed: false,
-          failedAssertion: `Expected tool "${expected.tool}" to be called`,
-        };
-      }
-      if (!argsMatch(expected.args, lastRelevant.arguments)) {
-        return {
-          passed: false,
-          failedAssertion: `Expected tool "${expected.tool}" with args matching ${JSON.stringify(expected.args)}, got ${JSON.stringify(lastRelevant.arguments)}`,
-        };
-      }
-      break;
-    }
-    case 'answerContains': {
-      const expected = a;
-      if (expected.pattern !== undefined) {
-        try {
-          const re = new RegExp(expected.pattern);
-          if (!re.test(finalText)) {
-            return {
-              passed: false,
-              failedAssertion: `Expected answer to match pattern /${expected.pattern}/`,
-            };
+      if (a.count !== undefined) {
+        const toolName = a.tool?.trim();
+        const actual = toolName
+          ? toolCalls.filter(tc => tc.name === toolName).length
+          : toolCalls.length;
+        if (actual !== a.count) {
+          const label = toolName ? ` to "${toolName}"` : '';
+          return fail(
+            a.name,
+            `Expected exactly ${a.count} ${plural(a.count, 'call', 'calls')}${label}, got ${actual}`
+          );
+        }
+        if (toolName && a.args) {
+          const matching = toolCalls.filter(tc => tc.name === toolName);
+          const last = matching[matching.length - 1];
+          if (last && !argsMatch(a.args, last.arguments)) {
+            return fail(
+              a.name,
+              `Expected tool "${toolName}" with args matching ${JSON.stringify(a.args)}, got ${JSON.stringify(last.arguments)}`
+            );
           }
-        } catch {
-          return {
-            passed: false,
-            failedAssertion: `Invalid answerContains pattern: ${expected.pattern}`,
-          };
         }
-      } else if (expected.substring !== undefined) {
-        if (!finalText.includes(expected.substring)) {
-          return {
-            passed: false,
-            failedAssertion: `Expected answer to contain "${expected.substring}"`,
-          };
+        break;
+      }
+
+      if (a.minCount !== undefined) {
+        const toolName = a.tool?.trim();
+        if (!toolName) return fail(a.name, 'minCount requires tool');
+        const actual = toolCalls.filter(tc => tc.name === toolName).length;
+        if (actual < a.minCount) {
+          return fail(
+            a.name,
+            `Expected at least ${a.minCount} ${plural(a.minCount, 'call', 'calls')} to "${toolName}", got ${actual} ${plural(actual, 'call', 'calls')}`
+          );
         }
-      } else {
-        return {
-          passed: false,
-          failedAssertion: 'answerContains requires substring or pattern',
-        };
+        break;
       }
-      break;
-    }
-    case 'singleToolCall': {
-      const expected = a;
-      if (toolCalls.length !== 1) {
-        return {
-          passed: false,
-          failedAssertion: `Expected exactly one tool call, got ${toolCalls.length}`,
-        };
-      }
-      const tc = toolCalls[0];
-      if (tc.name !== expected.tool || !argsMatch(expected.args, tc.arguments)) {
-        return {
-          passed: false,
-          failedAssertion: `Expected single tool call "${expected.tool}" with matching args, got ${tc.name} ${JSON.stringify(tc.arguments)}`,
-        };
-      }
-      break;
-    }
-    case 'toolOnly': {
-      const expected = a;
-      if (!findMatchingToolCall(toolCalls, expected.tool, expected.args)) {
-        return {
-          passed: false,
-          failedAssertion: `Expected a tool call "${expected.tool}" with matching args`,
-        };
-      }
-      break;
-    }
-    case 'minToolCalls': {
-      const expected = a;
-      const count = toolCalls.filter(tc => tc.name === expected.tool.trim()).length;
-      if (count < expected.minCount) {
-        return {
-          passed: false,
-          failedAssertion: `Expected at least ${expected.minCount} ${plural(expected.minCount, 'call', 'calls')} to "${expected.tool}", got ${count} ${plural(count, 'call', 'calls')}`,
-        };
-      }
-      break;
-    }
-    case 'toolCallSequence': {
-      const expected = a;
-      const normalized = expected.tool.trim();
-      const calls = toolCalls.filter(tc => tc.name === normalized);
-      if (calls.length < expected.sequence.length) {
-        return {
-          passed: false,
-          failedAssertion: `Expected at least ${expected.sequence.length} ${plural(expected.sequence.length, 'call', 'calls')} to "${expected.tool}", got ${calls.length} ${plural(calls.length, 'call', 'calls')}`,
-        };
-      }
-      for (let i = 0; i < expected.sequence.length; i++) {
-        const expectedArgs = expected.sequence[i];
-        const actualArgs = calls[i].arguments;
-        if (!argsMatch(expectedArgs, actualArgs)) {
-          return {
-            passed: false,
-            failedAssertion: `Expected "${expected.tool}" call ${i + 1} to have args matching ${JSON.stringify(expectedArgs)}, got ${JSON.stringify(actualArgs)}`,
-          };
+
+      if (a.oneOf) {
+        const anyMatch = a.oneOf.some(spec =>
+          findMatchingToolCall(toolCalls, spec.tool, spec.args)
+        );
+        if (!anyMatch) {
+          const labels = a.oneOf.map(
+            spec => `${spec.tool}${spec.args ? ` ${JSON.stringify(spec.args)}` : ''}`
+          );
+          return fail(a.name, `Expected one of these tool calls: ${labels.join(' OR ')}`);
         }
+        break;
       }
-      break;
+
+      if (a.tools) {
+        const anyMatch = a.tools.some(t => findMatchingToolCall(toolCalls, t, a.args));
+        if (!anyMatch) {
+          return fail(
+            a.name,
+            `Expected a call to one of [${a.tools.join(', ')}]${a.args ? ` with args matching ${JSON.stringify(a.args)}` : ''}`
+          );
+        }
+        break;
+      }
+
+      if (a.tool) {
+        const lastRelevant = [...toolCalls].reverse().find(tc => tc.name === a.tool);
+        if (!lastRelevant) {
+          return fail(a.name, `Expected tool "${a.tool}" to be called`);
+        }
+        if (!argsMatch(a.args, lastRelevant.arguments)) {
+          return fail(
+            a.name,
+            `Expected tool "${a.tool}" with args matching ${JSON.stringify(a.args)}, got ${JSON.stringify(lastRelevant.arguments)}`
+          );
+        }
+        break;
+      }
+
+      return fail(a.name, 'toolCall must have tool, tools, or oneOf');
     }
+
     case 'toolCallOrder': {
-      const expected = a;
       let lastIndex = -1;
-      for (let i = 0; i < expected.sequence.length; i++) {
-        const step = expected.sequence[i];
+      for (let i = 0; i < a.sequence.length; i++) {
+        const step = a.sequence[i];
         const stepMatches = (tc: ToolCallRecord) => {
           const name = tc.name.trim();
           const toolMatch =
@@ -224,36 +202,38 @@ function runLeafAssertion(
             step.tool !== undefined
               ? `"${step.tool}"`
               : `one of [${(step.tools ?? []).join(', ')}]`;
-          return {
-            passed: false,
-            failedAssertion: `Expected a call to ${label} (step ${i + 1}) after index ${lastIndex}, with args matching ${JSON.stringify(step.args ?? {})}`,
-          };
+          return fail(
+            a.name,
+            `Expected a call to ${label} (step ${i + 1}) after index ${lastIndex}, with args matching ${JSON.stringify(step.args ?? {})}`
+          );
         }
         lastIndex = idx;
       }
       break;
     }
-    case 'toolCallOneOf': {
-      const expected = a;
-      const anyMatch = expected.oneOf.some(spec =>
-        findMatchingToolCall(toolCalls, spec.tool, spec.args)
-      );
-      if (!anyMatch) {
-        const labels = expected.oneOf.map(
-          spec => `${spec.tool}${spec.args ? ` ${JSON.stringify(spec.args)}` : ''}`
-        );
-        return {
-          passed: false,
-          failedAssertion: `Expected one of these tool calls: ${labels.join(' OR ')}`,
-        };
+
+    case 'answerContains': {
+      if (a.pattern !== undefined) {
+        try {
+          const re = new RegExp(a.pattern);
+          if (!re.test(finalText)) {
+            return fail(a.name, `Expected answer to match pattern /${a.pattern}/`);
+          }
+        } catch {
+          return fail(a.name, `Invalid answerContains pattern: ${a.pattern}`);
+        }
+      } else if (a.substring !== undefined) {
+        if (!finalText.includes(a.substring)) {
+          return fail(a.name, `Expected answer to contain "${a.substring}"`);
+        }
+      } else {
+        return fail(a.name, 'answerContains requires substring or pattern');
       }
       break;
     }
+
     default:
-      return {
-        passed: false,
-        failedAssertion: `Unknown assertion type: ${String((a as { type: string }).type)}`,
-      };
+      return fail(undefined, `Unknown assertion type: ${String((a as { type: string }).type)}`);
   }
   return { passed: true };
 }

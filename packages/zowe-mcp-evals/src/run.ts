@@ -17,11 +17,11 @@ import { runAssertions } from './assertions.js';
 import { buildCacheKey, get as cacheGet, set as cacheSet, getToolsUnderTest } from './cache.js';
 import { getConfigDir, loadEvalsConfig } from './config.js';
 import { getSystemPrompt, initMockData, McpEvalHarness } from './harness.js';
-import { listSetNames, loadSet } from './load-questions.js';
+import { listSetNames, loadAndValidateAllSets } from './load-questions.js';
 import { log } from './log.js';
 import { plural } from './plural.js';
 import { writeReport } from './report.js';
-import type { Question, RunResult } from './types.js';
+import type { Question, QuestionSet, RunResult } from './types.js';
 
 const PASS = '\u2713'; // ✓
 const FAIL = '\u2717'; // ✗
@@ -135,6 +135,16 @@ async function main(): Promise<void> {
   }
   log.info(`Question ${plural(setNames.length, 'set', 'sets')}`, { sets: setNames.join(', ') });
 
+  log.info('Validating all question sets');
+  let loadedSets: Map<string, QuestionSet>;
+  try {
+    loadedSets = loadAndValidateAllSets(setNames);
+  } catch (e) {
+    log.error(errorMessage(e));
+    process.exit(1);
+  }
+  log.info(`All ${setNames.length} ${plural(setNames.length, 'set', 'sets')} validated`);
+
   const serverPath = SERVER_PATH;
   if (!existsSync(serverPath)) {
     log.error('Server not built. Run: npm run build -w packages/zowe-mcp-server');
@@ -154,13 +164,7 @@ async function main(): Promise<void> {
   const cacheStats: CacheStats = { hits: 0, writes: 0 };
 
   for (const setName of setNames) {
-    let questionSet;
-    try {
-      questionSet = loadSet(setName);
-    } catch (e) {
-      log.error(errorMessage(e));
-      process.exit(1);
-    }
+    const questionSet = loadedSets.get(setName)!;
 
     const questions = filterQuestions(questionSet.questions, cli);
     const config = questionSet.config;

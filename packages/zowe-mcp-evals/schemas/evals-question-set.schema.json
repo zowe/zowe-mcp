@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://github.com/zowe/zowe-mcp/evals-question-set.schema.json",
   "title": "Zowe MCP Evals Question Set",
-  "description": "Schema for eval question set YAML files. Define config (mock or native backend, repetitions, success rate) and a list of questions with prompts and assertions. Used by the evals runner to validate question sets and by VS Code for completion and hover help.",
+  "description": "Schema for eval question set YAML files. Ansible-style assertions: each assertion is an object with a key (toolCall, toolCallOrder, answerContains) and an optional name.",
   "type": "object",
   "required": ["questions"],
   "properties": {
@@ -29,7 +29,7 @@
           "minimum": 0,
           "maximum": 1,
           "default": 0.8,
-          "description": "Minimum fraction of runs that must pass (0–1) for the set to be considered successful. E.g. 0.8 means 80% of runs must pass."
+          "description": "Minimum fraction of runs that must pass (0–1) for the set to be considered successful."
         },
         "mock": {
           "type": "object",
@@ -37,7 +37,7 @@
           "properties": {
             "initArgs": {
               "type": "string",
-              "description": "Arguments passed to init-mock (after --output <dir>). Typical: '--preset default' or '--preset pagination'. Presets: minimal, default, large, inventory, pagination."
+              "description": "Arguments passed to init-mock (after --output <dir>). Typical: '--preset default' or '--preset pagination'."
             }
           },
           "required": ["initArgs"],
@@ -45,11 +45,11 @@
         },
         "native": {
           "type": "object",
-          "description": "Use the native (SSH) backend. Requires a config file and credentials. No mock data is created.",
+          "description": "Use the native (SSH) backend. Requires a config file and credentials.",
           "properties": {
             "serverArgs": {
               "type": "string",
-              "description": "Server arguments after --stdio. Typical: '--native --config native-config.json'. Use --config with a path relative to repo root."
+              "description": "Server arguments after --stdio. Typical: '--native --config native-config.json'."
             }
           },
           "required": ["serverArgs"],
@@ -57,346 +57,186 @@
         },
         "systemPrompt": {
           "type": "string",
-          "description": "Override the default system prompt entirely. Use when the set needs a different instruction set for the agent."
+          "description": "Override the default system prompt entirely."
         },
         "systemPromptAddition": {
           "type": "string",
-          "description": "Appended to the default system prompt. Use to add set-specific instructions without replacing the default."
+          "description": "Appended to the default system prompt."
         }
       },
       "additionalProperties": false
     },
     "questions": {
       "type": "array",
-      "description": "List of questions. Each question has an id, a user prompt, and assertions that must all pass for the run to succeed.",
+      "description": "List of questions. Each question has an id, a user prompt, and assertions.",
       "minItems": 1,
-      "items": { "$ref": "#/$defs/Question" }
-    }
-  },
-  "additionalProperties": false,
-  "$defs": {
-    "Question": {
-      "type": "object",
-      "required": ["id", "prompt", "assertions"],
-      "description": "A single eval question: the prompt sent to the agent and the assertions checked against tool calls and final answer.",
-      "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for this question within the set. Use kebab-case (e.g. list-members-src-cobol). Shown in reports and used with --id filter."
-        },
-        "prompt": {
-          "type": "string",
-          "description": "The user prompt sent to the AI agent. The agent may call MCP tools to answer; assertions validate tool usage and answer content."
-        },
-        "preset": {
-          "type": "string",
-          "enum": ["default", "inventory"],
-          "description": "Override mock preset for this question when using mock backend. If omitted, the set-level mock initArgs (e.g. --preset default) applies."
-        },
-        "assertions": {
-          "description": "Assertions block. Use an array (all must pass, default) or an object with allOf (all must pass) or anyOf (at least one must pass). Items can be leaf assertions or nested allOf/anyOf.",
-          "oneOf": [
-            {
-              "type": "array",
-              "minItems": 1,
-              "items": { "$ref": "#/$defs/AssertionItem" }
-            },
-            {
-              "type": "object",
-              "properties": {
-                "allOf": {
-                  "type": "array",
-                  "minItems": 1,
-                  "items": { "$ref": "#/$defs/AssertionItem" }
-                }
-              },
-              "required": ["allOf"],
-              "additionalProperties": false
-            },
-            {
-              "type": "object",
-              "properties": {
-                "anyOf": {
-                  "type": "array",
-                  "minItems": 1,
-                  "items": { "$ref": "#/$defs/AssertionItem" }
-                }
-              },
-              "required": ["anyOf"],
-              "additionalProperties": false
-            }
-          ]
-        }
-      },
-      "additionalProperties": false
-    },
-    "Assertion": {
-      "oneOf": [
-        { "$ref": "#/$defs/AssertToolCall" },
-        { "$ref": "#/$defs/AssertAnswerContains" },
-        { "$ref": "#/$defs/AssertSingleToolCall" },
-        { "$ref": "#/$defs/AssertToolOnly" },
-        { "$ref": "#/$defs/AssertMinToolCalls" },
-        { "$ref": "#/$defs/AssertToolCallSequence" },
-        { "$ref": "#/$defs/AssertToolCallOrder" },
-        { "$ref": "#/$defs/AssertToolCallOneOf" }
-      ],
-      "description": "Leaf assertion: tool-call check or answerContains. No nested allOf/anyOf."
-    },
-    "AssertionItem": {
-      "description": "One assertion item: leaf assertion or composite (allOf/anyOf with nested items).",
-      "oneOf": [
-        { "$ref": "#/$defs/Assertion" },
-        {
-          "type": "object",
-          "properties": {
-            "allOf": {
-              "type": "array",
-              "minItems": 1,
-              "items": { "$ref": "#/$defs/AssertionItem" }
-            }
+      "items": {
+        "type": "object",
+        "required": ["id", "prompt", "assertions"],
+        "description": "A single eval question: the prompt sent to the agent and the assertions checked against tool calls and final answer.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique identifier for this question within the set. Use kebab-case (e.g. list-members-src-cobol)."
           },
-          "required": ["allOf"],
-          "additionalProperties": false
-        },
-        {
-          "type": "object",
-          "properties": {
-            "anyOf": {
-              "type": "array",
-              "minItems": 1,
-              "items": { "$ref": "#/$defs/AssertionItem" }
-            }
+          "prompt": {
+            "type": "string",
+            "description": "The user prompt sent to the AI agent."
           },
-          "required": ["anyOf"],
-          "additionalProperties": false
-        }
-      ]
-    },
-    "ToolNameEnum": {
-      "type": "string",
-      "enum": [
-        "info",
-        "listSystems",
-        "setSystem",
-        "getContext",
-        "listDatasets",
-        "listMembers",
-        "searchInDataset",
-        "getDatasetAttributes",
-        "readDataset",
-        "writeDataset",
-        "getTempDatasetPrefix",
-        "getTempDatasetName",
-        "createDataset",
-        "createTempDataset",
-        "deleteDataset",
-        "deleteDatasetsUnderPrefix",
-        "copyDataset",
-        "renameDataset",
-        "runSafeTsoCommand",
-        "getUssHome",
-        "changeUssDirectory",
-        "listUssFiles",
-        "readUssFile",
-        "runSafeUssCommand",
-        "writeUssFile",
-        "createUssFile",
-        "deleteUssFile",
-        "chmodUssFile",
-        "chownUssFile",
-        "chtagUssFile",
-        "getUssTempDir",
-        "getUssTempPath",
-        "createTempUssDir",
-        "createTempUssFile",
-        "deleteUssTempUnderDir",
-        "submitJob",
-        "getJobStatus",
-        "listJobFiles",
-        "readJobFile",
-        "getJobOutput",
-        "searchJobOutput",
-        "listJobs",
-        "getJcl",
-        "cancelJob",
-        "holdJob",
-        "releaseJob",
-        "deleteJob",
-        "submitJobFromDataset",
-        "submitJobFromUss",
-        "openDatasetInEditor",
-        "openUssFileInEditor",
-        "openJobInEditor"
-      ],
-      "description": "MCP tool name (camelCase). Must match a tool registered by the Zowe MCP server."
-    },
-    "AssertToolCall": {
-      "type": "object",
-      "description": "Assert that the tool was called (at least once). Uses the last matching call. Args are partial match; use an array of values to accept any of them (e.g. dsnPattern: [\"USER.**\", \"'USER.**'\"]).",
-      "required": ["type", "tool"],
-      "properties": {
-        "type": { "const": "toolCall", "description": "Assertion type." },
-        "tool": { "$ref": "#/$defs/ToolNameEnum" },
-        "args": {
-          "type": "object",
-          "description": "Optional. Argument matchers (partial match). Omit to only check that the tool was called. For alternative values use a YAML array (e.g. dsn: [\"USER.SRC.COBOL\", \"'USER.SRC.COBOL\"]).",
-          "additionalProperties": true
-        }
-      },
-      "additionalProperties": false
-    },
-    "AssertAnswerContains": {
-      "type": "object",
-      "description": "Assert that the final answer text contains a literal substring or matches a regex. Use substring for exact phrase, pattern for regex (e.g. \"job|Job|JOB\"). If both are set, pattern is used.",
-      "required": ["type"],
-      "properties": {
-        "type": { "const": "answerContains", "description": "Assertion type." },
-        "substring": {
-          "type": "string",
-          "description": "Literal substring that must appear in the final answer (case-sensitive)."
-        },
-        "pattern": {
-          "type": "string",
-          "description": "Regex pattern that the final answer must match (e.g. \"2,?000\" for 2000 or 2,000)."
-        }
-      },
-      "oneOf": [{ "required": ["substring"] }, { "required": ["pattern"] }],
-      "additionalProperties": false
-    },
-    "AssertSingleToolCall": {
-      "type": "object",
-      "description": "Assert that exactly one tool call was made (in the first turn) and it matches the given tool and optional args. Use for questions that should be answered with a single tool.",
-      "required": ["type", "tool"],
-      "properties": {
-        "type": { "const": "singleToolCall", "description": "Assertion type." },
-        "tool": { "$ref": "#/$defs/ToolNameEnum" },
-        "args": {
-          "type": "object",
-          "description": "Optional. Argument matchers (partial match).",
-          "additionalProperties": true
-        }
-      },
-      "additionalProperties": false
-    },
-    "AssertToolOnly": {
-      "type": "object",
-      "description": "Assert that the tool was called with matching args; do not check answer content. Use when you only care about tool usage, not the reply text.",
-      "required": ["type", "tool"],
-      "properties": {
-        "type": { "const": "toolOnly", "description": "Assertion type." },
-        "tool": { "$ref": "#/$defs/ToolNameEnum" },
-        "args": {
-          "type": "object",
-          "description": "Optional. Argument matchers (partial match).",
-          "additionalProperties": true
-        }
-      },
-      "additionalProperties": false
-    },
-    "AssertMinToolCalls": {
-      "type": "object",
-      "description": "Assert that the tool was called at least minCount times. Use for pagination or multi-step flows where you only care about the number of calls.",
-      "required": ["type", "tool", "minCount"],
-      "properties": {
-        "type": { "const": "minToolCalls", "description": "Assertion type." },
-        "tool": { "$ref": "#/$defs/ToolNameEnum" },
-        "minCount": {
-          "type": "integer",
-          "minimum": 1,
-          "description": "Minimum number of times the tool must be called."
-        }
-      },
-      "additionalProperties": false
-    },
-    "AssertToolCallSequence": {
-      "type": "object",
-      "description": "Assert that the tool was called in order with args matching each element of sequence (partial match per call). Use for pagination (e.g. listMembers with offset 0, then offset 500) or same-tool ordered calls.",
-      "required": ["type", "tool", "sequence"],
-      "properties": {
-        "type": { "const": "toolCallSequence", "description": "Assertion type." },
-        "tool": { "$ref": "#/$defs/ToolNameEnum" },
-        "sequence": {
-          "type": "array",
-          "minItems": 1,
-          "description": "Expected args for each call in order. Each element is a partial match (e.g. { dsn: \"USER.SRC.COBOL\", offset: 0 }, { offset: 500 }).",
-          "items": { "type": "object", "additionalProperties": true }
-        }
-      },
-      "additionalProperties": false
-    },
-    "AssertToolCallOrder": {
-      "type": "object",
-      "description": "Assert that tools were called in this order (other tools may appear in between). Each step: tool (single) or tools (any of), plus optional args (partial match). Use tools to allow multiple valid solutions (e.g. setSystem or getContext).",
-      "required": ["type", "sequence"],
-      "properties": {
-        "type": { "const": "toolCallOrder", "description": "Assertion type." },
-        "sequence": {
-          "type": "array",
-          "minItems": 1,
-          "description": "Expected tool calls in order. Each item: tool (single tool) or tools (array—step matches if any of these tools was called), plus optional args.",
-          "items": {
+          "preset": {
+            "type": "string",
+            "enum": ["default", "inventory"],
+            "description": "Override mock preset for this question when using mock backend."
+          },
+          "assertions": {
+            "description": "Assertions block. An array (all must pass), or an object with allOf/anyOf.",
             "oneOf": [
               {
+                "type": "array",
+                "minItems": 1,
+                "items": { "$ref": "#/$defs/AssertionItem" }
+              },
+              {
                 "type": "object",
-                "required": ["tool"],
                 "properties": {
-                  "tool": { "$ref": "#/$defs/ToolNameEnum" },
-                  "args": {
-                    "type": "object",
-                    "description": "Optional. Argument matchers for this call (partial match).",
-                    "additionalProperties": true
+                  "allOf": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": { "$ref": "#/$defs/AssertionItem" }
                   }
                 },
+                "required": ["allOf"],
                 "additionalProperties": false
               },
               {
                 "type": "object",
-                "required": ["tools"],
                 "properties": {
-                  "tools": {
+                  "anyOf": {
                     "type": "array",
                     "minItems": 1,
-                    "items": { "$ref": "#/$defs/ToolNameEnum" },
-                    "description": "Step matches when any of these tools is called (allows multiple valid flows)."
-                  },
-                  "args": {
-                    "type": "object",
-                    "description": "Optional. Argument matchers (partial match).",
-                    "additionalProperties": true
+                    "items": { "$ref": "#/$defs/AssertionItem" }
                   }
                 },
+                "required": ["anyOf"],
                 "additionalProperties": false
               }
             ]
           }
-        }
-      },
-      "additionalProperties": false
-    },
-    "AssertToolCallOneOf": {
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "AssertionItem": {
       "type": "object",
-      "description": "Assert that at least one of the given tool specs was called (allows multiple valid solutions, e.g. getContext or runSafeTsoCommand WHO).",
-      "required": ["type", "oneOf"],
+      "description": "One assertion item: leaf assertion (toolCall, toolCallOrder, answerContains) or composite (allOf/anyOf). Exactly one assertion key must be present.",
       "properties": {
-        "type": { "const": "toolCallOneOf", "description": "Assertion type." },
-        "oneOf": {
+        "name": {
+          "type": "string",
+          "description": "Optional human-readable name for this assertion. Shown in failure messages."
+        },
+        "toolCall": {
+          "type": "object",
+          "description": "Unified tool-call assertion. Specify tool (single), tools (any of), or oneOf (per-tool args). Optional count/minCount.",
+          "properties": {
+            "tool": {
+              "type": "string",
+              "description": "Single tool name to check."
+            },
+            "tools": {
+              "type": "array",
+              "minItems": 1,
+              "items": { "type": "string" },
+              "description": "Any of these tools matches (no per-tool args)."
+            },
+            "oneOf": {
+              "type": "array",
+              "minItems": 1,
+              "description": "Any of these tool specs matches (with per-tool args).",
+              "items": {
+                "type": "object",
+                "required": ["tool"],
+                "properties": {
+                  "tool": { "type": "string" },
+                  "args": {
+                    "type": "object",
+                    "description": "Argument matchers (partial match)."
+                  }
+                },
+                "additionalProperties": false
+              }
+            },
+            "args": {
+              "type": "object",
+              "description": "Argument matchers (partial match). Used with tool or tools."
+            },
+            "count": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Exact number of total tool calls expected."
+            },
+            "minCount": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Minimum number of calls expected."
+            }
+          },
+          "additionalProperties": false
+        },
+        "toolCallOrder": {
           "type": "array",
           "minItems": 1,
-          "description": "List of tool specs; pass if any one has a matching call.",
+          "description": "Ordered tool-call sequence. Each step: tool (single) or tools (any of), plus optional args.",
           "items": {
             "type": "object",
-            "required": ["tool"],
+            "description": "One step: use tool (single) or tools (any of), plus optional args.",
             "properties": {
-              "tool": { "$ref": "#/$defs/ToolNameEnum" },
+              "tool": {
+                "type": "string",
+                "description": "Single tool name for this step."
+              },
+              "tools": {
+                "type": "array",
+                "minItems": 1,
+                "items": { "type": "string" },
+                "description": "Step matches when any of these tools is called."
+              },
               "args": {
                 "type": "object",
-                "description": "Optional. Argument matchers (partial match).",
-                "additionalProperties": true
+                "description": "Argument matchers for this call (partial match)."
               }
             },
             "additionalProperties": false
           }
+        },
+        "answerContains": {
+          "type": "object",
+          "description": "Assert final answer contains a substring or matches a regex pattern.",
+          "properties": {
+            "substring": {
+              "type": "string",
+              "description": "Literal substring that must appear in the final answer (case-sensitive)."
+            },
+            "pattern": {
+              "type": "string",
+              "description": "Regex pattern that the final answer must match."
+            }
+          },
+          "additionalProperties": false
+        },
+        "allOf": {
+          "type": "array",
+          "minItems": 1,
+          "description": "All nested assertions must pass (logical AND).",
+          "items": { "$ref": "#/$defs/AssertionItem" }
+        },
+        "anyOf": {
+          "type": "array",
+          "minItems": 1,
+          "description": "At least one nested assertion must pass (logical OR).",
+          "items": { "$ref": "#/$defs/AssertionItem" }
         }
       },
       "additionalProperties": false

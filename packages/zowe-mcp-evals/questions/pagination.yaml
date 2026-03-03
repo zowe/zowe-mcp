@@ -14,32 +14,28 @@ questions:
   - id: list-members-inventory-all-pages
     prompt: List members of USER.INVNTORY
     assertions:
-      - type: toolCallSequence
-        tool: listMembers
-        sequence:
-          - dsn: "USER.INVNTORY"
-          - dsn: "USER.INVNTORY"
-            offset: 500
-            limit: 500
-          - dsn: "USER.INVNTORY"
-            offset: 1000
-            limit: 500
-          - dsn: "USER.INVNTORY"
-            offset: 1500
-            limit: 500
-      - type: answerContains
-        pattern: "2,?000"
+      - name: listMembers pagination across 4 pages
+        toolCallOrder:
+          - tool: listMembers
+            args: { dsn: "USER.INVNTORY" }
+          - tool: listMembers
+            args: { dsn: "USER.INVNTORY", offset: 500, limit: 500 }
+          - tool: listMembers
+            args: { dsn: "USER.INVNTORY", offset: 1000, limit: 500 }
+          - tool: listMembers
+            args: { dsn: "USER.INVNTORY", offset: 1500, limit: 500 }
+      - answerContains:
+          pattern: "2,?000"
 
   # listDatasets USER.PEOPLE.*: 2 pages (offset 0, 500 with limit 500 each).
   - id: list-datasets-people-all-pages
     prompt: List data sets under USER.PEOPLE
     assertions:
-      - type: toolCallSequence
-        tool: listDatasets
-        sequence:
-          - dsnPattern: "USER.PEOPLE.*"
-          - dsnPattern: "USER.PEOPLE.*"
-            offset: 500
-            limit: 500
-      - type: answerContains
-        pattern: "1,?000"
+      - name: listDatasets pagination across 2 pages
+        toolCallOrder:
+          - tool: listDatasets
+            args: { dsnPattern: "USER.PEOPLE.*" }
+          - tool: listDatasets
+            args: { dsnPattern: "USER.PEOPLE.*", offset: 500, limit: 500 }
+      - answerContains:
+          pattern: "1,?000"

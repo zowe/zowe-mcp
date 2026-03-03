@@ -126,13 +126,27 @@ describe('runAssertions', () => {
       const toolCalls: ToolCallRecord[] = [tc('listSystems'), tc('getContext')];
       expect(runAssertions(block(assertions), toolCalls, '')).toEqual({ passed: true });
     });
+
+    it('includes name in failure message when set', () => {
+      const assertions: Assertion[] = [
+        {
+          type: 'toolCallOrder',
+          name: 'create then write',
+          sequence: [{ tool: 'createTempDataset' }, { tool: 'writeDataset' }],
+        },
+      ];
+      const toolCalls: ToolCallRecord[] = [tc('createTempDataset')];
+      const result = runAssertions(block(assertions), toolCalls, '');
+      expect(result.passed).toBe(false);
+      expect(result.failedAssertion).toContain('[create then write]');
+    });
   });
 
-  describe('toolCallOneOf', () => {
+  describe('toolCall with oneOf (was toolCallOneOf)', () => {
     it('passes when one of the tool specs matches', () => {
       const assertions: Assertion[] = [
         {
-          type: 'toolCallOneOf',
+          type: 'toolCall',
           oneOf: [
             { tool: 'getContext' },
             { tool: 'runSafeTsoCommand', args: { commandText: 'WHO' } },
@@ -146,7 +160,7 @@ describe('runAssertions', () => {
     it('passes when the other spec matches', () => {
       const assertions: Assertion[] = [
         {
-          type: 'toolCallOneOf',
+          type: 'toolCall',
           oneOf: [
             { tool: 'getContext' },
             { tool: 'runSafeTsoCommand', args: { commandText: 'WHO' } },
@@ -160,7 +174,7 @@ describe('runAssertions', () => {
     it('fails when none of the specs match', () => {
       const assertions: Assertion[] = [
         {
-          type: 'toolCallOneOf',
+          type: 'toolCall',
           oneOf: [
             { tool: 'getContext' },
             { tool: 'runSafeTsoCommand', args: { commandText: 'WHO' } },
@@ -171,6 +185,121 @@ describe('runAssertions', () => {
       const result = runAssertions(block(assertions), toolCalls, '');
       expect(result.passed).toBe(false);
       expect(result.failedAssertion).toContain('one of');
+    });
+  });
+
+  describe('toolCall with count (was singleToolCall)', () => {
+    it('passes when exactly count calls are made', () => {
+      const assertions: Assertion[] = [{ type: 'toolCall', tool: 'info', count: 1 }];
+      const toolCalls: ToolCallRecord[] = [tc('info')];
+      expect(runAssertions(block(assertions), toolCalls, '')).toEqual({ passed: true });
+    });
+
+    it('fails when count does not match', () => {
+      const assertions: Assertion[] = [{ type: 'toolCall', tool: 'info', count: 1 }];
+      const toolCalls: ToolCallRecord[] = [tc('info'), tc('info')];
+      const result = runAssertions(block(assertions), toolCalls, '');
+      expect(result.passed).toBe(false);
+      expect(result.failedAssertion).toContain('exactly 1');
+    });
+  });
+
+  describe('toolCall with minCount (was minToolCalls)', () => {
+    it('passes when at least minCount calls are made', () => {
+      const assertions: Assertion[] = [{ type: 'toolCall', tool: 'searchInDataset', minCount: 2 }];
+      const toolCalls: ToolCallRecord[] = [
+        tc('searchInDataset', { dsn: 'A' }),
+        tc('searchInDataset', { dsn: 'A', offset: 500 }),
+      ];
+      expect(runAssertions(block(assertions), toolCalls, '')).toEqual({ passed: true });
+    });
+
+    it('fails when fewer than minCount calls are made', () => {
+      const assertions: Assertion[] = [{ type: 'toolCall', tool: 'searchInDataset', minCount: 3 }];
+      const toolCalls: ToolCallRecord[] = [tc('searchInDataset')];
+      const result = runAssertions(block(assertions), toolCalls, '');
+      expect(result.passed).toBe(false);
+      expect(result.failedAssertion).toContain('at least 3');
+    });
+  });
+
+  describe('toolCall with tools (any of, no per-tool args)', () => {
+    it('passes when any of the tools is called', () => {
+      const assertions: Assertion[] = [
+        { type: 'toolCall', tools: ['getContext', 'runSafeTsoCommand'] },
+      ];
+      const toolCalls: ToolCallRecord[] = [tc('getContext')];
+      expect(runAssertions(block(assertions), toolCalls, '')).toEqual({ passed: true });
+    });
+
+    it('fails when none of the tools is called', () => {
+      const assertions: Assertion[] = [
+        { type: 'toolCall', tools: ['getContext', 'runSafeTsoCommand'] },
+      ];
+      const toolCalls: ToolCallRecord[] = [tc('listSystems')];
+      const result = runAssertions(block(assertions), toolCalls, '');
+      expect(result.passed).toBe(false);
+      expect(result.failedAssertion).toContain('one of');
+    });
+  });
+
+  describe('toolCall basic (tool + args)', () => {
+    it('passes when tool is called with matching args', () => {
+      const assertions: Assertion[] = [
+        { type: 'toolCall', tool: 'listDatasets', args: { dsnPattern: 'USER.**' } },
+      ];
+      const toolCalls: ToolCallRecord[] = [tc('listDatasets', { dsnPattern: 'USER.**' })];
+      expect(runAssertions(block(assertions), toolCalls, '')).toEqual({ passed: true });
+    });
+
+    it('fails when tool is not called', () => {
+      const assertions: Assertion[] = [{ type: 'toolCall', tool: 'listDatasets' }];
+      const toolCalls: ToolCallRecord[] = [tc('info')];
+      const result = runAssertions(block(assertions), toolCalls, '');
+      expect(result.passed).toBe(false);
+      expect(result.failedAssertion).toContain('listDatasets');
+    });
+
+    it('includes name in failure message', () => {
+      const assertions: Assertion[] = [
+        { type: 'toolCall', name: 'must call listDatasets', tool: 'listDatasets' },
+      ];
+      const toolCalls: ToolCallRecord[] = [tc('info')];
+      const result = runAssertions(block(assertions), toolCalls, '');
+      expect(result.passed).toBe(false);
+      expect(result.failedAssertion).toContain('[must call listDatasets]');
+    });
+  });
+
+  describe('answerContains', () => {
+    it('passes when pattern matches', () => {
+      const assertions: Assertion[] = [{ type: 'answerContains', pattern: 'system|user' }];
+      expect(runAssertions(block(assertions), [], 'The system is ready')).toEqual({
+        passed: true,
+      });
+    });
+
+    it('fails when pattern does not match', () => {
+      const assertions: Assertion[] = [{ type: 'answerContains', pattern: 'system|user' }];
+      const result = runAssertions(block(assertions), [], 'Hello world');
+      expect(result.passed).toBe(false);
+      expect(result.failedAssertion).toContain('pattern');
+    });
+
+    it('passes when substring matches', () => {
+      const assertions: Assertion[] = [{ type: 'answerContains', substring: 'hello' }];
+      expect(runAssertions(block(assertions), [], 'say hello world')).toEqual({
+        passed: true,
+      });
+    });
+
+    it('includes name in failure message', () => {
+      const assertions: Assertion[] = [
+        { type: 'answerContains', name: 'must mention system', pattern: 'system' },
+      ];
+      const result = runAssertions(block(assertions), [], 'nothing');
+      expect(result.passed).toBe(false);
+      expect(result.failedAssertion).toContain('[must mention system]');
     });
   });
 });

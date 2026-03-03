@@ -13,41 +13,39 @@ questions:
   - id: list-my-jobs
     prompt: List my recent jobs on the system.
     assertions:
-      - type: toolCall
-        tool: listJobs
-      - type: answerContains
-        pattern: "job|Job|JOB"
+      - toolCall:
+          tool: listJobs
+      - answerContains:
+          pattern: "job|Job|JOB"
 
   - id: job-status
     prompt: What is the status of my most recent job?
     assertions:
-      - type: toolCall
-        tool: listJobs
-      - type: answerContains
-        pattern: "status|ACTIVE|OUTPUT|CC|RC|retcode|phase"
+      - toolCall:
+          tool: listJobs
+      - answerContains:
+          pattern: "status|ACTIVE|OUTPUT|CC|RC|retcode|phase"
 
   - id: submit-jcl-from-dataset
     prompt: Submit the JCL in data set SYS1.SAMPLIB(BPXISJCL) as a job.
     assertions:
-      - type: toolCall
-        tool: submitJobFromDataset
-        args:
-          dsn:
-            - "SYS1.SAMPLIB(BPXISJCL)"
-            - "'SYS1.SAMPLIB(BPXISJCL)'"
-            - "SYS1.SAMPLIB"
-            - "'SYS1.SAMPLIB'"
+      - toolCall:
+          tool: submitJobFromDataset
+          args:
+            dsn:
+              - "SYS1.SAMPLIB(BPXISJCL)"
+              - "'SYS1.SAMPLIB(BPXISJCL)'"
+              - "SYS1.SAMPLIB"
+              - "'SYS1.SAMPLIB'"
 
   - id: list-jobs-then-spool-and-read
     prompt: List my jobs, then list the spool files for the most recent job and show me the content of the first spool file.
     assertions:
       anyOf:
-        - type: toolCallOrder
-          sequence:
+        - toolCallOrder:
             - tool: listJobs
             - tool: listJobFiles
             - tool: readJobFile
-        - type: toolCallOrder
-          sequence:
+        - toolCallOrder:
             - tool: listJobs
             - tool: getJobOutput

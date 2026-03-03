@@ -86,14 +86,38 @@ Question sets are YAML files in `questions/`. Each file has:
 
 ### Assertions
 
-- **toolCall** — A call to `tool` with optional `args` (partial match).
-- **answerContains** — Final answer must contain `substring` or match regex `pattern`.
-- **singleToolCall** — Exactly one tool call in the first turn, matching `tool` and optional `args`.
-- **toolOnly** — At least one call to `tool` with optional `args`; answer content not checked.
-- **minToolCalls** — The tool must have been called at least `minCount` times (e.g. for pagination evals).
-- **toolCallSequence** — The tool must have been called in order with args matching each element of `sequence` (partial match per call). Use to assert every pagination call has correct parameters (e.g. `dsn`, `offset`, `limit` for list tools; `dsn`, `member`, `startLine`, `lineCount` for readDataset).
-- **toolCallOrder** — Tools must be called in this order (other tools may appear in between). Each step has `tool` (single) or `tools` (array—step matches if any of these tools was called) and optional `args` (partial match). Use `tools` to allow multiple valid flows (e.g. setSystem or getContext).
-- **toolCallOneOf** — At least one of the given tool specs must have a matching call. Use when multiple tools are valid (e.g. getContext or runSafeTsoCommand WHO for "who am I").
+Assertions use Ansible-style key-based format. Each assertion is an object with the assertion type as a key and an optional `name` for failure messages. Three assertion types:
+
+- **toolCall** — Unified tool-call assertion. Body fields:
+  - `tool` (string) — single tool name; checks the last matching call + optional `args`.
+  - `tools` (string[]) — any of these tools matches (no per-tool args).
+  - `oneOf` (array of `{tool, args?}`) — any of these specs matches (per-tool args).
+  - `args` (object) — partial argument match (used with `tool` or `tools`).
+  - `count` (integer) — exact number of total tool calls expected (e.g. `count: 1` for single-tool-call assertions).
+  - `minCount` (integer) — minimum call count (e.g. for pagination).
+- **toolCallOrder** — Ordered tool-call sequence. Value is directly an array of steps (no intermediate `sequence:` key). Each step has `tool` (single) or `tools` (any of) and optional `args`. Other tool calls may appear between steps.
+- **answerContains** — Final answer must contain `substring` (literal) or match regex `pattern`.
+
+Composites: `allOf` (all must pass) and `anyOf` (at least one must pass) for logical grouping.
+
+Example:
+
+```yaml
+assertions:
+  - name: create then write then read then cleanup
+    toolCallOrder:
+      - tool: createTempDataset
+        args: { type: ["PS", "SEQUENTIAL"] }
+      - tool: writeDataset
+        args: { lines: ["hello"] }
+      - tool: readDataset
+      - tool: deleteDatasetsUnderPrefix
+  - toolCall:
+      tool: readDataset
+      minCount: 2
+  - answerContains:
+      pattern: "success|done"
+```
 
 ### readDataset pagination
 

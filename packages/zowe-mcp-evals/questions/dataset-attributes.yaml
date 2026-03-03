@@ -12,11 +12,11 @@ questions:
   - id: get-attributes-cobol
     prompt: What are the record format and organization of data set USER.SRC.COBOL?
     assertions:
-      - type: toolCall
-        tool: getDatasetAttributes
-        args:
-          dsn:
-            - "USER.SRC.COBOL"
-            - "'USER.SRC.COBOL'"
-      - type: answerContains
-        pattern: "PO|FB|RECFM|dsorg|record|organization"
+      - toolCall:
+          tool: getDatasetAttributes
+          args:
+            dsn:
+              - "USER.SRC.COBOL"
+              - "'USER.SRC.COBOL'"
+      - answerContains:
+          pattern: "PO|FB|RECFM|dsorg|record|organization"

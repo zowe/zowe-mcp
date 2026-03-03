@@ -12,37 +12,36 @@ questions:
   - id: uss-home
     prompt: What is my USS home directory on the mainframe?
     assertions:
-      - type: toolCall
-        tool: getUssHome
-      - type: answerContains
-        pattern: "/u/|home"
+      - toolCall:
+          tool: getUssHome
+      - answerContains:
+          pattern: "/u/|home"
 
   - id: uss-list-home
     prompt: List the files in my USS home directory.
     assertions:
-      - type: toolCall
-        tool: listUssFiles
-      - type: answerContains
-        pattern: "file.txt|subdir|directory|file"
+      - toolCall:
+          tool: listUssFiles
+      - answerContains:
+          pattern: "file.txt|subdir|directory|file"
 
   - id: uss-read-file
     prompt: Read the contents of file.txt in my USS home directory.
     assertions:
-      - type: toolCall
-        tool: readUssFile
-        args:
-          path:
-            - "file.txt"
-            - "/u/USER/file.txt"
-      - type: answerContains
-        substring: "USS mock"
+      - toolCall:
+          tool: readUssFile
+          args:
+            path:
+              - "file.txt"
+              - "/u/USER/file.txt"
+      - answerContains:
+          substring: "USS mock"
 
   - id: uss-write-temp-read-cleanup
     prompt: Create a temporary file under a temp directory in my USS home, write "USS eval test" to it, read it back, then delete all temp files under that temp directory.
     assertions:
-      # getUssTempDir then createTempUssFile or getUssTempPath; cleanup via deleteUssTempUnderDir or deleteUssFile
-      - type: toolCallOrder
-        sequence:
+      - name: getUssTempDir then create/write/read/cleanup
+        toolCallOrder:
           - tool: getUssTempDir
           - tools:
               - createTempUssFile
@@ -54,5 +53,5 @@ questions:
           - tools:
               - deleteUssTempUnderDir
               - deleteUssFile
-      - type: answerContains
-        substring: "USS eval test"
+      - answerContains:
+          substring: "USS eval test"

@@ -12,8 +12,8 @@ questions:
   - id: read-large-seq-star-wars
     prompt: Read USER.LARGE.SEQ and tell me what Star Wars character name appears in it.
     assertions:
-      - type: minToolCalls
-        tool: readDataset
-        minCount: 2
-      - type: answerContains
-        substring: "LUKE"
+      - toolCall:
+          tool: readDataset
+          minCount: 2
+      - answerContains:
+          substring: "LUKE"

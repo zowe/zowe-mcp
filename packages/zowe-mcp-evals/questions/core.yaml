@@ -12,7 +12,8 @@ questions:
   - id: server-info
     prompt: What MCP server is running and what backend type is it?
     assertions:
-      - type: singleToolCall
-        tool: info
-      - type: answerContains
-        pattern: "mock|Zowe|MCP|backend"
+      - toolCall:
+          tool: info
+          count: 1
+      - answerContains:
+          pattern: "mock|Zowe|MCP|backend"

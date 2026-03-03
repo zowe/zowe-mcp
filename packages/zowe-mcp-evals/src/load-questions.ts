@@ -9,6 +9,7 @@
  *
  */
 
+import Ajv, { type ErrorObject, type ValidateFunction } from 'ajv';
 import yaml from 'js-yaml';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
@@ -25,6 +26,28 @@ import type {
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const QUESTIONS_DIR = resolve(__dirname, '..', 'questions');
+const SCHEMA_PATH = resolve(__dirname, '..', 'schemas', 'evals-question-set.schema.json');
+
+let cachedValidator: ValidateFunction | undefined;
+
+function getSchemaValidator(): ValidateFunction {
+  if (cachedValidator) return cachedValidator;
+  const schemaJson = JSON.parse(readFileSync(SCHEMA_PATH, 'utf-8')) as Record<string, unknown>;
+  const ajv = new Ajv.default({ allErrors: true });
+  cachedValidator = ajv.compile(schemaJson);
+  return cachedValidator;
+}
+
+function formatAjvErrors(errors: ErrorObject[]): string {
+  return errors
+    .map((e: ErrorObject) => {
+      const path = e.instancePath || '/';
+      const msg = e.message ?? 'unknown error';
+      const extra = e.params ? ` (${JSON.stringify(e.params)})` : '';
+      return `  ${path}: ${msg}${extra}`;
+    })
+    .join('\n');
+}
 
 /**
  * Parse assertions block: array (treated as allOf), or { allOf: [...] }, or { anyOf: [...] }.
@@ -48,127 +71,109 @@ function parseAssertionBlock(raw: unknown): AssertionBlock {
 }
 
 /**
- * Parse one assertion item: leaf assertion (type: toolCall, etc.) or composite { allOf/anyOf: [...] }.
+ * Parse one assertion item: leaf assertion (key-based) or composite { allOf/anyOf: [...] }.
  */
 function parseAssertionItem(raw: unknown): AssertionItem {
   if (!raw || typeof raw !== 'object') throw new Error('Invalid assertion item');
   const o = raw as Record<string, unknown>;
-  if (o.type === undefined && (Array.isArray(o.allOf) || Array.isArray(o.anyOf))) {
-    if (Array.isArray(o.allOf) && o.allOf.length > 0) {
-      return { allOf: o.allOf.map(parseAssertionItem) };
-    }
-    if (Array.isArray(o.anyOf) && o.anyOf.length > 0) {
-      return { anyOf: o.anyOf.map(parseAssertionItem) };
-    }
+  if (Array.isArray(o.allOf) && o.allOf.length > 0) {
+    return { allOf: o.allOf.map(parseAssertionItem) };
+  }
+  if (Array.isArray(o.anyOf) && o.anyOf.length > 0) {
+    return { anyOf: o.anyOf.map(parseAssertionItem) };
   }
   return parseAssertion(raw);
 }
 
+function parseToolCallOrderStep(s: unknown): {
+  tool?: string;
+  tools?: string[];
+  args?: Record<string, unknown>;
+} {
+  if (!s || typeof s !== 'object') throw new Error('toolCallOrder step must be an object');
+  const step = s as Record<string, unknown>;
+  const tool = step.tool as string | undefined;
+  const tools = step.tools as string[] | undefined;
+  if (tool !== undefined && typeof tool === 'string' && tool.trim())
+    return {
+      tool: tool.trim(),
+      args: step.args as Record<string, unknown> | undefined,
+    };
+  if (Array.isArray(tools) && tools.length > 0)
+    return {
+      tools: tools.map((t: unknown) => String(t).trim()),
+      args: step.args as Record<string, unknown> | undefined,
+    };
+  throw new Error('toolCallOrder step must have tool (string) or tools (non-empty array)');
+}
+
+function parseOneOfSpec(spec: unknown): { tool: string; args?: Record<string, unknown> } {
+  if (!spec || typeof spec !== 'object') throw new Error('toolCall oneOf entry must be an object');
+  const s = spec as Record<string, unknown>;
+  const tool = s.tool as string;
+  if (!tool || typeof tool !== 'string')
+    throw new Error('toolCall oneOf entry must have tool string');
+  return {
+    tool: tool.trim(),
+    args: s.args as Record<string, unknown> | undefined,
+  };
+}
+
+/**
+ * Ansible-style assertion parser. The assertion type is determined by the key
+ * (toolCall, toolCallOrder, answerContains). Optional `name` is a sibling key.
+ */
 function parseAssertion(raw: unknown): Assertion {
   if (!raw || typeof raw !== 'object') throw new Error('Invalid assertion');
   const o = raw as Record<string, unknown>;
-  const type = o.type as string;
-  if (!type) throw new Error('Assertion missing type');
-  if (type === 'toolCall') {
-    return {
-      type: 'toolCall',
-      tool: o.tool as string,
-      args: o.args as Record<string, unknown> | undefined,
-    };
+  const name = typeof o.name === 'string' ? o.name : undefined;
+
+  if (o.toolCall !== undefined) {
+    const body = o.toolCall as Record<string, unknown>;
+    if (!body || typeof body !== 'object') throw new Error('toolCall value must be an object');
+
+    const tool = typeof body.tool === 'string' ? body.tool : undefined;
+    const tools = Array.isArray(body.tools)
+      ? (body.tools as unknown[]).map((t: unknown) => String(t).trim())
+      : undefined;
+    const oneOf = Array.isArray(body.oneOf)
+      ? (body.oneOf as unknown[]).map(parseOneOfSpec)
+      : undefined;
+    const args = body.args as Record<string, unknown> | undefined;
+    const count = typeof body.count === 'number' ? body.count : undefined;
+    const minCount = typeof body.minCount === 'number' ? body.minCount : undefined;
+
+    if (!tool && !tools && !oneOf) throw new Error('toolCall must have tool, tools, or oneOf');
+
+    return { type: 'toolCall', name, tool, tools, oneOf, args, count, minCount };
   }
-  if (type === 'answerContains') {
-    const substring = o.substring as string | undefined;
-    const pattern = o.pattern as string | undefined;
-    if (substring === undefined && pattern === undefined)
-      throw new Error('answerContains requires substring or pattern');
-    return { type: 'answerContains', substring, pattern };
-  }
-  if (type === 'singleToolCall') {
-    return {
-      type: 'singleToolCall',
-      tool: o.tool as string,
-      args: o.args as Record<string, unknown> | undefined,
-    };
-  }
-  if (type === 'toolOnly') {
-    return {
-      type: 'toolOnly',
-      tool: o.tool as string,
-      args: o.args as Record<string, unknown> | undefined,
-    };
-  }
-  if (type === 'minToolCalls') {
-    const minCount =
-      typeof o.minCount === 'number' ? o.minCount : parseInt(String(o.minCount), 10);
-    if (!Number.isInteger(minCount) || minCount < 1)
-      throw new Error('minToolCalls assertion requires minCount >= 1');
-    return {
-      type: 'minToolCalls',
-      tool: o.tool as string,
-      minCount,
-    };
-  }
-  if (type === 'toolCallSequence') {
-    const seq = o.sequence;
+
+  if (o.toolCallOrder !== undefined) {
+    const seq = o.toolCallOrder;
     if (!Array.isArray(seq) || seq.length === 0)
-      throw new Error('toolCallSequence assertion requires non-empty sequence array');
-    return {
-      type: 'toolCallSequence',
-      tool: o.tool as string,
-      sequence: seq.map((s: unknown) =>
-        s && typeof s === 'object' ? (s as Record<string, unknown>) : {}
-      ),
-    };
-  }
-  if (type === 'toolCallOrder') {
-    const seq = o.sequence;
-    if (!Array.isArray(seq) || seq.length === 0)
-      throw new Error('toolCallOrder assertion requires non-empty sequence array');
+      throw new Error('toolCallOrder value must be a non-empty array');
     return {
       type: 'toolCallOrder',
-      sequence: seq.map((s: unknown) => {
-        if (!s || typeof s !== 'object')
-          throw new Error('toolCallOrder sequence step must be object');
-        const step = s as Record<string, unknown>;
-        const tool = step.tool as string | undefined;
-        const tools = step.tools as string[] | undefined;
-        if (tool !== undefined && typeof tool === 'string' && tool.trim())
-          return {
-            tool: tool.trim(),
-            args: step.args as Record<string, unknown> | undefined,
-          };
-        if (Array.isArray(tools) && tools.length > 0)
-          return {
-            tools: tools.map((t: unknown) => String(t).trim()),
-            args: step.args as Record<string, unknown> | undefined,
-          };
-        throw new Error(
-          'toolCallOrder sequence step must have tool (string) or tools (non-empty array)'
-        );
-      }),
+      name,
+      sequence: seq.map(parseToolCallOrderStep),
     };
   }
-  if (type === 'toolCallOneOf') {
-    const oneOf = o.oneOf;
-    if (!Array.isArray(oneOf) || oneOf.length === 0)
-      throw new Error('toolCallOneOf assertion requires non-empty oneOf array');
-    return {
-      type: 'toolCallOneOf',
-      oneOf: oneOf.map((spec: unknown) => {
-        if (!spec || typeof spec !== 'object')
-          throw new Error('toolCallOneOf oneOf entry must be object');
-        const s = spec as Record<string, unknown>;
-        const tool = s.tool as string;
-        if (!tool || typeof tool !== 'string')
-          throw new Error('toolCallOneOf oneOf entry must have tool string');
-        return {
-          tool: tool.trim(),
-          args: s.args as Record<string, unknown> | undefined,
-        };
-      }),
-    };
+
+  if (o.answerContains !== undefined) {
+    const body = o.answerContains as Record<string, unknown>;
+    if (!body || typeof body !== 'object')
+      throw new Error('answerContains value must be an object');
+    const substring = body.substring as string | undefined;
+    const pattern = body.pattern as string | undefined;
+    if (substring === undefined && pattern === undefined)
+      throw new Error('answerContains requires substring or pattern');
+    return { type: 'answerContains', name, substring, pattern };
   }
-  throw new Error(`Unknown assertion type: ${type}`);
+
+  const keys = Object.keys(o).filter(k => k !== 'name');
+  throw new Error(
+    `Unknown assertion key(s): ${keys.join(', ')}. Expected toolCall, toolCallOrder, or answerContains.`
+  );
 }
 
 function parseQuestion(raw: unknown): Question {
@@ -214,6 +219,13 @@ function parseSetConfig(raw: unknown): SetConfig {
 export function loadSetYaml(path: string): QuestionSet {
   const content = readFileSync(path, 'utf-8');
   const data = yaml.load(content) as Record<string, unknown>;
+
+  const validate = getSchemaValidator();
+  if (!validate(data)) {
+    const errText = validate.errors ? formatAjvErrors(validate.errors) : 'unknown';
+    throw new Error(`${path}: JSON Schema validation failed:\n${errText}`);
+  }
+
   const config = parseSetConfig(data.config ?? data);
   const questionsRaw = data.questions;
   if (!Array.isArray(questionsRaw))
@@ -239,6 +251,28 @@ export function getSetPath(setName: string): string {
 
 export function loadSet(setName: string): QuestionSet {
   return loadSetYaml(getSetPath(setName));
+}
+
+/**
+ * Validate and load all requested sets upfront. Returns loaded sets or throws
+ * with all validation errors collected so the user sees every problem at once.
+ */
+export function loadAndValidateAllSets(setNames: string[]): Map<string, QuestionSet> {
+  const results = new Map<string, QuestionSet>();
+  const errors: string[] = [];
+  for (const name of setNames) {
+    try {
+      results.set(name, loadSet(name));
+    } catch (e) {
+      errors.push(`[${name}] ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+  if (errors.length > 0) {
+    throw new Error(
+      `${errors.length} question ${errors.length === 1 ? 'set' : 'sets'} failed validation:\n\n${errors.join('\n\n')}`
+    );
+  }
+  return results;
 }
 
 export function getQuestionsDir(): string {

@@ -12,23 +12,23 @@ questions:
   - id: search-in-pds
     prompt: Search for the string DIVISION in data set USER.SRC.COBOL and tell me what you find.
     assertions:
-      - type: toolCall
-        tool: searchInDataset
-        args:
-          dsn:
-            - "USER.SRC.COBOL"
-            - "'USER.SRC.COBOL'"
-          string: "DIVISION"
-      - type: answerContains
-        substring: search
+      - toolCall:
+          tool: searchInDataset
+          args:
+            dsn:
+              - "USER.SRC.COBOL"
+              - "'USER.SRC.COBOL'"
+            string: "DIVISION"
+      - answerContains:
+          substring: search
   - id: search-in-member
     prompt: Search for PROCEDURE in member CUSTFILE of USER.SRC.COBOL.
     assertions:
-      - type: toolCall
-        tool: searchInDataset
-        args:
-          dsn:
-            - "USER.SRC.COBOL"
-            - "'USER.SRC.COBOL'"
-          member: "CUSTFILE"
-          string: "PROCEDURE"
+      - toolCall:
+          tool: searchInDataset
+          args:
+            dsn:
+              - "USER.SRC.COBOL"
+              - "'USER.SRC.COBOL'"
+            member: "CUSTFILE"
+            string: "PROCEDURE"

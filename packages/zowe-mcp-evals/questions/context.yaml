@@ -12,20 +12,19 @@ questions:
   - id: get-context-after-list
     prompt: What z/OS system am I connected to and what is my user ID?
     assertions:
-      - type: toolCall
-        tool: getContext
-      - type: answerContains
-        pattern: "system|user|USER|mainframe"
+      - toolCall:
+          tool: getContext
+      - answerContains:
+          pattern: "system|user|USER|mainframe"
 
   - id: set-system-then-context
     prompt: Switch to the first system in the list and then tell me my current system and user.
     assertions:
-      # listSystems then setSystem or getContext both yield current system/user
-      - type: toolCallOrder
-        sequence:
+      - name: listSystems then setSystem or getContext both yield current system/user
+        toolCallOrder:
           - tool: listSystems
           - tools:
               - setSystem
               - getContext
-      - type: answerContains
-        pattern: "system|user|mainframe"
+      - answerContains:
+          pattern: "system|user|mainframe"

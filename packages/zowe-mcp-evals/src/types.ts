@@ -46,74 +46,37 @@ export interface SetConfig {
 }
 
 /**
- * Assertion: expect a specific tool call (optionally with argument matchers).
- * In args, a value can be a single value or an array of alternatives (pass if actual matches any).
+ * Unified tool-call assertion. Absorbs the former toolCall, singleToolCall, toolOnly,
+ * minToolCalls, and toolCallOneOf assertion types.
+ *
+ * Modes (mutually exclusive tool specifiers):
+ * - `tool`  — single tool name; checks the last matching call + optional args.
+ * - `tools` — any of these tool names matches (no per-tool args).
+ * - `oneOf` — any of these {tool, args?} specs matches (per-tool args).
+ *
+ * Optional count constraints:
+ * - `count`    — exact number of total tool calls expected.
+ * - `minCount` — minimum number of calls expected.
  */
 export interface AssertToolCall {
   type: 'toolCall';
-  tool: string;
-  /** Optional: args must match (partial match). Values can be single or array of alternatives. */
+  name?: string;
+  tool?: string;
+  tools?: string[];
+  oneOf?: { tool: string; args?: Record<string, unknown> }[];
   args?: Record<string, unknown>;
+  count?: number;
+  minCount?: number;
 }
 
 /**
- * Assertion: final answer text must contain a substring or match a regex.
- * Use either `substring` (literal) or `pattern` (regex string); if both are set, `pattern` is used.
- */
-export interface AssertAnswerContains {
-  type: 'answerContains';
-  /** Literal substring to look for. */
-  substring?: string;
-  /** Regex pattern (string) to match; e.g. "2,?000" matches "2000" or "2,000". */
-  pattern?: string;
-}
-
-/**
- * Assertion: exactly one tool call in the first turn, matching tool/args.
- */
-export interface AssertSingleToolCall {
-  type: 'singleToolCall';
-  tool: string;
-  args?: Record<string, unknown>;
-}
-
-/**
- * Assertion: only check the (last) tool call, not the answer content.
- */
-export interface AssertToolOnly {
-  type: 'toolOnly';
-  tool: string;
-  args?: Record<string, unknown>;
-}
-
-/**
- * Assertion: the tool must have been called at least minCount times (e.g. for pagination).
- */
-export interface AssertMinToolCalls {
-  type: 'minToolCalls';
-  tool: string;
-  minCount: number;
-}
-
-/**
- * Assertion: the tool must have been called in order with args matching each element of sequence
- * (partial match per call). Used to assert pagination parameters (e.g. offset/limit) on every call.
- */
-export interface AssertToolCallSequence {
-  type: 'toolCallSequence';
-  tool: string;
-  /** Expected args for each call, in order. Each element is partial-match. */
-  sequence: Record<string, unknown>[];
-}
-
-/**
- * Assertion: tools must be called in this order (any other tools may appear in between).
- * Each step: single tool or tools (any of), plus optional args (partial match).
- * Use tools array to allow multiple valid solutions (e.g. setSystem or getContext).
+ * Ordered tool-call sequence. Absorbs the former toolCallOrder and toolCallSequence types.
+ * Each step: `tool` (single) or `tools` (any of), plus optional `args` (partial match).
+ * Steps are matched in order against actual tool calls; other calls may appear in between.
  */
 export interface AssertToolCallOrder {
   type: 'toolCallOrder';
-  /** Expected tool calls in order. Each step: tool (single) or tools (array), plus optional args. */
+  name?: string;
   sequence: {
     tool?: string;
     tools?: string[];
@@ -122,24 +85,18 @@ export interface AssertToolCallOrder {
 }
 
 /**
- * Assertion: at least one of the given tool specs must have a matching call.
- * Use when multiple tools are valid (e.g. getContext or runSafeTsoCommand WHO for "who am I").
+ * Assert that the final answer text contains a literal substring or matches a regex.
+ * Use `substring` for exact phrase or `pattern` for regex; if both are set, `pattern` is used.
  */
-export interface AssertToolCallOneOf {
-  type: 'toolCallOneOf';
-  oneOf: { tool: string; args?: Record<string, unknown> }[];
+export interface AssertAnswerContains {
+  type: 'answerContains';
+  name?: string;
+  substring?: string;
+  pattern?: string;
 }
 
 /** Leaf assertion (no nested allOf/anyOf). */
-export type Assertion =
-  | AssertToolCall
-  | AssertAnswerContains
-  | AssertSingleToolCall
-  | AssertToolOnly
-  | AssertMinToolCalls
-  | AssertToolCallSequence
-  | AssertToolCallOrder
-  | AssertToolCallOneOf;
+export type Assertion = AssertToolCall | AssertToolCallOrder | AssertAnswerContains;
 
 /**
  * Composite: all nested items must pass (logical AND).

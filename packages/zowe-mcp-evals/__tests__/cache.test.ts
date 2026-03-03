@@ -46,30 +46,16 @@ describe('getToolsUnderTest', () => {
     ]);
   });
 
-  it('returns tool name for singleToolCall assertion', () => {
-    expect(getToolsUnderTest(block([{ type: 'singleToolCall', tool: 'listSystems' }]))).toEqual([
-      'listSystems',
-    ]);
-  });
-
-  it('returns tool name for toolOnly assertion', () => {
-    expect(getToolsUnderTest(block([{ type: 'toolOnly', tool: 'getContext' }]))).toEqual([
-      'getContext',
-    ]);
-  });
-
-  it('returns tool name for minToolCalls assertion', () => {
+  it('returns tool name for toolCall with count (was singleToolCall)', () => {
     expect(
-      getToolsUnderTest(block([{ type: 'minToolCalls', tool: 'listMembers', minCount: 2 }]))
+      getToolsUnderTest(block([{ type: 'toolCall', tool: 'listSystems', count: 1 }]))
+    ).toEqual(['listSystems']);
+  });
+
+  it('returns tool name for toolCall with minCount (was minToolCalls)', () => {
+    expect(
+      getToolsUnderTest(block([{ type: 'toolCall', tool: 'listMembers', minCount: 2 }]))
     ).toEqual(['listMembers']);
-  });
-
-  it('returns tool name for toolCallSequence assertion', () => {
-    expect(
-      getToolsUnderTest(
-        block([{ type: 'toolCallSequence', tool: 'listDatasets', sequence: [{ dsn: 'USER.*' }] }])
-      )
-    ).toEqual(['listDatasets']);
   });
 
   it('returns all tool names for toolCallOrder assertion', () => {
@@ -101,12 +87,12 @@ describe('getToolsUnderTest', () => {
     ).toEqual(['getContext', 'listSystems', 'setSystem']);
   });
 
-  it('returns all tool names for toolCallOneOf', () => {
+  it('returns all tool names for toolCall with oneOf (was toolCallOneOf)', () => {
     expect(
       getToolsUnderTest(
         block([
           {
-            type: 'toolCallOneOf',
+            type: 'toolCall',
             oneOf: [
               { tool: 'getContext' },
               { tool: 'runSafeTsoCommand', args: { commandText: 'WHO' } },
@@ -114,6 +100,12 @@ describe('getToolsUnderTest', () => {
           },
         ])
       )
+    ).toEqual(['getContext', 'runSafeTsoCommand']);
+  });
+
+  it('returns all tool names for toolCall with tools array', () => {
+    expect(
+      getToolsUnderTest(block([{ type: 'toolCall', tools: ['getContext', 'runSafeTsoCommand'] }]))
     ).toEqual(['getContext', 'runSafeTsoCommand']);
   });
 
@@ -131,7 +123,7 @@ describe('getToolsUnderTest', () => {
       { type: 'toolCall', tool: 'listDatasets' },
       { type: 'toolCall', tool: 'listMembers' },
       { type: 'answerContains', substring: 'x' },
-      { type: 'minToolCalls', tool: 'listDatasets', minCount: 1 },
+      { type: 'toolCall', tool: 'listDatasets', minCount: 1 },
     ];
     expect(getToolsUnderTest(block(assertions))).toEqual(['listDatasets', 'listMembers']);
   });

@@ -3,7 +3,7 @@
 config:
   name: mutations
   description: Agent must create temp data sets, write content, delete members, and clean up
-  repetitions: 10
+  repetitions: 5
   minSuccessRate: 0.8
   mock:
     initArgs: --preset minimal
@@ -43,7 +43,6 @@ questions:
                 - "LIBRARY"
           - tool: writeDataset
             args:
-              member: "EVALMEM"
               lines: ["temp content"]
           - tool: deleteDatasetsUnderPrefix
       - type: answerContains

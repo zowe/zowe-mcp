@@ -1,7 +1,6 @@
 # yaml-language-server: $schema=../schemas/evals-question-set.schema.json
 # Job evals: require native backend (mock does not implement job operations).
-# For submit-jcl-from-dataset, the native system must have the dataset (e.g. USER.JCL.CNTL(COMPILE))
-# or adjust the prompt to a DSN that exists on your system.
+# For submit-jcl-from-dataset, the native system must have SYS1.SAMPLIB(BPXISJCL).
 config:
   name: jobs
   description: Agent must use listJobs or getJobStatus; requires native z/OS backend
@@ -28,16 +27,16 @@ questions:
         pattern: "status|ACTIVE|OUTPUT|CC|RC|retcode|phase"
 
   - id: submit-jcl-from-dataset
-    prompt: Submit the JCL in data set USER.JCL.CNTL(COMPILE) as a job.
+    prompt: Submit the JCL in data set SYS1.SAMPLIB(BPXISJCL) as a job.
     assertions:
       - type: toolCall
         tool: submitJobFromDataset
         args:
           dsn:
-            - "USER.JCL.CNTL(COMPILE)"
-            - "'USER.JCL.CNTL(COMPILE)'"
-            - "USER.JCL.CNTL"
-            - "'USER.JCL.CNTL'"
+            - "SYS1.SAMPLIB(BPXISJCL)"
+            - "'SYS1.SAMPLIB(BPXISJCL)'"
+            - "SYS1.SAMPLIB"
+            - "'SYS1.SAMPLIB'"
 
   - id: list-jobs-then-spool-and-read
     prompt: List my jobs, then list the spool files for the most recent job and show me the content of the first spool file.

@@ -6,7 +6,7 @@ AI evaluations for the Zowe MCP server: run an LLM agent against the server (moc
 
 1. **Build the server**: From repo root, run `npm run build` (or `npm run build -w packages/zowe-mcp-server`).
 
-2. **Evals config** (at repo root): Copy an example and set your LLM provider (vLLM or Gemini):
+2. **Evals config** (at repo root): Copy an example and set your LLM provider (vLLM, Gemini, or LM Studio):
 
    ```bash
    # From repo root
@@ -16,7 +16,15 @@ AI evaluations for the Zowe MCP server: run an LLM agent against the server (moc
    Edit `evals.config.json` at the repo root. All keys use **camelCase** (`serverModel`, `baseUrl`, `apiKey`):
 
    - **Single-model (legacy)**: Top-level `provider`, `serverModel`, and optionally `baseUrl` (vLLM), `apiKey` (or `GEMINI_API_KEY` env for Gemini).
-   - **Multi-model**: A `models` array. Each entry has `id`, `provider`, `serverModel`, and provider-specific fields (`baseUrl`/`apiKey` for vLLM, `apiKey` or env for Gemini). The **first** model is the default; use `npm run evals -- --model <id>` to run with another.
+   - **Multi-model**: A `models` array. Each entry has `id`, `provider`, `serverModel`, and provider-specific fields (`baseUrl`/`apiKey` for vLLM, `apiKey` or env for Gemini, `baseUrl` for LM Studio). The **first** model is the default; use `npm run evals -- --model <id>` to run with another.
+
+   ### Providers
+
+   | Provider | `provider` value | Required fields | Notes |
+   | --- | --- | --- | --- |
+   | vLLM | `"vllm"` | `serverModel`; optional `baseUrl` (default `http://localhost:8000/v1`), `apiKey` | OpenAI-compatible |
+   | Gemini | `"gemini"` | `serverModel`, `apiKey` (or `GEMINI_API_KEY` env) | Google AI |
+   | LM Studio | `"lmstudio"` | `serverModel`; optional `baseUrl` (default `http://localhost:1234/v1`), `contextLength` (default 32768) | OpenAI-compatible; auto-loads the model in LM Studio with the configured context length via `POST /api/v1/models/load`; if `serverModel` is missing, lists available models |
 
    The file `evals.config.json` is gitignored; do not commit secrets.
 

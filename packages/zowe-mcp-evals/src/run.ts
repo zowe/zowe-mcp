@@ -43,7 +43,17 @@ function resolveNativeServerArgs(serverArgs: string): string {
 }
 
 function errorMessage(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
+  if (!(err instanceof Error)) return String(err);
+  const parts = [err.message];
+  const apiErr = err as unknown as Record<string, unknown>;
+  if (typeof apiErr.statusCode === 'number')
+    parts.push(`statusCode: ${apiErr.statusCode.toString()}`);
+  if (typeof apiErr.url === 'string') parts.push(`url: ${apiErr.url}`);
+  if (typeof apiErr.responseBody === 'string' && apiErr.responseBody.length > 0) {
+    parts.push(`responseBody: ${apiErr.responseBody.slice(0, 2000)}`);
+  }
+  if (apiErr.cause instanceof Error) parts.push(`cause: ${apiErr.cause.message}`);
+  return parts.join('\n  ');
 }
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -111,7 +121,7 @@ async function main(): Promise<void> {
   dotenv.config({ path: resolve(getConfigDir(), '.env') });
   const cli = parseArgs();
   log.info('Loading evals config');
-  const evalsConfig = loadEvalsConfig(cli.model);
+  const evalsConfig = await loadEvalsConfig(cli.model);
   log.info('Evals config loaded', {
     modelId: evalsConfig.modelId ?? 'default',
     provider: evalsConfig.provider,

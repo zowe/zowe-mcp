@@ -386,7 +386,7 @@ npm run inspector:native   # SSH via native-config.json + .env
 
 The **evals** package runs an LLM agent against the MCP server (mock or native) and checks that tool calls and answers match expectations. Use it to validate that AI assistants use the Zowe MCP tools correctly.
 
-1. **Config** (at repo root): copy `evals.config.example.json` to `evals.config.json` and set your LLM provider (vLLM or Gemini). See [packages/zowe-mcp-evals/README.md](packages/zowe-mcp-evals/README.md).
+1. **Config** (at repo root): copy `evals.config.example.json` to `evals.config.json` and set your LLM provider (vLLM, Gemini, or LM Studio). See [packages/zowe-mcp-evals/README.md](packages/zowe-mcp-evals/README.md).
 2. **Run** from repo root:
 
 ```bash

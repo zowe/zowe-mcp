@@ -110,6 +110,14 @@ function buildModel(evalsConfig: EvalsConfig): LanguageModel {
     });
     return provider(evalsConfig.serverModel) as unknown as LanguageModel;
   }
+  if (evalsConfig.provider === 'lmstudio') {
+    const provider = createOpenAICompatible({
+      name: 'lmstudio',
+      baseURL: evalsConfig.baseUrl ?? 'http://localhost:1234/v1',
+      apiKey: evalsConfig.apiKey ?? 'no key needed',
+    });
+    return provider(evalsConfig.serverModel) as unknown as LanguageModel;
+  }
   const google = createGoogleGenerativeAI({ apiKey: evalsConfig.apiKey! });
   return google(evalsConfig.serverModel) as unknown as LanguageModel;
 }

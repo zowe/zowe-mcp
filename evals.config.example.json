@@ -11,6 +11,13 @@
       "id": "gemini-2.5-flash",
       "provider": "gemini",
       "serverModel": "gemini-2.5-flash"
+    },
+    {
+      "id": "lmstudio-local",
+      "provider": "lmstudio",
+      "baseUrl": "http://localhost:1234/v1",
+      "serverModel": "your-model-id",
+      "contextLength": 32768
     }
   ]
 }

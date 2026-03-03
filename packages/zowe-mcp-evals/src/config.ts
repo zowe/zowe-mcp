@@ -15,7 +15,7 @@ import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-export type EvalsProvider = 'vllm' | 'gemini';
+export type EvalsProvider = 'vllm' | 'gemini' | 'lmstudio';
 
 export interface EvalsConfig {
   provider: EvalsProvider;
@@ -24,6 +24,8 @@ export interface EvalsConfig {
   apiKey?: string;
   /** Set when using multi-model config; used for cache key and logging. */
   modelId?: string;
+  /** LM Studio: context length to use when loading the model (default 65536). */
+  contextLength?: number;
 }
 
 /** Single model entry in evals.config.json "models" array. */
@@ -33,6 +35,8 @@ export interface EvalsModelEntry {
   serverModel: string;
   baseUrl?: string;
   apiKey?: string;
+  /** LM Studio: context length to use when loading the model. */
+  contextLength?: number;
 }
 
 const CONFIG_NAMES = ['evals.config.json', 'evals.config.local.json'];
@@ -57,11 +61,16 @@ export function getConfigDir(): string {
 }
 
 function validateProvider(p: string): EvalsProvider {
-  if (p !== 'vllm' && p !== 'gemini') {
-    throw new Error(`evals.config.json: provider must be "vllm" or "gemini", got "${p}"`);
+  if (p !== 'vllm' && p !== 'gemini' && p !== 'lmstudio') {
+    throw new Error(
+      `evals.config.json: provider must be "vllm", "gemini", or "lmstudio", got "${p}"`
+    );
   }
   return p as EvalsProvider;
 }
+
+const LMSTUDIO_DEFAULT_BASE_URL = 'http://localhost:1234/v1';
+const LMSTUDIO_DEFAULT_CONTEXT_LENGTH = 32768;
 
 function entryToConfig(entry: EvalsModelEntry): EvalsConfig {
   const provider = validateProvider(entry.provider);
@@ -86,16 +95,97 @@ function entryToConfig(entry: EvalsModelEntry): EvalsConfig {
   if (provider === 'vllm') {
     config.baseUrl = entry.baseUrl ?? 'http://localhost:8000/v1';
   }
+  if (provider === 'lmstudio') {
+    config.baseUrl = entry.baseUrl ?? LMSTUDIO_DEFAULT_BASE_URL;
+    config.contextLength = entry.contextLength ?? LMSTUDIO_DEFAULT_CONTEXT_LENGTH;
+  }
   return config;
+}
+
+/**
+ * Derive the LM Studio API base (e.g. http://localhost:1234) from the OpenAI-compat
+ * base URL (e.g. http://localhost:1234/v1).
+ */
+function lmStudioApiBase(baseUrl: string): string {
+  return baseUrl.replace(/\/v1\/?$/, '');
+}
+
+/**
+ * Load (or reload) a model in LM Studio with the specified context length.
+ * Uses POST /api/v1/models/load. If the model is already loaded with the same
+ * context length this is a no-op on the LM Studio side.
+ */
+export async function ensureLmStudioModel(
+  baseUrl: string,
+  model: string,
+  contextLength: number
+): Promise<void> {
+  const apiBase = lmStudioApiBase(baseUrl);
+  const url = `${apiBase}/api/v1/models/load`;
+  let resp: Response;
+  try {
+    resp = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model,
+        context_length: contextLength,
+      }),
+    });
+  } catch {
+    throw new Error(
+      `Could not reach LM Studio at ${apiBase}. Is it running?\n  Tried: POST ${url}`
+    );
+  }
+  if (!resp.ok) {
+    const body = await resp.text().catch(() => '');
+    throw new Error(
+      `LM Studio failed to load model "${model}" (HTTP ${resp.status.toString()}).\n` +
+        `  URL: POST ${url}\n` +
+        `  Body: ${body.slice(0, 2000)}`
+    );
+  }
+  const result = (await resp.json()) as { load_time_seconds?: number; status?: string };
+  process.stderr.write(
+    `LM Studio: model "${model}" loaded (context_length=${contextLength.toString()}` +
+      (result.load_time_seconds != null ? `, ${result.load_time_seconds.toFixed(1)}s` : '') +
+      ')\n'
+  );
+}
+
+/**
+ * Query the OpenAI-compatible GET /v1/models endpoint to list available model ids.
+ * Works with LM Studio (and any OpenAI-compat server).
+ */
+export async function fetchAvailableModelIds(baseUrl: string): Promise<string[]> {
+  const url = baseUrl.replace(/\/+$/, '') + '/models';
+  let resp: Response;
+  try {
+    resp = await fetch(url);
+  } catch {
+    throw new Error(
+      `Could not reach LM Studio at ${baseUrl}. Is it running?\n` + `  Tried: GET ${url}`
+    );
+  }
+  if (!resp.ok) {
+    throw new Error(
+      `LM Studio returned HTTP ${resp.status.toString()} from GET ${url}. Is the server running?`
+    );
+  }
+  const body = (await resp.json()) as { data?: { id?: string }[] };
+  return (body.data ?? []).map(m => m.id).filter((id): id is string => typeof id === 'string');
 }
 
 /**
  * Load evals config and optionally select a model by id.
  * With multi-model config, the first model is the default when modelId is omitted.
  *
+ * For the lmstudio provider, validates serverModel against the running LM Studio instance
+ * and lists available models when serverModel is missing or not found.
+ *
  * @param modelId - Optional model id (from --model). If omitted, the first model is used.
  */
-export function loadEvalsConfig(modelId?: string): EvalsConfig {
+export async function loadEvalsConfig(modelId?: string): Promise<EvalsConfig> {
   const configDir = findConfigDir();
   let content: string | undefined;
   for (const name of CONFIG_NAMES) {
@@ -132,6 +222,7 @@ export function loadEvalsConfig(modelId?: string): EvalsConfig {
         serverModel,
         baseUrl: o.baseUrl as string | undefined,
         apiKey: o.apiKey as string | undefined,
+        contextLength: typeof o.contextLength === 'number' ? o.contextLength : undefined,
       };
     });
   } else {
@@ -163,6 +254,24 @@ export function loadEvalsConfig(modelId?: string): EvalsConfig {
   if (!chosen) {
     const available = entries.map(e => e.id).join(', ');
     throw new Error(`evals.config.json: unknown model "${modelId}". Available: ${available}`);
+  }
+
+  if (chosen.provider === 'lmstudio') {
+    const baseUrl = chosen.baseUrl ?? LMSTUDIO_DEFAULT_BASE_URL;
+    const contextLength = chosen.contextLength ?? LMSTUDIO_DEFAULT_CONTEXT_LENGTH;
+
+    if (!chosen.serverModel?.trim()) {
+      const availableModels = await fetchAvailableModelIds(baseUrl);
+      const modelList =
+        availableModels.length > 0
+          ? `Available models:\n${availableModels.map(id => `  - ${id}`).join('\n')}`
+          : 'No models found. Load a model in LM Studio first.';
+      throw new Error(
+        `evals.config.json: serverModel is required for provider "lmstudio".\n${modelList}`
+      );
+    }
+
+    await ensureLmStudioModel(baseUrl, chosen.serverModel, contextLength);
   }
 
   return entryToConfig(chosen);

@@ -1145,7 +1145,7 @@ export function registerDatasetTools(
       inputSchema: {
         dsn: z.string().describe('Fully qualified data set name (e.g. USER.SRC.COBOL).'),
         type: datasetTypeSchema.describe(
-          'Dataset type: PS or SEQUENTIAL (sequential), PO or PDS (PDS), PO-E or PDSE or LIBRARY (PDSE). Case-insensitive.'
+          'Data set organization type (DSORG): PS or SEQUENTIAL (Physical Sequential — a flat file), PO or PDS (Partitioned Data Set — a directory of members), PO-E or PDSE or LIBRARY (Partitioned Data Set Extended). Case-insensitive.'
         ),
         system: z
           .string()
@@ -1156,13 +1156,30 @@ export function registerDatasetTools(
         recfm: recfmSchema
           .optional()
           .describe(
-            'Record format. Supported: F, FB, V, VB, U, FBA, VBA. Default: FB. Case-insensitive.'
+            'Record Format (RECFM). Supported: F (Fixed), FB (Fixed Blocked), V (Variable), VB (Variable Blocked), U (Undefined), FBA, VBA. Default: FB. Case-insensitive.'
           ),
-        lrecl: z.number().optional().describe('Logical record length. Default: 80.'),
-        blockSize: z.number().optional().describe('Block size. Default: 27920.'),
-        primarySpace: z.number().optional().describe('Primary space allocation.'),
-        secondarySpace: z.number().optional().describe('Secondary space allocation.'),
-        dirblk: z.number().optional().describe('Directory blocks (PDS only).'),
+        lrecl: z
+          .number()
+          .optional()
+          .describe('Logical Record Length (LRECL) in bytes. Default: 80.'),
+        blockSize: z
+          .number()
+          .optional()
+          .describe('Block Size (BLKSIZE) in bytes. Default: 27920.'),
+        primarySpace: z
+          .number()
+          .optional()
+          .describe('Primary space allocation in tracks (the initial amount of disk space).'),
+        secondarySpace: z
+          .number()
+          .optional()
+          .describe(
+            'Secondary space allocation in tracks (additional space allocated when primary is full).'
+          ),
+        dirblk: z
+          .number()
+          .optional()
+          .describe('Directory Blocks (DIRBLK) — number of 256-byte directory blocks (PDS only).'),
       },
     },
     async (
@@ -1260,7 +1277,7 @@ export function registerDatasetTools(
       outputSchema: createTempDatasetOutputSchema,
       inputSchema: {
         type: datasetTypeSchema.describe(
-          'Dataset type: PS or SEQUENTIAL (sequential), PO or PDS (PDS), PO-E or PDSE or LIBRARY (PDSE). Case-insensitive.'
+          'Data set organization type (DSORG): PS or SEQUENTIAL (Physical Sequential — a flat file), PO or PDS (Partitioned Data Set — a directory of members), PO-E or PDSE or LIBRARY (Partitioned Data Set Extended). Case-insensitive.'
         ),
         system: z
           .string()
@@ -1287,13 +1304,30 @@ export function registerDatasetTools(
         recfm: recfmSchema
           .optional()
           .describe(
-            'Record format. Supported: F, FB, V, VB, U, FBA, VBA. Default: FB. Case-insensitive.'
+            'Record Format (RECFM). Supported: F (Fixed), FB (Fixed Blocked), V (Variable), VB (Variable Blocked), U (Undefined), FBA, VBA. Default: FB. Case-insensitive.'
           ),
-        lrecl: z.number().optional().describe('Logical record length. Default: 80.'),
-        blockSize: z.number().optional().describe('Block size. Default: 27920.'),
-        primarySpace: z.number().optional().describe('Primary space allocation.'),
-        secondarySpace: z.number().optional().describe('Secondary space allocation.'),
-        dirblk: z.number().optional().describe('Directory blocks (PDS only).'),
+        lrecl: z
+          .number()
+          .optional()
+          .describe('Logical Record Length (LRECL) in bytes. Default: 80.'),
+        blockSize: z
+          .number()
+          .optional()
+          .describe('Block Size (BLKSIZE) in bytes. Default: 27920.'),
+        primarySpace: z
+          .number()
+          .optional()
+          .describe('Primary space allocation in tracks (the initial amount of disk space).'),
+        secondarySpace: z
+          .number()
+          .optional()
+          .describe(
+            'Secondary space allocation in tracks (additional space allocated when primary is full).'
+          ),
+        dirblk: z
+          .number()
+          .optional()
+          .describe('Directory Blocks (DIRBLK) — number of 256-byte directory blocks (PDS only).'),
       },
     },
     async (

@@ -1,0 +1,48 @@
+# yaml-language-server: $schema=../schemas/evals-question-set.schema.json
+# USS copy evals: copyUssFile (mock with init-mock USS tree for first user)
+config:
+  name: uss-copy
+  description: Agent must use copyUssFile to copy USS files and directories
+  repetitions: 2
+  minSuccessRate: 0.8
+  mock:
+    initArgs: --preset minimal
+
+questions:
+  - id: copy-uss-file
+    prompt: Copy the file file.txt from my USS home directory to a new file called file-backup.txt in the same directory.
+    assertions:
+      - toolCall:
+          tool: copyUssFile
+          args:
+            sourcePath:
+              - "file.txt"
+              - "/u/USER/file.txt"
+            targetPath:
+              - "file-backup.txt"
+              - "/u/USER/file-backup.txt"
+      - answerContains:
+          pattern: "copied|copy|success|backup"
+
+  - id: copy-uss-dir-recursive
+    prompt: Copy the subdir directory in my USS home to a new directory called subdir-backup in the same location, recursively.
+    assertions:
+      - toolCall:
+          tool: copyUssFile
+          args:
+            sourcePath:
+              - "subdir"
+              - "/u/USER/subdir"
+            recursive: true
+      - answerContains:
+          pattern: "copied|copy|success|backup|recursive"
+
+  - id: copy-uss-then-read
+    prompt: Copy file.txt from my USS home to file-copy.txt, then read file-copy.txt and tell me its contents.
+    assertions:
+      - name: copy then read
+        toolCallOrder:
+          - tool: copyUssFile
+          - tool: readUssFile
+      - answerContains:
+          substring: "USS mock"

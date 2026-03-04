@@ -47,6 +47,7 @@ import {
   chmodUssFileOutputSchema,
   chownUssFileOutputSchema,
   chtagUssFileOutputSchema,
+  copyUssFileOutputSchema,
   createTempUssDirOutputSchema,
   createTempUssFileOutputSchema,
   createUssFileOutputSchema,
@@ -1073,6 +1074,100 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
         });
         await progress.complete('done');
         return wrapResponse(responseCtx, { success: true }, { path: pathDisplay });
+      } catch (err) {
+        await progress.complete((err as Error).message);
+        return errorResult((err as Error).message);
+      }
+    }
+  );
+
+  // -----------------------------------------------------------------------
+  // copyUssFile
+  // -----------------------------------------------------------------------
+  server.registerTool(
+    'copyUssFile',
+    {
+      description:
+        'Copy a USS file or directory on z/OS. ' +
+        'For directories, set recursive to true. ' +
+        'Paths can be absolute (starting with /) or relative to the current working directory (see getContext.ussCwd).',
+      outputSchema: copyUssFileOutputSchema,
+      inputSchema: {
+        sourcePath: z
+          .string()
+          .describe(
+            'Source USS path: absolute (starts with /) or relative to current working directory.'
+          ),
+        targetPath: z
+          .string()
+          .describe(
+            'Destination USS path: absolute (starts with /) or relative to current working directory.'
+          ),
+        recursive: z.boolean().optional().default(false).describe('Copy directories recursively.'),
+        followSymlinks: z
+          .boolean()
+          .optional()
+          .default(false)
+          .describe('Follow symlinks when copying recursively.'),
+        preserveAttributes: z
+          .boolean()
+          .optional()
+          .default(false)
+          .describe('Preserve permissions and ownership.'),
+        force: z
+          .boolean()
+          .optional()
+          .default(false)
+          .describe('Replace files that cannot be opened (like cp -f).'),
+        system: z
+          .string()
+          .optional()
+          .describe(
+            'Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system.'
+          ),
+      },
+    },
+    async (
+      { sourcePath, targetPath, recursive, followSymlinks, preserveAttributes, force, system },
+      extra
+    ) => {
+      const progress = createToolProgress(extra, `Copy USS ${sourcePath} to ${targetPath}`);
+      await progress.start();
+      log.info('copyUssFile called', { sourcePath, targetPath, recursive, system });
+
+      try {
+        const { systemId, userId: resolvedUserId } = resolveSystemForTool(
+          deps.systemRegistry,
+          deps.sessionState,
+          system
+        );
+        await ensureContext(deps, systemId, resolvedUserId);
+        const ctx = deps.sessionState.getContext(systemId);
+        const effectiveCwd = ctx?.ussCwd ?? ctx?.ussHome;
+        const resolvedSource = resolveUssPath(sourcePath, effectiveCwd);
+        const resolvedTarget = resolveUssPath(targetPath, effectiveCwd);
+        const userId = ctx?.userId;
+        await deps.backend.copyUssFile(
+          systemId,
+          resolvedSource,
+          resolvedTarget,
+          { recursive, followSymlinks, preserveAttributes, force },
+          userId
+        );
+        const sourceDisplay = relativizeForDisplay(resolvedSource, effectiveCwd);
+        const targetDisplay = relativizeForDisplay(resolvedTarget, effectiveCwd);
+        const currentDirDisplay = effectiveCwd
+          ? relativizeForDisplay(effectiveCwd, effectiveCwd)
+          : undefined;
+        const responseCtx = buildContext(systemId, {
+          currentDirectory: currentDirDisplay,
+        });
+        await progress.complete('done');
+        return wrapResponse(
+          responseCtx,
+          { success: true },
+          { sourcePath: sourceDisplay, targetPath: targetDisplay }
+        );
       } catch (err) {
         await progress.complete((err as Error).message);
         return errorResult((err as Error).message);

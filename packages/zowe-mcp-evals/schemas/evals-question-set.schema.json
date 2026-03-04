@@ -62,6 +62,10 @@
         "systemPromptAddition": {
           "type": "string",
           "description": "Appended to the default system prompt."
+        },
+        "skip": {
+          "type": "string",
+          "description": "When set, the entire question set is skipped with this reason shown in the log."
         }
       },
       "additionalProperties": false
@@ -87,6 +91,10 @@
             "type": "string",
             "enum": ["default", "inventory"],
             "description": "Override mock preset for this question when using mock backend."
+          },
+          "skip": {
+            "type": "string",
+            "description": "When set, this question is skipped with this reason shown in the log."
           },
           "assertions": {
             "description": "Assertions block. An array (all must pass), or an object with allOf/anyOf.",

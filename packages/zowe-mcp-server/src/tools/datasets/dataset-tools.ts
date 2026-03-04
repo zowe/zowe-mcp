@@ -88,6 +88,7 @@ import {
   listMembersOutputSchema,
   readDatasetOutputSchema,
   renameDatasetOutputSchema,
+  restoreDatasetOutputSchema,
   searchInDatasetOutputSchema,
   writeDatasetOutputSchema,
 } from './dataset-output-schemas.js';
@@ -688,9 +689,23 @@ export function registerDatasetTools(
           volser: attrs.volser,
           creationDate: attrs.creationDate,
           referenceDate: attrs.referenceDate,
+          expirationDate: attrs.expirationDate,
           smsClass: attrs.smsClass,
           usedTracks: attrs.usedTracks,
           usedExtents: attrs.usedExtents,
+          multivolume: attrs.multivolume,
+          migrated: attrs.migrated,
+          encrypted: attrs.encrypted,
+          dsntype: attrs.dsntype,
+          dataclass: attrs.dataclass,
+          mgmtclass: attrs.mgmtclass,
+          storclass: attrs.storclass,
+          spaceUnits: attrs.spaceUnits,
+          usedPercent: attrs.usedPercent,
+          primary: attrs.primary,
+          secondary: attrs.secondary,
+          devtype: attrs.devtype,
+          volsers: attrs.volsers,
         };
 
         await progress.complete('done');
@@ -1760,6 +1775,61 @@ export function registerDatasetTools(
           },
           []
         );
+      } catch (err) {
+        await progress.complete(err instanceof Error ? err.message : String(err));
+        if (err instanceof DsnError) {
+          return errorResult(err.message);
+        }
+        return errorResult((err as Error).message);
+      }
+    }
+  );
+
+  // -----------------------------------------------------------------------
+  // restoreDataset
+  // -----------------------------------------------------------------------
+  server.registerTool(
+    'restoreDataset',
+    {
+      description:
+        'Restore (recall) a migrated data set from HSM. ' +
+        'Use this when a data set shows as migrated in listDatasets or getDatasetAttributes.',
+      outputSchema: restoreDatasetOutputSchema,
+      inputSchema: {
+        dsn: z.string().describe('Fully qualified data set name (e.g. USER.ARCHIVE.DATA).'),
+        system: z
+          .string()
+          .optional()
+          .describe(
+            'Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system.'
+          ),
+      },
+    },
+    async ({ dsn, system }, extra) => {
+      const title = `Restore ${dsn}`;
+      const progress = createToolProgress(extra, title);
+      await progress.start();
+      log.info('restoreDataset called', { dsn, system });
+
+      try {
+        const { systemId, dsn: resolvedDsn } = await resolveInput(
+          deps,
+          dsn,
+          undefined,
+          system,
+          log
+        );
+        const progressCb = extra._meta?.progressToken
+          ? (msg: string) => void progress.step(msg)
+          : undefined;
+        await deps.backend.restoreDataset(systemId, resolvedDsn, progressCb);
+
+        const ctx = buildContext(systemId, {
+          resolvedDsn: resolvedOnlyIfDifferent(resolvedDsn, dsn),
+        });
+
+        await progress.complete('restored');
+        return wrapResponse(ctx, { success: true }, { dsn: formatResolved(resolvedDsn) }, []);
       } catch (err) {
         await progress.complete(err instanceof Error ? err.message : String(err));
         if (err instanceof DsnError) {

@@ -147,6 +147,22 @@ const datasetListEntrySchema = z.object({
   blksz: z.number().optional().describe('Block size in bytes.'),
   volser: z.string().optional().describe('Volume serial where the data set resides.'),
   creationDate: z.string().optional().describe('Creation date (YYYY-MM-DD).'),
+  referenceDate: z.string().optional().describe('Last referenced date (YYYY-MM-DD).'),
+  expirationDate: z.string().optional().describe('Expiration date (YYYY-MM-DD).'),
+  multivolume: z.boolean().optional().describe('True if data set spans multiple volumes.'),
+  migrated: z.boolean().optional().describe('True if data set is migrated (HSM).'),
+  encrypted: z.boolean().optional().describe('True if data set is encrypted.'),
+  dsntype: z.string().optional().describe('Data set name type (e.g. PDS, LIBRARY).'),
+  dataclass: z.string().optional().describe('SMS data class.'),
+  mgmtclass: z.string().optional().describe('SMS management class.'),
+  storclass: z.string().optional().describe('SMS storage class.'),
+  spaceUnits: z.string().optional().describe('Space unit type (TRACKS, CYLINDERS, etc.).'),
+  usedPercent: z.number().optional().describe('Used space percentage.'),
+  usedExtents: z.number().optional().describe('Used extents count.'),
+  primary: z.number().optional().describe('Primary allocation units.'),
+  secondary: z.number().optional().describe('Secondary allocation units.'),
+  devtype: z.string().optional().describe('Device type.'),
+  volsers: z.array(z.string()).optional().describe('Multi-volume serial list.'),
 });
 
 const memberEntrySchema = z.object({
@@ -219,9 +235,23 @@ const getDatasetAttributesDataSchema = z.object({
   volser: z.string().optional().describe('Volume serial.'),
   creationDate: z.string().optional().describe('Creation date (YYYY-MM-DD).'),
   referenceDate: z.string().optional().describe('Last reference date (YYYY-MM-DD).'),
+  expirationDate: z.string().optional().describe('Expiration date (YYYY-MM-DD).'),
   smsClass: z.string().optional().describe('SMS storage/management class (when SMS managed).'),
   usedTracks: z.number().optional().describe('Number of tracks used.'),
   usedExtents: z.number().optional().describe('Number of extents used.'),
+  multivolume: z.boolean().optional().describe('True if data set spans multiple volumes.'),
+  migrated: z.boolean().optional().describe('True if data set is migrated (HSM).'),
+  encrypted: z.boolean().optional().describe('True if data set is encrypted.'),
+  dsntype: z.string().optional().describe('Data set name type (e.g. PDS, LIBRARY).'),
+  dataclass: z.string().optional().describe('SMS data class.'),
+  mgmtclass: z.string().optional().describe('SMS management class.'),
+  storclass: z.string().optional().describe('SMS storage class.'),
+  spaceUnits: z.string().optional().describe('Space unit type (TRACKS, CYLINDERS, etc.).'),
+  usedPercent: z.number().optional().describe('Used space percentage.'),
+  primary: z.number().optional().describe('Primary allocation units.'),
+  secondary: z.number().optional().describe('Secondary allocation units.'),
+  devtype: z.string().optional().describe('Device type.'),
+  volsers: z.array(z.string()).optional().describe('Multi-volume serial list.'),
 });
 
 const writeDatasetDataSchema = z.object({
@@ -263,6 +293,10 @@ const deleteDatasetDataSchema = z.object({
 const copyDatasetDataSchema = z.object({
   sourceDsn: z.string().describe('Fully qualified source data set (or member) that was copied.'),
   targetDsn: z.string().describe('Fully qualified target data set (or member) after the copy.'),
+});
+
+const restoreDatasetDataSchema = z.object({
+  dsn: z.string().describe('Fully qualified data set name that was restored (recalled).'),
 });
 
 const renameDatasetDataSchema = z.object({
@@ -389,6 +423,12 @@ export const copyDatasetOutputSchema = envelopeSchema(
   copyDatasetDataSchema,
   mutationResultMetaSchema,
   'Result of copying a data set or member. data has sourceDsn and targetDsn.'
+);
+
+export const restoreDatasetOutputSchema = envelopeSchema(
+  restoreDatasetDataSchema,
+  mutationResultMetaSchema,
+  'Result of restoring (recalling) a migrated data set. data.dsn is the recalled data set name.'
 );
 
 export const renameDatasetOutputSchema = envelopeSchema(

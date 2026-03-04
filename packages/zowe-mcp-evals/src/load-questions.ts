@@ -191,6 +191,7 @@ function parseQuestion(raw: unknown): Question {
     prompt,
     preset: o.preset as 'default' | 'inventory' | undefined,
     assertionBlock,
+    skip: typeof o.skip === 'string' ? o.skip : undefined,
   };
 }
 
@@ -213,6 +214,7 @@ function parseSetConfig(raw: unknown): SetConfig {
   if (typeof o.systemPrompt === 'string') config.systemPrompt = o.systemPrompt;
   if (typeof o.systemPromptAddition === 'string')
     config.systemPromptAddition = o.systemPromptAddition;
+  if (typeof o.skip === 'string') config.skip = o.skip;
   return config;
 }
 

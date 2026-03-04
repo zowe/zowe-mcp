@@ -166,15 +166,21 @@ async function main(): Promise<void> {
   let totalQuestions = 0;
   for (const setName of setNames) {
     const qs = loadedSets.get(setName)!;
-    totalQuestions += filterQuestions(qs.questions, cli).length;
+    if (qs.config.skip) continue;
+    totalQuestions += filterQuestions(qs.questions, cli).filter(q => !q.skip).length;
   }
   let questionIndex = 0;
 
   for (const setName of setNames) {
     const questionSet = loadedSets.get(setName)!;
+    const config = questionSet.config;
+
+    if (config.skip) {
+      log.notice(`Skipping set "${setName}": ${config.skip}`);
+      continue;
+    }
 
     const questions = filterQuestions(questionSet.questions, cli);
-    const config = questionSet.config;
     const repetitions = config.repetitions ?? 5;
     const minSuccessRate = config.minSuccessRate ?? 0.8;
     log.info('Set loaded', {
@@ -212,6 +218,11 @@ async function main(): Promise<void> {
       }
 
       for (const q of questions) {
+        if (q.skip) {
+          questionIndex++;
+          log.notice(`Skipping question "${q.id}": ${q.skip}`);
+          continue;
+        }
         const questionResults: RunResult[] = [];
         const toolNames = getToolsUnderTest(q.assertionBlock);
         const toolDefs: Record<string, { description?: string; inputSchema?: unknown }> = {};

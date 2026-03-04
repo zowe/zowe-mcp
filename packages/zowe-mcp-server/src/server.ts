@@ -335,6 +335,19 @@ export function createServer(options?: CreateServerOptions): CreateServerResult 
       },
       logger
     );
+    // Console tools disabled: ZNP does not yet support console.issueCmd.
+    // Re-enable when the SDK adds support.
+    // registerConsoleTools(
+    //   server,
+    //   {
+    //     backend,
+    //     systemRegistry,
+    //     sessionState,
+    //     credentialProvider,
+    //     mcpServer: server,
+    //   },
+    //   logger
+    // );
     registerDatasetResources(server, { backend }, logger);
     registerDatasetPrompts(server, { backend, systemRegistry, sessionState }, logger);
 

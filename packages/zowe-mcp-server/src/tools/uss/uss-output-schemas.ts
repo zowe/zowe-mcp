@@ -99,6 +99,11 @@ const writeUssFileDataSchema = z.object({
   created: z.boolean().optional().describe('True if the file was created (did not exist before).'),
 });
 
+const copyUssFileDataSchema = z.object({
+  sourcePath: z.string().describe('Source USS path (display form).'),
+  targetPath: z.string().describe('Destination USS path (display form).'),
+});
+
 const deleteUssFileDataSchema = z.object({
   deleted: z.string().describe('Path of the deleted file or directory (display form).'),
 });
@@ -151,6 +156,12 @@ export const createUssFileOutputSchema = envelopeSchema(
   ussPathDataSchema,
   mutationResultMetaSchema,
   'Result of creating a USS file or directory. data.path is the created path.'
+);
+
+export const copyUssFileOutputSchema = envelopeSchema(
+  copyUssFileDataSchema,
+  mutationResultMetaSchema,
+  'Result of copying a USS file or directory. data has sourcePath and targetPath.'
 );
 
 export const deleteUssFileOutputSchema = envelopeSchema(

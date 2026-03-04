@@ -1,0 +1,29 @@
+# yaml-language-server: $schema=../schemas/evals-question-set.schema.json
+# Restore dataset evals: restoreDataset (native only — recall needs real HSM)
+config:
+  name: restore-dataset
+  description: Agent must use restoreDataset to recall a migrated data set
+  repetitions: 1
+  minSuccessRate: 0.8
+  native:
+    serverArgs: --native --config native-config.json
+
+questions:
+  - id: restore-migrated
+    prompt: Check if data set SYS1.PARMLIB is migrated, and if so, restore (recall) it.
+    assertions:
+      - anyOf:
+          - toolCall:
+              tool: listDatasets
+              args:
+                dsnPattern:
+                  - "SYS1.PARMLIB"
+                  - "'SYS1.PARMLIB'"
+          - toolCall:
+              tool: getDatasetAttributes
+              args:
+                dsn:
+                  - "SYS1.PARMLIB"
+                  - "'SYS1.PARMLIB'"
+      - answerContains:
+          pattern: "migrated|not migrated|recall|restore|available"

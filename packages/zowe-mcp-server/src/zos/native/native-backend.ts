@@ -84,9 +84,28 @@ interface NativeDsApi {
       blksize?: number;
       cdate?: string;
       volser?: string;
+      rdate?: string;
+      edate?: string;
+      multivolume?: boolean;
+      migrated?: boolean;
+      encrypted?: boolean;
+      dsntype?: string;
+      dataclass?: string;
+      mgmtclass?: string;
+      storclass?: string;
+      spacu?: string;
+      usedp?: number;
+      usedx?: number;
+      primary?: number;
+      secondary?: number;
+      devtype?: string;
+      volsers?: string[];
     }[];
   }>;
-  listDsMembers(req: { dsname: string }): Promise<{ items?: { name: string }[] }>;
+  listDsMembers(req: {
+    dsname: string;
+    pattern?: string;
+  }): Promise<{ items?: { name: string }[] }>;
   readDataset(req: {
     dsname: string;
     localEncoding?: string;
@@ -168,6 +187,11 @@ interface NativeTsoApi {
 /** Subset of ZSshClient.tool we use (ZNP tool RPCs — SDK 0.3.0+). */
 interface NativeToolApi {
   search(req: { dsname: string; string: string; parms?: string }): Promise<{ data?: string }>;
+}
+
+/** Subset of ZSshClient.console we use (ZNP console RPCs). */
+interface NativeConsoleApi {
+  issueCmd(req: { commandText: string; consoleName?: string }): Promise<{ data?: string }>;
 }
 
 /** Shape returned by UtilsApi.tools.parseSearchOutput (SDK 0.3.0+). */
@@ -271,6 +295,22 @@ function mapDatasetToEntry(item: {
   blksize?: number;
   cdate?: string;
   volser?: string;
+  rdate?: string;
+  edate?: string;
+  multivolume?: boolean;
+  migrated?: boolean;
+  encrypted?: boolean;
+  dsntype?: string;
+  dataclass?: string;
+  mgmtclass?: string;
+  storclass?: string;
+  spacu?: string;
+  usedp?: number;
+  usedx?: number;
+  primary?: number;
+  secondary?: number;
+  devtype?: string;
+  volsers?: string[];
 }): DatasetEntry {
   return {
     dsn: item.name,
@@ -280,6 +320,22 @@ function mapDatasetToEntry(item: {
     blksz: item.blksize,
     volser: item.volser,
     creationDate: item.cdate,
+    referenceDate: item.rdate,
+    expirationDate: item.edate,
+    multivolume: item.multivolume,
+    migrated: item.migrated,
+    encrypted: item.encrypted,
+    dsntype: item.dsntype,
+    dataclass: item.dataclass,
+    mgmtclass: item.mgmtclass,
+    storclass: item.storclass,
+    spaceUnits: item.spacu,
+    usedPercent: item.usedp,
+    usedExtents: item.usedx,
+    primary: item.primary,
+    secondary: item.secondary,
+    devtype: item.devtype,
+    volsers: item.volsers,
   };
 }
 
@@ -663,7 +719,8 @@ export class NativeBackend {
     pattern?: string
   ): Promise<MemberEntry[]> {
     const ds = (client as unknown as { ds: NativeDsApi }).ds;
-    const response = await ds.listDsMembers({ dsname: dsn });
+    const znpPattern = pattern ? pattern.replace(/%/g, '?') : undefined;
+    const response = await ds.listDsMembers({ dsname: dsn, pattern: znpPattern });
     let members: MemberEntry[] = (response.items ?? []).map(m => ({
       name: m.name.toUpperCase(),
     }));
@@ -744,7 +801,8 @@ export class NativeBackend {
       undefined,
       async client => {
         const ds = (client as unknown as { ds: NativeDsApi }).ds;
-        const response = await ds.listDsMembers({ dsname: dsn });
+        const znpPattern = pattern ? pattern.replace(/%/g, '?') : undefined;
+        const response = await ds.listDsMembers({ dsname: dsn, pattern: znpPattern });
         let members: MemberEntry[] = (response.items ?? []).map(m => ({
           name: m.name.toUpperCase(),
         }));
@@ -968,6 +1026,22 @@ export class NativeBackend {
       blksz: exact.blksz,
       volser: exact.volser,
       creationDate: exact.creationDate,
+      referenceDate: exact.referenceDate,
+      expirationDate: exact.expirationDate,
+      multivolume: exact.multivolume,
+      migrated: exact.migrated,
+      encrypted: exact.encrypted,
+      dsntype: exact.dsntype,
+      dataclass: exact.dataclass,
+      mgmtclass: exact.mgmtclass,
+      storclass: exact.storclass,
+      spaceUnits: exact.spaceUnits,
+      usedPercent: exact.usedPercent,
+      usedExtents: exact.usedExtents,
+      primary: exact.primary,
+      secondary: exact.secondary,
+      devtype: exact.devtype,
+      volsers: exact.volsers,
     };
   }
 
@@ -1356,6 +1430,48 @@ export class NativeBackend {
     );
   }
 
+  async copyUssFile(
+    systemId: SystemId,
+    sourcePath: string,
+    targetPath: string,
+    options?: {
+      recursive?: boolean;
+      followSymlinks?: boolean;
+      preserveAttributes?: boolean;
+      force?: boolean;
+    },
+    userId?: string,
+    progress?: BackendProgressCallback
+  ): Promise<void> {
+    await this.withNativeClient(
+      systemId,
+      userId,
+      async client => {
+        const uss = this.getUss(client);
+        await (
+          uss as unknown as {
+            copyUss: (req: {
+              srcFsPath: string;
+              dstFsPath: string;
+              recursive?: boolean;
+              followSymlinks?: boolean;
+              preserveAttributes?: boolean;
+              force?: boolean;
+            }) => Promise<{ success?: boolean }>;
+          }
+        ).copyUss({
+          srcFsPath: sourcePath,
+          dstFsPath: targetPath,
+          recursive: options?.recursive,
+          followSymlinks: options?.followSymlinks,
+          preserveAttributes: options?.preserveAttributes,
+          force: options?.force,
+        });
+      },
+      progress
+    );
+  }
+
   async runUnixCommand(
     systemId: SystemId,
     commandText: string,
@@ -1407,6 +1523,50 @@ export class NativeBackend {
           output: outputPreview,
         });
         return data;
+      },
+      progress
+    );
+  }
+
+  private getConsole(client: ZSshClient): NativeConsoleApi {
+    return (client as unknown as { console: NativeConsoleApi }).console;
+  }
+
+  async runConsoleCommand(
+    systemId: SystemId,
+    commandText: string,
+    consoleName?: string,
+    userId?: string,
+    progress?: BackendProgressCallback
+  ): Promise<string> {
+    return this.withNativeClient(
+      systemId,
+      userId,
+      async client => {
+        log.info('runConsoleCommand calling console.issueCmd', { systemId, commandText });
+        const consoleApi = this.getConsole(client);
+        const response = await consoleApi.issueCmd({ commandText, consoleName });
+        return response.data ?? '';
+      },
+      progress
+    );
+  }
+
+  async restoreDataset(
+    systemId: SystemId,
+    dsn: string,
+    progress?: BackendProgressCallback
+  ): Promise<void> {
+    await this.withNativeClient(
+      systemId,
+      undefined,
+      async client => {
+        const ds = (client as unknown as { ds: NativeDsApi }).ds;
+        await (
+          ds as unknown as {
+            restoreDataset: (req: { dsname: string }) => Promise<{ success?: boolean }>;
+          }
+        ).restoreDataset({ dsname: dsn });
       },
       progress
     );

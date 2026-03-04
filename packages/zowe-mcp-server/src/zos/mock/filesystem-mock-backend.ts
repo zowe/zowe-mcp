@@ -893,6 +893,25 @@ export class FilesystemMockBackend implements ZosBackend {
     }
   }
 
+  async copyUssFile(
+    systemId: SystemId,
+    sourcePath: string,
+    targetPath: string,
+    options?: { recursive?: boolean; force?: boolean },
+    _userId?: string,
+    _progress?: BackendProgressCallback
+  ): Promise<void> {
+    const srcLocal = this.ussPath(systemId, sourcePath);
+    const dstLocal = this.ussPath(systemId, targetPath);
+    if (!(await pathExists(srcLocal))) {
+      throw new Error(`USS path '${sourcePath}' not found on ${systemId}.`);
+    }
+    await fs.cp(srcLocal, dstLocal, {
+      recursive: options?.recursive ?? false,
+      force: options?.force ?? false,
+    });
+  }
+
   async runUnixCommand(
     systemId: SystemId,
     commandText: string,
@@ -997,6 +1016,39 @@ export class FilesystemMockBackend implements ZosBackend {
       );
     }
     return Promise.resolve(`mock: TSO command not simulated: ${commandText.trim()}`);
+  }
+
+  runConsoleCommand(
+    _systemId: SystemId,
+    commandText: string,
+    _consoleName?: string,
+    _userId?: string,
+    _progress?: BackendProgressCallback
+  ): Promise<string> {
+    const upper = commandText.trim().toUpperCase();
+    if (upper.startsWith('D T') || upper.startsWith('DISPLAY T')) {
+      const now = new Date();
+      return Promise.resolve(
+        `IEE136I LOCAL: TIME=12:00:00 DATE=${now.getFullYear()}.${String(now.getMonth() + 1).padStart(2, '0')}.${String(now.getDate()).padStart(2, '0')} UTC`
+      );
+    }
+    if (upper.startsWith('D A') || upper.startsWith('DISPLAY A')) {
+      return Promise.resolve(
+        `IEE114I ACTIVE JOBS  000\n  JOBNAME  STEPNAME PROCSTEP TYPE\n  MOCKJOB  STEP1             JOB`
+      );
+    }
+    if (upper.startsWith('D M') || upper.startsWith('DISPLAY M')) {
+      return Promise.resolve(`IEE174I STORAGE SUMMARY (mock)\n  ONLINE: 4096M`);
+    }
+    return Promise.resolve(`mock: Console command not simulated: ${commandText.trim()}`);
+  }
+
+  restoreDataset(
+    _systemId: SystemId,
+    _dsn: string,
+    _progress?: BackendProgressCallback
+  ): Promise<void> {
+    return Promise.resolve();
   }
 
   getUssHome(

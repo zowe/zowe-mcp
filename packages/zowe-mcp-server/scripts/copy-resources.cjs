@@ -26,3 +26,15 @@ if (fs.existsSync(srcTso)) {
     }
   }
 }
+
+const srcConsole = path.join(pkgRoot, 'src', 'tools', 'console');
+const destConsole = path.join(pkgRoot, 'dist', 'tools', 'console');
+if (fs.existsSync(srcConsole)) {
+  fs.mkdirSync(destConsole, { recursive: true });
+  const consoleFiles = fs.readdirSync(srcConsole);
+  for (const f of consoleFiles) {
+    if (f.endsWith('.json')) {
+      fs.copyFileSync(path.join(srcConsole, f), path.join(destConsole, f));
+    }
+  }
+}

@@ -43,6 +43,8 @@ export interface SetConfig {
   native?: SetNativeConfig;
   systemPrompt?: string;
   systemPromptAddition?: string;
+  /** When set, the entire question set is skipped with this reason. */
+  skip?: string;
 }
 
 /**
@@ -137,6 +139,8 @@ export interface Question {
   preset?: 'default' | 'inventory';
   /** Normalized assertion block (all items must pass when mode is 'all'; any item must pass when mode is 'any'). */
   assertionBlock: AssertionBlock;
+  /** When set, this question is skipped with this reason. */
+  skip?: string;
 }
 
 /**

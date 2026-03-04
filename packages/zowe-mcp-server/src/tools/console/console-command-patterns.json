@@ -1,0 +1,43 @@
+{
+  "dangerous": [
+    { "pattern": "^QUIESCE\\b", "description": "QUIESCE stops system activity" },
+    { "pattern": "^HALT\\b", "description": "HALT stops the system" },
+    { "pattern": "^Z\\s+EOD\\b", "description": "Z EOD terminates the system" },
+    { "pattern": "^SHUTDOWN\\b", "description": "SHUTDOWN stops the system" }
+  ],
+  "elicit": [
+    { "pattern": "^SET\\b", "description": "SET modifies system parameters" },
+    { "pattern": "^VARY\\b", "description": "VARY changes device/subsystem status" },
+    { "pattern": "^CANCEL\\b", "description": "CANCEL terminates address spaces" },
+    { "pattern": "^FORCE\\b", "description": "FORCE terminates address spaces forcefully" },
+    { "pattern": "^STOP\\b", "description": "STOP terminates address spaces" },
+    { "pattern": "^P\\s+", "description": "P (STOP) terminates address spaces" },
+    { "pattern": "^MODIFY\\b", "description": "MODIFY changes running programs" },
+    { "pattern": "^F\\s+", "description": "F (MODIFY) changes running programs" },
+    { "pattern": "^START\\b", "description": "START initiates started tasks" },
+    { "pattern": "^S\\s+", "description": "S (START) initiates started tasks" },
+    { "pattern": "^ROUTE\\b", "description": "ROUTE sends commands to other systems" }
+  ],
+  "safe": [
+    { "pattern": "^D\\s+T\\b", "description": "Display time" },
+    { "pattern": "^DISPLAY\\s+T\\b", "description": "Display time" },
+    { "pattern": "^D\\s+A\\b", "description": "Display active address spaces" },
+    { "pattern": "^DISPLAY\\s+A\\b", "description": "Display active address spaces" },
+    { "pattern": "^D\\s+M\\b", "description": "Display memory/storage" },
+    { "pattern": "^DISPLAY\\s+M\\b", "description": "Display memory/storage" },
+    { "pattern": "^D\\s+IPLINFO\\b", "description": "Display IPL information" },
+    { "pattern": "^DISPLAY\\s+IPLINFO\\b", "description": "Display IPL information" },
+    { "pattern": "^D\\s+R\\b", "description": "Display outstanding replies" },
+    { "pattern": "^DISPLAY\\s+R\\b", "description": "Display outstanding replies" },
+    { "pattern": "^D\\s+J\\b", "description": "Display job information" },
+    { "pattern": "^DISPLAY\\s+J\\b", "description": "Display job information" },
+    { "pattern": "^D\\s+SMF\\b", "description": "Display SMF status" },
+    { "pattern": "^DISPLAY\\s+SMF\\b", "description": "Display SMF status" },
+    { "pattern": "^D\\s+ASM\\b", "description": "Display auxiliary storage" },
+    { "pattern": "^DISPLAY\\s+ASM\\b", "description": "Display auxiliary storage" },
+    { "pattern": "^D\\s+PROG\\b", "description": "Display program properties" },
+    { "pattern": "^DISPLAY\\s+PROG\\b", "description": "Display program properties" },
+    { "pattern": "^D\\s+PARMLIB\\b", "description": "Display PARMLIB concatenation" },
+    { "pattern": "^DISPLAY\\s+PARMLIB\\b", "description": "Display PARMLIB concatenation" }
+  ]
+}

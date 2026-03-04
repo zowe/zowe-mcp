@@ -60,12 +60,40 @@ export interface DatasetAttributes {
   creationDate?: string;
   /** Last referenced date (ISO 8601 date string). */
   referenceDate?: string;
+  /** Expiration date (ISO 8601 date string). */
+  expirationDate?: string;
   /** SMS classes. */
   smsClass?: SmsClasses;
   /** Number of used tracks. */
   usedTracks?: number;
   /** Number of used extents. */
   usedExtents?: number;
+  /** Whether the data set is on multiple volumes. */
+  multivolume?: boolean;
+  /** Whether the data set is migrated (HSM). */
+  migrated?: boolean;
+  /** Whether the data set is encrypted. */
+  encrypted?: boolean;
+  /** Data set name type (e.g. PDS, LIBRARY). */
+  dsntype?: string;
+  /** SMS data class. */
+  dataclass?: string;
+  /** SMS management class. */
+  mgmtclass?: string;
+  /** SMS storage class. */
+  storclass?: string;
+  /** Space unit type (TRACKS, CYLINDERS, etc.). */
+  spaceUnits?: string;
+  /** Used space percentage. */
+  usedPercent?: number;
+  /** Primary allocation units. */
+  primary?: number;
+  /** Secondary allocation units. */
+  secondary?: number;
+  /** Device type. */
+  devtype?: string;
+  /** Multi-volume serial list. */
+  volsers?: string[];
 }
 
 /** Summary info for a data set in a listing. */
@@ -84,6 +112,38 @@ export interface DatasetEntry {
   volser?: string;
   /** Creation date (ISO 8601 date string). */
   creationDate?: string;
+  /** Last referenced date (ISO 8601 date string). */
+  referenceDate?: string;
+  /** Expiration date (ISO 8601 date string). */
+  expirationDate?: string;
+  /** Whether the data set is on multiple volumes. */
+  multivolume?: boolean;
+  /** Whether the data set is migrated (HSM). */
+  migrated?: boolean;
+  /** Whether the data set is encrypted. */
+  encrypted?: boolean;
+  /** Data set name type (e.g. PDS, LIBRARY). */
+  dsntype?: string;
+  /** SMS data class. */
+  dataclass?: string;
+  /** SMS management class. */
+  mgmtclass?: string;
+  /** SMS storage class. */
+  storclass?: string;
+  /** Space unit type (TRACKS, CYLINDERS, etc.). */
+  spaceUnits?: string;
+  /** Used space percentage. */
+  usedPercent?: number;
+  /** Used extents count. */
+  usedExtents?: number;
+  /** Primary allocation units. */
+  primary?: number;
+  /** Secondary allocation units. */
+  secondary?: number;
+  /** Device type. */
+  devtype?: string;
+  /** Multi-volume serial list. */
+  volsers?: string[];
 }
 
 /** A member entry in a PDS/PDSE listing. */
@@ -272,6 +332,18 @@ export interface ListUssFilesOptions {
   depth?: number;
   /** Maximum items to return (backend may return fewer; tool layer paginates). */
   maxItems?: number;
+}
+
+/** Options for copying a USS file or directory. */
+export interface CopyUssFileOptions {
+  /** Copy directories recursively. */
+  recursive?: boolean;
+  /** Follow symlinks when copying recursively. */
+  followSymlinks?: boolean;
+  /** Preserve permissions and ownership. */
+  preserveAttributes?: boolean;
+  /** Replace files that cannot be opened (like cp -f). */
+  force?: boolean;
 }
 
 /** Options for creating a USS file or directory. */
@@ -707,6 +779,24 @@ export interface ZosBackend {
   ): Promise<void>;
 
   /**
+   * Copy a USS file or directory.
+   *
+   * @param systemId - Target z/OS system.
+   * @param sourcePath - Source USS path.
+   * @param targetPath - Destination USS path.
+   * @param options - Copy options (recursive, followSymlinks, preserveAttributes, force).
+   * @param userId - Optional user ID.
+   */
+  copyUssFile(
+    systemId: SystemId,
+    sourcePath: string,
+    targetPath: string,
+    options?: CopyUssFileOptions,
+    userId?: string,
+    progress?: BackendProgressCallback
+  ): Promise<void>;
+
+  /**
    * Run a Unix command on the z/OS system and return stdout as a string.
    *
    * @param systemId - Target z/OS system.
@@ -733,6 +823,34 @@ export interface ZosBackend {
     userId?: string,
     progress?: BackendProgressCallback
   ): Promise<string>;
+
+  /**
+   * Run a z/OS console command and return the command response as a string.
+   *
+   * @param systemId - Target z/OS system.
+   * @param commandText - The console command to execute (e.g. "D T", "D A,L").
+   * @param consoleName - Optional console name.
+   * @param userId - Optional user ID.
+   */
+  runConsoleCommand(
+    systemId: SystemId,
+    commandText: string,
+    consoleName?: string,
+    userId?: string,
+    progress?: BackendProgressCallback
+  ): Promise<string>;
+
+  /**
+   * Restore (recall) a migrated data set from HSM.
+   *
+   * @param systemId - Target z/OS system.
+   * @param dsn - Fully-qualified data set name.
+   */
+  restoreDataset(
+    systemId: SystemId,
+    dsn: string,
+    progress?: BackendProgressCallback
+  ): Promise<void>;
 
   /**
    * Get the USS home directory path for a user on the system.

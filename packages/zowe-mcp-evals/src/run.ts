@@ -163,6 +163,13 @@ async function main(): Promise<void> {
   const cacheDir = useCache ? resolve(process.cwd(), '.evals-cache') : '';
   const cacheStats: CacheStats = { hits: 0, writes: 0 };
 
+  let totalQuestions = 0;
+  for (const setName of setNames) {
+    const qs = loadedSets.get(setName)!;
+    totalQuestions += filterQuestions(qs.questions, cli).length;
+  }
+  let questionIndex = 0;
+
   for (const setName of setNames) {
     const questionSet = loadedSets.get(setName)!;
 
@@ -252,7 +259,9 @@ async function main(): Promise<void> {
             cacheStats.hits++;
             const icon = passed ? PASS : FAIL;
             const detail = passed ? ' cache hit' : ` ${failedAssertion ?? 'assertion failed'}`;
-            log.info(`Running ${q.id} (${r + 1}/${repetitions}) ${icon}${detail}`);
+            const msg = `Running ${q.id} (${r + 1}/${repetitions}) ${icon}${detail}`;
+            if (passed) log.pass(msg);
+            else log.fail(msg);
             const answerPreview =
               finalText.length > 300 ? finalText.slice(0, 300) + '…' : finalText;
             log.info('  Answer:');
@@ -283,7 +292,9 @@ async function main(): Promise<void> {
               allResults.push(result);
               const icon = passed ? PASS : FAIL;
               const detail = passed ? '' : ` ${failedAssertion ?? 'assertion failed'}`;
-              log.info(`Running ${q.id} (${r + 1}/${repetitions}) ${icon}${detail}`);
+              const msg = `Running ${q.id} (${r + 1}/${repetitions}) ${icon}${detail}`;
+              if (passed) log.pass(msg);
+              else log.fail(msg);
               const answerPreview =
                 finalText.length > 300 ? finalText.slice(0, 300) + '…' : finalText;
               log.info('  Answer:');
@@ -301,7 +312,7 @@ async function main(): Promise<void> {
               };
               allResults.push(failedResult);
               questionResults.push(failedResult);
-              log.info(`Running ${q.id} (${r + 1}/${repetitions}) ${FAIL} ${msg}`);
+              log.fail(`Running ${q.id} (${r + 1}/${repetitions}) ${FAIL} ${msg}`);
               log.info('  Answer: (error)');
               for (const line of msg.trim().split(/\n/)) log.info(`    ${line}`);
               log.info(`    ${msg}`);
@@ -322,10 +333,14 @@ async function main(): Promise<void> {
           }
         }
 
+        questionIndex++;
         const qPassed = questionResults.filter(x => x.passed).length;
         const qTotal = questionResults.length;
         const icon = qPassed === qTotal ? PASS : FAIL;
-        log.notice(`${icon} ${q.id} (${qPassed}/${qTotal})`);
+        const progress = `[${questionIndex.toString()}/${totalQuestions.toString()}]`;
+        const summary = `${icon} ${q.id} (${qPassed}/${qTotal}) ${progress}`;
+        if (qPassed === qTotal) log.pass(summary);
+        else log.fail(summary);
       }
     } finally {
       log.info('Stopping MCP server');
@@ -341,7 +356,9 @@ async function main(): Promise<void> {
   log.info('Writing report');
   writeReport(allResults, allToolCalls, process.cwd());
 
-  log.notice(`Runs: ${passed}/${total} passed`);
+  const runsMsg = `Runs: ${passed}/${total} passed`;
+  if (success) log.pass(runsMsg);
+  else log.fail(runsMsg);
   if (useCache) {
     const llmCalls = total - cacheStats.hits;
     log.notice(
@@ -349,9 +366,9 @@ async function main(): Promise<void> {
     );
   }
   if (success) {
-    log.notice('SUCCESS');
+    log.pass('SUCCESS');
   } else {
-    log.error('FAILED');
+    log.fail('FAILED');
   }
   process.exit(success ? 0 : 1);
 }

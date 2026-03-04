@@ -111,9 +111,43 @@ function lmStudioApiBase(baseUrl: string): string {
 }
 
 /**
- * Load (or reload) a model in LM Studio with the specified context length.
- * Uses POST /api/v1/models/load. If the model is already loaded with the same
- * context length this is a no-op on the LM Studio side.
+ * Check whether a model is already loaded in LM Studio with the required context length.
+ * Uses GET /api/v1/models and inspects `loaded_instances`.
+ */
+async function isModelAlreadyLoaded(
+  apiBase: string,
+  model: string,
+  contextLength: number
+): Promise<boolean> {
+  const url = `${apiBase}/api/v1/models`;
+  let resp: Response;
+  try {
+    resp = await fetch(url);
+  } catch {
+    return false;
+  }
+  if (!resp.ok) return false;
+  const body = (await resp.json()) as {
+    models?: {
+      key?: string;
+      loaded_instances?: { id?: string; config?: { context_length?: number } }[];
+    }[];
+  };
+  for (const m of body.models ?? []) {
+    if (m.key !== model) continue;
+    for (const inst of m.loaded_instances ?? []) {
+      if (inst.config?.context_length != null && inst.config.context_length >= contextLength) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+/**
+ * Ensure a model is loaded in LM Studio with the specified context length.
+ * Skips the load request when the model is already loaded with sufficient context.
+ * Uses POST /api/v1/models/load when loading is needed.
  */
 export async function ensureLmStudioModel(
   baseUrl: string,
@@ -121,6 +155,14 @@ export async function ensureLmStudioModel(
   contextLength: number
 ): Promise<void> {
   const apiBase = lmStudioApiBase(baseUrl);
+
+  if (await isModelAlreadyLoaded(apiBase, model, contextLength)) {
+    process.stderr.write(
+      `LM Studio: model "${model}" already loaded (context_length>=${contextLength.toString()}), skipping load\n`
+    );
+    return;
+  }
+
   const url = `${apiBase}/api/v1/models/load`;
   let resp: Response;
   try {

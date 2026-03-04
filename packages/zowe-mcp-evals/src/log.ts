@@ -16,6 +16,11 @@
 
 const NAME = 'evals';
 
+const isTTY = process.stderr.isTTY === true;
+const GREEN = isTTY ? '\x1b[32m' : '';
+const RED = isTTY ? '\x1b[31m' : '';
+const RESET = isTTY ? '\x1b[0m' : '';
+
 function format(level: string, message: string, data?: unknown): string {
   const timestamp = new Date().toISOString();
   const tag = level.toUpperCase();
@@ -24,24 +29,44 @@ function format(level: string, message: string, data?: unknown): string {
   return `${timestamp} [${tag}]${nameTag} ${message}${suffix}\n`;
 }
 
-export const log = {
-  debug(message: string, data?: unknown): void {
+type LogFn = (message: string, data?: unknown) => void;
+
+interface Logger {
+  debug: LogFn;
+  info: LogFn;
+  notice: LogFn;
+  warning: LogFn;
+  error: LogFn;
+  pass: LogFn;
+  fail: LogFn;
+}
+
+export const log: Logger = {
+  debug(message, data) {
     process.stderr.write(format('debug', message, data));
   },
 
-  info(message: string, data?: unknown): void {
+  info(message, data) {
     process.stderr.write(format('info', message, data));
   },
 
-  notice(message: string, data?: unknown): void {
+  notice(message, data) {
     process.stderr.write(format('notice', message, data));
   },
 
-  warning(message: string, data?: unknown): void {
+  warning(message, data) {
     process.stderr.write(format('warning', message, data));
   },
 
-  error(message: string, data?: unknown): void {
+  error(message, data) {
     process.stderr.write(format('error', message, data));
+  },
+
+  pass(message, data) {
+    process.stderr.write(`${GREEN}${format('notice', message, data)}${RESET}`);
+  },
+
+  fail(message, data) {
+    process.stderr.write(`${RED}${format('notice', message, data)}${RESET}`);
   },
 };

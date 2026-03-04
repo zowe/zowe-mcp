@@ -1,0 +1,182 @@
+# Sample inputs for generate-docs. Each key is a tool name.
+# Set arguments to call the tool and include an output example in the docs.
+# Tools with `skip: true` will not be called (output example omitted).
+# Use toolName[label] for additional examples, e.g. readUssFile[sensitive path].
+# Regenerate this skeleton: delete the file and run `npm run generate-docs`.
+
+info:
+
+listSystems:
+
+setSystem:
+  system: "mainframe-dev.example.com"
+
+getContext:
+
+listDatasets:
+  dsnPattern: "USER.*"
+
+listDatasets[no results]:
+  dsnPattern: "NONEXIST.*"
+
+listMembers:
+  dsn: "USER.SRC.COBOL"
+
+listMembers[with pattern]:
+  dsn: "USER.SRC.COBOL"
+  pattern: "CUST*"
+
+searchInDataset:
+  dsn: "USER.SRC.COBOL"
+  string: "DIVISION"
+
+searchInDataset[single member]:
+  dsn: "USER.SRC.COBOL"
+  member: "CUSTFILE"
+  string: "WORKING-STORAGE"
+
+getDatasetAttributes:
+  dsn: "USER.SRC.COBOL"
+
+readDataset:
+  dsn: "USER.SRC.COBOL(CUSTFILE)"
+
+readDataset[with line window]:
+  dsn: "USER.SRC.COBOL(CUSTFILE)"
+  startLine: 1
+  lineCount: 10
+
+writeDataset:
+  skip: true
+
+getTempDatasetPrefix:
+
+getTempDatasetName:
+
+createDataset:
+  skip: true
+
+createTempDataset:
+  skip: true
+
+deleteDataset:
+  skip: true
+
+deleteDatasetsUnderPrefix:
+  skip: true
+
+copyDataset:
+  skip: true
+
+renameDataset:
+  skip: true
+
+restoreDataset:
+  skip: true
+
+getUssHome:
+
+changeUssDirectory:
+  path: "/u/USER"
+
+listUssFiles:
+  path: "/"
+
+listUssFiles[user home]:
+  path: "/u/USER"
+
+readUssFile:
+  path: "/u/USER/file.txt"
+
+readUssFile[sensitive path]:
+  path: "/etc/profile"
+
+runSafeUssCommand:
+  commandText: "pwd"
+
+runSafeUssCommand[blocked command]:
+  commandText: "rm -rf /"
+
+writeUssFile:
+  skip: true
+
+createUssFile:
+  skip: true
+
+deleteUssFile:
+  skip: true
+
+chmodUssFile:
+  skip: true
+
+chownUssFile:
+  skip: true
+
+chtagUssFile:
+  skip: true
+
+copyUssFile:
+  skip: true
+
+getUssTempDir:
+  skip: true
+
+getUssTempPath:
+  skip: true
+
+createTempUssDir:
+  skip: true
+
+createTempUssFile:
+  skip: true
+
+deleteUssTempUnderDir:
+  skip: true
+
+runSafeTsoCommand:
+  commandText: "TIME"
+
+runSafeTsoCommand[blocked command]:
+  commandText: "OSHELL rm -rf /"
+
+submitJob:
+  skip: true
+
+getJobStatus:
+  skip: true
+
+listJobFiles:
+  skip: true
+
+readJobFile:
+  skip: true
+
+getJobOutput:
+  skip: true
+
+searchJobOutput:
+  skip: true
+
+listJobs:
+  skip: true
+
+getJcl:
+  skip: true
+
+cancelJob:
+  skip: true
+
+holdJob:
+  skip: true
+
+releaseJob:
+  skip: true
+
+deleteJob:
+  skip: true
+
+submitJobFromDataset:
+  skip: true
+
+submitJobFromUss:
+  skip: true

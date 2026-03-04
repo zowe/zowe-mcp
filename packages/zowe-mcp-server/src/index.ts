@@ -168,6 +168,24 @@ function parseArgs(): ParsedArgs {
       }
     )
     .command(
+      'generate-docs',
+      'Generate Markdown documentation of all MCP tools, prompts, and resources',
+      y =>
+        y.options({
+          output: {
+            type: 'string',
+            describe: 'Output file path (default: docs/mcp-reference.md)',
+          },
+        }),
+      () => {
+        const scriptPath = resolve(__dirname, 'scripts', 'generate-docs.js');
+        const result = spawnSync(process.execPath, [scriptPath, ...process.argv.slice(3)], {
+          stdio: 'inherit',
+        });
+        process.exit(result.status ?? 0);
+      }
+    )
+    .command(
       'call-tool [args..]',
       'Call MCP tools via CLI (optional --mock=<dir>, args as key=value)',
       y =>
@@ -334,7 +352,7 @@ function loadNativeConfig(configPath: string): NativeConfig {
 async function main(): Promise<void> {
   // Run subcommand scripts directly so they work even if yargs doesn't dispatch (e.g. in bundled extension)
   const subcommand = process.argv[2];
-  if (subcommand === 'init-mock' || subcommand === 'call-tool') {
+  if (subcommand === 'init-mock' || subcommand === 'call-tool' || subcommand === 'generate-docs') {
     const scriptPath = resolve(__dirname, 'scripts', `${subcommand}.js`);
     const result = spawnSync(process.execPath, [scriptPath, ...process.argv.slice(3)], {
       stdio: 'inherit',

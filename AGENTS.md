@@ -246,6 +246,7 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 | `npm run test:all` | Run all tests (server + VS Code extension) |
 | `npm run test:vscode` | Run VS Code extension tests (auto-builds first via `pretest`) |
 | `npx zowe-mcp-server call-tool` | Call a tool from CLI (optional `--mock=<dir>`, args as key=value) |
+| `npm run generate-docs` | Generate `docs/mcp-reference.md` — Markdown reference of all MCP tools, prompts, resources, and resource templates (builds server first, uses temp mock backend). Also available as `npx zowe-mcp-server generate-docs [--output <path>]`. |
 | `npm run inspector` | Launch MCP Inspector |
 | `npm run lint` | Run ESLint (type-checked rules + license headers) |
 | `npm run lint:fix` | Auto-fix ESLint issues (including missing headers) |

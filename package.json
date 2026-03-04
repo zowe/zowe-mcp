@@ -14,6 +14,7 @@
     "cloc": "cloc --vcs git .",
     "evals": "npm run build -w packages/zowe-mcp-server && npm run build -w packages/zowe-mcp-evals && npm run evals -w packages/zowe-mcp-evals -- \"$@\"",
     "format": "prettier --write \"**/*.{ts,js,mjs,json,jsonc}\"",
+    "generate-docs": "npm run build -w packages/zowe-mcp-server && npx zowe-mcp-server generate-docs",
     "inspector:mock": "npx @modelcontextprotocol/inspector node packages/zowe-mcp-server/dist/index.js --stdio --mock ./zowe-mcp-mock-data",
     "inspector:native": "dotenv -e .env -- npx @modelcontextprotocol/inspector node packages/zowe-mcp-server/dist/index.js -- --stdio --native --config native-config.json",
     "inspector": "npx @modelcontextprotocol/inspector node packages/zowe-mcp-server/dist/index.js --stdio",

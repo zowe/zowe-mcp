@@ -2,7 +2,7 @@
 
 # Zowe MCP Server Reference
 
-> Auto-generated from the MCP server (v0.6.0-dev, commit 1fff5d2). Do not edit manually — run `npx zowe-mcp-server generate-docs` to regenerate.
+> Auto-generated from the MCP server (v0.6.0-dev, commit fd2eafc). Do not edit manually — run `npx zowe-mcp-server generate-docs` to regenerate.
 
 This document describes all tools, prompts, resources, and resource templates provided by the Zowe MCP Server.
 
@@ -872,7 +872,7 @@ Output:
       "       ENVIRONMENT DIVISION.",
       "       CONFIGURATION SECTION."
     ],
-    "etag": "4c953735f4750d441ce0778b8f9f3eb5",
+    "etag": "d9d95bb77f770c18954f2573efa7f7fa",
     "encoding": "IBM-037"
   }
 }
@@ -944,7 +944,7 @@ For automation and testing. Returns a unique DSN prefix (HLQ) under which tempor
   },
   "messages": [],
   "data": {
-    "tempDsnPrefix": "USER.TMP.HPJ1FPTT.J7PAWTLB"
+    "tempDsnPrefix": "USER.TMP.GL6MSSTO.O0LV91ZP"
   }
 }
 ```
@@ -987,7 +987,7 @@ Returns a single unique full temporary data set name (for one data set). The DSN
   },
   "messages": [],
   "data": {
-    "tempDsn": "USER.TMP.KVUDXGP2.AFLLIYV1.OADO5PKO"
+    "tempDsn": "USER.TMP.EZUE1W45.URQWRFB3.VI64A8G5"
   }
 }
 ```
@@ -1438,7 +1438,7 @@ Output:
     "lines": [
       "Hello from USS mock. Use this file for readUssFile evals."
     ],
-    "etag": "9d501589bb808d516d90194d590a5c50",
+    "etag": "0a8107ef22173ae825e3023ecb3683cf",
     "mimeType": "text/plain"
   }
 }
@@ -1900,7 +1900,7 @@ Output:
   "messages": [],
   "data": {
     "lines": [
-      "TIME-09:57:05 AM. CPU-00:00:00 SERVICE-26895 SESSION-00:01:53 MARCH 4,2026"
+      "TIME-11:03:00 AM. CPU-00:00:00 SERVICE-26895 SESSION-00:01:53 MARCH 4,2026"
     ],
     "mimeType": "text/plain"
   }
@@ -2465,7 +2465,7 @@ Sample content (first member: ACCTPROC):
        01  WS-RECORD-COUNT              PIC 9(7) VALUE ZERO.
        01  WS-ERROR-COUNT               PIC 9(5) VALUE ZERO.
       *
-           COPY ERRCODES.
+           COPY ACCTFMT.
       *
        PROCEDURE DIVISION.
        0000-MAIN.
@@ -2480,7 +2480,7 @@ Sample content (first member: ACCTPROC):
            IF WS-FILE-STATUS NOT = '00'
               DISPLAY 'ACCTPROC: ERROR OPENING INPUT FILE'
               DISPLAY 'FILE STATUS: ' WS-FILE-STATUS
-              MOVE 16 TO RETURN
+              MOVE 16 TO RETURN-
 ... (truncated)
 ```
 
@@ -2643,7 +2643,7 @@ Please compare these two members from USER.SRC.COBOL on mainframe-dev.example.co
        01  WS-RECORD-COUNT              PIC 9(7) VALUE ZERO.
        01  WS-ERROR-COUNT               PIC 9(5) VALUE ZERO.
       *
-           COPY ERRCODES.
+           COPY ACCTFMT.
       *
        PROCEDURE DIVISION.
        0000-MAIN.

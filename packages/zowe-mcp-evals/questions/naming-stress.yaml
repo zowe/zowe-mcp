@@ -1,0 +1,213 @@
+# yaml-language-server: $schema=../schemas/evals-question-set.schema.json
+# Naming stress-test: CLI phrasing, z/OS jargon, ambiguous natural language.
+# Designed to expose naming/description weaknesses in tool definitions.
+config:
+  name: naming-stress
+  description: Stress-test tool selection and parameter mapping using CLI vocabulary, z/OS jargon, and ambiguous phrasing
+  repetitions: 10
+  minSuccessRate: 0.5
+  mock:
+    initArgs: --preset default
+
+questions:
+  # --- CLI-style phrasing ---
+
+  - id: cli-list-ds-with-attributes
+    prompt: List data sets matching the pattern USER.** with attributes.
+    assertions:
+      - toolCall:
+          tool: listDatasets
+          args:
+            dsnPattern:
+              - "USER.**"
+              - "'USER.**'"
+
+  - id: cli-view-uss-file
+    prompt: View the contents of the USS file /u/USER/file.txt on the mainframe.
+    assertions:
+      - toolCall:
+          tool: readUssFile
+          args:
+            path:
+              - "/u/USER/file.txt"
+              - "file.txt"
+
+  - id: cli-search-datasets
+    prompt: Search for the search string DIVISION in data set USER.SRC.COBOL.
+    assertions:
+      - toolCall:
+          tool: searchInDataset
+          args:
+            dsn:
+              - "USER.SRC.COBOL"
+              - "'USER.SRC.COBOL'"
+            string: "DIVISION"
+
+  - id: cli-create-ds-like-zowe
+    prompt: Create a new PDS named USER.TEST.DATA with record format FB, logical record length 80, and block size 27920.
+    assertions:
+      - toolCall:
+          tool: createDataset
+          args:
+            dsn:
+              - "USER.TEST.DATA"
+              - "'USER.TEST.DATA'"
+            recfm: "FB"
+            lrecl: 80
+
+  # --- z/OS jargon ---
+
+  - id: zos-allocate-ps
+    prompt: Allocate a sequential data set USER.NEW.SEQ with RECFM=VB, LRECL=133.
+    assertions:
+      - toolCall:
+          tool: createDataset
+          args:
+            dsn:
+              - "USER.NEW.SEQ"
+              - "'USER.NEW.SEQ'"
+            type:
+              - "PS"
+              - "SEQUENTIAL"
+            recfm: "VB"
+            lrecl: 133
+
+  - id: zos-dsname-with-quotes
+    prompt: Read the member CUSTFILE from data set 'USER.SRC.COBOL'.
+    assertions:
+      - toolCall:
+          tool: readDataset
+          args:
+            dsn:
+              - "USER.SRC.COBOL"
+              - "'USER.SRC.COBOL'"
+            member: "CUSTFILE"
+
+  - id: zos-catalog-search
+    prompt: Show me all cataloged data sets under the high-level qualifier USER.
+    assertions:
+      - toolCall:
+          tool: listDatasets
+          args:
+            dsnPattern:
+              - "USER.**"
+              - "USER.*"
+              - "'USER.**'"
+              - "'USER.*'"
+
+  - id: zos-pds-directory
+    prompt: Display the PDS directory of USER.SRC.COBOL.
+    assertions:
+      - toolCall:
+          tool: listMembers
+          args:
+            dsn:
+              - "USER.SRC.COBOL"
+              - "'USER.SRC.COBOL'"
+
+  - id: zos-dsorg-vocabulary
+    prompt: I need a new PDSE called USER.TEST.LIB. Allocate it for me.
+    assertions:
+      - toolCall:
+          tool: createDataset
+          args:
+            dsn:
+              - "USER.TEST.LIB"
+              - "'USER.TEST.LIB'"
+            type:
+              - "PO-E"
+              - "PO"
+              - "PDS"
+              - "PDSE"
+              - "LIBRARY"
+
+  # --- Ambiguous natural language ---
+
+  - id: ambiguous-find-text
+    prompt: Find all occurrences of the text PERFORM in USER.SRC.COBOL.
+    assertions:
+      - toolCall:
+          tool: searchInDataset
+          args:
+            dsn:
+              - "USER.SRC.COBOL"
+              - "'USER.SRC.COBOL'"
+            string: "PERFORM"
+
+  - id: ambiguous-show-files
+    prompt: Show me the files in USER.SRC.COBOL.
+    assertions:
+      - toolCall:
+          tool: listMembers
+          args:
+            dsn:
+              - "USER.SRC.COBOL"
+              - "'USER.SRC.COBOL'"
+
+  - id: ambiguous-what-datasets
+    prompt: What data sets do I have?
+    assertions:
+      - toolCall:
+          tool: listDatasets
+
+  - id: ambiguous-look-at-code
+    prompt: Let me look at the COBOL source code in CUSTFILE from USER.SRC.COBOL.
+    assertions:
+      - toolCall:
+          tool: readDataset
+          args:
+            dsn:
+              - "USER.SRC.COBOL"
+              - "'USER.SRC.COBOL'"
+            member: "CUSTFILE"
+
+  - id: ambiguous-grep-cobol
+    prompt: Grep for WORKING-STORAGE in the COBOL library USER.SRC.COBOL.
+    assertions:
+      - toolCall:
+          tool: searchInDataset
+          args:
+            dsn:
+              - "USER.SRC.COBOL"
+              - "'USER.SRC.COBOL'"
+            string: "WORKING-STORAGE"
+
+  # --- ISPF-style patterns ---
+
+  - id: ispf-34-style
+    prompt: Show me all data sets under USER like ISPF 3.4 would.
+    assertions:
+      - toolCall:
+          tool: listDatasets
+          args:
+            dsnPattern:
+              - "USER.**"
+              - "USER.*"
+              - "'USER.**'"
+              - "'USER.*'"
+
+  # --- Cross-domain terminology ---
+
+  - id: spool-terminology
+    prompt: Show me the spool files for job JOB00123.
+    assertions:
+      - toolCall:
+          tool: listJobFiles
+          args:
+            jobId: "JOB00123"
+
+  - id: unix-ls-style
+    prompt: Do an ls of my home directory on USS.
+    assertions:
+      - toolCall:
+          tool: listUssFiles
+
+  - id: tso-who-am-i
+    prompt: Who am I on the mainframe? Use TSO to find out.
+    assertions:
+      - toolCall:
+          oneOf:
+            - tool: runSafeTsoCommand
+              args:
+                commandText: "WHO"
+            - tool: getContext

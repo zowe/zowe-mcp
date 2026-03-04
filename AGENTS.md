@@ -236,6 +236,32 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 - **Output schema and errors**: When a tool has `outputSchema`, success results must include `structuredContent` that conforms. Return `isError: true` for tool execution errors (blocked command, validation failure, user decline) so the client does not validate the error body against the success schema; the `content` array still carries the JSON error message for the LLM.
 - **Native backend abend (CEE3204S/0C4)**: When the ZNP server on z/OS abends (e.g. protection exception 0C4), the native backend treats the error as a connection error: it evicts the SSH client immediately (connection closed), rethrows so the client gets the error, and does not reuse that connection. When an abend is detected (invalid JSON containing CEE3204S/0C4/protection exception), the server logs a dedicated **notice** that includes which Zowe Native operation and which MCP tool were in progress (e.g. "ZNP server on z/OS abended during Zowe Native operation 'listDatasets' (MCP tool: 'listDatasets'). &lt;abend reason&gt;..."), and an **error**-level log line so it appears in the Zowe MCP output window; it also sets `abendDetected: true` on the Native backend error log entry. The **MCP error** returned to the user explains that an unexpected internal Zowe Native (z/OS) error occurred, with the abend message (e.g. CEE3204S) as detail. **Stderr abend capture (immediate fail)**: Because the SDK may log "Invalid JSON response: CEE3204S..." to stderr without rejecting the in-flight Promise (ZNP-010), the server installs a temporary `process.stderr.write` wrapper during each ZNP request. When output matching that abend pattern is seen, the wrapper calls a callback that rejects a Promise that is raced with the request and the timeout, so the request **fails immediately** (no timeout wait). The snippet is also stored for the timeout path. See `stderr-abend-capture.ts`. The client always gets the user-facing error (either from that reject or, on timeout, by replacing the timeout error with the captured snippet and then the same user-facing message). The current MCP tool name is provided via **AsyncLocalStorage** (`mcp-tool-context.ts`); tool-call logging runs each handler inside `runWithMcpTool(name, ...)` so the backend can read it when an abend occurs. **CEEDUMP collection**: When an abend is detected the server fires a background task that opens a new SSH session, resolves the user's USS home (`echo $HOME`, or probe of typical bases `/u`, `/a`, `/z`, etc., or fallback `/u/<user>`), lists files for `CEEDUMP*`, reads the newest by mtime, and writes a single file `zowe-ceedump-<timestamp>-<host>-<user>.txt` with metadata in YAML at the top (js-yaml), then `---` on a line, then the dump content. Save directory: `ZOWE_MCP_CEEDUMP_SAVE_DIR` if set, else `ZOWE_MCP_WORKSPACE_DIR` (set by the VS Code extension to the first workspace folder), else `process.cwd()`. The connection used for collection is evicted afterward. When the extension pipe is connected, after saving the file the server sends a **ceedump-collected** event with `path`, `reason` (abend text), `znpOperation`, and `mcpTool`; the extension shows an information message with that context and an "Open Dump" button that opens the dump in the editor, and logs a line to the Zowe MCP output channel with the full path.
 
+## Eval-Driven Improvement Methodology
+
+The project uses a data-driven approach to validate tool definition changes. Every proposed change to tool names, descriptions, or parameters is treated as a hypothesis tested with before/after eval runs.
+
+### Workflow
+
+1. **Baseline**: Run `npm run eval-compare -- --set naming-stress,description-quality --label "baseline"` to establish pass rates.
+2. **Change**: Make one targeted change (e.g. improve a parameter description).
+3. **Re-measure**: Run eval-compare with a new label (e.g. `--label "after-<change-name>"`).
+4. **Compare**: Check `docs/eval-scoreboard.md` for the delta. Keep changes that improve or maintain pass rates; revert regressions.
+
+### eval-compare Tool
+
+`npm run eval-compare` (`packages/zowe-mcp-evals/src/eval-compare.ts`) runs evals across one or more models and auto-updates `docs/eval-scoreboard.md`. Key options: `--set` (comma-separated set names or `all`), `--model` (comma-separated model IDs from `evals.config.json` or `all`), `--label` (human-readable tag), `--repetitions` (override set default). Reports go to `evals-report/<label>-<timestamp>/`.
+
+### Stress-Test Question Sets
+
+- **naming-stress.yaml** (18 questions): CLI phrasing ("List data sets matching..."), z/OS jargon ("Allocate a PDS with RECFM=FB"), ISPF vocabulary ("Show me all data sets under USER like ISPF 3.4"), ambiguous natural language ("Find all occurrences of PERFORM"), cross-domain terminology ("spool files", "grep", "ls"). Config: `repetitions: 10`, `minSuccessRate: 0.5`, mock default preset.
+- **description-quality.yaml** (11 questions): Pagination awareness (exact member count requiring multiple pages), search option combinations (caseSensitive, cobol, ignoreSequenceNumbers, includeContextLines), read windowing (first N lines, specific range), dataset attributes. Config: `repetitions: 10`, `minSuccessRate: 0.5`, mock pagination preset.
+
+### Key Findings
+
+- **Parameter descriptions matter more than parameter names for LLM tool use.** Renaming `string` to `searchString` in `searchInDataset` caused a slight regression (100% → 94.4% on naming-stress) because the model reads `.describe()` text, not just the key name. The original description "Search string (literal) to find in the data set or members" was already sufficient context.
+- **Expanding z/OS jargon in descriptions helps.** Adding full names like "Record Format (RECFM)", "Logical Record Length (LRECL) in bytes", "Physical Sequential — a flat file" to `.describe()` strings improved description-quality from 63.6% to 72.7% (+9.1%).
+- **Persistent failure areas**: pagination awareness (model doesn't always fetch all pages), `ignoreSequenceNumbers` vs `cobol` confusion (both relate to column handling), combined search options (model drops parameters when combining).
+
 ## Scripts Reference
 
 | Script | Description |
@@ -254,6 +280,7 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 | `npm run check-format` | Check formatting without modifying files |
 | `npm run markdownlint <file>` | Fix markdown lint issues |
 | `npx zowe-mcp-server init-mock --output <dir>` | Generate mock data directory |
+| `npm run eval-compare` | Run eval-compare: evals across models with auto-scoreboard update. Options after `--`: `--set`, `--model`, `--label`, `--repetitions`, `--system-prompt-addition`. Results in `evals-report/` and `docs/eval-scoreboard.md`. |
 | `npm run evals` | Run AI evals from repo root (requires `evals.config.json` at root; pass options after `--`: `--set`, `--model <id>`, `--number`, `--id`, `--filter`) |
 | `node scripts/set-version.js <version>` | Set `version` in all `package.json` (root and workspaces) and extension’s `zowe-mcp-server` dependency. Use before release or when aligning versions. |
 | `npm run release-vsix` | Sync versions via `set-version.js`, build extension, create tag from extension version, push tag, create GitHub release and upload VSIX (requires `gh` auth). Ensures VSIX filename matches tag. |

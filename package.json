@@ -12,6 +12,7 @@
     "call-tool": "npx zowe-mcp-server call-tool",
     "check-format": "prettier --check \"**/*.{ts,js,mjs,json,jsonc}\"",
     "cloc": "cloc --vcs git .",
+    "eval-compare": "npm run build -w packages/zowe-mcp-server && npm run build -w packages/zowe-mcp-evals && node packages/zowe-mcp-evals/dist/eval-compare.js",
     "evals": "npm run build -w packages/zowe-mcp-server && npm run build -w packages/zowe-mcp-evals && npm run evals -w packages/zowe-mcp-evals -- \"$@\"",
     "format": "prettier --write \"**/*.{ts,js,mjs,json,jsonc}\"",
     "generate-docs": "npm run build -w packages/zowe-mcp-server && npx zowe-mcp-server generate-docs",

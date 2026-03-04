@@ -1,0 +1,158 @@
+# yaml-language-server: $schema=../schemas/evals-question-set.schema.json
+# Description quality: tests whether tool descriptions guide the LLM correctly
+# for edge cases like pagination, search options, and parameter combinations.
+config:
+  name: description-quality
+  description: Test edge cases of tool descriptions (pagination awareness, option combinations, windowing)
+  repetitions: 10
+  minSuccessRate: 0.5
+  mock:
+    initArgs: --preset pagination
+
+questions:
+  # --- Pagination awareness ---
+
+  - id: pagination-member-count
+    prompt: How many members does USER.INVNTORY have? Give me the exact count.
+    assertions:
+      - toolCall:
+          tool: listMembers
+          minCount: 2
+          args:
+            dsn:
+              - "USER.INVNTORY"
+              - "'USER.INVNTORY'"
+      - answerContains:
+          pattern: "2[,.]?000"
+
+  - id: pagination-list-all-datasets
+    prompt: List all data sets matching USER.PEOPLE.** and tell me the total count.
+    assertions:
+      - toolCall:
+          tool: listDatasets
+          minCount: 2
+          args:
+            dsnPattern:
+              - "USER.PEOPLE.**"
+              - "'USER.PEOPLE.**'"
+              - "USER.PEOPLE.*"
+              - "'USER.PEOPLE.*'"
+      - answerContains:
+          pattern: "1[,.]?000"
+
+  # --- Search option combinations ---
+
+  - id: search-case-sensitive
+    prompt: Search case-sensitively for COBOL in USER.SRC.COBOL.
+    assertions:
+      - toolCall:
+          tool: searchInDataset
+          args:
+            dsn:
+              - "USER.SRC.COBOL"
+              - "'USER.SRC.COBOL'"
+            string: "COBOL"
+            caseSensitive: true
+
+  - id: search-ignore-sequence-numbers
+    prompt: Search for DIVISION in USER.SRC.COBOL but ignore the sequence number columns.
+    assertions:
+      - toolCall:
+          tool: searchInDataset
+          args:
+            dsn:
+              - "USER.SRC.COBOL"
+              - "'USER.SRC.COBOL'"
+            string: "DIVISION"
+            ignoreSequenceNumbers: true
+
+  - id: search-cobol-mode
+    prompt: Search for PERFORM in USER.SRC.COBOL using COBOL-aware mode.
+    assertions:
+      - toolCall:
+          tool: searchInDataset
+          args:
+            dsn:
+              - "USER.SRC.COBOL"
+              - "'USER.SRC.COBOL'"
+            string: "PERFORM"
+            cobol: true
+
+  - id: search-with-context-lines
+    prompt: Search for PERFORM in USER.SRC.COBOL and show me surrounding lines for context.
+    assertions:
+      - toolCall:
+          tool: searchInDataset
+          args:
+            dsn:
+              - "USER.SRC.COBOL"
+              - "'USER.SRC.COBOL'"
+            string: "PERFORM"
+            includeContextLines: true
+
+  - id: search-combined-options
+    prompt: Do a case-insensitive COBOL-aware search for SECTION in USER.SRC.COBOL, ignoring sequence numbers.
+    assertions:
+      - toolCall:
+          tool: searchInDataset
+          args:
+            dsn:
+              - "USER.SRC.COBOL"
+              - "'USER.SRC.COBOL'"
+            string: "SECTION"
+            cobol: true
+            ignoreSequenceNumbers: true
+
+  # --- Read windowing ---
+
+  - id: read-first-lines
+    prompt: Show me just the first 10 lines of member CUSTFILE in USER.SRC.COBOL.
+    assertions:
+      - toolCall:
+          tool: readDataset
+          args:
+            dsn:
+              - "USER.SRC.COBOL"
+              - "'USER.SRC.COBOL'"
+            member: "CUSTFILE"
+            lineCount: 10
+
+  - id: read-specific-range
+    prompt: Read lines 20 through 30 of member CUSTFILE in USER.SRC.COBOL.
+    assertions:
+      - toolCall:
+          tool: readDataset
+          args:
+            dsn:
+              - "USER.SRC.COBOL"
+              - "'USER.SRC.COBOL'"
+            member: "CUSTFILE"
+            startLine: 20
+
+  # --- Search in specific member ---
+
+  - id: search-single-member
+    prompt: Search only in member CUSTFILE of USER.SRC.COBOL for the string PROCEDURE.
+    assertions:
+      - toolCall:
+          tool: searchInDataset
+          args:
+            dsn:
+              - "USER.SRC.COBOL"
+              - "'USER.SRC.COBOL'"
+            member: "CUSTFILE"
+            string: "PROCEDURE"
+
+  # --- Dataset attributes ---
+
+  - id: get-attributes-explicit
+    prompt: What are the attributes of data set USER.SRC.COBOL? I need RECFM, LRECL, and BLKSIZE.
+    assertions:
+      - toolCall:
+          tool: getDatasetAttributes
+          args:
+            dsn:
+              - "USER.SRC.COBOL"
+              - "'USER.SRC.COBOL'"
+      - answerContains:
+          pattern: "RECFM|recfm|FB|VB"

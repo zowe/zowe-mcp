@@ -1,0 +1,154 @@
+I, Petr Plavjanik hereby sign-off-by all of my past commits to this repo subject to the
+Developer Certificate of Origin (DCO), Version 1.1. In the past I have used emails:
+petr.plavjanik@broadcom.com
+
+a472028af5b59237272d8c507c3212c8f9c99cb8 Initial version
+7151e9af9cb79ae6b96dff580d8524675e7af2a3 Add logging functionality to the Zowe MCP VS Code extension, including a LogOutputChannel and startup logging
+dfec47c77b8a3cb1242746b87776ea2a1d171721 Enhance logging to include language models and tools, and improve startup info logging with async model queries
+18bd1e059ff3e0a48084e6db9f3635fe70600c72 Refine language model tool logging to display only the first line of description
+73053378f4ad671861be4c98dad8c7bdaefb67c7 Implement structured logging for the MCP server using a custom Logger class
+68d4f92c1e3ce9cb7923ffab87119769e1d962a5 Rename `zowe_info` tool to `info` and update related code and documentation
+fe13e6e298063d5dec4bc19e42a4bc6a9ff1601f Enhance server logging with version information, environment variables, and client details
+4976b42b91137c750014d29ec2b11b39bc6bdef3 Implement bidirectional communication between MCP server and VS Code extension over a named pipe
+cc333b5cbb31dd3c1dc464df2e0bbc937c50d550 Add readOnlyHint annotation to info tool
+e7cc5fc2fc96bd925f81d5591dc1e0dc61ca3055 Dataset tools and mock mode for them
+6043ceef0f6704fd514e9a621f836ac14374ec14 Use zowe-mcp-mock-data directory instead of just mock-data
+091d5ed8030297bd58fc041a7a3a8766a4bfed20 Update init-mock script to use LOADLIB instead of LOAD.MODULE for PDS/E
+3e0eba75ac25ed2ca6d49f1e0c69ad8279bca55c Replace log output with FBA 133 listing content and add ASA control characters
+8b86921b8881a76587cc76af9ff03c72b704b0a3 Refactor dataset name resolution and introduce resolveWithPrefix for pattern resolution
+e805069b696f24337320f1b11ab188e748a194cf Rename parameters in dataset tools to improve clarity: newName -> newDsn, newMemberName -> newMember
+1dc18d0b80ea3b26f9813f47a1cb6811e2e735c1 Refactor tool names to use camelCase and update related code and documentation
+63cc9c6eeee684a4f2f2d213800578705f006343 Rename 'pattern' parameter to 'dsnPattern' in dataset tools for clarity
+3fe43fbeaacd8a1a155ff4a328b71021ba40ac0a Rename 'pattern' parameter to 'memberPattern' in dataset tools for clarity
+864ff9be56e0e5f851fe3da889e68f1f7c5d5746 Implement native (SSH) backend for z/OS systems using Zowe Native Proto SDK
+02d06861af2c48dd8c84ae07c999eb9ead8c40f0 READMEs
+a9a80e56033ba4a2d14d24ead2ba2f66f62b5224 Context for Implementing Not-Yet-Implemented Tools (Zowe MCP)
+8091d72d1cd4dca652ced37860d7ee57c5bb6298 Fix typo in paginateList function name in implementing-tools-context documentation
+0806143aa3e717a978eb40dfcdfad5caea2f4ca3 Add documentation for pipe events extension server
+8440383fa2b1a7df7fe817905fdf62fd9d0adcfd Implement listMembers for NativeBackend using Zowe Native Proto SDK
+9b9f770ea8e1be04e96c39edb34324c40d013323 Format dataset names as absolute single-quoted strings in responses
+47f7205c318f4cff19d1aa57db273d77d73fb50e Enhance dataset list operation with DSLEVEL pattern description
+cd0e7d07b6163888f12e82889ea87725516b1868 Implement member name filtering with wildcards in listMembers operation
+afe37f222f2c1d314d2af30f034a9acb05f613ec Improve NativeBackend error handling and logging
+a23440e32f292e6b495a8beea3d280fe96e5f50a TODOs
+ddcd193c0ad25f881ffd1610869ebe83cb9008f7 Add TODO items for pagination, search, and editing features
+8ba433a31c10ef9e7ba32c231d18cf9db196d51e Refactor call-tool script into zowe-mcp-server subcommand and update documentation
+1648e0c1c34a574aee87e0f92bf77633557d66f2 Add native backend support to call-tool script with SSH connection
+45eb0705ea4e18880e2ca244fa2d6a6e29179d08 Add E2E tests for mock and native stdio server
+0997076dae8a3b08368971a5ed03536b722f4540 Update TODO.md with z/OS integration tests status.
+6b152f7452a69e4dd0a86efd52612f87b7afc134 Add logging to SSH client cache
+700df0c3b2d06f5f2fc2e17f892c26789f0077fc Validate dataset list patterns to prevent empty qualifiers and improve error handling
+e651e8eed55d8c67dbf33e2a121dd69f014e863e Update implementing-tools-context documentation to reflect getDatasetAttributes SDK gap
+99b2a8f1447aa844ce505a3ddaa310404afa34dc Add logging for MCP requests and session initialization
+c4d8a2d238783e8262179e5396a93df0019bfb77 Add support for generating mock inventory dataset with pagination E2E test
+b744aff45afe1421596490446f870ad469abd7a3 Add AI evaluations package and update configuration and documentation
+f00852201e195cef6465d759d51898ce7662dc9c Change markdownlint issue logging from warning to debug
+45d8c8dd794b3f1a0815cfffe91361a0826190e4 Remove DSN prefix and relative DSN resolution; use fully qualified names
+9268cc37e9e522e7a0f868641690b23b9fb9efda Implement pagination for list operations with agent directives
+223464c68f8f6495c113c5e6d7e2a4b5e86ae02f Add YAML schema validation for evals questions
+03a252e35f1fb3909b6cf5592394c231d1e62d54 Enhance mock data generation with pagination preset and people datasets
+683d365cf57fca0d6584f78b3bdacb2f60280eb5 Implement response caching for backend operations to reduce repeated calls during pagination and repeated queries
+ed5abd03005c4a656cfda2b7bbabae5135b790d8 Implement caching for evals runs to skip repeated LLM calls and add vitest for unit testing of more complex evals code
+83251817a62bf92ba82745679fea2ba1558a9097 More question earlier in the log
+10ca896d0100c5d1188ca46284eb750fb666dddf Add logging for AI SDK interactions in McpEvalHarness
+f6594a74600a13af06845c2b5c9c275d9de6473a Enhance report generation with markdown anchor links and improved answer previews
+67d3cd6e53fbc11a77955a427ad73160c4220379 Implement readDataset with pagination, caching, and sanitization for safe display
+9388b305321127244975f48b684ff4d331b536cc Fix wrong assertion in read-pagination.yaml
+e7c462cabb64666d86b67f959568e67e595bc289 Enhance listDatasets to include dataset attributes by default and support names-only queries with attributes: false
+dc19524c34173bc29af20c49bb4574474bf6b83c Add feature requests for Zowe Native Proto, including dataset and member extended attributes, partial read/write with change detection, listing high-level qualifiers, and search capabilities
+f80bdcfc64a013b65e3a84d16e9a0ec1c9b0cd84 Implement auto-install of ZNP on "Server not found" with configurable server path and add E2E test for native ZNP deploy on first connect
+d60ada84ebe406f808ce8fe99de600495158ec08 Add script to release VSIX to GitHub Releases and update README with setup guide and script documentation
+2016be5214be9680ecaaf326cbd36dc026933b4c Remove COPILOT-SETUP.md documentation file
+e1cddd959156a99c9cb02c27bfb4f2dcb8e2dd0f Update Copilot setup guide with absolute URL for Releases
+da8761289dbe609071a029a5aea83780ab7669bc Rename VS Code settings to zoweMCP.*, migrate CLI parsing to yargs, change default HTTP port to 7542, and add runtime native server options
+3c78b5964c0ec60b986ebf00d1583f4d19e7b6da Add CHANGELOG for zowe-mcp-vscode
+69b91390fb6924a35dceb99390059f01a29993a2 Add /release-extension Cursor command for automated release workflow and document release-vsix script in AGENTS
+4c0db99093e1788b84772c40533a61b8a21603cb Add guideline for user-facing changelog entries to release-extension command
+7a3ab6e3e8fd4d4600609a696c6bea386feb3aff Release v0.2.0
+bec5ca95724b41e657fe8efde4985b4dcfa7d831 Add set-version.js for cross-package version synchronization and update release workflow
+33b15322c5935df0ccd5abb931fb8f012ef77996 Select VSIX by version in release-vsix.sh to avoid stale artifacts
+a488367369a54061452d4a484c02634e50757339 Add searchInDataset tool, rename codepage to encoding, and implement mainframe EBCDIC encoding resolution with CLI/env vars and runtime extension updates
+91a185766cba2094adc2893b5bf6d42a04514456 Normalize IBM mainframe encoding names to IBM-NNN format (e.g. IBM-037) for ZNP compatibility
+d552f472556775917202aae3720dedc5c1dfe4c9 Add Zowe Dark and Zowe Light color themes using Zowe design palette to VS Code extension
+d810d208e11940305b1bcb54d864ddca91eb8cce Add Zowe Dark/Light Official themes and rename existing to Classic variants
+dde5cdc8c37387927b9104063bdd8d79e296c124 Add Zowe Mainframe file icon theme for mainframe file types
+0e8de73c71c8c0423ff51e9eb43cdd63cc1ff976 Extend file icon theme with common file types and refine dark icon colors
+64a72d51b3669cdf5edafac2e91d50d1435946c3 Add file type specific icons for common languages and formats
+e1049d00a3e0932327da9883cc966074a1b46c68 Add configurable response timeout for Zowe Native Protocol (ZNP) backend
+7ac66eb6a3b0454d7f3b21e676c925cf876eb857 Add connection locking, request timeouts, and ZNP abend handling to native backend
+edcd08811a2dbe9baf192afc71d2eb543079abfd Remove critical, alert, and emergency log levels from VS Code settings
+db582757e92b5226f8ce7c5f2402301bfc746c2c Add MCP progress notifications for long-running operations
+5e31df231a1c3582e31be7ba0af131873d3137c1 Add ISPF and Broadcom color themes and file icon themes to VS Code extension
+56c119fc672776ed878df145e8f525610bcac7d8 Add MCP elicitation support and password persistence for SSH backend
+ddc4032782fc04018bf8f046e9bdb0207e064468 Add SearchBackendAdapter to avoid connection lock re-entry in native search
+d56d38c6a3aa907a65db2eb70615b3627ce92f90 Remove Broadcom color themes from VS Code extension
+84832442c18d3ef9f44caf6d289513e0325d9ad6 Add mock data presets and streaming progress to VS Code extension
+b46ee49779bca1991527e5f785004849a438735b Add progress title range formatters for dataset operations
+acd3a431cffc5a0b341b0870f1a7d1aa2c5f8a7b Implement temporary dataset tools, block write, and complete native backend dataset operations
+b45a6281a0442bf0a23b1857e93d067e00ea086e Add cloc dev dependency and npm script for counting lines of code.
+ab8b4ce1b03c7bea37a41dee4c188d15a556b378 Add multi-model support to AI evals and improve temp DSN collision handling
+c6061dcb50ca5d7fc909ca4895aa7849c211f98c Initial implementation of USS tools
+bacc11bff7d6f14d8e268c04e97cf874f0cf521c Implement Jobs tools with job card management
+36ead6d52fc36a73e86e315424a40edd4bf50cd4 Address ESLint warnings and fix type safety issues
+84c1d8871353ceb9153a338dc75323ec677daa1b Expand job tools with lifecycle management and output handling
+ef40203c979b26591a3692bbe816af0096d5240b ISPF Green (Dark) theme
+01c55124c1f442934a657f7751dbb97e0276125b Add TSO command tools with safety validation and pagination
+0209dc5571f17cd1cd78ba18059a7be64fc66beb Show TSO command preview in progress title
+a3f071412e36fbf5daefeb4f40f186dc50a40aa8 Fix timeout unit in error message and add connection eviction logging
+e57651425f13abf04f53a501ded6cf0600eaf5ae Add structured IDs and priority levels to Zowe Native Proto feature requests
+e82264c9cc7e7ea805ce9f7150223efbc3c6aae3 Update README with Jobs, USS, TSO tools and new configuration options
+98f936a26279243423c746e890b1298a63f2e644 Add evaluation question sets for context, core, datasets, TSO, USS, and jobs tools
+33e5f2f117a61f833e93929b69e658251473cfe8 Update TODO and feature requests: mark completed components, add upload and allocate-like features
+de7d0e4997a34dddae52fae3f797cab6794f8823 Add dotenv support and environment variable handling to eval harness
+b45f2dc65ebc4cc7586011d1617a38a215da65ba fixup!
+3ddfb39a031003e543f5c4562e06979926d14ea6 Add Zowe Explorer editor integration, hex mode viewing, and unprintable character editing to TODO
+544ef20a44a6022e7596bfd60de355068e59dd34 Simplify job-status eval: remove getJobStatus requirement, add retcode/phase patterns
+ff9acc45aaeee999b0f0e6c0eeb411aec4a1c56e Add Zowe Explorer editor integration and user confirmation elicitation for TSO/USS
+5139ba590a66045dedeb87ebfe4cdb39992ae27c Extend Zowe Explorer editor integration to support USS files and Jobs
+e980ed9ac3c375bd465d3b7d4f79236abdbe0fc5 Standardize "data set" terminology across docs, evals, and tests; document Zowe Explorer editor tools
+8f58dc24c7eb3907a8b3bf033d48c2986e017c1c Rename systems to connections to support multiple users per z/OS host
+65b7a1b2a316ec5802623fa0b8ad4b9cd0a8a9c2 Add plural() utility for correct singular/plural message formatting
+2c5393819e2071b4ba7fbbd2aedde759163da6ad Enable deleteDatasetsUnderPrefix E2E test with retries for intermittent ZNP failures
+66d3571637664032ecb53a04229f02d5b46acc1d chore: mark Zowe Explorer open-in-editor as done in TODO
+6261f5a722d55d500f8e3e059c896b8aa4a7bccb Release v0.3.0
+41f1baf3e49c1a137c7c5e506abbaf9e35babc8b Add toolCallOneOf and flexible toolCallOrder assertions to evals; rename temp dataset tool returns to tempDsnPrefix/tempDsn; delete stale package/package.json
+2182f6d2391d146f5eabf72dd6e2bc469ae48cb3 Add composite assertion support (allOf/anyOf) to evals framework; add dataset and job evaluation questions
+e667b31f592452f1640b0b32c6ac4ef1ee1d7d99 Switch to Zowe Artifactory npm registry and update toolchain dependencies
+ed1b313cbaf766b48ea66dd6e89dd7c5e3adc3f2 Support dynamic Zowe Explorer open-in-editor tool registration
+ab55b7c8ffb59e9a97c5dea5414e54595d3efb7d Add Cursor IDE support with automatic MCP server registration
+7a8e0c12e5ddfeec975b97e9a85eea7052a4b155 Add middleware for logging full tool calls with inputs and responses
+67764d0a2204f60b271c0521cbdffe7fb4be5c85 Add MCP output schemas (Zod) to all tools for structured responses
+ac417d500035b3ad172f6aba5bdb5fe736f9faef Document MCP output schemas guidelines in AGENTS.md
+ea90786ac1e1544198a5519dac197fac94436489 Release v0.4.0
+9937bdad74914962b5c88ff62928f72aa5a8a5c4 chore: set development version to 0.5.0-dev and update release-extension command
+ef79c24dfc730f751854fa1dfee52d4e72dff6d8 Document dual MCP registration (VS Code + Cursor) in AGENTS.md
+e860c12768ab765504593a1de3ef06b3d8261d04 Abend detection and CEEDUMP collection
+91c8f3c6ec8b125c01c2eba586e79bbd97505a71 Notify VS Code extension when CEEDUMP is collected and track MCP tool context for abends
+aa6f0c12cb4dfd938afc4f148c5f63f756de0791 chore: migrate npm registry and sanitize internal references
+db12f7b363fec9de096a7d557bf5af393c688875 Extend SSH response timeout for initial connections vs cached clients
+eda801627b87b1934e94fd5ba428a91096bf948c Add proposal for Zowe MCP status bar
+900daac25bcb62140fea25f528e440829d6e5d56 Add improvement prompt for reflecting on Zowe MCP usage
+b00eddf27e5dbc157cf7323dd19ab66e8615b47e Stabilize E2E tests and add .env file loading support
+7ee1431be3d283acefd7f9b16b31b6f179d155eb Add client context and attribution to reflectZoweMcp prompt
+625d1958bcd1af708ee72b1dcfb08fbd91af80ef Show startup notification when no Zowe MCP connections are configured
+1cf1a5d091395675609b2d76ad33fd66f41743be Add active connection change event and VS Code status bar integration
+64f19f473a223cce85239b5db11c8d0b007ddd6f Merge executeJob into submitJob and add DSN(MEMBER) syntax support
+05e84c3bb4dfc9b5cca776b6ae56f7011efbd209 Migrate content APIs from strings to string arrays (lines)
+28d826575d2cb2374e6c54af9465eb1212648b6e Add wait support to dataset/USS job submission and reset settings command
+b2cd208b8c8f6899f019dac43370cbb2981d854e Release v0.5.0
+60585acad8b33fe66390618708a44c7db00d21ba chore: set development version to 0.6.0-dev
+b61f80c46ca0f09cfd149ad5c8d5cf4b9afd5e70 Add use case examples to main and VS Code extension READMEs
+24e86cf8929c6641b7babb2fb7dae8228ee54be1 chore: update package-lock.json for v0.6.0-dev
+7631fba9bad1008e059188fb02d57fafa1932e3e Add SDK switch script and update to zowe-native-proto-sdk 0.3.0
+1451a345e5b043630fc9cae772197a54a6c8ecd1 Auto-redeploy outdated ZNP server and fix search dataset name
+cd96c461b120771a2eca45f6afe5ac9c0a1ee788 Add search context lines support and benchmark infrastructure
+e622a8c638c8cbf37101389911b0d388489b8bf8 Update eval questions to use standard system datasets and adjust test parameters
+e4071ea88c3e3a3a20b22793c611c2bcb26d8fe3 Update search benchmark system identifier to ZD&T
+5aa5c651a1d60c24450e4c6dc664c0c6c387cb36 Add LM Studio provider support to evals package
+1dd78ceb00e5d0e20d34714343bf96e052feeca8 Refactor evals assertions to Ansible-style key-based format with schema validation
+38d352a459b9b1e470ba76f37e1ddd8b9b03683e Optimize LM Studio model loading and add colored output with progress tracking
+3f99476d89eac36f607bb4431b3bb2c1cf4df80e Add skip support to evals and new z/OS tools (restoreDataset, copyUssFile)
+b3ccae167872c9707c551866ccffd02cee443e6f Add generate-docs command to auto-generate MCP reference documentation
+f31918e5ab704b88064e3761e59cfe10e13a75bb Add eval-compare tool and eval-driven improvement methodology
+1fff5d2d56b309f07af48ac57d0aceec03b68124 Improve dataset creation tool input schemas with detailed z/OS terminology
+fd2eafc7195ac32d08102bd01d691ce991b79a57 Add SMS allocation parameters to dataset creation and eval validation

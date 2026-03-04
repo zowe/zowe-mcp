@@ -164,12 +164,19 @@ async function main(): Promise<void> {
   const cacheStats: CacheStats = { hits: 0, writes: 0 };
 
   let totalQuestions = 0;
+  let totalRuns = 0;
   for (const setName of setNames) {
     const qs = loadedSets.get(setName)!;
     if (qs.config.skip) continue;
-    totalQuestions += filterQuestions(qs.questions, cli).filter(q => !q.skip).length;
+    const count = filterQuestions(qs.questions, cli).filter(q => !q.skip).length;
+    totalQuestions += count;
+    totalRuns += count * (qs.config.repetitions ?? 5);
   }
   let questionIndex = 0;
+
+  log.info(
+    `Plan: ${totalQuestions} ${plural(totalQuestions, 'question', 'questions')}, ${totalRuns} total ${plural(totalRuns, 'run', 'runs')} across ${setNames.filter(s => !loadedSets.get(s)!.config.skip).length} ${plural(setNames.filter(s => !loadedSets.get(s)!.config.skip).length, 'set', 'sets')}`
+  );
 
   for (const setName of setNames) {
     const questionSet = loadedSets.get(setName)!;
@@ -219,7 +226,6 @@ async function main(): Promise<void> {
 
       for (const q of questions) {
         if (q.skip) {
-          questionIndex++;
           log.notice(`Skipping question "${q.id}": ${q.skip}`);
           continue;
         }
@@ -243,7 +249,9 @@ async function main(): Promise<void> {
 
         const cached = useCache ? await cacheGet(cacheDir, cacheKey) : null;
 
-        log.info(`Question ${q.id}:`);
+        questionIndex++;
+        const progress = `[${questionIndex.toString()}/${totalQuestions.toString()}]`;
+        log.info(`${progress} ${setName}/${q.id}:`);
         for (const line of q.prompt.trim().split(/\n/)) log.info(`  ${line}`);
 
         if (cached) {
@@ -270,7 +278,7 @@ async function main(): Promise<void> {
             cacheStats.hits++;
             const icon = passed ? PASS : FAIL;
             const detail = passed ? ' cache hit' : ` ${failedAssertion ?? 'assertion failed'}`;
-            const msg = `Running ${q.id} (${r + 1}/${repetitions}) ${icon}${detail}`;
+            const msg = `Running ${setName}/${q.id} (${r + 1}/${repetitions}) ${icon}${detail}`;
             if (passed) log.pass(msg);
             else log.fail(msg);
             const answerPreview =
@@ -303,7 +311,7 @@ async function main(): Promise<void> {
               allResults.push(result);
               const icon = passed ? PASS : FAIL;
               const detail = passed ? '' : ` ${failedAssertion ?? 'assertion failed'}`;
-              const msg = `Running ${q.id} (${r + 1}/${repetitions}) ${icon}${detail}`;
+              const msg = `Running ${setName}/${q.id} (${r + 1}/${repetitions}) ${icon}${detail}`;
               if (passed) log.pass(msg);
               else log.fail(msg);
               const answerPreview =
@@ -323,7 +331,7 @@ async function main(): Promise<void> {
               };
               allResults.push(failedResult);
               questionResults.push(failedResult);
-              log.fail(`Running ${q.id} (${r + 1}/${repetitions}) ${FAIL} ${msg}`);
+              log.fail(`Running ${setName}/${q.id} (${r + 1}/${repetitions}) ${FAIL} ${msg}`);
               log.info('  Answer: (error)');
               for (const line of msg.trim().split(/\n/)) log.info(`    ${line}`);
               log.info(`    ${msg}`);
@@ -344,12 +352,10 @@ async function main(): Promise<void> {
           }
         }
 
-        questionIndex++;
         const qPassed = questionResults.filter(x => x.passed).length;
         const qTotal = questionResults.length;
         const icon = qPassed === qTotal ? PASS : FAIL;
-        const progress = `[${questionIndex.toString()}/${totalQuestions.toString()}]`;
-        const summary = `${icon} ${q.id} (${qPassed}/${qTotal}) ${progress}`;
+        const summary = `${icon} ${setName}/${q.id} (${qPassed}/${qTotal}) ${progress}`;
         if (qPassed === qTotal) log.pass(summary);
         else log.fail(summary);
       }

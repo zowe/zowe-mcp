@@ -253,7 +253,8 @@ The project uses a data-driven approach to validate tool definition changes. Eve
 
 ### Stress-Test Question Sets
 
-- **naming-stress.yaml** (18 questions): CLI phrasing ("List data sets matching..."), z/OS jargon ("Allocate a PDS with RECFM=FB"), ISPF vocabulary ("Show me all data sets under USER like ISPF 3.4"), ambiguous natural language ("Find all occurrences of PERFORM"), cross-domain terminology ("spool files", "grep", "ls"). Config: `repetitions: 10`, `minSuccessRate: 0.5`, mock default preset.
+- **naming-stress.yaml** (14 questions): CLI phrasing ("List data sets matching..."), z/OS jargon ("Allocate a PDS with RECFM=FB"), ISPF vocabulary ("Show me all data sets under USER like ISPF 3.4"), ambiguous natural language ("Find all occurrences of PERFORM"), cross-domain terminology ("spool files", "grep", "ls"). Config: `repetitions: 10`, `minSuccessRate: 0.5`, mock default preset.
+- **sms-allocation.yaml** (4 questions): SMS and allocation parameter mapping — VOLSER, DATACLAS, STORCLAS, MGMTCLAS, JCL-style allocation. Validates that the agent maps z/OS SMS vocabulary to `createDataset` parameters. Config: `repetitions: 10`, `minSuccessRate: 0.5`, mock default preset.
 - **description-quality.yaml** (11 questions): Pagination awareness (exact member count requiring multiple pages), search option combinations (caseSensitive, cobol, ignoreSequenceNumbers, includeContextLines), read windowing (first N lines, specific range), dataset attributes. Config: `repetitions: 10`, `minSuccessRate: 0.5`, mock pagination preset.
 
 ### Key Findings

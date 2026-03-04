@@ -2,7 +2,7 @@
 
 # Zowe MCP Server Reference
 
-> Auto-generated from the MCP server (v0.6.0-dev, commit 3f99476). Do not edit manually — run `npx zowe-mcp-server generate-docs` to regenerate.
+> Auto-generated from the MCP server (v0.6.0-dev, commit 1fff5d2). Do not edit manually — run `npx zowe-mcp-server generate-docs` to regenerate.
 
 This document describes all tools, prompts, resources, and resource templates provided by the Zowe MCP Server.
 
@@ -774,7 +774,7 @@ Output:
     "totalLines": 80,
     "startLine": 1,
     "returnedLines": 80,
-    "contentLength": 2582,
+    "contentLength": 2583,
     "mimeType": "text/x-cobol",
     "hasMore": false
   },
@@ -825,7 +825,7 @@ Output:
       "       01  WS-RECORD-COUNT              PIC 9(7) VALUE ZERO.",
       "       01  WS-ERROR-COUNT               PIC 9(5) VALUE ZERO.",
       "      *",
-      "           COPY ACCTFMT.",
+      "           COPY ERRCODES.",
   // ... truncated ...
 ```
 
@@ -872,7 +872,7 @@ Output:
       "       ENVIRONMENT DIVISION.",
       "       CONFIGURATION SECTION."
     ],
-    "etag": "20139c42e21eef3b9f7534041279ae8a",
+    "etag": "4c953735f4750d441ce0778b8f9f3eb5",
     "encoding": "IBM-037"
   }
 }
@@ -944,7 +944,7 @@ For automation and testing. Returns a unique DSN prefix (HLQ) under which tempor
   },
   "messages": [],
   "data": {
-    "tempDsnPrefix": "USER.TMP.LOEIZW27.XGVV9U8L"
+    "tempDsnPrefix": "USER.TMP.HPJ1FPTT.J7PAWTLB"
   }
 }
 ```
@@ -987,7 +987,7 @@ Returns a single unique full temporary data set name (for one data set). The DSN
   },
   "messages": [],
   "data": {
-    "tempDsn": "USER.TMP.GCS7ODOJ.F66ENX8F.HYBC0DGG"
+    "tempDsn": "USER.TMP.KVUDXGP2.AFLLIYV1.OADO5PKO"
   }
 }
 ```
@@ -1004,14 +1004,18 @@ Create a new sequential or partitioned data set. Specify the type (PS/SEQUENTIAL
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
 | `dsn` | `string` | Yes | Fully qualified data set name (e.g. USER.SRC.COBOL). |
-| `type` | `string` | Yes | Dataset type: PS or SEQUENTIAL (sequential), PO or PDS (PDS), PO-E or PDSE or LIBRARY (PDSE). Case-insensitive. |
+| `type` | `string` | Yes | Data set organization type (DSORG): PS or SEQUENTIAL (Physical Sequential — a flat file), PO or PDS (Partitioned Data Set — a directory of members), PO-E or PDSE or LIBRARY (Partitioned Data Set Extended). Case-insensitive. |
 | `system` | `string` | No | Target z/OS system: host (e.g. sys1.example.com) or connection spec (user@host) when multiple connections exist for that host. Defaults to active system. |
-| `recfm` | `string` | No | Record format. Supported: F, FB, V, VB, U, FBA, VBA. Default: FB. Case-insensitive. |
-| `lrecl` | `number` | No | Logical record length. Default: 80. |
-| `blockSize` | `number` | No | Block size. Default: 27920. |
-| `primarySpace` | `number` | No | Primary space allocation. |
-| `secondarySpace` | `number` | No | Secondary space allocation. |
-| `dirblk` | `number` | No | Directory blocks (PDS only). |
+| `recfm` | `string` | No | Record Format (RECFM). Supported: F (Fixed), FB (Fixed Blocked), V (Variable), VB (Variable Blocked), U (Undefined), FBA, VBA. Default: FB. Case-insensitive. |
+| `lrecl` | `number` | No | Logical Record Length (LRECL) in bytes. Default: 80. |
+| `blockSize` | `number` | No | Block Size (BLKSIZE) in bytes. Default: 27920. |
+| `primarySpace` | `number` | No | Primary space allocation in tracks (the initial amount of disk space). |
+| `secondarySpace` | `number` | No | Secondary space allocation in tracks (additional space allocated when primary is full). |
+| `dirblk` | `number` | No | Directory Blocks (DIRBLK) — number of 256-byte directory blocks (PDS only). |
+| `volser` | `string` | No | Volume serial (VOLSER) to allocate the data set on (e.g. VOL001). |
+| `dataClass` | `string` | No | SMS Data Class for allocation (e.g. DCLAS01). |
+| `storageClass` | `string` | No | SMS Storage Class for allocation (e.g. SCLAS01). |
+| `managementClass` | `string` | No | SMS Management Class for allocation (e.g. MCLAS01). |
 
 #### Output Schema
 
@@ -1033,17 +1037,17 @@ Creates a new data set with a unique temporary name in a single call. Returns th
 
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
-| `type` | `string` | Yes | Dataset type: PS or SEQUENTIAL (sequential), PO or PDS (PDS), PO-E or PDSE or LIBRARY (PDSE). Case-insensitive. |
+| `type` | `string` | Yes | Data set organization type (DSORG): PS or SEQUENTIAL (Physical Sequential — a flat file), PO or PDS (Partitioned Data Set — a directory of members), PO-E or PDSE or LIBRARY (Partitioned Data Set Extended). Case-insensitive. |
 | `system` | `string` | No | Target z/OS system: fully qualified or unqualified hostname. Defaults to the active system. |
 | `prefix` | `string` | No | HLQ for temp name (e.g. USER.TMP). Default: current user + .TMP. |
 | `suffix` | `string` | No | Optional suffix qualifier for the generated prefix. |
 | `qualifier` | `string` | No | Last qualifier for the DSN (1–8 chars). If omitted, a unique qualifier is generated. |
-| `recfm` | `string` | No | Record format. Supported: F, FB, V, VB, U, FBA, VBA. Default: FB. Case-insensitive. |
-| `lrecl` | `number` | No | Logical record length. Default: 80. |
-| `blockSize` | `number` | No | Block size. Default: 27920. |
-| `primarySpace` | `number` | No | Primary space allocation. |
-| `secondarySpace` | `number` | No | Secondary space allocation. |
-| `dirblk` | `number` | No | Directory blocks (PDS only). |
+| `recfm` | `string` | No | Record Format (RECFM). Supported: F (Fixed), FB (Fixed Blocked), V (Variable), VB (Variable Blocked), U (Undefined), FBA, VBA. Default: FB. Case-insensitive. |
+| `lrecl` | `number` | No | Logical Record Length (LRECL) in bytes. Default: 80. |
+| `blockSize` | `number` | No | Block Size (BLKSIZE) in bytes. Default: 27920. |
+| `primarySpace` | `number` | No | Primary space allocation in tracks (the initial amount of disk space). |
+| `secondarySpace` | `number` | No | Secondary space allocation in tracks (additional space allocated when primary is full). |
+| `dirblk` | `number` | No | Directory Blocks (DIRBLK) — number of 256-byte directory blocks (PDS only). |
 
 #### Output Schema
 
@@ -1434,7 +1438,7 @@ Output:
     "lines": [
       "Hello from USS mock. Use this file for readUssFile evals."
     ],
-    "etag": "5ae4a6f88fbfe80e8240f72d58201302",
+    "etag": "9d501589bb808d516d90194d590a5c50",
     "mimeType": "text/plain"
   }
 }
@@ -1896,7 +1900,7 @@ Output:
   "messages": [],
   "data": {
     "lines": [
-      "TIME-05:13:58 AM. CPU-00:00:00 SERVICE-26895 SESSION-00:01:53 MARCH 4,2026"
+      "TIME-09:57:05 AM. CPU-00:00:00 SERVICE-26895 SESSION-00:01:53 MARCH 4,2026"
     ],
     "mimeType": "text/plain"
   }
@@ -2554,7 +2558,7 @@ Please compare these two members from USER.SRC.COBOL on mainframe-dev.example.co
        01  WS-RECORD-COUNT              PIC 9(7) VALUE ZERO.
        01  WS-ERROR-COUNT               PIC 9(5) VALUE ZERO.
       *
-           COPY ACCTFMT.
+           COPY ERRCODES.
       *
        PROCEDURE DIVISION.
        0000-MAIN.

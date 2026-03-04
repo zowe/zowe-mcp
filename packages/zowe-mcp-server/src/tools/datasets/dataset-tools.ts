@@ -1180,10 +1180,37 @@ export function registerDatasetTools(
           .number()
           .optional()
           .describe('Directory Blocks (DIRBLK) — number of 256-byte directory blocks (PDS only).'),
+        volser: z
+          .string()
+          .optional()
+          .describe('Volume serial (VOLSER) to allocate the data set on (e.g. VOL001).'),
+        dataClass: z.string().optional().describe('SMS Data Class for allocation (e.g. DCLAS01).'),
+        storageClass: z
+          .string()
+          .optional()
+          .describe('SMS Storage Class for allocation (e.g. SCLAS01).'),
+        managementClass: z
+          .string()
+          .optional()
+          .describe('SMS Management Class for allocation (e.g. MCLAS01).'),
       },
     },
     async (
-      { dsn, type, system, recfm, lrecl, blockSize, primarySpace, secondarySpace, dirblk },
+      {
+        dsn,
+        type,
+        system,
+        recfm,
+        lrecl,
+        blockSize,
+        primarySpace,
+        secondarySpace,
+        dirblk,
+        volser,
+        dataClass,
+        storageClass,
+        managementClass,
+      },
       extra
     ) => {
       const title = `Create data set ${dsn}`;
@@ -1222,6 +1249,10 @@ export function registerDatasetTools(
             primary: primarySpace,
             secondary: secondarySpace,
             dirblk,
+            volser,
+            dataClass,
+            storageClass,
+            managementClass,
           },
           progressCb
         );

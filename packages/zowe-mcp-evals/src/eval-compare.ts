@@ -147,11 +147,17 @@ interface SetRunResult {
   questionCount: number;
 }
 
+interface ProgressTracker {
+  current: number;
+  total: number;
+}
+
 async function runSetForModel(
   setName: string,
   questionSet: QuestionSet,
   evalsConfig: EvalsConfig,
-  cli: CliArgs
+  cli: CliArgs,
+  progress?: ProgressTracker
 ): Promise<SetRunResult> {
   const config = questionSet.config;
   const questions = questionSet.questions.filter(q => !q.skip);
@@ -187,6 +193,13 @@ async function runSetForModel(
     await harness.start();
 
     for (const q of questions) {
+      if (progress) progress.current++;
+      const progressTag = progress
+        ? `[${progress.current.toString()}/${progress.total.toString()}] `
+        : '';
+      log.info(`${progressTag}${setName}/${q.id}:`);
+      for (const line of q.prompt.trim().split(/\n/)) log.info(`  ${line}`);
+
       for (let r = 0; r < repetitions; r++) {
         try {
           const runResult = await harness.runOne(q.prompt);
@@ -208,7 +221,7 @@ async function runSetForModel(
           allResults.push(result);
           const icon = passed ? PASS : FAIL;
           const detail = passed ? '' : ` ${failedAssertion ?? 'assertion failed'}`;
-          const msg = `[${evalsConfig.modelId ?? 'default'}] ${q.id} (${r + 1}/${repetitions}) ${icon}${detail}`;
+          const msg = `${progressTag}[${evalsConfig.modelId ?? 'default'}] ${setName}/${q.id} (${r + 1}/${repetitions}) ${icon}${detail}`;
           if (passed) log.pass(msg);
           else log.fail(msg);
         } catch (err) {
@@ -223,7 +236,7 @@ async function runSetForModel(
             error: msg,
           });
           log.fail(
-            `[${evalsConfig.modelId ?? 'default'}] ${q.id} (${r + 1}/${repetitions}) ${FAIL} ${msg}`
+            `${progressTag}[${evalsConfig.modelId ?? 'default'}] ${setName}/${q.id} (${r + 1}/${repetitions}) ${FAIL} ${msg}`
           );
         }
       }
@@ -445,6 +458,30 @@ async function main(): Promise<void> {
   if (cli.systemPromptAddition) nonDefaultSettings.push('sysPrompt+');
   const settingsStr = nonDefaultSettings.join(', ');
 
+  let totalQuestions = 0;
+  for (const modelId of modelIds) {
+    for (const setName of setNames) {
+      const qs = loadedSets.get(setName)!;
+      if (qs.config.skip) continue;
+      totalQuestions += qs.questions.filter(q => !q.skip).length;
+    }
+  }
+  const progress: ProgressTracker = { current: 0, total: totalQuestions };
+  const totalReps = modelIds.reduce((sum, _modelId) => {
+    let reps = 0;
+    for (const setName of setNames) {
+      const qs = loadedSets.get(setName)!;
+      if (qs.config.skip) continue;
+      const qCount = qs.questions.filter(q => !q.skip).length;
+      reps += qCount * (cli.repetitions ?? qs.config.repetitions ?? 5);
+    }
+    return sum + reps;
+  }, 0);
+
+  log.info(
+    `Plan: ${totalQuestions} ${plural(totalQuestions, 'question', 'questions')}, ${totalReps} total ${plural(totalReps, 'run', 'runs')} across ${modelIds.length} ${plural(modelIds.length, 'model', 'models')} and ${setNames.filter(s => !loadedSets.get(s)!.config.skip).length} ${plural(setNames.filter(s => !loadedSets.get(s)!.config.skip).length, 'set', 'sets')}`
+  );
+
   for (const modelId of modelIds) {
     log.info(`Loading model: ${modelId}`);
     let evalsConfig: EvalsConfig;
@@ -463,7 +500,7 @@ async function main(): Promise<void> {
       }
 
       log.info(`Running set "${setName}" with model "${modelId}"`);
-      const result = await runSetForModel(setName, questionSet, evalsConfig, cli);
+      const result = await runSetForModel(setName, questionSet, evalsConfig, cli, progress);
       allSetResults.push(result);
 
       const passed = result.results.filter(r => r.passed).length;

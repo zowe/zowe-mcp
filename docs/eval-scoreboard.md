@@ -14,3 +14,4 @@ Automatically updated by `npm run eval-compare`.
 | 2026-03-04 | after-param-descriptions | qwen3 | Qwen3-30B-A3B-Thinking-2507-FP8 | description-quality | 11 | 72.7% | 24 | 33 | b3ccae1 |  |  |
 | 2026-03-04 | after-search-desc-reorder | qwen3 | Qwen3-30B-A3B-Thinking-2507-FP8 | naming-stress | 18 | 96.3% | 52 | 54 | b3ccae1 |  |  |
 | 2026-03-04 | after-search-desc-reorder | qwen3 | Qwen3-30B-A3B-Thinking-2507-FP8 | description-quality | 11 | 69.7% | 23 | 33 | b3ccae1 |  |  |
+| 2026-03-04 | after-sms-params | qwen3 | Qwen3-30B-A3B-Thinking-2507-FP8 | sms-allocation | 4 | 100.0% | 20 | 20 | 1fff5d2 | 14f28890 |  |

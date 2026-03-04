@@ -963,6 +963,10 @@ export class NativeBackend {
     if (options.secondary !== undefined) attributes.secondary = options.secondary;
     if (appliedDirblk !== undefined) attributes.dirblk = appliedDirblk;
     if (options.type === 'PO-E') attributes.dsntype = 'LIBRARY';
+    if (options.volser) attributes.volser = options.volser;
+    if (options.dataClass) attributes.dataclas = options.dataClass;
+    if (options.storageClass) attributes.storclas = options.storageClass;
+    if (options.managementClass) attributes.mgmtclas = options.managementClass;
 
     await this.withNativeClient(
       systemId,

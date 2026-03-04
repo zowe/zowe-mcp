@@ -184,6 +184,14 @@ export interface CreateDatasetOptions {
   secondary?: number;
   /** Directory blocks (for PDS only). */
   dirblk?: number;
+  /** Volume serial to allocate on. */
+  volser?: string;
+  /** SMS data class. */
+  dataClass?: string;
+  /** SMS storage class. */
+  storageClass?: string;
+  /** SMS management class. */
+  managementClass?: string;
 }
 
 /** Attributes actually applied when a data set is created (may differ from requested due to defaults or SMS). */

@@ -1,0 +1,15 @@
+{
+  "name": "zowe-mcp-presentation",
+  "private": true,
+  "scripts": {
+    "dev": "slidev",
+    "build": "slidev build",
+    "export": "slidev export"
+  },
+  "devDependencies": {
+    "@iconify-json/carbon": "^1.2.19",
+    "@iconify-json/mdi": "^1.2.3",
+    "@slidev/cli": "^0.50.0",
+    "@slidev/theme-default": "^0.25.0"
+  }
+}

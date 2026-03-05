@@ -71,3 +71,6 @@ packages/zowe-mcp-evals/evals.config.json
 packages/zowe-mcp-evals/evals.config.local.json
 .evals-cache/
 evals-report/
+
+# Presentation build artifacts
+presentations/*/dist/

@@ -360,13 +360,21 @@ function envelopeSchema<T extends z.ZodType>(
 // ---------------------------------------------------------------------------
 
 export const listDatasetsOutputSchema = envelopeSchema(
-  z.array(datasetListEntrySchema),
+  z
+    .array(datasetListEntrySchema)
+    .describe(
+      'Array of data set entries with dsn, resourceLink, and optional attributes (dsorg, recfm, lrecl, blksz, volser, dates, SMS classes, space info).'
+    ),
   listResultMetaSchema,
   'Paginated list of data sets matching a pattern. data[] has one entry per data set; _result has count, offset, hasMore.'
 );
 
 export const listMembersOutputSchema = envelopeSchema(
-  z.array(memberEntrySchema),
+  z
+    .array(memberEntrySchema)
+    .describe(
+      'Array of PDS/PDSE member entries. Each entry has the member name (up to 8 characters, uppercase).'
+    ),
   listResultMetaSchema,
   'Paginated list of PDS/PDSE members. data[] has one entry per member; _result has count, offset, hasMore.'
 );

@@ -214,9 +214,7 @@ export function registerDatasetTools(
       inputSchema: {
         dsnPattern: z
           .string()
-          .describe(
-            `Fully qualified data set list pattern (e.g. USER.* or USER.**). ${dslevelDescription}`
-          ),
+          .describe('Fully qualified data set list pattern (e.g. USER.* or USER.**).'),
         system: z
           .string()
           .optional()

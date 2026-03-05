@@ -129,7 +129,11 @@ export const changeUssDirectoryOutputSchema = envelopeSchema(
 );
 
 export const listUssFilesOutputSchema = envelopeSchema(
-  z.array(ussListEntrySchema),
+  z
+    .array(ussListEntrySchema)
+    .describe(
+      'Array of USS directory entries. Each entry has name, path, and optional long-format fields (links, user, group, size, filetag, mtime, mode, isDirectory).'
+    ),
   listResultMetaSchema,
   'Paginated list of USS directory entries. data[] has name and path; _context has currentDirectory and listedDirectory; _result has count, offset, hasMore.'
 );

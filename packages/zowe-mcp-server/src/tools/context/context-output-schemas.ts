@@ -128,8 +128,15 @@ const getContextRecentlyUsedEntrySchema = z.object({
   system: z.string().describe('System hostname.'),
   userId: z.string().describe('User ID used on that system.'),
   ussHome: z.string().optional().describe('USS home when known.'),
-  mainframeMvsEncoding: z.string().optional().describe('Per-system MVS encoding when set.'),
-  mainframeUssEncoding: z.string().optional().describe('Per-system USS encoding when set.'),
+  ussCwd: z.string().optional().describe('USS current working directory when set.'),
+  mainframeMvsEncoding: z
+    .union([z.string(), z.null()])
+    .optional()
+    .describe('Per-system MVS encoding when set.'),
+  mainframeUssEncoding: z
+    .union([z.string(), z.null()])
+    .optional()
+    .describe('Per-system USS encoding when set.'),
 });
 
 export const getContextOutputSchema = z

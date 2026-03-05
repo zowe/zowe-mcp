@@ -30,14 +30,6 @@ import {
   setSystemOutputSchema,
 } from './context-output-schemas.js';
 
-/** Zod schema for optional string or null (null = use server default). */
-const optionalEncoding = z
-  .union([z.string(), z.null()])
-  .optional()
-  .describe(
-    'Mainframe encoding (EBCDIC) for this system. Omit to leave unchanged; pass null to use MCP server default.'
-  );
-
 /** Dependencies injected into context tool registration. */
 export interface ContextToolDeps {
   systemRegistry: SystemRegistry;
@@ -121,8 +113,18 @@ export function registerContextTools(
           .describe(
             'Hostname of the z/OS system to activate (e.g. sys1.example.com or sys1 when unambiguous), or connection spec (user@host) when multiple connections exist for that host.'
           ),
-        mainframeMvsEncoding: optionalEncoding,
-        mainframeUssEncoding: optionalEncoding,
+        mainframeMvsEncoding: z
+          .union([z.string(), z.null()])
+          .optional()
+          .describe(
+            'MVS/data set encoding (EBCDIC) for this system. Omit to leave unchanged; pass null to use MCP server default.'
+          ),
+        mainframeUssEncoding: z
+          .union([z.string(), z.null()])
+          .optional()
+          .describe(
+            'Mainframe USS encoding (EBCDIC) for this system. Omit to leave unchanged; pass null to use MCP server default.'
+          ),
       },
     },
     async ({ system, mainframeMvsEncoding, mainframeUssEncoding }, extra) => {

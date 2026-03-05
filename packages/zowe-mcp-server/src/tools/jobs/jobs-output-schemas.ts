@@ -188,7 +188,11 @@ export const getJobStatusOutputSchema = envelopeSchema(
 );
 
 export const listJobFilesOutputSchema = envelopeSchema(
-  z.array(jobFileEntrySchema),
+  z
+    .array(jobFileEntrySchema)
+    .describe(
+      'Array of job file (spool) entries. Each entry has id, optional ddname, stepname, dsname, procstep.'
+    ),
   listResultMetaSchema,
   'Paginated list of job output files (spools). data[] has id, ddname, stepname; _result has count, offset, hasMore.'
 );
@@ -206,13 +210,21 @@ export const getJobOutputOutputSchema = envelopeSchema(
 );
 
 export const searchJobOutputOutputSchema = envelopeSchema(
-  z.array(searchJobOutputMatchSchema),
+  z
+    .array(searchJobOutputMatchSchema)
+    .describe(
+      'Array of search matches in job output. Each entry has jobFileId, ddname, stepname, lineNumber, lineText.'
+    ),
   listResultMetaSchema,
   'Search matches in job output. data[] has jobFileId, ddname, stepname, lineNumber, lineText; _result has count, offset, hasMore.'
 );
 
 export const listJobsOutputSchema = envelopeSchema(
-  z.array(jobStatusResultSchema),
+  z
+    .array(jobStatusResultSchema)
+    .describe(
+      'Array of job status entries. Each entry has id, name, owner, status, type, class, retcode, phase, phaseName.'
+    ),
   listResultMetaSchema,
   'Paginated list of jobs. data[] has job status fields; _result has count, offset, hasMore.'
 );

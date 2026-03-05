@@ -79,6 +79,7 @@ interface SchemaProperty {
   items?: SchemaProperty;
   properties?: Record<string, SchemaProperty>;
   required?: string[];
+  anyOf?: SchemaProperty[];
 }
 
 interface JsonSchema {
@@ -231,6 +232,9 @@ function formatPropertyType(prop: SchemaProperty): string {
   if (prop.enum) {
     return prop.enum.map(v => `\`${v}\``).join(' \\| ');
   }
+  if (prop.anyOf) {
+    return prop.anyOf.map(s => formatPropertyType(s)).join(' \\| ');
+  }
   const type = prop.type;
   if (Array.isArray(type)) {
     return type.map(t => `\`${t}\``).join(' \\| ');
@@ -260,6 +264,29 @@ function reorderSchemaProperties(
   return ordered;
 }
 
+/**
+ * Resolve the object properties for a schema property, handling plain
+ * objects, arrays of objects (via items), and union types (anyOf) where
+ * one variant is an object.
+ */
+function resolveObjectProperties(
+  prop: SchemaProperty
+): { properties: Record<string, SchemaProperty>; required: string[] } | undefined {
+  if (prop.type === 'object' && prop.properties) {
+    return { properties: prop.properties, required: prop.required ?? [] };
+  }
+  if (prop.type === 'array' && prop.items?.type === 'object' && prop.items.properties) {
+    return { properties: prop.items.properties, required: prop.items.required ?? [] };
+  }
+  if (prop.anyOf) {
+    for (const variant of prop.anyOf) {
+      const resolved = resolveObjectProperties(variant);
+      if (resolved) return resolved;
+    }
+  }
+  return undefined;
+}
+
 function renderSchemaTable(schema: JsonSchema, label: string): string {
   if (!schema.properties || Object.keys(schema.properties).length === 0) {
     return `*No ${label.toLowerCase()}.*\n`;
@@ -275,6 +302,25 @@ function renderSchemaTable(schema: JsonSchema, label: string): string {
     const defaultVal =
       prop.default !== undefined ? ` (default: \`${JSON.stringify(prop.default)}\`)` : '';
     lines.push(`| \`${name}\` | ${type} | ${isRequired} | ${desc}${defaultVal} |`);
+
+    const nested = resolveObjectProperties(prop);
+    if (nested) {
+      const nestedRequired = new Set(nested.required);
+      const children = Object.entries(nested.properties);
+      children.forEach(([childName, childProp], idx) => {
+        const childType = formatPropertyType(childProp);
+        const childIsRequired = nestedRequired.has(childName) ? 'Yes' : 'No';
+        const childDesc = escapeMarkdown(childProp.description ?? '');
+        const childDefault =
+          childProp.default !== undefined
+            ? ` (default: \`${JSON.stringify(childProp.default)}\`)`
+            : '';
+        const branch = idx === children.length - 1 ? '└─' : '├─';
+        lines.push(
+          `| &ensp;${branch} \`${childName}\` | ${childType} | ${childIsRequired} | ${childDesc}${childDefault} |`
+        );
+      });
+    }
   }
   return lines.join('\n') + '\n';
 }

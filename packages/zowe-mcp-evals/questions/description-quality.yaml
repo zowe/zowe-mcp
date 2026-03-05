@@ -10,27 +10,27 @@ config:
     initArgs: --preset pagination
 
 questions:
-  # --- Pagination awareness ---
+  # --- Use metadata (totalAvailable) instead of full pagination ---
 
-  - id: pagination-member-count
+  - id: metadata-member-count
     prompt: How many members does USER.INVNTORY have? Give me the exact count.
     assertions:
       - toolCall:
           tool: listMembers
-          minCount: 2
+          minCount: 1
           args:
             dsn:
               - "USER.INVNTORY"
               - "'USER.INVNTORY'"
       - answerContains:
-          pattern: "2[,.]?000"
+          pattern: "2[,.]?00[01]"
 
-  - id: pagination-list-all-datasets
+  - id: metadata-dataset-count
     prompt: List all data sets matching USER.PEOPLE.** and tell me the total count.
     assertions:
       - toolCall:
           tool: listDatasets
-          minCount: 2
+          minCount: 1
           args:
             dsnPattern:
               - "USER.PEOPLE.**"

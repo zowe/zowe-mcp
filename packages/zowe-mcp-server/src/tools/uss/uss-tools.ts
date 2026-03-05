@@ -36,9 +36,12 @@ import {
   getReadMessages,
   linesToText,
   paginateList,
+  PAGINATION_NOTE_LINES,
+  PAGINATION_NOTE_LIST,
   sanitizeTextForDisplay,
   textToLines,
   windowContent,
+  withPaginationNote,
   wrapResponse,
 } from '../response.js';
 import { validateCommand, validateReadPath } from './command-validation.js';
@@ -321,10 +324,10 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
     'listUssFiles',
     {
       outputSchema: listUssFilesOutputSchema,
-      description:
-        'List files and directories in a USS path. Results are paginated (default 500, max 1000 per page). ' +
-        'When _result.hasMore is true, call again with offset and limit to get the next page. ' +
-        'Do not answer using only the first page; fetch all pages until _result.hasMore is false.',
+      description: withPaginationNote(
+        'List files and directories in a USS path',
+        PAGINATION_NOTE_LIST
+      ),
       annotations: { readOnlyHint: true },
       inputSchema: {
         path: z
@@ -443,9 +446,7 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
     'readUssFile',
     {
       outputSchema: readUssFileOutputSchema,
-      description:
-        'Read the content of a USS file. Results may be line-windowed; when _result.hasMore is true, call again with startLine and lineCount to get the next lines. ' +
-        'Do not answer using only the first window; fetch until _result.hasMore is false.',
+      description: withPaginationNote('Read the content of a USS file', PAGINATION_NOTE_LINES),
       annotations: { readOnlyHint: true },
       inputSchema: {
         path: z
@@ -606,10 +607,11 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
     'runSafeUssCommand',
     {
       outputSchema: runSafeUssCommandOutputSchema,
-      description:
-        'Run a Unix command on z/OS USS. Only allowlisted (safe) commands run automatically. ' +
-        'Unknown commands require user confirmation (elicitation); if the client does not support elicitation, execution is denied. ' +
-        'Output is paginated by line; when _result.hasMore is true, call again with startLine and lineCount to get the next lines.',
+      description: withPaginationNote(
+        'Run a Unix command on z/OS USS. Only allowlisted (safe) commands run automatically; ' +
+          'unknown commands require user confirmation via elicitation',
+        PAGINATION_NOTE_LINES
+      ),
       annotations: { readOnlyHint: true },
       inputSchema: {
         commandText: z
@@ -1185,8 +1187,8 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
     'getUssTempDir',
     {
       description:
-        'Return a unique USS directory path under the given base path (e.g. $HOME/tmp or /tmp) for temporary use. ' +
-        'The path is verified not to exist. Use createUssFile with isDirectory true to create it.',
+        'Return a unique USS temporary directory path under the given base path. ' +
+        'The path is verified not to exist; use createUssFile with isDirectory true to create it.',
       annotations: { readOnlyHint: true },
       outputSchema: getUssTempDirOutputSchema,
       inputSchema: {
@@ -1238,8 +1240,8 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
     'getUssTempPath',
     {
       description:
-        'Return a unique USS file path under the given directory (e.g. from getUssTempDir). ' +
-        'The path is verified not to exist. Use writeUssFile or createUssFile to create the file.',
+        'Return a unique USS temporary file path under the given directory. ' +
+        'The path is verified not to exist; use writeUssFile or createUssFile to create the file.',
       annotations: { readOnlyHint: true },
       outputSchema: getUssTempPathOutputSchema,
       inputSchema: {
@@ -1351,8 +1353,7 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
     'createTempUssFile',
     {
       description:
-        'Create an empty USS file at the given path (e.g. from getUssTempPath). ' +
-        'Creates parent directories if needed.',
+        'Create an empty temporary USS file at the given path, creating parent directories if needed.',
       outputSchema: createTempUssFileOutputSchema,
       inputSchema: {
         path: z

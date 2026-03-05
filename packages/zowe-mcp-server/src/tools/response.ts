@@ -41,6 +41,30 @@ export const MAX_LIST_LIMIT = 1000;
 export const MAX_READ_LINES = 1000;
 
 /**
+ * Short pagination note appended to tool descriptions for list-paginated tools.
+ * The full pagination protocol is documented in the MCP server instructions;
+ * tool descriptions only carry a brief reference.
+ */
+export const PAGINATION_NOTE_LIST = `Results are paginated (default ${DEFAULT_LIST_LIMIT}, max ${MAX_LIST_LIMIT} per page); follow the pagination instructions in the server instructions.`;
+
+/**
+ * Short pagination note appended to tool descriptions for line-windowed tools.
+ */
+export const PAGINATION_NOTE_LINES =
+  'Results may be line-windowed; follow the pagination instructions in the server instructions.';
+
+/**
+ * Prepend a pagination note to a tool description so the LLM sees pagination
+ * requirements before the functional description. The note is separated from
+ * the description by a single space.
+ */
+export function withPaginationNote(description: string, note: string): string {
+  const trimmedNote = note.trimEnd();
+  const noteWithPeriod = trimmedNote.endsWith('.') ? trimmedNote : trimmedNote + '.';
+  return noteWithPeriod + ' ' + description;
+}
+
+/**
  * Split text into lines (handles \\n and \\r\\n). Empty string returns [].
  */
 export function textToLines(text: string): string[] {

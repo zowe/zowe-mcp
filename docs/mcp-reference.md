@@ -2,7 +2,7 @@
 
 # Zowe MCP Server Reference
 
-> Auto-generated from the MCP server (v0.6.0-dev, commit fd2eafc). Do not edit manually — run `npx zowe-mcp-server generate-docs` to regenerate.
+> Auto-generated from the MCP server (v0.6.0-dev, commit 33ab0b9). Do not edit manually — run `npx zowe-mcp-server generate-docs` to regenerate.
 
 This document describes all tools, prompts, resources, and resource templates provided by the Zowe MCP Server.
 
@@ -18,16 +18,16 @@ The server provides **51** tools.
 | 4 | [`getContext`](#getcontext) | Return the current session context: active system, active connection (user@host), user ID, all known systems (with their connections when multiple exist), and recently used systems (those with saved context) |
 | 5 | [`listDatasets`](#listdatasets) | List data sets matching a DSLEVEL pattern |
 | 6 | [`listMembers`](#listmembers) | List members of a PDS/PDSE data set |
-| 7 | [`searchInDataset`](#searchindataset) | When the response has _result |
+| 7 | [`searchInDataset`](#searchindataset) | Search for a string in a sequential data set or PDS/PDSE (all members or one member) |
 | 8 | [`getDatasetAttributes`](#getdatasetattributes) | Get detailed attributes of a data set: organization, record format, record length, block size, volume, SMS classes, dates, and more |
 | 9 | [`readDataset`](#readdataset) | Read the content of a sequential data set or PDS/PDSE member |
 | 10 | [`writeDataset`](#writedataset) | Write UTF-8 content to a sequential data set or PDS/PDSE member |
-| 11 | [`getTempDatasetPrefix`](#gettempdatasetprefix) | For automation and testing |
+| 11 | [`getTempDatasetPrefix`](#gettempdatasetprefix) | Return a unique DSN prefix (HLQ) under which temporary data sets can be created |
 | 12 | [`getTempDatasetName`](#gettempdatasetname) | Returns a single unique full temporary data set name (for one data set) |
 | 13 | [`createDataset`](#createdataset) | Create a new sequential or partitioned data set |
 | 14 | [`createTempDataset`](#createtempdataset) | Creates a new data set with a unique temporary name in a single call |
 | 15 | [`deleteDataset`](#deletedataset) | Delete a data set or a specific PDS/PDSE member |
-| 16 | [`deleteDatasetsUnderPrefix`](#deletedatasetsunderprefix) | Destructive |
+| 16 | [`deleteDatasetsUnderPrefix`](#deletedatasetsunderprefix) | Delete all data sets whose names start with the given prefix (e.g. tempDsnPrefix from getTempDatasetPrefix) |
 | 17 | [`copyDataset`](#copydataset) | Copy a data set or PDS/PDSE member within a single z/OS system |
 | 18 | [`renameDataset`](#renamedataset) | Rename a data set or PDS/PDSE member |
 | 19 | [`restoreDataset`](#restoredataset) | Restore (recall) a migrated data set from HSM |
@@ -43,16 +43,16 @@ The server provides **51** tools.
 | 29 | [`chownUssFile`](#chownussfile) | Change owner of a USS file or directory |
 | 30 | [`chtagUssFile`](#chtagussfile) | Set the z/OS file tag (encoding/type) for a USS file or directory |
 | 31 | [`copyUssFile`](#copyussfile) | Copy a USS file or directory on z/OS |
-| 32 | [`getUssTempDir`](#getusstempdir) | Return a unique USS directory path under the given base path (e |
-| 33 | [`getUssTempPath`](#getusstemppath) | Return a unique USS file path under the given directory (e |
+| 32 | [`getUssTempDir`](#getusstempdir) | Return a unique USS temporary directory path under the given base path |
+| 33 | [`getUssTempPath`](#getusstemppath) | Return a unique USS temporary file path under the given directory |
 | 34 | [`createTempUssDir`](#createtempussdir) | Create a temporary USS directory |
-| 35 | [`createTempUssFile`](#createtempussfile) | Create an empty USS file at the given path (e |
+| 35 | [`createTempUssFile`](#createtempussfile) | Create an empty temporary USS file at the given path, creating parent directories if needed |
 | 36 | [`deleteUssTempUnderDir`](#deleteusstempunderdir) | Delete all files and directories under the given USS path (the path itself is removed) |
 | 37 | [`runSafeTsoCommand`](#runsafetsocommand) | Run a TSO command on z/OS |
 | 38 | [`submitJob`](#submitjob) | Submit JCL to the current (or specified) z/OS system |
-| 39 | [`getJobStatus`](#getjobstatus) | Get the current status of a z/OS job (e |
+| 39 | [`getJobStatus`](#getjobstatus) | Get the current status of a z/OS job (INPUT, ACTIVE, or OUTPUT) and its return code when complete |
 | 40 | [`listJobFiles`](#listjobfiles) | List output files (spools) for a z/OS job |
-| 41 | [`readJobFile`](#readjobfile) | Read the content of one job output file (spool) |
+| 41 | [`readJobFile`](#readjobfile) | Read the content of one job output file (spool); use listJobFiles to get job file IDs |
 | 42 | [`getJobOutput`](#getjoboutput) | Get aggregated output from job files for a completed job |
 | 43 | [`searchJobOutput`](#searchjoboutput) | Search for a substring in a job's output files (all files or one by jobFileId) |
 | 44 | [`listJobs`](#listjobs) | List jobs on the z/OS system with optional filters (owner, prefix, status) |
@@ -61,7 +61,7 @@ The server provides **51** tools.
 | 47 | [`holdJob`](#holdjob) | Hold a job on the z/OS system |
 | 48 | [`releaseJob`](#releasejob) | Release a held job on the z/OS system |
 | 49 | [`deleteJob`](#deletejob) | Delete a job from the output queue |
-| 50 | [`submitJobFromDataset`](#submitjobfromdataset) | Submit a job from a data set (e |
+| 50 | [`submitJobFromDataset`](#submitjobfromdataset) | Submit a job from a data set or PDS/PDSE member containing JCL |
 | 51 | [`submitJobFromUss`](#submitjobfromuss) | Submit a job from a USS file path |
 
 ### `info`
@@ -226,7 +226,7 @@ Return the current session context: active system, active connection (user@host)
 
 > Read-only
 
-List data sets matching a DSLEVEL pattern. Results are paginated (default 500, max 1000 per page). When _result.hasMore is true, more items exist—you must call this tool again with offset and limit to get the next page (offset = current offset + _result.count, same limit). Do not answer using only the first page; fetch all pages until _result.hasMore is false. Parameters: offset (0-based), limit (items per page). Set attributes to false for names-only (default true includes dsorg, recfm, lrecl, etc.). DSLEVEL pattern (dataset list pattern for dsnPattern). It is not the same as grep regex or Windows filename masks.
+Results are paginated (default 500, max 1000 per page); follow the pagination instructions in the server instructions. List data sets matching a DSLEVEL pattern. Set attributes to false for names-only (default true includes dsorg, recfm, lrecl, etc.). DSLEVEL pattern (dataset list pattern for dsnPattern). It is not the same as grep regex or Windows filename masks.
 
 Rules:
 - Pattern must not begin with a wildcard (first qualifier must be literal, e.g. USER or MY.HIGH.LEVEL).
@@ -388,7 +388,7 @@ Output:
 
 > Read-only
 
-List members of a PDS/PDSE data set. Results are paginated (default 500, max 1000 per page). When _result.hasMore is true, more members exist—you must call this tool again with offset and limit to get the next page (offset = current offset + _result.count, same limit). Do not answer using only the first page; fetch all pages until _result.hasMore is false. Parameters: offset (0-based), limit (members per page).
+Results are paginated (default 500, max 1000 per page); follow the pagination instructions in the server instructions. List members of a PDS/PDSE data set
 
 #### Parameters
 
@@ -506,7 +506,7 @@ Output:
 
 > Read-only
 
-When the response has _result.hasMore true, you must call again with offset and limit (e.g. offset=500, limit=500) before giving a final count or answer—do not answer with only the first page. Search for a string in a sequential data set or in a PDS/PDSE (all members or one member). Returns matching lines with line numbers and a summary. Results are paginated by member (offset/limit); when _result.hasMore is true, call again with the next offset and limit. Options: caseSensitive (default false), cobol (ignore cols 1–6), ignoreSequenceNumbers, doNotProcessComments (asterisk, cobolComment, fortran, cpp, pli, pascal, pcAssembly, ada), includeContextLines (±6 lines around each match via LPSF). You may pass dsn as USER.LIB(MEM) and omit member.
+Results are paginated (default 500, max 1000 per page); follow the pagination instructions in the server instructions. Search for a string in a sequential data set or PDS/PDSE (all members or one member). Returns matching lines with line numbers and a summary. You may pass dsn as USER.LIB(MEM) and omit member. Options: caseSensitive (default false), cobol (search cols 7–72 only), ignoreSequenceNumbers (exclude cols 73–80, default true), doNotProcessComments, includeContextLines (±6 lines via LPSF)
 
 #### Parameters
 
@@ -520,8 +520,8 @@ When the response has _result.hasMore true, you must call again with offset and 
 | `offset` | `integer` | No | 0-based offset into the member list. Default: 0. |
 | `limit` | `integer` | No | Number of members to return per page. Default: 500. Max: 1000. |
 | `caseSensitive` | `boolean` | No | When true, match exact case. Default false (case-insensitive). |
-| `cobol` | `boolean` | No | When true, ignore columns 1–6 (COBOL sequence numbers). Default: false. |
-| `ignoreSequenceNumbers` | `boolean` | No | When true (default), ignore cols 73–80 as sequence numbers. When false, treat as data. |
+| `cobol` | `boolean` | No | When true, restrict search to columns 7–72 only (the COBOL program text area, skipping the line-number area in columns 1–6). Also called COBOL mode. Default: false. |
+| `ignoreSequenceNumbers` | `boolean` | No | When true (default), exclude columns 73–80 from search. Columns 73–80 are the traditional card sequence-number field in fixed-length records. When false, search includes those columns as data. |
 | `doNotProcessComments` | `string`[] | No | Comment types to exclude from search: asterisk, cobolComment, fortran, cpp, pli, pascal, pcAssembly, ada (case-insensitive). |
 | `includeContextLines` | `boolean` | No | When true, include ±6 lines of context (beforeContext/afterContext) around each match via SuperC LPSF. Only effective with the native ZNP backend; ignored by the fallback grep path. Default: false. |
 
@@ -729,7 +729,7 @@ Output:
 
 > Read-only
 
-Read the content of a sequential data set or PDS/PDSE member. Results are paginated by lines. When _result.hasMore is true, more lines exist—you must call this tool again with startLine and lineCount to get the next page. Do not answer using only the first page; fetch until _result.hasMore is false. Large files are automatically truncated to the first 2000 lines when no window is requested. Returns UTF-8 text, an ETag for optimistic locking, and the source encoding. Pass the ETag to writeDataset to prevent overwriting concurrent changes. You may pass dsn as USER.LIB(MEM) and omit member.
+Results may be line-windowed; follow the pagination instructions in the server instructions. Read the content of a sequential data set or PDS/PDSE member. Returns UTF-8 text, an ETag for optimistic locking, and the source encoding. Pass the ETag to writeDataset to prevent overwriting concurrent changes. You may pass dsn as USER.LIB(MEM) and omit member
 
 #### Parameters
 
@@ -739,8 +739,8 @@ Read the content of a sequential data set or PDS/PDSE member. Results are pagina
 | `member` | `string` | No | Member name for PDS/PDSE data sets. |
 | `system` | `string` | No | Target z/OS system: host (e.g. sys1.example.com) or connection spec (user@host) when multiple connections exist for that host. Defaults to active system. |
 | `encoding` | `string` | No | Mainframe encoding (EBCDIC) for this read. Overrides system and server default when set. Default: from system or MCP server default. |
-| `startLine` | `integer` | No | 1-based starting line number. Default: 1 (beginning of file). |
-| `lineCount` | `integer` | No | Number of lines to return. Default: all remaining lines up to the auto-truncation limit. |
+| `startLine` | `integer` | No | 1-based starting line number for random access — use this to jump directly to any line without reading from the beginning. Default: 1. |
+| `lineCount` | `integer` | No | Number of lines to return from startLine. Use with startLine to read an exact range (e.g. startLine: 20, lineCount: 10 for lines 20–29). Default: all remaining lines up to the auto-truncation limit. |
 
 #### Output Schema
 
@@ -774,7 +774,7 @@ Output:
     "totalLines": 80,
     "startLine": 1,
     "returnedLines": 80,
-    "contentLength": 2583,
+    "contentLength": 2582,
     "mimeType": "text/x-cobol",
     "hasMore": false
   },
@@ -825,7 +825,7 @@ Output:
       "       01  WS-RECORD-COUNT              PIC 9(7) VALUE ZERO.",
       "       01  WS-ERROR-COUNT               PIC 9(5) VALUE ZERO.",
       "      *",
-      "           COPY ERRCODES.",
+      "           COPY CUSTREC.",
   // ... truncated ...
 ```
 
@@ -872,7 +872,7 @@ Output:
       "       ENVIRONMENT DIVISION.",
       "       CONFIGURATION SECTION."
     ],
-    "etag": "d9d95bb77f770c18954f2573efa7f7fa",
+    "etag": "d6ec7dfee6ec273b5d8be27bb8301201",
     "encoding": "IBM-037"
   }
 }
@@ -913,7 +913,7 @@ Write UTF-8 content to a sequential data set or PDS/PDSE member. When startLine 
 
 > Read-only
 
-For automation and testing. Returns a unique DSN prefix (HLQ) under which temporary data sets can be created. The prefix is verified not to exist on the system. Default is current user + .TMP (e.g. USER.TMP.XXXXXXXX.YYYYYYYY); configurable via parameters.
+Return a unique DSN prefix (HLQ) under which temporary data sets can be created. The prefix is verified not to exist on the system. Default: current user + .TMP.
 
 #### Parameters
 
@@ -944,7 +944,7 @@ For automation and testing. Returns a unique DSN prefix (HLQ) under which tempor
   },
   "messages": [],
   "data": {
-    "tempDsnPrefix": "USER.TMP.GL6MSSTO.O0LV91ZP"
+    "tempDsnPrefix": "USER.TMP.PGJ5SYG7.NH4PRECG"
   }
 }
 ```
@@ -987,7 +987,7 @@ Returns a single unique full temporary data set name (for one data set). The DSN
   },
   "messages": [],
   "data": {
-    "tempDsn": "USER.TMP.EZUE1W45.URQWRFB3.VI64A8G5"
+    "tempDsn": "USER.TMP.L6NXTF80.NJYJU4NC.C91T7ON7"
   }
 }
 ```
@@ -1064,7 +1064,7 @@ Creates a new data set with a unique temporary name in a single call. Returns th
 
 > Destructive
 
-Delete a data set or a specific PDS/PDSE member. This is a destructive operation that cannot be undone. You may pass dsn as USER.LIB(MEM) and omit member.
+Delete a data set or a specific PDS/PDSE member. You may pass dsn as USER.LIB(MEM) and omit member.
 
 #### Parameters
 
@@ -1089,7 +1089,7 @@ Delete a data set or a specific PDS/PDSE member. This is a destructive operation
 
 > Destructive
 
-Destructive. Deletes all data sets whose names start with the given prefix (e.g. tempDsnPrefix returned by getTempDatasetPrefix). For automation: create temp data sets under one prefix, then call this once to clean up. Prefix must have at least 3 qualifiers and contain TMP (e.g. USER.TMP.XXXXXXXX.YYYYYYYY).
+Delete all data sets whose names start with the given prefix (e.g. tempDsnPrefix from getTempDatasetPrefix). Prefix must have at least 3 qualifiers and contain TMP.
 
 #### Parameters
 
@@ -1280,7 +1280,7 @@ Output:
 
 > Read-only
 
-List files and directories in a USS path. Results are paginated (default 500, max 1000 per page). When _result.hasMore is true, call again with offset and limit to get the next page. Do not answer using only the first page; fetch all pages until _result.hasMore is false.
+Results are paginated (default 500, max 1000 per page); follow the pagination instructions in the server instructions. List files and directories in a USS path
 
 #### Parameters
 
@@ -1384,7 +1384,7 @@ Output:
 
 > Read-only
 
-Read the content of a USS file. Results may be line-windowed; when _result.hasMore is true, call again with startLine and lineCount to get the next lines. Do not answer using only the first window; fetch until _result.hasMore is false.
+Results may be line-windowed; follow the pagination instructions in the server instructions. Read the content of a USS file
 
 #### Parameters
 
@@ -1438,7 +1438,7 @@ Output:
     "lines": [
       "Hello from USS mock. Use this file for readUssFile evals."
     ],
-    "etag": "0a8107ef22173ae825e3023ecb3683cf",
+    "etag": "32ffd349fceceb16976decb7a147dc6f",
     "mimeType": "text/plain"
   }
 }
@@ -1469,7 +1469,7 @@ Output:
 
 > Read-only
 
-Run a Unix command on z/OS USS. Only allowlisted (safe) commands run automatically. Unknown commands require user confirmation (elicitation); if the client does not support elicitation, execution is denied. Output is paginated by line; when _result.hasMore is true, call again with startLine and lineCount to get the next lines.
+Results may be line-windowed; follow the pagination instructions in the server instructions. Run a Unix command on z/OS USS. Only allowlisted (safe) commands run automatically; unknown commands require user confirmation via elicitation
 
 #### Parameters
 
@@ -1730,7 +1730,7 @@ Copy a USS file or directory on z/OS. For directories, set recursive to true. Pa
 
 > Read-only
 
-Return a unique USS directory path under the given base path (e.g. $HOME/tmp or /tmp) for temporary use. The path is verified not to exist. Use createUssFile with isDirectory true to create it.
+Return a unique USS temporary directory path under the given base path. The path is verified not to exist; use createUssFile with isDirectory true to create it.
 
 #### Parameters
 
@@ -1754,7 +1754,7 @@ Return a unique USS directory path under the given base path (e.g. $HOME/tmp or 
 
 > Read-only
 
-Return a unique USS file path under the given directory (e.g. from getUssTempDir). The path is verified not to exist. Use writeUssFile or createUssFile to create the file.
+Return a unique USS temporary file path under the given directory. The path is verified not to exist; use writeUssFile or createUssFile to create the file.
 
 #### Parameters
 
@@ -1802,7 +1802,7 @@ Create a temporary USS directory. Typically use a path from getUssTempDir. Creat
 ### `createTempUssFile`
 
 
-Create an empty USS file at the given path (e.g. from getUssTempPath). Creates parent directories if needed.
+Create an empty temporary USS file at the given path, creating parent directories if needed.
 
 #### Parameters
 
@@ -1850,7 +1850,7 @@ Delete all files and directories under the given USS path (the path itself is re
 
 > Read-only
 
-Run a TSO command on z/OS. Only allowlisted (safe) commands run automatically. Unknown commands require user confirmation (elicitation); if the client does not support elicitation, execution is denied. Output is paginated by line; when _result.hasMore is true, call again with startLine and lineCount to get the next lines. Requesting the same command without startLine and lineCount re-executes the command.
+Results may be line-windowed; follow the pagination instructions in the server instructions. Run a TSO command on z/OS. Only allowlisted (safe) commands run automatically; unknown commands require user confirmation via elicitation. Requesting the same command without startLine and lineCount re-executes the command
 
 #### Parameters
 
@@ -1900,7 +1900,7 @@ Output:
   "messages": [],
   "data": {
     "lines": [
-      "TIME-11:03:00 AM. CPU-00:00:00 SERVICE-26895 SESSION-00:01:53 MARCH 4,2026"
+      "TIME-09:02:50 PM. CPU-00:00:00 SERVICE-26895 SESSION-00:01:53 MARCH 4,2026"
     ],
     "mimeType": "text/plain"
   }
@@ -1960,7 +1960,7 @@ Submit JCL to the current (or specified) z/OS system. A job card is added from c
 
 > Read-only
 
-Get the current status of a z/OS job (e.g. INPUT, ACTIVE, OUTPUT) and its return code when complete.
+Get the current status of a z/OS job (INPUT, ACTIVE, or OUTPUT) and its return code when complete.
 
 #### Parameters
 
@@ -2009,7 +2009,7 @@ List output files (spools) for a z/OS job. The job must be in OUTPUT status. Use
 
 > Read-only
 
-Read the content of one job output file (spool). Use listJobFiles to get job file IDs. Optional startLine and lineCount for partial reads.
+Results may be line-windowed; follow the pagination instructions in the server instructions. Read the content of one job output file (spool); use listJobFiles to get job file IDs
 
 #### Parameters
 
@@ -2239,7 +2239,7 @@ Delete a job from the output queue.
 
 > Destructive
 
-Submit a job from a data set (e.g. a PDS/PDSE member containing JCL). The data set must contain valid JCL including a job card. Set wait: true to wait for the job to reach OUTPUT and return status.
+Submit a job from a data set or PDS/PDSE member containing JCL. The data set must contain valid JCL including a job card. Set wait: true to wait for the job to reach OUTPUT.
 
 #### Parameters
 
@@ -2465,7 +2465,7 @@ Sample content (first member: ACCTPROC):
        01  WS-RECORD-COUNT              PIC 9(7) VALUE ZERO.
        01  WS-ERROR-COUNT               PIC 9(5) VALUE ZERO.
       *
-           COPY ACCTFMT.
+           COPY ERRCODES.
       *
        PROCEDURE DIVISION.
        0000-MAIN.
@@ -2480,7 +2480,7 @@ Sample content (first member: ACCTPROC):
            IF WS-FILE-STATUS NOT = '00'
               DISPLAY 'ACCTPROC: ERROR OPENING INPUT FILE'
               DISPLAY 'FILE STATUS: ' WS-FILE-STATUS
-              MOVE 16 TO RETURN-
+              MOVE 16 TO RETURN
 ... (truncated)
 ```
 
@@ -2558,7 +2558,7 @@ Please compare these two members from USER.SRC.COBOL on mainframe-dev.example.co
        01  WS-RECORD-COUNT              PIC 9(7) VALUE ZERO.
        01  WS-ERROR-COUNT               PIC 9(5) VALUE ZERO.
       *
-           COPY ERRCODES.
+           COPY CUSTREC.
       *
        PROCEDURE DIVISION.
        0000-MAIN.
@@ -2643,7 +2643,7 @@ Please compare these two members from USER.SRC.COBOL on mainframe-dev.example.co
        01  WS-RECORD-COUNT              PIC 9(7) VALUE ZERO.
        01  WS-ERROR-COUNT               PIC 9(5) VALUE ZERO.
       *
-           COPY ACCTFMT.
+           COPY ERRCODES.
       *
        PROCEDURE DIVISION.
        0000-MAIN.

@@ -332,6 +332,36 @@ function truncateJson(json: string, maxLines: number): string {
   return lines.slice(0, maxLines).join('\n') + '\n  // ... truncated ...';
 }
 
+/**
+ * Strip the pagination note prefix that `withPaginationNote()` prepends.
+ * Pagination notes start with "Results are paginated" or "Results may be
+ * line-windowed" and end with a period; the functional description follows.
+ */
+function stripPaginationPrefix(description: string): string {
+  return description.replace(/^Results (?:are paginated|may be line-windowed)[^.]*\.\s*/i, '');
+}
+
+/**
+ * Extract the first sentence from a tool description for the summary table.
+ *
+ * Splits on ". " (period followed by space) or ".\n" but skips common
+ * abbreviations (e.g., i.e., etc.) and version-like patterns (v0.6.0).
+ * Falls back to the full string if no sentence boundary is found.
+ */
+function extractFirstSentence(description: string): string {
+  const text = stripPaginationPrefix(description).trim();
+  if (!text) return '';
+  const sentenceEnd = /\.(?:\s|$)/g;
+  let match: RegExpExecArray | null;
+  while ((match = sentenceEnd.exec(text)) !== null) {
+    const before = text.slice(0, match.index);
+    if (/(?:e\.g|i\.e|etc|vs|vol|v\d)$/i.test(before)) continue;
+    if (/\d$/.test(before) && /^\.\d/.test(text.slice(match.index))) continue;
+    return before;
+  }
+  return text;
+}
+
 // ---------------------------------------------------------------------------
 // Section generators
 // ---------------------------------------------------------------------------
@@ -345,7 +375,7 @@ function generateToolsSection(tools: ToolInfo[], examples: Map<string, ToolExamp
   lines.push('| # | Tool | Description |');
   lines.push('| --- | --- | --- |');
   tools.forEach((tool, i) => {
-    const desc = escapeMarkdown(tool.description?.split('.')[0] ?? '');
+    const desc = escapeMarkdown(extractFirstSentence(tool.description ?? ''));
     lines.push(`| ${i + 1} | [\`${tool.name}\`](#${tool.name.toLowerCase()}) | ${desc} |`);
   });
   lines.push('');

@@ -219,6 +219,7 @@ async function main(): Promise<void> {
       await harness.start();
       log.info('MCP server ready');
 
+      const serverInstructions = harness.getServerInstructions();
       let toolDefinitions: Awaited<ReturnType<McpEvalHarness['getToolDefinitions']>> | undefined;
       if (useCache) {
         toolDefinitions = await harness.getToolDefinitions();
@@ -240,7 +241,7 @@ async function main(): Promise<void> {
         }
         const cacheKey = useCache
           ? buildCacheKey({
-              systemPrompt: getSystemPrompt(config),
+              systemPrompt: getSystemPrompt(config, serverInstructions),
               prompt: q.prompt,
               toolDefs,
               modelId: evalsConfig.modelId,

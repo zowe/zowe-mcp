@@ -30,9 +30,11 @@ import {
   buildContext,
   getReadMessages,
   MAX_READ_LINES,
+  PAGINATION_NOTE_LINES,
   sanitizeTextForDisplay,
   textToLines,
   windowContent,
+  withPaginationNote,
   wrapResponse,
 } from '../response.js';
 import { validateTsoCommand } from './tso-command-validation.js';
@@ -75,11 +77,12 @@ export function registerTsoTools(server: McpServer, deps: TsoToolDeps, logger: L
     'runSafeTsoCommand',
     {
       outputSchema: runSafeTsoCommandOutputSchema,
-      description:
-        'Run a TSO command on z/OS. Only allowlisted (safe) commands run automatically. ' +
-        'Unknown commands require user confirmation (elicitation); if the client does not support elicitation, execution is denied. ' +
-        'Output is paginated by line; when _result.hasMore is true, call again with startLine and lineCount to get the next lines. ' +
-        'Requesting the same command without startLine and lineCount re-executes the command.',
+      description: withPaginationNote(
+        'Run a TSO command on z/OS. Only allowlisted (safe) commands run automatically; ' +
+          'unknown commands require user confirmation via elicitation. ' +
+          'Requesting the same command without startLine and lineCount re-executes the command',
+        PAGINATION_NOTE_LINES
+      ),
       annotations: { readOnlyHint: true },
       inputSchema: {
         commandText: z

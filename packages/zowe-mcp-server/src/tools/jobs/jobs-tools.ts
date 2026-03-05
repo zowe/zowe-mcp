@@ -36,9 +36,11 @@ import {
   linesToText,
   MAX_LIST_LIMIT,
   paginateList,
+  PAGINATION_NOTE_LINES,
   sanitizeTextForDisplay,
   textToLines,
   windowContent,
+  withPaginationNote,
   wrapResponse,
 } from '../response.js';
 import {
@@ -468,7 +470,7 @@ export function registerJobTools(server: McpServer, deps: JobToolDeps, logger: L
     {
       outputSchema: getJobStatusOutputSchema,
       description:
-        'Get the current status of a z/OS job (e.g. INPUT, ACTIVE, OUTPUT) and its return code when complete.',
+        'Get the current status of a z/OS job (INPUT, ACTIVE, or OUTPUT) and its return code when complete.',
       annotations: { readOnlyHint: true },
       inputSchema: {
         jobId: z.string().describe('Job ID (e.g. JOB00123 or J0nnnnnn).'),
@@ -619,8 +621,10 @@ export function registerJobTools(server: McpServer, deps: JobToolDeps, logger: L
     'readJobFile',
     {
       outputSchema: readJobFileOutputSchema,
-      description:
-        'Read the content of one job output file (spool). Use listJobFiles to get job file IDs. Optional startLine and lineCount for partial reads.',
+      description: withPaginationNote(
+        'Read the content of one job output file (spool); use listJobFiles to get job file IDs',
+        PAGINATION_NOTE_LINES
+      ),
       annotations: { readOnlyHint: true },
       inputSchema: {
         jobId: z.string().describe('Job ID (e.g. JOB00123 or J0nnnnnn).'),
@@ -1263,7 +1267,7 @@ export function registerJobTools(server: McpServer, deps: JobToolDeps, logger: L
     {
       outputSchema: submitJobFromDatasetOutputSchema,
       description:
-        'Submit a job from a data set (e.g. a PDS/PDSE member containing JCL). The data set must contain valid JCL including a job card. Set wait: true to wait for the job to reach OUTPUT and return status.',
+        'Submit a job from a data set or PDS/PDSE member containing JCL. The data set must contain valid JCL including a job card. Set wait: true to wait for the job to reach OUTPUT.',
       annotations: { destructiveHint: true },
       inputSchema: {
         dsn: z

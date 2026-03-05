@@ -67,10 +67,13 @@ import {
   MAX_LIST_LIMIT,
   paginateList,
   paginateSearchResult,
+  PAGINATION_NOTE_LINES,
+  PAGINATION_NOTE_LIST,
   resolvedOnlyIfDifferent,
   sanitizeTextForDisplay,
   textToLines,
   windowContent,
+  withPaginationNote,
   wrapResponse,
 } from '../response.js';
 import { datasetTypeSchema, enumInsensitiveLower, recfmSchema } from '../schema-utils.js';
@@ -200,12 +203,12 @@ export function registerDatasetTools(
   server.registerTool(
     'listDatasets',
     {
-      description:
-        'List data sets matching a DSLEVEL pattern. Results are paginated (default 500, max 1000 per page). ' +
-        'When _result.hasMore is true, more items exist—you must call this tool again with offset and limit to get the next page (offset = current offset + _result.count, same limit). ' +
-        'Do not answer using only the first page; fetch all pages until _result.hasMore is false. Parameters: offset (0-based), limit (items per page). ' +
-        'Set attributes to false for names-only (default true includes dsorg, recfm, lrecl, etc.). ' +
-        dslevelDescription,
+      description: withPaginationNote(
+        'List data sets matching a DSLEVEL pattern. ' +
+          'Set attributes to false for names-only (default true includes dsorg, recfm, lrecl, etc.). ' +
+          dslevelDescription,
+        PAGINATION_NOTE_LIST
+      ),
       annotations: { readOnlyHint: true },
       outputSchema: listDatasetsOutputSchema,
       inputSchema: {
@@ -328,10 +331,7 @@ export function registerDatasetTools(
   server.registerTool(
     'listMembers',
     {
-      description:
-        'List members of a PDS/PDSE data set. Results are paginated (default 500, max 1000 per page). ' +
-        'When _result.hasMore is true, more members exist—you must call this tool again with offset and limit to get the next page (offset = current offset + _result.count, same limit). ' +
-        'Do not answer using only the first page; fetch all pages until _result.hasMore is false. Parameters: offset (0-based), limit (members per page).',
+      description: withPaginationNote('List members of a PDS/PDSE data set', PAGINATION_NOTE_LIST),
       annotations: { readOnlyHint: true },
       outputSchema: listMembersOutputSchema,
       inputSchema: {
@@ -425,13 +425,13 @@ export function registerDatasetTools(
   server.registerTool(
     'searchInDataset',
     {
-      description:
-        'When the response has _result.hasMore true, you must call again with offset and limit (e.g. offset=500, limit=500) before giving a final count or answer—do not answer with only the first page. ' +
-        'Search for a string in a sequential data set or in a PDS/PDSE (all members or one member). ' +
-        'Returns matching lines with line numbers and a summary. ' +
-        'Results are paginated by member (offset/limit); when _result.hasMore is true, call again with the next offset and limit. ' +
-        'Options: caseSensitive (default false), cobol (ignore cols 1–6), ignoreSequenceNumbers, doNotProcessComments (asterisk, cobolComment, fortran, cpp, pli, pascal, pcAssembly, ada), includeContextLines (±6 lines around each match via LPSF). ' +
-        'You may pass dsn as USER.LIB(MEM) and omit member.',
+      description: withPaginationNote(
+        'Search for a string in a sequential data set or PDS/PDSE (all members or one member). ' +
+          'Returns matching lines with line numbers and a summary. ' +
+          'You may pass dsn as USER.LIB(MEM) and omit member. ' +
+          'Options: caseSensitive (default false), cobol (search cols 7–72 only), ignoreSequenceNumbers (exclude cols 73–80, default true), doNotProcessComments, includeContextLines (±6 lines via LPSF)',
+        PAGINATION_NOTE_LIST
+      ),
       annotations: { readOnlyHint: true },
       outputSchema: searchInDatasetOutputSchema,
       inputSchema: {
@@ -479,12 +479,14 @@ export function registerDatasetTools(
         cobol: z
           .boolean()
           .optional()
-          .describe('When true, ignore columns 1–6 (COBOL sequence numbers). Default: false.'),
+          .describe(
+            'When true, restrict search to columns 7–72 only (the COBOL program text area, skipping the line-number area in columns 1–6). Also called COBOL mode. Default: false.'
+          ),
         ignoreSequenceNumbers: z
           .boolean()
           .optional()
           .describe(
-            'When true (default), ignore cols 73–80 as sequence numbers. When false, treat as data.'
+            'When true (default), exclude columns 73–80 from search. Columns 73–80 are the traditional card sequence-number field in fixed-length records. When false, search includes those columns as data.'
           ),
         doNotProcessComments: z
           .array(searchCommentSchema)
@@ -726,14 +728,13 @@ export function registerDatasetTools(
   server.registerTool(
     'readDataset',
     {
-      description:
+      description: withPaginationNote(
         'Read the content of a sequential data set or PDS/PDSE member. ' +
-        'Results are paginated by lines. When _result.hasMore is true, more lines exist—you must call this tool again with startLine and lineCount to get the next page. ' +
-        'Do not answer using only the first page; fetch until _result.hasMore is false. ' +
-        'Large files are automatically truncated to the first 2000 lines when no window is requested. ' +
-        'Returns UTF-8 text, an ETag for optimistic locking, and the source encoding. ' +
-        'Pass the ETag to writeDataset to prevent overwriting concurrent changes. ' +
-        'You may pass dsn as USER.LIB(MEM) and omit member.',
+          'Returns UTF-8 text, an ETag for optimistic locking, and the source encoding. ' +
+          'Pass the ETag to writeDataset to prevent overwriting concurrent changes. ' +
+          'You may pass dsn as USER.LIB(MEM) and omit member',
+        PAGINATION_NOTE_LINES
+      ),
       annotations: { readOnlyHint: true },
       outputSchema: readDatasetOutputSchema,
       inputSchema: {
@@ -756,14 +757,16 @@ export function registerDatasetTools(
           .int()
           .min(1)
           .optional()
-          .describe('1-based starting line number. Default: 1 (beginning of file).'),
+          .describe(
+            '1-based starting line number for random access — use this to jump directly to any line without reading from the beginning. Default: 1.'
+          ),
         lineCount: z
           .number()
           .int()
           .min(1)
           .optional()
           .describe(
-            'Number of lines to return. Default: all remaining lines up to the auto-truncation limit.'
+            'Number of lines to return from startLine. Use with startLine to read an exact range (e.g. startLine: 20, lineCount: 10 for lines 20–29). Default: all remaining lines up to the auto-truncation limit.'
           ),
       },
     },
@@ -990,8 +993,8 @@ export function registerDatasetTools(
     'getTempDatasetPrefix',
     {
       description:
-        'For automation and testing. Returns a unique DSN prefix (HLQ) under which temporary data sets can be created. ' +
-        `The prefix is verified not to exist on the system. Default is current user + .${REQUIRED_SAFETY_QUALIFIER} (e.g. USER.${REQUIRED_SAFETY_QUALIFIER}.XXXXXXXX.YYYYYYYY); configurable via parameters.`,
+        'Return a unique DSN prefix (HLQ) under which temporary data sets can be created. ' +
+        `The prefix is verified not to exist on the system. Default: current user + .${REQUIRED_SAFETY_QUALIFIER}.`,
       annotations: { readOnlyHint: true },
       outputSchema: getTempDatasetPrefixOutputSchema,
       inputSchema: {
@@ -1473,7 +1476,6 @@ export function registerDatasetTools(
     {
       description:
         'Delete a data set or a specific PDS/PDSE member. ' +
-        'This is a destructive operation that cannot be undone. ' +
         'You may pass dsn as USER.LIB(MEM) and omit member.',
       annotations: { destructiveHint: true },
       outputSchema: deleteDatasetOutputSchema,
@@ -1554,8 +1556,8 @@ export function registerDatasetTools(
     'deleteDatasetsUnderPrefix',
     {
       description:
-        'Destructive. Deletes all data sets whose names start with the given prefix (e.g. tempDsnPrefix returned by getTempDatasetPrefix). ' +
-        `For automation: create temp data sets under one prefix, then call this once to clean up. Prefix must have at least 3 qualifiers and contain ${REQUIRED_SAFETY_QUALIFIER} (e.g. USER.${REQUIRED_SAFETY_QUALIFIER}.XXXXXXXX.YYYYYYYY).`,
+        'Delete all data sets whose names start with the given prefix (e.g. tempDsnPrefix from getTempDatasetPrefix). ' +
+        `Prefix must have at least 3 qualifiers and contain ${REQUIRED_SAFETY_QUALIFIER}.`,
       annotations: { destructiveHint: true },
       outputSchema: deleteDatasetsUnderPrefixOutputSchema,
       inputSchema: {

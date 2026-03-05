@@ -59,6 +59,23 @@ const packageJson: { version: string } = require('../package.json') as {
 /** The server version from package.json. */
 export const SERVER_VERSION: string = packageJson.version;
 
+/**
+ * MCP server instructions sent to clients during initialization.
+ * Clients may add this to the system prompt so the LLM knows the pagination protocol.
+ */
+export const SERVER_INSTRUCTIONS = `Zowe MCP Server — Pagination Protocol
+
+Many tools return paginated results. The response envelope contains a _result object with a hasMore boolean.
+
+List pagination (listDatasets, listMembers, searchInDataset, listUssFiles, listJobs, listJobFiles, getJobOutput, searchJobOutput):
+- When _result.hasMore is true, call the tool again with offset = current offset + _result.count and the same limit.
+
+Line-windowed pagination (readDataset, readUssFile, readJobFile, runSafeUssCommand, runSafeTsoCommand):
+- When _result.hasMore is true, call the tool again with startLine = _result.startLine + _result.returnedLines and the same lineCount.
+
+If the task requires more data, do not answer with only the first page/window; keep calling you have the desired amount of data.
+The response messages array contains the exact parameters for the next call when more data is available.`;
+
 /** Shared root logger for the MCP server process. */
 let rootLogger: Logger | undefined;
 
@@ -209,6 +226,7 @@ export function createServer(options?: CreateServerOptions): CreateServerResult 
       capabilities: {
         logging: {},
       },
+      instructions: SERVER_INSTRUCTIONS,
     }
   );
 

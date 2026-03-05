@@ -279,7 +279,7 @@ function parseScoreboard(content: string): ScoreboardRow[] {
       inTable = true;
       continue;
     }
-    if (line.startsWith('|---')) continue;
+    if (/^\|\s*-/.test(line)) continue;
     if (inTable && line.startsWith('|')) {
       const cells = line
         .split('|')
@@ -336,6 +336,16 @@ function updateScoreboard(newRows: ScoreboardRow[]): void {
   }
   const all = [...existing, ...newRows];
   writeFileSync(SCOREBOARD_PATH, formatScoreboard(all), 'utf-8');
+
+  try {
+    execSync(`npx markdown-table-formatter "${SCOREBOARD_PATH}"`, {
+      encoding: 'utf-8',
+      stdio: 'pipe',
+    });
+  } catch (err) {
+    log.warning(`Failed to format scoreboard table: ${errorMessage(err)}`);
+  }
+
   log.info(
     `Scoreboard updated: ${SCOREBOARD_PATH} (${all.length} ${plural(all.length, 'row', 'rows')})`
   );

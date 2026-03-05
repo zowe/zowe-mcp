@@ -122,10 +122,11 @@ function buildModel(evalsConfig: EvalsConfig): LanguageModel {
   return google(evalsConfig.serverModel) as unknown as LanguageModel;
 }
 
-export function getSystemPrompt(setConfig: SetConfig): string {
+export function getSystemPrompt(setConfig: SetConfig, serverInstructions?: string): string {
   if (setConfig.systemPrompt) return setConfig.systemPrompt;
-  const base = DEFAULT_SYSTEM_PROMPT;
-  if (setConfig.systemPromptAddition) return base + '\n\n' + setConfig.systemPromptAddition;
+  let base = DEFAULT_SYSTEM_PROMPT;
+  if (serverInstructions) base += '\n\n' + serverInstructions;
+  if (setConfig.systemPromptAddition) base += '\n\n' + setConfig.systemPromptAddition;
   return base;
 }
 
@@ -165,6 +166,14 @@ export class McpEvalHarness {
       await this.client.close();
       this.client = null;
     }
+  }
+
+  /**
+   * Returns the MCP server instructions received during initialization.
+   * Call after start().
+   */
+  getServerInstructions(): string | undefined {
+    return this.client?.getInstructions();
   }
 
   /**
@@ -211,7 +220,13 @@ export class McpEvalHarness {
     }
 
     const model = buildModel(this.options.evalsConfig);
-    const systemPrompt = getSystemPrompt(this.options.setConfig);
+    const serverInstructions = this.client.getInstructions();
+    log.info('Server instructions', {
+      hasInstructions: serverInstructions != null,
+      length: serverInstructions?.length ?? 0,
+      preview: serverInstructions?.slice(0, 100),
+    });
+    const systemPrompt = getSystemPrompt(this.options.setConfig, serverInstructions);
 
     const result = await generateText({
       model,

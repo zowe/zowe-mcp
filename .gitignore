@@ -74,3 +74,4 @@ evals-report/
 
 # Presentation build artifacts
 presentations/*/dist/
+presentations/zowe-mcp/slides-export.pdf

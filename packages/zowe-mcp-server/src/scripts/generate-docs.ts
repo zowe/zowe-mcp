@@ -416,6 +416,27 @@ function truncateJson(json: string, maxLines: number): string {
 }
 
 /**
+ * Replace volatile runtime values in example output so docs don't change
+ * between regenerations.
+ *
+ * - ETags (hex MD5) → stable realistic-looking 32-char hex
+ * - Temp DSN qualifiers (USER.TMP.XXXXXXXX...) → stable placeholders preserving segment count and length
+ */
+function stabilizeOutput(text: string): string {
+  return (
+    text
+      // ETags: 32-char hex strings (MD5) → stable realistic hex
+      .replace(/"etag": "[0-9a-f]{32}"/g, '"etag": "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6"')
+      // Temp DSN prefix/name: USER.TMP followed by 1-3 random 8-char qualifiers
+      .replace(/USER\.TMP\.[A-Z0-9]{8}(\.[A-Z0-9]{8}){0,2}/g, _match => {
+        const segments = _match.split('.');
+        const placeholders = ['A1B2C3D4', 'E5F6G7H8', 'J9K0L1M2'];
+        return segments.map((seg, i) => (i < 2 ? seg : (placeholders[i - 2] ?? seg))).join('.');
+      })
+  );
+}
+
+/**
  * Strip the pagination note prefix that `withPaginationNote()` prepends.
  * Pagination notes start with "Results are paginated" or "Results may be
  * line-windowed" and end with a period; the functional description follows.
@@ -758,6 +779,7 @@ async function main(): Promise<void> {
             } catch {
               output = firstText;
             }
+            output = stabilizeOutput(output);
             if (isError) {
               output = `// isError: true\n${output}`;
             }

@@ -2,7 +2,7 @@
 
 # Zowe MCP Server Reference
 
-> Auto-generated from the MCP server (v0.7.0-dev, commit ba422ce). Do not edit manually — run `npx zowe-mcp-server generate-docs` to regenerate.
+> Auto-generated from the MCP server (v0.7.0-dev, commit 802d503). Do not edit manually — run `npx zowe-mcp-server generate-docs` to regenerate.
 
 This document describes all [Tools](#tools), [Prompts](#prompts), [Resource Templates](#resource-templates) provided by the Zowe MCP Server.
 
@@ -1017,7 +1017,7 @@ Output:
       "       ENVIRONMENT DIVISION.",
       "       CONFIGURATION SECTION."
     ],
-    "etag": "de27d7e33238297264f996f120e7990a",
+    "etag": "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6",
     "encoding": "IBM-037"
   }
 }
@@ -1096,7 +1096,7 @@ Return a unique DSN prefix (HLQ) under which temporary data sets can be created.
   },
   "messages": [],
   "data": {
-    "tempDsnPrefix": "USER.TMP.CR8CIV8E.N5FC550T"
+    "tempDsnPrefix": "USER.TMP.A1B2C3D4.E5F6G7H8"
   }
 }
 ```
@@ -1142,7 +1142,7 @@ Returns a single unique full temporary data set name (for one data set). The DSN
   },
   "messages": [],
   "data": {
-    "tempDsn": "USER.TMP.YMD939Z4.N1NXB89E.RW6Q6MWN"
+    "tempDsn": "USER.TMP.A1B2C3D4.E5F6G7H8.J9K0L1M2"
   }
 }
 ```
@@ -1640,7 +1640,7 @@ Output:
     "lines": [
       "Hello from USS mock. Use this file for readUssFile evals."
     ],
-    "etag": "3aee78ed7f96cf5918d2c7efd50ebc09",
+    "etag": "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6",
     "mimeType": "text/plain"
   }
 }
@@ -2138,7 +2138,7 @@ Output:
   "messages": [],
   "data": {
     "lines": [
-      "TIME-06:46:58 AM. CPU-00:00:00 SERVICE-26895 SESSION-00:01:53 MARCH 5,2026"
+      "TIME-07:18:49 AM. CPU-00:00:00 SERVICE-26895 SESSION-00:01:53 MARCH 5,2026"
     ],
     "mimeType": "text/plain"
   }

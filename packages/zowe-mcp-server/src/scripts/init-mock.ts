@@ -117,7 +117,9 @@ export function generateInventoryMemberCard(fakerInstance: Faker): string {
 
 function generateCobolProgram(programName: string, hlq: string): string {
   const copybooks = ['CUSTREC', 'ACCTFMT', 'ERRCODES'];
-  const usedCopy = copybooks[Math.floor(Math.random() * copybooks.length)];
+  let hash = 0;
+  for (const ch of programName) hash = ((hash << 5) - hash + ch.charCodeAt(0)) | 0;
+  const usedCopy = copybooks[Math.abs(hash) % copybooks.length];
   return `       IDENTIFICATION DIVISION.
        PROGRAM-ID. ${programName}.
        AUTHOR. GENERATED-MOCK.

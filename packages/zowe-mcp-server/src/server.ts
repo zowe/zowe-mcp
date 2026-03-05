@@ -374,15 +374,23 @@ export function createServer(options?: CreateServerOptions): CreateServerResult 
     if (systems.length === 1) {
       const singleSystem = systems[0];
       const onActiveConnectionChanged = options.onActiveConnectionChanged;
-      void credentialProvider.getCredentials(singleSystem).then(credentials => {
-        sessionState.setActiveSystem(singleSystem, credentials.user);
-        logger.info('Auto-activated single system', {
-          system: singleSystem,
-          userId: credentials.user,
+      void credentialProvider
+        .getCredentials(singleSystem)
+        .then(credentials => {
+          sessionState.setActiveSystem(singleSystem, credentials.user);
+          logger.info('Auto-activated single system', {
+            system: singleSystem,
+            userId: credentials.user,
+          });
+          const connectionSpec = `${credentials.user}@${singleSystem}`;
+          onActiveConnectionChanged?.(connectionSpec);
+        })
+        .catch(err => {
+          logger.debug('Auto-activation deferred (credentials not yet available)', {
+            system: singleSystem,
+            reason: err instanceof Error ? err.message : String(err),
+          });
         });
-        const connectionSpec = `${credentials.user}@${singleSystem}`;
-        onActiveConnectionChanged?.(connectionSpec);
-      });
     }
 
     logger.info('z/OS data set tools, resources, and prompts registered', {

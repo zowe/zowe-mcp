@@ -2,6 +2,19 @@
 
 All notable changes to the Zowe MCP extension will be documented in this file.
 
+## `0.6.0`
+
+### New features and enhancements
+
+- **SMS allocation parameters**: `createDataset` and `createTempDataset` now accept SMS parameters — `volser`, `dataclass`, `storclass`, and `mgmtclass` — for site-managed storage allocation.
+- **Restore migrated data sets**: New `restoreDataset` tool recalls migrated (HSM) data sets.
+- **Copy USS files**: New `copyUssFile` tool copies USS files or directories with options for recursive, follow symlinks, preserve attributes, and force.
+- **Search context lines**: `searchInDataset` supports `includeContextLines` option to return surrounding lines (±6) for each match, powered by SuperC LPSF.
+- **Auto-redeploy Zowe Native server**: When the remote z/OS server is outdated (checksum mismatch with the local SDK), the server automatically redeploys and reconnects.
+- **Improved tool descriptions**: Dataset creation parameters include expanded z/OS terminology (e.g. "Record Format (RECFM)", "Logical Record Length (LRECL) in bytes") to help AI models select correct parameters.
+- **MCP server instructions**: The server sends pagination protocol instructions at initialization so AI clients understand how to page through large results.
+- **Generate MCP reference docs**: New `generate-docs` command auto-generates a Markdown reference of all MCP tools, prompts, resources, and resource templates.
+
 ## `0.5.0`
 
 ### New features and enhancements

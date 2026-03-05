@@ -369,7 +369,7 @@ export const listDatasetsOutputSchema = envelopeSchema(
   z
     .array(datasetListEntrySchema)
     .describe(
-      'Array of data set entries. Fields depend on detail: minimal (dsn, dsorg, dsntype, migrated; volser only for non-SMS/non-VSAM), basic (adds recfm, lrecl, blksz, dates, space, volser), full (all attributes including resourceLink, SMS classes).'
+      'Array of data set entries. Fields depend on detail: minimal (dsn, dsorg, dsntype; migrated/encrypted only when true; volser for non-SMS), basic (adds recfm, lrecl, blksz, space; volser for non-SMS, no volsers), full (all attributes including resourceLink, dates, SMS classes).'
     ),
   listResultMetaSchema,
   'Paginated list of data sets matching a pattern. data[] has one entry per data set; _result has count, offset, hasMore. Fields depend on the detail parameter.'

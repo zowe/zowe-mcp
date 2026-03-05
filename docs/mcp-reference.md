@@ -2,7 +2,7 @@
 
 # Zowe MCP Server Reference
 
-> Auto-generated from the MCP server (v0.7.0-dev, commit 802d503). Do not edit manually — run `npx zowe-mcp-server generate-docs` to regenerate.
+> Auto-generated from the MCP server (v0.7.0-dev, commit d9ab69d). Do not edit manually — run `npx zowe-mcp-server generate-docs` to regenerate.
 
 This document describes all [Tools](#tools), [Prompts](#prompts), [Resource Templates](#resource-templates) provided by the Zowe MCP Server.
 
@@ -317,7 +317,7 @@ Notes:
 | `volser` | `string` | No | Volume serial for uncataloged data sets. |
 | `offset` | `integer` | No | 0-based offset into the result set. Default: 0. |
 | `limit` | `integer` | No | Maximum number of items to return. Default: 500. Max: 1000. |
-| `detail` | `minimal` \| `basic` \| `full` | No | Level of detail for each data set entry. minimal: dsn, dsorg, dsntype, migrated; volser only for non-SMS data sets (for navigation). basic (default): adds recfm, lrecl, blksz, dates, space, volser (like ISPF 3.4). full: all attributes including resourceLink, SMS classes, device type. (default: `"basic"`) |
+| `detail` | `minimal` \| `basic` \| `full` | No | Level of detail for each data set entry. minimal: dsn, dsorg, dsntype; migrated/encrypted only when true; volser only for non-SMS. basic (default): adds recfm, lrecl, blksz, space; volser only for non-SMS (no volsers). full: all attributes including resourceLink, SMS classes, device type, all dates. (default: `"basic"`) |
 
 <a id="listdatasets-output-schema"></a>
 
@@ -339,7 +339,7 @@ Notes:
 | &ensp;├─ `offset` | `number` | Yes | 0-based offset of the first item in this page. |
 | &ensp;└─ `hasMore` | `boolean` | Yes | True if more items exist. Call the tool again with offset = offset + count and the same limit to fetch the next page. |
 | `messages` | `string`[] | Yes | Operational messages: pagination hints (e.g. call again with offset/limit), resolution notes, or allocation messages. |
-| `data` | `object`[] | Yes | Array of data set entries. Fields depend on detail: minimal (dsn, dsorg, dsntype, migrated; volser only for non-SMS/non-VSAM), basic (adds recfm, lrecl, blksz, dates, space, volser), full (all attributes including resourceLink, SMS classes). |
+| `data` | `object`[] | Yes | Array of data set entries. Fields depend on detail: minimal (dsn, dsorg, dsntype; migrated/encrypted only when true; volser for non-SMS), basic (adds recfm, lrecl, blksz, space; volser for non-SMS, no volsers), full (all attributes including resourceLink, dates, SMS classes). |
 | &ensp;├─ `dsn` | `string` | Yes | Fully qualified data set name (uppercase, no quotes). |
 | &ensp;├─ `resourceLink` | `string` | No | Resource URI (zos-ds://system/dsn) for this data set. Only present at detail level full. |
 | &ensp;├─ `dsorg` | `string` | No | Data set organization: PS (sequential), PO (PDS), PO-E (PDSE), VS, DA. Present at all detail levels. |
@@ -398,8 +398,7 @@ Output:
       "recfm": "FB",
       "lrecl": 80,
       "blksz": 27920,
-      "volser": "VOL001",
-      "migrated": false
+      "volser": "VOL001"
     },
     {
       "dsn": "USER.DATA.INPUT",
@@ -407,8 +406,7 @@ Output:
       "recfm": "FB",
       "lrecl": 80,
       "blksz": 27920,
-      "volser": "VOL001",
-      "migrated": false
+      "volser": "VOL001"
     },
     {
       "dsn": "USER.JCL.CNTL",
@@ -416,9 +414,7 @@ Output:
       "recfm": "FB",
       "lrecl": 80,
       "blksz": 27920,
-      "volser": "VOL001",
-      "creationDate": "2024-03-15",
-      "migrated": false
+      "volser": "VOL001"
     },
     {
       "dsn": "USER.LISTING",
@@ -426,9 +422,7 @@ Output:
       "recfm": "FBA",
       "lrecl": 133,
       "blksz": 27920,
-      "volser": "VOL001",
-      "creationDate": "2024-03-15",
-      "migrated": false
+      "volser": "VOL001"
     },
     {
       "dsn": "USER.LOADLIB",
@@ -436,9 +430,15 @@ Output:
       "recfm": "U",
       "lrecl": 0,
       "blksz": 32760,
-      "volser": "VOL001",
-      "creationDate": "2024-03-15",
-      "migrated": false
+      "volser": "VOL001"
+    },
+    {
+      "dsn": "USER.SRC.COBOL",
+      "dsorg": "PO-E",
+      "recfm": "FB",
+      "lrecl": 80,
+      "blksz": 27920,
+      "volser": "VOL001"
     },
   // ... truncated ...
 ```
@@ -2138,7 +2138,7 @@ Output:
   "messages": [],
   "data": {
     "lines": [
-      "TIME-07:18:49 AM. CPU-00:00:00 SERVICE-26895 SESSION-00:01:53 MARCH 5,2026"
+      "TIME-08:40:23 AM. CPU-00:00:00 SERVICE-26895 SESSION-00:01:53 MARCH 5,2026"
     ],
     "mimeType": "text/plain"
   }

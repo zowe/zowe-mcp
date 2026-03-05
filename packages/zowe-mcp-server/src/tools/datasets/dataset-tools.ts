@@ -185,48 +185,57 @@ async function resolveInput(
 /** Detail level for listDatasets responses. */
 export type DetailLevel = 'minimal' | 'basic' | 'full';
 
-const MINIMAL_FIELDS = new Set(['dsn', 'dsorg', 'dsntype', 'migrated']);
-const MINIMAL_NON_SMS_FIELDS = new Set([...MINIMAL_FIELDS, 'volser', 'volsers']);
+const MINIMAL_FIELDS = new Set(['dsn', 'dsorg', 'dsntype', 'migrated', 'encrypted']);
+const MINIMAL_NON_SMS_FIELDS = new Set([...MINIMAL_FIELDS, 'volser']);
 
 const BASIC_FIELDS = new Set([
-  ...MINIMAL_NON_SMS_FIELDS,
+  ...MINIMAL_FIELDS,
   'recfm',
   'lrecl',
   'blksz',
-  'creationDate',
-  'referenceDate',
   'spaceUnits',
   'primary',
   'secondary',
-  'usedPercent',
-  'usedExtents',
-  'multivolume',
-  'encrypted',
+  'volser',
 ]);
 
 // resourceLink is only included at full detail level
 
 /**
+ * Suppress false-valued boolean flags at non-full detail levels.
+ *
+ * - `migrated` and `encrypted` are omitted when `false` (noise reduction)
+ */
+function suppressDefaults(result: Record<string, unknown>): Record<string, unknown> {
+  if (result.migrated === false) delete result.migrated;
+  if (result.encrypted === false) delete result.encrypted;
+  return result;
+}
+
+/**
  * Filter a dataset entry to include only fields appropriate for the requested detail level.
  *
- * - `minimal`: dsn, dsorg, dsntype, migrated; volser/volsers only for non-SMS-managed data sets
- * - `basic`: ISPF 3.4-like — adds recfm, lrecl, blksz, dates, space, multivolume, encrypted
- * - `full`: all fields including resourceLink, SMS classes, device type
+ * - `minimal`: dsn, dsorg, dsntype, migrated, encrypted (only when true); volser only for non-SMS
+ * - `basic`: adds recfm, lrecl, blksz, space; volser only for non-SMS (no volsers)
+ * - `full`: all fields including resourceLink, SMS classes, device type, all dates
  *
- * SMS-managed data sets (have storclass) and VSAM data sets (dsorg VS) omit volser/volsers
- * in minimal since volume placement is managed by SMS. VSAM is always SMS-managed.
+ * SMS-managed data sets (have storclass) and VSAM data sets (dsorg VS) omit volser
+ * since volume placement is managed by SMS. VSAM is always SMS-managed.
  */
 export function filterDatasetFields(
   entry: Record<string, unknown>,
   detail: DetailLevel
 ): Record<string, unknown> {
   if (detail === 'full') return entry;
-  if (detail === 'basic') {
-    return Object.fromEntries(Object.entries(entry).filter(([k]) => BASIC_FIELDS.has(k)));
-  }
   const isSmsManaged = !!entry.storclass || entry.dsorg === 'VS';
+  if (detail === 'basic') {
+    const result = Object.fromEntries(Object.entries(entry).filter(([k]) => BASIC_FIELDS.has(k)));
+    if (isSmsManaged) delete result.volser;
+    return suppressDefaults(result);
+  }
   const allowed = isSmsManaged ? MINIMAL_FIELDS : MINIMAL_NON_SMS_FIELDS;
-  return Object.fromEntries(Object.entries(entry).filter(([k]) => allowed.has(k)));
+  const result = Object.fromEntries(Object.entries(entry).filter(([k]) => allowed.has(k)));
+  return suppressDefaults(result);
 }
 
 /** The `*VSAM*` pseudo-volser returned by z/OS for VSAM data sets. */
@@ -315,9 +324,9 @@ export function registerDatasetTools(
           .default('basic')
           .describe(
             'Level of detail for each data set entry. ' +
-              'minimal: dsn, dsorg, dsntype, migrated; volser only for non-SMS data sets (for navigation). ' +
-              'basic (default): adds recfm, lrecl, blksz, dates, space, volser (like ISPF 3.4). ' +
-              'full: all attributes including resourceLink, SMS classes, device type.'
+              'minimal: dsn, dsorg, dsntype; migrated/encrypted only when true; volser only for non-SMS. ' +
+              'basic (default): adds recfm, lrecl, blksz, space; volser only for non-SMS (no volsers). ' +
+              'full: all attributes including resourceLink, SMS classes, device type, all dates.'
           ),
       },
     },

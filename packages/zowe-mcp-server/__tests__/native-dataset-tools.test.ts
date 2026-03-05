@@ -231,8 +231,9 @@ describe('Dataset tools with native backend', () => {
         lrecl: 80,
         blksz: 27920,
         volser: 'VOL1',
-        creationDate: '2024-01-01',
       });
+      // creationDate removed from basic level
+      expect(envelope.data[0]).not.toHaveProperty('creationDate');
     });
 
     it('should return minimal fields when detail: minimal (non-SMS)', async () => {

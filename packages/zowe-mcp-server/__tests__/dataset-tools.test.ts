@@ -358,11 +358,11 @@ describe('Dataset tools with mock backend', () => {
       const first = envelope.data[0];
       expect(first).toHaveProperty('dsn');
       expect(first).toHaveProperty('dsorg');
-      expect(first).toHaveProperty('migrated');
       // Non-SMS mock data sets include volser in minimal
       expect(first).toHaveProperty('volser');
-      // dsntype is in minimal for VSAM/PDS/PDSE distinction
-      // (mock entries may or may not have it depending on meta)
+      // migrated=false and encrypted=false are suppressed
+      expect(first).not.toHaveProperty('migrated');
+      expect(first).not.toHaveProperty('encrypted');
       // Should NOT have basic/full fields
       expect(first).not.toHaveProperty('resourceLink');
       expect(first).not.toHaveProperty('recfm');
@@ -389,6 +389,13 @@ describe('Dataset tools with mock backend', () => {
       expect(first).toHaveProperty('recfm');
       expect(first).toHaveProperty('lrecl');
       expect(first).toHaveProperty('volser');
+      // migrated=false suppressed at basic
+      expect(first).not.toHaveProperty('migrated');
+      // Removed from basic: creationDate, multivolume, usedPercent, usedExtents
+      expect(first).not.toHaveProperty('creationDate');
+      expect(first).not.toHaveProperty('multivolume');
+      expect(first).not.toHaveProperty('usedPercent');
+      expect(first).not.toHaveProperty('usedExtents');
       // Should NOT have full-only fields
       expect(first).not.toHaveProperty('resourceLink');
       expect(first).not.toHaveProperty('dataclass');
@@ -1392,12 +1399,18 @@ describe('filterDatasetFields', () => {
     dsorg: 'PS',
     dsntype: 'PDS',
     migrated: false,
+    encrypted: false,
     recfm: 'FB',
     lrecl: 80,
     blksz: 27920,
     volser: 'VOL001',
+    volsers: ['VOL001'],
     resourceLink: 'zos-ds://host/USER.DATA',
     creationDate: '2025-01-01',
+    referenceDate: '2025-06-01',
+    multivolume: false,
+    usedPercent: 50,
+    usedExtents: 2,
     storclass: undefined,
     dataclass: 'DCLASS1',
     devtype: '3390',
@@ -1407,11 +1420,13 @@ describe('filterDatasetFields', () => {
     dsn: 'USER.SMS.DATA',
     dsorg: 'PO',
     dsntype: 'LIBRARY',
-    migrated: false,
+    migrated: true,
+    encrypted: true,
     recfm: 'FB',
     lrecl: 80,
     blksz: 27920,
     volser: 'SMSVOL',
+    volsers: ['SMSVOL', 'SMSVL2'],
     resourceLink: 'zos-ds://host/USER.SMS.DATA',
     storclass: 'SCPRIM',
     dataclass: 'DCLASS1',
@@ -1422,6 +1437,7 @@ describe('filterDatasetFields', () => {
     dsn: 'USER.VSAM.CLUSTER',
     dsorg: 'VS',
     migrated: false,
+    encrypted: false,
     resourceLink: 'zos-ds://host/USER.VSAM.CLUSTER',
     storclass: undefined,
     devtype: '3390',
@@ -1432,18 +1448,24 @@ describe('filterDatasetFields', () => {
     expect(result).toHaveProperty('dsn');
     expect(result).toHaveProperty('dsorg');
     expect(result).toHaveProperty('dsntype');
-    expect(result).toHaveProperty('migrated');
     expect(result).toHaveProperty('volser');
+    // migrated=false and encrypted=false are suppressed
+    expect(result).not.toHaveProperty('migrated');
+    expect(result).not.toHaveProperty('encrypted');
+    // single-element volsers suppressed
+    expect(result).not.toHaveProperty('volsers');
     expect(result).not.toHaveProperty('resourceLink');
     expect(result).not.toHaveProperty('recfm');
     expect(result).not.toHaveProperty('storclass');
   });
 
-  it('minimal: SMS-managed omits volser', () => {
+  it('minimal: SMS-managed with migrated=true keeps migrated', () => {
     const result = filterDatasetFields(smsEntry, 'minimal');
     expect(result).toHaveProperty('dsn');
     expect(result).toHaveProperty('dsorg');
     expect(result).toHaveProperty('dsntype');
+    expect(result).toHaveProperty('migrated', true);
+    expect(result).toHaveProperty('encrypted', true);
     expect(result).not.toHaveProperty('volser');
     expect(result).not.toHaveProperty('resourceLink');
   });
@@ -1453,19 +1475,41 @@ describe('filterDatasetFields', () => {
     expect(result).toHaveProperty('dsn');
     expect(result).toHaveProperty('dsorg');
     expect(result).not.toHaveProperty('volser');
+    expect(result).not.toHaveProperty('migrated');
     expect(result).not.toHaveProperty('resourceLink');
   });
 
-  it('basic: includes recfm/lrecl but not resourceLink or SMS classes', () => {
+  it('basic: non-SMS includes volser, no volsers, suppresses false booleans', () => {
     const result = filterDatasetFields(nonSmsEntry, 'basic');
     expect(result).toHaveProperty('dsn');
     expect(result).toHaveProperty('recfm');
     expect(result).toHaveProperty('lrecl');
+    // non-SMS: volser present
     expect(result).toHaveProperty('volser');
+    // volsers never at basic
+    expect(result).not.toHaveProperty('volsers');
+    // migrated=false and encrypted=false suppressed
+    expect(result).not.toHaveProperty('migrated');
+    expect(result).not.toHaveProperty('encrypted');
+    // removed from basic
+    expect(result).not.toHaveProperty('referenceDate');
+    expect(result).not.toHaveProperty('creationDate');
+    expect(result).not.toHaveProperty('multivolume');
+    expect(result).not.toHaveProperty('usedPercent');
+    expect(result).not.toHaveProperty('usedExtents');
     expect(result).not.toHaveProperty('resourceLink');
     expect(result).not.toHaveProperty('storclass');
     expect(result).not.toHaveProperty('dataclass');
     expect(result).not.toHaveProperty('devtype');
+  });
+
+  it('basic: SMS-managed omits volser, true booleans kept', () => {
+    const result = filterDatasetFields(smsEntry, 'basic');
+    expect(result).toHaveProperty('migrated', true);
+    expect(result).toHaveProperty('encrypted', true);
+    // SMS: no volser, no volsers
+    expect(result).not.toHaveProperty('volser');
+    expect(result).not.toHaveProperty('volsers');
   });
 
   it('full: returns all fields including resourceLink', () => {
@@ -1473,5 +1517,10 @@ describe('filterDatasetFields', () => {
     expect(result).toHaveProperty('resourceLink');
     expect(result).toHaveProperty('storclass');
     expect(result).toHaveProperty('devtype');
+    expect(result).toHaveProperty('creationDate');
+    expect(result).toHaveProperty('multivolume');
+    expect(result).toHaveProperty('usedPercent');
+    expect(result).toHaveProperty('migrated', false);
+    expect(result).toHaveProperty('encrypted', false);
   });
 });

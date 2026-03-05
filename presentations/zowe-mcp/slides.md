@@ -56,7 +56,7 @@ mdc: true
 </div>
 
 <div class="mt-6 p-4 bg-[#f3f4f4] rounded-lg border border-[#dddee0]">
-  <strong class="text-[#1b375f]">Key insight:</strong> MCP lets AI assistants use z/OS tools the same way they use any other tool — no mainframe knowledge required from the user.
+  <strong class="text-[#1b375f]">Key insight:</strong>Zowe MCP lets AI assistants use z/OS tools the same way they use any other tool — and enable the use of z/OS like they can do with other systems.
 </div>
 
 ---
@@ -140,7 +140,33 @@ An **MCP server** and **VS Code extension** that gives AI assistants direct, str
 
 ---
 
-<!-- Slide 5: Section — Architecture -->
+<!-- Slide 5: Demo -->
+
+# Demo
+
+<div class="flex flex-col items-center justify-center h-[70%]">
+  <carbon-screen class="text-6xl text-[#3162ac] mb-6" />
+  <h2 class="!text-3xl !text-[#3162ac] !border-none">Live Demo</h2>
+  <p class="text-lg text-[#6d7176] mt-4 text-center max-w-lg">
+    Using GitHub Copilot Chat with Zowe MCP to explore data sets,
+    submit jobs, and search COBOL source on z/OS
+  </p>
+  <div class="mt-8 grid grid-cols-3 gap-6 text-center text-sm">
+    <div class="p-3 bg-[#f3f4f4] rounded-lg">
+      <carbon-data-base class="inline text-[#3162ac]" /> <strong class="text-[#1b375f]">1.</strong> List data sets
+    </div>
+    <div class="p-3 bg-[#f3f4f4] rounded-lg">
+      <carbon-search class="inline text-[#3162ac]" /> <strong class="text-[#1b375f]">2.</strong> Search COBOL source
+    </div>
+    <div class="p-3 bg-[#f3f4f4] rounded-lg">
+      <carbon-task class="inline text-[#3162ac]" /> <strong class="text-[#1b375f]">3.</strong> Submit &amp; monitor job
+    </div>
+  </div>
+</div>
+
+---
+
+<!-- Slide 6: Section — Architecture -->
 
 <div class="flex flex-col items-center justify-center h-full">
   <carbon-network-3 class="text-5xl text-[#3975d0] mb-4" />
@@ -856,33 +882,7 @@ Event types:
 
 ---
 
-<!-- Slide 24: Demo -->
-
-# Demo
-
-<div class="flex flex-col items-center justify-center h-[70%]">
-  <carbon-screen class="text-6xl text-[#3162ac] mb-6" />
-  <h2 class="!text-3xl !text-[#3162ac] !border-none">Live Demo</h2>
-  <p class="text-lg text-[#6d7176] mt-4 text-center max-w-lg">
-    Using GitHub Copilot Chat with Zowe MCP to explore data sets,
-    submit jobs, and search COBOL source on z/OS
-  </p>
-  <div class="mt-8 grid grid-cols-3 gap-6 text-center text-sm">
-    <div class="p-3 bg-[#f3f4f4] rounded-lg">
-      <carbon-data-base class="inline text-[#3162ac]" /> <strong class="text-[#1b375f]">1.</strong> List data sets
-    </div>
-    <div class="p-3 bg-[#f3f4f4] rounded-lg">
-      <carbon-search class="inline text-[#3162ac]" /> <strong class="text-[#1b375f]">2.</strong> Search COBOL source
-    </div>
-    <div class="p-3 bg-[#f3f4f4] rounded-lg">
-      <carbon-task class="inline text-[#3162ac]" /> <strong class="text-[#1b375f]">3.</strong> Submit &amp; monitor job
-    </div>
-  </div>
-</div>
-
----
-
-<!-- Slide 25: Roadmap & Community -->
+<!-- Slide 24: Roadmap & Community -->
 
 # <carbon-roadmap class="inline text-[#3162ac]" /> Roadmap & Community
 

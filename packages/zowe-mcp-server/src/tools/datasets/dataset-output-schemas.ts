@@ -133,19 +133,25 @@ const datasetListEntrySchema = z.object({
   dsn: z.string().describe('Fully qualified data set name (uppercase, no quotes).'),
   resourceLink: z
     .string()
+    .optional()
     .describe(
-      'Resource URI (zos-ds://system/dsn) for this data set; use for read/resource operations.'
+      'Resource URI (zos-ds://system/dsn) for this data set. Only present at detail level full.'
     ),
   dsorg: z
     .string()
     .optional()
     .describe(
-      'Data set organization: PS (sequential), PO (PDS), PO-E (PDSE), VS, DA. Omitted when attributes=false.'
+      'Data set organization: PS (sequential), PO (PDS), PO-E (PDSE), VS, DA. Present at all detail levels.'
     ),
   recfm: z.string().optional().describe('Record format: F, FB, V, VB, U, FBA, VBA.'),
   lrecl: z.number().optional().describe('Logical record length in bytes.'),
   blksz: z.number().optional().describe('Block size in bytes.'),
-  volser: z.string().optional().describe('Volume serial where the data set resides.'),
+  volser: z
+    .string()
+    .optional()
+    .describe(
+      'Volume serial where the data set resides. Omitted for VSAM data sets (use dsorg VS to identify VSAM).'
+    ),
   creationDate: z.string().optional().describe('Creation date (YYYY-MM-DD).'),
   referenceDate: z.string().optional().describe('Last referenced date (YYYY-MM-DD).'),
   expirationDate: z.string().optional().describe('Expiration date (YYYY-MM-DD).'),
@@ -363,10 +369,10 @@ export const listDatasetsOutputSchema = envelopeSchema(
   z
     .array(datasetListEntrySchema)
     .describe(
-      'Array of data set entries with dsn, resourceLink, and optional attributes (dsorg, recfm, lrecl, blksz, volser, dates, SMS classes, space info).'
+      'Array of data set entries. Fields depend on detail: minimal (dsn, dsorg, dsntype, migrated; volser only for non-SMS/non-VSAM), basic (adds recfm, lrecl, blksz, dates, space, volser), full (all attributes including resourceLink, SMS classes).'
     ),
   listResultMetaSchema,
-  'Paginated list of data sets matching a pattern. data[] has one entry per data set; _result has count, offset, hasMore.'
+  'Paginated list of data sets matching a pattern. data[] has one entry per data set; _result has count, offset, hasMore. Fields depend on the detail parameter.'
 );
 
 export const listMembersOutputSchema = envelopeSchema(

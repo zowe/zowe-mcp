@@ -19,7 +19,7 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createServer, getServer } from '../src/server.js';
 import type { ListResultMeta, ToolResponseEnvelope } from '../src/tools/response.js';
 import type { ParsedConnectionSpec } from '../src/zos/native/connection-spec.js';
@@ -235,21 +235,25 @@ describe('Dataset tools with native backend', () => {
       });
     });
 
-    it('should return only dsn and resourceLink when attributes: false', async () => {
+    it('should return minimal fields when detail: minimal (non-SMS)', async () => {
       const result = await client.callTool({
         name: 'listDatasets',
-        arguments: { dsnPattern: '*', attributes: false },
+        arguments: { dsnPattern: '*', detail: 'minimal' },
       });
 
-      const envelope = parseEnvelope<{ dsn: string; resourceLink?: string }[]>(result);
+      const envelope = parseEnvelope<Record<string, unknown>[]>(result);
 
       expect(envelope.data).toHaveLength(1);
       expect(envelope.data[0].dsn).toBe('USER.PDS.LIB');
-      expect(envelope.data[0]).toHaveProperty('resourceLink');
-      // Names-only: no attribute fields
-      expect(envelope.data[0]).not.toHaveProperty('dsorg');
+      expect(envelope.data[0]).toHaveProperty('dsorg');
+      // Non-SMS: volser included
+      expect(envelope.data[0]).toHaveProperty('volser');
+      // Should NOT have resourceLink, basic, or full fields
+      expect(envelope.data[0]).not.toHaveProperty('resourceLink');
       expect(envelope.data[0]).not.toHaveProperty('recfm');
       expect(envelope.data[0]).not.toHaveProperty('lrecl');
+      expect(envelope.data[0]).not.toHaveProperty('blksz');
+      expect(envelope.data[0]).not.toHaveProperty('creationDate');
     });
   });
 });

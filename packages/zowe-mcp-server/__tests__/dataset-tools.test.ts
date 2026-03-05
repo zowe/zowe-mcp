@@ -30,6 +30,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createServer, getServer } from '../src/server.js';
+import { filterDatasetFields } from '../src/tools/datasets/dataset-tools.js';
 import type {
   ListResultMeta,
   ReadResultMeta,
@@ -344,22 +345,76 @@ describe('Dataset tools with mock backend', () => {
       expect(envelope.data.length).toBe(meta.count);
     });
 
-    it('should return only dsn and resourceLink when listDatasets attributes: false', async () => {
+    it('should return minimal fields when listDatasets detail: minimal (non-SMS)', async () => {
       const result = await client.callTool({
         name: 'listDatasets',
-        arguments: { dsnPattern: 'TESTUSER.*', attributes: false },
+        arguments: { dsnPattern: 'TESTUSER.*', detail: 'minimal' },
       });
 
-      const envelope = parseEnvelope<{ dsn: string; resourceLink?: string }[]>(result);
+      const envelope = parseEnvelope<Record<string, unknown>[]>(result);
+
+      expect(Array.isArray(envelope.data)).toBe(true);
+      expect(envelope.data.length).toBeGreaterThan(0);
+      const first = envelope.data[0];
+      expect(first).toHaveProperty('dsn');
+      expect(first).toHaveProperty('dsorg');
+      expect(first).toHaveProperty('migrated');
+      // Non-SMS mock data sets include volser in minimal
+      expect(first).toHaveProperty('volser');
+      // dsntype is in minimal for VSAM/PDS/PDSE distinction
+      // (mock entries may or may not have it depending on meta)
+      // Should NOT have basic/full fields
+      expect(first).not.toHaveProperty('resourceLink');
+      expect(first).not.toHaveProperty('recfm');
+      expect(first).not.toHaveProperty('lrecl');
+      expect(first).not.toHaveProperty('blksz');
+      expect(first).not.toHaveProperty('creationDate');
+      expect(first).not.toHaveProperty('dataclass');
+      expect(first).not.toHaveProperty('storclass');
+    });
+
+    it('should return basic fields when listDatasets detail: basic (default)', async () => {
+      const result = await client.callTool({
+        name: 'listDatasets',
+        arguments: { dsnPattern: 'TESTUSER.*' },
+      });
+
+      const envelope = parseEnvelope<Record<string, unknown>[]>(result);
+
+      expect(Array.isArray(envelope.data)).toBe(true);
+      expect(envelope.data.length).toBeGreaterThan(0);
+      const first = envelope.data[0];
+      expect(first).toHaveProperty('dsn');
+      expect(first).toHaveProperty('dsorg');
+      expect(first).toHaveProperty('recfm');
+      expect(first).toHaveProperty('lrecl');
+      expect(first).toHaveProperty('volser');
+      // Should NOT have full-only fields
+      expect(first).not.toHaveProperty('resourceLink');
+      expect(first).not.toHaveProperty('dataclass');
+      expect(first).not.toHaveProperty('mgmtclass');
+      expect(first).not.toHaveProperty('storclass');
+      expect(first).not.toHaveProperty('devtype');
+      expect(first).not.toHaveProperty('expirationDate');
+    });
+
+    it('should return all fields when listDatasets detail: full', async () => {
+      const result = await client.callTool({
+        name: 'listDatasets',
+        arguments: { dsnPattern: 'TESTUSER.*', detail: 'full' },
+      });
+
+      const envelope = parseEnvelope<Record<string, unknown>[]>(result);
 
       expect(Array.isArray(envelope.data)).toBe(true);
       expect(envelope.data.length).toBeGreaterThan(0);
       const first = envelope.data[0];
       expect(first).toHaveProperty('dsn');
       expect(first).toHaveProperty('resourceLink');
-      expect(first).not.toHaveProperty('dsorg');
-      expect(first).not.toHaveProperty('recfm');
-      expect(first).not.toHaveProperty('lrecl');
+      expect(first).toHaveProperty('dsorg');
+      expect(first).toHaveProperty('recfm');
+      expect(first).toHaveProperty('lrecl');
+      expect(first).toHaveProperty('volser');
     });
 
     it('should not include resolvedDsn when input already normalized (listMembers)', async () => {
@@ -509,10 +564,10 @@ describe('Dataset tools with mock backend', () => {
       expect(meta.hasMore).toBe(false);
     });
 
-    it('should include resource_link in results', async () => {
+    it('should include resourceLink in results at detail: full', async () => {
       const result = await client.callTool({
         name: 'listDatasets',
-        arguments: { dsnPattern: 'TESTUSER.*' },
+        arguments: { dsnPattern: 'TESTUSER.*', detail: 'full' },
       });
 
       const data = parseData<{ dsn: string; resourceLink: string }[]>(result);
@@ -1325,5 +1380,98 @@ describe('Dataset tools with mock backend', () => {
       const listData = parseData<{ dsn: string }[]>(listAfter);
       expect(listData).toHaveLength(0);
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// filterDatasetFields unit tests
+// ---------------------------------------------------------------------------
+describe('filterDatasetFields', () => {
+  const nonSmsEntry: Record<string, unknown> = {
+    dsn: 'USER.DATA',
+    dsorg: 'PS',
+    dsntype: 'PDS',
+    migrated: false,
+    recfm: 'FB',
+    lrecl: 80,
+    blksz: 27920,
+    volser: 'VOL001',
+    resourceLink: 'zos-ds://host/USER.DATA',
+    creationDate: '2025-01-01',
+    storclass: undefined,
+    dataclass: 'DCLASS1',
+    devtype: '3390',
+  };
+
+  const smsEntry: Record<string, unknown> = {
+    dsn: 'USER.SMS.DATA',
+    dsorg: 'PO',
+    dsntype: 'LIBRARY',
+    migrated: false,
+    recfm: 'FB',
+    lrecl: 80,
+    blksz: 27920,
+    volser: 'SMSVOL',
+    resourceLink: 'zos-ds://host/USER.SMS.DATA',
+    storclass: 'SCPRIM',
+    dataclass: 'DCLASS1',
+    devtype: '3390',
+  };
+
+  const vsamEntry: Record<string, unknown> = {
+    dsn: 'USER.VSAM.CLUSTER',
+    dsorg: 'VS',
+    migrated: false,
+    resourceLink: 'zos-ds://host/USER.VSAM.CLUSTER',
+    storclass: undefined,
+    devtype: '3390',
+  };
+
+  it('minimal: non-SMS includes volser, dsntype, no resourceLink', () => {
+    const result = filterDatasetFields(nonSmsEntry, 'minimal');
+    expect(result).toHaveProperty('dsn');
+    expect(result).toHaveProperty('dsorg');
+    expect(result).toHaveProperty('dsntype');
+    expect(result).toHaveProperty('migrated');
+    expect(result).toHaveProperty('volser');
+    expect(result).not.toHaveProperty('resourceLink');
+    expect(result).not.toHaveProperty('recfm');
+    expect(result).not.toHaveProperty('storclass');
+  });
+
+  it('minimal: SMS-managed omits volser', () => {
+    const result = filterDatasetFields(smsEntry, 'minimal');
+    expect(result).toHaveProperty('dsn');
+    expect(result).toHaveProperty('dsorg');
+    expect(result).toHaveProperty('dsntype');
+    expect(result).not.toHaveProperty('volser');
+    expect(result).not.toHaveProperty('resourceLink');
+  });
+
+  it('minimal: VSAM (dsorg VS) omits volser even without storclass', () => {
+    const result = filterDatasetFields(vsamEntry, 'minimal');
+    expect(result).toHaveProperty('dsn');
+    expect(result).toHaveProperty('dsorg');
+    expect(result).not.toHaveProperty('volser');
+    expect(result).not.toHaveProperty('resourceLink');
+  });
+
+  it('basic: includes recfm/lrecl but not resourceLink or SMS classes', () => {
+    const result = filterDatasetFields(nonSmsEntry, 'basic');
+    expect(result).toHaveProperty('dsn');
+    expect(result).toHaveProperty('recfm');
+    expect(result).toHaveProperty('lrecl');
+    expect(result).toHaveProperty('volser');
+    expect(result).not.toHaveProperty('resourceLink');
+    expect(result).not.toHaveProperty('storclass');
+    expect(result).not.toHaveProperty('dataclass');
+    expect(result).not.toHaveProperty('devtype');
+  });
+
+  it('full: returns all fields including resourceLink', () => {
+    const result = filterDatasetFields(nonSmsEntry, 'full');
+    expect(result).toHaveProperty('resourceLink');
+    expect(result).toHaveProperty('storclass');
+    expect(result).toHaveProperty('devtype');
   });
 });

@@ -289,50 +289,64 @@ describe.skipIf(!canRunNativeE2E)(
       expect(dsns.some(d => d.includes('MACLIB'))).toBe(true);
     });
 
-    it('listDatasets with SYS1.*LIB returns dataset attributes when attributes default', async () => {
+    it('listDatasets with SYS1.*LIB returns basic attributes by default', async () => {
       const { parsed } = await callToolSuccess(client, 'listDatasets', {
         dsnPattern: "'SYS1.*LIB'",
       });
       const o = parsed as {
         _context: unknown;
-        data: {
-          dsn: string;
-          resourceLink?: string;
-          dsorg?: string;
-          recfm?: string;
-          lrecl?: number;
-          blksz?: number;
-          volser?: string;
-          creationDate?: string;
-        }[];
+        data: Record<string, unknown>[];
       };
       expect(Array.isArray(o.data)).toBe(true);
       expect(o.data.length).toBeGreaterThan(0);
       const first = o.data[0];
       expect(first).toHaveProperty('dsn');
       expect(typeof first.dsn).toBe('string');
-      expect(first).toHaveProperty('resourceLink');
       expect(first).toHaveProperty('dsorg');
       expect(first).toHaveProperty('recfm');
       expect(typeof first.lrecl).toBe('number');
       expect(typeof first.blksz).toBe('number');
+      // basic does not include resourceLink or full-only fields
+      expect(first).not.toHaveProperty('resourceLink');
+      expect(first).not.toHaveProperty('devtype');
     });
 
-    it('listDatasets with attributes false returns names only', async () => {
+    it('listDatasets with detail minimal returns navigation fields only', async () => {
       const { parsed } = await callToolSuccess(client, 'listDatasets', {
         dsnPattern: "'SYS1.*LIB'",
-        attributes: false,
+        detail: 'minimal',
       });
       const o = parsed as {
         _context: unknown;
-        data: { dsn: string; resourceLink?: string; dsorg?: string }[];
+        data: Record<string, unknown>[];
+      };
+      expect(Array.isArray(o.data)).toBe(true);
+      expect(o.data.length).toBeGreaterThan(0);
+      const first = o.data[0];
+      expect(first).toHaveProperty('dsn');
+      expect(first).toHaveProperty('dsorg');
+      expect(first).not.toHaveProperty('resourceLink');
+      expect(first).not.toHaveProperty('recfm');
+      expect(first).not.toHaveProperty('lrecl');
+    });
+
+    it('listDatasets with detail full returns all attributes including resourceLink', async () => {
+      const { parsed } = await callToolSuccess(client, 'listDatasets', {
+        dsnPattern: "'SYS1.*LIB'",
+        detail: 'full',
+      });
+      const o = parsed as {
+        _context: unknown;
+        data: Record<string, unknown>[];
       };
       expect(Array.isArray(o.data)).toBe(true);
       expect(o.data.length).toBeGreaterThan(0);
       const first = o.data[0];
       expect(first).toHaveProperty('dsn');
       expect(first).toHaveProperty('resourceLink');
-      expect(first).not.toHaveProperty('dsorg');
+      expect(first).toHaveProperty('dsorg');
+      expect(first).toHaveProperty('recfm');
+      expect(first).toHaveProperty('lrecl');
     });
 
     it('listMembers with SYS1.SAMPLIB returns 1000+ members', async () => {

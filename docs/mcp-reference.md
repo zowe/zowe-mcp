@@ -2,7 +2,7 @@
 
 # Zowe MCP Server Reference
 
-> Auto-generated from the MCP server (v0.6.0-dev, commit 991e458). Do not edit manually — run `npx zowe-mcp-server generate-docs` to regenerate.
+> Auto-generated from the MCP server (v0.7.0-dev, commit ba422ce). Do not edit manually — run `npx zowe-mcp-server generate-docs` to regenerate.
 
 This document describes all [Tools](#tools), [Prompts](#prompts), [Resource Templates](#resource-templates) provided by the Zowe MCP Server.
 
@@ -92,7 +92,7 @@ Provides information about the Zowe MCP server, its version, and backend connect
 ```json
 {
   "name": "Zowe MCP Server",
-  "version": "0.6.0-dev",
+  "version": "0.7.0-dev",
   "description": "MCP server providing tools for z/OS systems including data sets, jobs, and UNIX System Services",
   "components": [
     "core",
@@ -278,7 +278,7 @@ Return the current session context: active system, active connection (user@host)
 
 > Read-only
 
-Results are paginated (default 500, max 1000 per page); follow the pagination instructions in the server instructions. List data sets matching a DSLEVEL pattern. Set attributes to false for names-only (default true includes dsorg, recfm, lrecl, etc.). DSLEVEL pattern (dataset list pattern for dsnPattern). It is not the same as grep regex or Windows filename masks.
+Results are paginated (default 500, max 1000 per page); follow the pagination instructions in the server instructions. List data sets matching a DSLEVEL pattern. Use the detail parameter to control response verbosity (minimal, basic, full). DSLEVEL pattern (dataset list pattern for dsnPattern). It is not the same as grep regex or Windows filename masks.
 
 Rules:
 - Pattern must not begin with a wildcard (first qualifier must be literal, e.g. USER or MY.HIGH.LEVEL).
@@ -317,7 +317,7 @@ Notes:
 | `volser` | `string` | No | Volume serial for uncataloged data sets. |
 | `offset` | `integer` | No | 0-based offset into the result set. Default: 0. |
 | `limit` | `integer` | No | Maximum number of items to return. Default: 500. Max: 1000. |
-| `attributes` | `boolean` | No | When true (default), include data set attributes (dsorg, recfm, lrecl, blksz, volser, creationDate). When false, return only data set names. (default: `true`) |
+| `detail` | `minimal` \| `basic` \| `full` | No | Level of detail for each data set entry. minimal: dsn, dsorg, dsntype, migrated; volser only for non-SMS data sets (for navigation). basic (default): adds recfm, lrecl, blksz, dates, space, volser (like ISPF 3.4). full: all attributes including resourceLink, SMS classes, device type. (default: `"basic"`) |
 
 <a id="listdatasets-output-schema"></a>
 
@@ -339,14 +339,14 @@ Notes:
 | &ensp;├─ `offset` | `number` | Yes | 0-based offset of the first item in this page. |
 | &ensp;└─ `hasMore` | `boolean` | Yes | True if more items exist. Call the tool again with offset = offset + count and the same limit to fetch the next page. |
 | `messages` | `string`[] | Yes | Operational messages: pagination hints (e.g. call again with offset/limit), resolution notes, or allocation messages. |
-| `data` | `object`[] | Yes | Array of data set entries with dsn, resourceLink, and optional attributes (dsorg, recfm, lrecl, blksz, volser, dates, SMS classes, space info). |
+| `data` | `object`[] | Yes | Array of data set entries. Fields depend on detail: minimal (dsn, dsorg, dsntype, migrated; volser only for non-SMS/non-VSAM), basic (adds recfm, lrecl, blksz, dates, space, volser), full (all attributes including resourceLink, SMS classes). |
 | &ensp;├─ `dsn` | `string` | Yes | Fully qualified data set name (uppercase, no quotes). |
-| &ensp;├─ `resourceLink` | `string` | Yes | Resource URI (zos-ds://system/dsn) for this data set; use for read/resource operations. |
-| &ensp;├─ `dsorg` | `string` | No | Data set organization: PS (sequential), PO (PDS), PO-E (PDSE), VS, DA. Omitted when attributes=false. |
+| &ensp;├─ `resourceLink` | `string` | No | Resource URI (zos-ds://system/dsn) for this data set. Only present at detail level full. |
+| &ensp;├─ `dsorg` | `string` | No | Data set organization: PS (sequential), PO (PDS), PO-E (PDSE), VS, DA. Present at all detail levels. |
 | &ensp;├─ `recfm` | `string` | No | Record format: F, FB, V, VB, U, FBA, VBA. |
 | &ensp;├─ `lrecl` | `number` | No | Logical record length in bytes. |
 | &ensp;├─ `blksz` | `number` | No | Block size in bytes. |
-| &ensp;├─ `volser` | `string` | No | Volume serial where the data set resides. |
+| &ensp;├─ `volser` | `string` | No | Volume serial where the data set resides. Omitted for VSAM data sets (use dsorg VS to identify VSAM). |
 | &ensp;├─ `creationDate` | `string` | No | Creation date (YYYY-MM-DD). |
 | &ensp;├─ `referenceDate` | `string` | No | Last referenced date (YYYY-MM-DD). |
 | &ensp;├─ `expirationDate` | `string` | No | Expiration date (YYYY-MM-DD). |
@@ -399,7 +399,7 @@ Output:
       "lrecl": 80,
       "blksz": 27920,
       "volser": "VOL001",
-      "resourceLink": "zos-ds://mainframe-dev.example.com/USER.DATA.FILE01?volser=VOL001"
+      "migrated": false
     },
     {
       "dsn": "USER.DATA.INPUT",
@@ -408,7 +408,7 @@ Output:
       "lrecl": 80,
       "blksz": 27920,
       "volser": "VOL001",
-      "resourceLink": "zos-ds://mainframe-dev.example.com/USER.DATA.INPUT?volser=VOL001"
+      "migrated": false
     },
     {
       "dsn": "USER.JCL.CNTL",
@@ -418,7 +418,7 @@ Output:
       "blksz": 27920,
       "volser": "VOL001",
       "creationDate": "2024-03-15",
-      "resourceLink": "zos-ds://mainframe-dev.example.com/USER.JCL.CNTL?volser=VOL001"
+      "migrated": false
     },
     {
       "dsn": "USER.LISTING",
@@ -428,7 +428,7 @@ Output:
       "blksz": 27920,
       "volser": "VOL001",
       "creationDate": "2024-03-15",
-      "resourceLink": "zos-ds://mainframe-dev.example.com/USER.LISTING?volser=VOL001"
+      "migrated": false
     },
     {
       "dsn": "USER.LOADLIB",
@@ -438,7 +438,7 @@ Output:
       "blksz": 32760,
       "volser": "VOL001",
       "creationDate": "2024-03-15",
-      "resourceLink": "zos-ds://mainframe-dev.example.com/USER.LOADLIB?volser=VOL001"
+      "migrated": false
     },
   // ... truncated ...
 ```
@@ -970,7 +970,7 @@ Output:
       "       01  WS-RECORD-COUNT              PIC 9(7) VALUE ZERO.",
       "       01  WS-ERROR-COUNT               PIC 9(5) VALUE ZERO.",
       "      *",
-      "           COPY CUSTREC.",
+      "           COPY ACCTFMT.",
   // ... truncated ...
 ```
 
@@ -1017,7 +1017,7 @@ Output:
       "       ENVIRONMENT DIVISION.",
       "       CONFIGURATION SECTION."
     ],
-    "etag": "589931e19e5173c16ccbea2e4ed84793",
+    "etag": "de27d7e33238297264f996f120e7990a",
     "encoding": "IBM-037"
   }
 }
@@ -1096,7 +1096,7 @@ Return a unique DSN prefix (HLQ) under which temporary data sets can be created.
   },
   "messages": [],
   "data": {
-    "tempDsnPrefix": "USER.TMP.OZVZOROK.RH3Q2SA0"
+    "tempDsnPrefix": "USER.TMP.CR8CIV8E.N5FC550T"
   }
 }
 ```
@@ -1142,7 +1142,7 @@ Returns a single unique full temporary data set name (for one data set). The DSN
   },
   "messages": [],
   "data": {
-    "tempDsn": "USER.TMP.ZQGCL5M3.S09JROL9.ZXM053OW"
+    "tempDsn": "USER.TMP.YMD939Z4.N1NXB89E.RW6Q6MWN"
   }
 }
 ```
@@ -1640,7 +1640,7 @@ Output:
     "lines": [
       "Hello from USS mock. Use this file for readUssFile evals."
     ],
-    "etag": "0323663dba0107e4ff3555b2bb8bc8bb",
+    "etag": "3aee78ed7f96cf5918d2c7efd50ebc09",
     "mimeType": "text/plain"
   }
 }
@@ -2138,7 +2138,7 @@ Output:
   "messages": [],
   "data": {
     "lines": [
-      "TIME-11:11:50 PM. CPU-00:00:00 SERVICE-26895 SESSION-00:01:53 MARCH 4,2026"
+      "TIME-06:46:58 AM. CPU-00:00:00 SERVICE-26895 SESSION-00:01:53 MARCH 5,2026"
     ],
     "mimeType": "text/plain"
   }
@@ -2795,7 +2795,7 @@ Sample content (first member: ACCTPROC):
        01  WS-RECORD-COUNT              PIC 9(7) VALUE ZERO.
        01  WS-ERROR-COUNT               PIC 9(5) VALUE ZERO.
       *
-           COPY ACCTFMT.
+           COPY ERRCODES.
       *
        PROCEDURE DIVISION.
        0000-MAIN.
@@ -2810,7 +2810,7 @@ Sample content (first member: ACCTPROC):
            IF WS-FILE-STATUS NOT = '00'
               DISPLAY 'ACCTPROC: ERROR OPENING INPUT FILE'
               DISPLAY 'FILE STATUS: ' WS-FILE-STATUS
-              MOVE 16 TO RETURN-
+              MOVE 16 TO RETURN
 ... (truncated)
 ```
 
@@ -2888,7 +2888,7 @@ Please compare these two members from USER.SRC.COBOL on mainframe-dev.example.co
        01  WS-RECORD-COUNT              PIC 9(7) VALUE ZERO.
        01  WS-ERROR-COUNT               PIC 9(5) VALUE ZERO.
       *
-           COPY CUSTREC.
+           COPY ACCTFMT.
       *
        PROCEDURE DIVISION.
        0000-MAIN.
@@ -2973,7 +2973,7 @@ Please compare these two members from USER.SRC.COBOL on mainframe-dev.example.co
        01  WS-RECORD-COUNT              PIC 9(7) VALUE ZERO.
        01  WS-ERROR-COUNT               PIC 9(5) VALUE ZERO.
       *
-           COPY ACCTFMT.
+           COPY ERRCODES.
       *
        PROCEDURE DIVISION.
        0000-MAIN.

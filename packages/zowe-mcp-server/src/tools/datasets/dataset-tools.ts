@@ -178,6 +178,80 @@ async function resolveInput(
   return { systemId: resolvedSystem.systemId, ...resolved };
 }
 
+// ---------------------------------------------------------------------------
+// Detail-level field filtering for listDatasets
+// ---------------------------------------------------------------------------
+
+/** Detail level for listDatasets responses. */
+export type DetailLevel = 'minimal' | 'basic' | 'full';
+
+const MINIMAL_FIELDS = new Set(['dsn', 'dsorg', 'dsntype', 'migrated']);
+const MINIMAL_NON_SMS_FIELDS = new Set([...MINIMAL_FIELDS, 'volser', 'volsers']);
+
+const BASIC_FIELDS = new Set([
+  ...MINIMAL_NON_SMS_FIELDS,
+  'recfm',
+  'lrecl',
+  'blksz',
+  'creationDate',
+  'referenceDate',
+  'spaceUnits',
+  'primary',
+  'secondary',
+  'usedPercent',
+  'usedExtents',
+  'multivolume',
+  'encrypted',
+]);
+
+// resourceLink is only included at full detail level
+
+/**
+ * Filter a dataset entry to include only fields appropriate for the requested detail level.
+ *
+ * - `minimal`: dsn, dsorg, dsntype, migrated; volser/volsers only for non-SMS-managed data sets
+ * - `basic`: ISPF 3.4-like — adds recfm, lrecl, blksz, dates, space, multivolume, encrypted
+ * - `full`: all fields including resourceLink, SMS classes, device type
+ *
+ * SMS-managed data sets (have storclass) and VSAM data sets (dsorg VS) omit volser/volsers
+ * in minimal since volume placement is managed by SMS. VSAM is always SMS-managed.
+ */
+export function filterDatasetFields(
+  entry: Record<string, unknown>,
+  detail: DetailLevel
+): Record<string, unknown> {
+  if (detail === 'full') return entry;
+  if (detail === 'basic') {
+    return Object.fromEntries(Object.entries(entry).filter(([k]) => BASIC_FIELDS.has(k)));
+  }
+  const isSmsManaged = !!entry.storclass || entry.dsorg === 'VS';
+  const allowed = isSmsManaged ? MINIMAL_FIELDS : MINIMAL_NON_SMS_FIELDS;
+  return Object.fromEntries(Object.entries(entry).filter(([k]) => allowed.has(k)));
+}
+
+/** The `*VSAM*` pseudo-volser returned by z/OS for VSAM data sets. */
+const VSAM_PSEUDO_VOLSER = '*VSAM*';
+
+/**
+ * Clean up VSAM pseudo-volser from a dataset entry.
+ * Replaces `volser: "*VSAM*"` with `undefined` and filters `*VSAM*` from `volsers`.
+ */
+function cleanVsamVolser(entry: Record<string, unknown>): Record<string, unknown> {
+  const result = { ...entry };
+  if (result.volser === VSAM_PSEUDO_VOLSER) {
+    delete result.volser;
+  }
+  if (Array.isArray(result.volsers)) {
+    const cleaned = (result.volsers as string[]).filter(v => v !== VSAM_PSEUDO_VOLSER);
+    if (cleaned.length === 0) {
+      delete result.volsers;
+    } else {
+      result.volsers = cleaned;
+    }
+  }
+  return result;
+}
+
 /** Format an error for LLM consumption. */
 function errorResult(message: string) {
   return {
@@ -205,7 +279,7 @@ export function registerDatasetTools(
     {
       description: withPaginationNote(
         'List data sets matching a DSLEVEL pattern. ' +
-          'Set attributes to false for names-only (default true includes dsorg, recfm, lrecl, etc.). ' +
+          'Use the detail parameter to control response verbosity (minimal, basic, full). ' +
           dslevelDescription,
         PAGINATION_NOTE_LIST
       ),
@@ -235,24 +309,27 @@ export function registerDatasetTools(
           .max(1000)
           .optional()
           .describe('Maximum number of items to return. Default: 500. Max: 1000.'),
-        attributes: z
-          .boolean()
+        detail: z
+          .enum(['minimal', 'basic', 'full'])
           .optional()
-          .default(true)
+          .default('basic')
           .describe(
-            'When true (default), include data set attributes (dsorg, recfm, lrecl, blksz, volser, creationDate). When false, return only data set names.'
+            'Level of detail for each data set entry. ' +
+              'minimal: dsn, dsorg, dsntype, migrated; volser only for non-SMS data sets (for navigation). ' +
+              'basic (default): adds recfm, lrecl, blksz, dates, space, volser (like ISPF 3.4). ' +
+              'full: all attributes including resourceLink, SMS classes, device type.'
           ),
       },
     },
-    async ({ dsnPattern, system, volser, offset, limit, attributes }, extra) => {
+    async ({ dsnPattern, system, volser, offset, limit, detail }, extra) => {
       const range = formatListProgressRange(offset, limit, DEFAULT_LIST_LIMIT);
       const title = range
         ? `List data sets matching ${dsnPattern} ${range}`
         : `List data sets matching ${dsnPattern}`;
       const progress = createToolProgress(extra, title);
       await progress.start();
-      const wantAttrs = attributes ?? true;
-      log.info('listDatasets called', { dsnPattern, system, volser, offset, limit, attributes });
+      const effectiveDetail: DetailLevel = detail ?? 'basic';
+      log.info('listDatasets called', { dsnPattern, system, volser, offset, limit, detail });
 
       try {
         const { systemId, userId: resolvedUserId } = resolveSystemForTool(
@@ -278,7 +355,6 @@ export function registerDatasetTools(
                 userId: userId ?? '',
                 pattern: resolvedPattern,
                 volser: volser ?? '',
-                attributes: wantAttrs ? 'true' : 'false',
               }),
               () =>
                 deps.backend.listDatasets(
@@ -286,7 +362,7 @@ export function registerDatasetTools(
                   resolvedPattern,
                   volser,
                   userId,
-                  wantAttrs,
+                  true,
                   progressCb
                 ),
               [buildScopeSystem(systemId)]
@@ -296,26 +372,41 @@ export function registerDatasetTools(
               resolvedPattern,
               volser,
               userId,
-              wantAttrs,
+              true,
               progressCb
             );
 
-        // Add resource links; output DSN as fully qualified (no quotes)
-        const enriched = datasets.map((ds: DatasetEntry) => ({
-          ...ds,
-          dsn: formatResolved(ds.dsn),
-          resourceLink: buildDsUri(systemId, ds.dsn, undefined, ds.volser),
-        }));
+        // Enrich: default migrated, add resource links, clean VSAM pseudo-volser
+        const enriched = datasets.map((ds: DatasetEntry) => {
+          const smsOrVsam = !!ds.storclass || ds.dsorg === 'VS';
+          const base: Record<string, unknown> = {
+            ...ds,
+            dsn: formatResolved(ds.dsn),
+            migrated: ds.migrated ?? false,
+            resourceLink: buildDsUri(
+              systemId,
+              ds.dsn,
+              undefined,
+              smsOrVsam ? undefined : ds.volser
+            ),
+          };
+          return cleanVsamVolser(base);
+        });
 
         // Paginate
         const { data, meta } = paginateList(enriched, offset ?? 0, limit ?? DEFAULT_LIST_LIMIT);
+
+        // Apply detail-level field filtering
+        const filtered = data.map(entry =>
+          filterDatasetFields(entry as unknown as Record<string, unknown>, effectiveDetail)
+        );
 
         const ctx = buildContext(systemId, {
           resolvedPattern: resolvedOnlyIfDifferent(resolvedPattern, dsnPattern),
         });
 
         await progress.complete(`${meta.count} data sets`);
-        return wrapResponse(ctx, meta, data, getListMessages(meta));
+        return wrapResponse(ctx, meta, filtered, getListMessages(meta));
       } catch (err) {
         await progress.complete((err as Error).message);
         return errorResult((err as Error).message);

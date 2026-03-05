@@ -332,7 +332,7 @@ describe('Response cache', () => {
     const scope = buildScopeSystem('cache-test.example.com');
     let fetchCount = 0;
     const key =
-      'listDatasets\x01{"attributes":"true","pattern":"TESTUSER.*","systemId":"cache-test.example.com","userId":"TESTUSER","volser":""}';
+      'listDatasets\x01{"pattern":"TESTUSER.*","systemId":"cache-test.example.com","userId":"TESTUSER","volser":""}';
 
     const v1 = await cache.getOrFetch(key, () => {
       fetchCount++;

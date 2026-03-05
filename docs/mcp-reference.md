@@ -2,9 +2,9 @@
 
 # Zowe MCP Server Reference
 
-> Auto-generated from the MCP server (v0.6.0-dev, commit a9e2247). Do not edit manually — run `npx zowe-mcp-server generate-docs` to regenerate.
+> Auto-generated from the MCP server (v0.6.0-dev, commit 991e458). Do not edit manually — run `npx zowe-mcp-server generate-docs` to regenerate.
 
-This document describes all tools, prompts, resources, and resource templates provided by the Zowe MCP Server.
+This document describes all [Tools](#tools), [Prompts](#prompts), [Resource Templates](#resource-templates) provided by the Zowe MCP Server.
 
 ## Tools
 
@@ -74,6 +74,8 @@ Provides information about the Zowe MCP server, its version, and backend connect
 
 *No parameter.*
 
+<a id="info-output-schema"></a>
+
 #### Output Schema
 
 | Field | Type | Required | Description |
@@ -115,6 +117,8 @@ List all z/OS systems you have access to. Each system is a host; multiple config
 #### Parameters
 
 *No parameter.*
+
+<a id="listsystems-output-schema"></a>
 
 #### Output Schema
 
@@ -162,6 +166,8 @@ Set the active z/OS system. The system parameter can be a host (e.g. zos.example
 | `mainframeMvsEncoding` | `string` \| `null` | No | MVS/data set encoding (EBCDIC) for this system. Omit to leave unchanged; pass null to use MCP server default. |
 | `mainframeUssEncoding` | `string` \| `null` | No | Mainframe USS encoding (EBCDIC) for this system. Omit to leave unchanged; pass null to use MCP server default. |
 
+<a id="setsystem-output-schema"></a>
+
 #### Output Schema
 
 | Field | Type | Required | Description |
@@ -205,6 +211,8 @@ Return the current session context: active system, active connection (user@host)
 #### Parameters
 
 *No parameter.*
+
+<a id="getcontext-output-schema"></a>
 
 #### Output Schema
 
@@ -310,6 +318,8 @@ Notes:
 | `offset` | `integer` | No | 0-based offset into the result set. Default: 0. |
 | `limit` | `integer` | No | Maximum number of items to return. Default: 500. Max: 1000. |
 | `attributes` | `boolean` | No | When true (default), include data set attributes (dsorg, recfm, lrecl, blksz, volser, creationDate). When false, return only data set names. (default: `true`) |
+
+<a id="listdatasets-output-schema"></a>
 
 #### Output Schema
 
@@ -479,23 +489,14 @@ Results are paginated (default 500, max 1000 per page); follow the pagination in
 | `offset` | `integer` | No | 0-based offset into the result set. Default: 0. |
 | `limit` | `integer` | No | Maximum number of items to return. Default: 500. Max: 1000. |
 
+<a id="listmembers-output-schema"></a>
+
 #### Output Schema
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. |
-| &ensp;├─ `system` | `string` | Yes | Resolved z/OS system hostname (target of the operation). |
-| &ensp;├─ `resolvedPattern` | `string` | No | Normalized list pattern (uppercase, no quotes). Present only when input was quoted or lowercase. |
-| &ensp;├─ `resolvedDsn` | `string` | No | Normalized data set name (uppercase, no quotes). Present only when input was quoted or lowercase. |
-| &ensp;├─ `resolvedTargetDsn` | `string` | No | Normalized target data set name for copy/rename. Present only when input differed from resolved value. |
-| &ensp;├─ `resolvedPath` | `string` | No | Resolved USS path when normalization changed the input (USS tools). |
-| &ensp;├─ `currentDirectory` | `string` | No | USS current working directory in display form (USS list tools). |
-| &ensp;└─ `listedDirectory` | `string` | No | USS directory that was listed (listUssFiles). |
-| `_result` | `object` | Yes | Result metadata (pagination, line window, or success). |
-| &ensp;├─ `count` | `number` | Yes | Number of items returned in this page. |
-| &ensp;├─ `totalAvailable` | `number` | Yes | Total matching items before pagination. |
-| &ensp;├─ `offset` | `number` | Yes | 0-based offset of the first item in this page. |
-| &ensp;└─ `hasMore` | `boolean` | Yes | True if more items exist. Call the tool again with offset = offset + count and the same limit to fetch the next page. |
+| `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. *(same as [`listDatasets`](#listdatasets-output-schema))* |
+| `_result` | `object` | Yes | Result metadata (pagination, line window, or success). *(same as [`listDatasets`](#listdatasets-output-schema))* |
 | `messages` | `string`[] | Yes | Operational messages: pagination hints (e.g. call again with offset/limit), resolution notes, or allocation messages. |
 | `data` | `object`[] | Yes | Array of PDS/PDSE member entries. Each entry has the member name (up to 8 characters, uppercase). |
 | &ensp;└─ `member` | `string` | Yes | PDS/PDSE member name (up to 8 characters, uppercase). |
@@ -616,18 +617,13 @@ Results are paginated (default 500, max 1000 per page); follow the pagination in
 | `doNotProcessComments` | `string`[] | No | Comment types to exclude from search: asterisk, cobolComment, fortran, cpp, pli, pascal, pcAssembly, ada (case-insensitive). |
 | `includeContextLines` | `boolean` | No | When true, include ±6 lines of context (beforeContext/afterContext) around each match via SuperC LPSF. Only effective with the native ZNP backend; ignored by the fallback grep path. Default: false. |
 
+<a id="searchindataset-output-schema"></a>
+
 #### Output Schema
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. |
-| &ensp;├─ `system` | `string` | Yes | Resolved z/OS system hostname (target of the operation). |
-| &ensp;├─ `resolvedPattern` | `string` | No | Normalized list pattern (uppercase, no quotes). Present only when input was quoted or lowercase. |
-| &ensp;├─ `resolvedDsn` | `string` | No | Normalized data set name (uppercase, no quotes). Present only when input was quoted or lowercase. |
-| &ensp;├─ `resolvedTargetDsn` | `string` | No | Normalized target data set name for copy/rename. Present only when input differed from resolved value. |
-| &ensp;├─ `resolvedPath` | `string` | No | Resolved USS path when normalization changed the input (USS tools). |
-| &ensp;├─ `currentDirectory` | `string` | No | USS current working directory in display form (USS list tools). |
-| &ensp;└─ `listedDirectory` | `string` | No | USS directory that was listed (listUssFiles). |
+| `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. *(same as [`listDatasets`](#listdatasets-output-schema))* |
 | `_result` | `object` | Yes | Result metadata (pagination, line window, or success). |
 | &ensp;├─ `count` | `number` | Yes | Number of members returned in this page. |
 | &ensp;├─ `totalAvailable` | `number` | Yes | Total members with matches (before pagination). |
@@ -796,18 +792,13 @@ Get detailed attributes of a data set: organization, record format, record lengt
 | `dsn` | `string` | Yes | Fully qualified data set name (e.g. USER.SRC.COBOL). |
 | `system` | `string` | No | Target z/OS system: host (e.g. sys1.example.com) or connection spec (user@host) when multiple connections exist for that host. Defaults to active system. |
 
+<a id="getdatasetattributes-output-schema"></a>
+
 #### Output Schema
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. |
-| &ensp;├─ `system` | `string` | Yes | Resolved z/OS system hostname (target of the operation). |
-| &ensp;├─ `resolvedPattern` | `string` | No | Normalized list pattern (uppercase, no quotes). Present only when input was quoted or lowercase. |
-| &ensp;├─ `resolvedDsn` | `string` | No | Normalized data set name (uppercase, no quotes). Present only when input was quoted or lowercase. |
-| &ensp;├─ `resolvedTargetDsn` | `string` | No | Normalized target data set name for copy/rename. Present only when input differed from resolved value. |
-| &ensp;├─ `resolvedPath` | `string` | No | Resolved USS path when normalization changed the input (USS tools). |
-| &ensp;├─ `currentDirectory` | `string` | No | USS current working directory in display form (USS list tools). |
-| &ensp;└─ `listedDirectory` | `string` | No | USS directory that was listed (listUssFiles). |
+| `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. *(same as [`listDatasets`](#listdatasets-output-schema))* |
 | `messages` | `string`[] | Yes | Operational messages: pagination hints (e.g. call again with offset/limit), resolution notes, or allocation messages. |
 | `data` | `object` | Yes |  |
 | &ensp;├─ `dsn` | `string` | Yes | Fully qualified data set name. |
@@ -885,18 +876,13 @@ Results may be line-windowed; follow the pagination instructions in the server i
 | `startLine` | `integer` | No | 1-based starting line number for random access — use this to jump directly to any line without reading from the beginning. Default: 1. |
 | `lineCount` | `integer` | No | Number of lines to return from startLine. Use with startLine to read an exact range (e.g. startLine: 20, lineCount: 10 for lines 20–29). Default: all remaining lines up to the auto-truncation limit. |
 
+<a id="readdataset-output-schema"></a>
+
 #### Output Schema
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. |
-| &ensp;├─ `system` | `string` | Yes | Resolved z/OS system hostname (target of the operation). |
-| &ensp;├─ `resolvedPattern` | `string` | No | Normalized list pattern (uppercase, no quotes). Present only when input was quoted or lowercase. |
-| &ensp;├─ `resolvedDsn` | `string` | No | Normalized data set name (uppercase, no quotes). Present only when input was quoted or lowercase. |
-| &ensp;├─ `resolvedTargetDsn` | `string` | No | Normalized target data set name for copy/rename. Present only when input differed from resolved value. |
-| &ensp;├─ `resolvedPath` | `string` | No | Resolved USS path when normalization changed the input (USS tools). |
-| &ensp;├─ `currentDirectory` | `string` | No | USS current working directory in display form (USS list tools). |
-| &ensp;└─ `listedDirectory` | `string` | No | USS directory that was listed (listUssFiles). |
+| `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. *(same as [`listDatasets`](#listdatasets-output-schema))* |
 | `_result` | `object` | Yes | Result metadata (pagination, line window, or success). |
 | &ensp;├─ `totalLines` | `number` | Yes | Total number of lines in the full content. |
 | &ensp;├─ `startLine` | `number` | Yes | 1-based line number of the first line returned in this window. |
@@ -1031,7 +1017,7 @@ Output:
       "       ENVIRONMENT DIVISION.",
       "       CONFIGURATION SECTION."
     ],
-    "etag": "35c44bfb5a5ffc004ea035e28b4d8489",
+    "etag": "589931e19e5173c16ccbea2e4ed84793",
     "encoding": "IBM-037"
   }
 }
@@ -1057,18 +1043,13 @@ Write UTF-8 content to a sequential data set or PDS/PDSE member. When startLine 
 | `startLine` | `number` | No | 1-based first line of the block to replace; use with endLine to replace a range (content line count can differ). |
 | `endLine` | `number` | No | 1-based last line of the block to replace (inclusive). When provided with startLine, the replaced block can grow or shrink to match the number of lines in the lines array. |
 
+<a id="writedataset-output-schema"></a>
+
 #### Output Schema
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. |
-| &ensp;├─ `system` | `string` | Yes | Resolved z/OS system hostname (target of the operation). |
-| &ensp;├─ `resolvedPattern` | `string` | No | Normalized list pattern (uppercase, no quotes). Present only when input was quoted or lowercase. |
-| &ensp;├─ `resolvedDsn` | `string` | No | Normalized data set name (uppercase, no quotes). Present only when input was quoted or lowercase. |
-| &ensp;├─ `resolvedTargetDsn` | `string` | No | Normalized target data set name for copy/rename. Present only when input differed from resolved value. |
-| &ensp;├─ `resolvedPath` | `string` | No | Resolved USS path when normalization changed the input (USS tools). |
-| &ensp;├─ `currentDirectory` | `string` | No | USS current working directory in display form (USS list tools). |
-| &ensp;└─ `listedDirectory` | `string` | No | USS directory that was listed (listUssFiles). |
+| `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. *(same as [`listDatasets`](#listdatasets-output-schema))* |
 | `_result` | `object` | Yes | Result metadata (pagination, line window, or success). |
 | &ensp;└─ `success` | `boolean` | Yes | True when the operation completed successfully. |
 | `messages` | `string`[] | Yes | Operational messages: pagination hints (e.g. call again with offset/limit), resolution notes, or allocation messages. |
@@ -1091,20 +1072,14 @@ Return a unique DSN prefix (HLQ) under which temporary data sets can be created.
 | `suffix` | `string` | No | Optional suffix qualifier (last part of the generated prefix). |
 | `system` | `string` | No | Target z/OS system: fully qualified or unqualified hostname. Defaults to the active system. |
 
+<a id="gettempdatasetprefix-output-schema"></a>
+
 #### Output Schema
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. |
-| &ensp;├─ `system` | `string` | Yes | Resolved z/OS system hostname (target of the operation). |
-| &ensp;├─ `resolvedPattern` | `string` | No | Normalized list pattern (uppercase, no quotes). Present only when input was quoted or lowercase. |
-| &ensp;├─ `resolvedDsn` | `string` | No | Normalized data set name (uppercase, no quotes). Present only when input was quoted or lowercase. |
-| &ensp;├─ `resolvedTargetDsn` | `string` | No | Normalized target data set name for copy/rename. Present only when input differed from resolved value. |
-| &ensp;├─ `resolvedPath` | `string` | No | Resolved USS path when normalization changed the input (USS tools). |
-| &ensp;├─ `currentDirectory` | `string` | No | USS current working directory in display form (USS list tools). |
-| &ensp;└─ `listedDirectory` | `string` | No | USS directory that was listed (listUssFiles). |
-| `_result` | `object` | Yes | Result metadata (pagination, line window, or success). |
-| &ensp;└─ `success` | `boolean` | Yes | True when the operation completed successfully. |
+| `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. *(same as [`listDatasets`](#listdatasets-output-schema))* |
+| `_result` | `object` | Yes | Result metadata (pagination, line window, or success). *(same as [`writeDataset`](#writedataset-output-schema))* |
 | `messages` | `string`[] | Yes | Operational messages: pagination hints (e.g. call again with offset/limit), resolution notes, or allocation messages. |
 | `data` | `object` | Yes |  |
 | &ensp;└─ `tempDsnPrefix` | `string` | Yes | Unique HLQ prefix under which to create temporary data sets (e.g. USER.TMP.XXXXXXXX.YYYYYYYY). Verified not to exist on the system. |
@@ -1121,7 +1096,7 @@ Return a unique DSN prefix (HLQ) under which temporary data sets can be created.
   },
   "messages": [],
   "data": {
-    "tempDsnPrefix": "USER.TMP.FGQ420W4.FBG9VOBQ"
+    "tempDsnPrefix": "USER.TMP.OZVZOROK.RH3Q2SA0"
   }
 }
 ```
@@ -1143,20 +1118,14 @@ Returns a single unique full temporary data set name (for one data set). The DSN
 | `qualifier` | `string` | No | Last qualifier for the DSN (e.g. DATA, 1–8 chars). If omitted, a unique qualifier is generated. |
 | `system` | `string` | No | Target z/OS system: fully qualified or unqualified hostname. Defaults to the active system. |
 
+<a id="gettempdatasetname-output-schema"></a>
+
 #### Output Schema
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. |
-| &ensp;├─ `system` | `string` | Yes | Resolved z/OS system hostname (target of the operation). |
-| &ensp;├─ `resolvedPattern` | `string` | No | Normalized list pattern (uppercase, no quotes). Present only when input was quoted or lowercase. |
-| &ensp;├─ `resolvedDsn` | `string` | No | Normalized data set name (uppercase, no quotes). Present only when input was quoted or lowercase. |
-| &ensp;├─ `resolvedTargetDsn` | `string` | No | Normalized target data set name for copy/rename. Present only when input differed from resolved value. |
-| &ensp;├─ `resolvedPath` | `string` | No | Resolved USS path when normalization changed the input (USS tools). |
-| &ensp;├─ `currentDirectory` | `string` | No | USS current working directory in display form (USS list tools). |
-| &ensp;└─ `listedDirectory` | `string` | No | USS directory that was listed (listUssFiles). |
-| `_result` | `object` | Yes | Result metadata (pagination, line window, or success). |
-| &ensp;└─ `success` | `boolean` | Yes | True when the operation completed successfully. |
+| `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. *(same as [`listDatasets`](#listdatasets-output-schema))* |
+| `_result` | `object` | Yes | Result metadata (pagination, line window, or success). *(same as [`writeDataset`](#writedataset-output-schema))* |
 | `messages` | `string`[] | Yes | Operational messages: pagination hints (e.g. call again with offset/limit), resolution notes, or allocation messages. |
 | `data` | `object` | Yes |  |
 | &ensp;└─ `tempDsn` | `string` | Yes | Unique full temporary data set name. Verified not to exist on the system; use for a single createDataset call. |
@@ -1173,7 +1142,7 @@ Returns a single unique full temporary data set name (for one data set). The DSN
   },
   "messages": [],
   "data": {
-    "tempDsn": "USER.TMP.MGG67WSU.I0KK2IST.IB1QPG9D"
+    "tempDsn": "USER.TMP.ZQGCL5M3.S09JROL9.ZXM053OW"
   }
 }
 ```
@@ -1203,20 +1172,14 @@ Create a new sequential or partitioned data set. Specify the type (PS/SEQUENTIAL
 | `storageClass` | `string` | No | SMS Storage Class for allocation (e.g. SCLAS01). |
 | `managementClass` | `string` | No | SMS Management Class for allocation (e.g. MCLAS01). |
 
+<a id="createdataset-output-schema"></a>
+
 #### Output Schema
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. |
-| &ensp;├─ `system` | `string` | Yes | Resolved z/OS system hostname (target of the operation). |
-| &ensp;├─ `resolvedPattern` | `string` | No | Normalized list pattern (uppercase, no quotes). Present only when input was quoted or lowercase. |
-| &ensp;├─ `resolvedDsn` | `string` | No | Normalized data set name (uppercase, no quotes). Present only when input was quoted or lowercase. |
-| &ensp;├─ `resolvedTargetDsn` | `string` | No | Normalized target data set name for copy/rename. Present only when input differed from resolved value. |
-| &ensp;├─ `resolvedPath` | `string` | No | Resolved USS path when normalization changed the input (USS tools). |
-| &ensp;├─ `currentDirectory` | `string` | No | USS current working directory in display form (USS list tools). |
-| &ensp;└─ `listedDirectory` | `string` | No | USS directory that was listed (listUssFiles). |
-| `_result` | `object` | Yes | Result metadata (pagination, line window, or success). |
-| &ensp;└─ `success` | `boolean` | Yes | True when the operation completed successfully. |
+| `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. *(same as [`listDatasets`](#listdatasets-output-schema))* |
+| `_result` | `object` | Yes | Result metadata (pagination, line window, or success). *(same as [`writeDataset`](#writedataset-output-schema))* |
 | `messages` | `string`[] | Yes | Operational messages: pagination hints (e.g. call again with offset/limit), resolution notes, or allocation messages. |
 | `data` | `object` | Yes |  |
 | &ensp;├─ `dsn` | `string` | Yes | Fully qualified name of the created data set. |
@@ -1246,25 +1209,16 @@ Creates a new data set with a unique temporary name in a single call. Returns th
 | `secondarySpace` | `number` | No | Secondary space allocation in tracks (additional space allocated when primary is full). |
 | `dirblk` | `number` | No | Directory Blocks (DIRBLK) — number of 256-byte directory blocks (PDS only). |
 
+<a id="createtempdataset-output-schema"></a>
+
 #### Output Schema
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. |
-| &ensp;├─ `system` | `string` | Yes | Resolved z/OS system hostname (target of the operation). |
-| &ensp;├─ `resolvedPattern` | `string` | No | Normalized list pattern (uppercase, no quotes). Present only when input was quoted or lowercase. |
-| &ensp;├─ `resolvedDsn` | `string` | No | Normalized data set name (uppercase, no quotes). Present only when input was quoted or lowercase. |
-| &ensp;├─ `resolvedTargetDsn` | `string` | No | Normalized target data set name for copy/rename. Present only when input differed from resolved value. |
-| &ensp;├─ `resolvedPath` | `string` | No | Resolved USS path when normalization changed the input (USS tools). |
-| &ensp;├─ `currentDirectory` | `string` | No | USS current working directory in display form (USS list tools). |
-| &ensp;└─ `listedDirectory` | `string` | No | USS directory that was listed (listUssFiles). |
-| `_result` | `object` | Yes | Result metadata (pagination, line window, or success). |
-| &ensp;└─ `success` | `boolean` | Yes | True when the operation completed successfully. |
+| `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. *(same as [`listDatasets`](#listdatasets-output-schema))* |
+| `_result` | `object` | Yes | Result metadata (pagination, line window, or success). *(same as [`writeDataset`](#writedataset-output-schema))* |
 | `messages` | `string`[] | Yes | Operational messages: pagination hints (e.g. call again with offset/limit), resolution notes, or allocation messages. |
-| `data` | `object` | Yes |  |
-| &ensp;├─ `dsn` | `string` | Yes | Fully qualified name of the created data set. |
-| &ensp;├─ `type` | `string` | Yes | Data set type created: PS (sequential), PO (PDS), PO-E (PDSE). |
-| &ensp;└─ `allocation` | `object` | No | Allocation result when the backend returns it. |
+| `data` | `object` | Yes |  *(same as [`createDataset`](#createdataset-output-schema))* |
 
 ---
 
@@ -1282,20 +1236,14 @@ Delete a data set or a specific PDS/PDSE member. You may pass dsn as USER.LIB(ME
 | `member` | `string` | No | Member name to delete (if omitting, the entire data set is deleted). |
 | `system` | `string` | No | Target z/OS system: host (e.g. sys1.example.com) or connection spec (user@host) when multiple connections exist for that host. Defaults to active system. |
 
+<a id="deletedataset-output-schema"></a>
+
 #### Output Schema
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. |
-| &ensp;├─ `system` | `string` | Yes | Resolved z/OS system hostname (target of the operation). |
-| &ensp;├─ `resolvedPattern` | `string` | No | Normalized list pattern (uppercase, no quotes). Present only when input was quoted or lowercase. |
-| &ensp;├─ `resolvedDsn` | `string` | No | Normalized data set name (uppercase, no quotes). Present only when input was quoted or lowercase. |
-| &ensp;├─ `resolvedTargetDsn` | `string` | No | Normalized target data set name for copy/rename. Present only when input differed from resolved value. |
-| &ensp;├─ `resolvedPath` | `string` | No | Resolved USS path when normalization changed the input (USS tools). |
-| &ensp;├─ `currentDirectory` | `string` | No | USS current working directory in display form (USS list tools). |
-| &ensp;└─ `listedDirectory` | `string` | No | USS directory that was listed (listUssFiles). |
-| `_result` | `object` | Yes | Result metadata (pagination, line window, or success). |
-| &ensp;└─ `success` | `boolean` | Yes | True when the operation completed successfully. |
+| `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. *(same as [`listDatasets`](#listdatasets-output-schema))* |
+| `_result` | `object` | Yes | Result metadata (pagination, line window, or success). *(same as [`writeDataset`](#writedataset-output-schema))* |
 | `messages` | `string`[] | Yes | Operational messages: pagination hints (e.g. call again with offset/limit), resolution notes, or allocation messages. |
 | `data` | `object` | Yes |  |
 | &ensp;└─ `deletedDsn` | `string` | Yes | Fully qualified name of the deleted data set or member (e.g. USER.PDS(MEM) for a member). |
@@ -1315,20 +1263,14 @@ Delete all data sets whose names start with the given prefix (e.g. tempDsnPrefix
 | `dsnPrefix` | `string` | Yes | Fully qualified prefix (e.g. USER.TMP.A1B2C3D4.E5F6G7H8). All data sets matching this prefix will be deleted. Must have at least 3 qualifiers and contain TMP. |
 | `system` | `string` | No | Target z/OS system: fully qualified or unqualified hostname. Defaults to the active system. |
 
+<a id="deletedatasetsunderprefix-output-schema"></a>
+
 #### Output Schema
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. |
-| &ensp;├─ `system` | `string` | Yes | Resolved z/OS system hostname (target of the operation). |
-| &ensp;├─ `resolvedPattern` | `string` | No | Normalized list pattern (uppercase, no quotes). Present only when input was quoted or lowercase. |
-| &ensp;├─ `resolvedDsn` | `string` | No | Normalized data set name (uppercase, no quotes). Present only when input was quoted or lowercase. |
-| &ensp;├─ `resolvedTargetDsn` | `string` | No | Normalized target data set name for copy/rename. Present only when input differed from resolved value. |
-| &ensp;├─ `resolvedPath` | `string` | No | Resolved USS path when normalization changed the input (USS tools). |
-| &ensp;├─ `currentDirectory` | `string` | No | USS current working directory in display form (USS list tools). |
-| &ensp;└─ `listedDirectory` | `string` | No | USS directory that was listed (listUssFiles). |
-| `_result` | `object` | Yes | Result metadata (pagination, line window, or success). |
-| &ensp;└─ `success` | `boolean` | Yes | True when the operation completed successfully. |
+| `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. *(same as [`listDatasets`](#listdatasets-output-schema))* |
+| `_result` | `object` | Yes | Result metadata (pagination, line window, or success). *(same as [`writeDataset`](#writedataset-output-schema))* |
 | `messages` | `string`[] | Yes | Operational messages: pagination hints (e.g. call again with offset/limit), resolution notes, or allocation messages. |
 | `data` | `object` | Yes |  |
 | &ensp;├─ `deleted` | `string`[] | Yes | List of fully qualified data set names that were deleted. |
@@ -1351,20 +1293,14 @@ Copy a data set or PDS/PDSE member within a single z/OS system. You may pass sou
 | `targetMember` | `string` | No | Target member name (defaults to source member name). |
 | `system` | `string` | No | Target z/OS system: host (e.g. sys1.example.com) or connection spec (user@host) when multiple connections exist for that host. Defaults to active system. |
 
+<a id="copydataset-output-schema"></a>
+
 #### Output Schema
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. |
-| &ensp;├─ `system` | `string` | Yes | Resolved z/OS system hostname (target of the operation). |
-| &ensp;├─ `resolvedPattern` | `string` | No | Normalized list pattern (uppercase, no quotes). Present only when input was quoted or lowercase. |
-| &ensp;├─ `resolvedDsn` | `string` | No | Normalized data set name (uppercase, no quotes). Present only when input was quoted or lowercase. |
-| &ensp;├─ `resolvedTargetDsn` | `string` | No | Normalized target data set name for copy/rename. Present only when input differed from resolved value. |
-| &ensp;├─ `resolvedPath` | `string` | No | Resolved USS path when normalization changed the input (USS tools). |
-| &ensp;├─ `currentDirectory` | `string` | No | USS current working directory in display form (USS list tools). |
-| &ensp;└─ `listedDirectory` | `string` | No | USS directory that was listed (listUssFiles). |
-| `_result` | `object` | Yes | Result metadata (pagination, line window, or success). |
-| &ensp;└─ `success` | `boolean` | Yes | True when the operation completed successfully. |
+| `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. *(same as [`listDatasets`](#listdatasets-output-schema))* |
+| `_result` | `object` | Yes | Result metadata (pagination, line window, or success). *(same as [`writeDataset`](#writedataset-output-schema))* |
 | `messages` | `string`[] | Yes | Operational messages: pagination hints (e.g. call again with offset/limit), resolution notes, or allocation messages. |
 | `data` | `object` | Yes |  |
 | &ensp;├─ `sourceDsn` | `string` | Yes | Fully qualified source data set (or member) that was copied. |
@@ -1387,20 +1323,14 @@ Rename a data set or PDS/PDSE member. You may pass dsn as USER.LIB(MEM) and omit
 | `newMember` | `string` | No | New member name. |
 | `system` | `string` | No | Target z/OS system: host (e.g. sys1.example.com) or connection spec (user@host) when multiple connections exist for that host. Defaults to active system. |
 
+<a id="renamedataset-output-schema"></a>
+
 #### Output Schema
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. |
-| &ensp;├─ `system` | `string` | Yes | Resolved z/OS system hostname (target of the operation). |
-| &ensp;├─ `resolvedPattern` | `string` | No | Normalized list pattern (uppercase, no quotes). Present only when input was quoted or lowercase. |
-| &ensp;├─ `resolvedDsn` | `string` | No | Normalized data set name (uppercase, no quotes). Present only when input was quoted or lowercase. |
-| &ensp;├─ `resolvedTargetDsn` | `string` | No | Normalized target data set name for copy/rename. Present only when input differed from resolved value. |
-| &ensp;├─ `resolvedPath` | `string` | No | Resolved USS path when normalization changed the input (USS tools). |
-| &ensp;├─ `currentDirectory` | `string` | No | USS current working directory in display form (USS list tools). |
-| &ensp;└─ `listedDirectory` | `string` | No | USS directory that was listed (listUssFiles). |
-| `_result` | `object` | Yes | Result metadata (pagination, line window, or success). |
-| &ensp;└─ `success` | `boolean` | Yes | True when the operation completed successfully. |
+| `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. *(same as [`listDatasets`](#listdatasets-output-schema))* |
+| `_result` | `object` | Yes | Result metadata (pagination, line window, or success). *(same as [`writeDataset`](#writedataset-output-schema))* |
 | `messages` | `string`[] | Yes | Operational messages: pagination hints (e.g. call again with offset/limit), resolution notes, or allocation messages. |
 | `data` | `object` | Yes |  |
 | &ensp;├─ `oldName` | `string` | Yes | Fully qualified name before the rename (data set or member). |
@@ -1420,20 +1350,14 @@ Restore (recall) a migrated data set from HSM. Use this when a data set shows as
 | `dsn` | `string` | Yes | Fully qualified data set name (e.g. USER.ARCHIVE.DATA). |
 | `system` | `string` | No | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system. |
 
+<a id="restoredataset-output-schema"></a>
+
 #### Output Schema
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. |
-| &ensp;├─ `system` | `string` | Yes | Resolved z/OS system hostname (target of the operation). |
-| &ensp;├─ `resolvedPattern` | `string` | No | Normalized list pattern (uppercase, no quotes). Present only when input was quoted or lowercase. |
-| &ensp;├─ `resolvedDsn` | `string` | No | Normalized data set name (uppercase, no quotes). Present only when input was quoted or lowercase. |
-| &ensp;├─ `resolvedTargetDsn` | `string` | No | Normalized target data set name for copy/rename. Present only when input differed from resolved value. |
-| &ensp;├─ `resolvedPath` | `string` | No | Resolved USS path when normalization changed the input (USS tools). |
-| &ensp;├─ `currentDirectory` | `string` | No | USS current working directory in display form (USS list tools). |
-| &ensp;└─ `listedDirectory` | `string` | No | USS directory that was listed (listUssFiles). |
-| `_result` | `object` | Yes | Result metadata (pagination, line window, or success). |
-| &ensp;└─ `success` | `boolean` | Yes | True when the operation completed successfully. |
+| `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. *(same as [`listDatasets`](#listdatasets-output-schema))* |
+| `_result` | `object` | Yes | Result metadata (pagination, line window, or success). *(same as [`writeDataset`](#writedataset-output-schema))* |
 | `messages` | `string`[] | Yes | Operational messages: pagination hints (e.g. call again with offset/limit), resolution notes, or allocation messages. |
 | `data` | `object` | Yes |  |
 | &ensp;└─ `dsn` | `string` | Yes | Fully qualified data set name that was restored (recalled). |
@@ -1452,20 +1376,14 @@ Return the current user's USS home directory for the active (or specified) syste
 | --- | --- | --- | --- |
 | `system` | `string` | No | Target z/OS system: fully qualified or unqualified hostname. Defaults to the active system. |
 
+<a id="getusshome-output-schema"></a>
+
 #### Output Schema
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. |
-| &ensp;├─ `system` | `string` | Yes | Resolved z/OS system hostname (target of the operation). |
-| &ensp;├─ `resolvedPattern` | `string` | No | Normalized list pattern (uppercase, no quotes). Present only when input was quoted or lowercase. |
-| &ensp;├─ `resolvedDsn` | `string` | No | Normalized data set name (uppercase, no quotes). Present only when input was quoted or lowercase. |
-| &ensp;├─ `resolvedTargetDsn` | `string` | No | Normalized target data set name for copy/rename. Present only when input differed from resolved value. |
-| &ensp;├─ `resolvedPath` | `string` | No | Resolved USS path when normalization changed the input (USS tools). |
-| &ensp;├─ `currentDirectory` | `string` | No | USS current working directory in display form (USS list tools). |
-| &ensp;└─ `listedDirectory` | `string` | No | USS directory that was listed (listUssFiles). |
-| `_result` | `object` | Yes | Result metadata (pagination, line window, or success). |
-| &ensp;└─ `success` | `boolean` | Yes | True when the operation completed successfully. |
+| `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. *(same as [`listDatasets`](#listdatasets-output-schema))* |
+| `_result` | `object` | Yes | Result metadata (pagination, line window, or success). *(same as [`writeDataset`](#writedataset-output-schema))* |
 | `messages` | `string`[] | Yes | Operational messages: pagination hints, resolution notes, or path warnings. |
 | `data` | `object` | Yes |  |
 | &ensp;└─ `path` | `string` | Yes | USS path (absolute or relative to cwd in display form). |
@@ -1502,23 +1420,16 @@ Set the USS current working directory for the active (or specified) system. Path
 | `path` | `string` | Yes | Directory path to set as current working directory (absolute or relative to current cwd). |
 | `system` | `string` | No | Target z/OS system: fully qualified or unqualified hostname. Defaults to the active system. |
 
+<a id="changeussdirectory-output-schema"></a>
+
 #### Output Schema
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. |
-| &ensp;├─ `system` | `string` | Yes | Resolved z/OS system hostname (target of the operation). |
-| &ensp;├─ `resolvedPattern` | `string` | No | Normalized list pattern (uppercase, no quotes). Present only when input was quoted or lowercase. |
-| &ensp;├─ `resolvedDsn` | `string` | No | Normalized data set name (uppercase, no quotes). Present only when input was quoted or lowercase. |
-| &ensp;├─ `resolvedTargetDsn` | `string` | No | Normalized target data set name for copy/rename. Present only when input differed from resolved value. |
-| &ensp;├─ `resolvedPath` | `string` | No | Resolved USS path when normalization changed the input (USS tools). |
-| &ensp;├─ `currentDirectory` | `string` | No | USS current working directory in display form (USS list tools). |
-| &ensp;└─ `listedDirectory` | `string` | No | USS directory that was listed (listUssFiles). |
-| `_result` | `object` | Yes | Result metadata (pagination, line window, or success). |
-| &ensp;└─ `success` | `boolean` | Yes | True when the operation completed successfully. |
+| `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. *(same as [`listDatasets`](#listdatasets-output-schema))* |
+| `_result` | `object` | Yes | Result metadata (pagination, line window, or success). *(same as [`writeDataset`](#writedataset-output-schema))* |
 | `messages` | `string`[] | Yes | Operational messages: pagination hints, resolution notes, or path warnings. |
-| `data` | `object` | Yes |  |
-| &ensp;└─ `path` | `string` | Yes | USS path (absolute or relative to cwd in display form). |
+| `data` | `object` | Yes |  *(same as [`getUssHome`](#getusshome-output-schema))* |
 
 #### Example Output
 
@@ -1567,23 +1478,14 @@ Results are paginated (default 500, max 1000 per page); follow the pagination in
 | `offset` | `integer` | No | 0-based offset. Default: 0. |
 | `limit` | `integer` | No | Max items per page. Default: 500. Max: 1000. |
 
+<a id="listussfiles-output-schema"></a>
+
 #### Output Schema
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. |
-| &ensp;├─ `system` | `string` | Yes | Resolved z/OS system hostname (target of the operation). |
-| &ensp;├─ `resolvedPattern` | `string` | No | Normalized list pattern (uppercase, no quotes). Present only when input was quoted or lowercase. |
-| &ensp;├─ `resolvedDsn` | `string` | No | Normalized data set name (uppercase, no quotes). Present only when input was quoted or lowercase. |
-| &ensp;├─ `resolvedTargetDsn` | `string` | No | Normalized target data set name for copy/rename. Present only when input differed from resolved value. |
-| &ensp;├─ `resolvedPath` | `string` | No | Resolved USS path when normalization changed the input (USS tools). |
-| &ensp;├─ `currentDirectory` | `string` | No | USS current working directory in display form (USS list tools). |
-| &ensp;└─ `listedDirectory` | `string` | No | USS directory that was listed (listUssFiles). |
-| `_result` | `object` | Yes | Result metadata (pagination, line window, or success). |
-| &ensp;├─ `count` | `number` | Yes | Number of items returned in this page. |
-| &ensp;├─ `totalAvailable` | `number` | Yes | Total matching items before pagination. |
-| &ensp;├─ `offset` | `number` | Yes | 0-based offset of the first item in this page. |
-| &ensp;└─ `hasMore` | `boolean` | Yes | True if more items exist. Call the tool again with offset = offset + count and the same limit to fetch the next page. |
+| `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. *(same as [`listDatasets`](#listdatasets-output-schema))* |
+| `_result` | `object` | Yes | Result metadata (pagination, line window, or success). *(same as [`listDatasets`](#listdatasets-output-schema))* |
 | `messages` | `string`[] | Yes | Operational messages: pagination hints, resolution notes, or path warnings. |
 | `data` | `object`[] | Yes | Array of USS directory entries. Each entry has name, path, and optional long-format fields (links, user, group, size, filetag, mtime, mode, isDirectory). |
 | &ensp;├─ `name` | `string` | Yes | File or directory name. |
@@ -1691,25 +1593,14 @@ Results may be line-windowed; follow the pagination instructions in the server i
 | `startLine` | `integer` | No | 1-based first line to return. Default: 1. |
 | `lineCount` | `integer` | No | Number of lines to return. Omit for default window size. |
 
+<a id="readussfile-output-schema"></a>
+
 #### Output Schema
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. |
-| &ensp;├─ `system` | `string` | Yes | Resolved z/OS system hostname (target of the operation). |
-| &ensp;├─ `resolvedPattern` | `string` | No | Normalized list pattern (uppercase, no quotes). Present only when input was quoted or lowercase. |
-| &ensp;├─ `resolvedDsn` | `string` | No | Normalized data set name (uppercase, no quotes). Present only when input was quoted or lowercase. |
-| &ensp;├─ `resolvedTargetDsn` | `string` | No | Normalized target data set name for copy/rename. Present only when input differed from resolved value. |
-| &ensp;├─ `resolvedPath` | `string` | No | Resolved USS path when normalization changed the input (USS tools). |
-| &ensp;├─ `currentDirectory` | `string` | No | USS current working directory in display form (USS list tools). |
-| &ensp;└─ `listedDirectory` | `string` | No | USS directory that was listed (listUssFiles). |
-| `_result` | `object` | Yes | Result metadata (pagination, line window, or success). |
-| &ensp;├─ `totalLines` | `number` | Yes | Total number of lines in the full content. |
-| &ensp;├─ `startLine` | `number` | Yes | 1-based line number of the first line returned in this window. |
-| &ensp;├─ `returnedLines` | `number` | Yes | Number of lines in the returned window. |
-| &ensp;├─ `contentLength` | `number` | Yes | Character count of the returned text. |
-| &ensp;├─ `mimeType` | `string` | Yes | Inferred content type (e.g. text/plain, text/x-cobol, text/x-jcl). Used for display or syntax highlighting. |
-| &ensp;└─ `hasMore` | `boolean` | Yes | True if more lines exist. Call the tool again with startLine and lineCount to fetch the next window. |
+| `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. *(same as [`listDatasets`](#listdatasets-output-schema))* |
+| `_result` | `object` | Yes | Result metadata (pagination, line window, or success). *(same as [`readDataset`](#readdataset-output-schema))* |
 | `messages` | `string`[] | Yes | Operational messages: pagination hints, resolution notes, or path warnings. |
 | `data` | `object` | Yes |  |
 | &ensp;├─ `lines` | `string`[] | Yes | File content as UTF-8 array of lines; may be a line window. |
@@ -1749,7 +1640,7 @@ Output:
     "lines": [
       "Hello from USS mock. Use this file for readUssFile evals."
     ],
-    "etag": "001a14dbd287e366bf8c47ef8465ab57",
+    "etag": "0323663dba0107e4ff3555b2bb8bc8bb",
     "mimeType": "text/plain"
   }
 }
@@ -1791,25 +1682,14 @@ Results may be line-windowed; follow the pagination instructions in the server i
 | `startLine` | `integer` | No | 1-based first line of output to return. Default: 1. |
 | `lineCount` | `integer` | No | Number of lines to return. Omit for default window size. |
 
+<a id="runsafeusscommand-output-schema"></a>
+
 #### Output Schema
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. |
-| &ensp;├─ `system` | `string` | Yes | Resolved z/OS system hostname (target of the operation). |
-| &ensp;├─ `resolvedPattern` | `string` | No | Normalized list pattern (uppercase, no quotes). Present only when input was quoted or lowercase. |
-| &ensp;├─ `resolvedDsn` | `string` | No | Normalized data set name (uppercase, no quotes). Present only when input was quoted or lowercase. |
-| &ensp;├─ `resolvedTargetDsn` | `string` | No | Normalized target data set name for copy/rename. Present only when input differed from resolved value. |
-| &ensp;├─ `resolvedPath` | `string` | No | Resolved USS path when normalization changed the input (USS tools). |
-| &ensp;├─ `currentDirectory` | `string` | No | USS current working directory in display form (USS list tools). |
-| &ensp;└─ `listedDirectory` | `string` | No | USS directory that was listed (listUssFiles). |
-| `_result` | `object` | Yes | Result metadata (pagination, line window, or success). |
-| &ensp;├─ `totalLines` | `number` | Yes | Total number of lines in the full content. |
-| &ensp;├─ `startLine` | `number` | Yes | 1-based line number of the first line returned in this window. |
-| &ensp;├─ `returnedLines` | `number` | Yes | Number of lines in the returned window. |
-| &ensp;├─ `contentLength` | `number` | Yes | Character count of the returned text. |
-| &ensp;├─ `mimeType` | `string` | Yes | Inferred content type (e.g. text/plain, text/x-cobol, text/x-jcl). Used for display or syntax highlighting. |
-| &ensp;└─ `hasMore` | `boolean` | Yes | True if more lines exist. Call the tool again with startLine and lineCount to fetch the next window. |
+| `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. *(same as [`listDatasets`](#listdatasets-output-schema))* |
+| `_result` | `object` | Yes | Result metadata (pagination, line window, or success). *(same as [`readDataset`](#readdataset-output-schema))* |
 | `messages` | `string`[] | Yes | Operational messages: pagination hints, resolution notes, or path warnings. |
 | `data` | `object` | Yes |  |
 | &ensp;├─ `lines` | `string`[] | Yes | Command stdout (UTF-8) as array of lines. |
@@ -1888,20 +1768,14 @@ Write or overwrite a USS file. Creates the file if it does not exist.
 | `etag` | `string` | No | ETag for optimistic locking. |
 | `encoding` | `string` | No | Mainframe encoding. Omit for default. |
 
+<a id="writeussfile-output-schema"></a>
+
 #### Output Schema
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. |
-| &ensp;├─ `system` | `string` | Yes | Resolved z/OS system hostname (target of the operation). |
-| &ensp;├─ `resolvedPattern` | `string` | No | Normalized list pattern (uppercase, no quotes). Present only when input was quoted or lowercase. |
-| &ensp;├─ `resolvedDsn` | `string` | No | Normalized data set name (uppercase, no quotes). Present only when input was quoted or lowercase. |
-| &ensp;├─ `resolvedTargetDsn` | `string` | No | Normalized target data set name for copy/rename. Present only when input differed from resolved value. |
-| &ensp;├─ `resolvedPath` | `string` | No | Resolved USS path when normalization changed the input (USS tools). |
-| &ensp;├─ `currentDirectory` | `string` | No | USS current working directory in display form (USS list tools). |
-| &ensp;└─ `listedDirectory` | `string` | No | USS directory that was listed (listUssFiles). |
-| `_result` | `object` | Yes | Result metadata (pagination, line window, or success). |
-| &ensp;└─ `success` | `boolean` | Yes | True when the operation completed successfully. |
+| `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. *(same as [`listDatasets`](#listdatasets-output-schema))* |
+| `_result` | `object` | Yes | Result metadata (pagination, line window, or success). *(same as [`writeDataset`](#writedataset-output-schema))* |
 | `messages` | `string`[] | Yes | Operational messages: pagination hints, resolution notes, or path warnings. |
 | `data` | `object` | Yes |  |
 | &ensp;├─ `etag` | `string` | Yes | New ETag after the write. |
@@ -1923,23 +1797,16 @@ Create a USS file or directory.
 | `system` | `string` | No | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system. |
 | `permissions` | `string` | No | Octal permissions (e.g. 755). |
 
+<a id="createussfile-output-schema"></a>
+
 #### Output Schema
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. |
-| &ensp;├─ `system` | `string` | Yes | Resolved z/OS system hostname (target of the operation). |
-| &ensp;├─ `resolvedPattern` | `string` | No | Normalized list pattern (uppercase, no quotes). Present only when input was quoted or lowercase. |
-| &ensp;├─ `resolvedDsn` | `string` | No | Normalized data set name (uppercase, no quotes). Present only when input was quoted or lowercase. |
-| &ensp;├─ `resolvedTargetDsn` | `string` | No | Normalized target data set name for copy/rename. Present only when input differed from resolved value. |
-| &ensp;├─ `resolvedPath` | `string` | No | Resolved USS path when normalization changed the input (USS tools). |
-| &ensp;├─ `currentDirectory` | `string` | No | USS current working directory in display form (USS list tools). |
-| &ensp;└─ `listedDirectory` | `string` | No | USS directory that was listed (listUssFiles). |
-| `_result` | `object` | Yes | Result metadata (pagination, line window, or success). |
-| &ensp;└─ `success` | `boolean` | Yes | True when the operation completed successfully. |
+| `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. *(same as [`listDatasets`](#listdatasets-output-schema))* |
+| `_result` | `object` | Yes | Result metadata (pagination, line window, or success). *(same as [`writeDataset`](#writedataset-output-schema))* |
 | `messages` | `string`[] | Yes | Operational messages: pagination hints, resolution notes, or path warnings. |
-| `data` | `object` | Yes |  |
-| &ensp;└─ `path` | `string` | Yes | USS path (absolute or relative to cwd in display form). |
+| `data` | `object` | Yes |  *(same as [`getUssHome`](#getusshome-output-schema))* |
 
 ---
 
@@ -1957,20 +1824,14 @@ Delete a USS file or directory. Use recursive for directories.
 | `system` | `string` | No | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system. |
 | `recursive` | `boolean` | No | If true, delete directory and contents. (default: `false`) |
 
+<a id="deleteussfile-output-schema"></a>
+
 #### Output Schema
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. |
-| &ensp;├─ `system` | `string` | Yes | Resolved z/OS system hostname (target of the operation). |
-| &ensp;├─ `resolvedPattern` | `string` | No | Normalized list pattern (uppercase, no quotes). Present only when input was quoted or lowercase. |
-| &ensp;├─ `resolvedDsn` | `string` | No | Normalized data set name (uppercase, no quotes). Present only when input was quoted or lowercase. |
-| &ensp;├─ `resolvedTargetDsn` | `string` | No | Normalized target data set name for copy/rename. Present only when input differed from resolved value. |
-| &ensp;├─ `resolvedPath` | `string` | No | Resolved USS path when normalization changed the input (USS tools). |
-| &ensp;├─ `currentDirectory` | `string` | No | USS current working directory in display form (USS list tools). |
-| &ensp;└─ `listedDirectory` | `string` | No | USS directory that was listed (listUssFiles). |
-| `_result` | `object` | Yes | Result metadata (pagination, line window, or success). |
-| &ensp;└─ `success` | `boolean` | Yes | True when the operation completed successfully. |
+| `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. *(same as [`listDatasets`](#listdatasets-output-schema))* |
+| `_result` | `object` | Yes | Result metadata (pagination, line window, or success). *(same as [`writeDataset`](#writedataset-output-schema))* |
 | `messages` | `string`[] | Yes | Operational messages: pagination hints, resolution notes, or path warnings. |
 | `data` | `object` | Yes |  |
 | &ensp;└─ `deleted` | `string` | Yes | Path of the deleted file or directory (display form). |
@@ -1991,23 +1852,16 @@ Change permissions of a USS file or directory.
 | `system` | `string` | No | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system. |
 | `recursive` | `boolean` | No | Apply recursively. (default: `false`) |
 
+<a id="chmodussfile-output-schema"></a>
+
 #### Output Schema
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. |
-| &ensp;├─ `system` | `string` | Yes | Resolved z/OS system hostname (target of the operation). |
-| &ensp;├─ `resolvedPattern` | `string` | No | Normalized list pattern (uppercase, no quotes). Present only when input was quoted or lowercase. |
-| &ensp;├─ `resolvedDsn` | `string` | No | Normalized data set name (uppercase, no quotes). Present only when input was quoted or lowercase. |
-| &ensp;├─ `resolvedTargetDsn` | `string` | No | Normalized target data set name for copy/rename. Present only when input differed from resolved value. |
-| &ensp;├─ `resolvedPath` | `string` | No | Resolved USS path when normalization changed the input (USS tools). |
-| &ensp;├─ `currentDirectory` | `string` | No | USS current working directory in display form (USS list tools). |
-| &ensp;└─ `listedDirectory` | `string` | No | USS directory that was listed (listUssFiles). |
-| `_result` | `object` | Yes | Result metadata (pagination, line window, or success). |
-| &ensp;└─ `success` | `boolean` | Yes | True when the operation completed successfully. |
+| `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. *(same as [`listDatasets`](#listdatasets-output-schema))* |
+| `_result` | `object` | Yes | Result metadata (pagination, line window, or success). *(same as [`writeDataset`](#writedataset-output-schema))* |
 | `messages` | `string`[] | Yes | Operational messages: pagination hints, resolution notes, or path warnings. |
-| `data` | `object` | Yes |  |
-| &ensp;└─ `path` | `string` | Yes | USS path (absolute or relative to cwd in display form). |
+| `data` | `object` | Yes |  *(same as [`getUssHome`](#getusshome-output-schema))* |
 
 ---
 
@@ -2025,23 +1879,16 @@ Change owner of a USS file or directory.
 | `system` | `string` | No | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system. |
 | `recursive` | `boolean` | No | Apply recursively. (default: `false`) |
 
+<a id="chownussfile-output-schema"></a>
+
 #### Output Schema
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. |
-| &ensp;├─ `system` | `string` | Yes | Resolved z/OS system hostname (target of the operation). |
-| &ensp;├─ `resolvedPattern` | `string` | No | Normalized list pattern (uppercase, no quotes). Present only when input was quoted or lowercase. |
-| &ensp;├─ `resolvedDsn` | `string` | No | Normalized data set name (uppercase, no quotes). Present only when input was quoted or lowercase. |
-| &ensp;├─ `resolvedTargetDsn` | `string` | No | Normalized target data set name for copy/rename. Present only when input differed from resolved value. |
-| &ensp;├─ `resolvedPath` | `string` | No | Resolved USS path when normalization changed the input (USS tools). |
-| &ensp;├─ `currentDirectory` | `string` | No | USS current working directory in display form (USS list tools). |
-| &ensp;└─ `listedDirectory` | `string` | No | USS directory that was listed (listUssFiles). |
-| `_result` | `object` | Yes | Result metadata (pagination, line window, or success). |
-| &ensp;└─ `success` | `boolean` | Yes | True when the operation completed successfully. |
+| `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. *(same as [`listDatasets`](#listdatasets-output-schema))* |
+| `_result` | `object` | Yes | Result metadata (pagination, line window, or success). *(same as [`writeDataset`](#writedataset-output-schema))* |
 | `messages` | `string`[] | Yes | Operational messages: pagination hints, resolution notes, or path warnings. |
-| `data` | `object` | Yes |  |
-| &ensp;└─ `path` | `string` | Yes | USS path (absolute or relative to cwd in display form). |
+| `data` | `object` | Yes |  *(same as [`getUssHome`](#getusshome-output-schema))* |
 
 ---
 
@@ -2059,23 +1906,16 @@ Set the z/OS file tag (encoding/type) for a USS file or directory.
 | `system` | `string` | No | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system. |
 | `recursive` | `boolean` | No | Apply recursively. (default: `false`) |
 
+<a id="chtagussfile-output-schema"></a>
+
 #### Output Schema
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. |
-| &ensp;├─ `system` | `string` | Yes | Resolved z/OS system hostname (target of the operation). |
-| &ensp;├─ `resolvedPattern` | `string` | No | Normalized list pattern (uppercase, no quotes). Present only when input was quoted or lowercase. |
-| &ensp;├─ `resolvedDsn` | `string` | No | Normalized data set name (uppercase, no quotes). Present only when input was quoted or lowercase. |
-| &ensp;├─ `resolvedTargetDsn` | `string` | No | Normalized target data set name for copy/rename. Present only when input differed from resolved value. |
-| &ensp;├─ `resolvedPath` | `string` | No | Resolved USS path when normalization changed the input (USS tools). |
-| &ensp;├─ `currentDirectory` | `string` | No | USS current working directory in display form (USS list tools). |
-| &ensp;└─ `listedDirectory` | `string` | No | USS directory that was listed (listUssFiles). |
-| `_result` | `object` | Yes | Result metadata (pagination, line window, or success). |
-| &ensp;└─ `success` | `boolean` | Yes | True when the operation completed successfully. |
+| `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. *(same as [`listDatasets`](#listdatasets-output-schema))* |
+| `_result` | `object` | Yes | Result metadata (pagination, line window, or success). *(same as [`writeDataset`](#writedataset-output-schema))* |
 | `messages` | `string`[] | Yes | Operational messages: pagination hints, resolution notes, or path warnings. |
-| `data` | `object` | Yes |  |
-| &ensp;└─ `path` | `string` | Yes | USS path (absolute or relative to cwd in display form). |
+| `data` | `object` | Yes |  *(same as [`getUssHome`](#getusshome-output-schema))* |
 
 ---
 
@@ -2096,20 +1936,14 @@ Copy a USS file or directory on z/OS. For directories, set recursive to true. Pa
 | `force` | `boolean` | No | Replace files that cannot be opened (like cp -f). (default: `false`) |
 | `system` | `string` | No | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system. |
 
+<a id="copyussfile-output-schema"></a>
+
 #### Output Schema
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. |
-| &ensp;├─ `system` | `string` | Yes | Resolved z/OS system hostname (target of the operation). |
-| &ensp;├─ `resolvedPattern` | `string` | No | Normalized list pattern (uppercase, no quotes). Present only when input was quoted or lowercase. |
-| &ensp;├─ `resolvedDsn` | `string` | No | Normalized data set name (uppercase, no quotes). Present only when input was quoted or lowercase. |
-| &ensp;├─ `resolvedTargetDsn` | `string` | No | Normalized target data set name for copy/rename. Present only when input differed from resolved value. |
-| &ensp;├─ `resolvedPath` | `string` | No | Resolved USS path when normalization changed the input (USS tools). |
-| &ensp;├─ `currentDirectory` | `string` | No | USS current working directory in display form (USS list tools). |
-| &ensp;└─ `listedDirectory` | `string` | No | USS directory that was listed (listUssFiles). |
-| `_result` | `object` | Yes | Result metadata (pagination, line window, or success). |
-| &ensp;└─ `success` | `boolean` | Yes | True when the operation completed successfully. |
+| `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. *(same as [`listDatasets`](#listdatasets-output-schema))* |
+| `_result` | `object` | Yes | Result metadata (pagination, line window, or success). *(same as [`writeDataset`](#writedataset-output-schema))* |
 | `messages` | `string`[] | Yes | Operational messages: pagination hints, resolution notes, or path warnings. |
 | `data` | `object` | Yes |  |
 | &ensp;├─ `sourcePath` | `string` | Yes | Source USS path (display form). |
@@ -2130,23 +1964,16 @@ Return a unique USS temporary directory path under the given base path. The path
 | `basePath` | `string` | Yes | Base directory: absolute or relative to current working directory (see getContext.ussCwd). |
 | `system` | `string` | No | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system. |
 
+<a id="getusstempdir-output-schema"></a>
+
 #### Output Schema
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. |
-| &ensp;├─ `system` | `string` | Yes | Resolved z/OS system hostname (target of the operation). |
-| &ensp;├─ `resolvedPattern` | `string` | No | Normalized list pattern (uppercase, no quotes). Present only when input was quoted or lowercase. |
-| &ensp;├─ `resolvedDsn` | `string` | No | Normalized data set name (uppercase, no quotes). Present only when input was quoted or lowercase. |
-| &ensp;├─ `resolvedTargetDsn` | `string` | No | Normalized target data set name for copy/rename. Present only when input differed from resolved value. |
-| &ensp;├─ `resolvedPath` | `string` | No | Resolved USS path when normalization changed the input (USS tools). |
-| &ensp;├─ `currentDirectory` | `string` | No | USS current working directory in display form (USS list tools). |
-| &ensp;└─ `listedDirectory` | `string` | No | USS directory that was listed (listUssFiles). |
-| `_result` | `object` | Yes | Result metadata (pagination, line window, or success). |
-| &ensp;└─ `success` | `boolean` | Yes | True when the operation completed successfully. |
+| `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. *(same as [`listDatasets`](#listdatasets-output-schema))* |
+| `_result` | `object` | Yes | Result metadata (pagination, line window, or success). *(same as [`writeDataset`](#writedataset-output-schema))* |
 | `messages` | `string`[] | Yes | Operational messages: pagination hints, resolution notes, or path warnings. |
-| `data` | `object` | Yes |  |
-| &ensp;└─ `path` | `string` | Yes | USS path (absolute or relative to cwd in display form). |
+| `data` | `object` | Yes |  *(same as [`getUssHome`](#getusshome-output-schema))* |
 
 ---
 
@@ -2164,23 +1991,16 @@ Return a unique USS temporary file path under the given directory. The path is v
 | `prefix` | `string` | No | Optional filename prefix. |
 | `system` | `string` | No | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system. |
 
+<a id="getusstemppath-output-schema"></a>
+
 #### Output Schema
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. |
-| &ensp;├─ `system` | `string` | Yes | Resolved z/OS system hostname (target of the operation). |
-| &ensp;├─ `resolvedPattern` | `string` | No | Normalized list pattern (uppercase, no quotes). Present only when input was quoted or lowercase. |
-| &ensp;├─ `resolvedDsn` | `string` | No | Normalized data set name (uppercase, no quotes). Present only when input was quoted or lowercase. |
-| &ensp;├─ `resolvedTargetDsn` | `string` | No | Normalized target data set name for copy/rename. Present only when input differed from resolved value. |
-| &ensp;├─ `resolvedPath` | `string` | No | Resolved USS path when normalization changed the input (USS tools). |
-| &ensp;├─ `currentDirectory` | `string` | No | USS current working directory in display form (USS list tools). |
-| &ensp;└─ `listedDirectory` | `string` | No | USS directory that was listed (listUssFiles). |
-| `_result` | `object` | Yes | Result metadata (pagination, line window, or success). |
-| &ensp;└─ `success` | `boolean` | Yes | True when the operation completed successfully. |
+| `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. *(same as [`listDatasets`](#listdatasets-output-schema))* |
+| `_result` | `object` | Yes | Result metadata (pagination, line window, or success). *(same as [`writeDataset`](#writedataset-output-schema))* |
 | `messages` | `string`[] | Yes | Operational messages: pagination hints, resolution notes, or path warnings. |
-| `data` | `object` | Yes |  |
-| &ensp;└─ `path` | `string` | Yes | USS path (absolute or relative to cwd in display form). |
+| `data` | `object` | Yes |  *(same as [`getUssHome`](#getusshome-output-schema))* |
 
 ---
 
@@ -2197,23 +2017,16 @@ Create a temporary USS directory. Typically use a path from getUssTempDir. Creat
 | `system` | `string` | No | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system. |
 | `permissions` | `string` | No | Octal permissions (e.g. 755). |
 
+<a id="createtempussdir-output-schema"></a>
+
 #### Output Schema
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. |
-| &ensp;├─ `system` | `string` | Yes | Resolved z/OS system hostname (target of the operation). |
-| &ensp;├─ `resolvedPattern` | `string` | No | Normalized list pattern (uppercase, no quotes). Present only when input was quoted or lowercase. |
-| &ensp;├─ `resolvedDsn` | `string` | No | Normalized data set name (uppercase, no quotes). Present only when input was quoted or lowercase. |
-| &ensp;├─ `resolvedTargetDsn` | `string` | No | Normalized target data set name for copy/rename. Present only when input differed from resolved value. |
-| &ensp;├─ `resolvedPath` | `string` | No | Resolved USS path when normalization changed the input (USS tools). |
-| &ensp;├─ `currentDirectory` | `string` | No | USS current working directory in display form (USS list tools). |
-| &ensp;└─ `listedDirectory` | `string` | No | USS directory that was listed (listUssFiles). |
-| `_result` | `object` | Yes | Result metadata (pagination, line window, or success). |
-| &ensp;└─ `success` | `boolean` | Yes | True when the operation completed successfully. |
+| `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. *(same as [`listDatasets`](#listdatasets-output-schema))* |
+| `_result` | `object` | Yes | Result metadata (pagination, line window, or success). *(same as [`writeDataset`](#writedataset-output-schema))* |
 | `messages` | `string`[] | Yes | Operational messages: pagination hints, resolution notes, or path warnings. |
-| `data` | `object` | Yes |  |
-| &ensp;└─ `path` | `string` | Yes | USS path (absolute or relative to cwd in display form). |
+| `data` | `object` | Yes |  *(same as [`getUssHome`](#getusshome-output-schema))* |
 
 ---
 
@@ -2229,23 +2042,16 @@ Create an empty temporary USS file at the given path, creating parent directorie
 | `path` | `string` | Yes | USS file path: absolute or relative to current working directory (see getContext.ussCwd). |
 | `system` | `string` | No | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system. |
 
+<a id="createtempussfile-output-schema"></a>
+
 #### Output Schema
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. |
-| &ensp;├─ `system` | `string` | Yes | Resolved z/OS system hostname (target of the operation). |
-| &ensp;├─ `resolvedPattern` | `string` | No | Normalized list pattern (uppercase, no quotes). Present only when input was quoted or lowercase. |
-| &ensp;├─ `resolvedDsn` | `string` | No | Normalized data set name (uppercase, no quotes). Present only when input was quoted or lowercase. |
-| &ensp;├─ `resolvedTargetDsn` | `string` | No | Normalized target data set name for copy/rename. Present only when input differed from resolved value. |
-| &ensp;├─ `resolvedPath` | `string` | No | Resolved USS path when normalization changed the input (USS tools). |
-| &ensp;├─ `currentDirectory` | `string` | No | USS current working directory in display form (USS list tools). |
-| &ensp;└─ `listedDirectory` | `string` | No | USS directory that was listed (listUssFiles). |
-| `_result` | `object` | Yes | Result metadata (pagination, line window, or success). |
-| &ensp;└─ `success` | `boolean` | Yes | True when the operation completed successfully. |
+| `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. *(same as [`listDatasets`](#listdatasets-output-schema))* |
+| `_result` | `object` | Yes | Result metadata (pagination, line window, or success). *(same as [`writeDataset`](#writedataset-output-schema))* |
 | `messages` | `string`[] | Yes | Operational messages: pagination hints, resolution notes, or path warnings. |
-| `data` | `object` | Yes |  |
-| &ensp;└─ `path` | `string` | Yes | USS path (absolute or relative to cwd in display form). |
+| `data` | `object` | Yes |  *(same as [`getUssHome`](#getusshome-output-schema))* |
 
 ---
 
@@ -2262,20 +2068,14 @@ Delete all files and directories under the given USS path (the path itself is re
 | `path` | `string` | Yes | USS path to delete recursively: absolute or relative to current working directory (see getContext.ussCwd); must contain "tmp" and min depth. |
 | `system` | `string` | No | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system. |
 
+<a id="deleteusstempunderdir-output-schema"></a>
+
 #### Output Schema
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. |
-| &ensp;├─ `system` | `string` | Yes | Resolved z/OS system hostname (target of the operation). |
-| &ensp;├─ `resolvedPattern` | `string` | No | Normalized list pattern (uppercase, no quotes). Present only when input was quoted or lowercase. |
-| &ensp;├─ `resolvedDsn` | `string` | No | Normalized data set name (uppercase, no quotes). Present only when input was quoted or lowercase. |
-| &ensp;├─ `resolvedTargetDsn` | `string` | No | Normalized target data set name for copy/rename. Present only when input differed from resolved value. |
-| &ensp;├─ `resolvedPath` | `string` | No | Resolved USS path when normalization changed the input (USS tools). |
-| &ensp;├─ `currentDirectory` | `string` | No | USS current working directory in display form (USS list tools). |
-| &ensp;└─ `listedDirectory` | `string` | No | USS directory that was listed (listUssFiles). |
-| `_result` | `object` | Yes | Result metadata (pagination, line window, or success). |
-| &ensp;└─ `success` | `boolean` | Yes | True when the operation completed successfully. |
+| `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. *(same as [`listDatasets`](#listdatasets-output-schema))* |
+| `_result` | `object` | Yes | Result metadata (pagination, line window, or success). *(same as [`writeDataset`](#writedataset-output-schema))* |
 | `messages` | `string`[] | Yes | Operational messages: pagination hints, resolution notes, or path warnings. |
 | `data` | `object` | Yes |  |
 | &ensp;└─ `deleted` | `string`[] | Yes | List of deleted paths (display form). |
@@ -2297,29 +2097,16 @@ Results may be line-windowed; follow the pagination instructions in the server i
 | `startLine` | `integer` | No | 1-based first line of output to return. Default: 1. |
 | `lineCount` | `integer` | No | Number of lines to return. Omit for default window size. |
 
+<a id="runsafetsocommand-output-schema"></a>
+
 #### Output Schema
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. |
-| &ensp;├─ `system` | `string` | Yes | Resolved z/OS system hostname (target of the operation). |
-| &ensp;├─ `resolvedPattern` | `string` | No | Normalized list pattern (uppercase, no quotes). Present only when input was quoted or lowercase. |
-| &ensp;├─ `resolvedDsn` | `string` | No | Normalized data set name (uppercase, no quotes). Present only when input was quoted or lowercase. |
-| &ensp;├─ `resolvedTargetDsn` | `string` | No | Normalized target data set name for copy/rename. Present only when input differed from resolved value. |
-| &ensp;├─ `resolvedPath` | `string` | No | Resolved USS path when normalization changed the input (USS tools). |
-| &ensp;├─ `currentDirectory` | `string` | No | USS current working directory in display form (USS list tools). |
-| &ensp;└─ `listedDirectory` | `string` | No | USS directory that was listed (listUssFiles). |
-| `_result` | `object` | Yes | Line-window metadata for TSO output. |
-| &ensp;├─ `totalLines` | `number` | Yes | Total number of lines in the full content. |
-| &ensp;├─ `startLine` | `number` | Yes | 1-based line number of the first line returned in this window. |
-| &ensp;├─ `returnedLines` | `number` | Yes | Number of lines in the returned window. |
-| &ensp;├─ `contentLength` | `number` | Yes | Character count of the returned text. |
-| &ensp;├─ `mimeType` | `string` | Yes | Inferred content type (e.g. text/plain, text/x-cobol, text/x-jcl). Used for display or syntax highlighting. |
-| &ensp;└─ `hasMore` | `boolean` | Yes | True if more lines exist. Call the tool again with startLine and lineCount to fetch the next window. |
+| `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. *(same as [`listDatasets`](#listdatasets-output-schema))* |
+| `_result` | `object` | Yes | Line-window metadata for TSO output. *(same as [`readDataset`](#readdataset-output-schema))* |
 | `messages` | `string`[] | Yes | Operational messages: line-window hints (e.g. call again with startLine/lineCount). |
-| `data` | `object` | Yes |  |
-| &ensp;├─ `lines` | `string`[] | Yes | TSO command output (UTF-8) as array of lines; may be a line window. |
-| &ensp;└─ `mimeType` | `string` | Yes | Content type (e.g. text/plain, text/x-jcl). |
+| `data` | `object` | Yes |  *(same as [`runSafeUssCommand`](#runsafeusscommand-output-schema))* |
 
 #### Example Outputs
 
@@ -2351,7 +2138,7 @@ Output:
   "messages": [],
   "data": {
     "lines": [
-      "TIME-09:53:00 PM. CPU-00:00:00 SERVICE-26895 SESSION-00:01:53 MARCH 4,2026"
+      "TIME-11:11:50 PM. CPU-00:00:00 SERVICE-26895 SESSION-00:01:53 MARCH 4,2026"
     ],
     "mimeType": "text/plain"
   }
@@ -2396,20 +2183,14 @@ Submit JCL to the current (or specified) z/OS system. A job card is added from c
 | `wait` | `boolean` | No | When true, wait for the job to reach OUTPUT (or timeout) and return status, timedOut, and optionally failedStepJobFiles. |
 | `timeoutSeconds` | `integer` | No | When wait is true, how long to wait for OUTPUT (seconds). Default 300. The job keeps running on z/OS after timeout. |
 
+<a id="submitjob-output-schema"></a>
+
 #### Output Schema
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. |
-| &ensp;├─ `system` | `string` | Yes | Resolved z/OS system hostname (target of the operation). |
-| &ensp;├─ `resolvedPattern` | `string` | No | Normalized list pattern (uppercase, no quotes). Present only when input was quoted or lowercase. |
-| &ensp;├─ `resolvedDsn` | `string` | No | Normalized data set name (uppercase, no quotes). Present only when input was quoted or lowercase. |
-| &ensp;├─ `resolvedTargetDsn` | `string` | No | Normalized target data set name for copy/rename. Present only when input differed from resolved value. |
-| &ensp;├─ `resolvedPath` | `string` | No | Resolved USS path when normalization changed the input (USS tools). |
-| &ensp;├─ `currentDirectory` | `string` | No | USS current working directory in display form (USS list tools). |
-| &ensp;└─ `listedDirectory` | `string` | No | USS directory that was listed (listUssFiles). |
-| `_result` | `object` | Yes | Result metadata (pagination or success). |
-| &ensp;└─ `success` | `boolean` | Yes | True when the operation completed successfully. |
+| `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. *(same as [`listDatasets`](#listdatasets-output-schema))* |
+| `_result` | `object` | Yes | Result metadata (pagination or success). *(same as [`writeDataset`](#writedataset-output-schema))* |
 | `messages` | `string`[] | Yes | Operational messages: pagination hints, job card notice, or other notes. |
 | `data` | `object` | Yes |  |
 | &ensp;├─ `jobId` | `string` | Yes | Job ID assigned by JES (e.g. JOB00123). |
@@ -2444,18 +2225,13 @@ Get the current status of a z/OS job (INPUT, ACTIVE, or OUTPUT) and its return c
 | `jobId` | `string` | Yes | Job ID (e.g. JOB00123 or J0nnnnnn). |
 | `system` | `string` | No | Optional z/OS system (hostname). If omitted, the active system from setSystem is used. |
 
+<a id="getjobstatus-output-schema"></a>
+
 #### Output Schema
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. |
-| &ensp;├─ `system` | `string` | Yes | Resolved z/OS system hostname (target of the operation). |
-| &ensp;├─ `resolvedPattern` | `string` | No | Normalized list pattern (uppercase, no quotes). Present only when input was quoted or lowercase. |
-| &ensp;├─ `resolvedDsn` | `string` | No | Normalized data set name (uppercase, no quotes). Present only when input was quoted or lowercase. |
-| &ensp;├─ `resolvedTargetDsn` | `string` | No | Normalized target data set name for copy/rename. Present only when input differed from resolved value. |
-| &ensp;├─ `resolvedPath` | `string` | No | Resolved USS path when normalization changed the input (USS tools). |
-| &ensp;├─ `currentDirectory` | `string` | No | USS current working directory in display form (USS list tools). |
-| &ensp;└─ `listedDirectory` | `string` | No | USS directory that was listed (listUssFiles). |
+| `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. *(same as [`listDatasets`](#listdatasets-output-schema))* |
 | `messages` | `string`[] | Yes | Operational messages: pagination hints, job card notice, or other notes. |
 | `data` | `object` | Yes |  |
 | &ensp;├─ `id` | `string` | Yes | Job ID. |
@@ -2487,23 +2263,14 @@ List output files (spools) for a z/OS job. The job must be in OUTPUT status. Use
 | `offset` | `integer` | No | 0-based offset for pagination (default 0). |
 | `limit` | `integer` | No | Number of job files to return (default 500, max 1000). |
 
+<a id="listjobfiles-output-schema"></a>
+
 #### Output Schema
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. |
-| &ensp;├─ `system` | `string` | Yes | Resolved z/OS system hostname (target of the operation). |
-| &ensp;├─ `resolvedPattern` | `string` | No | Normalized list pattern (uppercase, no quotes). Present only when input was quoted or lowercase. |
-| &ensp;├─ `resolvedDsn` | `string` | No | Normalized data set name (uppercase, no quotes). Present only when input was quoted or lowercase. |
-| &ensp;├─ `resolvedTargetDsn` | `string` | No | Normalized target data set name for copy/rename. Present only when input differed from resolved value. |
-| &ensp;├─ `resolvedPath` | `string` | No | Resolved USS path when normalization changed the input (USS tools). |
-| &ensp;├─ `currentDirectory` | `string` | No | USS current working directory in display form (USS list tools). |
-| &ensp;└─ `listedDirectory` | `string` | No | USS directory that was listed (listUssFiles). |
-| `_result` | `object` | Yes | Result metadata (pagination or success). |
-| &ensp;├─ `count` | `number` | Yes | Number of items returned in this page. |
-| &ensp;├─ `totalAvailable` | `number` | Yes | Total matching items before pagination. |
-| &ensp;├─ `offset` | `number` | Yes | 0-based offset of the first item in this page. |
-| &ensp;└─ `hasMore` | `boolean` | Yes | True if more items exist. Call the tool again with offset = offset + count and the same limit to fetch the next page. |
+| `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. *(same as [`listDatasets`](#listdatasets-output-schema))* |
+| `_result` | `object` | Yes | Result metadata (pagination or success). *(same as [`listDatasets`](#listdatasets-output-schema))* |
 | `messages` | `string`[] | Yes | Operational messages: pagination hints, job card notice, or other notes. |
 | `data` | `object`[] | Yes | Array of job file (spool) entries. Each entry has id, optional ddname, stepname, dsname, procstep. |
 | &ensp;├─ `id` | `number` | Yes | Job file (spool) ID. |
@@ -2530,25 +2297,14 @@ Results may be line-windowed; follow the pagination instructions in the server i
 | `startLine` | `integer` | No | 1-based first line to return (default 1). |
 | `lineCount` | `integer` | No | Number of lines to return (default: all). |
 
+<a id="readjobfile-output-schema"></a>
+
 #### Output Schema
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. |
-| &ensp;├─ `system` | `string` | Yes | Resolved z/OS system hostname (target of the operation). |
-| &ensp;├─ `resolvedPattern` | `string` | No | Normalized list pattern (uppercase, no quotes). Present only when input was quoted or lowercase. |
-| &ensp;├─ `resolvedDsn` | `string` | No | Normalized data set name (uppercase, no quotes). Present only when input was quoted or lowercase. |
-| &ensp;├─ `resolvedTargetDsn` | `string` | No | Normalized target data set name for copy/rename. Present only when input differed from resolved value. |
-| &ensp;├─ `resolvedPath` | `string` | No | Resolved USS path when normalization changed the input (USS tools). |
-| &ensp;├─ `currentDirectory` | `string` | No | USS current working directory in display form (USS list tools). |
-| &ensp;└─ `listedDirectory` | `string` | No | USS directory that was listed (listUssFiles). |
-| `_result` | `object` | Yes | Result metadata (pagination or success). |
-| &ensp;├─ `totalLines` | `number` | Yes | Total number of lines in the full content. |
-| &ensp;├─ `startLine` | `number` | Yes | 1-based line number of the first line returned in this window. |
-| &ensp;├─ `returnedLines` | `number` | Yes | Number of lines in the returned window. |
-| &ensp;├─ `contentLength` | `number` | Yes | Character count of the returned text. |
-| &ensp;├─ `mimeType` | `string` | Yes | Inferred content type (e.g. text/plain, text/x-cobol, text/x-jcl). Used for display or syntax highlighting. |
-| &ensp;└─ `hasMore` | `boolean` | Yes | True if more lines exist. Call the tool again with startLine and lineCount to fetch the next window. |
+| `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. *(same as [`listDatasets`](#listdatasets-output-schema))* |
+| `_result` | `object` | Yes | Result metadata (pagination or success). *(same as [`readDataset`](#readdataset-output-schema))* |
 | `messages` | `string`[] | Yes | Operational messages: pagination hints, job card notice, or other notes. |
 | `data` | `object` | Yes |  |
 | &ensp;├─ `lines` | `string`[] | Yes | File content as array of lines; may be a line window when _result.hasMore is true. |
@@ -2577,23 +2333,14 @@ Get aggregated output from job files for a completed job. By default returns out
 | `offset` | `integer` | No | 0-based offset for pagination over job files (default 0). |
 | `limit` | `integer` | No | Number of job files to return (default 500, max 1000). |
 
+<a id="getjoboutput-output-schema"></a>
+
 #### Output Schema
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. |
-| &ensp;├─ `system` | `string` | Yes | Resolved z/OS system hostname (target of the operation). |
-| &ensp;├─ `resolvedPattern` | `string` | No | Normalized list pattern (uppercase, no quotes). Present only when input was quoted or lowercase. |
-| &ensp;├─ `resolvedDsn` | `string` | No | Normalized data set name (uppercase, no quotes). Present only when input was quoted or lowercase. |
-| &ensp;├─ `resolvedTargetDsn` | `string` | No | Normalized target data set name for copy/rename. Present only when input differed from resolved value. |
-| &ensp;├─ `resolvedPath` | `string` | No | Resolved USS path when normalization changed the input (USS tools). |
-| &ensp;├─ `currentDirectory` | `string` | No | USS current working directory in display form (USS list tools). |
-| &ensp;└─ `listedDirectory` | `string` | No | USS directory that was listed (listUssFiles). |
-| `_result` | `object` | Yes | Result metadata (pagination or success). |
-| &ensp;├─ `count` | `number` | Yes | Number of items returned in this page. |
-| &ensp;├─ `totalAvailable` | `number` | Yes | Total matching items before pagination. |
-| &ensp;├─ `offset` | `number` | Yes | 0-based offset of the first item in this page. |
-| &ensp;└─ `hasMore` | `boolean` | Yes | True if more items exist. Call the tool again with offset = offset + count and the same limit to fetch the next page. |
+| `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. *(same as [`listDatasets`](#listdatasets-output-schema))* |
+| `_result` | `object` | Yes | Result metadata (pagination or success). *(same as [`listDatasets`](#listdatasets-output-schema))* |
 | `messages` | `string`[] | Yes | Operational messages: pagination hints, job card notice, or other notes. |
 | `data` | `object` | Yes |  |
 | &ensp;├─ `jobId` | `string` | Yes | Job ID. |
@@ -2621,23 +2368,14 @@ Search for a substring in a job's output files (all files or one by jobFileId). 
 | `offset` | `integer` | No | 0-based offset for pagination over matches (default 0). |
 | `limit` | `integer` | No | Number of matches to return (default 100, max 500). |
 
+<a id="searchjoboutput-output-schema"></a>
+
 #### Output Schema
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. |
-| &ensp;├─ `system` | `string` | Yes | Resolved z/OS system hostname (target of the operation). |
-| &ensp;├─ `resolvedPattern` | `string` | No | Normalized list pattern (uppercase, no quotes). Present only when input was quoted or lowercase. |
-| &ensp;├─ `resolvedDsn` | `string` | No | Normalized data set name (uppercase, no quotes). Present only when input was quoted or lowercase. |
-| &ensp;├─ `resolvedTargetDsn` | `string` | No | Normalized target data set name for copy/rename. Present only when input differed from resolved value. |
-| &ensp;├─ `resolvedPath` | `string` | No | Resolved USS path when normalization changed the input (USS tools). |
-| &ensp;├─ `currentDirectory` | `string` | No | USS current working directory in display form (USS list tools). |
-| &ensp;└─ `listedDirectory` | `string` | No | USS directory that was listed (listUssFiles). |
-| `_result` | `object` | Yes | Result metadata (pagination or success). |
-| &ensp;├─ `count` | `number` | Yes | Number of items returned in this page. |
-| &ensp;├─ `totalAvailable` | `number` | Yes | Total matching items before pagination. |
-| &ensp;├─ `offset` | `number` | Yes | 0-based offset of the first item in this page. |
-| &ensp;└─ `hasMore` | `boolean` | Yes | True if more items exist. Call the tool again with offset = offset + count and the same limit to fetch the next page. |
+| `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. *(same as [`listDatasets`](#listdatasets-output-schema))* |
+| `_result` | `object` | Yes | Result metadata (pagination or success). *(same as [`listDatasets`](#listdatasets-output-schema))* |
 | `messages` | `string`[] | Yes | Operational messages: pagination hints, job card notice, or other notes. |
 | `data` | `object`[] | Yes | Array of search matches in job output. Each entry has jobFileId, ddname, stepname, lineNumber, lineText. |
 | &ensp;├─ `jobFileId` | `number` | Yes | Job file (spool) ID where the match was found. |
@@ -2665,36 +2403,16 @@ List jobs on the z/OS system with optional filters (owner, prefix, status). Use 
 | `offset` | `integer` | No | 0-based offset (default 0). |
 | `limit` | `integer` | No | Number of jobs to return (default 100, max 1000). |
 
+<a id="listjobs-output-schema"></a>
+
 #### Output Schema
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. |
-| &ensp;├─ `system` | `string` | Yes | Resolved z/OS system hostname (target of the operation). |
-| &ensp;├─ `resolvedPattern` | `string` | No | Normalized list pattern (uppercase, no quotes). Present only when input was quoted or lowercase. |
-| &ensp;├─ `resolvedDsn` | `string` | No | Normalized data set name (uppercase, no quotes). Present only when input was quoted or lowercase. |
-| &ensp;├─ `resolvedTargetDsn` | `string` | No | Normalized target data set name for copy/rename. Present only when input differed from resolved value. |
-| &ensp;├─ `resolvedPath` | `string` | No | Resolved USS path when normalization changed the input (USS tools). |
-| &ensp;├─ `currentDirectory` | `string` | No | USS current working directory in display form (USS list tools). |
-| &ensp;└─ `listedDirectory` | `string` | No | USS directory that was listed (listUssFiles). |
-| `_result` | `object` | Yes | Result metadata (pagination or success). |
-| &ensp;├─ `count` | `number` | Yes | Number of items returned in this page. |
-| &ensp;├─ `totalAvailable` | `number` | Yes | Total matching items before pagination. |
-| &ensp;├─ `offset` | `number` | Yes | 0-based offset of the first item in this page. |
-| &ensp;└─ `hasMore` | `boolean` | Yes | True if more items exist. Call the tool again with offset = offset + count and the same limit to fetch the next page. |
+| `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. *(same as [`listDatasets`](#listdatasets-output-schema))* |
+| `_result` | `object` | Yes | Result metadata (pagination or success). *(same as [`listDatasets`](#listdatasets-output-schema))* |
 | `messages` | `string`[] | Yes | Operational messages: pagination hints, job card notice, or other notes. |
-| `data` | `object`[] | Yes | Array of job status entries. Each entry has id, name, owner, status, type, class, retcode, phase, phaseName. |
-| &ensp;├─ `id` | `string` | Yes | Job ID. |
-| &ensp;├─ `name` | `string` | Yes | Job name. |
-| &ensp;├─ `owner` | `string` | Yes | Job owner. |
-| &ensp;├─ `status` | `string` | Yes | Status: INPUT, ACTIVE, or OUTPUT. |
-| &ensp;├─ `type` | `string` | Yes | Job type: JOB, STC, TSU. |
-| &ensp;├─ `class` | `string` | Yes | Execution class. |
-| &ensp;├─ `retcode` | `string` | No | Return code when complete (e.g. 0000). |
-| &ensp;├─ `subsystem` | `string` | No | Subsystem. |
-| &ensp;├─ `phase` | `number` | Yes | Phase number. |
-| &ensp;├─ `phaseName` | `string` | Yes | Phase name. |
-| &ensp;└─ `correlator` | `string` | No | Correlator (JES3). |
+| `data` | `object`[] | Yes | Array of job status entries. Each entry has id, name, owner, status, type, class, retcode, phase, phaseName. *(same as [`getJobStatus`](#getjobstatus-output-schema))* |
 
 ---
 
@@ -2711,18 +2429,13 @@ Get the JCL for a job.
 | `jobId` | `string` | Yes | Job ID (e.g. JOB00123 or J0nnnnnn). |
 | `system` | `string` | No | Optional z/OS system (hostname). If omitted, the active system from setSystem is used. |
 
+<a id="getjcl-output-schema"></a>
+
 #### Output Schema
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. |
-| &ensp;├─ `system` | `string` | Yes | Resolved z/OS system hostname (target of the operation). |
-| &ensp;├─ `resolvedPattern` | `string` | No | Normalized list pattern (uppercase, no quotes). Present only when input was quoted or lowercase. |
-| &ensp;├─ `resolvedDsn` | `string` | No | Normalized data set name (uppercase, no quotes). Present only when input was quoted or lowercase. |
-| &ensp;├─ `resolvedTargetDsn` | `string` | No | Normalized target data set name for copy/rename. Present only when input differed from resolved value. |
-| &ensp;├─ `resolvedPath` | `string` | No | Resolved USS path when normalization changed the input (USS tools). |
-| &ensp;├─ `currentDirectory` | `string` | No | USS current working directory in display form (USS list tools). |
-| &ensp;└─ `listedDirectory` | `string` | No | USS directory that was listed (listUssFiles). |
+| `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. *(same as [`listDatasets`](#listdatasets-output-schema))* |
 | `messages` | `string`[] | Yes | Operational messages: pagination hints, job card notice, or other notes. |
 | `data` | `object` | Yes |  |
 | &ensp;└─ `lines` | `string`[] | Yes | JCL for the job as array of lines. |
@@ -2742,20 +2455,14 @@ Cancel a job on the z/OS system.
 | `jobId` | `string` | Yes | Job ID (e.g. JOB00123 or J0nnnnnn). |
 | `system` | `string` | No | Optional z/OS system (hostname). If omitted, the active system from setSystem is used. |
 
+<a id="canceljob-output-schema"></a>
+
 #### Output Schema
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. |
-| &ensp;├─ `system` | `string` | Yes | Resolved z/OS system hostname (target of the operation). |
-| &ensp;├─ `resolvedPattern` | `string` | No | Normalized list pattern (uppercase, no quotes). Present only when input was quoted or lowercase. |
-| &ensp;├─ `resolvedDsn` | `string` | No | Normalized data set name (uppercase, no quotes). Present only when input was quoted or lowercase. |
-| &ensp;├─ `resolvedTargetDsn` | `string` | No | Normalized target data set name for copy/rename. Present only when input differed from resolved value. |
-| &ensp;├─ `resolvedPath` | `string` | No | Resolved USS path when normalization changed the input (USS tools). |
-| &ensp;├─ `currentDirectory` | `string` | No | USS current working directory in display form (USS list tools). |
-| &ensp;└─ `listedDirectory` | `string` | No | USS directory that was listed (listUssFiles). |
-| `_result` | `object` | Yes | Result metadata (pagination or success). |
-| &ensp;└─ `success` | `boolean` | Yes | True when the operation completed successfully. |
+| `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. *(same as [`listDatasets`](#listdatasets-output-schema))* |
+| `_result` | `object` | Yes | Result metadata (pagination or success). *(same as [`writeDataset`](#writedataset-output-schema))* |
 | `messages` | `string`[] | Yes | Operational messages: pagination hints, job card notice, or other notes. |
 | `data` | `object` | Yes |  |
 | &ensp;└─ `success` | `boolean` | Yes | Operation completed successfully. |
@@ -2775,23 +2482,16 @@ Hold a job on the z/OS system.
 | `jobId` | `string` | Yes | Job ID (e.g. JOB00123 or J0nnnnnn). |
 | `system` | `string` | No | Optional z/OS system (hostname). If omitted, the active system from setSystem is used. |
 
+<a id="holdjob-output-schema"></a>
+
 #### Output Schema
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. |
-| &ensp;├─ `system` | `string` | Yes | Resolved z/OS system hostname (target of the operation). |
-| &ensp;├─ `resolvedPattern` | `string` | No | Normalized list pattern (uppercase, no quotes). Present only when input was quoted or lowercase. |
-| &ensp;├─ `resolvedDsn` | `string` | No | Normalized data set name (uppercase, no quotes). Present only when input was quoted or lowercase. |
-| &ensp;├─ `resolvedTargetDsn` | `string` | No | Normalized target data set name for copy/rename. Present only when input differed from resolved value. |
-| &ensp;├─ `resolvedPath` | `string` | No | Resolved USS path when normalization changed the input (USS tools). |
-| &ensp;├─ `currentDirectory` | `string` | No | USS current working directory in display form (USS list tools). |
-| &ensp;└─ `listedDirectory` | `string` | No | USS directory that was listed (listUssFiles). |
-| `_result` | `object` | Yes | Result metadata (pagination or success). |
-| &ensp;└─ `success` | `boolean` | Yes | True when the operation completed successfully. |
+| `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. *(same as [`listDatasets`](#listdatasets-output-schema))* |
+| `_result` | `object` | Yes | Result metadata (pagination or success). *(same as [`writeDataset`](#writedataset-output-schema))* |
 | `messages` | `string`[] | Yes | Operational messages: pagination hints, job card notice, or other notes. |
-| `data` | `object` | Yes |  |
-| &ensp;└─ `success` | `boolean` | Yes | Operation completed successfully. |
+| `data` | `object` | Yes |  *(same as [`cancelJob`](#canceljob-output-schema))* |
 
 ---
 
@@ -2807,23 +2507,16 @@ Release a held job on the z/OS system.
 | `jobId` | `string` | Yes | Job ID (e.g. JOB00123 or J0nnnnnn). |
 | `system` | `string` | No | Optional z/OS system (hostname). If omitted, the active system from setSystem is used. |
 
+<a id="releasejob-output-schema"></a>
+
 #### Output Schema
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. |
-| &ensp;├─ `system` | `string` | Yes | Resolved z/OS system hostname (target of the operation). |
-| &ensp;├─ `resolvedPattern` | `string` | No | Normalized list pattern (uppercase, no quotes). Present only when input was quoted or lowercase. |
-| &ensp;├─ `resolvedDsn` | `string` | No | Normalized data set name (uppercase, no quotes). Present only when input was quoted or lowercase. |
-| &ensp;├─ `resolvedTargetDsn` | `string` | No | Normalized target data set name for copy/rename. Present only when input differed from resolved value. |
-| &ensp;├─ `resolvedPath` | `string` | No | Resolved USS path when normalization changed the input (USS tools). |
-| &ensp;├─ `currentDirectory` | `string` | No | USS current working directory in display form (USS list tools). |
-| &ensp;└─ `listedDirectory` | `string` | No | USS directory that was listed (listUssFiles). |
-| `_result` | `object` | Yes | Result metadata (pagination or success). |
-| &ensp;└─ `success` | `boolean` | Yes | True when the operation completed successfully. |
+| `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. *(same as [`listDatasets`](#listdatasets-output-schema))* |
+| `_result` | `object` | Yes | Result metadata (pagination or success). *(same as [`writeDataset`](#writedataset-output-schema))* |
 | `messages` | `string`[] | Yes | Operational messages: pagination hints, job card notice, or other notes. |
-| `data` | `object` | Yes |  |
-| &ensp;└─ `success` | `boolean` | Yes | Operation completed successfully. |
+| `data` | `object` | Yes |  *(same as [`cancelJob`](#canceljob-output-schema))* |
 
 ---
 
@@ -2840,23 +2533,16 @@ Delete a job from the output queue.
 | `jobId` | `string` | Yes | Job ID (e.g. JOB00123 or J0nnnnnn). |
 | `system` | `string` | No | Optional z/OS system (hostname). If omitted, the active system from setSystem is used. |
 
+<a id="deletejob-output-schema"></a>
+
 #### Output Schema
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. |
-| &ensp;├─ `system` | `string` | Yes | Resolved z/OS system hostname (target of the operation). |
-| &ensp;├─ `resolvedPattern` | `string` | No | Normalized list pattern (uppercase, no quotes). Present only when input was quoted or lowercase. |
-| &ensp;├─ `resolvedDsn` | `string` | No | Normalized data set name (uppercase, no quotes). Present only when input was quoted or lowercase. |
-| &ensp;├─ `resolvedTargetDsn` | `string` | No | Normalized target data set name for copy/rename. Present only when input differed from resolved value. |
-| &ensp;├─ `resolvedPath` | `string` | No | Resolved USS path when normalization changed the input (USS tools). |
-| &ensp;├─ `currentDirectory` | `string` | No | USS current working directory in display form (USS list tools). |
-| &ensp;└─ `listedDirectory` | `string` | No | USS directory that was listed (listUssFiles). |
-| `_result` | `object` | Yes | Result metadata (pagination or success). |
-| &ensp;└─ `success` | `boolean` | Yes | True when the operation completed successfully. |
+| `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. *(same as [`listDatasets`](#listdatasets-output-schema))* |
+| `_result` | `object` | Yes | Result metadata (pagination or success). *(same as [`writeDataset`](#writedataset-output-schema))* |
 | `messages` | `string`[] | Yes | Operational messages: pagination hints, job card notice, or other notes. |
-| `data` | `object` | Yes |  |
-| &ensp;└─ `success` | `boolean` | Yes | Operation completed successfully. |
+| `data` | `object` | Yes |  *(same as [`cancelJob`](#canceljob-output-schema))* |
 
 ---
 
@@ -2875,20 +2561,14 @@ Submit a job from a data set or PDS/PDSE member containing JCL. The data set mus
 | `wait` | `boolean` | No | When true, wait for the job to reach OUTPUT (or timeout) and return status, timedOut, and optionally failedStepJobFiles. |
 | `timeoutSeconds` | `integer` | No | When wait is true, how long to wait for OUTPUT (seconds). Default 300. The job keeps running on z/OS after timeout. |
 
+<a id="submitjobfromdataset-output-schema"></a>
+
 #### Output Schema
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. |
-| &ensp;├─ `system` | `string` | Yes | Resolved z/OS system hostname (target of the operation). |
-| &ensp;├─ `resolvedPattern` | `string` | No | Normalized list pattern (uppercase, no quotes). Present only when input was quoted or lowercase. |
-| &ensp;├─ `resolvedDsn` | `string` | No | Normalized data set name (uppercase, no quotes). Present only when input was quoted or lowercase. |
-| &ensp;├─ `resolvedTargetDsn` | `string` | No | Normalized target data set name for copy/rename. Present only when input differed from resolved value. |
-| &ensp;├─ `resolvedPath` | `string` | No | Resolved USS path when normalization changed the input (USS tools). |
-| &ensp;├─ `currentDirectory` | `string` | No | USS current working directory in display form (USS list tools). |
-| &ensp;└─ `listedDirectory` | `string` | No | USS directory that was listed (listUssFiles). |
-| `_result` | `object` | Yes | Result metadata (pagination or success). |
-| &ensp;└─ `success` | `boolean` | Yes | True when the operation completed successfully. |
+| `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. *(same as [`listDatasets`](#listdatasets-output-schema))* |
+| `_result` | `object` | Yes | Result metadata (pagination or success). *(same as [`writeDataset`](#writedataset-output-schema))* |
 | `messages` | `string`[] | Yes | Operational messages: pagination hints, job card notice, or other notes. |
 | `data` | `object` | Yes |  |
 | &ensp;├─ `jobId` | `string` | Yes | Job ID assigned by JES. |
@@ -2924,37 +2604,16 @@ Submit a job from a USS file path. The file must contain valid JCL including a j
 | `wait` | `boolean` | No | When true, wait for the job to reach OUTPUT (or timeout) and return status, timedOut, and optionally failedStepJobFiles. |
 | `timeoutSeconds` | `integer` | No | When wait is true, how long to wait for OUTPUT (seconds). Default 300. The job keeps running on z/OS after timeout. |
 
+<a id="submitjobfromuss-output-schema"></a>
+
 #### Output Schema
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. |
-| &ensp;├─ `system` | `string` | Yes | Resolved z/OS system hostname (target of the operation). |
-| &ensp;├─ `resolvedPattern` | `string` | No | Normalized list pattern (uppercase, no quotes). Present only when input was quoted or lowercase. |
-| &ensp;├─ `resolvedDsn` | `string` | No | Normalized data set name (uppercase, no quotes). Present only when input was quoted or lowercase. |
-| &ensp;├─ `resolvedTargetDsn` | `string` | No | Normalized target data set name for copy/rename. Present only when input differed from resolved value. |
-| &ensp;├─ `resolvedPath` | `string` | No | Resolved USS path when normalization changed the input (USS tools). |
-| &ensp;├─ `currentDirectory` | `string` | No | USS current working directory in display form (USS list tools). |
-| &ensp;└─ `listedDirectory` | `string` | No | USS directory that was listed (listUssFiles). |
-| `_result` | `object` | Yes | Result metadata (pagination or success). |
-| &ensp;└─ `success` | `boolean` | Yes | True when the operation completed successfully. |
+| `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. *(same as [`listDatasets`](#listdatasets-output-schema))* |
+| `_result` | `object` | Yes | Result metadata (pagination or success). *(same as [`writeDataset`](#writedataset-output-schema))* |
 | `messages` | `string`[] | Yes | Operational messages: pagination hints, job card notice, or other notes. |
-| `data` | `object` | Yes |  |
-| &ensp;├─ `jobId` | `string` | Yes | Job ID assigned by JES. |
-| &ensp;├─ `jobName` | `string` | Yes | Job name from the JOB statement. |
-| &ensp;├─ `id` | `string` | No | Job ID. |
-| &ensp;├─ `name` | `string` | No | Job name. |
-| &ensp;├─ `owner` | `string` | No | Job owner. |
-| &ensp;├─ `status` | `string` | No | Status: INPUT, ACTIVE, or OUTPUT. |
-| &ensp;├─ `type` | `string` | No | Job type: JOB, STC, TSU. |
-| &ensp;├─ `class` | `string` | No | Execution class. |
-| &ensp;├─ `retcode` | `string` | No | Return code when complete (e.g. 0000). |
-| &ensp;├─ `subsystem` | `string` | No | Subsystem. |
-| &ensp;├─ `phase` | `number` | No | Phase number. |
-| &ensp;├─ `phaseName` | `string` | No | Phase name. |
-| &ensp;├─ `correlator` | `string` | No | Correlator (JES3). |
-| &ensp;├─ `timedOut` | `boolean` | No | True if wait for OUTPUT timed out; job continues on z/OS. |
-| &ensp;└─ `failedStepJobFiles` | `object`[] | No | Job file entries for failed steps when retcode is non-zero. |
+| `data` | `object` | Yes |  *(same as [`submitJobFromDataset`](#submitjobfromdataset-output-schema))* |
 
 ---
 

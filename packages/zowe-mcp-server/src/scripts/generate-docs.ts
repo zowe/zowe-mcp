@@ -287,7 +287,30 @@ function resolveObjectProperties(
   return undefined;
 }
 
-function renderSchemaTable(schema: JsonSchema, label: string): string {
+/**
+ * Fingerprint a nested object by its child keys and types so we can detect
+ * structurally identical sub-schemas across tools (e.g. `_context`).
+ */
+function nestedFingerprint(
+  name: string,
+  nested: { properties: Record<string, SchemaProperty>; required: string[] }
+): string {
+  const parts = Object.entries(nested.properties).map(([k, v]) => `${k}:${formatPropertyType(v)}`);
+  return `${name}|${parts.join(',')}`;
+}
+
+/**
+ * Tracks which nested objects have been fully expanded already.
+ * Maps fingerprint → first tool name that expanded it.
+ */
+type NestedFieldTracker = Map<string, string>;
+
+function renderSchemaTable(
+  schema: JsonSchema,
+  label: string,
+  toolName?: string,
+  nestedTracker?: NestedFieldTracker
+): string {
   if (!schema.properties || Object.keys(schema.properties).length === 0) {
     return `*No ${label.toLowerCase()}.*\n`;
   }
@@ -301,9 +324,23 @@ function renderSchemaTable(schema: JsonSchema, label: string): string {
     const desc = escapeMarkdown(prop.description ?? '');
     const defaultVal =
       prop.default !== undefined ? ` (default: \`${JSON.stringify(prop.default)}\`)` : '';
-    lines.push(`| \`${name}\` | ${type} | ${isRequired} | ${desc}${defaultVal} |`);
 
     const nested = resolveObjectProperties(prop);
+    if (nested && nestedTracker && toolName) {
+      const fp = nestedFingerprint(name, nested);
+      const firstTool = nestedTracker.get(fp);
+      if (firstTool) {
+        const anchor = `${firstTool.toLowerCase()}-output-schema`;
+        lines.push(
+          `| \`${name}\` | ${type} | ${isRequired} | ${desc} *(same as [\`${firstTool}\`](#${anchor}))*${defaultVal} |`
+        );
+        continue;
+      }
+      nestedTracker.set(fp, toolName);
+    }
+
+    lines.push(`| \`${name}\` | ${type} | ${isRequired} | ${desc}${defaultVal} |`);
+
     if (nested) {
       const nestedRequired = new Set(nested.required);
       const children = Object.entries(nested.properties);
@@ -426,6 +463,8 @@ function generateToolsSection(tools: ToolInfo[], examples: Map<string, ToolExamp
   });
   lines.push('');
 
+  const outputNestedTracker: NestedFieldTracker = new Map();
+
   for (const tool of tools) {
     lines.push(`### \`${tool.name}\`\n`);
     lines.push(renderAnnotations(tool.annotations));
@@ -437,10 +476,12 @@ function generateToolsSection(tools: ToolInfo[], examples: Map<string, ToolExamp
     lines.push('#### Parameters\n');
     lines.push(renderSchemaTable(tool.inputSchema, 'Parameter'));
 
-    // Output schema
+    // Output schema — deduplicate repeated nested objects across tools
     if (tool.outputSchema) {
+      const schemaAnchor = `${tool.name.toLowerCase()}-output-schema`;
+      lines.push(`<a id="${schemaAnchor}"></a>\n`);
       lines.push('#### Output Schema\n');
-      lines.push(renderSchemaTable(tool.outputSchema, 'Field'));
+      lines.push(renderSchemaTable(tool.outputSchema, 'Field', tool.name, outputNestedTracker));
     }
 
     // Live examples (may have multiple per tool)
@@ -794,9 +835,15 @@ async function main(): Promise<void> {
         `> Auto-generated from the MCP server (v${SERVER_VERSION}${commitInfo}). ` +
           `Do not edit manually — run \`npx zowe-mcp-server generate-docs\` to regenerate.\n`
       );
+      const tocLinks: string[] = [];
+      if (tools.length > 0) tocLinks.push('[Tools](#tools)');
+      if (prompts.length > 0) tocLinks.push('[Prompts](#prompts)');
+      if (resources.length > 0) tocLinks.push('[Resources](#resources)');
+      if (templates.length > 0) tocLinks.push('[Resource Templates](#resource-templates)');
       sections.push(
-        'This document describes all tools, prompts, resources, and resource templates ' +
-          'provided by the Zowe MCP Server.\n'
+        'This document describes all ' +
+          tocLinks.join(', ') +
+          ' provided by the Zowe MCP Server.\n'
       );
       sections.push(generateToolsSection(tools, examples));
       sections.push(generatePromptsSection(prompts, promptMessages));

@@ -1,6 +1,6 @@
 # Use cases for Zowe MCP
 
-// TODO: Link from slides to this
+> See also the [Zowe MCP presentation slides](../presentations/zowe-mcp/slides.md) for a visual overview of these use cases.
 
 These use cases focus on **combinations of tools** and the **LLM working with tool output** (reasoning, summarizing, comparing, recommending) rather than single tool calls.
 

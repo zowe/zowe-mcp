@@ -109,7 +109,7 @@ An **MCP server** and **VS Code extension** that gives AI assistants direct, str
 
 ---
 
-<!-- Slide 4: Use Cases -->
+<!-- Slide 4: Use Cases — see also docs/use-cases.md for detailed multi-tool workflows -->
 
 # Use Cases
 
@@ -335,7 +335,8 @@ The native backend connects to z/OS through **Zowe Native Proto** — a lightwei
 
 ### <carbon-connection-signal class="inline text-[#3162ac]" /> Named Pipe Communication
 
-// Todo: Mention that this is additional channel besides stdio to allow deeper integration of the MCP server and VS Code 
+// Todo: Mention that this is additional channel besides stdio to allow deeper integration of the MCP server and VS Code
+
 - Bidirectional NDJSON over Unix socket
 - Real-time log level changes
 - Password collection via extension UI

@@ -164,8 +164,8 @@ export type ResultMeta = ListResultMeta | ReadResultMeta | MutationResultMeta | 
 export interface ToolResponseEnvelope<T> {
   _context: ResponseContext;
   _result?: ResultMeta;
-  /** Operational messages (e.g. normalization, resolution notes). */
-  messages: string[];
+  /** Operational messages (e.g. normalization, resolution notes). Omitted when empty. */
+  messages?: string[];
   data: T;
 }
 
@@ -431,9 +431,11 @@ export function wrapResponse<T>(
 ): { content: { type: 'text'; text: string }[]; structuredContent: Record<string, unknown> } {
   const envelope: ToolResponseEnvelope<T> = {
     _context: context,
-    messages,
     data,
   };
+  if (messages.length > 0) {
+    envelope.messages = messages;
+  }
   if (result !== undefined) {
     envelope._result = result;
   }

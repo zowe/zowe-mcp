@@ -39,7 +39,10 @@ export const listSystemsOutputSchema = z
     systems: z
       .array(listSystemsEntrySchema)
       .describe('All configured z/OS systems you have access to.'),
-    messages: z.array(z.string()).describe('Informational messages (e.g. resolution notes).'),
+    messages: z
+      .array(z.string())
+      .optional()
+      .describe('Informational messages (e.g. resolution notes). Omitted when empty.'),
   })
   .describe(
     'List of configured z/OS systems. Each entry has host, optional description and connections, and active flag. Use setSystem to select the active system.'
@@ -154,7 +157,10 @@ export const getContextOutputSchema = z
       .describe(
         'Systems that have been used in this session (have saved context: userId, optional ussHome/encodings).'
       ),
-    messages: z.array(z.string()).describe('Informational messages.'),
+    messages: z
+      .array(z.string())
+      .optional()
+      .describe('Informational messages. Omitted when empty.'),
   })
   .describe(
     'Current session context: active system (or null), all configured systems, recently used systems, and messages.'

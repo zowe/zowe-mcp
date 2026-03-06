@@ -82,7 +82,7 @@ export function registerContextTools(
         active: s.host === activeSystem,
       }));
 
-      const payload = { systems: result, messages: [] as string[] };
+      const payload: Record<string, unknown> = { systems: result };
       await progress.complete(`${result.length} systems`);
       return {
         content: [
@@ -91,7 +91,7 @@ export function registerContextTools(
             text: JSON.stringify(payload, null, 2),
           },
         ],
-        structuredContent: payload as Record<string, unknown>,
+        structuredContent: payload,
       };
     }
   );
@@ -265,11 +265,10 @@ export function registerContextTools(
         active: s.host === activeSystemId,
       }));
 
-      const payload = {
+      const payload: Record<string, unknown> = {
         activeSystem,
         allSystems,
         recentlyUsedSystems: recentlyUsed,
-        messages: [] as string[],
       };
       await progress.complete('done');
       return {
@@ -279,7 +278,7 @@ export function registerContextTools(
             text: JSON.stringify(payload, null, 2),
           },
         ],
-        structuredContent: payload as Record<string, unknown>,
+        structuredContent: payload,
       };
     }
   );

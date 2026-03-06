@@ -347,12 +347,15 @@ function envelopeSchema<T extends z.ZodType>(
       _context: responseContextSchema,
       messages: z
         .array(z.string())
+        .optional()
         .describe(
-          'Operational messages: pagination hints (e.g. call again with offset/limit), resolution notes, or allocation messages.'
+          'Operational messages: pagination hints (e.g. call again with offset/limit), resolution notes, or allocation messages. Omitted when empty.'
         ),
       data: dataSchema,
     })
-    .describe(envelopeDescription ?? 'Tool response envelope: context, messages, and payload.');
+    .describe(
+      envelopeDescription ?? 'Tool response envelope: context, optional messages, and payload.'
+    );
   if (resultSchema) {
     return base.extend({
       _result: resultSchema.describe('Result metadata (pagination, line window, or success).'),

@@ -377,7 +377,7 @@ describe('readDataset pagination (pagination preset)', () => {
     expect(lastPage._result.startLine).toBe(2001);
     expect(lastPage._result.returnedLines).toBe(200);
     expect(lastPage._result.hasMore).toBe(false);
-    expect(lastPage.messages).toHaveLength(0);
+    expect(lastPage.messages).toBeUndefined();
     expect(lastPage.data.lines.join('\n')).toContain('LINE 2001');
     expect(lastPage.data.lines.join('\n')).toContain('LINE 2200');
   });

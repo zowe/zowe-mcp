@@ -642,7 +642,7 @@ describe('Dataset tools with mock backend', () => {
       const meta = envelope._result as ListResultMeta;
       expect(meta.hasMore).toBe(false);
       expect(meta.count).toBe(meta.totalAvailable);
-      expect(envelope.messages).toHaveLength(0);
+      expect(envelope.messages).toBeUndefined();
     });
 
     it('should paginate listMembers', async () => {
@@ -879,7 +879,7 @@ describe('Dataset tools with mock backend', () => {
       const meta = envelope._result as ReadResultMeta;
       expect(meta.hasMore).toBe(false);
       expect(meta.returnedLines).toBe(50);
-      expect(envelope.messages).toHaveLength(0);
+      expect(envelope.messages).toBeUndefined();
     });
 
     it('should replace unprintable characters with period', async () => {

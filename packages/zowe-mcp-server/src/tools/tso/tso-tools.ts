@@ -202,8 +202,7 @@ export function registerTsoTools(server: McpServer, deps: TsoToolDeps, logger: L
           }
         } else {
           if (deps.responseCache) {
-          // Todo: Can we do it smarted without duplicating the call - something like withCache(...) here and elsewhere where
-          where you have duplicated code?
+            // Todo: Can we do it smarter without duplicating the call - something like withCache(...)?
             const cached = await deps.responseCache.getOrFetch(cacheKey, async () => {
               const out = await deps.backend.runTsoCommand(
                 systemId,

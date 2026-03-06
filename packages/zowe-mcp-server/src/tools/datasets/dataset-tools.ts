@@ -297,14 +297,22 @@ export function registerDatasetTools(
       inputSchema: {
         dsnPattern: z
           .string()
-          .describe('Fully qualified data set list pattern (e.g. USER.* or USER.**).'),
+          .describe(
+            'Fully qualified data set list pattern (e.g. USER.* or USER.**). ' +
+              'Wildcards: * matches one qualifier, ** matches across qualifiers, % matches one character.'
+          ),
         system: z
           .string()
           .optional()
           .describe(
             'Target z/OS system: host (e.g. sys1.example.com) or connection spec (user@host) when multiple connections exist for that host. Defaults to active system.'
           ),
-        volser: z.string().optional().describe('Volume serial for uncataloged data sets.'),
+        volser: z
+          .string()
+          .optional()
+          .describe(
+            'Volume serial (VOLSER) to restrict the search to a specific DASD volume. Primarily used for uncataloged data sets that are not in the system catalog.'
+          ),
         offset: z
           .number()
           .int()

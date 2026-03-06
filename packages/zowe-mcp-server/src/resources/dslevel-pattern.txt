@@ -1,5 +1,3 @@
-Todo: this is a real resource while the other file in this directory is an MCP resource 
-
 DSLEVEL pattern (dataset list pattern for dsnPattern). It is not the same as grep regex or Windows filename masks.
 
 Rules:
@@ -23,8 +21,9 @@ Correct use of * and ** in one pattern:
 - USER.**.*JCL* — * matches any last qualifier that contains JCL (e.g. JCL, MYJCL, JCLOLD); ** matches zero or more qualifiers before the final segment. Matches USER.JCL, USER.BACKUP.JCLS, USER.TEST.SAMPJCL.
 
 Invalid patterns:
-- USER.**JCL — Invalid: ** needs to be used alone in a qualifier. Use USER.**.*JCL* instead.
-- USER.**JCL* — Invalid: ** and * cannot be used together in the same qualifier. Use USER.**.*JCL* instead.
+- USER.**JCL — Invalid: ** must be the entire qualifier (no other characters). Use USER.**.*JCL* instead.
+- USER.**JCL* — Invalid: ** and * cannot be combined in the same qualifier. Use USER.**.*JCL* instead.
+- USER.**.**.OLD — Avoid using ** more than once; a single ** already matches any number of qualifiers.
 
 Notes:
 - USER.*.OLD — Wrong when you want names like USER.JCL.VERY.OLD that match multiple qualifiers. * matches only one qualifier, so it matches USER.JCL.OLD but not USER.JCL.VERY.OLD. Use USER.**.OLD to match any number of middle qualifiers.

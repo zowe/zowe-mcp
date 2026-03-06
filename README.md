@@ -135,9 +135,11 @@ ZOWE_MCP_MOCK_DIR=./zowe-mcp-mock-data npx zowe-mcp-server --stdio
 ## Native (SSH) backend
 
 The server can connect to real z/OS systems over SSH using the Zowe Native Proto
-SDK. **listDatasets** and **listMembers** are implemented in this backend; other
-dataset tools are planned.
-// TODO: I think we implemented more
+SDK. The native backend implements the full set of z/OS operations: data set
+CRUD (list, read, write, create, delete, copy, rename, restore, search,
+attributes), USS file operations (list, read, write, create, delete, chmod,
+chown, chtag, copy), TSO and console commands, and job management (submit,
+status, list, output, cancel, hold, release, delete).
 
 Connection format is `user@hostname` or `user@hostname:port` (default port 22),
 same as SSH.

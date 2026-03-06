@@ -2,8 +2,6 @@
 
 Items to address later. Not ordered by priority.
 
-// TODO: Review what has been done. Add items from other TODOs than couldn’t be addressed 
-
 ## Zowe Native / SDK
 
 - **Deploy ZNP via ZSshUtils**: Use `ZSshUtils.installServer` to deploy the Zowe Native Protocol (znp) to systems where it does not exist yet.
@@ -27,7 +25,7 @@ Items to address later. Not ordered by priority.
 
 ## VS Code / UX
 
-- **Language Model API and Chat Participant API**: Consider using VS Code’s Language Model API and Chat Participant API for a better user experience.
+- **Language Model API and Chat Participant API**: Consider using VS Code's Language Model API and Chat Participant API for a better user experience.
 - ✅ **Zowe Explorer integration — open in editor**: Integrate with Zowe Explorer so the AI (or user) can open z/OS artifacts in the VS Code editor for manual view/edit. For example: "open this data set/member in the editor" or "show me that job's output" could trigger opening the data set member, USS file, or job/job file in Zowe Explorer's editor. Ideas: MCP tools or extension commands that resolve a DSN/member, USS path, or job/spool ID and then invoke Zowe Explorer's "open" behavior (e.g. via VS Code API or Zowe Explorer's own commands/URI scheme), so the user can inspect or edit in the existing Zowe Explorer experience instead of only in chat.
 
 ## Authentication / UX
@@ -41,8 +39,9 @@ Items to address later. Not ordered by priority.
 - ✅  **Consider removing relative DSN and dsnPrefix**: The concept of DSN relative to a dsnPrefix (and the dsnPrefix itself) may be confusing models; e.g. Qwen3 needs several tool calls to get it right. Consider removing relative-DSN resolution and dsnPrefix from the MCP tools so that data set names are always fully qualified (e.g. require `'USER.SRC.COBOL'`-style input only). The model that add quotes to the parameters and get quoted DSNs as output still change it back to unquoted absolute names in the response.
 - ✅ **Pagination — review and Copilot usability**: Review how pagination is implemented (`listDatasets` / `listMembers` offset, limit, `hasMore`) and whether Copilot can effectively use it. Key question: *When the user asks for a data set that is not on the first page (or not matched by wildcards alone), does the agent reliably use offset/limit and `hasMore` to keep fetching until it finds the target or exhausts results?* Validate with real Copilot sessions and improve tool descriptions or response shape if needed.
 - **Search tools**: Add tool(s) to find data sets that contain a specific member (e.g. by name or pattern). Inputs: list of data sets and/or DSN/member wildcards; output: data sets that have matching members.
-- **Working set**: Introduce a concept of a working set — a defined set of data sets (with optional member subset or wildcards) that can be reused as input for search or other operations (e.g. “search in my working set”).
-- **Efficient editing**: Support efficient, targeted edits similar to Ansible’s `ansible.builtin.replace` (change multiple similar lines by pattern) and `ansible.builtin.blockinfile` (insert/update/remove a block of lines). Avoid full read–edit–write when only a few lines or one block change; reduce risk of corrupting large data sets.
+- **Multi-dataset search**: Support searching for a string across multiple data sets in a single tool call (e.g. provide a list of DSNs or a DSN pattern and search all matching data sets).
+- **Working set**: Introduce a concept of a working set — a defined set of data sets (with optional member subset or wildcards) that can be reused as input for search or other operations (e.g. "search in my working set").
+- **Efficient editing**: Support efficient, targeted edits similar to Ansible's `ansible.builtin.replace` (change multiple similar lines by pattern) and `ansible.builtin.blockinfile` (insert/update/remove a block of lines). Avoid full read–edit–write when only a few lines or one block change; reduce risk of corrupting large data sets.
 - **Viewing binary files (hex mode)**: Support viewing binary data sets and USS files in hex mode (e.g. hex dump or hex+ASCII) so the AI or user can inspect non-text content (load modules, binary data) without corrupting or misinterpreting bytes as text.
 - **Editing files with unprintable characters**: Support reading and editing data set members or USS files that contain unprintable/control characters (e.g. EBCDIC control chars, mixed binary and text). Today unprintables are replaced with `.` for display; allow a mode or encoding that preserves or represents them for safe round-trip edit (e.g. escape sequences, hex in place, or binary-safe read/write path).
 
@@ -50,10 +49,10 @@ Items to address later. Not ordered by priority.
 
 - ✅ **System parameter: accept FQDN or unqualified**: All tools that take a system parameter should accept both fully qualified hostnames (FQDN) or unqualified hostnames, consistent with `setSystem` behavior, so the agent can use either form.
 - ✅ **Jobs component**: Implement `jobs` tool component (submit job, list jobs, get job output, etc.) as in AGENTS.md; register in server when backend supports it.
-- **TODO: Check if there is a way how to get results (CC) for each step to help to focus on failed steps**
+- **Job step results (CC per step)**: Check if there is a way to get condition codes (CC) for each job step to help focus on failed steps.
 - ✅ **USS component**: Implement `uss` (UNIX System Services) tool component for file/path operations on z/OS; register in server when backend supports it.
 - ✅ **Native backend — full ZosBackend**: Implement remaining `ZosBackend` methods in `NativeBackend`: `readDataset`, `writeDataset`, `createDataset`, `deleteDataset`, `getAttributes`, `copyDataset`, `renameDataset`. Currently only `listDatasets` and `listMembers` are implemented; others throw "Not implemented".
-- **Upload from local filesystem**: Add tool(s) to upload files and data sets from the local filesystem to z/OS — e.g. upload a local file to a USS path, upload a local file or directory to a PDS/PDSE (multiple members), upload a local file to a sequential dataset. Enables “copy from my machine to mainframe” workflows for single files, directories, and multi-member datasets.
+- **Upload from local filesystem**: Add tool(s) to upload files and data sets from the local filesystem to z/OS — e.g. upload a local file to a USS path, upload a local file or directory to a PDS/PDSE (multiple members), upload a local file to a sequential dataset. Enables "copy from my machine to mainframe" workflows for single files, directories, and multi-member datasets.
 - **z/OSMF backend**: Add a `ZosBackend` implementation using z/OSMF REST APIs (e.g. Data Set and File REST) for environments where SSH/native is not desired.
 - **Credential providers**: Implement `ZoweTeamConfigProvider` and/or `OAuthTokenProvider` (see `src/zos/credentials.ts`); currently only mock and native credential providers exist.
 
@@ -66,3 +65,21 @@ Items to address later. Not ordered by priority.
 
 - **MCP SDK v2**: MCP SDK v1.x is stable and SDK `main` is v2 pre-alpha. When v2 is stable, evaluate migration and update dependencies.
 - **Mock config hot-reload**: Currently changing `zoweMCP.mockDataDirectory` requires restarting the MCP server; consider supporting config/systems change without full restart if feasible.
+
+## Tool Design & Agent UX
+
+- **Dynamic tool definitions**: Update tools dynamically to include current defaults and known systems/connections in tool descriptions, so the LLM has full context without needing to call `getContext` first.
+- **Configurable safety for TSO/USS/JCL**: Make command safety patterns (block/elicit/safe) configurable per user or environment, so organizations can customize what commands require approval.
+- **TSO command reference/discovery**: Help agents discover available TSO commands and their syntax — provide a reference tool, prompt, or resource so the agent does not have to guess.
+- **Merge `info` with `getContext`**: Evaluate whether the `info` tool can be merged into `getContext` to reduce tool count and simplify the agent's startup flow. Consider compatibility with other MCP servers that also have `getContext`.
+- **Dev/test vs production system awareness**: Allow systems to be tagged as dev/test or production so the server (or agent) can apply different safety levels or warnings for production systems with financial or health data.
+- **Monolithic context refactoring**: The current context (`getContext`) is monolithic — consider scoping context to tool groups or components so each tool gets only the context it needs.
+- **PDS/E naming consistency / glossary**: Ensure consistent naming across all tools and docs (user ID, PDS/E vs PDSE, USS vs z/OS USS). Consider adding a glossary resource or prompt.
+
+## Evals
+
+- **LLM-as-a-judge assertion**: Add an assertion type that uses a different (potentially stronger) model to judge whether the answer is correct, beyond simple pattern matching.
+- **Eval self-reflection step**: When an assertion fails, call the same or a stronger model to investigate why — suggest improvements to assertions, descriptions, or tools. Context: chat session, tool defs, model thinking, question, assertions, and error.
+- **Explicit tool calls for eval setup**: Add explicit tool calls for setup or data-fetching in assertions (similar to how Ansible can access results of commands), so evals can verify state before and after.
+- **Document eval-compare**: Write proper documentation for the `eval-compare` tool in the evals README.
+- **Code duplication detection**: Find or build a tool that AI agents can use to detect code duplication (exact or intent-based) across the codebase.

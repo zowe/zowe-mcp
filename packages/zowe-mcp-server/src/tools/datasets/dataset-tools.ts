@@ -1208,9 +1208,9 @@ export function registerDatasetTools(
     'createDataset',
     {
       description:
-        'Create a new sequential or partitioned data set. Specify the type ' +
-        '(PS/SEQUENTIAL, PO/PDS, PO-E/PDSE/LIBRARY) and optional attributes. ' +
-        'Use primarySpace, secondarySpace, blockSize (Zowe CLI naming). Type and recfm are case-insensitive.',
+        'Create a new sequential or partitioned data set. ' +
+        'Specify the type (PS/SEQUENTIAL, PO/PDS, PO-E/PDSE/LIBRARY) and optional attributes (primarySpace, secondarySpace, blockSize, recfm, lrecl). ' +
+        'Type and recfm values are case-insensitive.',
       outputSchema: createDatasetOutputSchema,
       inputSchema: {
         dsn: z.string().describe('Fully qualified data set name (e.g. USER.SRC.COBOL).'),

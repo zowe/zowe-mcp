@@ -65,6 +65,8 @@ Items to address later. Not ordered by priority.
 
 - **MCP SDK v2**: MCP SDK v1.x is stable and SDK `main` is v2 pre-alpha. When v2 is stable, evaluate migration and update dependencies.
 - **Mock config hot-reload**: Currently changing `zoweMCP.mockDataDirectory` requires restarting the MCP server; consider supporting config/systems change without full restart if feasible.
+- **Format output schema tables in doc generator**: The `generate-docs` script should format output schema tables more consistently during generation.
+- **Use `messages` instead of `notice` in info tool**: The `info` tool's `notice` field should use the standard `messages` array pattern for consistency with other tools.
 
 ## Tool Design & Agent UX
 
@@ -83,3 +85,5 @@ Items to address later. Not ordered by priority.
 - **Explicit tool calls for eval setup**: Add explicit tool calls for setup or data-fetching in assertions (similar to how Ansible can access results of commands), so evals can verify state before and after.
 - **Document eval-compare**: Write proper documentation for the `eval-compare` tool in the evals README.
 - **Code duplication detection**: Find or build a tool that AI agents can use to detect code duplication (exact or intent-based) across the codebase.
+- **Case-insensitive pattern matching in eval assertions**: Support case-insensitive matching for command argument assertions (e.g. `D T` vs `d t` in console commands).
+- **`validDsn` assertion directive**: Add a special assertion directive for validating data set names in eval assertions, so questions don't need to enumerate all valid forms.

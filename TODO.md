@@ -68,6 +68,12 @@ Items to address later. Not ordered by priority.
 - **Format output schema tables in doc generator**: The `generate-docs` script should format output schema tables more consistently during generation.
 - **Use `messages` instead of `notice` in info tool**: The `info` tool's `notice` field should use the standard `messages` array pattern for consistency with other tools.
 
+## Code Quality / Refactoring
+
+- **Extract `extensionClient?` conditions**: `index.ts` has many repeated `extensionClient?` null checks for event handlers; extract to a single setup function.
+- **Extract `withCache()` helper**: The cache get/set pattern is duplicated across tools (e.g. TSO, datasets); create a reusable `withCache()` wrapper.
+- **Shared utils package**: `plural()` and logger formatting exist in both `zowe-mcp-server` and `zowe-mcp-evals`; consider a shared `zowe-mcp-common` package or import from server.
+
 ## Tool Design & Agent UX
 
 - **Dynamic tool definitions**: Update tools dynamically to include current defaults and known systems/connections in tool descriptions, so the LLM has full context without needing to call `getContext` first.

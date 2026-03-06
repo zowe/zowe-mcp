@@ -1041,7 +1041,11 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
           .describe(
             'USS path: absolute or relative to current working directory (see getContext.ussCwd).'
           ),
-        tag: z.string().describe('Tag (e.g. ISO8859-1).'),
+        tag: z
+          .string()
+          .describe(
+            'File tag value: a coded character set identifier (CCSID) name or number. Common values: ISO8859-1, IBM-1047 (EBCDIC), UTF-8, binary. Use "binary" for non-text files.'
+          ),
         system: z
           .string()
           .optional()
@@ -1090,7 +1094,7 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
     'copyUssFile',
     {
       description:
-        'Copy a USS file or directory on z/OS. ' +
+        'Copy a USS file or directory within the same z/OS system. ' +
         'For directories, set recursive to true. ' +
         'Paths can be absolute (starting with /) or relative to the current working directory (see getContext.ussCwd).',
       outputSchema: copyUssFileOutputSchema,
@@ -1187,8 +1191,8 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
     'getUssTempDir',
     {
       description:
-        'Return a unique USS temporary directory path under the given base path. ' +
-        'The path is verified not to exist; use createUssFile with isDirectory true to create it.',
+        'Generate a unique USS temporary directory path as a subdirectory of the given base path (e.g. /tmp or the user home). ' +
+        'The path is verified not to exist on the system. Use createTempUssDir to create it, or createUssFile with isDirectory true.',
       annotations: { readOnlyHint: true },
       outputSchema: getUssTempDirOutputSchema,
       inputSchema: {

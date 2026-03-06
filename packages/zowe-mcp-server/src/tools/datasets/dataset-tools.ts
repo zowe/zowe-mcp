@@ -1957,7 +1957,7 @@ export function registerDatasetTools(
     'restoreDataset',
     {
       description:
-        'Restore (recall) a migrated data set from HSM. ' +
+        'Restore (recall) a migrated data set from the hierarchical storage manager (HSM/DFHSM). ' +
         'Use this when a data set shows as migrated in listDatasets or getDatasetAttributes.',
       outputSchema: restoreDatasetOutputSchema,
       inputSchema: {

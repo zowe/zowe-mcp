@@ -149,8 +149,6 @@ Server tests are organized into **common** (parameterized) and **transport-speci
 - **VS Code extension tests**: Use `@vscode/test-cli` + `@vscode/test-electron` for integration tests in a real VS Code instance.
 - **Quick tool testing**: `npx zowe-mcp-server call-tool [--mock=<dir>] [<tool-name> [key=value ...]]` (requires build).
 - **MCP Inspector**: `npm run inspector` launches the web-based inspector at `http://localhost:6274`.
-// TODO: Code duplication - is there a tool that AI agent can use to find duplication of code (exact or
-intent) immediately?
 
 ### Code Formatting and License Headers
 
@@ -200,7 +198,12 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 
 ## Things to Remember
 
-- **Agent-friendly tool input**: Dataset tools accept `dsn` in the form `USER.LIB(MEM)` and omit `member` when the parenthesized part is a valid member name. createDataset/createTempDataset use **primarySpace**, **secondarySpace**, **blockSize** (Zowe CLI naming) only; type and recfm are case-insensitive (PS, pds, LIBRARY, fb, VB, etc.). submitJob supports optional `wait: true` and `timeoutSeconds` to wait for the job to reach OUTPUT and return status (replacing the former executeJob tool).
+- **System parameter description**: All tools use `SYSTEM_PARAM_DESCRIPTION` from `response.ts` for the optional `system` parameter. This ensures consistent wording across all tools. Zowe Explorer open-in-editor tools have a unique description (includes profile matching context).
+- **Optional `messages` in response envelope**: The `messages` field in `ToolResponseEnvelope` is optional. `wrapResponse()` omits it when the array is empty to reduce noise for LLMs. Output schemas mark it as `.optional()`.
+- **Effective encodings in getContext**: `getContext` shows the effective (resolved) encoding for the active system — resolved from per-system override or server default. The `ContextToolDeps` interface includes `encodingOptions` for this purpose.
+- **Pagination note placement**: `withPaginationNote()` inserts the pagination hint after the first sentence of the tool description (not prepended). The LLM sees the functional summary first, then pagination requirements.
+- **VS Code MCP configuration**: VS Code now uses `.vscode/mcp.json` for MCP server configuration (not `github.copilot.chat.mcp.servers` in settings.json). The README documents this approach.
+- **Agent-friendly tool input**: Dataset tools accept `dsn` in the form `USER.LIB(MEM)` and omit `member` when the parenthesized part is a valid member name. createDataset/createTempDataset use **primarySpace**, **secondarySpace**, **blockSize** only; type and recfm are case-insensitive (PS, pds, LIBRARY, fb, VB, etc.). submitJob supports optional `wait: true` and `timeoutSeconds` to wait for the job to reach OUTPUT and return status (replacing the former executeJob tool).
 - The extension contributes eight color themes: **Zowe Dark (Classic)** and **Zowe Light (Classic)** (primary `#0062FF`), **Zowe Dark (Official)** / **Zowe Light (Official)** (Zowe docs palette), **ISPF Classic (Dark)**, **ISPF Green** (ISPF Classic with green UI text and green accents), **ISPF Modern (Dark)**, **ISPF Modern (Light)** (ISPF terminal–inspired). Theme files: `zowe-*-classic-color-theme.json`, `zowe-*-official-color-theme.json`, `ispf-*-color-theme.json`; registered via `contributes.themes`. ISPF themes include token colors aligned with [eclipse-che4z/che-che4z-lsp-for-cobol](https://github.com/eclipse-che4z/che-che4z-lsp-for-cobol) (keyword.cobol, keyword.control.*.cobol, storage.type.picture.cobol, comment.line.cobol.fixed/floating, constant.numeric.integer, string.quoted.*.cobol/sql.cobol/cics.cobol).
 - **File icon themes**: (1) **Zowe Mainframe** (`zowe-file-icon-theme.json`) — document-style SVGs with labels; (2) **ISPF** (`ispf-file-icon-theme.json`) — minimal 3270-style icons (rect + 2–3 letter monospace label), ISPF Classic colors (black/white/green/red/cyan/yellow), VS Code–like mapping (e.g. yellow for JSON/config/JS); (3) **ISPF Modern** (`ispf-modern-file-icon-theme.json`) — same design with ISPF Modern palette (muted green/red/cyan). Icons live in `themes/fileicons/ispf/` and `themes/fileicons/ispf-modern/`; same file types as Zowe Mainframe.
 - The MCP SDK v1.x is the stable branch. The `main` branch of the SDK repo is v2 pre-alpha — do not use it.

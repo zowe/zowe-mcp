@@ -16,6 +16,7 @@ questions:
       - toolCall:
           tool: runConsoleCommand
           args:
+          # TODO: Can we be smarter about this? Use some case insensitive pattern? 
             commandText:
               - "D T"
               - "DISPLAY T"

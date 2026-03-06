@@ -137,6 +137,7 @@ ZOWE_MCP_MOCK_DIR=./zowe-mcp-mock-data npx zowe-mcp-server --stdio
 The server can connect to real z/OS systems over SSH using the Zowe Native Proto
 SDK. **listDatasets** and **listMembers** are implemented in this backend; other
 dataset tools are planned.
+// TODO: I think we implemented more
 
 Connection format is `user@hostname` or `user@hostname:port` (default port 22),
 same as SSH.
@@ -261,6 +262,8 @@ Once configured, the server starts with the full set of tools (dataset
 listing, reading, writing, context management, etc.).
 
 ### Option B: Configure as a standalone MCP server in VS Code settings
+
+// TODO: Is it really this setting? What about mcp.json?
 
 This approach lets you pass the `--mock` flag directly. Add the following to
 your VS Code `settings.json` (user or workspace):

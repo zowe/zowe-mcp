@@ -10,15 +10,22 @@ This document describes all [Tools](#tools), [Prompts](#prompts), [Resource Temp
 
 The server provides **51** tools.
 
+// TODO: PDSE should be PDS/E but how to do PDS/PDS/E?
+// TODO: Do we need info? Can we merge it with getContext? What about other MCP servers that have getContext?
+// TODO: How we help agents to choose PDS/E as a default for libraries?
+// TODO: How we ensure consistency in naming (user ID, PDS/E…). Do we need a glossary?
+
 | # | Tool | Description |
 | --- | --- | --- |
 | 1 | [`info`](#info) | Provides information about the Zowe MCP server, its version, and backend connection status |
 | 2 | [`listSystems`](#listsystems) | List all z/OS systems you have access to |
+// TODO: Do you know more about those systems? Would you treat dev/test system different than production one with financial or health data?
 | 3 | [`setSystem`](#setsystem) | Set the active z/OS system |
 | 4 | [`getContext`](#getcontext) | Return the current session context: active system, active connection (user@host), user ID, all known systems (with their connections when multiple exist), and recently used systems (those with saved context) |
 | 5 | [`listDatasets`](#listdatasets) | List data sets matching a DSLEVEL pattern |
 | 6 | [`listMembers`](#listmembers) | List members of a PDS/PDSE data set |
 | 7 | [`searchInDataset`](#searchindataset) | Search for a string in a sequential data set or PDS/PDSE (all members or one member) |
+// TODO: Does it support searching in multiple data sets?
 | 8 | [`getDatasetAttributes`](#getdatasetattributes) | Get detailed attributes of a data set: organization, record format, record length, block size, volume, SMS classes, dates, and more |
 | 9 | [`readDataset`](#readdataset) | Read the content of a sequential data set or PDS/PDSE member |
 | 10 | [`writeDataset`](#writedataset) | Write UTF-8 content to a sequential data set or PDS/PDSE member |
@@ -31,26 +38,36 @@ The server provides **51** tools.
 | 17 | [`copyDataset`](#copydataset) | Copy a data set or PDS/PDSE member within a single z/OS system |
 | 18 | [`renameDataset`](#renamedataset) | Rename a data set or PDS/PDSE member |
 | 19 | [`restoreDataset`](#restoredataset) | Restore (recall) a migrated data set from HSM |
+// TODO: Is HSM generic enough? Is CA Disk an HSM?
 | 20 | [`getUssHome`](#getusshome) | Return the current user's USS home directory for the active (or specified) system |
 | 21 | [`changeUssDirectory`](#changeussdirectory) | Set the USS current working directory for the active (or specified) system |
 | 22 | [`listUssFiles`](#listussfiles) | List files and directories in a USS path |
 | 23 | [`readUssFile`](#readussfile) | Read the content of a USS file |
 | 24 | [`runSafeUssCommand`](#runsafeusscommand) | Run a Unix command on z/OS USS |
+// TODO: USS or z/OS USS?
 | 25 | [`writeUssFile`](#writeussfile) | Write or overwrite a USS file |
 | 26 | [`createUssFile`](#createussfile) | Create a USS file or directory |
 | 27 | [`deleteUssFile`](#deleteussfile) | Delete a USS file or directory |
+// Does it delete recursively? Is there some safety mechanism like in TSO commands?
 | 28 | [`chmodUssFile`](#chmodussfile) | Change permissions of a USS file or directory |
 | 29 | [`chownUssFile`](#chownussfile) | Change owner of a USS file or directory |
 | 30 | [`chtagUssFile`](#chtagussfile) | Set the z/OS file tag (encoding/type) for a USS file or directory |
+// TODO: Is it clear what encodings and types can be used?
 | 31 | [`copyUssFile`](#copyussfile) | Copy a USS file or directory on z/OS |
+// TODO: Is it the same system?
 | 32 | [`getUssTempDir`](#getusstempdir) | Return a unique USS temporary directory path under the given base path |
 | 33 | [`getUssTempPath`](#getusstemppath) | Return a unique USS temporary file path under the given directory |
+// TODO: Under the given directory? Smart?!
 | 34 | [`createTempUssDir`](#createtempussdir) | Create a temporary USS directory |
 | 35 | [`createTempUssFile`](#createtempussfile) | Create an empty temporary USS file at the given path, creating parent directories if needed |
 | 36 | [`deleteUssTempUnderDir`](#deleteusstempunderdir) | Delete all files and directories under the given USS path (the path itself is removed) |
 | 37 | [`runSafeTsoCommand`](#runsafetsocommand) | Run a TSO command on z/OS |
+// TODO: Is it clear where to find all
+TSO commands and their syntax? What you will do when you are not sure about what TSO commands exist and what their options mean? I hope something better than trying?
+// TODO: How to make the safety configurable?
 | 38 | [`submitJob`](#submitjob) | Submit JCL to the current (or specified) z/OS system |
-| 39 | [`getJobStatus`](#getjobstatus) | Get the current status of a z/OS job (INPUT, ACTIVE, or OUTPUT) and its return code when complete |
+// TODO: What about safe guards for JCl?
+| 39 | [`getJobStatus`](#getjobstatus) | Get the current status of a z/OS job (INPUT, ACTIVE, or OUTPUT) and its return code when komplete |
 | 40 | [`listJobFiles`](#listjobfiles) | List output files (spools) for a z/OS job |
 | 41 | [`readJobFile`](#readjobfile) | Read the content of one job output file (spool); use listJobFiles to get job file IDs |
 | 42 | [`getJobOutput`](#getjoboutput) | Get aggregated output from job files for a completed job |
@@ -78,6 +95,8 @@ Provides information about the Zowe MCP server, its version, and backend connect
 
 #### Output Schema
 
+// TODO: Format tables here during generation
+
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
 | `name` | `string` | Yes | Server display name |
@@ -85,7 +104,7 @@ Provides information about the Zowe MCP server, its version, and backend connect
 | `description` | `string` | Yes | Short server description |
 | `components` | `string`[] | Yes | Registered component names (e.g. core, datasets, uss) |
 | `backend` | `string` \| `null` | Yes | Active backend: mock, native, or null |
-| `notice` | `string` | No | Guidance when no backend is configured |
+| `notice` | `string` | No | Guidance when no backend is configured | // TODO: Use messages for it
 
 #### Example Output
 
@@ -93,7 +112,7 @@ Provides information about the Zowe MCP server, its version, and backend connect
 {
   "name": "Zowe MCP Server",
   "version": "0.7.0-dev",
-  "description": "MCP server providing tools for z/OS systems including data sets, jobs, and UNIX System Services",
+  "description": "MCP server providing tools for z/OS systems including data sets, jobs, and UNIX System Services (USS)",
   "components": [
     "core",
     "context",
@@ -156,7 +175,7 @@ List all z/OS systems you have access to. Each system is a host; multiple config
 ### `setSystem`
 
 
-Set the active z/OS system. The system parameter can be a host (e.g. zos.example.com) when only one connection exists for that host, or a connection spec (e.g. USER@zos.example.com) when multiple connections exist for the same host. If you pass only a host and multiple connections exist, the tool fails and lists valid connection values. Optionally set mainframe encodings for this system (data set and USS); omit to leave existing overrides unchanged, or pass null to use MCP server default.
+Set the active z/OS system. The system parameter can be a host (e.g. zos.example.com) when only one connection exists for that host, or a connection spec (e.g. USER@zos.example.com) when multiple connections exist for the same host. If you pass only a host and multiple connections exist, the tool fails and lists valid connection values. Optionally set mainframe encodings for this system (data set and USS file); omit to leave existing overrides unchanged, or pass null to use MCP server default.
 
 #### Parameters
 
@@ -178,6 +197,7 @@ Set the active z/OS system. The system parameter can be a host (e.g. zos.example
 | `description` | `string` | No | Optional system description/label from configuration. |
 | `mainframeMvsEncoding` | `string` \| `null` | No | Per-system MVS/data set encoding override (e.g. IBM-037). null = use MCP server default. |
 | `mainframeUssEncoding` | `string` \| `null` | No | Per-system USS encoding override (e.g. IBM-1047). null = use MCP server default. |
+// TODO: Can we update the tools dynamically to include what is the default and what are the known systems/connections?
 
 #### Example Output
 
@@ -240,6 +260,9 @@ Return the current session context: active system, active connection (user@host)
 | &ensp;├─ `ussCwd` | `string` | No | USS current working directory when set. |
 | &ensp;├─ `mainframeMvsEncoding` | `string` \| `null` | No | Per-system MVS encoding when set. |
 | &ensp;└─ `mainframeUssEncoding` | `string` \| `null` | No | Per-system USS encoding when set. |
+
+
+// TODO: Shouldn’t we show the effective encodings?
 
 #### Example Output
 
@@ -308,13 +331,17 @@ Notes:
 - USER.*.OLD — Wrong when you want names like USER.JCL.VERY.OLD that match multiple qualifiers. * matches only one qualifier, so it matches USER.JCL.OLD but not USER.JCL.VERY.OLD. Use USER.**.OLD to match any number of middle qualifiers.
 - *.DATASET or **.DATASET — Possible but will cause all catalogs on the system to be searched. It will take a considerable amount of time to complete this search. If you can be more specific, do so.
 
+// TODO: I have seen Gemini to fail because of multiple ** in the pattern. Is it clear what is allowed?
+
 #### Parameters
 
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
 | `dsnPattern` | `string` | Yes | Fully qualified data set list pattern (e.g. USER.* or USER.**). |
 | `system` | `string` | No | Target z/OS system: host (e.g. sys1.example.com) or connection spec (user@host) when multiple connections exist for that host. Defaults to active system. |
+// TODO: Is this description same as for other tools? Is it defined on one place?
 | `volser` | `string` | No | Volume serial for uncataloged data sets. |
+// TODO: What is the behavior? Will it search only on that volume? Or in catalog and on that volume? What ISPF does?
 | `offset` | `integer` | No | 0-based offset into the result set. Default: 0. |
 | `limit` | `integer` | No | Maximum number of items to return. Default: 500. Max: 1000. |
 | `detail` | `minimal` \| `basic` \| `full` | No | Level of detail for each data set entry. minimal: dsn, dsorg, dsntype; migrated/encrypted only when true; volser only for non-SMS. basic (default): adds recfm, lrecl, blksz, space; volser only for non-SMS (no volsers). full: all attributes including resourceLink, SMS classes, device type, all dates. (default: `"basic"`) |
@@ -326,6 +353,7 @@ Notes:
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
 | `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. |
+// TODO: The context seems to be very monolithic - shouldn’t you be connected only to them tool or group of tools or a component?
 | &ensp;├─ `system` | `string` | Yes | Resolved z/OS system hostname (target of the operation). |
 | &ensp;├─ `resolvedPattern` | `string` | No | Normalized list pattern (uppercase, no quotes). Present only when input was quoted or lowercase. |
 | &ensp;├─ `resolvedDsn` | `string` | No | Normalized data set name (uppercase, no quotes). Present only when input was quoted or lowercase. |
@@ -367,7 +395,7 @@ Notes:
 
 #### Example Outputs
 
-##### default
+##### default # can we call it “happy path”?
 
 Input:
 
@@ -558,6 +586,8 @@ Input:
 }
 ```
 
+// Todo: the pattern does not filter the members, is the mock implementation correct?
+
 Output:
 
 ```json
@@ -597,6 +627,8 @@ Output:
 ### `searchInDataset`
 
 > Read-only
+
+// Todo: Pagination hint should second sentence (everywhere)
 
 Results are paginated (default 500, max 1000 per page); follow the pagination instructions in the server instructions. Search for a string in a sequential data set or PDS/PDSE (all members or one member). Returns matching lines with line numbers and a summary. You may pass dsn as USER.LIB(MEM) and omit member. Options: caseSensitive (default false), cobol (search cols 7–72 only), ignoreSequenceNumbers (exclude cols 73–80, default true), doNotProcessComments, includeContextLines (±6 lines via LPSF)
 
@@ -1141,6 +1173,7 @@ Returns a single unique full temporary data set name (for one data set). The DSN
     "success": true
   },
   "messages": [],
+  // Todo: Do not return empty messages in any tool
   "data": {
     "tempDsn": "USER.TMP.A1B2C3D4.E5F6G7H8.J9K0L1M2"
   }
@@ -1153,6 +1186,8 @@ Returns a single unique full temporary data set name (for one data set). The DSN
 
 
 Create a new sequential or partitioned data set. Specify the type (PS/SEQUENTIAL, PO/PDS, PO-E/PDSE/LIBRARY) and optional attributes. Use primarySpace, secondarySpace, blockSize (Zowe CLI naming). Type and recfm are case-insensitive.
+
+// TODO: Is it necessary to specify Zowe CLI naming and case-insensitivity? Apply for all tools
 
 #### Parameters
 

@@ -149,6 +149,8 @@ Server tests are organized into **common** (parameterized) and **transport-speci
 - **VS Code extension tests**: Use `@vscode/test-cli` + `@vscode/test-electron` for integration tests in a real VS Code instance.
 - **Quick tool testing**: `npx zowe-mcp-server call-tool [--mock=<dir>] [<tool-name> [key=value ...]]` (requires build).
 - **MCP Inspector**: `npm run inspector` launches the web-based inspector at `http://localhost:6274`.
+// TODO: Code duplication - is there a tool that AI agent can use to find duplication of code (exact or
+intent) immediately?
 
 ### Code Formatting and License Headers
 

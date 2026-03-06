@@ -30,6 +30,7 @@ if [ -z "$file_path" ]; then
 fi
 
 # Format based on file type
+# TODO: What else we can check or format?
 case "$file_path" in
   *.ts|*.mts)
     # Enforce license header via ESLint, then format with Prettier

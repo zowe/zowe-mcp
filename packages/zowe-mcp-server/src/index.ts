@@ -605,6 +605,8 @@ async function main(): Promise<void> {
       encodingOptions: encodingOptionsRef,
       jobCardStore,
     };
+    
+    // Todo: there is a lot of extensionClient? conditions can it be extracted to one function?
     if (extensionClient?.connected && nativePasswordStore) {
       extensionClient.onEvent(event => {
         if (event.type === 'password') {

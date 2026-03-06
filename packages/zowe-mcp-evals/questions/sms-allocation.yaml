@@ -60,6 +60,7 @@ questions:
           tool: createDataset
           args:
             dsn:
+            # todo: can we use some pattern or special directive like validDsn here are elsewhere?
               - "USER.TEST.FULL"
               - "'USER.TEST.FULL'"
             type:

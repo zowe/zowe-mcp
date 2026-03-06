@@ -1,3 +1,5 @@
+Todo: this is a real resource while the other file in this directory is an MCP resource 
+
 DSLEVEL pattern (dataset list pattern for dsnPattern). It is not the same as grep regex or Windows filename masks.
 
 Rules:

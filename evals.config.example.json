@@ -11,6 +11,7 @@
       "id": "gemini-2.5-flash",
       "provider": "gemini",
       "serverModel": "gemini-2.5-flash"
+      // Todo: key is needed
     },
     {
       "id": "lmstudio-local",

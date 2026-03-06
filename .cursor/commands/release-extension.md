@@ -16,6 +16,8 @@ Run the full release workflow for the Zowe MCP VS Code extension. Execute each s
 
 ## 3. Todos updated
 
+TODO: Regenerate docs and publish slides
+
 - Open **`TODO.md`** and ensure every item that has been implemented for this release is marked as done with a check mark **✅** (e.g. `- ✅ **Title**: ...`).
 - If you see work in the codebase or in recent commits that clearly corresponds to an unmarked TODO item, list those items and ask the user to add ✅ to them in `TODO.md` before proceeding. Do not continue the release until the user has updated `TODO.md` or confirmed that nothing is missing.
 

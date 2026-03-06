@@ -12,6 +12,15 @@ development within Zowe MCP.
 - [Reporting Security Issues](#reporting-security-issues)
 - [More Information](#more-information)
 
+// TODO: Refine this new section ## AI Assisted Development 
+
+- AI assistants are now able to write all the code of projects like this one
+- 99% of code of this project has been written by Cursor and Claude under experienced guidance, testing, evaluation, and automated feedback loops
+- Your experience with the mainframe and your use cases, additional requirements, suggestions on architecture, or discovered bugs are very valuable
+- If you can use AI coding assistants, please do so, if not consider what will bring the most value to this project and yourself
+- Every PR should have comment about how AI has been used to create it (tool, model, prompts) - we need to add Cursor rule for it and agents.md rule
+// TODO END
+
 ## Sign All of Your Git Commits
 
 Whenever you make a commit, it is required to be signed. If you do not, you
@@ -65,6 +74,7 @@ Consider the following when you interact with pull requests:
   repository that is pending, this must be stated.
 - Pull requests must include the [AI Evaluation
   Requirements](#ai-evaluation-requirements) checklist (see below).
+  // TODO: AI usage description + Agents.md update
 
 ## AI Evaluation Requirements
 

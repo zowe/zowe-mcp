@@ -1,5 +1,7 @@
 # Use cases for Zowe MCP
 
+// TODO: Link from slides to this
+
 These use cases focus on **combinations of tools** and the **LLM working with tool output** (reasoning, summarizing, comparing, recommending) rather than single tool calls.
 
 That is more powerful than "natural language → one tool call" because:

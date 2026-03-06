@@ -8,6 +8,8 @@
  * Copyright Contributors to the Zowe Project.
  *
  */
+ 
+ // TODO: Add high-level comment on purpose or this
 
 import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';

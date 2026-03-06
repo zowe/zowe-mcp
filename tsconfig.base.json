@@ -13,3 +13,5 @@
     "resolveJsonModule": true
   }
 }
+
+// TODO: VS Code is more fussy than eslint - they should be in sync. Somethingnl is fishy with TS config for tests

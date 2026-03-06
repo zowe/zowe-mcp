@@ -67,6 +67,8 @@ mdc: true
 
 An **MCP server** and **VS Code extension** that gives AI assistants direct, structured access to z/OS systems and mainframe resources, such as data sets, jobs, and USS files, and do actions with them.
 
+// TODO: Mention that Zowe MCP has been developed in Cursor with Anthropic models without a single line written manually guided and reviewed by architect with experience of developing of MCP servers and AI applications at Broadcom
+
 <div class="grid grid-cols-4 gap-4 mt-8">
   <div class="text-center p-4 bg-[#f3f4f4] rounded-lg border-t-4 border-[#3162ac]">
     <carbon-assembly-cluster class="text-2xl text-[#3162ac] mb-1" />
@@ -163,6 +165,8 @@ An **MCP server** and **VS Code extension** that gives AI assistants direct, str
     </div>
   </div>
 </div>
+
+// TODO: Is there a way to do screenshots from a demo controlled by a script?
 
 ---
 
@@ -325,6 +329,7 @@ The native backend connects to z/OS through **Zowe Native Proto** — a lightwei
 
 ### <carbon-connection-signal class="inline text-[#3162ac]" /> Named Pipe Communication
 
+// Todo: Mention that this is additional channel besides stdio to allow deeper integration of the MCP server and VS Code 
 - Bidirectional NDJSON over Unix socket
 - Real-time log level changes
 - Password collection via extension UI
@@ -929,8 +934,8 @@ Part of the **Zowe** project under the **Open Mainframe Project** (Linux Foundat
       github.com/zowe/zowe-mcp
     </div>
     <div class="text-left">
-      <strong class="!text-white/90">Zowe Docs</strong><br/>
-      docs.zowe.org
+      <strong class="!text-white/90">zowe.org</strong><br/>
+      zowe.org
     </div>
   </div>
 </div>

@@ -2,6 +2,8 @@
 
 Items to address later. Not ordered by priority.
 
+// TODO: Review what has been done. Add items from other TODOs than couldn’t be addressed 
+
 ## Zowe Native / SDK
 
 - **Deploy ZNP via ZSshUtils**: Use `ZSshUtils.installServer` to deploy the Zowe Native Protocol (znp) to systems where it does not exist yet.

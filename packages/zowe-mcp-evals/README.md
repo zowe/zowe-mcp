@@ -2,6 +2,14 @@
 
 AI evaluations for the Zowe MCP server: run an LLM agent against the server (mock or native backend), check tool choice and arguments, and optionally answer content.
 
+// TODO: Document eval-compare
+
+// TODO: Add LLM-as-a-judge assertion - judge can be different model
+
+// TODO: Add explicit tool calls for setup or getting data for assertions (consider how Ansible can access result of commands)
+
+// TODO: Self-reflection step - if assertion fails, call the same or stronger model to investigate why - and suggest assertion, description, tool improvement. Context: Chat session, including used tool defs, model thinking output, question and assertions, error. Questions can be questioned too but we do not want to optimize questions, we want MCP server to be designed to work well for any relevant question that users are likely write (aka there are not bad questions only bad answers)
+
 ## Setup
 
 1. **Build the server**: From repo root, run `npm run build` (or `npm run build -w packages/zowe-mcp-server`).

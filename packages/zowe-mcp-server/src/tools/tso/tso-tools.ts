@@ -32,6 +32,7 @@ import {
   MAX_READ_LINES,
   PAGINATION_NOTE_LINES,
   sanitizeTextForDisplay,
+  SYSTEM_PARAM_DESCRIPTION,
   textToLines,
   windowContent,
   withPaginationNote,
@@ -90,12 +91,7 @@ export function registerTsoTools(server: McpServer, deps: TsoToolDeps, logger: L
           .describe(
             "The TSO command to execute (e.g. LISTDS 'USER.DATA', LISTALC, LISTCAT, STATUS)."
           ),
-        system: z
-          .string()
-          .optional()
-          .describe(
-            'Target z/OS system: fully qualified or unqualified hostname. Defaults to the active system.'
-          ),
+        system: z.string().optional().describe(SYSTEM_PARAM_DESCRIPTION),
         startLine: z
           .number()
           .int()

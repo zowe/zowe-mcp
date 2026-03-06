@@ -21,6 +21,7 @@ import { createToolProgress } from '../progress.js';
 import {
   buildContext,
   getReadMessages,
+  SYSTEM_PARAM_DESCRIPTION,
   textToLines,
   windowContent,
   wrapResponse,
@@ -124,12 +125,7 @@ export function registerConsoleTools(
           .string()
           .describe('Console command to execute (e.g. "D T", "D A,L", "DISPLAY IPLINFO").'),
         consoleName: z.string().optional().describe('Console name (optional).'),
-        system: z
-          .string()
-          .optional()
-          .describe(
-            'Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system.'
-          ),
+        system: z.string().optional().describe(SYSTEM_PARAM_DESCRIPTION),
         startLine: z
           .number()
           .int()

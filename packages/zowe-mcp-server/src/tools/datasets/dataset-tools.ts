@@ -71,6 +71,7 @@ import {
   PAGINATION_NOTE_LIST,
   resolvedOnlyIfDifferent,
   sanitizeTextForDisplay,
+  SYSTEM_PARAM_DESCRIPTION,
   textToLines,
   windowContent,
   withPaginationNote,
@@ -301,12 +302,7 @@ export function registerDatasetTools(
             'Fully qualified data set list pattern (e.g. USER.* or USER.**). ' +
               'Wildcards: * matches one qualifier, ** matches across qualifiers, % matches one character.'
           ),
-        system: z
-          .string()
-          .optional()
-          .describe(
-            'Target z/OS system: host (e.g. sys1.example.com) or connection spec (user@host) when multiple connections exist for that host. Defaults to active system.'
-          ),
+        system: z.string().optional().describe(SYSTEM_PARAM_DESCRIPTION),
         volser: z
           .string()
           .optional()
@@ -448,12 +444,7 @@ export function registerDatasetTools(
           .describe(
             'Optional member name filter. Wildcards: * (zero or more characters), % (one character). E.g. "ABC*", "A%C".'
           ),
-        system: z
-          .string()
-          .optional()
-          .describe(
-            'Target z/OS system: host (e.g. sys1.example.com) or connection spec (user@host) when multiple connections exist for that host. Defaults to active system.'
-          ),
+        system: z.string().optional().describe(SYSTEM_PARAM_DESCRIPTION),
         offset: z
           .number()
           .int()
@@ -545,12 +536,7 @@ export function registerDatasetTools(
           .string()
           .describe('Fully qualified data set name (e.g. USER.SRC.COBOL or SYS1.SAMPLIB).'),
         string: z.string().describe('Search string (literal) to find in the data set or members.'),
-        system: z
-          .string()
-          .optional()
-          .describe(
-            'Target z/OS system: fully qualified or unqualified hostname. Defaults to the active system.'
-          ),
+        system: z.string().optional().describe(SYSTEM_PARAM_DESCRIPTION),
         encoding: z
           .string()
           .optional()
@@ -753,12 +739,7 @@ export function registerDatasetTools(
       outputSchema: getDatasetAttributesOutputSchema,
       inputSchema: {
         dsn: z.string().describe('Fully qualified data set name (e.g. USER.SRC.COBOL).'),
-        system: z
-          .string()
-          .optional()
-          .describe(
-            'Target z/OS system: host (e.g. sys1.example.com) or connection spec (user@host) when multiple connections exist for that host. Defaults to active system.'
-          ),
+        system: z.string().optional().describe(SYSTEM_PARAM_DESCRIPTION),
       },
     },
     async ({ dsn, system }, extra) => {
@@ -846,12 +827,7 @@ export function registerDatasetTools(
       inputSchema: {
         dsn: z.string().describe('Fully qualified data set name (e.g. USER.SRC.COBOL).'),
         member: z.string().optional().describe('Member name for PDS/PDSE data sets.'),
-        system: z
-          .string()
-          .optional()
-          .describe(
-            'Target z/OS system: host (e.g. sys1.example.com) or connection spec (user@host) when multiple connections exist for that host. Defaults to active system.'
-          ),
+        system: z.string().optional().describe(SYSTEM_PARAM_DESCRIPTION),
         encoding: z
           .string()
           .optional()
@@ -990,12 +966,7 @@ export function registerDatasetTools(
           .array(z.string())
           .describe('UTF-8 content to write as an array of lines (one string per record).'),
         member: z.string().optional().describe('Member name for PDS/PDSE data sets.'),
-        system: z
-          .string()
-          .optional()
-          .describe(
-            'Target z/OS system: host (e.g. sys1.example.com) or connection spec (user@host) when multiple connections exist for that host. Defaults to active system.'
-          ),
+        system: z.string().optional().describe(SYSTEM_PARAM_DESCRIPTION),
         etag: z
           .string()
           .optional()
@@ -1114,12 +1085,7 @@ export function registerDatasetTools(
           .string()
           .optional()
           .describe('Optional suffix qualifier (last part of the generated prefix).'),
-        system: z
-          .string()
-          .optional()
-          .describe(
-            'Target z/OS system: fully qualified or unqualified hostname. Defaults to the active system.'
-          ),
+        system: z.string().optional().describe(SYSTEM_PARAM_DESCRIPTION),
       },
     },
     async ({ prefix, suffix, system }, extra) => {
@@ -1191,12 +1157,7 @@ export function registerDatasetTools(
           .describe(
             'Last qualifier for the DSN (e.g. DATA, 1–8 chars). If omitted, a unique qualifier is generated.'
           ),
-        system: z
-          .string()
-          .optional()
-          .describe(
-            'Target z/OS system: fully qualified or unqualified hostname. Defaults to the active system.'
-          ),
+        system: z.string().optional().describe(SYSTEM_PARAM_DESCRIPTION),
       },
     },
     async ({ prefix, suffix: _suffix, qualifier, system }, extra) => {
@@ -1256,12 +1217,7 @@ export function registerDatasetTools(
         type: datasetTypeSchema.describe(
           'Data set organization type (DSORG): PS or SEQUENTIAL (Physical Sequential — a flat file), PO or PDS (Partitioned Data Set — a directory of members), PO-E or PDSE or LIBRARY (Partitioned Data Set Extended). Case-insensitive.'
         ),
-        system: z
-          .string()
-          .optional()
-          .describe(
-            'Target z/OS system: host (e.g. sys1.example.com) or connection spec (user@host) when multiple connections exist for that host. Defaults to active system.'
-          ),
+        system: z.string().optional().describe(SYSTEM_PARAM_DESCRIPTION),
         recfm: recfmSchema
           .optional()
           .describe(
@@ -1419,12 +1375,7 @@ export function registerDatasetTools(
         type: datasetTypeSchema.describe(
           'Data set organization type (DSORG): PS or SEQUENTIAL (Physical Sequential — a flat file), PO or PDS (Partitioned Data Set — a directory of members), PO-E or PDSE or LIBRARY (Partitioned Data Set Extended). Case-insensitive.'
         ),
-        system: z
-          .string()
-          .optional()
-          .describe(
-            'Target z/OS system: fully qualified or unqualified hostname. Defaults to the active system.'
-          ),
+        system: z.string().optional().describe(SYSTEM_PARAM_DESCRIPTION),
         prefix: z
           .string()
           .optional()
@@ -1591,12 +1542,7 @@ export function registerDatasetTools(
           .string()
           .optional()
           .describe('Member name to delete (if omitting, the entire data set is deleted).'),
-        system: z
-          .string()
-          .optional()
-          .describe(
-            'Target z/OS system: host (e.g. sys1.example.com) or connection spec (user@host) when multiple connections exist for that host. Defaults to active system.'
-          ),
+        system: z.string().optional().describe(SYSTEM_PARAM_DESCRIPTION),
       },
     },
     async ({ dsn, member, system }, extra) => {
@@ -1672,12 +1618,7 @@ export function registerDatasetTools(
           .describe(
             `Fully qualified prefix (e.g. USER.${REQUIRED_SAFETY_QUALIFIER}.A1B2C3D4.E5F6G7H8). All data sets matching this prefix will be deleted. Must have at least 3 qualifiers and contain ${REQUIRED_SAFETY_QUALIFIER}.`
           ),
-        system: z
-          .string()
-          .optional()
-          .describe(
-            'Target z/OS system: fully qualified or unqualified hostname. Defaults to the active system.'
-          ),
+        system: z.string().optional().describe(SYSTEM_PARAM_DESCRIPTION),
       },
     },
     async ({ dsnPrefix, system }, extra) => {
@@ -1752,12 +1693,7 @@ export function registerDatasetTools(
           .string()
           .optional()
           .describe('Target member name (defaults to source member name).'),
-        system: z
-          .string()
-          .optional()
-          .describe(
-            'Target z/OS system: host (e.g. sys1.example.com) or connection spec (user@host) when multiple connections exist for that host. Defaults to active system.'
-          ),
+        system: z.string().optional().describe(SYSTEM_PARAM_DESCRIPTION),
       },
     },
     async ({ sourceDsn, targetDsn, sourceMember, targetMember, system }, extra) => {
@@ -1860,12 +1796,7 @@ export function registerDatasetTools(
           .optional()
           .describe('Current member name (for renaming a member within a PDS/PDSE).'),
         newMember: z.string().optional().describe('New member name.'),
-        system: z
-          .string()
-          .optional()
-          .describe(
-            'Target z/OS system: host (e.g. sys1.example.com) or connection spec (user@host) when multiple connections exist for that host. Defaults to active system.'
-          ),
+        system: z.string().optional().describe(SYSTEM_PARAM_DESCRIPTION),
       },
     },
     async ({ dsn, newDsn, member, newMember, system }, extra) => {
@@ -1970,12 +1901,7 @@ export function registerDatasetTools(
       outputSchema: restoreDatasetOutputSchema,
       inputSchema: {
         dsn: z.string().describe('Fully qualified data set name (e.g. USER.ARCHIVE.DATA).'),
-        system: z
-          .string()
-          .optional()
-          .describe(
-            'Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system.'
-          ),
+        system: z.string().optional().describe(SYSTEM_PARAM_DESCRIPTION),
       },
     },
     async ({ dsn, system }, extra) => {

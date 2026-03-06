@@ -39,6 +39,7 @@ import {
   PAGINATION_NOTE_LINES,
   PAGINATION_NOTE_LIST,
   sanitizeTextForDisplay,
+  SYSTEM_PARAM_DESCRIPTION,
   textToLines,
   windowContent,
   withPaginationNote,
@@ -155,12 +156,7 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
       annotations: { readOnlyHint: true },
       outputSchema: getUssHomeOutputSchema,
       inputSchema: {
-        system: z
-          .string()
-          .optional()
-          .describe(
-            'Target z/OS system: fully qualified or unqualified hostname. Defaults to the active system.'
-          ),
+        system: z.string().optional().describe(SYSTEM_PARAM_DESCRIPTION),
       },
     },
     async ({ system }, extra) => {
@@ -264,12 +260,7 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
           .describe(
             'Directory path to set as current working directory (absolute or relative to current cwd).'
           ),
-        system: z
-          .string()
-          .optional()
-          .describe(
-            'Target z/OS system: fully qualified or unqualified hostname. Defaults to the active system.'
-          ),
+        system: z.string().optional().describe(SYSTEM_PARAM_DESCRIPTION),
       },
     },
     async ({ path: pathArg, system }, extra) => {
@@ -335,12 +326,7 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
           .describe(
             'USS directory path: absolute (starts with /) or relative to current working directory (see getContext.ussCwd).'
           ),
-        system: z
-          .string()
-          .optional()
-          .describe(
-            'Target z/OS system: fully qualified or unqualified hostname. Defaults to the active system.'
-          ),
+        system: z.string().optional().describe(SYSTEM_PARAM_DESCRIPTION),
         includeHidden: z
           .boolean()
           .optional()
@@ -454,12 +440,7 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
           .describe(
             'USS file path: absolute (starts with /) or relative to current working directory (see getContext.ussCwd).'
           ),
-        system: z
-          .string()
-          .optional()
-          .describe(
-            'Target z/OS system: fully qualified or unqualified hostname. Defaults to the active system.'
-          ),
+        system: z.string().optional().describe(SYSTEM_PARAM_DESCRIPTION),
         encoding: z
           .string()
           .optional()
@@ -617,12 +598,7 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
         commandText: z
           .string()
           .describe('The Unix command line to execute (e.g. ls -la /tmp, whoami, pwd).'),
-        system: z
-          .string()
-          .optional()
-          .describe(
-            'Target z/OS system: fully qualified or unqualified hostname. Defaults to the active system.'
-          ),
+        system: z.string().optional().describe(SYSTEM_PARAM_DESCRIPTION),
         startLine: z
           .number()
           .int()
@@ -747,12 +723,7 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
         lines: z
           .array(z.string())
           .describe('UTF-8 content to write as an array of lines (one string per line).'),
-        system: z
-          .string()
-          .optional()
-          .describe(
-            'Target z/OS system: host (e.g. sys1.example.com) or connection spec (user@host) when multiple connections exist for that host. Defaults to active system.'
-          ),
+        system: z.string().optional().describe(SYSTEM_PARAM_DESCRIPTION),
         etag: z.string().optional().describe('ETag for optimistic locking.'),
         encoding: z.string().optional().describe('Mainframe encoding. Omit for default.'),
       },
@@ -818,12 +789,7 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
             'USS path to create: absolute or relative to current working directory (see getContext.ussCwd).'
           ),
         isDirectory: z.boolean().describe('True to create a directory, false for a regular file.'),
-        system: z
-          .string()
-          .optional()
-          .describe(
-            'Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system.'
-          ),
+        system: z.string().optional().describe(SYSTEM_PARAM_DESCRIPTION),
         permissions: z.string().optional().describe('Octal permissions (e.g. 755).'),
       },
     },
@@ -879,12 +845,7 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
           .describe(
             'USS path to delete: absolute or relative to current working directory (see getContext.ussCwd).'
           ),
-        system: z
-          .string()
-          .optional()
-          .describe(
-            'Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system.'
-          ),
+        system: z.string().optional().describe(SYSTEM_PARAM_DESCRIPTION),
         recursive: z
           .boolean()
           .optional()
@@ -936,12 +897,7 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
             'USS path: absolute or relative to current working directory (see getContext.ussCwd).'
           ),
         mode: z.string().describe('Octal mode (e.g. 755).'),
-        system: z
-          .string()
-          .optional()
-          .describe(
-            'Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system.'
-          ),
+        system: z.string().optional().describe(SYSTEM_PARAM_DESCRIPTION),
         recursive: z.boolean().optional().default(false).describe('Apply recursively.'),
       },
     },
@@ -989,12 +945,7 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
             'USS path: absolute or relative to current working directory (see getContext.ussCwd).'
           ),
         owner: z.string().describe('New owner.'),
-        system: z
-          .string()
-          .optional()
-          .describe(
-            'Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system.'
-          ),
+        system: z.string().optional().describe(SYSTEM_PARAM_DESCRIPTION),
         recursive: z.boolean().optional().default(false).describe('Apply recursively.'),
       },
     },
@@ -1046,12 +997,7 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
           .describe(
             'File tag value: a coded character set identifier (CCSID) name or number. Common values: ISO8859-1, IBM-1047 (EBCDIC), UTF-8, binary. Use "binary" for non-text files.'
           ),
-        system: z
-          .string()
-          .optional()
-          .describe(
-            'Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system.'
-          ),
+        system: z.string().optional().describe(SYSTEM_PARAM_DESCRIPTION),
         recursive: z.boolean().optional().default(false).describe('Apply recursively.'),
       },
     },
@@ -1125,12 +1071,7 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
           .optional()
           .default(false)
           .describe('Replace files that cannot be opened (like cp -f).'),
-        system: z
-          .string()
-          .optional()
-          .describe(
-            'Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system.'
-          ),
+        system: z.string().optional().describe(SYSTEM_PARAM_DESCRIPTION),
       },
     },
     async (
@@ -1201,12 +1142,7 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
           .describe(
             'Base directory: absolute or relative to current working directory (see getContext.ussCwd).'
           ),
-        system: z
-          .string()
-          .optional()
-          .describe(
-            'Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system.'
-          ),
+        system: z.string().optional().describe(SYSTEM_PARAM_DESCRIPTION),
       },
     },
     async ({ basePath, system }, extra) => {
@@ -1255,12 +1191,7 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
             'Parent directory: absolute or relative to current working directory (see getContext.ussCwd).'
           ),
         prefix: z.string().optional().describe('Optional filename prefix.'),
-        system: z
-          .string()
-          .optional()
-          .describe(
-            'Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system.'
-          ),
+        system: z.string().optional().describe(SYSTEM_PARAM_DESCRIPTION),
       },
     },
     async ({ dirPath, prefix, system }, extra) => {
@@ -1307,12 +1238,7 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
           .describe(
             'USS directory path: absolute or relative to current working directory (see getContext.ussCwd).'
           ),
-        system: z
-          .string()
-          .optional()
-          .describe(
-            'Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system.'
-          ),
+        system: z.string().optional().describe(SYSTEM_PARAM_DESCRIPTION),
         permissions: z.string().optional().describe('Octal permissions (e.g. 755).'),
       },
     },
@@ -1365,12 +1291,7 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
           .describe(
             'USS file path: absolute or relative to current working directory (see getContext.ussCwd).'
           ),
-        system: z
-          .string()
-          .optional()
-          .describe(
-            'Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system.'
-          ),
+        system: z.string().optional().describe(SYSTEM_PARAM_DESCRIPTION),
       },
     },
     async ({ path: pathArg, system }, extra) => {
@@ -1419,12 +1340,7 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
           .describe(
             'USS path to delete recursively: absolute or relative to current working directory (see getContext.ussCwd); must contain "tmp" and min depth.'
           ),
-        system: z
-          .string()
-          .optional()
-          .describe(
-            'Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system.'
-          ),
+        system: z.string().optional().describe(SYSTEM_PARAM_DESCRIPTION),
       },
     },
     async ({ path: pathArg, system }, extra) => {

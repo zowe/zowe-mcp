@@ -54,6 +54,13 @@ export const PAGINATION_NOTE_LINES =
   'Results may be line-windowed; follow the pagination instructions in the server instructions.';
 
 /**
+ * Standard description for the optional `system` parameter shared across all tools.
+ * Defined once to ensure consistency.
+ */
+export const SYSTEM_PARAM_DESCRIPTION =
+  'Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system.';
+
+/**
  * Prepend a pagination note to a tool description so the LLM sees pagination
  * requirements before the functional description. The note is separated from
  * the description by a single space.

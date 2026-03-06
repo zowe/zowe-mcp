@@ -61,14 +61,19 @@ export const SYSTEM_PARAM_DESCRIPTION =
   'Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system.';
 
 /**
- * Prepend a pagination note to a tool description so the LLM sees pagination
- * requirements before the functional description. The note is separated from
- * the description by a single space.
+ * Insert a pagination note after the first sentence of a tool description
+ * so the LLM sees the functional summary first, then pagination requirements.
  */
 export function withPaginationNote(description: string, note: string): string {
   const trimmedNote = note.trimEnd();
   const noteWithPeriod = trimmedNote.endsWith('.') ? trimmedNote : trimmedNote + '.';
-  return noteWithPeriod + ' ' + description;
+  const firstDot = description.indexOf('. ');
+  if (firstDot >= 0) {
+    const firstSentence = description.slice(0, firstDot + 1);
+    const rest = description.slice(firstDot + 2);
+    return firstSentence + ' ' + noteWithPeriod + ' ' + rest;
+  }
+  return description + ' ' + noteWithPeriod;
 }
 
 /**

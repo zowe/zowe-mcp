@@ -8,8 +8,12 @@
  * Copyright Contributors to the Zowe Project.
  *
  */
- 
- // TODO: Add high-level comment on purpose or this
+
+/**
+ * Eval result cache: stores and retrieves LLM run results (final text + tool calls)
+ * keyed by a stable hash of the system prompt, question prompt, tool definitions, and model ID.
+ * Used to skip redundant LLM calls when re-running evals with identical inputs.
+ */
 
 import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';

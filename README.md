@@ -263,16 +263,14 @@ Or add this to your `settings.json`:
 Once configured, the server starts with the full set of tools (dataset
 listing, reading, writing, context management, etc.).
 
-### Option B: Configure as a standalone MCP server in VS Code settings
+### Option B: Configure as a standalone MCP server in VS Code
 
-// TODO: Is it really this setting? What about mcp.json?
+This approach lets you pass the `--mock` flag directly. Create or edit
+`.vscode/mcp.json` in your workspace:
 
-This approach lets you pass the `--mock` flag directly. Add the following to
-your VS Code `settings.json` (user or workspace):
-
-```jsonc
+```json
 {
-  "github.copilot.chat.mcp.servers": {
+  "servers": {
     "zowe": {
       "type": "stdio",
       "command": "node",

@@ -56,7 +56,7 @@ mdc: true
 </div>
 
 <div class="mt-6 p-4 bg-[#f3f4f4] rounded-lg border border-[#dddee0]">
-  <strong class="text-[#1b375f]">Key insight:</strong>Zowe MCP lets AI assistants use z/OS tools the same way they use any other tool — and enable the use of z/OS like they can do with other systems.
+  <strong class="text-[#1b375f]">Key insight:</strong> Zowe MCP lets AI assistants use z/OS tools the same way they use any other tool — and enable the use of z/OS like they can do with other systems.
 </div>
 
 ---
@@ -99,7 +99,7 @@ An **MCP server** and **VS Code extension** that gives AI assistants direct, str
   </div>
   <div class="p-3 bg-[#f3f4f4] rounded-lg border-l-4 border-[#16825d]">
     <div class="font-bold text-[#1b375f] mb-1"><mdi-microsoft-visual-studio-code class="inline text-[#16825d]" /> VS Code Extension</div>
-    <div class="text-[#6d7176]">Extension starts a <strong>local stdio server</strong> — used by Copilot Chat and Cursor</div>
+    <div class="text-[#6d7176]">Extension registers an Zowe MCP server as a <strong>local stdio server</strong> — used by Copilot Chat and Cursor automatically</div>
   </div>
   <div class="p-3 bg-[#f3f4f4] rounded-lg border-l-4 border-[#6d7176]">
     <div class="font-bold text-[#1b375f] mb-1"><carbon-cloud class="inline text-[#6d7176]" /> Remote HTTP Streamable</div>
@@ -191,7 +191,7 @@ An **MCP server** and **VS Code extension** that gives AI assistants direct, str
 
 # Architecture Overview
 
-```mermaid {scale: 0.9}
+```mermaid {scale: 0.8}
 ---
 config:
   flowchart:
@@ -206,11 +206,17 @@ flowchart TD
 
   subgraph Server ["Zowe MCP Server"]
     direction LR
-    Tools["51 Tools"] -..- Cache["Response Cache"]
+    Tools["51 Tools divided into 7&nbsp;Components"]
+    Cache["Response Cache"]
+    Tools --> ZosBackendInterface
+    ZosBackendInterface["ZosBackend Interface"]
+    ZosBackendInterface --> Mock["Mock Backend<br/>(filesystem)"]
+    ZosBackendInterface --> Native["Native Backend<br/>(SSH + ZNP)"]
   end
 
-  Server --> Mock["Mock Backend<br/>(filesystem)"]
-  Server --> Native["Native Backend<br/>(SSH + ZNP)"]
+  classDef dottedStyle stroke-dasharray: 5 5
+  class ZosBackendInterface dottedStyle
+
   Native --> zOS1["z/OS LPAR 1"]
   Native --> zOS2["z/OS LPAR 2"]
   Native --> zOS3["z/OS LPAR n..."]
@@ -340,10 +346,9 @@ The native backend connects to z/OS through **Zowe Native Proto** — a lightwei
 
 ### <carbon-star class="inline text-[#3162ac]" /> Extension Features
 
-- **8 color themes** — Zowe Classic, Zowe Official, ISPF Classic, ISPF Modern (dark + light)
-- **3 file icon themes** — Zowe Mainframe, ISPF, ISPF Modern
 - **Mock data generation** — palette command to init mock data
-- **Settings-driven** — mock dir, native connections, encoding, log level, job cards
+- **Settings-driven** — connections, encoding, log level, job cards
+  - Automatically updates the server configuration
 
 </div>
 </div>
@@ -450,7 +455,7 @@ The native backend connects to z/OS through **Zowe Native Proto** — a lightwei
 
 ### <carbon-play class="inline text-[#3162ac]" /> Submit & Monitor
 
-- **submitJob** — inline JCL with optional `wait: true` (adaptive polling up to 5 min)
+- **submitJob** — inline JCL with optional `wait: true` (adaptive polling)
 - **submitJobFromDataset** — submit from PDS member
 - **submitJobFromUss** — submit from USS file
 - **getJobStatus** — INPUT / ACTIVE / OUTPUT + return code
@@ -696,7 +701,7 @@ When multiple tools request the same credential simultaneously, only one prompt 
 <div class="flex flex-col items-center justify-center h-full">
   <carbon-development class="text-5xl text-[#3975d0] mb-4" />
   <div class="text-6xl font-extrabold text-[#3162ac] mb-4">Developer Experience</div>
-  <div class="text-xl text-[#6d7176]">Getting started, testing, and extending</div>
+  <div class="text-xl text-[#6d7176]">Getting started, testing, and extending Zowe MCP</div>
   <div class="mt-8 w-24 h-1 bg-gradient-to-r from-[#1b375f] via-[#3162ac] to-[#3975d0] rounded-full"></div>
 </div>
 
@@ -819,14 +824,51 @@ Every tool change is validated with **before/after AI evaluation runs**.
 
 ---
 
-<!-- Slide 23: Extensibility -->
+<!-- Slide 23: Extensibility — Future Directions -->
 
-# <carbon-plug class="inline text-[#3162ac]" /> Extensibility
+# <carbon-plug class="inline text-[#3162ac]" /> Extensibility — Future Directions
+
+The MCP ecosystem is already extensible — anyone can build and register an MCP server with AI assistants, and some vendors already offer z/OS-related MCP servers independent of Zowe. Zowe MCP is focused on **core z/OS functionality** now. Here are options we're considering:
+
+<div class="grid grid-cols-3 gap-5 mt-4">
+  <div class="p-4 bg-[#f3f4f4] rounded-lg border-t-4 border-[#3162ac]">
+    <div class="text-xs font-bold text-[#3162ac] mb-2">OPTION 1</div>
+    <div class="font-bold text-[#1b375f] mb-2"><carbon-package class="inline text-[#3162ac]" /> Shared Library / SDK</div>
+    <div class="text-sm text-[#6d7176]">
+      Extract common building blocks from Zowe MCP into a <strong>shared SDK</strong> that other z/OS MCP servers can build on — reducing divergent approaches across the ecosystem.
+      <div class="mt-2 text-xs">Response envelopes, pagination, safety patterns, encoding, <code>ZosBackend</code> interface</div>
+    </div>
+  </div>
+  <div class="p-4 bg-[#f3f4f4] rounded-lg border-t-4 border-[#3162ac]">
+    <div class="text-xs font-bold text-[#3162ac] mb-2">OPTION 2</div>
+    <div class="font-bold text-[#1b375f] mb-2"><carbon-assembly-cluster class="inline text-[#3162ac]" /> Zowe MCP Plug-ins</div>
+    <div class="text-sm text-[#6d7176]">
+      A <strong>plug-in model</strong> for the Zowe MCP server itself — similar to the CLI. Third parties register additional tools, prompts, and resources directly into the server.
+    </div>
+  </div>
+  <div class="p-4 bg-[#f3f4f4] rounded-lg border-t-4 border-[#3162ac]">
+    <div class="text-xs font-bold text-[#3162ac] mb-2">OPTION 3</div>
+    <div class="font-bold text-[#1b375f] mb-2"><carbon-connect class="inline text-[#3162ac]" /> CLI Plug-ins → MCP Tools</div>
+    <div class="text-sm text-[#6d7176]">
+      Enable existing <strong>Zowe CLI plug-ins</strong> to provide MCP tools. Not a blind 1:1 mapping of CLI commands — MCP tools are <strong>designed purposefully</strong> for AI, using existing plug-in code as the implementation.
+    </div>
+  </div>
+</div>
+
+<div class="mt-4 p-3 bg-[#f3f4f4] rounded-lg border border-[#dddee0] text-sm text-center">
+  <carbon-idea class="inline text-[#1b375f]" /> These options are <strong>not mutually exclusive</strong> — they can be pursued independently or combined.
+</div>
+
+---
+
+<!-- Slide 23b: Extensibility — Internal -->
+
+# <carbon-add class="inline text-[#3162ac]" /> Extending Zowe MCP — Internals
 
 <div class="grid grid-cols-3 gap-6">
 <div>
 
-### <carbon-add class="inline text-[#3162ac]" /> Adding a Tool
+### <carbon-tool-box class="inline text-[#3162ac]" /> Adding a Tool
 
 1. Create file under `src/tools/<component>/`
 2. Export `register<Component>Tools(server, deps, logger)`

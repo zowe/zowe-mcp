@@ -3,6 +3,7 @@
 This document is a living summary of conventions and best practices for
 development within Zowe MCP.
 
+- [AI-Assisted Development](#ai-assisted-development)
 - [Sign All of Your Git Commits](#sign-all-of-your-git-commits)
 - [Pull Request Guidelines](#pull-request-guidelines)
 - [AI Evaluation Requirements](#ai-evaluation-requirements)
@@ -12,14 +13,38 @@ development within Zowe MCP.
 - [Reporting Security Issues](#reporting-security-issues)
 - [More Information](#more-information)
 
-// TODO: Refine this new section ## AI Assisted Development 
+## AI-Assisted Development
 
-- AI assistants are now able to write all the code of projects like this one
-- 99% of code of this project has been written by Cursor and Claude under experienced guidance, testing, evaluation, and automated feedback loops
-- Your experience with the mainframe and your use cases, additional requirements, suggestions on architecture, or discovered bugs are very valuable
-- If you can use AI coding assistants, please do so, if not consider what will bring the most value to this project and yourself
-- Every PR should have comment about how AI has been used to create it (tool, model, prompts) - we need to add Cursor rule for it and agents.md rule
-// TODO END
+This project embraces AI-assisted development. The vast majority of the code
+has been written by AI coding assistants (primarily Cursor with Claude models)
+under experienced human guidance, testing, evaluation, and automated feedback
+loops.
+
+We encourage contributors to use AI coding assistants when contributing. Your
+domain expertise — mainframe experience, use cases, architectural insights, and
+bug reports — is invaluable and complements AI-generated code.
+
+### AI Usage Disclosure in Pull Requests
+
+Every pull request must include an **AI Usage** section in the PR description
+that documents how AI was used:
+
+- **Tool**: Which AI assistant was used (e.g. Cursor, GitHub Copilot, Claude
+  Code, Cline)
+- **Model**: Which model(s) were used (e.g. Claude Sonnet 4, GPT-4.1)
+- **Scope**: What parts of the PR were AI-assisted vs. manually written
+- **Review**: How the AI-generated code was reviewed and validated
+
+Example:
+
+```markdown
+## AI Usage
+- **Tool**: Cursor (Agent mode)
+- **Model**: Claude Sonnet 4
+- **Scope**: All code changes were AI-generated; test cases were reviewed
+  and adjusted manually
+- **Review**: Ran full test suite, verified with evals, manual code review
+```
 
 ## Sign All of Your Git Commits
 
@@ -74,7 +99,8 @@ Consider the following when you interact with pull requests:
   repository that is pending, this must be stated.
 - Pull requests must include the [AI Evaluation
   Requirements](#ai-evaluation-requirements) checklist (see below).
-  // TODO: AI usage description + Agents.md update
+- Pull requests must include an [AI Usage](#ai-usage-disclosure-in-pull-requests)
+  section describing how AI was used.
 
 ## AI Evaluation Requirements
 

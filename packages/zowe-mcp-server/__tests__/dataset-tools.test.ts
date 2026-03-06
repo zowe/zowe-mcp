@@ -248,6 +248,20 @@ describe('Dataset tools with mock backend', () => {
       expect(ctx.activeSystem!.userId).toBe(DEFAULT_USER);
     });
 
+    it('should include effective encodings in getContext active system', async () => {
+      const result = await client.callTool({ name: 'getContext', arguments: {} });
+      const ctx = JSON.parse(getResultText(result)) as {
+        activeSystem: {
+          mainframeMvsEncoding?: string;
+          mainframeUssEncoding?: string;
+        } | null;
+      };
+
+      expect(ctx.activeSystem).not.toBeNull();
+      expect(ctx.activeSystem!.mainframeMvsEncoding).toBe('IBM-037');
+      expect(ctx.activeSystem!.mainframeUssEncoding).toBe('IBM-1047');
+    });
+
     it('should register all z/OS tools when backend is provided', async () => {
       const { tools } = await client.listTools();
       const toolNames = tools.map(t => t.name);

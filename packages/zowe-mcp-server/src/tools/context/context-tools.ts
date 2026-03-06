@@ -39,6 +39,8 @@ export interface ContextToolDeps {
   jobCardStore?: JobCardStore;
   /** When provided, called after setSystem succeeds with the new connection spec (e.g. user@host). */
   onActiveConnectionChanged?: (activeConnection: string) => void;
+  /** Server-level default encodings. When provided, getContext includes effective encodings for the active system. */
+  encodingOptions?: EncodingOptions;
 }
 
 /**
@@ -56,6 +58,7 @@ export function registerContextTools(
     credentialProvider,
     jobCardStore,
     onActiveConnectionChanged,
+    encodingOptions,
   } = deps;
 
   // -----------------------------------------------------------------------
@@ -240,7 +243,15 @@ export function registerContextTools(
             userId: ctx.userId,
             activeConnection: `${ctx.userId}@${activeSystemId}`,
           };
-          if (ctx.mainframeMvsEncoding !== undefined || ctx.mainframeUssEncoding !== undefined) {
+          if (encodingOptions) {
+            activeSystem.mainframeMvsEncoding =
+              ctx.mainframeMvsEncoding ?? encodingOptions.defaultMainframeMvsEncoding;
+            activeSystem.mainframeUssEncoding =
+              ctx.mainframeUssEncoding ?? encodingOptions.defaultMainframeUssEncoding;
+          } else if (
+            ctx.mainframeMvsEncoding !== undefined ||
+            ctx.mainframeUssEncoding !== undefined
+          ) {
             activeSystem.mainframeMvsEncoding = ctx.mainframeMvsEncoding ?? null;
             activeSystem.mainframeUssEncoding = ctx.mainframeUssEncoding ?? null;
           }

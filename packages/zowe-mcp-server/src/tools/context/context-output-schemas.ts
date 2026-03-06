@@ -102,13 +102,17 @@ const getContextActiveSystemSchema = z.object({
     .optional()
     .describe('Current USS working directory (when set via changeUssDirectory).'),
   mainframeMvsEncoding: z
-    .union([z.string(), z.null()])
+    .string()
     .optional()
-    .describe('Per-system MVS/data set encoding (e.g. IBM-037).'),
+    .describe(
+      'Effective MVS/data set encoding for this system (e.g. IBM-037). Resolved from per-system override or server default.'
+    ),
   mainframeUssEncoding: z
-    .union([z.string(), z.null()])
+    .string()
     .optional()
-    .describe('Per-system USS encoding (e.g. IBM-1047).'),
+    .describe(
+      'Effective USS encoding for this system (e.g. IBM-1047). Resolved from per-system override or server default.'
+    ),
   jobCard: z
     .string()
     .optional()

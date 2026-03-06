@@ -302,6 +302,7 @@ export function createServer(options?: CreateServerOptions): CreateServerResult 
         credentialProvider,
         jobCardStore,
         onActiveConnectionChanged: options.onActiveConnectionChanged,
+        encodingOptions,
       },
       logger
     );

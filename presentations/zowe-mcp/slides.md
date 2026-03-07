@@ -379,7 +379,7 @@ The native backend connects to z/OS through **Zowe Native Proto** — a lightwei
 ### <carbon-list class="inline text-[#3162ac]" /> CRUD
 
 - **listDatasets** — ISPF 3.4 style pattern matching
-- **listMembers** — PDS/PDSE member listing
+- **listMembers** — PDS or PDS/E member listing
 - **readDataset** — line-windowed reads
 - **writeDataset** — full or block-of-records
 - **createDataset** / **createTempDataset**

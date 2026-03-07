@@ -52,7 +52,7 @@ Items to address later. Not ordered by priority.
 - **Job step results (CC per step)**: Check if there is a way to get condition codes (CC) for each job step to help focus on failed steps.
 - ✅ **USS component**: Implement `uss` (UNIX System Services) tool component for file/path operations on z/OS; register in server when backend supports it.
 - ✅ **Native backend — full ZosBackend**: Implement remaining `ZosBackend` methods in `NativeBackend`: `readDataset`, `writeDataset`, `createDataset`, `deleteDataset`, `getAttributes`, `copyDataset`, `renameDataset`. Currently only `listDatasets` and `listMembers` are implemented; others throw "Not implemented".
-- **Upload from local filesystem**: Add tool(s) to upload files and data sets from the local filesystem to z/OS — e.g. upload a local file to a USS path, upload a local file or directory to a PDS/PDSE (multiple members), upload a local file to a sequential dataset. Enables "copy from my machine to mainframe" workflows for single files, directories, and multi-member datasets.
+- **Upload from local filesystem**: Add tool(s) to upload files and data sets from the local filesystem to z/OS — e.g. upload a local file to a USS path, upload a local file or directory to a PDS or PDS/E (multiple members), upload a local file to a sequential data set. Enables "copy from my machine to mainframe" workflows for single files, directories, and multi-member datasets.
 - **z/OSMF backend**: Add a `ZosBackend` implementation using z/OSMF REST APIs (e.g. Data Set and File REST) for environments where SSH/native is not desired.
 - **Credential providers**: Implement `ZoweTeamConfigProvider` and/or `OAuthTokenProvider` (see `src/zos/credentials.ts`); currently only mock and native credential providers exist.
 

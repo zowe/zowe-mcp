@@ -305,7 +305,7 @@ export class FilesystemMockBackend implements ZosBackend {
       // Sequential data set — the data set itself is a file
       if (await isDirectory(dsPath)) {
         throw new Error(
-          `Data set '${dsn}' is a PDS/PDSE on ${systemId}. ` +
+          `Data set '${dsn}' is a PDS or PDS/E on ${systemId}. ` +
             'Specify a member name to read, or use listMembers to see available members.'
         );
       }

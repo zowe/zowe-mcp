@@ -129,7 +129,7 @@ When the **Zowe Explorer** extension (`Zowe.vscode-extension-for-zowe`) is insta
 
 | Tool | Description |
 | --- | --- |
-| **openDatasetInEditor** | Open a sequential data set or PDS/PDSE member (zowe-ds URI). |
+| **openDatasetInEditor** | Open a sequential data set or PDS or PDS/E member (zowe-ds URI). |
 | **openUssFileInEditor** | Open a USS file or directory (zowe-uss URI). |
 | **openJobInEditor** | Open a job or a specific job spool file (zowe-jobs URI). Use `jobFileId` from `listJobFiles` to open a spool; omit to open the job node. |
 

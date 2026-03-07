@@ -34,10 +34,10 @@ Error: Invalid JSON response:          +000000000000016A at address 000000003CEF
 
 ---
 
-## `ZNP-004-RENAME-MEMBER` — Data set: rename PDS/PDSE member (renameMember)
+## `ZNP-004-RENAME-MEMBER` — Data set: rename PDS or PDS/E member (renameMember)
 
 - **Priority**: P1
-- **Request**: Implement the `renameMember` command on the ZNP z/OS server so that PDS/PDSE members can be renamed in place.
+- **Request**: Implement the `renameMember` command on the ZNP z/OS server so that PDS or PDS/E members can be renamed in place.
 - **Input**: `{ dsname: string, memberBefore: string, memberAfter: string }` (data set name, current member name, new member name).
 - **Output**: Success or error (e.g. member not found, new name already exists).
 - **Why**: The Zowe MCP server exposes a `renameDataset` tool that supports renaming a member within the same data set (dsn and newDsn equal, member and newMember specified). When the client calls this, the native backend invokes `ds.renameMember(...)`. The ZNP server on z/OS responds with **"Unrecognized command renameMember"**, so the operation is not available. Zowe zos-files (z/OSMF) provides `rename data-set-member`; the Native Proto server should offer equivalent capability for SSH-based workflows. The MCP server's native-stdio E2E test 7.2 (renameDataset member) is skipped until ZNP supports this.

@@ -93,3 +93,22 @@ Automatically updated by `npm run eval-compare`.
 | 2026-03-05 | qwen3-full-baseline       | qwen3            | Qwen3-30B-A3B-Thinking-2507-FP8 | tso                 | 3         | 83.3%     | 5      | 6     | 9ddfe9e | 9ee5e0c8  |          |
 | 2026-03-05 | qwen3-full-baseline       | qwen3            | Qwen3-30B-A3B-Thinking-2507-FP8 | uss-copy            | 3         | 100.0%    | 6      | 6     | 9ddfe9e | 9ee5e0c8  |          |
 | 2026-03-05 | qwen3-full-baseline       | qwen3            | Qwen3-30B-A3B-Thinking-2507-FP8 | uss                 | 4         | 87.5%     | 7      | 8     | 9ddfe9e | 9ee5e0c8  |          |
+| 2026-03-07 | gemini-3-flash-all        | gemini-3-flash   | gemini-3-flash-preview          | context             | 2         | 50.0%     | 2      | 4     | 0fefa64 |           |          |
+| 2026-03-07 | gemini-3-flash-all        | gemini-3-flash   | gemini-3-flash-preview          | core                | 1         | 100.0%    | 2      | 2     | 0fefa64 |           |          |
+| 2026-03-07 | gemini-3-flash-all        | gemini-3-flash   | gemini-3-flash-preview          | dataset-attributes  | 1         | 100.0%    | 2      | 2     | 0fefa64 |           |          |
+| 2026-03-07 | gemini-3-flash-all        | gemini-3-flash   | gemini-3-flash-preview          | dataset-copy-rename | 2         | 100.0%    | 4      | 4     | 0fefa64 |           |          |
+| 2026-03-07 | gemini-3-flash-all        | gemini-3-flash   | gemini-3-flash-preview          | datasets            | 5         | 70.0%     | 7      | 10    | 0fefa64 |           |          |
+| 2026-03-07 | gemini-3-flash-all        | gemini-3-flash   | gemini-3-flash-preview          | description-quality | 11        | 94.5%     | 104    | 110   | 0fefa64 |           |          |
+| 2026-03-07 | gemini-3-flash-all        | gemini-3-flash   | gemini-3-flash-preview          | detail-levels       | 4         | 100.0%    | 20     | 20    | 0fefa64 |           |          |
+| 2026-03-07 | gemini-3-flash-all        | gemini-3-flash   | gemini-3-flash-preview          | jobs                | 4         | 100.0%    | 4      | 4     | 0fefa64 |           |          |
+| 2026-03-07 | gemini-3-flash-all        | gemini-3-flash   | gemini-3-flash-preview          | mutations           | 2         | 100.0%    | 10     | 10    | 0fefa64 |           |          |
+| 2026-03-07 | gemini-3-flash-all        | gemini-3-flash   | gemini-3-flash-preview          | naming-stress       | 18        | 100.0%    | 180    | 180   | 0fefa64 |           |          |
+| 2026-03-07 | gemini-3-flash-all        | gemini-3-flash   | gemini-3-flash-preview          | pagination          | 2         | 25.0%     | 1      | 4     | 0fefa64 |           |          |
+| 2026-03-07 | gemini-3-flash-all        | gemini-3-flash   | gemini-3-flash-preview          | read-pagination     | 1         | 100.0%    | 2      | 2     | 0fefa64 |           |          |
+| 2026-03-07 | gemini-3-flash-all        | gemini-3-flash   | gemini-3-flash-preview          | restore-dataset     | 1         | 100.0%    | 1      | 1     | 0fefa64 |           |          |
+| 2026-03-07 | gemini-3-flash-all        | gemini-3-flash   | gemini-3-flash-preview          | search-pagination   | 1         | 100.0%    | 2      | 2     | 0fefa64 |           |          |
+| 2026-03-07 | gemini-3-flash-all        | gemini-3-flash   | gemini-3-flash-preview          | search              | 2         | 50.0%     | 2      | 4     | 0fefa64 |           |          |
+| 2026-03-07 | gemini-3-flash-all        | gemini-3-flash   | gemini-3-flash-preview          | sms-allocation      | 4         | 100.0%    | 20     | 20    | 0fefa64 |           |          |
+| 2026-03-07 | gemini-3-flash-all        | gemini-3-flash   | gemini-3-flash-preview          | tso                 | 3         | 100.0%    | 6      | 6     | 0fefa64 |           |          |
+| 2026-03-07 | gemini-3-flash-all        | gemini-3-flash   | gemini-3-flash-preview          | uss-copy            | 3         | 100.0%    | 6      | 6     | 0fefa64 |           |          |
+| 2026-03-07 | gemini-3-flash-all        | gemini-3-flash   | gemini-3-flash-preview          | uss                 | 4         | 100.0%    | 8      | 8     | 0fefa64 |           |          |

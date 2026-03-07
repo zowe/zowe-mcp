@@ -65,7 +65,7 @@ Items to address later. Not ordered by priority.
 
 - **MCP SDK v2**: MCP SDK v1.x is stable and SDK `main` is v2 pre-alpha. When v2 is stable, evaluate migration and update dependencies.
 - **Mock config hot-reload**: Currently changing `zoweMCP.mockDataDirectory` requires restarting the MCP server; consider supporting config/systems change without full restart if feasible.
-- **Format output schema tables in doc generator**: The `generate-docs` script should format output schema tables more consistently during generation.
+- ✅ **Format tables in generated doc**: The `generate-docs` script now formats all Markdown tables consistently using `markdown-table-prettify` (via the `markdown-table-formatter` devDependency).
 
 ## Code Quality / Refactoring
 

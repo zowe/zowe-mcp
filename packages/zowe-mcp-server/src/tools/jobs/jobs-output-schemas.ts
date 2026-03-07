@@ -39,7 +39,10 @@ function envelopeSchema<T extends z.ZodType>(
       _context: responseContextSchema,
       messages: z
         .array(z.string())
-        .describe('Operational messages: pagination hints, job card notice, or other notes.'),
+        .optional()
+        .describe(
+          'Operational messages: pagination hints, job card notice, or other notes. Omitted when empty.'
+        ),
       data: dataSchema,
     })
     .describe(

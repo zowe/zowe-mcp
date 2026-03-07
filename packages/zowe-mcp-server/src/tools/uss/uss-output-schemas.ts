@@ -39,7 +39,10 @@ function envelopeSchema<T extends z.ZodType>(
       _context: responseContextSchema,
       messages: z
         .array(z.string())
-        .describe('Operational messages: pagination hints, resolution notes, or path warnings.'),
+        .optional()
+        .describe(
+          'Operational messages: pagination hints, resolution notes, or path warnings. Omitted when empty.'
+        ),
       data: dataSchema,
     })
     .describe(

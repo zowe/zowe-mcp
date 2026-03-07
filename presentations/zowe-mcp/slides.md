@@ -109,9 +109,9 @@ An **MCP server** and **VS Code extension** that gives AI assistants direct, str
 
 ---
 
-<!-- Slide 4: Use Cases — see also docs/use-cases.md for detailed multi-tool workflows -->
+<!-- Slide 4: Use Cases -->
 
-# Use Cases
+# Use Cases <span class="text-sm font-normal text-[#6d7176]">— <a href="https://github.com/plavjanik/zowe-mcp/blob/main/docs/use-cases.md" target="_blank">detailed workflows</a></span>
 
 <div class="grid grid-cols-2 gap-5 mt-4">
   <div class="p-4 bg-[#f3f4f4] rounded-lg border-l-4 border-[#3162ac]">

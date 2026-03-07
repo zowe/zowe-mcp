@@ -20,6 +20,7 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import type { Logger } from '../../log.js';
 import type { CredentialProvider } from '../../zos/credentials.js';
+import type { EncodingOptions } from '../../zos/encoding.js';
 import type { JobCardStore } from '../../zos/job-cards.js';
 import { resolveSystemForTool, type SessionState } from '../../zos/session.js';
 import type { SystemRegistry } from '../../zos/system.js';
@@ -182,8 +183,10 @@ export function registerContextTools(
         activeSystem: resolvedSystemId,
         userId: ctx.userId,
         description: sysInfo?.description,
-        messages,
       };
+      if (messages.length > 0) {
+        response.messages = messages;
+      }
       if (ctx.mainframeMvsEncoding !== undefined || ctx.mainframeUssEncoding !== undefined) {
         response.mainframeMvsEncoding = ctx.mainframeMvsEncoding ?? null;
         response.mainframeUssEncoding = ctx.mainframeUssEncoding ?? null;

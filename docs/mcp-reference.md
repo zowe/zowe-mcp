@@ -2,7 +2,7 @@
 
 # Zowe MCP Server Reference
 
-> Auto-generated from the MCP server (v0.7.0-dev, commit d9ab69d). Do not edit manually — run `npx zowe-mcp-server generate-docs` to regenerate.
+> Auto-generated from the MCP server (v0.7.0-dev, commit 96c163d). Do not edit manually — run `npx zowe-mcp-server generate-docs` to regenerate.
 
 This document describes all [Tools](#tools), [Prompts](#prompts), [Resource Templates](#resource-templates) provided by the Zowe MCP Server.
 
@@ -10,22 +10,15 @@ This document describes all [Tools](#tools), [Prompts](#prompts), [Resource Temp
 
 The server provides **51** tools.
 
-// TODO: PDSE should be PDS/E but how to do PDS/PDS/E?
-// TODO: Do we need info? Can we merge it with getContext? What about other MCP servers that have getContext?
-// TODO: How we help agents to choose PDS/E as a default for libraries?
-// TODO: How we ensure consistency in naming (user ID, PDS/E…). Do we need a glossary?
-
 | # | Tool | Description |
 | --- | --- | --- |
 | 1 | [`info`](#info) | Provides information about the Zowe MCP server, its version, and backend connection status |
 | 2 | [`listSystems`](#listsystems) | List all z/OS systems you have access to |
-// TODO: Do you know more about those systems? Would you treat dev/test system different than production one with financial or health data?
 | 3 | [`setSystem`](#setsystem) | Set the active z/OS system |
 | 4 | [`getContext`](#getcontext) | Return the current session context: active system, active connection (user@host), user ID, all known systems (with their connections when multiple exist), and recently used systems (those with saved context) |
 | 5 | [`listDatasets`](#listdatasets) | List data sets matching a DSLEVEL pattern |
-| 6 | [`listMembers`](#listmembers) | List members of a PDS/PDSE data set |
+| 6 | [`listMembers`](#listmembers) | List members of a PDS/PDSE data set Results are paginated (default 500, max 1000 per page); follow the pagination instructions in the server instructions |
 | 7 | [`searchInDataset`](#searchindataset) | Search for a string in a sequential data set or PDS/PDSE (all members or one member) |
-// TODO: Does it support searching in multiple data sets?
 | 8 | [`getDatasetAttributes`](#getdatasetattributes) | Get detailed attributes of a data set: organization, record format, record length, block size, volume, SMS classes, dates, and more |
 | 9 | [`readDataset`](#readdataset) | Read the content of a sequential data set or PDS/PDSE member |
 | 10 | [`writeDataset`](#writedataset) | Write UTF-8 content to a sequential data set or PDS/PDSE member |
@@ -37,39 +30,29 @@ The server provides **51** tools.
 | 16 | [`deleteDatasetsUnderPrefix`](#deletedatasetsunderprefix) | Delete all data sets whose names start with the given prefix (e.g. tempDsnPrefix from getTempDatasetPrefix) |
 | 17 | [`copyDataset`](#copydataset) | Copy a data set or PDS/PDSE member within a single z/OS system |
 | 18 | [`renameDataset`](#renamedataset) | Rename a data set or PDS/PDSE member |
-| 19 | [`restoreDataset`](#restoredataset) | Restore (recall) a migrated data set from HSM |
-// TODO: Is HSM generic enough? Is CA Disk an HSM?
+| 19 | [`restoreDataset`](#restoredataset) | Restore (recall) a migrated data set from the hierarchical storage manager (HSM/DFHSM) |
 | 20 | [`getUssHome`](#getusshome) | Return the current user's USS home directory for the active (or specified) system |
 | 21 | [`changeUssDirectory`](#changeussdirectory) | Set the USS current working directory for the active (or specified) system |
-| 22 | [`listUssFiles`](#listussfiles) | List files and directories in a USS path |
-| 23 | [`readUssFile`](#readussfile) | Read the content of a USS file |
+| 22 | [`listUssFiles`](#listussfiles) | List files and directories in a USS path Results are paginated (default 500, max 1000 per page); follow the pagination instructions in the server instructions |
+| 23 | [`readUssFile`](#readussfile) | Read the content of a USS file Results may be line-windowed; follow the pagination instructions in the server instructions |
 | 24 | [`runSafeUssCommand`](#runsafeusscommand) | Run a Unix command on z/OS USS |
-// TODO: USS or z/OS USS?
 | 25 | [`writeUssFile`](#writeussfile) | Write or overwrite a USS file |
 | 26 | [`createUssFile`](#createussfile) | Create a USS file or directory |
 | 27 | [`deleteUssFile`](#deleteussfile) | Delete a USS file or directory |
-// Does it delete recursively? Is there some safety mechanism like in TSO commands?
 | 28 | [`chmodUssFile`](#chmodussfile) | Change permissions of a USS file or directory |
 | 29 | [`chownUssFile`](#chownussfile) | Change owner of a USS file or directory |
 | 30 | [`chtagUssFile`](#chtagussfile) | Set the z/OS file tag (encoding/type) for a USS file or directory |
-// TODO: Is it clear what encodings and types can be used?
-| 31 | [`copyUssFile`](#copyussfile) | Copy a USS file or directory on z/OS |
-// TODO: Is it the same system?
-| 32 | [`getUssTempDir`](#getusstempdir) | Return a unique USS temporary directory path under the given base path |
+| 31 | [`copyUssFile`](#copyussfile) | Copy a USS file or directory within the same z/OS system |
+| 32 | [`getUssTempDir`](#getusstempdir) | Generate a unique USS temporary directory path as a subdirectory of the given base path (e.g. /tmp or the user home) |
 | 33 | [`getUssTempPath`](#getusstemppath) | Return a unique USS temporary file path under the given directory |
-// TODO: Under the given directory? Smart?!
 | 34 | [`createTempUssDir`](#createtempussdir) | Create a temporary USS directory |
 | 35 | [`createTempUssFile`](#createtempussfile) | Create an empty temporary USS file at the given path, creating parent directories if needed |
 | 36 | [`deleteUssTempUnderDir`](#deleteusstempunderdir) | Delete all files and directories under the given USS path (the path itself is removed) |
 | 37 | [`runSafeTsoCommand`](#runsafetsocommand) | Run a TSO command on z/OS |
-// TODO: Is it clear where to find all
-TSO commands and their syntax? What you will do when you are not sure about what TSO commands exist and what their options mean? I hope something better than trying?
-// TODO: How to make the safety configurable?
 | 38 | [`submitJob`](#submitjob) | Submit JCL to the current (or specified) z/OS system |
-// TODO: What about safe guards for JCl?
-| 39 | [`getJobStatus`](#getjobstatus) | Get the current status of a z/OS job (INPUT, ACTIVE, or OUTPUT) and its return code when komplete |
+| 39 | [`getJobStatus`](#getjobstatus) | Get the current status of a z/OS job (INPUT, ACTIVE, or OUTPUT) and its return code when complete |
 | 40 | [`listJobFiles`](#listjobfiles) | List output files (spools) for a z/OS job |
-| 41 | [`readJobFile`](#readjobfile) | Read the content of one job output file (spool); use listJobFiles to get job file IDs |
+| 41 | [`readJobFile`](#readjobfile) | Read the content of one job output file (spool); use listJobFiles to get job file IDs Results may be line-windowed; follow the pagination instructions in the server instructions |
 | 42 | [`getJobOutput`](#getjoboutput) | Get aggregated output from job files for a completed job |
 | 43 | [`searchJobOutput`](#searchjoboutput) | Search for a substring in a job's output files (all files or one by jobFileId) |
 | 44 | [`listJobs`](#listjobs) | List jobs on the z/OS system with optional filters (owner, prefix, status) |
@@ -95,8 +78,6 @@ Provides information about the Zowe MCP server, its version, and backend connect
 
 #### Output Schema
 
-// TODO: Format tables here during generation
-
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
 | `name` | `string` | Yes | Server display name |
@@ -104,7 +85,7 @@ Provides information about the Zowe MCP server, its version, and backend connect
 | `description` | `string` | Yes | Short server description |
 | `components` | `string`[] | Yes | Registered component names (e.g. core, datasets, uss) |
 | `backend` | `string` \| `null` | Yes | Active backend: mock, native, or null |
-| `notice` | `string` | No | Guidance when no backend is configured | // TODO: Use messages for it
+| `notice` | `string` | No | Guidance when no backend is configured |
 
 #### Example Output
 
@@ -112,7 +93,7 @@ Provides information about the Zowe MCP server, its version, and backend connect
 {
   "name": "Zowe MCP Server",
   "version": "0.7.0-dev",
-  "description": "MCP server providing tools for z/OS systems including data sets, jobs, and UNIX System Services (USS)",
+  "description": "MCP server providing tools for z/OS systems including data sets, jobs, and UNIX System Services",
   "components": [
     "core",
     "context",
@@ -143,7 +124,7 @@ List all z/OS systems you have access to. Each system is a host; multiple config
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `messages` | `string`[] | Yes | Informational messages (e.g. resolution notes). |
+| `messages` | `string`[] | No | Informational messages (e.g. resolution notes). Omitted when empty. |
 | `systems` | `object`[] | Yes | All configured z/OS systems you have access to. |
 | &ensp;├─ `host` | `string` | Yes | z/OS system hostname (e.g. sys1.example.com). |
 | &ensp;├─ `description` | `string` | No | Optional human-readable label for the system. |
@@ -154,7 +135,6 @@ List all z/OS systems you have access to. Each system is a host; multiple config
 
 ```json
 {
-  "messages": [],
   "systems": [
     {
       "host": "mainframe-dev.example.com",
@@ -175,7 +155,7 @@ List all z/OS systems you have access to. Each system is a host; multiple config
 ### `setSystem`
 
 
-Set the active z/OS system. The system parameter can be a host (e.g. zos.example.com) when only one connection exists for that host, or a connection spec (e.g. USER@zos.example.com) when multiple connections exist for the same host. If you pass only a host and multiple connections exist, the tool fails and lists valid connection values. Optionally set mainframe encodings for this system (data set and USS file); omit to leave existing overrides unchanged, or pass null to use MCP server default.
+Set the active z/OS system. The system parameter can be a host (e.g. zos.example.com) when only one connection exists for that host, or a connection spec (e.g. USER@zos.example.com) when multiple connections exist for the same host. If you pass only a host and multiple connections exist, the tool fails and lists valid connection values. Optionally set mainframe encodings for this system (data set and USS); omit to leave existing overrides unchanged, or pass null to use MCP server default.
 
 #### Parameters
 
@@ -197,7 +177,6 @@ Set the active z/OS system. The system parameter can be a host (e.g. zos.example
 | `description` | `string` | No | Optional system description/label from configuration. |
 | `mainframeMvsEncoding` | `string` \| `null` | No | Per-system MVS/data set encoding override (e.g. IBM-037). null = use MCP server default. |
 | `mainframeUssEncoding` | `string` \| `null` | No | Per-system USS encoding override (e.g. IBM-1047). null = use MCP server default. |
-// TODO: Can we update the tools dynamically to include what is the default and what are the known systems/connections?
 
 #### Example Output
 
@@ -238,15 +217,15 @@ Return the current session context: active system, active connection (user@host)
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `messages` | `string`[] | Yes | Informational messages. |
+| `messages` | `string`[] | No | Informational messages. Omitted when empty. |
 | `activeSystem` | `object` \| `null` | Yes | Currently selected system and user; null if no system has been set yet. |
 | &ensp;├─ `system` | `string` | Yes | Hostname of the active z/OS system. |
 | &ensp;├─ `userId` | `string` | Yes | User ID on that system. |
 | &ensp;├─ `activeConnection` | `string` | No | Connection spec (user@host) for the active system. |
 | &ensp;├─ `ussHome` | `string` | No | USS home directory path for this system/user (when known). |
 | &ensp;├─ `ussCwd` | `string` | No | Current USS working directory (when set via changeUssDirectory). |
-| &ensp;├─ `mainframeMvsEncoding` | `string` \| `null` | No | Per-system MVS/data set encoding (e.g. IBM-037). |
-| &ensp;├─ `mainframeUssEncoding` | `string` \| `null` | No | Per-system USS encoding (e.g. IBM-1047). |
+| &ensp;├─ `mainframeMvsEncoding` | `string` | No | Effective MVS/data set encoding for this system (e.g. IBM-037). Resolved from per-system override or server default. |
+| &ensp;├─ `mainframeUssEncoding` | `string` | No | Effective USS encoding for this system (e.g. IBM-1047). Resolved from per-system override or server default. |
 | &ensp;└─ `jobCard` | `string` | No | Job card for this connection when configured. Used by submitJob when JCL has no job card. |
 | `allSystems` | `object`[] | Yes | All configured z/OS systems with host, optional description/connections, and active flag. |
 | &ensp;├─ `host` | `string` | Yes | System hostname. |
@@ -261,18 +240,16 @@ Return the current session context: active system, active connection (user@host)
 | &ensp;├─ `mainframeMvsEncoding` | `string` \| `null` | No | Per-system MVS encoding when set. |
 | &ensp;└─ `mainframeUssEncoding` | `string` \| `null` | No | Per-system USS encoding when set. |
 
-
-// TODO: Shouldn’t we show the effective encodings?
-
 #### Example Output
 
 ```json
 {
-  "messages": [],
   "activeSystem": {
     "system": "mainframe-dev.example.com",
     "userId": "USER",
-    "activeConnection": "USER@mainframe-dev.example.com"
+    "activeConnection": "USER@mainframe-dev.example.com",
+    "mainframeMvsEncoding": "IBM-037",
+    "mainframeUssEncoding": "IBM-1047"
   },
   "allSystems": [
     {
@@ -301,7 +278,7 @@ Return the current session context: active system, active connection (user@host)
 
 > Read-only
 
-Results are paginated (default 500, max 1000 per page); follow the pagination instructions in the server instructions. List data sets matching a DSLEVEL pattern. Use the detail parameter to control response verbosity (minimal, basic, full). DSLEVEL pattern (dataset list pattern for dsnPattern). It is not the same as grep regex or Windows filename masks.
+List data sets matching a DSLEVEL pattern. Results are paginated (default 500, max 1000 per page); follow the pagination instructions in the server instructions. Use the detail parameter to control response verbosity (minimal, basic, full). DSLEVEL pattern (dataset list pattern for dsnPattern). It is not the same as grep regex or Windows filename masks.
 
 Rules:
 - Pattern must not begin with a wildcard (first qualifier must be literal, e.g. USER or MY.HIGH.LEVEL).
@@ -324,24 +301,21 @@ Correct use of * and ** in one pattern:
 - USER.**.*JCL* — * matches any last qualifier that contains JCL (e.g. JCL, MYJCL, JCLOLD); ** matches zero or more qualifiers before the final segment. Matches USER.JCL, USER.BACKUP.JCLS, USER.TEST.SAMPJCL.
 
 Invalid patterns:
-- USER.**JCL — Invalid: ** needs to be used alone in a qualifier. Use USER.**.*JCL* instead.
-- USER.**JCL* — Invalid: ** and * cannot be used together in the same qualifier. Use USER.**.*JCL* instead.
+- USER.**JCL — Invalid: ** must be the entire qualifier (no other characters). Use USER.**.*JCL* instead.
+- USER.**JCL* — Invalid: ** and * cannot be combined in the same qualifier. Use USER.**.*JCL* instead.
+- USER.**.**.OLD — Avoid using ** more than once; a single ** already matches any number of qualifiers.
 
 Notes:
 - USER.*.OLD — Wrong when you want names like USER.JCL.VERY.OLD that match multiple qualifiers. * matches only one qualifier, so it matches USER.JCL.OLD but not USER.JCL.VERY.OLD. Use USER.**.OLD to match any number of middle qualifiers.
 - *.DATASET or **.DATASET — Possible but will cause all catalogs on the system to be searched. It will take a considerable amount of time to complete this search. If you can be more specific, do so.
 
-// TODO: I have seen Gemini to fail because of multiple ** in the pattern. Is it clear what is allowed?
-
 #### Parameters
 
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
-| `dsnPattern` | `string` | Yes | Fully qualified data set list pattern (e.g. USER.* or USER.**). |
-| `system` | `string` | No | Target z/OS system: host (e.g. sys1.example.com) or connection spec (user@host) when multiple connections exist for that host. Defaults to active system. |
-// TODO: Is this description same as for other tools? Is it defined on one place?
-| `volser` | `string` | No | Volume serial for uncataloged data sets. |
-// TODO: What is the behavior? Will it search only on that volume? Or in catalog and on that volume? What ISPF does?
+| `dsnPattern` | `string` | Yes | Fully qualified data set list pattern (e.g. USER.* or USER.**). Wildcards: * matches one qualifier, ** matches across qualifiers, % matches one character. |
+| `system` | `string` | No | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system. |
+| `volser` | `string` | No | Volume serial (VOLSER) to restrict the search to a specific DASD volume. Primarily used for uncataloged data sets that are not in the system catalog. |
 | `offset` | `integer` | No | 0-based offset into the result set. Default: 0. |
 | `limit` | `integer` | No | Maximum number of items to return. Default: 500. Max: 1000. |
 | `detail` | `minimal` \| `basic` \| `full` | No | Level of detail for each data set entry. minimal: dsn, dsorg, dsntype; migrated/encrypted only when true; volser only for non-SMS. basic (default): adds recfm, lrecl, blksz, space; volser only for non-SMS (no volsers). full: all attributes including resourceLink, SMS classes, device type, all dates. (default: `"basic"`) |
@@ -353,7 +327,6 @@ Notes:
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
 | `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. |
-// TODO: The context seems to be very monolithic - shouldn’t you be connected only to them tool or group of tools or a component?
 | &ensp;├─ `system` | `string` | Yes | Resolved z/OS system hostname (target of the operation). |
 | &ensp;├─ `resolvedPattern` | `string` | No | Normalized list pattern (uppercase, no quotes). Present only when input was quoted or lowercase. |
 | &ensp;├─ `resolvedDsn` | `string` | No | Normalized data set name (uppercase, no quotes). Present only when input was quoted or lowercase. |
@@ -366,7 +339,7 @@ Notes:
 | &ensp;├─ `totalAvailable` | `number` | Yes | Total matching items before pagination. |
 | &ensp;├─ `offset` | `number` | Yes | 0-based offset of the first item in this page. |
 | &ensp;└─ `hasMore` | `boolean` | Yes | True if more items exist. Call the tool again with offset = offset + count and the same limit to fetch the next page. |
-| `messages` | `string`[] | Yes | Operational messages: pagination hints (e.g. call again with offset/limit), resolution notes, or allocation messages. |
+| `messages` | `string`[] | No | Operational messages: pagination hints (e.g. call again with offset/limit), resolution notes, or allocation messages. Omitted when empty. |
 | `data` | `object`[] | Yes | Array of data set entries. Fields depend on detail: minimal (dsn, dsorg, dsntype; migrated/encrypted only when true; volser for non-SMS), basic (adds recfm, lrecl, blksz, space; volser for non-SMS, no volsers), full (all attributes including resourceLink, dates, SMS classes). |
 | &ensp;├─ `dsn` | `string` | Yes | Fully qualified data set name (uppercase, no quotes). |
 | &ensp;├─ `resourceLink` | `string` | No | Resource URI (zos-ds://system/dsn) for this data set. Only present at detail level full. |
@@ -395,7 +368,7 @@ Notes:
 
 #### Example Outputs
 
-##### default # can we call it “happy path”?
+##### default
 
 Input:
 
@@ -418,7 +391,6 @@ Output:
     "offset": 0,
     "hasMore": false
   },
-  "messages": [],
   "data": [
     {
       "dsn": "USER.DATA.FILE01",
@@ -468,6 +440,7 @@ Output:
       "blksz": 27920,
       "volser": "VOL001"
     },
+    {
   // ... truncated ...
 ```
 
@@ -494,7 +467,6 @@ Output:
     "offset": 0,
     "hasMore": false
   },
-  "messages": [],
   "data": []
 }
 ```
@@ -505,7 +477,7 @@ Output:
 
 > Read-only
 
-Results are paginated (default 500, max 1000 per page); follow the pagination instructions in the server instructions. List members of a PDS/PDSE data set
+List members of a PDS/PDSE data set Results are paginated (default 500, max 1000 per page); follow the pagination instructions in the server instructions.
 
 #### Parameters
 
@@ -513,7 +485,7 @@ Results are paginated (default 500, max 1000 per page); follow the pagination in
 | --- | --- | --- | --- |
 | `dsn` | `string` | Yes | Fully qualified data set name (e.g. USER.SRC.COBOL). |
 | `memberPattern` | `string` | No | Optional member name filter. Wildcards: * (zero or more characters), % (one character). E.g. "ABC*", "A%C". |
-| `system` | `string` | No | Target z/OS system: host (e.g. sys1.example.com) or connection spec (user@host) when multiple connections exist for that host. Defaults to active system. |
+| `system` | `string` | No | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system. |
 | `offset` | `integer` | No | 0-based offset into the result set. Default: 0. |
 | `limit` | `integer` | No | Maximum number of items to return. Default: 500. Max: 1000. |
 
@@ -525,7 +497,7 @@ Results are paginated (default 500, max 1000 per page); follow the pagination in
 | --- | --- | --- | --- |
 | `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. *(same as [`listDatasets`](#listdatasets-output-schema))* |
 | `_result` | `object` | Yes | Result metadata (pagination, line window, or success). *(same as [`listDatasets`](#listdatasets-output-schema))* |
-| `messages` | `string`[] | Yes | Operational messages: pagination hints (e.g. call again with offset/limit), resolution notes, or allocation messages. |
+| `messages` | `string`[] | No | Operational messages: pagination hints (e.g. call again with offset/limit), resolution notes, or allocation messages. Omitted when empty. |
 | `data` | `object`[] | Yes | Array of PDS/PDSE member entries. Each entry has the member name (up to 8 characters, uppercase). |
 | &ensp;└─ `member` | `string` | Yes | PDS/PDSE member name (up to 8 characters, uppercase). |
 
@@ -554,7 +526,6 @@ Output:
     "offset": 0,
     "hasMore": false
   },
-  "messages": [],
   "data": [
     {
       "member": "ACCTPROC"
@@ -582,11 +553,9 @@ Input:
 ```json
 {
   "dsn": "USER.SRC.COBOL",
-  "pattern": "CUST*"
+  "memberPattern": "CUST*"
 }
 ```
-
-// Todo: the pattern does not filter the members, is the mock implementation correct?
 
 Output:
 
@@ -596,27 +565,14 @@ Output:
     "system": "mainframe-dev.example.com"
   },
   "_result": {
-    "count": 5,
-    "totalAvailable": 5,
+    "count": 1,
+    "totalAvailable": 1,
     "offset": 0,
     "hasMore": false
   },
-  "messages": [],
   "data": [
     {
-      "member": "ACCTPROC"
-    },
-    {
-      "member": "BATCHUPD"
-    },
-    {
       "member": "CUSTFILE"
-    },
-    {
-      "member": "RPTGEN"
-    },
-    {
-      "member": "VALCHECK"
     }
   ]
 }
@@ -628,9 +584,7 @@ Output:
 
 > Read-only
 
-// Todo: Pagination hint should second sentence (everywhere)
-
-Results are paginated (default 500, max 1000 per page); follow the pagination instructions in the server instructions. Search for a string in a sequential data set or PDS/PDSE (all members or one member). Returns matching lines with line numbers and a summary. You may pass dsn as USER.LIB(MEM) and omit member. Options: caseSensitive (default false), cobol (search cols 7–72 only), ignoreSequenceNumbers (exclude cols 73–80, default true), doNotProcessComments, includeContextLines (±6 lines via LPSF)
+Search for a string in a sequential data set or PDS/PDSE (all members or one member). Results are paginated (default 500, max 1000 per page); follow the pagination instructions in the server instructions. Returns matching lines with line numbers and a summary. You may pass dsn as USER.LIB(MEM) and omit member. Options: caseSensitive (default false), cobol (search cols 7–72 only), ignoreSequenceNumbers (exclude cols 73–80, default true), doNotProcessComments, includeContextLines (±6 lines via LPSF)
 
 #### Parameters
 
@@ -638,7 +592,7 @@ Results are paginated (default 500, max 1000 per page); follow the pagination in
 | --- | --- | --- | --- |
 | `dsn` | `string` | Yes | Fully qualified data set name (e.g. USER.SRC.COBOL or SYS1.SAMPLIB). |
 | `string` | `string` | Yes | Search string (literal) to find in the data set or members. |
-| `system` | `string` | No | Target z/OS system: fully qualified or unqualified hostname. Defaults to the active system. |
+| `system` | `string` | No | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system. |
 | `encoding` | `string` | No | Mainframe encoding (EBCDIC) for reading data set content. Overrides system and server default when set. |
 | `member` | `string` | No | For PDS/PDSE only, limit search to this member (e.g. IEANTCOB). Omit to search all members or a sequential data set. |
 | `offset` | `integer` | No | 0-based offset into the member list. Default: 0. |
@@ -667,7 +621,7 @@ Results are paginated (default 500, max 1000 per page); follow the pagination in
 | &ensp;├─ `membersWithoutLines` | `number` | Yes | Number of members with no matches (PDS/PDSE only). |
 | &ensp;├─ `searchPattern` | `string` | Yes | The literal search string that was used. |
 | &ensp;└─ `processOptions` | `string` | Yes | SuperC process options applied (e.g. ANYC for case-insensitive, COBOL for column 7–72). |
-| `messages` | `string`[] | Yes | Operational messages: pagination hints (e.g. call again with offset/limit), resolution notes, or allocation messages. |
+| `messages` | `string`[] | No | Operational messages: pagination hints (e.g. call again with offset/limit), resolution notes, or allocation messages. Omitted when empty. |
 | `data` | `object` | Yes |  |
 | &ensp;├─ `dataset` | `string` | Yes | Fully qualified data set name that was searched. |
 | &ensp;├─ `members` | `object`[] | Yes | Members in this page with their matching lines. |
@@ -705,7 +659,6 @@ Output:
     "searchPattern": "DIVISION",
     "processOptions": "ANYC SEQ"
   },
-  "messages": [],
   "data": {
     "dataset": "USER.SRC.COBOL",
     "members": [
@@ -749,6 +702,7 @@ Output:
             "lineNumber": 47,
             "content": "       PROCEDURE DIVISION."
           }
+        ]
   // ... truncated ...
 ```
 
@@ -783,7 +737,6 @@ Output:
     "searchPattern": "WORKING-STORAGE",
     "processOptions": "ANYC SEQ"
   },
-  "messages": [],
   "data": {
     "dataset": "USER.SRC.COBOL",
     "members": [
@@ -822,7 +775,7 @@ Get detailed attributes of a data set: organization, record format, record lengt
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
 | `dsn` | `string` | Yes | Fully qualified data set name (e.g. USER.SRC.COBOL). |
-| `system` | `string` | No | Target z/OS system: host (e.g. sys1.example.com) or connection spec (user@host) when multiple connections exist for that host. Defaults to active system. |
+| `system` | `string` | No | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system. |
 
 <a id="getdatasetattributes-output-schema"></a>
 
@@ -831,7 +784,7 @@ Get detailed attributes of a data set: organization, record format, record lengt
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
 | `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. *(same as [`listDatasets`](#listdatasets-output-schema))* |
-| `messages` | `string`[] | Yes | Operational messages: pagination hints (e.g. call again with offset/limit), resolution notes, or allocation messages. |
+| `messages` | `string`[] | No | Operational messages: pagination hints (e.g. call again with offset/limit), resolution notes, or allocation messages. Omitted when empty. |
 | `data` | `object` | Yes |  |
 | &ensp;├─ `dsn` | `string` | Yes | Fully qualified data set name. |
 | &ensp;├─ `type` | `string` | Yes | Data set organization (DSORG): PS, PO, PO-E, VS, DA. |
@@ -876,7 +829,6 @@ Output:
   "_context": {
     "system": "mainframe-dev.example.com"
   },
-  "messages": [],
   "data": {
     "dsn": "USER.SRC.COBOL",
     "type": "PO-E",
@@ -895,7 +847,7 @@ Output:
 
 > Read-only
 
-Results may be line-windowed; follow the pagination instructions in the server instructions. Read the content of a sequential data set or PDS/PDSE member. Returns UTF-8 text, an ETag for optimistic locking, and the source encoding. Pass the ETag to writeDataset to prevent overwriting concurrent changes. You may pass dsn as USER.LIB(MEM) and omit member
+Read the content of a sequential data set or PDS/PDSE member. Results may be line-windowed; follow the pagination instructions in the server instructions. Returns UTF-8 text, an ETag for optimistic locking, and the source encoding. Pass the ETag to writeDataset to prevent overwriting concurrent changes. You may pass dsn as USER.LIB(MEM) and omit member
 
 #### Parameters
 
@@ -903,7 +855,7 @@ Results may be line-windowed; follow the pagination instructions in the server i
 | --- | --- | --- | --- |
 | `dsn` | `string` | Yes | Fully qualified data set name (e.g. USER.SRC.COBOL). |
 | `member` | `string` | No | Member name for PDS/PDSE data sets. |
-| `system` | `string` | No | Target z/OS system: host (e.g. sys1.example.com) or connection spec (user@host) when multiple connections exist for that host. Defaults to active system. |
+| `system` | `string` | No | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system. |
 | `encoding` | `string` | No | Mainframe encoding (EBCDIC) for this read. Overrides system and server default when set. Default: from system or MCP server default. |
 | `startLine` | `integer` | No | 1-based starting line number for random access — use this to jump directly to any line without reading from the beginning. Default: 1. |
 | `lineCount` | `integer` | No | Number of lines to return from startLine. Use with startLine to read an exact range (e.g. startLine: 20, lineCount: 10 for lines 20–29). Default: all remaining lines up to the auto-truncation limit. |
@@ -922,7 +874,7 @@ Results may be line-windowed; follow the pagination instructions in the server i
 | &ensp;├─ `contentLength` | `number` | Yes | Character count of the returned text. |
 | &ensp;├─ `mimeType` | `string` | Yes | Inferred content type (e.g. text/plain, text/x-cobol, text/x-jcl). Used for display or syntax highlighting. |
 | &ensp;└─ `hasMore` | `boolean` | Yes | True if more lines exist. Call the tool again with startLine and lineCount to fetch the next window. |
-| `messages` | `string`[] | Yes | Operational messages: pagination hints (e.g. call again with offset/limit), resolution notes, or allocation messages. |
+| `messages` | `string`[] | No | Operational messages: pagination hints (e.g. call again with offset/limit), resolution notes, or allocation messages. Omitted when empty. |
 | `data` | `object` | Yes |  |
 | &ensp;├─ `lines` | `string`[] | Yes | Content as array of lines (UTF-8). When _result.hasMore is true, call again with startLine/lineCount to get more. |
 | &ensp;├─ `etag` | `string` | Yes | Opaque version token. Pass to writeDataset for optimistic locking so the write fails if the data set changed since the read. |
@@ -955,7 +907,6 @@ Output:
     "mimeType": "text/x-cobol",
     "hasMore": false
   },
-  "messages": [],
   "data": {
     "lines": [
       "       IDENTIFICATION DIVISION.",
@@ -1003,6 +954,7 @@ Output:
       "       01  WS-ERROR-COUNT               PIC 9(5) VALUE ZERO.",
       "      *",
       "           COPY ACCTFMT.",
+      "      *",
   // ... truncated ...
 ```
 
@@ -1069,7 +1021,7 @@ Write UTF-8 content to a sequential data set or PDS/PDSE member. When startLine 
 | `dsn` | `string` | Yes | Fully qualified data set name (e.g. USER.SRC.COBOL). |
 | `lines` | `string`[] | Yes | UTF-8 content to write as an array of lines (one string per record). |
 | `member` | `string` | No | Member name for PDS/PDSE data sets. |
-| `system` | `string` | No | Target z/OS system: host (e.g. sys1.example.com) or connection spec (user@host) when multiple connections exist for that host. Defaults to active system. |
+| `system` | `string` | No | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system. |
 | `etag` | `string` | No | ETag from a previous readDataset call for optimistic locking. |
 | `encoding` | `string` | No | Mainframe encoding (EBCDIC) for this write. Overrides system and server default when set. Default: from system or MCP server default. |
 | `startLine` | `number` | No | 1-based first line of the block to replace; use with endLine to replace a range (content line count can differ). |
@@ -1084,7 +1036,7 @@ Write UTF-8 content to a sequential data set or PDS/PDSE member. When startLine 
 | `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. *(same as [`listDatasets`](#listdatasets-output-schema))* |
 | `_result` | `object` | Yes | Result metadata (pagination, line window, or success). |
 | &ensp;└─ `success` | `boolean` | Yes | True when the operation completed successfully. |
-| `messages` | `string`[] | Yes | Operational messages: pagination hints (e.g. call again with offset/limit), resolution notes, or allocation messages. |
+| `messages` | `string`[] | No | Operational messages: pagination hints (e.g. call again with offset/limit), resolution notes, or allocation messages. Omitted when empty. |
 | `data` | `object` | Yes |  |
 | &ensp;└─ `etag` | `string` | Yes | New ETag after the write. Use this for a subsequent read or write to detect concurrent changes. |
 
@@ -1102,7 +1054,7 @@ Return a unique DSN prefix (HLQ) under which temporary data sets can be created.
 | --- | --- | --- | --- |
 | `prefix` | `string` | No | HLQ for temp names (e.g. USER.TMP). Default: current user on the target system + .TMP. |
 | `suffix` | `string` | No | Optional suffix qualifier (last part of the generated prefix). |
-| `system` | `string` | No | Target z/OS system: fully qualified or unqualified hostname. Defaults to the active system. |
+| `system` | `string` | No | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system. |
 
 <a id="gettempdatasetprefix-output-schema"></a>
 
@@ -1112,7 +1064,7 @@ Return a unique DSN prefix (HLQ) under which temporary data sets can be created.
 | --- | --- | --- | --- |
 | `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. *(same as [`listDatasets`](#listdatasets-output-schema))* |
 | `_result` | `object` | Yes | Result metadata (pagination, line window, or success). *(same as [`writeDataset`](#writedataset-output-schema))* |
-| `messages` | `string`[] | Yes | Operational messages: pagination hints (e.g. call again with offset/limit), resolution notes, or allocation messages. |
+| `messages` | `string`[] | No | Operational messages: pagination hints (e.g. call again with offset/limit), resolution notes, or allocation messages. Omitted when empty. |
 | `data` | `object` | Yes |  |
 | &ensp;└─ `tempDsnPrefix` | `string` | Yes | Unique HLQ prefix under which to create temporary data sets (e.g. USER.TMP.XXXXXXXX.YYYYYYYY). Verified not to exist on the system. |
 
@@ -1126,7 +1078,6 @@ Return a unique DSN prefix (HLQ) under which temporary data sets can be created.
   "_result": {
     "success": true
   },
-  "messages": [],
   "data": {
     "tempDsnPrefix": "USER.TMP.A1B2C3D4.E5F6G7H8"
   }
@@ -1148,7 +1099,7 @@ Returns a single unique full temporary data set name (for one data set). The DSN
 | `prefix` | `string` | No | HLQ for temp names (e.g. USER.TMP). Default: current user on the target system + .TMP. |
 | `suffix` | `string` | No | Optional suffix qualifier for the generated prefix. |
 | `qualifier` | `string` | No | Last qualifier for the DSN (e.g. DATA, 1–8 chars). If omitted, a unique qualifier is generated. |
-| `system` | `string` | No | Target z/OS system: fully qualified or unqualified hostname. Defaults to the active system. |
+| `system` | `string` | No | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system. |
 
 <a id="gettempdatasetname-output-schema"></a>
 
@@ -1158,7 +1109,7 @@ Returns a single unique full temporary data set name (for one data set). The DSN
 | --- | --- | --- | --- |
 | `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. *(same as [`listDatasets`](#listdatasets-output-schema))* |
 | `_result` | `object` | Yes | Result metadata (pagination, line window, or success). *(same as [`writeDataset`](#writedataset-output-schema))* |
-| `messages` | `string`[] | Yes | Operational messages: pagination hints (e.g. call again with offset/limit), resolution notes, or allocation messages. |
+| `messages` | `string`[] | No | Operational messages: pagination hints (e.g. call again with offset/limit), resolution notes, or allocation messages. Omitted when empty. |
 | `data` | `object` | Yes |  |
 | &ensp;└─ `tempDsn` | `string` | Yes | Unique full temporary data set name. Verified not to exist on the system; use for a single createDataset call. |
 
@@ -1172,8 +1123,6 @@ Returns a single unique full temporary data set name (for one data set). The DSN
   "_result": {
     "success": true
   },
-  "messages": [],
-  // Todo: Do not return empty messages in any tool
   "data": {
     "tempDsn": "USER.TMP.A1B2C3D4.E5F6G7H8.J9K0L1M2"
   }
@@ -1185,9 +1134,7 @@ Returns a single unique full temporary data set name (for one data set). The DSN
 ### `createDataset`
 
 
-Create a new sequential or partitioned data set. Specify the type (PS/SEQUENTIAL, PO/PDS, PO-E/PDSE/LIBRARY) and optional attributes. Use primarySpace, secondarySpace, blockSize (Zowe CLI naming). Type and recfm are case-insensitive.
-
-// TODO: Is it necessary to specify Zowe CLI naming and case-insensitivity? Apply for all tools
+Create a new sequential or partitioned data set. Specify the type (PS/SEQUENTIAL, PO/PDS, PO-E/PDSE/LIBRARY) and optional attributes (primarySpace, secondarySpace, blockSize, recfm, lrecl). Type and recfm values are case-insensitive.
 
 #### Parameters
 
@@ -1195,7 +1142,7 @@ Create a new sequential or partitioned data set. Specify the type (PS/SEQUENTIAL
 | --- | --- | --- | --- |
 | `dsn` | `string` | Yes | Fully qualified data set name (e.g. USER.SRC.COBOL). |
 | `type` | `string` | Yes | Data set organization type (DSORG): PS or SEQUENTIAL (Physical Sequential — a flat file), PO or PDS (Partitioned Data Set — a directory of members), PO-E or PDSE or LIBRARY (Partitioned Data Set Extended). Case-insensitive. |
-| `system` | `string` | No | Target z/OS system: host (e.g. sys1.example.com) or connection spec (user@host) when multiple connections exist for that host. Defaults to active system. |
+| `system` | `string` | No | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system. |
 | `recfm` | `string` | No | Record Format (RECFM). Supported: F (Fixed), FB (Fixed Blocked), V (Variable), VB (Variable Blocked), U (Undefined), FBA, VBA. Default: FB. Case-insensitive. |
 | `lrecl` | `number` | No | Logical Record Length (LRECL) in bytes. Default: 80. |
 | `blockSize` | `number` | No | Block Size (BLKSIZE) in bytes. Default: 27920. |
@@ -1215,7 +1162,7 @@ Create a new sequential or partitioned data set. Specify the type (PS/SEQUENTIAL
 | --- | --- | --- | --- |
 | `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. *(same as [`listDatasets`](#listdatasets-output-schema))* |
 | `_result` | `object` | Yes | Result metadata (pagination, line window, or success). *(same as [`writeDataset`](#writedataset-output-schema))* |
-| `messages` | `string`[] | Yes | Operational messages: pagination hints (e.g. call again with offset/limit), resolution notes, or allocation messages. |
+| `messages` | `string`[] | No | Operational messages: pagination hints (e.g. call again with offset/limit), resolution notes, or allocation messages. Omitted when empty. |
 | `data` | `object` | Yes |  |
 | &ensp;├─ `dsn` | `string` | Yes | Fully qualified name of the created data set. |
 | &ensp;├─ `type` | `string` | Yes | Data set type created: PS (sequential), PO (PDS), PO-E (PDSE). |
@@ -1233,7 +1180,7 @@ Creates a new data set with a unique temporary name in a single call. Returns th
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
 | `type` | `string` | Yes | Data set organization type (DSORG): PS or SEQUENTIAL (Physical Sequential — a flat file), PO or PDS (Partitioned Data Set — a directory of members), PO-E or PDSE or LIBRARY (Partitioned Data Set Extended). Case-insensitive. |
-| `system` | `string` | No | Target z/OS system: fully qualified or unqualified hostname. Defaults to the active system. |
+| `system` | `string` | No | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system. |
 | `prefix` | `string` | No | HLQ for temp name (e.g. USER.TMP). Default: current user + .TMP. |
 | `suffix` | `string` | No | Optional suffix qualifier for the generated prefix. |
 | `qualifier` | `string` | No | Last qualifier for the DSN (1–8 chars). If omitted, a unique qualifier is generated. |
@@ -1252,7 +1199,7 @@ Creates a new data set with a unique temporary name in a single call. Returns th
 | --- | --- | --- | --- |
 | `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. *(same as [`listDatasets`](#listdatasets-output-schema))* |
 | `_result` | `object` | Yes | Result metadata (pagination, line window, or success). *(same as [`writeDataset`](#writedataset-output-schema))* |
-| `messages` | `string`[] | Yes | Operational messages: pagination hints (e.g. call again with offset/limit), resolution notes, or allocation messages. |
+| `messages` | `string`[] | No | Operational messages: pagination hints (e.g. call again with offset/limit), resolution notes, or allocation messages. Omitted when empty. |
 | `data` | `object` | Yes |  *(same as [`createDataset`](#createdataset-output-schema))* |
 
 ---
@@ -1269,7 +1216,7 @@ Delete a data set or a specific PDS/PDSE member. You may pass dsn as USER.LIB(ME
 | --- | --- | --- | --- |
 | `dsn` | `string` | Yes | Fully qualified data set name (e.g. USER.SRC.COBOL). |
 | `member` | `string` | No | Member name to delete (if omitting, the entire data set is deleted). |
-| `system` | `string` | No | Target z/OS system: host (e.g. sys1.example.com) or connection spec (user@host) when multiple connections exist for that host. Defaults to active system. |
+| `system` | `string` | No | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system. |
 
 <a id="deletedataset-output-schema"></a>
 
@@ -1279,7 +1226,7 @@ Delete a data set or a specific PDS/PDSE member. You may pass dsn as USER.LIB(ME
 | --- | --- | --- | --- |
 | `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. *(same as [`listDatasets`](#listdatasets-output-schema))* |
 | `_result` | `object` | Yes | Result metadata (pagination, line window, or success). *(same as [`writeDataset`](#writedataset-output-schema))* |
-| `messages` | `string`[] | Yes | Operational messages: pagination hints (e.g. call again with offset/limit), resolution notes, or allocation messages. |
+| `messages` | `string`[] | No | Operational messages: pagination hints (e.g. call again with offset/limit), resolution notes, or allocation messages. Omitted when empty. |
 | `data` | `object` | Yes |  |
 | &ensp;└─ `deletedDsn` | `string` | Yes | Fully qualified name of the deleted data set or member (e.g. USER.PDS(MEM) for a member). |
 
@@ -1296,7 +1243,7 @@ Delete all data sets whose names start with the given prefix (e.g. tempDsnPrefix
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
 | `dsnPrefix` | `string` | Yes | Fully qualified prefix (e.g. USER.TMP.A1B2C3D4.E5F6G7H8). All data sets matching this prefix will be deleted. Must have at least 3 qualifiers and contain TMP. |
-| `system` | `string` | No | Target z/OS system: fully qualified or unqualified hostname. Defaults to the active system. |
+| `system` | `string` | No | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system. |
 
 <a id="deletedatasetsunderprefix-output-schema"></a>
 
@@ -1306,7 +1253,7 @@ Delete all data sets whose names start with the given prefix (e.g. tempDsnPrefix
 | --- | --- | --- | --- |
 | `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. *(same as [`listDatasets`](#listdatasets-output-schema))* |
 | `_result` | `object` | Yes | Result metadata (pagination, line window, or success). *(same as [`writeDataset`](#writedataset-output-schema))* |
-| `messages` | `string`[] | Yes | Operational messages: pagination hints (e.g. call again with offset/limit), resolution notes, or allocation messages. |
+| `messages` | `string`[] | No | Operational messages: pagination hints (e.g. call again with offset/limit), resolution notes, or allocation messages. Omitted when empty. |
 | `data` | `object` | Yes |  |
 | &ensp;├─ `deleted` | `string`[] | Yes | List of fully qualified data set names that were deleted. |
 | &ensp;└─ `count` | `number` | Yes | Number of data sets deleted. |
@@ -1326,7 +1273,7 @@ Copy a data set or PDS/PDSE member within a single z/OS system. You may pass sou
 | `targetDsn` | `string` | Yes | Fully qualified target data set name (e.g. USER.SRC.BACKUP). |
 | `sourceMember` | `string` | No | Source member name (for copying a single member). |
 | `targetMember` | `string` | No | Target member name (defaults to source member name). |
-| `system` | `string` | No | Target z/OS system: host (e.g. sys1.example.com) or connection spec (user@host) when multiple connections exist for that host. Defaults to active system. |
+| `system` | `string` | No | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system. |
 
 <a id="copydataset-output-schema"></a>
 
@@ -1336,7 +1283,7 @@ Copy a data set or PDS/PDSE member within a single z/OS system. You may pass sou
 | --- | --- | --- | --- |
 | `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. *(same as [`listDatasets`](#listdatasets-output-schema))* |
 | `_result` | `object` | Yes | Result metadata (pagination, line window, or success). *(same as [`writeDataset`](#writedataset-output-schema))* |
-| `messages` | `string`[] | Yes | Operational messages: pagination hints (e.g. call again with offset/limit), resolution notes, or allocation messages. |
+| `messages` | `string`[] | No | Operational messages: pagination hints (e.g. call again with offset/limit), resolution notes, or allocation messages. Omitted when empty. |
 | `data` | `object` | Yes |  |
 | &ensp;├─ `sourceDsn` | `string` | Yes | Fully qualified source data set (or member) that was copied. |
 | &ensp;└─ `targetDsn` | `string` | Yes | Fully qualified target data set (or member) after the copy. |
@@ -1356,7 +1303,7 @@ Rename a data set or PDS/PDSE member. You may pass dsn as USER.LIB(MEM) and omit
 | `newDsn` | `string` | Yes | Fully qualified new data set name (e.g. USER.SRC.NEW). |
 | `member` | `string` | No | Current member name (for renaming a member within a PDS/PDSE). |
 | `newMember` | `string` | No | New member name. |
-| `system` | `string` | No | Target z/OS system: host (e.g. sys1.example.com) or connection spec (user@host) when multiple connections exist for that host. Defaults to active system. |
+| `system` | `string` | No | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system. |
 
 <a id="renamedataset-output-schema"></a>
 
@@ -1366,7 +1313,7 @@ Rename a data set or PDS/PDSE member. You may pass dsn as USER.LIB(MEM) and omit
 | --- | --- | --- | --- |
 | `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. *(same as [`listDatasets`](#listdatasets-output-schema))* |
 | `_result` | `object` | Yes | Result metadata (pagination, line window, or success). *(same as [`writeDataset`](#writedataset-output-schema))* |
-| `messages` | `string`[] | Yes | Operational messages: pagination hints (e.g. call again with offset/limit), resolution notes, or allocation messages. |
+| `messages` | `string`[] | No | Operational messages: pagination hints (e.g. call again with offset/limit), resolution notes, or allocation messages. Omitted when empty. |
 | `data` | `object` | Yes |  |
 | &ensp;├─ `oldName` | `string` | Yes | Fully qualified name before the rename (data set or member). |
 | &ensp;└─ `newName` | `string` | Yes | Fully qualified name after the rename. |
@@ -1376,7 +1323,7 @@ Rename a data set or PDS/PDSE member. You may pass dsn as USER.LIB(MEM) and omit
 ### `restoreDataset`
 
 
-Restore (recall) a migrated data set from HSM. Use this when a data set shows as migrated in listDatasets or getDatasetAttributes.
+Restore (recall) a migrated data set from the hierarchical storage manager (HSM/DFHSM). Use this when a data set shows as migrated in listDatasets or getDatasetAttributes.
 
 #### Parameters
 
@@ -1393,7 +1340,7 @@ Restore (recall) a migrated data set from HSM. Use this when a data set shows as
 | --- | --- | --- | --- |
 | `_context` | `object` | Yes | Resolution context: system and optional normalized names/paths. *(same as [`listDatasets`](#listdatasets-output-schema))* |
 | `_result` | `object` | Yes | Result metadata (pagination, line window, or success). *(same as [`writeDataset`](#writedataset-output-schema))* |
-| `messages` | `string`[] | Yes | Operational messages: pagination hints (e.g. call again with offset/limit), resolution notes, or allocation messages. |
+| `messages` | `string`[] | No | Operational messages: pagination hints (e.g. call again with offset/limit), resolution notes, or allocation messages. Omitted when empty. |
 | `data` | `object` | Yes |  |
 | &ensp;└─ `dsn` | `string` | Yes | Fully qualified data set name that was restored (recalled). |
 
@@ -1409,7 +1356,7 @@ Return the current user's USS home directory for the active (or specified) syste
 
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
-| `system` | `string` | No | Target z/OS system: fully qualified or unqualified hostname. Defaults to the active system. |
+| `system` | `string` | No | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system. |
 
 <a id="getusshome-output-schema"></a>
 
@@ -1426,18 +1373,18 @@ Return the current user's USS home directory for the active (or specified) syste
 #### Example Output
 
 ```json
-{
-  "_context": {
-    "system": "mainframe-dev.example.com"
-  },
-  "_result": {
-    "success": true
-  },
-  "messages": [],
-  "data": {
-    "path": "/u/USER"
+// isError: true
+MCP error -32602: Output validation error: Invalid structured content for tool getUssHome: [
+  {
+    "code": "invalid_type",
+    "expected": "array",
+    "received": "undefined",
+    "path": [
+      "messages"
+    ],
+    "message": "Required"
   }
-}
+]
 ```
 
 ---
@@ -1453,7 +1400,7 @@ Set the USS current working directory for the active (or specified) system. Path
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
 | `path` | `string` | Yes | Directory path to set as current working directory (absolute or relative to current cwd). |
-| `system` | `string` | No | Target z/OS system: fully qualified or unqualified hostname. Defaults to the active system. |
+| `system` | `string` | No | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system. |
 
 <a id="changeussdirectory-output-schema"></a>
 
@@ -1479,19 +1426,18 @@ Input:
 Output:
 
 ```json
-{
-  "_context": {
-    "system": "mainframe-dev.example.com",
-    "currentDirectory": "."
-  },
-  "_result": {
-    "success": true
-  },
-  "messages": [],
-  "data": {
-    "path": "/u/USER"
+// isError: true
+MCP error -32602: Output validation error: Invalid structured content for tool changeUssDirectory: [
+  {
+    "code": "invalid_type",
+    "expected": "array",
+    "received": "undefined",
+    "path": [
+      "messages"
+    ],
+    "message": "Required"
   }
-}
+]
 ```
 
 ---
@@ -1500,14 +1446,14 @@ Output:
 
 > Read-only
 
-Results are paginated (default 500, max 1000 per page); follow the pagination instructions in the server instructions. List files and directories in a USS path
+List files and directories in a USS path Results are paginated (default 500, max 1000 per page); follow the pagination instructions in the server instructions.
 
 #### Parameters
 
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
 | `path` | `string` | Yes | USS directory path: absolute (starts with /) or relative to current working directory (see getContext.ussCwd). |
-| `system` | `string` | No | Target z/OS system: fully qualified or unqualified hostname. Defaults to the active system. |
+| `system` | `string` | No | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system. |
 | `includeHidden` | `boolean` | No | Include hidden files (names starting with .). (default: `false`) |
 | `longFormat` | `boolean` | No | Return long format (mode, size, mtime, name). (default: `false`) |
 | `offset` | `integer` | No | 0-based offset. Default: 0. |
@@ -1549,26 +1495,18 @@ Input:
 Output:
 
 ```json
-{
-  "_context": {
-    "system": "mainframe-dev.example.com",
-    "currentDirectory": ".",
-    "listedDirectory": "/"
-  },
-  "_result": {
-    "count": 1,
-    "totalAvailable": 1,
-    "offset": 0,
-    "hasMore": false
-  },
-  "messages": [],
-  "data": [
-    {
-      "name": "u",
-      "path": "/u"
-    }
-  ]
-}
+// isError: true
+MCP error -32602: Output validation error: Invalid structured content for tool listUssFiles: [
+  {
+    "code": "invalid_type",
+    "expected": "array",
+    "received": "undefined",
+    "path": [
+      "messages"
+    ],
+    "message": "Required"
+  }
+]
 ```
 
 ##### user home
@@ -1584,30 +1522,18 @@ Input:
 Output:
 
 ```json
-{
-  "_context": {
-    "system": "mainframe-dev.example.com",
-    "currentDirectory": ".",
-    "listedDirectory": "."
-  },
-  "_result": {
-    "count": 2,
-    "totalAvailable": 2,
-    "offset": 0,
-    "hasMore": false
-  },
-  "messages": [],
-  "data": [
-    {
-      "name": "file.txt",
-      "path": "file.txt"
-    },
-    {
-      "name": "subdir",
-      "path": "subdir"
-    }
-  ]
-}
+// isError: true
+MCP error -32602: Output validation error: Invalid structured content for tool listUssFiles: [
+  {
+    "code": "invalid_type",
+    "expected": "array",
+    "received": "undefined",
+    "path": [
+      "messages"
+    ],
+    "message": "Required"
+  }
+]
 ```
 
 ---
@@ -1616,14 +1542,14 @@ Output:
 
 > Read-only
 
-Results may be line-windowed; follow the pagination instructions in the server instructions. Read the content of a USS file
+Read the content of a USS file Results may be line-windowed; follow the pagination instructions in the server instructions.
 
 #### Parameters
 
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
 | `path` | `string` | Yes | USS file path: absolute (starts with /) or relative to current working directory (see getContext.ussCwd). |
-| `system` | `string` | No | Target z/OS system: fully qualified or unqualified hostname. Defaults to the active system. |
+| `system` | `string` | No | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system. |
 | `encoding` | `string` | No | Mainframe (EBCDIC) encoding for the file. Omit to use system default or file tag. |
 | `startLine` | `integer` | No | 1-based first line to return. Default: 1. |
 | `lineCount` | `integer` | No | Number of lines to return. Omit for default window size. |
@@ -1657,28 +1583,18 @@ Input:
 Output:
 
 ```json
-{
-  "_context": {
-    "system": "mainframe-dev.example.com",
-    "currentDirectory": "."
-  },
-  "_result": {
-    "totalLines": 1,
-    "startLine": 1,
-    "returnedLines": 1,
-    "contentLength": 57,
-    "mimeType": "text/plain",
-    "hasMore": false
-  },
-  "messages": [],
-  "data": {
-    "lines": [
-      "Hello from USS mock. Use this file for readUssFile evals."
+// isError: true
+MCP error -32602: Output validation error: Invalid structured content for tool readUssFile: [
+  {
+    "code": "invalid_type",
+    "expected": "array",
+    "received": "undefined",
+    "path": [
+      "messages"
     ],
-    "etag": "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6",
-    "mimeType": "text/plain"
+    "message": "Required"
   }
-}
+]
 ```
 
 ##### sensitive path
@@ -1706,14 +1622,14 @@ Output:
 
 > Read-only
 
-Results may be line-windowed; follow the pagination instructions in the server instructions. Run a Unix command on z/OS USS. Only allowlisted (safe) commands run automatically; unknown commands require user confirmation via elicitation
+Run a Unix command on z/OS USS. Results may be line-windowed; follow the pagination instructions in the server instructions. Only allowlisted (safe) commands run automatically; unknown commands require user confirmation via elicitation
 
 #### Parameters
 
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
 | `commandText` | `string` | Yes | The Unix command line to execute (e.g. ls -la /tmp, whoami, pwd). |
-| `system` | `string` | No | Target z/OS system: fully qualified or unqualified hostname. Defaults to the active system. |
+| `system` | `string` | No | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system. |
 | `startLine` | `integer` | No | 1-based first line of output to return. Default: 1. |
 | `lineCount` | `integer` | No | Number of lines to return. Omit for default window size. |
 
@@ -1745,26 +1661,18 @@ Input:
 Output:
 
 ```json
-{
-  "_context": {
-    "system": "mainframe-dev.example.com"
-  },
-  "_result": {
-    "totalLines": 1,
-    "startLine": 1,
-    "returnedLines": 1,
-    "contentLength": 7,
-    "mimeType": "text/plain",
-    "hasMore": false
-  },
-  "messages": [],
-  "data": {
-    "lines": [
-      "/u/USER"
+// isError: true
+MCP error -32602: Output validation error: Invalid structured content for tool runSafeUssCommand: [
+  {
+    "code": "invalid_type",
+    "expected": "array",
+    "received": "undefined",
+    "path": [
+      "messages"
     ],
-    "mimeType": "text/plain"
+    "message": "Required"
   }
-}
+]
 ```
 
 ##### blocked command
@@ -1799,7 +1707,7 @@ Write or overwrite a USS file. Creates the file if it does not exist.
 | --- | --- | --- | --- |
 | `path` | `string` | Yes | USS file path: absolute (starts with /) or relative to current working directory (see getContext.ussCwd). |
 | `lines` | `string`[] | Yes | UTF-8 content to write as an array of lines (one string per line). |
-| `system` | `string` | No | Target z/OS system: host (e.g. sys1.example.com) or connection spec (user@host) when multiple connections exist for that host. Defaults to active system. |
+| `system` | `string` | No | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system. |
 | `etag` | `string` | No | ETag for optimistic locking. |
 | `encoding` | `string` | No | Mainframe encoding. Omit for default. |
 
@@ -1937,7 +1845,7 @@ Set the z/OS file tag (encoding/type) for a USS file or directory.
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
 | `path` | `string` | Yes | USS path: absolute or relative to current working directory (see getContext.ussCwd). |
-| `tag` | `string` | Yes | Tag (e.g. ISO8859-1). |
+| `tag` | `string` | Yes | File tag value: a coded character set identifier (CCSID) name or number. Common values: ISO8859-1, IBM-1047 (EBCDIC), UTF-8, binary. Use "binary" for non-text files. |
 | `system` | `string` | No | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system. |
 | `recursive` | `boolean` | No | Apply recursively. (default: `false`) |
 
@@ -1957,7 +1865,7 @@ Set the z/OS file tag (encoding/type) for a USS file or directory.
 ### `copyUssFile`
 
 
-Copy a USS file or directory on z/OS. For directories, set recursive to true. Paths can be absolute (starting with /) or relative to the current working directory (see getContext.ussCwd).
+Copy a USS file or directory within the same z/OS system. For directories, set recursive to true. Paths can be absolute (starting with /) or relative to the current working directory (see getContext.ussCwd).
 
 #### Parameters
 
@@ -1990,7 +1898,7 @@ Copy a USS file or directory on z/OS. For directories, set recursive to true. Pa
 
 > Read-only
 
-Return a unique USS temporary directory path under the given base path. The path is verified not to exist; use createUssFile with isDirectory true to create it.
+Generate a unique USS temporary directory path as a subdirectory of the given base path (e.g. /tmp or the user home). The path is verified not to exist on the system. Use createTempUssDir to create it, or createUssFile with isDirectory true.
 
 #### Parameters
 
@@ -2121,14 +2029,14 @@ Delete all files and directories under the given USS path (the path itself is re
 
 > Read-only
 
-Results may be line-windowed; follow the pagination instructions in the server instructions. Run a TSO command on z/OS. Only allowlisted (safe) commands run automatically; unknown commands require user confirmation via elicitation. Requesting the same command without startLine and lineCount re-executes the command
+Run a TSO command on z/OS. Results may be line-windowed; follow the pagination instructions in the server instructions. Only allowlisted (safe) commands run automatically; unknown commands require user confirmation via elicitation. Requesting the same command without startLine and lineCount re-executes the command
 
 #### Parameters
 
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
 | `commandText` | `string` | Yes | The TSO command to execute (e.g. LISTDS 'USER.DATA', LISTALC, LISTCAT, STATUS). |
-| `system` | `string` | No | Target z/OS system: fully qualified or unqualified hostname. Defaults to the active system. |
+| `system` | `string` | No | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system. |
 | `startLine` | `integer` | No | 1-based first line of output to return. Default: 1. |
 | `lineCount` | `integer` | No | Number of lines to return. Omit for default window size. |
 
@@ -2158,26 +2066,18 @@ Input:
 Output:
 
 ```json
-{
-  "_context": {
-    "system": "mainframe-dev.example.com"
-  },
-  "_result": {
-    "totalLines": 1,
-    "startLine": 1,
-    "returnedLines": 1,
-    "contentLength": 74,
-    "mimeType": "text/plain",
-    "hasMore": false
-  },
-  "messages": [],
-  "data": {
-    "lines": [
-      "TIME-08:40:23 AM. CPU-00:00:00 SERVICE-26895 SESSION-00:01:53 MARCH 5,2026"
+// isError: true
+MCP error -32602: Output validation error: Invalid structured content for tool runSafeTsoCommand: [
+  {
+    "code": "invalid_type",
+    "expected": "array",
+    "received": "undefined",
+    "path": [
+      "messages"
     ],
-    "mimeType": "text/plain"
+    "message": "Required"
   }
-}
+]
 ```
 
 ##### blocked command
@@ -2320,7 +2220,7 @@ List output files (spools) for a z/OS job. The job must be in OUTPUT status. Use
 
 > Read-only
 
-Results may be line-windowed; follow the pagination instructions in the server instructions. Read the content of one job output file (spool); use listJobFiles to get job file IDs
+Read the content of one job output file (spool); use listJobFiles to get job file IDs Results may be line-windowed; follow the pagination instructions in the server instructions.
 
 #### Parameters
 

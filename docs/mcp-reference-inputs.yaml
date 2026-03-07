@@ -24,7 +24,7 @@ listMembers:
 
 listMembers[with pattern]:
   dsn: "USER.SRC.COBOL"
-  pattern: "CUST*"
+  memberPattern: "CUST*"
 
 searchInDataset:
   dsn: "USER.SRC.COBOL"
@@ -45,9 +45,6 @@ readDataset[with line window]:
   dsn: "USER.SRC.COBOL(CUSTFILE)"
   startLine: 1
   lineCount: 10
-  
-# TODO: We need to figure put the inputs
-for all the tools 
 
 writeDataset:
   skip: true

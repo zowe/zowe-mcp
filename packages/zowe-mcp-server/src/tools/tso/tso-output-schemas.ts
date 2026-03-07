@@ -37,8 +37,9 @@ function envelopeSchema<T extends z.ZodType>(
       _context: responseContextSchema,
       messages: z
         .array(z.string())
+        .optional()
         .describe(
-          'Operational messages: line-window hints (e.g. call again with startLine/lineCount).'
+          'Operational messages: line-window hints (e.g. call again with startLine/lineCount). Omitted when empty.'
         ),
       data: dataSchema,
       _result: resultSchema.describe('Line-window metadata for TSO output.'),

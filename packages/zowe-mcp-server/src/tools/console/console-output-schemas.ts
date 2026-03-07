@@ -25,7 +25,8 @@ export const runConsoleCommandOutputSchema = z
     _context: responseContextSchema,
     messages: z
       .array(z.string())
-      .describe('Operational messages: pagination hints, resolution notes.'),
+      .optional()
+      .describe('Operational messages: pagination hints, resolution notes. Omitted when empty.'),
     data: consoleCommandDataSchema,
     _result: readResultMetaSchema.describe('Result metadata (line window).'),
   })

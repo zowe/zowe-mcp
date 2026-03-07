@@ -62,8 +62,9 @@ export const setSystemOutputSchema = z
       .describe('Optional system description/label from configuration.'),
     messages: z
       .array(z.string())
+      .optional()
       .describe(
-        'Resolution or connection messages (e.g. "System resolved from unqualified name \'sys1\'.").'
+        'Resolution or connection messages (e.g. "System resolved from unqualified name \'sys1\'."). Omitted when empty.'
       ),
     mainframeMvsEncoding: z
       .union([z.string(), z.null()])

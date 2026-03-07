@@ -23,6 +23,7 @@ This is an npm workspaces monorepo with three packages:
 - **Tool naming for Copilot**: MCP tool names use **camelCase** (e.g. `listDatasets`, `setSystem`, `getContext`) so they fit VS Code Copilot’s display. Copilot prefixes names with `mcp_<providerId>_`, so a tool named `listDatasets` appears as `mcp_zowe_listDatasets`. Keep names short and avoid redundant `zowe_` prefixes — the provider ID already provides the namespace.
 - **ESM for server, CJS for extension**: The MCP SDK requires ESM. VS Code extensions use CommonJS. Each package has its own `tsconfig.json`.
 - **Version from package.json**: The server reads its version from `package.json` at runtime using `createRequire`. Keep the version in `package.json` as the single source of truth.
+- **Code duplication detection (jscpd)**: The `jscpd` tool (Rabin-Karp token-based copy/paste detector) is configured via `.jscpd.json` at the repo root. Run `npm run duplication` to scan all packages. A Cursor hook (`.cursor/hooks/duplication.sh`) runs jscpd on edited `.ts` files after Agent edits to warn about introduced duplication. Config: `minLines: 10`, `minTokens: 50`, `threshold: 5%`; excludes tests, themes, build artifacts, and `.d.ts` files.
 - **Code formatting via Cursor hooks**: All TypeScript, JavaScript, and JSON files are formatted with Prettier (`.prettierrc.json` + `prettier-plugin-organize-imports`). Markdown files are formatted with markdownlint-cli2. A Cursor hook (`.cursor/hooks/format.sh`) auto-formats all file types after every Agent and Tab edit.
 - **ESLint with type-checked rules**: ESLint is configured with `typescript-eslint`'s `recommendedTypeChecked` + `stylisticTypeChecked` rulesets, `eslint-plugin-headers` for license headers, and `eslint-plugin-vitest` for test hygiene (server tests only — VS Code extension tests use Mocha). Config is in `eslint.config.mjs`. Each package has a `tsconfig.eslint.json` that includes all lintable files (src, tests, scripts). The Cursor format hook automatically runs `eslint --fix` on `.ts` files.
 - **License header enforcement**: All `.ts` files must start with the EPL-2.0 license header. Enforced by `eslint-plugin-headers` via `eslint.config.mjs`. The Cursor format hook automatically inserts missing headers on save. Run `npm run lint` to check all files, `npm run lint:fix` to auto-fix.
@@ -159,6 +160,14 @@ Server tests are organized into **common** (parameterized) and **transport-speci
 - **Manual linting**: Run `npm run lint` to check all ESLint rules (type-checked + license headers), `npm run lint:fix` to auto-fix.
 - **Config**: `.prettierrc.json` at the repo root. Uses `prettier-plugin-organize-imports` to auto-sort imports. `eslint.config.mjs` at the repo root for license header enforcement.
 - **Ignored files**: See `.prettierignore`. Markdown files are excluded from Prettier (handled by markdownlint instead). Build artifacts (`.vscode-test/`, `dist/`, `out/`, `server/`) are excluded from ESLint.
+
+### Code Duplication Detection
+
+- **Tool**: `jscpd` (npm devDependency) — token-based copy/paste detector using the Rabin-Karp algorithm. Detects exact and near-exact duplicated code blocks across TypeScript and JavaScript files.
+- **Config**: `.jscpd.json` at repo root. Key settings: `minLines: 10` (minimum block size), `minTokens: 50`, `threshold: 5` (fail if >5% duplication). Excludes `__tests__/`, `themes/`, `dist/`, `out/`, `server/`, `.vscode-test/`, `*.d.ts`.
+- **Manual scan**: Run `npm run duplication` to scan all packages and report duplicates to console.
+- **Cursor hook**: `.cursor/hooks/duplication.sh` runs automatically after Agent file edits (not Tab edits) on `.ts` files under `packages/`. It runs jscpd on the edited file and reports any duplication to the agent as advisory output. Always exits 0 (non-blocking).
+- **CI integration**: jscpd exits non-zero when duplication exceeds the configured `threshold`, suitable for CI quality gates.
 
 ### Logging (MCP Server)
 
@@ -301,6 +310,7 @@ The project uses a data-driven approach to validate tool definition changes. Eve
 | `npm run lint:fix` | Auto-fix ESLint issues (including missing headers) |
 | `npm run format` | Format all TS/JS/JSON files with Prettier |
 | `npm run check-format` | Check formatting without modifying files |
+| `npm run duplication` | Scan all packages for code duplication using jscpd (config: `.jscpd.json`). Exits non-zero if duplication exceeds threshold. |
 | `npm run markdownlint <file>` | Fix markdown lint issues |
 | `npx zowe-mcp-server init-mock --output <dir>` | Generate mock data directory |
 | `npm run eval-compare` | Run eval-compare: evals across models with auto-scoreboard update. Options after `--`: `--set`, `--model`, `--label`, `--repetitions`, `--system-prompt-addition`. Results in `evals-report/` and `docs/eval-scoreboard.md`. |

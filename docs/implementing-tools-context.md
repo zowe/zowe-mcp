@@ -29,8 +29,7 @@ Use this in chats when implementing new data set operations or other z/OS tools.
 
 ### Other components
 
-- **Core**: `info` tool (`src/tools/core/zowe-info.ts`).
-- **Context**: `getContext`, `setSystem`, `listSystems` (`src/tools/context/context-tools.ts`).
+- **Context**: `getContext` (includes server info; always registered), `setSystem`, `listSystems` (`src/tools/context/context-tools.ts`).
 - **USS**: Implemented (`src/tools/uss/uss-tools.ts`). Tools: `getUssHome`, `listUssFiles`, `readUssFile`, `writeUssFile`, `createUssFile`, `deleteUssFile`, `chmodUssFile`, `chownUssFile`, `chtagUssFile`, `runSafeUssCommand`, `getUssTempDir`, `getUssTempPath`, `createTempUssFile`, `createTempUssDir`, `deleteUssTempUnderDir`. See **USS tools** section below.
 - **TSO**: Implemented (`src/tools/tso/tso-tools.ts`). Tool: `runSafeTsoCommand`. See **TSO tools** section below.
 - **Jobs**: `submitJob`, `getJobStatus` (`src/tools/jobs/jobs-tools.ts`). Job cards from config file `jobCards` section or VS Code `zoweMCP.jobCards`. Mock backend throws "Not implemented"; native uses ZNP `client.jobs.submitJcl` and `getJobStatus`.
@@ -139,7 +138,7 @@ TSO tools are in `src/tools/tso/`. The backend interface (`ZosBackend`) defines 
 
 1. Create `src/tools/<component>/` and export `register<Component>Tools(server, deps, logger)`.
 2. In `server.ts`, call the registrar; for z/OS backends, only register when `options?.backend` is set.
-3. Update the `components` array in the `info` tool response.
+3. Update the `components` array in the `getContext` tool handler (`context-tools.ts`).
 4. If the component needs a backend, define a small interface (e.g. `ZosJobsBackend`) and implement it for mock and, when relevant, native.
 
 ---

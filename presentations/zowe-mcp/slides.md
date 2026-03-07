@@ -28,6 +28,8 @@ mdc: true
 
 ---
 
+<!-- markdownlint-disable MD001 MD024 MD025 -->
+
 <!-- Slide 2: What is MCP? -->
 
 # What is MCP?
@@ -72,12 +74,12 @@ An **MCP server** and **VS Code extension** that gives AI assistants direct, str
 <div class="grid grid-cols-4 gap-4 mt-8">
   <div class="text-center p-4 bg-[#f3f4f4] rounded-lg border-t-4 border-[#3162ac]">
     <carbon-assembly-cluster class="text-2xl text-[#3162ac] mb-1" />
-    <div class="text-4xl font-extrabold text-[#3162ac]">7</div>
+    <div class="text-4xl font-extrabold text-[#3162ac]">6</div>
     <div class="text-sm text-[#6d7176] mt-1">Components</div>
   </div>
   <div class="text-center p-4 bg-[#f3f4f4] rounded-lg border-t-4 border-[#3162ac]">
     <carbon-tool-box class="text-2xl text-[#3162ac] mb-1" />
-    <div class="text-4xl font-extrabold text-[#3162ac]">51</div>
+    <div class="text-4xl font-extrabold text-[#3162ac]">50</div>
     <div class="text-sm text-[#6d7176] mt-1">Tools</div>
   </div>
   <div class="text-center p-4 bg-[#f3f4f4] rounded-lg border-t-4 border-[#3162ac]">
@@ -206,7 +208,7 @@ flowchart TD
 
   subgraph Server ["Zowe MCP Server"]
     direction LR
-    Tools["51 Tools divided into 7&nbsp;Components"]
+    Tools["50 Tools divided into 6&nbsp;Components"]
     Cache["Response Cache"]
     Tools --> ZosBackendInterface
     ZosBackendInterface["ZosBackend Interface"]
@@ -230,7 +232,7 @@ flowchart TD
 
 <div class="grid grid-cols-4 gap-3 mt-4">
   <div class="col-span-4 text-center p-3 bg-[#1b375f] text-white rounded-lg font-bold text-lg">
-    Zowe MCP Server — 51 tools
+    Zowe MCP Server — 50 tools
   </div>
   <div class="p-3 bg-[#f3f4f4] rounded-lg border-t-3 border-[#3162ac] text-center">
     <carbon-data-base class="text-xl text-[#3162ac]" />
@@ -270,12 +272,6 @@ flowchart TD
     <div class="font-bold text-[#1b375f]">tso</div>
     <div class="text-xl font-extrabold text-[#3975d0]">1</div>
     <div class="text-xs text-[#6d7176]">runSafeTsoCommand</div>
-  </div>
-  <div class="p-3 bg-[#f3f4f4] rounded-lg border-t-3 border-[#3975d0] text-center">
-    <carbon-information class="text-xl text-[#3975d0]" />
-    <div class="font-bold text-[#1b375f]">core</div>
-    <div class="text-xl font-extrabold text-[#3975d0]">1</div>
-    <div class="text-xs text-[#6d7176]">info (server metadata)</div>
   </div>
 </div>
 

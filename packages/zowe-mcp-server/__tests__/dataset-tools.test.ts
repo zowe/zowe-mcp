@@ -266,7 +266,8 @@ describe('Dataset tools with mock backend', () => {
       const { tools } = await client.listTools();
       const toolNames = tools.map(t => t.name);
 
-      expect(toolNames).toContain('info');
+      expect(toolNames).toContain('getContext');
+      expect(toolNames).not.toContain('info');
       expect(toolNames).toContain('listDatasets');
       expect(toolNames).toContain('listMembers');
       expect(toolNames).toContain('readDataset');

@@ -147,8 +147,21 @@ const getContextRecentlyUsedEntrySchema = z.object({
     .describe('Per-system USS encoding when set.'),
 });
 
+const getContextServerSchema = z.object({
+  name: z.string().describe('Server display name.'),
+  version: z.string().describe('Semantic version.'),
+  description: z.string().describe('Short server description.'),
+  components: z
+    .array(z.string())
+    .describe('Registered component names (e.g. context, datasets, uss).'),
+  backend: z.string().nullable().describe('Active backend: mock, native, or null.'),
+});
+
 export const getContextOutputSchema = z
   .object({
+    server: getContextServerSchema.describe(
+      'Zowe MCP server metadata: name, version, registered components, and backend status.'
+    ),
     activeSystem: z
       .union([getContextActiveSystemSchema, z.null()])
       .describe('Currently selected system and user; null if no system has been set yet.'),
@@ -168,5 +181,5 @@ export const getContextOutputSchema = z
       .describe('Informational messages. Omitted when empty.'),
   })
   .describe(
-    'Current session context: active system (or null), all configured systems, recently used systems, and messages.'
+    'Current session context: server info, active system (or null), all configured systems, recently used systems, and messages.'
   );

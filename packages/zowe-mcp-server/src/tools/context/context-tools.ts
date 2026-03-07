@@ -33,9 +33,16 @@ import {
 
 /** Dependencies injected into context tool registration. */
 export interface ContextToolDeps {
-  systemRegistry: SystemRegistry;
-  sessionState: SessionState;
-  credentialProvider: CredentialProvider;
+  /** Server version string (from package.json). */
+  serverVersion: string;
+  /** Backend kind when connected (e.g. "mock", "native") or null when none. */
+  backendKind: string | null;
+  /** z/OS system registry. Required for listSystems/setSystem; when absent, only getContext is registered. */
+  systemRegistry?: SystemRegistry;
+  /** Session state. Required for listSystems/setSystem/getContext z/OS fields. */
+  sessionState?: SessionState;
+  /** Credential provider. Required for setSystem. */
+  credentialProvider?: CredentialProvider;
   /** When provided, getContext includes the job card for the active system (if configured). */
   jobCardStore?: JobCardStore;
   /** When provided, called after setSystem succeeds with the new connection spec (e.g. user@host). */
@@ -54,6 +61,8 @@ export function registerContextTools(
 ): void {
   const log = logger.child('context');
   const {
+    serverVersion,
+    backendKind,
     systemRegistry,
     sessionState,
     credentialProvider,
@@ -62,158 +71,170 @@ export function registerContextTools(
     encodingOptions,
   } = deps;
 
-  // -----------------------------------------------------------------------
-  // listSystems
-  // -----------------------------------------------------------------------
-  server.registerTool(
-    'listSystems',
-    {
-      description:
-        'List all z/OS systems you have access to. Each system is a host; multiple configured connections (user@host) to the same host appear as one system with a connections list. ' +
-        'Use setSystem to select which system (and optionally which connection) to use.',
-      annotations: { readOnlyHint: true },
-      outputSchema: listSystemsOutputSchema,
-    },
-    async extra => {
-      const progress = createToolProgress(extra, 'List configured systems');
-      await progress.start();
-      log.debug('listSystems called');
-      const systems = systemRegistry.listInfo();
-      const activeSystem = sessionState.getActiveSystem();
+  const hasBackend = !!(systemRegistry && sessionState && credentialProvider);
 
-      const result = systems.map(s => ({
-        ...s,
-        active: s.host === activeSystem,
-      }));
-
-      const payload: Record<string, unknown> = { systems: result };
-      await progress.complete(`${result.length} systems`);
-      return {
-        content: [
-          {
-            type: 'text' as const,
-            text: JSON.stringify(payload, null, 2),
-          },
-        ],
-        structuredContent: payload,
-      };
-    }
-  );
+  const components = hasBackend ? ['context', 'datasets', 'uss', 'tso', 'jobs'] : ['context'];
 
   // -----------------------------------------------------------------------
-  // setSystem
+  // listSystems (only when z/OS backend is configured)
   // -----------------------------------------------------------------------
-  server.registerTool(
-    'setSystem',
-    {
-      description:
-        'Set the active z/OS system. The system parameter can be a host (e.g. zos.example.com) when only one connection exists for that host, or a connection spec (e.g. USER@zos.example.com) when multiple connections exist for the same host. ' +
-        'If you pass only a host and multiple connections exist, the tool fails and lists valid connection values. ' +
-        'Optionally set mainframe encodings for this system (data set and USS); omit to leave existing overrides unchanged, or pass null to use MCP server default.',
-      outputSchema: setSystemOutputSchema,
-      inputSchema: {
-        system: z
-          .string()
-          .describe(
-            'Hostname of the z/OS system to activate (e.g. sys1.example.com or sys1 when unambiguous), or connection spec (user@host) when multiple connections exist for that host.'
-          ),
-        mainframeMvsEncoding: z
-          .union([z.string(), z.null()])
-          .optional()
-          .describe(
-            'MVS/data set encoding (EBCDIC) for this system. Omit to leave unchanged; pass null to use MCP server default.'
-          ),
-        mainframeUssEncoding: z
-          .union([z.string(), z.null()])
-          .optional()
-          .describe(
-            'Mainframe USS encoding (EBCDIC) for this system. Omit to leave unchanged; pass null to use MCP server default.'
-          ),
+  if (hasBackend)
+    server.registerTool(
+      'listSystems',
+      {
+        description:
+          'List all z/OS systems you have access to. Each system is a host; multiple configured connections (user@host) to the same host appear as one system with a connections list. ' +
+          'Use setSystem to select which system (and optionally which connection) to use.',
+        annotations: { readOnlyHint: true },
+        outputSchema: listSystemsOutputSchema,
       },
-    },
-    async ({ system, mainframeMvsEncoding, mainframeUssEncoding }, extra) => {
-      const title = `Set active system to ${system}`;
-      const progress = createToolProgress(extra, title);
-      await progress.start();
-      log.info('setSystem called', { system, mainframeMvsEncoding, mainframeUssEncoding });
+      async extra => {
+        const progress = createToolProgress(extra, 'List configured systems');
+        await progress.start();
+        log.debug('listSystems called');
+        const systems = systemRegistry.listInfo();
+        const activeSystem = sessionState.getActiveSystem();
 
-      let resolvedSystemId: string;
-      let resolvedUserId: string | undefined;
-      try {
-        const resolved = resolveSystemForTool(systemRegistry, sessionState, system);
-        resolvedSystemId = resolved.systemId;
-        resolvedUserId = resolved.userId;
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        await progress.complete('failed');
+        const result = systems.map(s => ({
+          ...s,
+          active: s.host === activeSystem,
+        }));
+
+        const payload: Record<string, unknown> = { systems: result };
+        await progress.complete(`${result.length} systems`);
         return {
-          content: [{ type: 'text' as const, text: message }],
-          isError: true,
+          content: [
+            {
+              type: 'text' as const,
+              text: JSON.stringify(payload, null, 2),
+            },
+          ],
+          structuredContent: payload,
         };
       }
-
-      const sysInfo = systemRegistry.get(resolvedSystemId);
-      const resolvedFromShortName =
-        system.trim() !== resolvedSystemId &&
-        !system.includes('@') &&
-        system.toLowerCase() !== resolvedSystemId.toLowerCase();
-      const messages = resolvedFromShortName
-        ? [`System resolved from unqualified name '${system}'.`]
-        : [];
-
-      const credentials = await credentialProvider.getCredentials(
-        resolvedSystemId,
-        resolvedUserId,
-        { progress: msg => void progress.step(msg) }
-      );
-      const encodingOverrides =
-        mainframeMvsEncoding !== undefined || mainframeUssEncoding !== undefined
-          ? { mainframeMvsEncoding, mainframeUssEncoding }
-          : undefined;
-      const ctx = sessionState.setActiveSystem(
-        resolvedSystemId,
-        credentials.user,
-        encodingOverrides
-      );
-
-      const connectionSpec = `${ctx.userId}@${resolvedSystemId}`;
-      onActiveConnectionChanged?.(connectionSpec);
-
-      const response: Record<string, unknown> = {
-        activeSystem: resolvedSystemId,
-        userId: ctx.userId,
-        description: sysInfo?.description,
-      };
-      if (messages.length > 0) {
-        response.messages = messages;
-      }
-      if (ctx.mainframeMvsEncoding !== undefined || ctx.mainframeUssEncoding !== undefined) {
-        response.mainframeMvsEncoding = ctx.mainframeMvsEncoding ?? null;
-        response.mainframeUssEncoding = ctx.mainframeUssEncoding ?? null;
-      }
-
-      await progress.complete('connected');
-      return {
-        content: [
-          {
-            type: 'text' as const,
-            text: JSON.stringify(response, null, 2),
-          },
-        ],
-        structuredContent: response,
-      };
-    }
-  );
+    );
 
   // -----------------------------------------------------------------------
-  // getContext
+  // setSystem (only when z/OS backend is configured)
   // -----------------------------------------------------------------------
+  if (hasBackend)
+    server.registerTool(
+      'setSystem',
+      {
+        description:
+          'Set the active z/OS system. The system parameter can be a host (e.g. zos.example.com) when only one connection exists for that host, or a connection spec (e.g. USER@zos.example.com) when multiple connections exist for the same host. ' +
+          'If you pass only a host and multiple connections exist, the tool fails and lists valid connection values. ' +
+          'Optionally set mainframe encodings for this system (data set and USS); omit to leave existing overrides unchanged, or pass null to use MCP server default.',
+        outputSchema: setSystemOutputSchema,
+        inputSchema: {
+          system: z
+            .string()
+            .describe(
+              'Hostname of the z/OS system to activate (e.g. sys1.example.com or sys1 when unambiguous), or connection spec (user@host) when multiple connections exist for that host.'
+            ),
+          mainframeMvsEncoding: z
+            .union([z.string(), z.null()])
+            .optional()
+            .describe(
+              'MVS/data set encoding (EBCDIC) for this system. Omit to leave unchanged; pass null to use MCP server default.'
+            ),
+          mainframeUssEncoding: z
+            .union([z.string(), z.null()])
+            .optional()
+            .describe(
+              'Mainframe USS encoding (EBCDIC) for this system. Omit to leave unchanged; pass null to use MCP server default.'
+            ),
+        },
+      },
+      async ({ system, mainframeMvsEncoding, mainframeUssEncoding }, extra) => {
+        const title = `Set active system to ${system}`;
+        const progress = createToolProgress(extra, title);
+        await progress.start();
+        log.info('setSystem called', { system, mainframeMvsEncoding, mainframeUssEncoding });
+
+        let resolvedSystemId: string;
+        let resolvedUserId: string | undefined;
+        try {
+          const resolved = resolveSystemForTool(systemRegistry, sessionState, system);
+          resolvedSystemId = resolved.systemId;
+          resolvedUserId = resolved.userId;
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          await progress.complete('failed');
+          return {
+            content: [{ type: 'text' as const, text: message }],
+            isError: true,
+          };
+        }
+
+        const sysInfo = systemRegistry.get(resolvedSystemId);
+        const resolvedFromShortName =
+          system.trim() !== resolvedSystemId &&
+          !system.includes('@') &&
+          system.toLowerCase() !== resolvedSystemId.toLowerCase();
+        const messages = resolvedFromShortName
+          ? [`System resolved from unqualified name '${system}'.`]
+          : [];
+
+        const credentials = await credentialProvider.getCredentials(
+          resolvedSystemId,
+          resolvedUserId,
+          { progress: msg => void progress.step(msg) }
+        );
+        const encodingOverrides =
+          mainframeMvsEncoding !== undefined || mainframeUssEncoding !== undefined
+            ? { mainframeMvsEncoding, mainframeUssEncoding }
+            : undefined;
+        const ctx = sessionState.setActiveSystem(
+          resolvedSystemId,
+          credentials.user,
+          encodingOverrides
+        );
+
+        const connectionSpec = `${ctx.userId}@${resolvedSystemId}`;
+        onActiveConnectionChanged?.(connectionSpec);
+
+        const response: Record<string, unknown> = {
+          activeSystem: resolvedSystemId,
+          userId: ctx.userId,
+          description: sysInfo?.description,
+        };
+        if (messages.length > 0) {
+          response.messages = messages;
+        }
+        if (ctx.mainframeMvsEncoding !== undefined || ctx.mainframeUssEncoding !== undefined) {
+          response.mainframeMvsEncoding = ctx.mainframeMvsEncoding ?? null;
+          response.mainframeUssEncoding = ctx.mainframeUssEncoding ?? null;
+        }
+
+        await progress.complete('connected');
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: JSON.stringify(response, null, 2),
+            },
+          ],
+          structuredContent: response,
+        };
+      }
+    );
+
+  // -----------------------------------------------------------------------
+  // getContext (always registered — includes server info)
+  // -----------------------------------------------------------------------
+  const backendDescription = hasBackend
+    ? ''
+    : 'When no z/OS backend is configured, only this tool is available. ' +
+      'Configure a backend to enable z/OS tools: mock (VS Code "zoweMCP.mockDataDirectory" or standalone --mock / ZOWE_MCP_MOCK_DIR) or native SSH (VS Code "zoweMCP.nativeConnections" or standalone --native --system user@host).';
+
   server.registerTool(
     'getContext',
     {
       description:
-        'Return the current session context: active system, active connection (user@host), user ID, ' +
-        'all known systems (with their connections when multiple exist), and recently used systems (those with saved context).',
+        'Return the Zowe MCP server info (version, backend, components) and the current session context: active system, active connection (user@host), user ID, ' +
+        'all known systems (with their connections when multiple exist), and recently used systems (those with saved context). ' +
+        backendDescription,
       annotations: { readOnlyHint: true },
       outputSchema: getContextOutputSchema,
     },
@@ -222,6 +243,43 @@ export function registerContextTools(
       await progress.start();
       log.debug('getContext called');
 
+      const serverInfo = {
+        name: 'Zowe MCP Server',
+        version: serverVersion,
+        description:
+          'MCP server providing tools for z/OS systems including data sets, jobs, and UNIX System Services',
+        components,
+        backend: backendKind,
+      };
+
+      if (!hasBackend) {
+        const messages = [
+          'No z/OS backend is configured. Only the "getContext" tool is available. ' +
+            'To enable all z/OS tools, configure a backend:\n' +
+            '  - Mock: VS Code — run "Zowe MCP: Generate Mock Data" or set "zoweMCP.mockDataDirectory"; ' +
+            'Standalone — --mock <dir> or ZOWE_MCP_MOCK_DIR\n' +
+            '  - Native (SSH): VS Code — set "zoweMCP.nativeConnections" (e.g. ["user@host"]); ' +
+            'Standalone — --native --system user@host (or --config <path>)',
+        ];
+        const payload: Record<string, unknown> = {
+          server: serverInfo,
+          activeSystem: null,
+          allSystems: [],
+          recentlyUsedSystems: [],
+          messages,
+        };
+        await progress.complete('ready');
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: JSON.stringify(payload, null, 2),
+            },
+          ],
+          structuredContent: payload,
+        };
+      }
+
       const activeSystemId = sessionState.getActiveSystem();
       const allConfigured = systemRegistry.listInfo();
       const recentlyUsed = sessionState.getAllContexts();
@@ -229,13 +287,11 @@ export function registerContextTools(
       let activeSystem: {
         system: string;
         userId: string;
-        /** Active connection spec (user@host) for this system. */
         activeConnection?: string;
         mainframeMvsEncoding?: string | null;
         mainframeUssEncoding?: string | null;
         ussHome?: string;
         ussCwd?: string;
-        /** Job card for this connection (when configured). Used by submitJob when JCL has no job card. */
         jobCard?: string;
       } | null = null;
       if (activeSystemId) {
@@ -280,6 +336,7 @@ export function registerContextTools(
       }));
 
       const payload: Record<string, unknown> = {
+        server: serverInfo,
         activeSystem,
         allSystems,
         recentlyUsedSystems: recentlyUsed,

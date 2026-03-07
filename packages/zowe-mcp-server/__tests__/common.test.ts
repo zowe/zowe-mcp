@@ -43,59 +43,69 @@ for (const createProvider of allProviders) {
     it('should list the info tool', async () => {
       const { tools } = await client.listTools();
       expect(tools).toHaveLength(1);
-      expect(tools[0].name).toBe('info');
+      expect(tools[0].name).toBe('getContext');
     });
 
-    it('should have a description for info', async () => {
+    it('should have a description for getContext', async () => {
       const { tools } = await client.listTools();
       expect(tools[0].description).toContain('Zowe MCP server');
     });
 
-    it('should list info tool with outputSchema (MCP output schema)', async () => {
+    it('should list getContext tool with outputSchema (MCP output schema)', async () => {
       const { tools } = await client.listTools();
-      expect(tools[0].name).toBe('info');
+      expect(tools[0].name).toBe('getContext');
       expect(tools[0].outputSchema).toBeDefined();
       expect(tools[0].outputSchema).toHaveProperty('type', 'object');
       expect(tools[0].outputSchema).toHaveProperty('properties');
       const props =
         (tools[0].outputSchema as { properties?: Record<string, unknown> }).properties ?? {};
-      expect(props).toHaveProperty('name');
-      expect(props).toHaveProperty('version');
-      expect(props).toHaveProperty('components');
-      expect(props).toHaveProperty('backend');
+      expect(props).toHaveProperty('server');
+      expect(props).toHaveProperty('activeSystem');
+      expect(props).toHaveProperty('allSystems');
     });
 
-    it('should call info and return server information with structuredContent', async () => {
-      const result = await client.callTool({ name: 'info', arguments: {} });
+    it('should call getContext and return server information with structuredContent', async () => {
+      const result = await client.callTool({ name: 'getContext', arguments: {} });
       expect(result.content).toHaveLength(1);
 
       const content = result.content as { type: string; text: string }[];
       expect(content[0].type).toBe('text');
 
-      const info = JSON.parse(content[0].text) as {
-        name: string;
-        version: string;
-        description: string;
-        components: string[];
+      const ctx = JSON.parse(content[0].text) as {
+        server: {
+          name: string;
+          version: string;
+          description: string;
+          components: string[];
+          backend: string | null;
+        };
+        activeSystem: null;
+        allSystems: unknown[];
+        recentlyUsedSystems: unknown[];
+        messages?: string[];
       };
-      expect(info.name).toBe('Zowe MCP Server');
-      expect(info.version).toBe(packageJson.version);
-      expect(info.description).toContain('z/OS');
-      expect(info.components).toContain('core');
+      expect(ctx.server.name).toBe('Zowe MCP Server');
+      expect(ctx.server.version).toBe(packageJson.version);
+      expect(ctx.server.description).toContain('z/OS');
+      expect(ctx.server.components).toContain('context');
+      expect(ctx.server.backend).toBeNull();
+      expect(ctx.activeSystem).toBeNull();
+      expect(ctx.allSystems).toEqual([]);
+      expect(ctx.messages).toBeDefined();
 
       expect(result.structuredContent).toBeDefined();
       const structured = result.structuredContent as Record<string, unknown>;
-      expect(structured.name).toBe('Zowe MCP Server');
-      expect(structured.version).toBe(packageJson.version);
-      expect(structured.components).toEqual(info.components);
-      expect(structured.backend).toBeNull();
+      const structuredServer = structured.server as Record<string, unknown>;
+      expect(structuredServer.name).toBe('Zowe MCP Server');
+      expect(structuredServer.version).toBe(packageJson.version);
+      expect(structuredServer.backend).toBeNull();
     });
 
     it('should return version matching package.json', async () => {
-      const result = await client.callTool({ name: 'info', arguments: {} });
+      const result = await client.callTool({ name: 'getContext', arguments: {} });
       const content = result.content as { type: string; text: string }[];
-      const info = JSON.parse(content[0].text) as { version: string };
-      expect(info.version).toBe(packageJson.version);
+      const ctx = JSON.parse(content[0].text) as { server: { version: string } };
+      expect(ctx.server.version).toBe(packageJson.version);
     });
 
     it('should advertise the logging capability', () => {

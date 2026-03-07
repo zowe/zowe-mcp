@@ -119,15 +119,19 @@ describe('Zowe MCP Server (HTTP-specific)', () => {
 
     // Both clients should be able to call tools independently
     const [result1, result2] = await Promise.all([
-      client1.callTool({ name: 'info', arguments: {} }),
-      client2.callTool({ name: 'info', arguments: {} }),
+      client1.callTool({ name: 'getContext', arguments: {} }),
+      client2.callTool({ name: 'getContext', arguments: {} }),
     ]);
 
     const content1 = result1.content as { type: string; text: string }[];
     const content2 = result2.content as { type: string; text: string }[];
 
-    expect((JSON.parse(content1[0].text) as { name: string }).name).toBe('Zowe MCP Server');
-    expect((JSON.parse(content2[0].text) as { name: string }).name).toBe('Zowe MCP Server');
+    expect((JSON.parse(content1[0].text) as { server: { name: string } }).server.name).toBe(
+      'Zowe MCP Server'
+    );
+    expect((JSON.parse(content2[0].text) as { server: { name: string } }).server.name).toBe(
+      'Zowe MCP Server'
+    );
 
     // Clean up both clients
     client = client1; // afterEach will close this one

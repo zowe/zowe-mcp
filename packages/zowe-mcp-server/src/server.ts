@@ -29,7 +29,6 @@ import { registerImprovementPrompts } from './prompts/improvement-prompts.js';
 import { registerDatasetResources } from './resources/dataset-resources.js';
 import { installToolCallLogging } from './tool-call-logging.js';
 import { registerContextTools } from './tools/context/context-tools.js';
-import { registerCoreTools } from './tools/core/zowe-info.js';
 import { registerDatasetTools } from './tools/datasets/dataset-tools.js';
 import { registerJobTools } from './tools/jobs/jobs-tools.js';
 import { registerTsoTools } from './tools/tso/tso-tools.js';
@@ -198,7 +197,7 @@ export function getServer(result: CreateServerResult): McpServer {
   return s as McpServer;
 }
 
-/** Known backend kind names for the info tool. */
+/** Known backend kind names for the getContext tool. */
 const BACKEND_KIND_NAMES: Record<string, string> = {
   FilesystemMockBackend: 'mock',
   NativeBackend: 'native',
@@ -274,9 +273,6 @@ export function createServer(options?: CreateServerOptions): CreateServerResult 
     installToolCallLogging(server, logger, backendKind);
   }
 
-  // Register core tools (info) — always available
-  registerCoreTools(server, SERVER_VERSION, logger, { backend: backendKind });
-
   // Register improvement prompts (for repos that use Zowe MCP) — always available
   registerImprovementPrompts(server, logger);
 
@@ -315,6 +311,8 @@ export function createServer(options?: CreateServerOptions): CreateServerResult 
     registerContextTools(
       server,
       {
+        serverVersion: SERVER_VERSION,
+        backendKind,
         systemRegistry,
         sessionState,
         credentialProvider,
@@ -416,8 +414,17 @@ export function createServer(options?: CreateServerOptions): CreateServerResult 
       systems,
     });
   } else {
+    // No backend — register getContext only (no listSystems/setSystem or z/OS tools)
+    registerContextTools(
+      server,
+      {
+        serverVersion: SERVER_VERSION,
+        backendKind: null,
+      },
+      logger
+    );
     logger.warning(
-      'No z/OS backend configured — only the "info" tool is available. ' +
+      'No z/OS backend configured — only the "getContext" tool is available. ' +
         'To enable all z/OS tools: in VS Code run "Zowe MCP: Generate Mock Data" from the Command Palette, ' +
         'or use --mock <dir> / ZOWE_MCP_MOCK_DIR for standalone mode.'
     );

@@ -33,7 +33,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const serverPath = resolve(__dirname, '..', 'dist', 'index.js');
 const packageRoot = resolve(__dirname, '..');
-const EXPECTED_TOOL_COUNT = 51;
+const EXPECTED_TOOL_COUNT = 50;
 
 /** Parsed tool result content. */
 interface ToolContent {
@@ -96,18 +96,6 @@ describe('Zowe MCP Server (mock stdio E2E)', () => {
 
     const toolCases: ToolTestCase[] = [
       {
-        name: 'info',
-        arguments: {},
-        assertResult(parsed) {
-          const o = parsed as { name: string; backend: string | null; components: string[] };
-          expect(o.name).toBe('Zowe MCP Server');
-          expect(o.backend).toBe('mock');
-          expect(o.components).toContain('core');
-          expect(o.components).toContain('context');
-          expect(o.components).toContain('datasets');
-        },
-      },
-      {
         name: 'listSystems',
         arguments: {},
         assertResult(parsed) {
@@ -132,8 +120,13 @@ describe('Zowe MCP Server (mock stdio E2E)', () => {
         arguments: {},
         assertResult(parsed) {
           const o = parsed as {
+            server: { name: string; backend: string | null; components: string[] };
             activeSystem: { system: string; userId: string } | null;
           };
+          expect(o.server.name).toBe('Zowe MCP Server');
+          expect(o.server.backend).toBe('mock');
+          expect(o.server.components).toContain('context');
+          expect(o.server.components).toContain('datasets');
           expect(o.activeSystem).not.toBeNull();
           expect(o.activeSystem!.system).toBe(FIRST_SYSTEM);
           expect(o.activeSystem!.userId).toBe('USER');

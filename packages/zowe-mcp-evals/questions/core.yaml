@@ -1,8 +1,8 @@
 # yaml-language-server: $schema=../schemas/evals-question-set.schema.json
-# Core evals: info tool (mock)
+# Core evals: getContext tool (mock)
 config:
   name: core
-  description: Agent must use info tool to report server and backend
+  description: Agent must use getContext to report server and backend
   repetitions: 2
   minSuccessRate: 0.8
   mock:
@@ -13,7 +13,7 @@ questions:
     prompt: What MCP server is running and what backend type is it?
     assertions:
       - toolCall:
-          tool: info
+          tool: getContext
           count: 1
       - answerContains:
           pattern: "mock|Zowe|MCP|backend"

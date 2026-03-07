@@ -231,18 +231,19 @@ describe.skipIf(!canRunNativeE2E)(
       }
     });
 
-    it('info returns server name and native backend', async () => {
+    it('getContext returns server info with native backend', async () => {
       const { tools } = await client.listTools();
       expect(tools.length).toBeGreaterThan(0);
-      const { parsed } = await callToolSuccess(client, 'info', {});
-      const o = parsed as { name: string; backend: string | null; components: string[] };
-      expect(o.name).toBe('Zowe MCP Server');
-      expect(o.backend).toBe('native');
-      expect(o.components).toContain('core');
-      expect(o.components).toContain('context');
-      expect(o.components).toContain('datasets');
-      expect(o.components).toContain('uss');
-      expect(o.components).toContain('jobs');
+      const { parsed } = await callToolSuccess(client, 'getContext', {});
+      const o = parsed as {
+        server: { name: string; backend: string | null; components: string[] };
+      };
+      expect(o.server.name).toBe('Zowe MCP Server');
+      expect(o.server.backend).toBe('native');
+      expect(o.server.components).toContain('context');
+      expect(o.server.components).toContain('datasets');
+      expect(o.server.components).toContain('uss');
+      expect(o.server.components).toContain('jobs');
     });
 
     it('listSystems returns at least one system including config system', async () => {

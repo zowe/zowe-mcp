@@ -66,22 +66,22 @@ Items to address later. Not ordered by priority.
 - **MCP SDK v2**: MCP SDK v1.x is stable and SDK `main` is v2 pre-alpha. When v2 is stable, evaluate migration and update dependencies.
 - **Mock config hot-reload**: Currently changing `zoweMCP.mockDataDirectory` requires restarting the MCP server; consider supporting config/systems change without full restart if feasible.
 - **Format output schema tables in doc generator**: The `generate-docs` script should format output schema tables more consistently during generation.
-- **Use `messages` instead of `notice` in info tool**: The `info` tool's `notice` field should use the standard `messages` array pattern for consistency with other tools.
 
 ## Code Quality / Refactoring
 
 - **Extract `extensionClient?` conditions**: `index.ts` has many repeated `extensionClient?` null checks for event handlers; extract to a single setup function.
 - **Extract `withCache()` helper**: The cache get/set pattern is duplicated across tools (e.g. TSO, datasets); create a reusable `withCache()` wrapper.
 - **Shared utils package**: `plural()` and logger formatting exist in both `zowe-mcp-server` and `zowe-mcp-evals`; consider a shared `zowe-mcp-common` package or import from server.
+- **Code duplication detection**: Find or build a tool that AI agents can use to detect code duplication (exact or intent-based) across the codebase.
 
 ## Tool Design & Agent UX
 
 - **Dynamic tool definitions**: Update tools dynamically to include current defaults and known systems/connections in tool descriptions, so the LLM has full context without needing to call `getContext` first.
 - **Configurable safety for TSO/USS/JCL**: Make command safety patterns (block/elicit/safe) configurable per user or environment, so organizations can customize what commands require approval.
 - **TSO command reference/discovery**: Help agents discover available TSO commands and their syntax — provide a reference tool, prompt, or resource so the agent does not have to guess.
-- **Merge `info` with `getContext`**: Evaluate whether the `info` tool can be merged into `getContext` to reduce tool count and simplify the agent's startup flow. Consider compatibility with other MCP servers that also have `getContext`.
+- ✅ **Merge `info` with `getContext`**: Merged — `getContext` now includes a `server` object (name, version, description, components, backend) and is always registered. The `info` tool and `src/tools/core/zowe-info.ts` have been removed.
 - **Dev/test vs production system awareness**: Allow systems to be tagged as dev/test or production so the server (or agent) can apply different safety levels or warnings for production systems with financial or health data.
-- **Monolithic context refactoring**: The current context (`getContext`) is monolithic — consider scoping context to tool groups or components so each tool gets only the context it needs.
+- **Monolithic context refactoring**: The current context (`_context_` object) returned by tools is monolithic — consider scoping context to tool groups or components so each tool gets only the context it needs. getContext tools is the only one that returns the full context.
 - ✅ **PDS/E naming consistency / glossary**: Ensure consistent naming across all tools and docs (user ID, PDS/E vs PDSE, USS vs z/OS USS). Consider adding a glossary resource or prompt.
 
 ## Evals
@@ -90,6 +90,5 @@ Items to address later. Not ordered by priority.
 - **Eval self-reflection step**: When an assertion fails, call the same or a stronger model to investigate why — suggest improvements to assertions, descriptions, or tools. Context: chat session, tool defs, model thinking, question, assertions, and error.
 - **Explicit tool calls for eval setup**: Add explicit tool calls for setup or data-fetching in assertions (similar to how Ansible can access results of commands), so evals can verify state before and after.
 - ✅ **Document eval-compare**: Documented in `packages/zowe-mcp-evals/README.md` — CLI options, examples, outputs (comparison report + scoreboard), typical workflow, and key findings.
-- **Code duplication detection**: Find or build a tool that AI agents can use to detect code duplication (exact or intent-based) across the codebase.
 - **Case-insensitive pattern matching in eval assertions**: Support case-insensitive matching for command argument assertions (e.g. `D T` vs `d t` in console commands).
 - **`validDsn` assertion directive**: Add a special assertion directive for validating data set names in eval assertions, so questions don't need to enumerate all valid forms.

@@ -89,7 +89,7 @@ Items to address later. Not ordered by priority.
 - **LLM-as-a-judge assertion**: Add an assertion type that uses a different (potentially stronger) model to judge whether the answer is correct, beyond simple pattern matching.
 - **Eval self-reflection step**: When an assertion fails, call the same or a stronger model to investigate why — suggest improvements to assertions, descriptions, or tools. Context: chat session, tool defs, model thinking, question, assertions, and error.
 - **Explicit tool calls for eval setup**: Add explicit tool calls for setup or data-fetching in assertions (similar to how Ansible can access results of commands), so evals can verify state before and after.
-- **Document eval-compare**: Write proper documentation for the `eval-compare` tool in the evals README.
+- ✅ **Document eval-compare**: Documented in `packages/zowe-mcp-evals/README.md` — CLI options, examples, outputs (comparison report + scoreboard), typical workflow, and key findings.
 - **Code duplication detection**: Find or build a tool that AI agents can use to detect code duplication (exact or intent-based) across the codebase.
 - **Case-insensitive pattern matching in eval assertions**: Support case-insensitive matching for command argument assertions (e.g. `D T` vs `d t` in console commands).
 - **`validDsn` assertion directive**: Add a special assertion directive for validating data set names in eval assertions, so questions don't need to enumerate all valid forms.

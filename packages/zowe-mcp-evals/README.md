@@ -2,13 +2,10 @@
 
 AI evaluations for the Zowe MCP server: run an LLM agent against the server (mock or native backend), check tool choice and arguments, and optionally answer content.
 
-// TODO: Document eval-compare
+There are two ways to run evals:
 
-// TODO: Add LLM-as-a-judge assertion - judge can be different model
-
-// TODO: Add explicit tool calls for setup or getting data for assertions (consider how Ansible can access result of commands)
-
-// TODO: Self-reflection step - if assertion fails, call the same or stronger model to investigate why - and suggest assertion, description, tool improvement. Context: Chat session, including used tool defs, model thinking output, question and assertions, error. Questions can be questioned too but we do not want to optimize questions, we want MCP server to be designed to work well for any relevant question that users are likely write (aka there are not bad questions only bad answers)
+- **`npm run evals`** — Run a single eval session against one model. Good for development and quick checks.
+- **`npm run eval-compare`** — Run evals across one or more models, produce comparison reports, and auto-update the [eval scoreboard](../../docs/eval-scoreboard.md). Good for benchmarking changes and tracking progress over time.
 
 ## Setup
 
@@ -169,3 +166,118 @@ After a run, `evals-report/report.md` contains:
 - Per-question pass rate and status.
 - Per-tool evaluation count and parameter/values covered.
 - Failures section; details also in `evals-report/failures.md` when there are failures.
+
+## eval-compare
+
+`eval-compare` is a benchmarking tool that runs evals across one or more models, produces comparison reports, and auto-updates the [eval scoreboard](../../docs/eval-scoreboard.md). It is the primary tool for the [eval-driven improvement methodology](../../AGENTS.md) — every proposed change to tool definitions is tested with before/after eval-compare runs.
+
+### Running eval-compare
+
+From **repo root** only:
+
+```bash
+npm run eval-compare -- --set naming-stress --label "baseline"
+```
+
+The command builds both the server and evals packages, then runs the specified question sets against the configured models.
+
+### eval-compare CLI options
+
+| Option | Description | Default |
+| --- | --- | --- |
+| `--set <names>` | Comma-separated question set names (e.g. `naming-stress,description-quality`) or `all` for every YAML file in `questions/`. | `all` |
+| `--model <ids>` | Comma-separated model IDs from `evals.config.json`, or `all` to run every configured model. | First model in config |
+| `--label <text>` | Human-readable label for this run. Appears in the scoreboard and report directory name. | `run-YYYY-MM-DD` |
+| `--repetitions <n>` | Override the per-set repetition count. | Set default (typically 5-10) |
+| `--system-prompt-addition <text>` | Append text to the system prompt for all questions. Useful for testing prompt hints (e.g. `"Prefer searchInDataset."`). | None |
+
+### Examples
+
+```bash
+# Baseline run with one set and one model
+npm run eval-compare -- --set naming-stress --label "baseline"
+
+# Compare two models on the same set
+npm run eval-compare -- --set naming-stress --model vllm-local,gemini-2.5-flash --label "model-compare"
+
+# Run all models on all sets
+npm run eval-compare -- --set all --model all --label "full-sweep"
+
+# After making a change, re-measure and compare
+npm run eval-compare -- --set naming-stress,description-quality --label "after-param-fix"
+
+# Override repetitions for higher confidence
+npm run eval-compare -- --set description-quality --repetitions 20 --label "high-rep"
+
+# Test a system prompt hint
+npm run eval-compare -- --set search --system-prompt-addition "Prefer searchInDataset over readDataset for finding strings." --label "prompt-hint"
+```
+
+### Outputs
+
+Each eval-compare run produces two things:
+
+#### 1. Comparison report
+
+Written to `evals-report/<label>-<timestamp>/`. Contains:
+
+- **`comparison.md`** — When multiple models are compared, includes a per-question matrix showing pass rates for each model side by side, plus a per-model summary.
+- **`report.md`** — Standard eval report (same as `npm run evals`): summary, per-question results, per-tool coverage, and failures.
+- **`failures.md`** — Detailed failure information when there are failures.
+
+#### 2. Eval scoreboard
+
+`docs/eval-scoreboard.md` is automatically appended with one row per model/set combination. Each row records:
+
+| Column | Description |
+| --- | --- |
+| Date | Run date (YYYY-MM-DD) |
+| Label | The `--label` value |
+| Model | Model ID from config |
+| Server Model | Actual model name (e.g. `Qwen3-30B-A3B-Thinking-2507-FP8`) |
+| Set | Question set name |
+| Questions | Number of questions in the set |
+| Pass Rate | Percentage of runs that passed |
+| Passed | Number of passing runs |
+| Total | Total runs (questions x repetitions) |
+| Git SHA | Short commit hash at time of run |
+| Diff Hash | Hash of uncommitted changes (empty when clean) |
+| Settings | Non-default settings (e.g. `reps=5`, `sysPrompt+`) |
+
+The scoreboard is cumulative — new rows are appended, never overwritten. This creates a historical record of how tool definitions and model performance evolve over time.
+
+### Typical workflow
+
+The eval-driven improvement methodology follows this pattern:
+
+1. **Establish a baseline**: Run eval-compare with the current tool definitions.
+
+   ```bash
+   npm run eval-compare -- --set naming-stress,description-quality --label "baseline"
+   ```
+
+2. **Make a targeted change**: Edit one tool description, parameter name, or schema.
+
+3. **Re-measure**: Run eval-compare with a new label.
+
+   ```bash
+   npm run eval-compare -- --set naming-stress,description-quality --label "after-recfm-desc"
+   ```
+
+4. **Compare**: Check `docs/eval-scoreboard.md` for the delta. Keep changes that improve or maintain pass rates; revert regressions.
+
+### Stress-test question sets
+
+These sets are specifically designed for eval-compare benchmarking:
+
+- **naming-stress** (18 questions): CLI phrasing, z/OS jargon, ISPF vocabulary, ambiguous natural language, cross-domain terminology. Tests whether the agent picks the right tool despite varied phrasing.
+- **description-quality** (11 questions): Pagination awareness, search option combinations, read windowing, dataset attributes. Tests whether tool descriptions give the agent enough context to use parameters correctly.
+- **sms-allocation** (4 questions): SMS and allocation parameter mapping (VOLSER, DATACLAS, STORCLAS, MGMTCLAS). Tests z/OS vocabulary to `createDataset` parameter mapping.
+
+### Key findings from eval-compare runs
+
+These insights were discovered through systematic eval-compare benchmarking:
+
+- **Parameter descriptions matter more than parameter names.** Renaming `string` to `searchString` in `searchInDataset` caused a slight regression because the model reads `.describe()` text, not just the key name.
+- **Expanding z/OS jargon in descriptions helps.** Adding full names like "Record Format (RECFM)", "Logical Record Length (LRECL) in bytes" improved description-quality pass rates.
+- **Persistent failure areas**: Pagination awareness (model doesn't always fetch all pages), `ignoreSequenceNumbers` vs `cobol` confusion, and combined search options (model drops parameters when combining).

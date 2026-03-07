@@ -10,8 +10,8 @@
     {
       "id": "gemini-2.5-flash",
       "provider": "gemini",
-      "serverModel": "gemini-2.5-flash"
-      // Todo: key is needed
+      "serverModel": "gemini-2.5-flash",
+      "apiKey": "your-gemini-api-key-or-set-GEMINI_API_KEY-env"
     },
     {
       "id": "lmstudio-local",

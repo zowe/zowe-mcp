@@ -74,7 +74,7 @@ Items to address later. Not ordered by priority.
 - ✅ **Shared utils package**: Created `packages/zowe-mcp-common` (CJS) with `plural()`. Server, evals, and VS Code extension import from common. Evals-internal duplication (`errorMessage`, `resolveNativeServerArgs`, `PASS`/`FAIL`) extracted to `evals-utils.ts`. Run-loop duplication in `run.ts` reduced via `assertAndRecord()`/`logRunOutcome()` helpers.
 - ✅ **Code duplication detection**: Added `jscpd` (token-based copy/paste detector). Config: `.jscpd.json`. Run: `npm run duplication`. Cursor hook: `.cursor/hooks/duplication.sh` (runs after Agent edits). Current: 1.47% duplication (15 clones, 82 files).
 - ✅ **Extract shared command safety evaluation** (`console-tools.ts` ↔ `tso-tools.ts`): Extracted `evaluateCommandSafety()` into `src/tools/command-safety.ts`. TSO uses it via `validateTsoCommand()` wrapper; console calls it directly. Both pattern JSON files now share the `CommandPatterns` schema (`id`, optional `message`, `pattern`).
-- **Generic open-in-editor handler** (`event-handler.ts`): Three open-in-editor event handlers (`open-dataset-in-editor`, `open-uss-file-in-editor`, `open-job-in-editor`) follow the same 11-line pattern (resolve profile, build URI, open document) — extract a generic handler factory to reduce duplication.
+- ✅ **Generic open-in-editor handler** (`event-handler.ts`): Extracted `handleOpenInEditor()` generic handler with `OpenInEditorSpec` interface. Three event handlers (`open-dataset-in-editor`, `open-uss-file-in-editor`, `open-job-in-editor`) now delegate the shared pattern (Zowe Explorer check, profile resolution, URI open) to the generic handler and only supply a `buildSpec` callback for URI construction.
 
 ## Tool Design & Agent UX
 

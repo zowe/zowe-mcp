@@ -377,138 +377,107 @@ async function handleStoreJobCard(
 const ZOWE_EDITOR_REQUIRED_MSG =
   'Zowe Explorer is required to open this resource. Install the Zowe Explorer extension.';
 
+interface OpenInEditorSpec {
+  scheme: string;
+  pathPart: string;
+  displayPath: string;
+}
+
 /**
- * Handles open-dataset-in-editor: resolve profile, build zowe-ds URI, open data set in Zowe Explorer.
+ * Generic handler for open-in-editor events. Checks Zowe Explorer, resolves profile,
+ * delegates URI construction to the caller-supplied buildSpec, and opens the document.
  */
-async function handleOpenDatasetInEditor(
+async function handleOpenInEditor(
+  log: vscode.LogOutputChannel,
+  logLabel: string,
+  data: { system?: string; connectionKind?: 'native' | 'zosmf' },
+  buildSpec: () => OpenInEditorSpec
+): Promise<void> {
+  if (!vscode.extensions.getExtension('Zowe.vscode-extension-for-zowe')) {
+    void vscode.window.showWarningMessage(ZOWE_EDITOR_REQUIRED_MSG);
+    return;
+  }
+
+  const workspaceDir = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+  const sessionKey = (data.system ?? '').trim();
+  const profile = await resolveProfileForZoweEditor(
+    log,
+    logLabel,
+    workspaceDir,
+    sessionKey,
+    data.system,
+    data.connectionKind
+  );
+  if (!profile) return;
+
+  const { scheme, pathPart, displayPath } = buildSpec();
+  const uri = vscode.Uri.parse(`${scheme}:/${encodeURIComponent(profile)}/${pathPart}`);
+  await openZoweUriInEditor(log, uri, logLabel, displayPath);
+}
+
+function handleOpenDatasetInEditor(
   log: vscode.LogOutputChannel,
   event: ServerToExtensionEvent
 ): Promise<void> {
-  if (event.type !== 'open-dataset-in-editor') return;
+  if (event.type !== 'open-dataset-in-editor') return Promise.resolve();
   const data = event.data as {
     dsn: string;
     member?: string;
     system?: string;
     connectionKind?: 'native' | 'zosmf';
   };
-  const { dsn, member, system: systemId } = data;
-
-  if (!vscode.extensions.getExtension('Zowe.vscode-extension-for-zowe')) {
-    void vscode.window.showWarningMessage(ZOWE_EDITOR_REQUIRED_MSG);
-    return;
-  }
-
-  const workspaceDir = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-  const sessionKey = (systemId ?? '').trim();
-  const profile = await resolveProfileForZoweEditor(
-    log,
-    'open-dataset-in-editor',
-    workspaceDir,
-    sessionKey,
-    systemId,
-    data.connectionKind
-  );
-  if (!profile) return;
-
-  const pathSegments = member ? [dsn, member] : [dsn];
-  const pathPart = pathSegments.map(seg => encodeURIComponent(seg)).join('/');
-  const uri = vscode.Uri.parse(`zowe-ds:/${encodeURIComponent(profile)}/${pathPart}`);
-  await openZoweUriInEditor(log, uri, 'open-dataset-in-editor', pathPart);
+  return handleOpenInEditor(log, 'open-dataset-in-editor', data, () => {
+    const segments = data.member ? [data.dsn, data.member] : [data.dsn];
+    const pathPart = segments.map(seg => encodeURIComponent(seg)).join('/');
+    return { scheme: 'zowe-ds', pathPart, displayPath: pathPart };
+  });
 }
 
-/**
- * Handles open-uss-file-in-editor: resolve profile, build zowe-uss URI, open in Zowe Explorer.
- */
-async function handleOpenUssFileInEditor(
+function handleOpenUssFileInEditor(
   log: vscode.LogOutputChannel,
   event: ServerToExtensionEvent
 ): Promise<void> {
-  if (event.type !== 'open-uss-file-in-editor') return;
+  if (event.type !== 'open-uss-file-in-editor') return Promise.resolve();
   const data = event.data as {
     path: string;
     system?: string;
     connectionKind?: 'native' | 'zosmf';
   };
-  const { path: pathArg, system: systemId } = data;
-
-  if (!vscode.extensions.getExtension('Zowe.vscode-extension-for-zowe')) {
-    void vscode.window.showWarningMessage(ZOWE_EDITOR_REQUIRED_MSG);
-    return;
-  }
-
-  const workspaceDir = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-  const sessionKey = (systemId ?? '').trim();
-  const profile = await resolveProfileForZoweEditor(
-    log,
-    'open-uss-file-in-editor',
-    workspaceDir,
-    sessionKey,
-    systemId,
-    data.connectionKind
-  );
-  if (!profile) return;
-
-  const trimmed = pathArg.trim();
-  const pathPart = trimmed.startsWith('/')
-    ? '/' +
-      trimmed
-        .slice(1)
-        .split('/')
-        .map(seg => encodeURIComponent(seg))
-        .join('/')
-    : trimmed
-        .split('/')
-        .map(seg => encodeURIComponent(seg))
-        .join('/');
-  const uri = vscode.Uri.parse(`zowe-uss:/${encodeURIComponent(profile)}/${pathPart}`);
-  await openZoweUriInEditor(log, uri, 'open-uss-file-in-editor', trimmed);
+  return handleOpenInEditor(log, 'open-uss-file-in-editor', data, () => {
+    const trimmed = data.path.trim();
+    const pathPart = trimmed.startsWith('/')
+      ? '/' +
+        trimmed
+          .slice(1)
+          .split('/')
+          .map(seg => encodeURIComponent(seg))
+          .join('/')
+      : trimmed
+          .split('/')
+          .map(seg => encodeURIComponent(seg))
+          .join('/');
+    return { scheme: 'zowe-uss', pathPart, displayPath: trimmed };
+  });
 }
 
-/**
- * Handles open-job-in-editor: resolve profile, build zowe-jobs URI, open job or spool in Zowe Explorer.
- */
-async function handleOpenJobInEditor(
+function handleOpenJobInEditor(
   log: vscode.LogOutputChannel,
   event: ServerToExtensionEvent
 ): Promise<void> {
-  if (event.type !== 'open-job-in-editor') return;
+  if (event.type !== 'open-job-in-editor') return Promise.resolve();
   const data = event.data as {
     jobId: string;
     jobFileId?: number;
     system?: string;
     connectionKind?: 'native' | 'zosmf';
   };
-  const { jobId, jobFileId, system: systemId } = data;
-
-  if (!vscode.extensions.getExtension('Zowe.vscode-extension-for-zowe')) {
-    void vscode.window.showWarningMessage(ZOWE_EDITOR_REQUIRED_MSG);
-    return;
-  }
-
-  const workspaceDir = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-  const sessionKey = (systemId ?? '').trim();
-  const profile = await resolveProfileForZoweEditor(
-    log,
-    'open-job-in-editor',
-    workspaceDir,
-    sessionKey,
-    systemId,
-    data.connectionKind
-  );
-  if (!profile) return;
-
-  const jobIdEnc = encodeURIComponent(jobId.trim());
-  const pathPart =
-    jobFileId !== undefined && jobFileId !== null
-      ? `${jobIdEnc}/${String(jobFileId)}`
-      : `${jobIdEnc}/`;
-  const uri = vscode.Uri.parse(`zowe-jobs:/${encodeURIComponent(profile)}/${pathPart}`);
-  await openZoweUriInEditor(
-    log,
-    uri,
-    'open-job-in-editor',
-    jobFileId !== undefined && jobFileId !== null ? `${jobId} spool ${jobFileId}` : jobId
-  );
+  return handleOpenInEditor(log, 'open-job-in-editor', data, () => {
+    const jobIdEnc = encodeURIComponent(data.jobId.trim());
+    const hasFile = data.jobFileId !== undefined && data.jobFileId !== null;
+    const pathPart = hasFile ? `${jobIdEnc}/${String(data.jobFileId)}` : `${jobIdEnc}/`;
+    const displayPath = hasFile ? `${data.jobId} spool ${data.jobFileId}` : data.jobId;
+    return { scheme: 'zowe-jobs', pathPart, displayPath };
+  });
 }
 
 /**

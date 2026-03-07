@@ -24,6 +24,7 @@ const { execSync } = require('child_process');
 
 const extDir = path.resolve(__dirname, '..');
 const serverPkg = path.resolve(extDir, '..', 'zowe-mcp-server');
+const commonPkg = path.resolve(extDir, '..', 'zowe-mcp-common');
 const repoRoot = path.resolve(extDir, '..', '..');
 const targetDir = path.join(extDir, 'server');
 const cacheDir = path.join(extDir, '.server-deps-cache');
@@ -37,7 +38,8 @@ const binDir = path.join(repoRoot, 'bin');
 function computeDepsHash() {
   const pkg = JSON.parse(fs.readFileSync(path.join(serverPkg, 'package.json'), 'utf-8'));
   const deps = JSON.stringify(pkg.dependencies || {});
-  return crypto.createHash('sha256').update(deps).digest('hex');
+  const commonPkgJson = fs.readFileSync(path.join(commonPkg, 'package.json'), 'utf-8');
+  return crypto.createHash('sha256').update(deps).update(commonPkgJson).digest('hex');
 }
 
 /**
@@ -88,6 +90,58 @@ function prepareFileDepsForBundle(targetPackageJsonPath) {
   }
 }
 
+/**
+ * npm creates symlinks for file: dependencies. vsce (yazl) cannot pack
+ * symlinks into a VSIX, so replace them with real directory copies.
+ */
+function dereferenceLocalDepSymlinks() {
+  const nmDir = path.join(targetDir, 'node_modules');
+  if (!fs.existsSync(nmDir)) return;
+  for (const entry of fs.readdirSync(nmDir)) {
+    const full = path.join(nmDir, entry);
+    const stat = fs.lstatSync(full);
+    if (stat.isSymbolicLink()) {
+      const realPath = fs.realpathSync(full);
+      fs.rmSync(full);
+      fs.cpSync(realPath, full, { recursive: true });
+    }
+  }
+}
+
+/**
+ * Bundle a workspace package into server/.local/<name> and rewrite the
+ * dependency in the target package.json to point to the local copy.
+ * This handles workspace-linked packages (e.g. zowe-mcp-common) that
+ * are not published to any registry.
+ */
+function bundleWorkspaceDep(targetPackageJsonPath, depName, depSourceDir) {
+  const pkg = JSON.parse(fs.readFileSync(targetPackageJsonPath, 'utf-8'));
+  const deps = pkg.dependencies || {};
+  if (!(depName in deps)) return;
+
+  const localDir = path.join(targetDir, '.local', depName);
+  fs.mkdirSync(localDir, { recursive: true });
+
+  const depPkg = JSON.parse(fs.readFileSync(path.join(depSourceDir, 'package.json'), 'utf-8'));
+  const distDir = path.join(depSourceDir, 'dist');
+  if (!fs.existsSync(distDir)) {
+    throw new Error(`Workspace dependency ${depName} has no dist/ — run "npm run build" first.`);
+  }
+
+  fs.cpSync(distDir, path.join(localDir, 'dist'), { recursive: true });
+  fs.writeFileSync(
+    path.join(localDir, 'package.json'),
+    JSON.stringify(
+      { name: depPkg.name, version: depPkg.version, main: depPkg.main, types: depPkg.types },
+      null,
+      2
+    )
+  );
+
+  deps[depName] = 'file:.local/' + depName;
+  fs.writeFileSync(targetPackageJsonPath, JSON.stringify(pkg, null, 2));
+}
+
 // --- Main ---
 
 const depsHash = computeDepsHash();
@@ -105,6 +159,10 @@ fs.cpSync(path.join(serverPkg, 'dist'), targetDir, { recursive: true });
 // Copy server package.json (needed for version resolution at runtime)
 const targetPackageJson = path.join(targetDir, 'package.json');
 fs.cpSync(path.join(serverPkg, 'package.json'), targetPackageJson);
+
+// Bundle workspace dependency zowe-mcp-common into server/.local/zowe-mcp-common
+// and rewrite the dependency to a local file: path so npm install resolves it locally
+bundleWorkspaceDep(targetPackageJson, 'zowe-mcp-common', commonPkg);
 
 // Rewrite file:../../bin/*.tgz deps to file:.tgz/*.tgz and copy tgz into bundle
 // so "npm install" from server/ can resolve them
@@ -124,6 +182,9 @@ if (cacheHit) {
     cwd: targetDir,
     stdio: 'inherit',
   });
+
+  // Replace symlinks created by file: deps with real copies (vsce/yazl can't pack symlinks)
+  dereferenceLocalDepSymlinks();
 
   // Update cache
   console.log('Caching dependencies for next build...');

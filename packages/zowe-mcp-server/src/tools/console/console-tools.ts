@@ -17,6 +17,7 @@ import type { ZosBackend } from '../../zos/backend.js';
 import type { CredentialProvider } from '../../zos/credentials.js';
 import { resolveSystemForTool, type SessionState } from '../../zos/session.js';
 import type { SystemRegistry } from '../../zos/system.js';
+import { evaluateCommandSafety, type CommandPatterns } from '../command-safety.js';
 import { createToolProgress } from '../progress.js';
 import {
   buildContext,
@@ -30,50 +31,11 @@ import { runConsoleCommandOutputSchema } from './console-output-schemas.js';
 
 const require = createRequire(import.meta.url);
 
-interface PatternEntry {
-  pattern: string;
-  description: string;
-}
+let cachedPatterns: CommandPatterns | undefined;
 
-interface ConsolePatterns {
-  dangerous: PatternEntry[];
-  elicit: PatternEntry[];
-  safe: PatternEntry[];
-}
-
-let cachedPatterns: ConsolePatterns | undefined;
-
-function getPatterns(): ConsolePatterns {
-  if (cachedPatterns) return cachedPatterns;
-  cachedPatterns = require('./console-command-patterns.json') as ConsolePatterns;
+function getPatterns(): CommandPatterns {
+  cachedPatterns ??= require('./console-command-patterns.json') as CommandPatterns;
   return cachedPatterns;
-}
-
-interface ConsoleCommandValidationResult {
-  action: 'allow' | 'block' | 'elicit';
-  reason?: string;
-}
-
-function validateConsoleCommand(commandText: string): ConsoleCommandValidationResult {
-  const normalized = commandText.trim().replace(/\s+/g, ' ').toUpperCase();
-  const { dangerous, elicit, safe } = getPatterns();
-
-  for (const entry of dangerous) {
-    if (new RegExp(entry.pattern, 'i').test(normalized)) {
-      return { action: 'block', reason: entry.description };
-    }
-  }
-  for (const entry of safe) {
-    if (new RegExp(entry.pattern, 'i').test(normalized)) {
-      return { action: 'allow' };
-    }
-  }
-  for (const entry of elicit) {
-    if (new RegExp(entry.pattern, 'i').test(normalized)) {
-      return { action: 'elicit', reason: entry.description };
-    }
-  }
-  return { action: 'elicit', reason: 'Unknown console command — requires user approval' };
 }
 
 async function ensureContext(
@@ -146,18 +108,20 @@ export function registerConsoleTools(
       log.info('runConsoleCommand called', { commandText: commandText.slice(0, 80), system });
 
       try {
-        const validation = validateConsoleCommand(commandText);
+        const validation = evaluateCommandSafety(commandText, getPatterns());
         if (validation.action === 'block') {
+          const msg =
+            validation.pattern?.message ?? 'This console command is too dangerous to run via AI.';
           await progress.complete('blocked');
-          return errorResult(
-            `Console command blocked: ${validation.reason}. This command is too dangerous to run via AI.`
-          );
+          return errorResult(`Console command blocked: ${msg}`);
         }
 
         if (validation.action === 'elicit') {
+          const reason =
+            validation.pattern?.message ?? 'Unknown console command — requires user approval';
           try {
             const elicitResult = await deps.mcpServer.server.elicitInput({
-              message: `Console command requires approval: ${commandText}\nReason: ${validation.reason}`,
+              message: `Console command requires approval: ${commandText}\nReason: ${reason}`,
               requestedSchema: {
                 type: 'object' as const,
                 properties: {

@@ -74,7 +74,25 @@ Line-windowed pagination (readDataset, readUssFile, readJobFile, runSafeUssComma
 - When _result.hasMore is true, call the tool again with startLine = _result.startLine + _result.returnedLines and the same lineCount.
 
 If the task requires more data, do not answer with only the first page/window; keep calling you have the desired amount of data.
-The response messages array contains the exact parameters for the next call when more data is available.`;
+The response messages array contains the exact parameters for the next call when more data is available.
+
+z/OS Terminology
+
+- Data set: A z/OS file. Always two words ("data set", not "dataset"). Fully qualified names use dot-separated qualifiers (e.g. USER.SRC.COBOL), max 44 characters.
+- PDS (Partitioned Data Set): A data set containing named members (like a directory of files). DSORG=PO.
+- PDS/E (Partitioned Data Set Extended): Modern replacement for PDS. Also called LIBRARY. DSORG=PO-E or DSNTYPE=LIBRARY. Preferred over PDS for new data sets. Accepted input aliases: PDSE, LIBRARY, PO-E.
+- Member: A named entry within a PDS or PDS/E (up to 8 characters, uppercase).
+- Sequential data set: A flat file (no members). Also called PS (Physical Sequential). DSORG=PS.
+- DSN: Data Set Name — the fully qualified name of a data set.
+- USS (UNIX System Services): The POSIX-compatible file system and shell environment on z/OS. Paths use forward slashes (e.g. /u/user).
+- TSO (Time Sharing Option): Interactive command-line environment on z/OS for running commands and utilities.
+- JCL (Job Control Language): The scripting language used to define and submit batch jobs on z/OS.
+- RECFM (Record Format): How records are structured (e.g. FB=Fixed Block, VB=Variable Block).
+- LRECL (Logical Record Length): Maximum length of a single record in bytes.
+- VSAM (Virtual Storage Access Method): A high-performance file access method on z/OS. DSORG=VS.
+- HSM/DFHSM: Hierarchical Storage Manager — migrates infrequently used data sets to cheaper storage. Use restoreDataset to recall.
+- EBCDIC: The character encoding used on z/OS mainframes (e.g. IBM-037 for data sets, IBM-1047 for USS).
+- HLQ (High-Level Qualifier): The first qualifier in a data set name, typically the user ID or project name.`;
 
 /** Shared root logger for the MCP server process. */
 let rootLogger: Logger | undefined;

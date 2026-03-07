@@ -948,10 +948,10 @@ export class NativeBackend {
     const appliedRecfm = options.recfm ?? DEFAULT_RECFM;
     const appliedLrecl = options.lrecl ?? DEFAULT_LRECL;
     const appliedBlksz = options.blksz ?? DEFAULT_BLKSZ;
-    // PDS (PO) uses directory blocks; PDSE (PO-E / LIBRARY) does not—do not pass dirblk for PO-E.
+    // PDS (PO) uses directory blocks; PDS/E (PO-E / LIBRARY) does not—do not pass dirblk for PO-E.
     const appliedDirblk = options.type === 'PO' ? (options.dirblk ?? DEFAULT_DIRBLK) : undefined;
 
-    // PDSE: z/OS allocation uses DSORG=PO + DSNTYPE=LIBRARY (no dirblk).
+    // PDS/E: z/OS allocation uses DSORG=PO + DSNTYPE=LIBRARY (no dirblk).
     const effectiveDsorg = options.type === 'PO-E' ? 'PO' : options.type;
     const attributes: Record<string, unknown> = {
       dsorg: effectiveDsorg,

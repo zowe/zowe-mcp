@@ -227,7 +227,7 @@ function validateQualifier(qualifier: string, fullName: string): void {
 }
 
 /**
- * Validate a PDS/PDSE member name.
+ * Validate a PDS or PDS/E member name.
  *
  * Rules:
  * - 1–8 characters.

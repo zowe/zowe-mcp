@@ -20,7 +20,7 @@
  *   systems.json
  *   sys1.example.com/
  *     USER/                     # HLQ directory
- *       SRC.COBOL/                 # PDS/PDSE → directory
+ *       SRC.COBOL/                 # PDS or PDS/E → directory
  *         HELLO.cbl               # member → file
  *       LOAD.JCL                  # sequential data set → file
  * ```
@@ -250,7 +250,7 @@ export class FilesystemMockBackend implements ZosBackend {
     const dsPath = this.datasetPath(systemId, dsn);
     if (!(await isDirectory(dsPath))) {
       throw new Error(
-        `Data set '${dsn}' is not a PDS/PDSE on ${systemId}, or does not exist. ` +
+        `Data set '${dsn}' is not a PDS or PDS/E on ${systemId}, or does not exist. ` +
           'Only partitioned data sets have members.'
       );
     }
@@ -292,7 +292,7 @@ export class FilesystemMockBackend implements ZosBackend {
     let filePath: string;
 
     if (member) {
-      // PDS/PDSE member — find the file in the data set directory
+      // PDS or PDS/E member — find the file in the data set directory
       const found = await this.findMemberFile(dsPath, member);
       if (!found) {
         throw new Error(
@@ -357,7 +357,8 @@ export class FilesystemMockBackend implements ZosBackend {
     } else {
       if (await isDirectory(dsPath)) {
         throw new Error(
-          `Data set '${dsn}' is a PDS/PDSE on ${systemId}. ` + 'Specify a member name to write.'
+          `Data set '${dsn}' is a PDS or PDS/E on ${systemId}. ` +
+            'Specify a member name to write.'
         );
       }
       filePath = dsPath;
@@ -467,7 +468,7 @@ export class FilesystemMockBackend implements ZosBackend {
     const appliedRecfm = options.recfm ?? DEFAULT_RECFM;
     const appliedLrecl = options.lrecl ?? DEFAULT_LRECL;
     const appliedBlksz = options.blksz ?? DEFAULT_BLKSZ;
-    // PDS (PO) uses directory blocks; PDSE (PO-E) does not — match native.
+    // PDS (PO) uses directory blocks; PDS/E (PO-E) does not — match native.
     const appliedDirblk = options.type === 'PO' ? (options.dirblk ?? DEFAULT_DIRBLK) : undefined;
 
     const messages: string[] = [];

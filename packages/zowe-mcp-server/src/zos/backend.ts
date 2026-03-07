@@ -146,7 +146,7 @@ export interface DatasetEntry {
   volsers?: string[];
 }
 
-/** A member entry in a PDS/PDSE listing. */
+/** A member entry in a PDS or PDS/E listing. */
 export interface MemberEntry {
   /** Member name (uppercase, up to 8 chars). */
   name: string;
@@ -210,7 +210,7 @@ export interface CreateDatasetApplied {
   primary?: number;
   /** Secondary space (tracks) applied. */
   secondary?: number;
-  /** Directory blocks applied (PDS/PDSE). */
+  /** Directory blocks applied (PDS or PDS/E). */
   dirblk?: number;
   /** SMS classes applied (if SMS managed). */
   smsClass?: SmsClasses;
@@ -268,7 +268,7 @@ export interface SearchInDatasetSummary {
 export interface SearchInDatasetOptions {
   /** Search string (literal). */
   string: string;
-  /** Optional member name to limit search to one PDS/PDSE member. */
+  /** Optional member name to limit search to one PDS or PDS/E member. */
   member?: string;
   /** SuperC process options string (e.g. "ANYC COBOL"), built from natural options. */
   parms: string;
@@ -475,14 +475,14 @@ export interface ZosBackend {
   ): Promise<DatasetEntry[]>;
 
   /**
-   * List members of a PDS/PDSE.
+   * List members of a PDS or PDS/E.
    *
    * Member name pattern wildcards (when pattern is provided):
    * - `*` — zero or more characters
    * - `%` — exactly one character
    *
    * @param systemId - Target z/OS system.
-   * @param dsn - Fully-qualified PDS/PDSE name.
+   * @param dsn - Fully-qualified PDS or PDS/E name.
    * @param pattern - Optional member name filter pattern (e.g. "ABC*", "A%C").
    */
   listMembers(
@@ -493,7 +493,7 @@ export interface ZosBackend {
   ): Promise<MemberEntry[]>;
 
   /**
-   * Read the content of a sequential data set or PDS/PDSE member.
+   * Read the content of a sequential data set or PDS or PDS/E member.
    *
    * Returned text is always UTF-8 (local/client encoding). The optional
    * encoding parameter is the mainframe (source) EBCDIC encoding used to
@@ -502,7 +502,7 @@ export interface ZosBackend {
    *
    * @param systemId - Target z/OS system.
    * @param dsn - Fully-qualified data set name.
-   * @param member - Member name (for PDS/PDSE).
+   * @param member - Member name (for PDS or PDS/E).
    * @param encoding - Mainframe EBCDIC encoding (resolved by tool layer when omitted).
    */
   readDataset(
@@ -514,7 +514,7 @@ export interface ZosBackend {
   ): Promise<ReadDatasetResult>;
 
   /**
-   * Write content to a sequential data set or PDS/PDSE member.
+   * Write content to a sequential data set or PDS or PDS/E member.
    *
    * Content is provided as UTF-8 text. The backend converts to the
    * target encoding. When not provided, the tool layer supplies the
@@ -530,7 +530,7 @@ export interface ZosBackend {
    * @param systemId - Target z/OS system.
    * @param dsn - Fully-qualified data set name.
    * @param content - UTF-8 text content to write.
-   * @param member - Member name (for PDS/PDSE).
+   * @param member - Member name (for PDS or PDS/E).
    * @param etag - Optional ETag for optimistic locking.
    * @param encoding - Target mainframe EBCDIC encoding (resolved by tool layer when omitted).
    * @param startLine - Optional 1-based first line of the block to replace.
@@ -568,7 +568,7 @@ export interface ZosBackend {
   ): Promise<CreateDatasetResult>;
 
   /**
-   * Delete a data set or a specific PDS/PDSE member.
+   * Delete a data set or a specific PDS or PDS/E member.
    *
    * @param systemId - Target z/OS system.
    * @param dsn - Fully-qualified data set name.
@@ -599,8 +599,8 @@ export interface ZosBackend {
    * @param systemId - Target z/OS system.
    * @param sourceDsn - Source data set name.
    * @param targetDsn - Target data set name.
-   * @param sourceMember - Source member name (for PDS/PDSE).
-   * @param targetMember - Target member name (for PDS/PDSE).
+   * @param sourceMember - Source member name (for PDS or PDS/E).
+   * @param targetMember - Target member name (for PDS or PDS/E).
    */
   copyDataset(
     systemId: SystemId,
@@ -612,7 +612,7 @@ export interface ZosBackend {
   ): Promise<void>;
 
   /**
-   * Rename a data set or PDS/PDSE member.
+   * Rename a data set or PDS or PDS/E member.
    *
    * @param systemId - Target z/OS system.
    * @param dsn - Current data set name.
@@ -630,7 +630,7 @@ export interface ZosBackend {
   ): Promise<void>;
 
   /**
-   * Search for a string in a sequential data set or PDS/PDSE (all members or one member).
+   * Search for a string in a sequential data set or PDS or PDS/E (all members or one member).
    * Returns matching lines with line numbers and a summary.
    *
    * @param systemId - Target z/OS system.

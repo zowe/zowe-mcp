@@ -53,8 +53,8 @@ export function registerDatasetPrompts(
         'Read a JCL member and analyze it for common issues, ' +
         'suggest improvements, and explain what the job does.',
       argsSchema: {
-        dsn: z.string().describe('Fully qualified dataset name (e.g. USER.SRC.COBOL).'),
-        member: z.string().optional().describe('JCL member name (for PDS/PDSE datasets).'),
+        dsn: z.string().describe('Fully qualified data set name (e.g. USER.SRC.COBOL).'),
+        member: z.string().optional().describe('JCL member name (for PDS or PDS/E data sets).'),
         system: z
           .string()
           .optional()
@@ -105,10 +105,10 @@ export function registerDatasetPrompts(
     {
       title: 'Explain Dataset',
       description:
-        'Get attributes and sample content of a dataset, then explain ' +
+        'Get attributes and sample content of a data set, then explain ' +
         'its purpose, structure, and how it fits into the system.',
       argsSchema: {
-        dsn: z.string().describe('Fully qualified dataset name (e.g. USER.SRC.COBOL).'),
+        dsn: z.string().describe('Fully qualified data set name (e.g. USER.SRC.COBOL).'),
         system: z
           .string()
           .optional()
@@ -159,16 +159,16 @@ export function registerDatasetPrompts(
             content: {
               type: 'text',
               text:
-                `Please explain the z/OS dataset ${resolved.dsn} on ${systemId}.\n\n` +
-                'Dataset attributes:\n' +
+                `Please explain the z/OS data set ${resolved.dsn} on ${systemId}.\n\n` +
+                'Data set attributes:\n' +
                 '```json\n' +
                 JSON.stringify(attrs, null, 2) +
                 '\n```' +
                 sampleContent +
                 '\n\nPlease explain:\n' +
-                '1. What is the purpose of this dataset based on its name and content?\n' +
+                '1. What is the purpose of this data set based on its name and content?\n' +
                 '2. What type of data does it contain (COBOL source, JCL, copybooks, data, etc.)?\n' +
-                '3. How does it relate to other datasets in the same HLQ?\n' +
+                '3. How does it relate to other data sets in the same HLQ?\n' +
                 '4. What are the key attributes (record format, record length) and why?\n' +
                 '5. Any observations about the content structure or conventions used?',
             },
@@ -186,10 +186,10 @@ export function registerDatasetPrompts(
     {
       title: 'Compare Members',
       description:
-        'Read two PDS/PDSE members and compare them, explaining ' +
+        'Read two PDS or PDS/E members and compare them, explaining ' +
         'the differences and their significance.',
       argsSchema: {
-        dsn: z.string().describe('Fully qualified dataset name (e.g. USER.SRC.COBOL).'),
+        dsn: z.string().describe('Fully qualified data set name (e.g. USER.SRC.COBOL).'),
         member1: z.string().describe('First member name to compare.'),
         member2: z.string().describe('Second member name to compare.'),
         system: z

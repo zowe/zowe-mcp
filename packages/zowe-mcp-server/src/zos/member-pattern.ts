@@ -10,7 +10,7 @@
  */
 
 /**
- * Member name pattern matching for PDS/PDSE listings.
+ * Member name pattern matching for PDS or PDS/E listings.
  *
  * Converts a pattern string with wildcards into a case-insensitive RegExp
  * for matching member names (e.g. in listMembers).

@@ -119,7 +119,7 @@ export interface OpenDatasetInEditorEventData {
   profile?: string;
   /** Fully qualified data set name. */
   dsn: string;
-  /** PDS/PDSE member name; omit for sequential data sets. */
+  /** PDS or PDS/E member name; omit for sequential data sets. */
   member?: string;
   /** Current MCP system id (e.g. user@host) for match-by-system resolution. */
   system?: string;

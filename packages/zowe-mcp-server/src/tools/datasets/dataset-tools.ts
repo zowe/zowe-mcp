@@ -13,7 +13,7 @@
  * Data set tools for the Zowe MCP Server.
  *
  * Provides tools for listing, reading, writing, creating, deleting,
- * copying, and renaming z/OS data sets and PDS/PDSE members.
+ * copying, and renaming z/OS data sets and PDS or PDS/E members.
  *
  * All data set names are fully qualified (e.g. USER.SRC.COBOL).
  */
@@ -433,7 +433,10 @@ export function registerDatasetTools(
   server.registerTool(
     'listMembers',
     {
-      description: withPaginationNote('List members of a PDS/PDSE data set', PAGINATION_NOTE_LIST),
+      description: withPaginationNote(
+        'List members of a PDS or PDS/E data set',
+        PAGINATION_NOTE_LIST
+      ),
       annotations: { readOnlyHint: true },
       outputSchema: listMembersOutputSchema,
       inputSchema: {
@@ -523,7 +526,7 @@ export function registerDatasetTools(
     'searchInDataset',
     {
       description: withPaginationNote(
-        'Search for a string in a sequential data set or PDS/PDSE (all members or one member). ' +
+        'Search for a string in a sequential data set, PDS, or PDS/E (all members or one member). ' +
           'Returns matching lines with line numbers and a summary. ' +
           'You may pass dsn as USER.LIB(MEM) and omit member. ' +
           'Options: caseSensitive (default false), cobol (search cols 7–72 only), ignoreSequenceNumbers (exclude cols 73–80, default true), doNotProcessComments, includeContextLines (±6 lines via LPSF)',
@@ -547,7 +550,7 @@ export function registerDatasetTools(
           .string()
           .optional()
           .describe(
-            'For PDS/PDSE only, limit search to this member (e.g. IEANTCOB). Omit to search all members or a sequential data set.'
+            'For PDS or PDS/E only, limit search to this member (e.g. IEANTCOB). Omit to search all members or a sequential data set.'
           ),
         offset: z
           .number()
@@ -816,7 +819,7 @@ export function registerDatasetTools(
     'readDataset',
     {
       description: withPaginationNote(
-        'Read the content of a sequential data set or PDS/PDSE member. ' +
+        'Read the content of a sequential data set or PDS/E member. ' +
           'Returns UTF-8 text, an ETag for optimistic locking, and the source encoding. ' +
           'Pass the ETag to writeDataset to prevent overwriting concurrent changes. ' +
           'You may pass dsn as USER.LIB(MEM) and omit member',
@@ -826,7 +829,7 @@ export function registerDatasetTools(
       outputSchema: readDatasetOutputSchema,
       inputSchema: {
         dsn: z.string().describe('Fully qualified data set name (e.g. USER.SRC.COBOL).'),
-        member: z.string().optional().describe('Member name for PDS/PDSE data sets.'),
+        member: z.string().optional().describe('Member name for PDS or PDS/E data sets.'),
         system: z.string().optional().describe(SYSTEM_PARAM_DESCRIPTION),
         encoding: z
           .string()
@@ -951,7 +954,7 @@ export function registerDatasetTools(
     'writeDataset',
     {
       description:
-        'Write UTF-8 content to a sequential data set or PDS/PDSE member. ' +
+        'Write UTF-8 content to a sequential data set or PDS/E member. ' +
         'When startLine and endLine are provided, the block of records from startLine to endLine (inclusive) is replaced by the given lines; the number of lines need not match (data set can grow or shrink). ' +
         'When only startLine is provided, the same number of lines as in the lines array are replaced starting at startLine. ' +
         'When both are omitted, the entire data set or member is replaced. ' +
@@ -965,7 +968,7 @@ export function registerDatasetTools(
         lines: z
           .array(z.string())
           .describe('UTF-8 content to write as an array of lines (one string per record).'),
-        member: z.string().optional().describe('Member name for PDS/PDSE data sets.'),
+        member: z.string().optional().describe('Member name for PDS or PDS/E data sets.'),
         system: z.string().optional().describe(SYSTEM_PARAM_DESCRIPTION),
         etag: z
           .string()
@@ -1215,7 +1218,7 @@ export function registerDatasetTools(
       inputSchema: {
         dsn: z.string().describe('Fully qualified data set name (e.g. USER.SRC.COBOL).'),
         type: datasetTypeSchema.describe(
-          'Data set organization type (DSORG): PS or SEQUENTIAL (Physical Sequential — a flat file), PO or PDS (Partitioned Data Set — a directory of members), PO-E or PDSE or LIBRARY (Partitioned Data Set Extended). Case-insensitive.'
+          'Data set organization type (DSORG): PS or SEQUENTIAL (Physical Sequential — a flat file), PO or PDS (Partitioned Data Set — a directory of members), PO-E or PDSE or LIBRARY (PDS/E — Partitioned Data Set Extended, recommended). Case-insensitive.'
         ),
         system: z.string().optional().describe(SYSTEM_PARAM_DESCRIPTION),
         recfm: recfmSchema
@@ -1373,7 +1376,7 @@ export function registerDatasetTools(
       outputSchema: createTempDatasetOutputSchema,
       inputSchema: {
         type: datasetTypeSchema.describe(
-          'Data set organization type (DSORG): PS or SEQUENTIAL (Physical Sequential — a flat file), PO or PDS (Partitioned Data Set — a directory of members), PO-E or PDSE or LIBRARY (Partitioned Data Set Extended). Case-insensitive.'
+          'Data set organization type (DSORG): PS or SEQUENTIAL (Physical Sequential — a flat file), PO or PDS (Partitioned Data Set — a directory of members), PO-E or PDSE or LIBRARY (PDS/E — Partitioned Data Set Extended, recommended). Case-insensitive.'
         ),
         system: z.string().optional().describe(SYSTEM_PARAM_DESCRIPTION),
         prefix: z
@@ -1532,7 +1535,7 @@ export function registerDatasetTools(
     'deleteDataset',
     {
       description:
-        'Delete a data set or a specific PDS/PDSE member. ' +
+        'Delete a data set or a specific PDS or PDS/E member. ' +
         'You may pass dsn as USER.LIB(MEM) and omit member.',
       annotations: { destructiveHint: true },
       outputSchema: deleteDatasetOutputSchema,
@@ -1675,7 +1678,7 @@ export function registerDatasetTools(
     'copyDataset',
     {
       description:
-        'Copy a data set or PDS/PDSE member within a single z/OS system. ' +
+        'Copy a data set or PDS or PDS/E member within a single z/OS system. ' +
         'You may pass source or target dsn as USER.LIB(MEM) and omit the corresponding member.',
       outputSchema: copyDatasetOutputSchema,
       inputSchema: {
@@ -1785,7 +1788,7 @@ export function registerDatasetTools(
     'renameDataset',
     {
       description:
-        'Rename a data set or PDS/PDSE member. ' +
+        'Rename a data set or PDS or PDS/E member. ' +
         'You may pass dsn as USER.LIB(MEM) and omit member.',
       outputSchema: renameDatasetOutputSchema,
       inputSchema: {
@@ -1794,7 +1797,7 @@ export function registerDatasetTools(
         member: z
           .string()
           .optional()
-          .describe('Current member name (for renaming a member within a PDS/PDSE).'),
+          .describe('Current member name (for renaming a member within a PDS or PDS/E).'),
         newMember: z.string().optional().describe('New member name.'),
         system: z.string().optional().describe(SYSTEM_PARAM_DESCRIPTION),
       },

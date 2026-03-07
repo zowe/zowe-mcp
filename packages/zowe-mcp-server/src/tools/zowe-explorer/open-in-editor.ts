@@ -67,7 +67,7 @@ export function registerZoweExplorerTools(
       {
         annotations: { readOnlyHint: true },
         description:
-          'Open a sequential data set or a PDS/PDSE member in the VS Code editor via Zowe Explorer. ' +
+          'Open a sequential data set or a PDS or PDS/E member in the VS Code editor via Zowe Explorer. ' +
           "The data set opens in Zowe Explorer's editor so the user can view or edit it. " +
           'Requires Zowe Explorer to be installed. The extension resolves the Zowe profile (default or match by system) or prompts to choose one and remembers it for the session.',
         inputSchema: {
@@ -77,7 +77,7 @@ export function registerZoweExplorerTools(
           member: z
             .string()
             .optional()
-            .describe('Member name for a PDS/PDSE; omit for sequential data sets.'),
+            .describe('Member name for a PDS or PDS/E; omit for sequential data sets.'),
           system: z
             .string()
             .optional()

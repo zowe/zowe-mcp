@@ -1267,7 +1267,7 @@ export function registerJobTools(server: McpServer, deps: JobToolDeps, logger: L
     {
       outputSchema: submitJobFromDatasetOutputSchema,
       description:
-        'Submit a job from a data set or PDS/PDSE member containing JCL. The data set must contain valid JCL including a job card. Set wait: true to wait for the job to reach OUTPUT.',
+        'Submit a job from a data set or PDS or PDS/E member containing JCL. The data set must contain valid JCL including a job card. Set wait: true to wait for the job to reach OUTPUT.',
       annotations: { destructiveHint: true },
       inputSchema: {
         dsn: z

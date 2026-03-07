@@ -109,7 +109,9 @@ export const searchResultMetaSchema = z
     membersWithLines: z
       .number()
       .describe('Number of members that had at least one matching line.'),
-    membersWithoutLines: z.number().describe('Number of members with no matches (PDS/PDSE only).'),
+    membersWithoutLines: z
+      .number()
+      .describe('Number of members with no matches (PDS or PDS/E only).'),
     searchPattern: z.string().describe('The literal search string that was used.'),
     processOptions: z
       .string()
@@ -141,7 +143,7 @@ const datasetListEntrySchema = z.object({
     .string()
     .optional()
     .describe(
-      'Data set organization: PS (sequential), PO (PDS), PO-E (PDSE), VS, DA. Present at all detail levels.'
+      'Data set organization: PS (sequential), PO (PDS), PO-E (PDS/E), VS, DA. Present at all detail levels.'
     ),
   recfm: z.string().optional().describe('Record format: F, FB, V, VB, U, FBA, VBA.'),
   lrecl: z.number().optional().describe('Logical record length in bytes.'),
@@ -172,7 +174,7 @@ const datasetListEntrySchema = z.object({
 });
 
 const memberEntrySchema = z.object({
-  member: z.string().describe('PDS/PDSE member name (up to 8 characters, uppercase).'),
+  member: z.string().describe('PDS or PDS/E member name (up to 8 characters, uppercase).'),
 });
 
 const readDatasetDataSchema = z.object({
@@ -221,7 +223,9 @@ const searchSummarySchema = z.object({
   linesFound: z.number().describe('Total lines that matched the search string.'),
   linesProcessed: z.number().describe('Total lines read across all members.'),
   membersWithLines: z.number().describe('Number of members with at least one match.'),
-  membersWithoutLines: z.number().describe('Number of members with no matches (PDS/PDSE only).'),
+  membersWithoutLines: z
+    .number()
+    .describe('Number of members with no matches (PDS or PDS/E only).'),
   searchPattern: z.string().describe('The literal search string used.'),
   processOptions: z.string().describe('SuperC process options (e.g. ANYC, COBOL).'),
 });
@@ -270,7 +274,7 @@ const writeDatasetDataSchema = z.object({
 
 const createDatasetDataSchema = z.object({
   dsn: z.string().describe('Fully qualified name of the created data set.'),
-  type: z.string().describe('Data set type created: PS (sequential), PO (PDS), PO-E (PDSE).'),
+  type: z.string().describe('Data set type created: PS (sequential), PO (PDS), PO-E (PDS/E).'),
   allocation: z
     .object({
       applied: z
@@ -382,10 +386,10 @@ export const listMembersOutputSchema = envelopeSchema(
   z
     .array(memberEntrySchema)
     .describe(
-      'Array of PDS/PDSE member entries. Each entry has the member name (up to 8 characters, uppercase).'
+      'Array of PDS or PDS/E member entries. Each entry has the member name (up to 8 characters, uppercase).'
     ),
   listResultMetaSchema,
-  'Paginated list of PDS/PDSE members. data[] has one entry per member; _result has count, offset, hasMore.'
+  'Paginated list of PDS or PDS/E members. data[] has one entry per member; _result has count, offset, hasMore.'
 );
 
 export const searchInDatasetOutputSchema = envelopeSchema(

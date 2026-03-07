@@ -163,7 +163,7 @@ const submitJobFromSourceDataSchema = z.object({
   jobName: z.string().describe('Job name from the JOB statement.'),
 });
 
-/** Submit-from-source (dataset/USS) result; when wait=true also has status, timedOut, failedStepJobFiles. */
+/** Submit-from-source (data set/USS) result; when wait=true also has status, timedOut, failedStepJobFiles. */
 const submitJobFromSourceWithWaitDataSchema = submitJobFromSourceDataSchema.merge(
   jobStatusResultSchema.partial().extend({
     timedOut: z

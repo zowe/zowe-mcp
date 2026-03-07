@@ -17,7 +17,7 @@
  *
  * Templates:
  * - `zos-ds://{system}/{dsn}` — sequential dataset content
- * - `zos-ds://{system}/{dsn}({member})` — PDS/PDSE member content
+ * - `zos-ds://{system}/{dsn}({member})` — PDS or PDS/E member content
  *
  * Both support an optional `?volser=` query parameter for uncataloged datasets.
  */
@@ -48,12 +48,12 @@ export function registerDatasetResources(
   // zos-ds://{system}/{dsn}
   // -----------------------------------------------------------------------
   server.registerResource(
-    'Dataset Content',
+    'Data Set Content',
     new ResourceTemplate('zos-ds://{system}/{dsn}', { list: undefined }),
     {
       description:
-        'Content of a sequential z/OS dataset. ' +
-        'Provide the system hostname and fully-qualified dataset name.',
+        'Content of a sequential z/OS data set. ' +
+        'Provide the system hostname and fully-qualified data set name.',
       mimeType: 'text/plain',
     },
     async (uri, variables) => {
@@ -77,7 +77,7 @@ export function registerDatasetResources(
   );
 
   // -----------------------------------------------------------------------
-  // PDS/PDSE member content
+  // PDS or PDS/E member content
   // zos-ds://{system}/{dsn}({member})
   // -----------------------------------------------------------------------
   server.registerResource(
@@ -85,8 +85,8 @@ export function registerDatasetResources(
     new ResourceTemplate('zos-ds://{system}/{dsn}({member})', { list: undefined }),
     {
       description:
-        'Content of a PDS/PDSE member on z/OS. ' +
-        'Provide the system hostname, dataset name, and member name.',
+        'Content of a PDS or PDS/E member on z/OS. ' +
+        'Provide the system hostname, data set name, and member name.',
       mimeType: 'text/plain',
     },
     async (uri, variables) => {

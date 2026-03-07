@@ -22,9 +22,61 @@ import { z } from 'zod';
 // Shared: context and result metadata
 // ---------------------------------------------------------------------------
 
-export const responseContextSchema = z
+/** Base context: only the system field. Used by jobs, TSO, and console tools. */
+export const baseContextSchema = z
   .object({
     system: z.string().describe('Resolved z/OS system hostname (target of the operation).'),
+  })
+  .describe('Resolution context: target z/OS system.');
+
+/** Dataset-scoped context with DSN/pattern resolution fields. */
+export const datasetContextSchema = baseContextSchema
+  .extend({
+    resolvedPattern: z
+      .string()
+      .optional()
+      .describe(
+        'Normalized list pattern (uppercase, no quotes). Present only when input was quoted or lowercase.'
+      ),
+    resolvedDsn: z
+      .string()
+      .optional()
+      .describe(
+        'Normalized data set name (uppercase, no quotes). Present only when input was quoted or lowercase.'
+      ),
+    resolvedTargetDsn: z
+      .string()
+      .optional()
+      .describe(
+        'Normalized target data set name for copy/rename. Present only when input differed from resolved value.'
+      ),
+  })
+  .describe('Resolution context: system and optional normalized data set names/patterns.');
+
+/** USS-scoped context with path and directory resolution fields. */
+export const ussContextSchema = baseContextSchema
+  .extend({
+    resolvedPath: z
+      .string()
+      .optional()
+      .describe('Resolved USS path when normalization changed the input.'),
+    currentDirectory: z
+      .string()
+      .optional()
+      .describe('USS current working directory in display form.'),
+    listedDirectory: z
+      .string()
+      .optional()
+      .describe('USS directory that was listed (listUssFiles).'),
+  })
+  .describe('Resolution context: system and optional normalized USS paths.');
+
+/**
+ * @deprecated Use the scoped schemas instead: {@link baseContextSchema},
+ * {@link datasetContextSchema}, or {@link ussContextSchema}.
+ */
+export const responseContextSchema = baseContextSchema
+  .extend({
     resolvedPattern: z
       .string()
       .optional()
@@ -348,7 +400,7 @@ function envelopeSchema<T extends z.ZodType>(
 ) {
   const base = z
     .object({
-      _context: responseContextSchema,
+      _context: datasetContextSchema,
       messages: z
         .array(z.string())
         .optional()

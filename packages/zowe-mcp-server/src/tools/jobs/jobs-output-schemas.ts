@@ -19,10 +19,10 @@
 
 import { z } from 'zod';
 import {
+  baseContextSchema,
   listResultMetaSchema,
   mutationResultMetaSchema,
   readResultMetaSchema,
-  responseContextSchema,
 } from '../datasets/dataset-output-schemas.js';
 
 // ---------------------------------------------------------------------------
@@ -36,7 +36,7 @@ function envelopeSchema<T extends z.ZodType>(
 ) {
   const base = z
     .object({
-      _context: responseContextSchema,
+      _context: baseContextSchema,
       messages: z
         .array(z.string())
         .optional()

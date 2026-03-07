@@ -10,10 +10,7 @@
  */
 
 import { z } from 'zod';
-import {
-  readResultMetaSchema,
-  responseContextSchema,
-} from '../datasets/dataset-output-schemas.js';
+import { baseContextSchema, readResultMetaSchema } from '../datasets/dataset-output-schemas.js';
 
 const consoleCommandDataSchema = z.object({
   lines: z.array(z.string()).describe('Console command output as array of lines.'),
@@ -22,7 +19,7 @@ const consoleCommandDataSchema = z.object({
 
 export const runConsoleCommandOutputSchema = z
   .object({
-    _context: responseContextSchema,
+    _context: baseContextSchema,
     messages: z
       .array(z.string())
       .optional()

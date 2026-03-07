@@ -81,7 +81,7 @@ Items to address later. Not ordered by priority.
 - **TSO command reference/discovery**: Help agents discover available TSO commands and their syntax — provide a reference tool, prompt, or resource so the agent does not have to guess.
 - ✅ **Merge `info` with `getContext`**: Merged — `getContext` now includes a `server` object (name, version, description, components, backend) and is always registered. The `info` tool and `src/tools/core/zowe-info.ts` have been removed.
 - **Dev/test vs production system awareness**: Allow systems to be tagged as dev/test or production so the server (or agent) can apply different safety levels or warnings for production systems with financial or health data.
-- **Monolithic context refactoring**: The current context (`_context_` object) returned by tools is monolithic — consider scoping context to tool groups or components so each tool gets only the context it needs. getContext tools is the only one that returns the full context.
+- ✅ **Monolithic context refactoring**: Scoped `_context` output schemas per component: `baseContextSchema` (jobs/TSO/console — system only), `datasetContextSchema` (datasets — system + resolvedPattern/resolvedDsn/resolvedTargetDsn), `ussContextSchema` (USS — system + resolvedPath/currentDirectory/listedDirectory). Runtime code unchanged; only Zod output schemas narrowed.
 - ✅ **PDS/E naming consistency / glossary**: Ensure consistent naming across all tools and docs (user ID, PDS/E vs PDSE, USS vs z/OS USS). Consider adding a glossary resource or prompt.
 
 ## Evals

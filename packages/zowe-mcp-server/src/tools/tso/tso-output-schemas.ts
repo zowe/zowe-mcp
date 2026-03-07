@@ -18,10 +18,7 @@
  */
 
 import { z } from 'zod';
-import {
-  readResultMetaSchema,
-  responseContextSchema,
-} from '../datasets/dataset-output-schemas.js';
+import { baseContextSchema, readResultMetaSchema } from '../datasets/dataset-output-schemas.js';
 
 // ---------------------------------------------------------------------------
 // Envelope helper
@@ -34,7 +31,7 @@ function envelopeSchema<T extends z.ZodType>(
 ) {
   return z
     .object({
-      _context: responseContextSchema,
+      _context: baseContextSchema,
       messages: z
         .array(z.string())
         .optional()

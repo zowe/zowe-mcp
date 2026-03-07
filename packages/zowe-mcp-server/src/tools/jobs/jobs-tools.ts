@@ -20,8 +20,8 @@
 
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
+import { plural } from 'zowe-mcp-common';
 import type { Logger } from '../../log.js';
-import { plural } from '../../plural.js';
 import type { JobFileEntry, JobStatusResult, ZosBackend } from '../../zos/backend.js';
 import type { CredentialProvider } from '../../zos/credentials.js';
 import type { JobCardStore } from '../../zos/job-cards.js';

@@ -32,6 +32,7 @@ export default tseslint.config(
     languageOptions: {
       parserOptions: {
         project: [
+          'packages/zowe-mcp-common/tsconfig.eslint.json',
           'packages/zowe-mcp-server/tsconfig.eslint.json',
           'packages/zowe-mcp-vscode/tsconfig.eslint.json',
           'packages/zowe-mcp-evals/tsconfig.eslint.json',

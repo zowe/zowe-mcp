@@ -29,6 +29,7 @@
   ],
   "license": "EPL-2.0",
   "dependencies": {
+    "zowe-mcp-common": "*",
     "@faker-js/faker": "^9.0.0",
     "js-yaml": "^4.1.0",
     "@modelcontextprotocol/sdk": "^1.27.1",

@@ -1,0 +1,14 @@
+{
+  "name": "zowe-mcp-common",
+  "version": "0.7.0-dev",
+  "description": "Shared utilities for Zowe MCP packages",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist/"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json"
+  },
+  "license": "EPL-2.0"
+}

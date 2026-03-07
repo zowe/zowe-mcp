@@ -250,6 +250,7 @@
   },
   "dependencies": {
     "@zowe/imperative": "^8.30.1",
+    "zowe-mcp-common": "*",
     "zowe-mcp-server": "0.7.0-dev"
   },
   "devDependencies": {

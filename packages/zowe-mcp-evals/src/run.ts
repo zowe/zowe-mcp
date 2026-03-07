@@ -11,54 +11,60 @@
 
 import dotenv from 'dotenv';
 import { existsSync, rmSync } from 'node:fs';
-import { dirname, isAbsolute, resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { plural } from 'zowe-mcp-common';
 import { runAssertions } from './assertions.js';
 import { buildCacheKey, get as cacheGet, set as cacheSet, getToolsUnderTest } from './cache.js';
 import { getConfigDir, loadEvalsConfig } from './config.js';
+import { errorMessage, FAIL, PASS, resolveNativeServerArgs } from './evals-utils.js';
 import { getSystemPrompt, initMockData, McpEvalHarness } from './harness.js';
 import { listSetNames, loadAndValidateAllSets } from './load-questions.js';
 import { log } from './log.js';
-import { plural } from './plural.js';
 import { writeReport } from './report.js';
 import type { Question, QuestionSet, RunResult } from './types.js';
-
-const PASS = '\u2713'; // ✓
-const FAIL = '\u2717'; // ✗
-
-/**
- * Resolve relative --config <path> in native serverArgs against the config directory (repo root).
- * So jobs set with `--native --config native-config.json` finds the file at repo root.
- */
-function resolveNativeServerArgs(serverArgs: string): string {
-  const tokens = serverArgs.trim().split(/\s+/).filter(Boolean);
-  const idx = tokens.indexOf('--config');
-  if (idx !== -1 && idx + 1 < tokens.length) {
-    const configPath = tokens[idx + 1];
-    if (!isAbsolute(configPath)) {
-      tokens[idx + 1] = resolve(getConfigDir(), configPath);
-    }
-  }
-  return tokens.join(' ');
-}
-
-function errorMessage(err: unknown): string {
-  if (!(err instanceof Error)) return String(err);
-  const parts = [err.message];
-  const apiErr = err as unknown as Record<string, unknown>;
-  if (typeof apiErr.statusCode === 'number')
-    parts.push(`statusCode: ${apiErr.statusCode.toString()}`);
-  if (typeof apiErr.url === 'string') parts.push(`url: ${apiErr.url}`);
-  if (typeof apiErr.responseBody === 'string' && apiErr.responseBody.length > 0) {
-    parts.push(`responseBody: ${apiErr.responseBody.slice(0, 2000)}`);
-  }
-  if (apiErr.cause instanceof Error) parts.push(`cause: ${apiErr.cause.message}`);
-  return parts.join('\n  ');
-}
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const SERVER_PATH = resolve(__dirname, '..', '..', 'zowe-mcp-server', 'dist', 'index.js');
+
+interface AssertAndRecordInput {
+  questionId: string;
+  prompt: string;
+  runIndex: number;
+  finalText: string;
+  toolCalls: RunResult['toolCalls'];
+  assertionBlock: Question['assertionBlock'];
+}
+
+function assertAndRecord(input: AssertAndRecordInput): RunResult {
+  const { passed, failedAssertion } = runAssertions(
+    input.assertionBlock,
+    input.toolCalls,
+    input.finalText
+  );
+  return {
+    questionId: input.questionId,
+    prompt: input.prompt,
+    runIndex: input.runIndex,
+    passed,
+    toolCalls: input.toolCalls,
+    finalText: input.finalText,
+    assertionFailed: failedAssertion,
+  };
+}
+
+function logRunOutcome(result: RunResult, label: string, suffix: string): void {
+  const icon = result.passed ? PASS : FAIL;
+  const detail = result.passed ? suffix : ` ${result.assertionFailed ?? 'assertion failed'}`;
+  const msg = `${label} ${icon}${detail}`;
+  if (result.passed) log.pass(msg);
+  else log.fail(msg);
+  const answerPreview =
+    result.finalText.length > 300 ? result.finalText.slice(0, 300) + '…' : result.finalText;
+  log.info('  Answer:');
+  for (const line of answerPreview.trim().split(/\n/)) log.info(`    ${line}`);
+}
 
 interface CliArgs {
   set: string[];
@@ -260,32 +266,22 @@ async function main(): Promise<void> {
             const { finalText, toolCalls } = cached;
             for (const tc of toolCalls)
               allToolCalls.push({ name: tc.name, arguments: tc.arguments });
-            const { passed, failedAssertion } = runAssertions(
-              q.assertionBlock,
-              toolCalls,
-              finalText
-            );
-            const result: RunResult = {
+            const result = assertAndRecord({
               questionId: q.id,
               prompt: q.prompt,
               runIndex: r,
-              passed,
-              toolCalls,
               finalText,
-              assertionFailed: failedAssertion,
-            };
+              toolCalls,
+              assertionBlock: q.assertionBlock,
+            });
             questionResults.push(result);
             allResults.push(result);
             cacheStats.hits++;
-            const icon = passed ? PASS : FAIL;
-            const detail = passed ? ' cache hit' : ` ${failedAssertion ?? 'assertion failed'}`;
-            const msg = `Running ${setName}/${q.id} (${r + 1}/${repetitions}) ${icon}${detail}`;
-            if (passed) log.pass(msg);
-            else log.fail(msg);
-            const answerPreview =
-              finalText.length > 300 ? finalText.slice(0, 300) + '…' : finalText;
-            log.info('  Answer:');
-            for (const line of answerPreview.trim().split(/\n/)) log.info(`    ${line}`);
+            logRunOutcome(
+              result,
+              `Running ${setName}/${q.id} (${r + 1}/${repetitions})`,
+              ' cache hit'
+            );
           }
         } else {
           for (let r = 0; r < repetitions; r++) {
@@ -294,31 +290,17 @@ async function main(): Promise<void> {
               const { finalText, toolCalls } = runResult;
               for (const tc of toolCalls)
                 allToolCalls.push({ name: tc.name, arguments: tc.arguments });
-              const { passed, failedAssertion } = runAssertions(
-                q.assertionBlock,
-                toolCalls,
-                finalText
-              );
-              const result: RunResult = {
+              const result = assertAndRecord({
                 questionId: q.id,
                 prompt: q.prompt,
                 runIndex: r,
-                passed,
-                toolCalls,
                 finalText,
-                assertionFailed: failedAssertion,
-              };
+                toolCalls,
+                assertionBlock: q.assertionBlock,
+              });
               questionResults.push(result);
               allResults.push(result);
-              const icon = passed ? PASS : FAIL;
-              const detail = passed ? '' : ` ${failedAssertion ?? 'assertion failed'}`;
-              const msg = `Running ${setName}/${q.id} (${r + 1}/${repetitions}) ${icon}${detail}`;
-              if (passed) log.pass(msg);
-              else log.fail(msg);
-              const answerPreview =
-                finalText.length > 300 ? finalText.slice(0, 300) + '…' : finalText;
-              log.info('  Answer:');
-              for (const line of answerPreview.trim().split(/\n/)) log.info(`    ${line}`);
+              logRunOutcome(result, `Running ${setName}/${q.id} (${r + 1}/${repetitions})`, '');
             } catch (err) {
               const msg = errorMessage(err);
               const failedResult: RunResult = {

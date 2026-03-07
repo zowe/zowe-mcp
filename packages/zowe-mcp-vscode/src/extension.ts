@@ -18,6 +18,7 @@
 
 import * as path from 'path';
 import * as vscode from 'vscode';
+import { plural } from 'zowe-mcp-common';
 import { getDisplayName, getLog, initLog } from './log';
 import {
   sendConnectionsUpdateEvent,
@@ -28,7 +29,6 @@ import {
   sendZoweExplorerUpdateEvent,
   startPipeServer,
 } from './pipe-server';
-import { plural } from './plural';
 import { getNativePasswordKey } from './secrets';
 import { logLanguageModels, logStartupInfo } from './startup-log';
 import { initZoweMcpStatusBar, updateZoweMcpStatusBar } from './status-bar';

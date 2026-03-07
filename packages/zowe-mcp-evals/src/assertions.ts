@@ -9,7 +9,7 @@
  *
  */
 
-import { plural } from './plural.js';
+import { plural } from 'zowe-mcp-common';
 import type { Assertion, AssertionBlock, AssertionItem, ToolCallRecord } from './types.js';
 
 /**

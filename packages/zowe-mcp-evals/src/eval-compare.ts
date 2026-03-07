@@ -24,23 +24,21 @@
 import dotenv from 'dotenv';
 import { execSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { dirname, isAbsolute, resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { plural } from 'zowe-mcp-common';
 import { runAssertions } from './assertions.js';
 import { getConfigDir, loadEvalsConfig, type EvalsConfig } from './config.js';
+import { errorMessage, FAIL, PASS, resolveNativeServerArgs } from './evals-utils.js';
 import { initMockData, McpEvalHarness } from './harness.js';
 import { listSetNames, loadAndValidateAllSets } from './load-questions.js';
 import { log } from './log.js';
-import { plural } from './plural.js';
 import { writeReport } from './report.js';
 import type { QuestionSet, RunResult, SetConfig } from './types.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const SERVER_PATH = resolve(__dirname, '..', '..', 'zowe-mcp-server', 'dist', 'index.js');
 const SCOREBOARD_PATH = resolve(__dirname, '..', '..', '..', 'docs', 'eval-scoreboard.md');
-
-const PASS = '\u2713';
-const FAIL = '\u2717';
 
 interface CliArgs {
   set: string[];
@@ -71,31 +69,6 @@ function parseArgs(): CliArgs {
     result.label = `run-${new Date().toISOString().slice(0, 10)}`;
   }
   return result;
-}
-
-function resolveNativeServerArgs(serverArgs: string): string {
-  const tokens = serverArgs.trim().split(/\s+/).filter(Boolean);
-  const idx = tokens.indexOf('--config');
-  if (idx !== -1 && idx + 1 < tokens.length) {
-    const configPath = tokens[idx + 1];
-    if (!isAbsolute(configPath)) {
-      tokens[idx + 1] = resolve(getConfigDir(), configPath);
-    }
-  }
-  return tokens.join(' ');
-}
-
-function errorMessage(err: unknown): string {
-  if (!(err instanceof Error)) return String(err);
-  const parts = [err.message];
-  const apiErr = err as unknown as Record<string, unknown>;
-  if (typeof apiErr.statusCode === 'number')
-    parts.push(`statusCode: ${apiErr.statusCode.toString()}`);
-  if (typeof apiErr.responseBody === 'string' && apiErr.responseBody.length > 0) {
-    parts.push(`responseBody: ${apiErr.responseBody.slice(0, 2000)}`);
-  }
-  if (apiErr.cause instanceof Error) parts.push(`cause: ${apiErr.cause.message}`);
-  return parts.join('\n  ');
 }
 
 function getGitSha(): string {
@@ -469,7 +442,7 @@ async function main(): Promise<void> {
   const settingsStr = nonDefaultSettings.join(', ');
 
   let totalQuestions = 0;
-  for (const modelId of modelIds) {
+  for (const _modelId of modelIds) {
     for (const setName of setNames) {
       const qs = loadedSets.get(setName)!;
       if (qs.config.skip) continue;

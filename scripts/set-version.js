@@ -31,6 +31,7 @@ if (!version || !/^\d+\.\d+\.\d+(-[a-zA-Z0-9.-]+)?$/.test(version)) {
 
 const packagePaths = [
   path.join(repoRoot, 'package.json'),
+  path.join(repoRoot, 'packages', 'zowe-mcp-common', 'package.json'),
   path.join(repoRoot, 'packages', 'zowe-mcp-server', 'package.json'),
   path.join(repoRoot, 'packages', 'zowe-mcp-vscode', 'package.json'),
   path.join(repoRoot, 'packages', 'zowe-mcp-evals', 'package.json'),

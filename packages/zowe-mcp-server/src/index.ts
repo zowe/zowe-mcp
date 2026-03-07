@@ -35,11 +35,12 @@ import { fileURLToPath } from 'node:url';
 import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
 import type {
+  CeedumpCollectedEventData,
   OpenDatasetInEditorEventData,
   OpenJobInEditorEventData,
   OpenUssFileInEditorEventData,
 } from './events.js';
-import { connectExtensionClient } from './extension-client.js';
+import { connectExtensionClient, type ExtensionClient } from './extension-client.js';
 import type { CreateServerOptions, CreateServerResult, ZoweExplorerCallbacks } from './server.js';
 import { createServer, getLogger, getServer, SERVER_VERSION } from './server.js';
 import { startHttp } from './transports/http.js';
@@ -49,7 +50,8 @@ import {
   DEFAULT_MAINFRAME_USS_ENCODING,
   type EncodingOptions,
 } from './zos/encoding.js';
-import { createJobCardStore } from './zos/job-cards.js';
+import { createJobCardStore, type JobCardStore } from './zos/job-cards.js';
+import type { NativeOptions } from './zos/native/ssh-client-cache.js';
 
 /** Response cache config from CLI or env (undefined = use server defaults). */
 interface ResponseCacheConfig {
@@ -349,6 +351,291 @@ function loadNativeConfig(configPath: string): NativeConfig {
   return config;
 }
 
+/**
+ * Build the loadNative callback options that forward events to the VS Code extension pipe.
+ * Only called when the extension client is connected.
+ */
+function buildNativeExtensionCallbacks(
+  extensionClient: ExtensionClient,
+  nativePasswordLog: ReturnType<typeof getLogger>,
+  serverRef: { current: CreateServerResult | null },
+  nativeOptionsRef: { current: NativeOptions }
+): {
+  requestPasswordCallback: (user: string, host: string, port?: number) => void;
+  requestPasswordViaElicitation: (
+    user: string,
+    host: string,
+    port?: number
+  ) => Promise<string | undefined>;
+  onElicitedPasswordUsed: (
+    user: string,
+    host: string,
+    port: number | undefined,
+    password: string
+  ) => void;
+  onPasswordInvalid: (user: string, host: string, port?: number) => void;
+  onCeedumpCollected: (data: CeedumpCollectedEventData) => void;
+  getNativeOptions: () => NativeOptions;
+} {
+  return {
+    requestPasswordCallback: (user, host, port) => {
+      nativePasswordLog.debug('Sending request-password to extension', {
+        user,
+        host,
+        port: port ?? 22,
+      });
+      extensionClient.sendEvent({
+        type: 'request-password',
+        data: { user, host, port },
+        timestamp: Date.now(),
+      });
+    },
+    requestPasswordViaElicitation: async (user, host, port) => {
+      const s = serverRef.current;
+      if (!s) return undefined;
+      const server = getServer(s);
+      const caps = server.server.getClientCapabilities();
+      if (!caps?.elicitation) return undefined;
+      const portNum = port ?? 22;
+      const message =
+        portNum === 22
+          ? `Enter SSH password for ${user}@${host}`
+          : `Enter SSH password for ${user}@${host}:${portNum}`;
+      try {
+        const result = await server.server.elicitInput({
+          mode: 'form',
+          message,
+          requestedSchema: {
+            type: 'object',
+            properties: {
+              password: {
+                type: 'string',
+                title: 'Password',
+                description: `SSH password for ${user}@${host})`,
+              },
+            },
+            required: ['password'],
+          },
+        });
+        if (result.action === 'accept' && result.content?.password) {
+          return result.content.password as string;
+        }
+      } catch (err) {
+        nativePasswordLog.debug('Elicitation failed', {
+          user,
+          host,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+      return undefined;
+    },
+    onElicitedPasswordUsed: (user, host, port, password) => {
+      nativePasswordLog.debug('Sending store-password to extension (elicited password used)');
+      extensionClient.sendEvent({
+        type: 'store-password',
+        data: { user, host, port, password },
+        timestamp: Date.now(),
+      });
+    },
+    onPasswordInvalid: (user, host, port) => {
+      nativePasswordLog.info('Sending password-invalid to extension (auth failed)', {
+        user,
+        host,
+        port: port ?? 22,
+      });
+      extensionClient.sendEvent({
+        type: 'password-invalid',
+        data: { user, host, port },
+        timestamp: Date.now(),
+      });
+    },
+    onCeedumpCollected: data => {
+      extensionClient.sendEvent({
+        type: 'ceedump-collected',
+        data: {
+          path: data.path,
+          reason: data.reason,
+          znpOperation: data.znpOperation,
+          mcpTool: data.mcpTool,
+        },
+        timestamp: Date.now(),
+      });
+    },
+    getNativeOptions: () => nativeOptionsRef.current,
+  };
+}
+
+/** Options for {@link setupExtensionEventHandlers}. Only relevant fields need to be provided. */
+interface ExtensionEventHandlerOptions {
+  logger: ReturnType<typeof getLogger>;
+  transport: 'stdio' | 'http';
+  nativePasswordStore?: {
+    set: (key: string, password: string) => void;
+  };
+  cacheKey?: (spec: { user: string; host: string; port: number }) => string;
+  passwordHash?: (password: string) => string;
+  nativePasswordLog?: ReturnType<typeof getLogger>;
+  jobCardStore?: JobCardStore;
+  nativeOptionsRef?: { current: NativeOptions };
+  encodingOptionsRef?: { current: EncodingOptions };
+  updateSystems?: (systems: string[]) => void;
+  pendingSystemsUpdate?: string[];
+  zoweExplorerCallbacksRef: { current: ZoweExplorerCallbacks | null };
+  zoweExplorerToolsRegisteredRef: { current: boolean };
+  serverRef?: { current: CreateServerResult | null };
+  buildZoweExplorerCallbacks: () => ZoweExplorerCallbacks | null;
+}
+
+/**
+ * Register all Extension-to-Server event handlers on the extension client.
+ * Consolidates the many `extensionClient.onEvent(...)` calls into a single dispatch.
+ */
+function setupExtensionEventHandlers(
+  extensionClient: ExtensionClient,
+  opts: ExtensionEventHandlerOptions
+): void {
+  const { logger } = opts;
+
+  extensionClient.onEvent(event => {
+    switch (event.type) {
+      case 'log-level': {
+        const { level } = event.data;
+        logger.info(`Log level changed to "${level}" by VS Code extension`);
+        logger.setLevel(level);
+        break;
+      }
+
+      case 'password': {
+        if (opts.nativePasswordStore && opts.cacheKey && opts.passwordHash) {
+          const { user, host, port, password } = event.data;
+          const portNum = port ?? 22;
+          const key = opts.cacheKey({ user, host, port: portNum });
+          opts.nativePasswordLog?.debug('Received password from extension', {
+            user,
+            host,
+            port: portNum,
+            key,
+            passwordHash: opts.passwordHash(password),
+          });
+          opts.nativePasswordStore.set(key, password);
+        }
+        break;
+      }
+
+      case 'job-cards-update': {
+        if (opts.jobCardStore) {
+          const { jobCards } = event.data;
+          if (jobCards && typeof jobCards === 'object') {
+            opts.jobCardStore.mergeFromObject(jobCards);
+            logger.info('Applied job-cards-update from VS Code extension', {
+              count: Object.keys(jobCards).length,
+            });
+          }
+        }
+        break;
+      }
+
+      case 'job-card': {
+        if (opts.jobCardStore) {
+          const { user, host, port, jobCard } = event.data;
+          const portNum = port ?? 22;
+          const spec = portNum === 22 ? `${user}@${host}` : `${user}@${host}:${portNum}`;
+          opts.jobCardStore.set(spec, jobCard);
+          logger.info('Stored job card from extension', { connectionSpec: spec });
+        }
+        break;
+      }
+
+      case 'connections-update': {
+        if (opts.updateSystems) {
+          const { connections } = event.data;
+          if (connections.length > 0) {
+            logger.info('Applying connections-update from VS Code extension', {
+              count: connections.length,
+              connections,
+            });
+            opts.updateSystems(connections);
+          }
+        }
+        break;
+      }
+
+      case 'native-options-update': {
+        if (opts.nativeOptionsRef) {
+          const { installZoweNativeServerAutomatically, zoweNativeServerPath, responseTimeout } =
+            event.data;
+          opts.nativeOptionsRef.current = {
+            autoInstallZnp: installZoweNativeServerAutomatically,
+            serverPath: zoweNativeServerPath ?? opts.nativeOptionsRef.current.serverPath,
+            responseTimeout: responseTimeout ?? opts.nativeOptionsRef.current.responseTimeout,
+          };
+          logger.info('Applied native-options-update from VS Code extension', {
+            installZoweNativeServerAutomatically,
+            zoweNativeServerPath: zoweNativeServerPath ?? '(unchanged)',
+            responseTimeout: responseTimeout ?? '(unchanged)',
+          });
+        }
+        break;
+      }
+
+      case 'encoding-options-update': {
+        if (opts.encodingOptionsRef) {
+          const d = event.data;
+          if (d.defaultMainframeMvsEncoding !== undefined) {
+            opts.encodingOptionsRef.current.defaultMainframeMvsEncoding =
+              d.defaultMainframeMvsEncoding;
+          }
+          if (d.defaultMainframeUssEncoding !== undefined) {
+            opts.encodingOptionsRef.current.defaultMainframeUssEncoding =
+              d.defaultMainframeUssEncoding;
+          }
+          logger.info('Applied encoding-options-update from VS Code extension', {
+            defaultMainframeMvsEncoding: d.defaultMainframeMvsEncoding ?? '(unchanged)',
+            defaultMainframeUssEncoding: d.defaultMainframeUssEncoding ?? '(unchanged)',
+          });
+        }
+        break;
+      }
+
+      case 'zowe-explorer-update': {
+        const { available } = event.data;
+        const callbacks = available ? opts.buildZoweExplorerCallbacks() : null;
+        opts.zoweExplorerCallbacksRef.current = callbacks;
+        if (available && callbacks) {
+          if (opts.serverRef?.current && 'registerZoweExplorerTools' in opts.serverRef.current) {
+            if (!opts.zoweExplorerToolsRegisteredRef.current) {
+              opts.serverRef.current.registerZoweExplorerTools(callbacks);
+              opts.zoweExplorerToolsRegisteredRef.current = true;
+              logger.info('Registered Zowe Explorer open-in-editor tools (dynamic update)');
+            }
+            return;
+          }
+          if (opts.transport === 'http') {
+            logger.info(
+              'Zowe Explorer available; new HTTP sessions will have open-in-editor tools'
+            );
+          }
+        } else if (!available) {
+          logger.info('Zowe Explorer no longer reported available by extension');
+        }
+        break;
+      }
+
+      default:
+        break;
+    }
+  });
+
+  // Apply pending systems list sent on connect (before native setup completed)
+  if (opts.updateSystems && opts.pendingSystemsUpdate && opts.pendingSystemsUpdate.length > 0) {
+    logger.info('Applying initial systems list from extension pipe', {
+      count: opts.pendingSystemsUpdate.length,
+      systems: opts.pendingSystemsUpdate,
+    });
+    opts.updateSystems(opts.pendingSystemsUpdate);
+  }
+}
+
 async function main(): Promise<void> {
   // Run subcommand scripts directly so they work even if yargs doesn't dispatch (e.g. in bundled extension)
   const subcommand = process.argv[2];
@@ -384,16 +671,8 @@ async function main(): Promise<void> {
   let pendingSystemsUpdate: string[] | undefined;
   if (extensionClient) {
     logger.attachExtension(extensionClient);
-
-    // Handle log-level events from the extension
-    extensionClient.onEvent(event => {
-      if (event.type === 'log-level') {
-        const { level } = event.data;
-        logger.info(`Log level changed to "${level}" by VS Code extension`);
-        logger.setLevel(level);
-      }
-    });
-    // Capture connections-update sent on connect (extension sends current list when we connect)
+    // Capture connections-update sent on connect (extension sends current list when we connect).
+    // This temporary handler runs before setupExtensionEventHandlers so we don't miss the initial event.
     extensionClient.onEvent(event => {
       if (event.type === 'connections-update') {
         pendingSystemsUpdate = event.data.connections;
@@ -421,6 +700,18 @@ async function main(): Promise<void> {
   };
   /** True after we've registered Zowe Explorer tools on the stdio server (avoids double registration). */
   const zoweExplorerToolsRegisteredRef = { current: false };
+  /** Native-specific options for setupExtensionEventHandlers; populated in the native branch. */
+  let nativeEventHandlerOpts:
+    | {
+        nativePasswordStore?: { set: (key: string, password: string) => void };
+        cacheKey: (spec: { user: string; host: string; port: number }) => string;
+        passwordHash: (password: string) => string;
+        nativePasswordLog: ReturnType<typeof getLogger>;
+        jobCardStore: JobCardStore;
+        nativeOptionsRef: { current: NativeOptions };
+        updateSystems?: (systems: string[]) => void;
+      }
+    | undefined;
   if (mockDir) {
     const { loadMock } = await import('./zos/mock/load-mock.js');
     const mock = await loadMock(mockDir);
@@ -472,10 +763,7 @@ async function main(): Promise<void> {
     const { cacheKey } = await import('./zos/native/ssh-client-cache.js');
     const { passwordHash } = await import('./zos/native/password-hash.js');
     const nativePasswordLog = logger.child('native.password');
-    const nativePasswordStore = extensionClient?.connected
-      ? new WaitablePasswordStore()
-      : undefined;
-    /** Set after createServer() for stdio so elicitation callback can use the server. Not set for HTTP (multi-session). */
+    const nativePasswordStore = extensionConnected ? new WaitablePasswordStore() : undefined;
     serverRef = { current: null };
     const defaultNativeServerPath = '~/.zowe-server';
     const defaultResponseTimeout = 60;
@@ -486,111 +774,23 @@ async function main(): Promise<void> {
         responseTimeout: parsed.nativeResponseTimeout ?? defaultResponseTimeout,
       },
     };
+    const extensionCallbacks =
+      extensionConnected && extensionClient
+        ? buildNativeExtensionCallbacks(
+            extensionClient,
+            nativePasswordLog,
+            serverRef,
+            nativeOptionsRef
+          )
+        : {};
     const nativeSetup = loadNative({
       systems,
-      useEnvForPassword: !extensionClient?.connected,
+      useEnvForPassword: !extensionConnected,
       passwordStore: nativePasswordStore,
-      requestPasswordCallback: extensionClient?.connected
-        ? (user, host, port) => {
-            nativePasswordLog.debug('Sending request-password to extension', {
-              user,
-              host,
-              port: port ?? 22,
-            });
-            extensionClient.sendEvent({
-              type: 'request-password',
-              data: { user, host, port },
-              timestamp: Date.now(),
-            });
-          }
-        : undefined,
-      requestPasswordViaElicitation: extensionClient?.connected
-        ? async (user, host, port) => {
-            if (!serverRef) return undefined;
-            const s = serverRef.current;
-            if (!s) return undefined;
-            const server = getServer(s);
-            const caps = server.server.getClientCapabilities();
-            // Per MCP spec, empty elicitation object defaults to form mode
-            if (!caps?.elicitation) return undefined;
-            const portNum = port ?? 22;
-            const message =
-              portNum === 22
-                ? `Enter SSH password for ${user}@${host}`
-                : `Enter SSH password for ${user}@${host}:${portNum}`;
-            try {
-              const result = await server.server.elicitInput({
-                mode: 'form',
-                message,
-                requestedSchema: {
-                  type: 'object',
-                  properties: {
-                    password: {
-                      type: 'string',
-                      title: 'Password',
-                      description: `SSH password for ${user}@${host})`,
-                    },
-                  },
-                  required: ['password'],
-                },
-              });
-              if (result.action === 'accept' && result.content?.password) {
-                return result.content.password as string;
-              }
-            } catch (err) {
-              nativePasswordLog.debug('Elicitation failed', {
-                user,
-                host,
-                error: err instanceof Error ? err.message : String(err),
-              });
-            }
-            return undefined;
-          }
-        : undefined,
-      onElicitedPasswordUsed: extensionClient?.connected
-        ? (user, host, port, password) => {
-            nativePasswordLog.debug(
-              'Sending store-password to extension (elicited password used)'
-            );
-            extensionClient.sendEvent({
-              type: 'store-password',
-              data: { user, host, port, password },
-              timestamp: Date.now(),
-            });
-          }
-        : undefined,
-      onPasswordInvalid: extensionClient?.connected
-        ? (user, host, port) => {
-            nativePasswordLog.info('Sending password-invalid to extension (auth failed)', {
-              user,
-              host,
-              port: port ?? 22,
-            });
-            extensionClient.sendEvent({
-              type: 'password-invalid',
-              data: { user, host, port },
-              timestamp: Date.now(),
-            });
-          }
-        : undefined,
-      onCeedumpCollected: extensionClient?.connected
-        ? data => {
-            extensionClient.sendEvent({
-              type: 'ceedump-collected',
-              data: {
-                path: data.path,
-                reason: data.reason,
-                znpOperation: data.znpOperation,
-                mcpTool: data.mcpTool,
-              },
-              timestamp: Date.now(),
-            });
-          }
-        : undefined,
+      ...extensionCallbacks,
       autoInstallZnp: parsed.nativeServerAutoInstall ?? true,
       nativeServerPath: parsed.nativeServerPath,
       responseTimeout: parsed.nativeResponseTimeout ?? defaultResponseTimeout,
-      getNativeOptions: extensionClient?.connected ? () => nativeOptionsRef.current : undefined,
     });
     encodingOptionsRef = {
       current: {
@@ -605,131 +805,17 @@ async function main(): Promise<void> {
       encodingOptions: encodingOptionsRef,
       jobCardStore,
     };
-    
-    // Todo: there is a lot of extensionClient? conditions can it be extracted to one function?
-    if (extensionClient?.connected && nativePasswordStore) {
-      extensionClient.onEvent(event => {
-        if (event.type === 'password') {
-          const { user, host, port, password } = event.data;
-          const portNum = port ?? 22;
-          const key = cacheKey({ user, host, port: portNum });
-          nativePasswordLog.debug('Received password from extension', {
-            user,
-            host,
-            port: portNum,
-            key,
-            passwordHash: passwordHash(password),
-          });
-          nativePasswordStore.set(key, password);
-          // Any getCredentials() waiting on waitFor(key) will now resolve.
-        }
-      });
-    }
-    if (extensionClient?.connected) {
-      extensionClient.onEvent(event => {
-        if (event.type === 'job-cards-update') {
-          const { jobCards } = event.data;
-          if (jobCards && typeof jobCards === 'object') {
-            jobCardStore.mergeFromObject(jobCards);
-            logger.info('Applied job-cards-update from VS Code extension', {
-              count: Object.keys(jobCards).length,
-            });
-          }
-        }
-        if (event.type === 'job-card') {
-          const { user, host, port, jobCard } = event.data;
-          const portNum = port ?? 22;
-          const spec = portNum === 22 ? `${user}@${host}` : `${user}@${host}:${portNum}`;
-          jobCardStore.set(spec, jobCard);
-          logger.info('Stored job card from extension', { connectionSpec: spec });
-        }
-      });
-    }
-    const updateSystems = nativeSetup.updateSystems;
-    if (extensionClient?.connected && updateSystems) {
-      extensionClient.onEvent(event => {
-        if (event.type === 'connections-update') {
-          const { connections } = event.data;
-          if (connections.length > 0) {
-            logger.info('Applying connections-update from VS Code extension', {
-              count: connections.length,
-              connections,
-            });
-            updateSystems(connections);
-          }
-        }
-        if (event.type === 'native-options-update') {
-          const { installZoweNativeServerAutomatically, zoweNativeServerPath, responseTimeout } =
-            event.data;
-          nativeOptionsRef.current = {
-            autoInstallZnp: installZoweNativeServerAutomatically,
-            serverPath: zoweNativeServerPath ?? nativeOptionsRef.current.serverPath,
-            responseTimeout: responseTimeout ?? nativeOptionsRef.current.responseTimeout,
-          };
-          logger.info('Applied native-options-update from VS Code extension', {
-            installZoweNativeServerAutomatically,
-            zoweNativeServerPath: zoweNativeServerPath ?? '(unchanged)',
-            responseTimeout: responseTimeout ?? '(unchanged)',
-          });
-        }
-      });
-      // Apply list sent on connect (in case process args were stale, e.g. VS Code cached definition)
-      if (pendingSystemsUpdate && pendingSystemsUpdate.length > 0) {
-        logger.info('Applying initial systems list from extension pipe', {
-          count: pendingSystemsUpdate.length,
-          systems: pendingSystemsUpdate,
-        });
-        updateSystems(pendingSystemsUpdate);
-      }
-    }
+    nativeEventHandlerOpts = {
+      nativePasswordStore,
+      cacheKey,
+      passwordHash,
+      nativePasswordLog,
+      jobCardStore,
+      nativeOptionsRef,
+      updateSystems: nativeSetup.updateSystems,
+    };
     logger.info('Native (SSH) mode enabled', {
       systems: nativeSetup.systemRegistry.list(),
-    });
-  }
-
-  // When extension is connected and we have encoding options, handle runtime updates (mock or native)
-  if (encodingOptionsRef && extensionClient?.connected) {
-    extensionClient.onEvent(event => {
-      if (event.type === 'encoding-options-update') {
-        const d = event.data;
-        if (d.defaultMainframeMvsEncoding !== undefined) {
-          encodingOptionsRef.current.defaultMainframeMvsEncoding = d.defaultMainframeMvsEncoding;
-        }
-        if (d.defaultMainframeUssEncoding !== undefined) {
-          encodingOptionsRef.current.defaultMainframeUssEncoding = d.defaultMainframeUssEncoding;
-        }
-        logger.info('Applied encoding-options-update from VS Code extension', {
-          defaultMainframeMvsEncoding: d.defaultMainframeMvsEncoding ?? '(unchanged)',
-          defaultMainframeUssEncoding: d.defaultMainframeUssEncoding ?? '(unchanged)',
-        });
-      }
-    });
-  }
-
-  if (extensionClient?.connected) {
-    extensionClient.onEvent(event => {
-      if (event.type === 'zowe-explorer-update') {
-        const { available } = event.data;
-        const callbacks = available ? buildZoweExplorerCallbacks() : null;
-        zoweExplorerCallbacksRef.current = callbacks;
-        if (available && callbacks) {
-          if (serverRef?.current && 'registerZoweExplorerTools' in serverRef.current) {
-            if (!zoweExplorerToolsRegisteredRef.current) {
-              serverRef.current.registerZoweExplorerTools(callbacks);
-              zoweExplorerToolsRegisteredRef.current = true;
-              logger.info('Registered Zowe Explorer open-in-editor tools (dynamic update)');
-            }
-            return;
-          }
-          if (transport === 'http') {
-            logger.info(
-              'Zowe Explorer available; new HTTP sessions will have open-in-editor tools'
-            );
-          }
-        } else if (!available) {
-          logger.info('Zowe Explorer no longer reported available by extension');
-        }
-      }
     });
   }
 
@@ -763,6 +849,21 @@ async function main(): Promise<void> {
       },
     };
   };
+
+  // Register all extension event handlers in one consolidated dispatch
+  if (extensionClient?.connected) {
+    setupExtensionEventHandlers(extensionClient, {
+      logger,
+      transport,
+      ...nativeEventHandlerOpts,
+      encodingOptionsRef,
+      pendingSystemsUpdate,
+      zoweExplorerCallbacksRef,
+      zoweExplorerToolsRegisteredRef,
+      serverRef,
+      buildZoweExplorerCallbacks,
+    });
+  }
 
   if (process.env.ZOWE_EXPLORER_AVAILABLE === '1' && extensionClient?.connected === true) {
     const callbacks = buildZoweExplorerCallbacks();

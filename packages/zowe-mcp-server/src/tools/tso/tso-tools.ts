@@ -22,7 +22,7 @@ import type { Logger } from '../../log.js';
 import type { ZosBackend } from '../../zos/backend.js';
 import type { CredentialProvider } from '../../zos/credentials.js';
 import type { ResponseCache } from '../../zos/response-cache.js';
-import { buildCacheKey, buildScopeSystem } from '../../zos/response-cache.js';
+import { buildCacheKey, buildScopeSystem, withCache } from '../../zos/response-cache.js';
 import { resolveSystemForTool, type SessionState } from '../../zos/session.js';
 import type { SystemRegistry } from '../../zos/system.js';
 import { createToolProgress } from '../progress.js';
@@ -191,32 +191,16 @@ export function registerTsoTools(server: McpServer, deps: TsoToolDeps, logger: L
         const isPaging = startLine !== undefined || lineCount !== undefined;
         let fullOutput: string;
 
-        if (!isPaging) {
-          fullOutput = await deps.backend.runTsoCommand(systemId, commandText, userId, progressCb);
-          if (deps.responseCache) {
-            deps.responseCache.set(cacheKey, { text: fullOutput }, [scope]);
-          }
+        const fetchCmd = async () => {
+          const out = await deps.backend.runTsoCommand(systemId, commandText, userId, progressCb);
+          return { text: out };
+        };
+        if (!isPaging && deps.responseCache) {
+          const result = await fetchCmd();
+          deps.responseCache.set(cacheKey, result, [scope]);
+          fullOutput = result.text;
         } else {
-          if (deps.responseCache) {
-            // TODO: Can we do it smarter without duplicating the call - something like withCache(...)?
-            const cached = await deps.responseCache.getOrFetch(cacheKey, async () => {
-              const out = await deps.backend.runTsoCommand(
-                systemId,
-                commandText,
-                userId,
-                progressCb
-              );
-              return { text: out };
-            }, [scope]);
-            fullOutput = cached.text;
-          } else {
-            fullOutput = await deps.backend.runTsoCommand(
-              systemId,
-              commandText,
-              userId,
-              progressCb
-            );
-          }
+          fullOutput = (await withCache(deps.responseCache, cacheKey, fetchCmd, [scope])).text;
         }
 
         const sanitized = sanitizeTextForDisplay(fullOutput);

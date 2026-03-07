@@ -70,7 +70,7 @@ Items to address later. Not ordered by priority.
 ## Code Quality / Refactoring
 
 - ✅ **Extract `extensionClient?` conditions**: Extracted to `buildNativeExtensionCallbacks()` (loadNative callback options) and `setupExtensionEventHandlers()` (single consolidated event dispatch) in `index.ts`.
-- **Extract `withCache()` helper**: The cache get/set pattern is duplicated across tools (e.g. TSO, datasets); create a reusable `withCache()` wrapper.
+- ✅ **Extract `withCache()` helper**: Added `withCache()` to `response-cache.ts`; replaced 4 ternaries in `dataset-tools.ts`, 2 in `uss-tools.ts`, and simplified the TSO execute-or-cache block in `tso-tools.ts`.
 - **Shared utils package**: `plural()` and logger formatting exist in both `zowe-mcp-server` and `zowe-mcp-evals`; consider a shared `zowe-mcp-common` package or import from server.
 - **Code duplication detection**: Find or build a tool that AI agents can use to detect code duplication (exact or intent-based) across the codebase.
 

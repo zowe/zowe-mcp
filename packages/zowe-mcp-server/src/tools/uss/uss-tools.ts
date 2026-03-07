@@ -24,7 +24,7 @@ import type { CredentialProvider } from '../../zos/credentials.js';
 import type { EncodingOptions } from '../../zos/encoding.js';
 import { resolveDatasetEncoding } from '../../zos/encoding.js';
 import type { ResponseCache } from '../../zos/response-cache.js';
-import { buildCacheKey, buildScopeSystem } from '../../zos/response-cache.js';
+import { buildCacheKey, buildScopeSystem, withCache } from '../../zos/response-cache.js';
 import { resolveSystemForTool, type SessionState } from '../../zos/session.js';
 import type { SystemRegistry } from '../../zos/system.js';
 import { relativizeForDisplay, resolveUssPath } from '../../zos/uss-path.js';
@@ -368,32 +368,25 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
           ? (msg: string) => void progress.step(msg)
           : undefined;
 
-        const items = deps.responseCache
-          ? await deps.responseCache.getOrFetch(
-              buildCacheKey('listUssFiles', {
-                systemId,
-                path: resolvedPath,
-                userId: userId ?? '',
-                includeHidden: String(includeHidden ?? false),
-                longFormat: String(longFormat ?? false),
-              }),
-              () =>
-                deps.backend.listUssFiles(
-                  systemId,
-                  resolvedPath,
-                  { includeHidden, longFormat },
-                  userId,
-                  progressCb
-                ),
-              [buildScopeSystem(systemId)]
-            )
-          : await deps.backend.listUssFiles(
+        const items = await withCache(
+          deps.responseCache,
+          buildCacheKey('listUssFiles', {
+            systemId,
+            path: resolvedPath,
+            userId: userId ?? '',
+            includeHidden: String(includeHidden ?? false),
+            longFormat: String(longFormat ?? false),
+          }),
+          () =>
+            deps.backend.listUssFiles(
               systemId,
               resolvedPath,
               { includeHidden, longFormat },
               userId,
               progressCb
-            );
+            ),
+          [buildScopeSystem(systemId)]
+        );
 
         const { data: pageItems, meta } = paginateList(
           items,
@@ -541,18 +534,17 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
           ? (msg: string) => void progress.step(msg)
           : undefined;
 
-        const result = deps.responseCache
-          ? await deps.responseCache.getOrFetch(
-              buildCacheKey('readUssFile', {
-                systemId,
-                path: resolvedPath,
-                encoding: enc,
-                userId: userId ?? '',
-              }),
-              () => deps.backend.readUssFile(systemId, resolvedPath, enc, userId, progressCb),
-              [buildScopeSystem(systemId)]
-            )
-          : await deps.backend.readUssFile(systemId, resolvedPath, enc, userId, progressCb);
+        const result = await withCache(
+          deps.responseCache,
+          buildCacheKey('readUssFile', {
+            systemId,
+            path: resolvedPath,
+            encoding: enc,
+            userId: userId ?? '',
+          }),
+          () => deps.backend.readUssFile(systemId, resolvedPath, enc, userId, progressCb),
+          [buildScopeSystem(systemId)]
+        );
 
         const sanitized = sanitizeTextForDisplay(result.text);
         const { text, meta, mimeType } = windowContent(sanitized, startLine, lineCount);

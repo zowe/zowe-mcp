@@ -40,6 +40,7 @@ import {
   buildScopeDsn,
   buildScopeMember,
   buildScopeSystem,
+  withCache,
   type ResponseCache,
 } from '../../zos/response-cache.js';
 import { buildParmsFromOptions, SEARCH_COMMENT_TYPES } from '../../zos/search-options.js';
@@ -361,33 +362,18 @@ export function registerDatasetTools(
         const progressCb = extra._meta?.progressToken
           ? (msg: string) => void progress.step(msg)
           : undefined;
-        const datasets = deps.responseCache
-          ? await deps.responseCache.getOrFetch(
-              buildCacheKey('listDatasets', {
-                systemId,
-                userId: userId ?? '',
-                pattern: resolvedPattern,
-                volser: volser ?? '',
-              }),
-              () =>
-                deps.backend.listDatasets(
-                  systemId,
-                  resolvedPattern,
-                  volser,
-                  userId,
-                  true,
-                  progressCb
-                ),
-              [buildScopeSystem(systemId)]
-            )
-          : await deps.backend.listDatasets(
-              systemId,
-              resolvedPattern,
-              volser,
-              userId,
-              true,
-              progressCb
-            );
+        const datasets = await withCache(
+          deps.responseCache,
+          buildCacheKey('listDatasets', {
+            systemId,
+            userId: userId ?? '',
+            pattern: resolvedPattern,
+            volser: volser ?? '',
+          }),
+          () =>
+            deps.backend.listDatasets(systemId, resolvedPattern, volser, userId, true, progressCb),
+          [buildScopeSystem(systemId)]
+        );
 
         // Enrich: default migrated, add resource links, clean VSAM pseudo-volser
         const enriched = datasets.map((ds: DatasetEntry) => {
@@ -410,9 +396,7 @@ export function registerDatasetTools(
         const { data, meta } = paginateList(enriched, offset ?? 0, limit ?? DEFAULT_LIST_LIMIT);
 
         // Apply detail-level field filtering
-        const filtered = data.map(entry =>
-          filterDatasetFields(entry as unknown as Record<string, unknown>, effectiveDetail)
-        );
+        const filtered = data.map(entry => filterDatasetFields(entry, effectiveDetail));
 
         const ctx = buildContext(systemId, {
           resolvedPattern: resolvedOnlyIfDifferent(resolvedPattern, dsnPattern),
@@ -482,18 +466,17 @@ export function registerDatasetTools(
         const progressCb = extra._meta?.progressToken
           ? (msg: string) => void progress.step(msg)
           : undefined;
-        const members = deps.responseCache
-          ? await deps.responseCache.getOrFetch(
-              buildCacheKey('listMembers', {
-                systemId,
-                userId: userId ?? '',
-                dsn: resolvedDsn,
-                memberPattern: memberPattern ?? '',
-              }),
-              () => deps.backend.listMembers(systemId, resolvedDsn, memberPattern, progressCb),
-              [buildScopeDsn(systemId, resolvedDsn)]
-            )
-          : await deps.backend.listMembers(systemId, resolvedDsn, memberPattern, progressCb);
+        const members = await withCache(
+          deps.responseCache,
+          buildCacheKey('listMembers', {
+            systemId,
+            userId: userId ?? '',
+            dsn: resolvedDsn,
+            memberPattern: memberPattern ?? '',
+          }),
+          () => deps.backend.listMembers(systemId, resolvedDsn, memberPattern, progressCb),
+          [buildScopeDsn(systemId, resolvedDsn)]
+        );
 
         // Paginate and map name -> member for response
         const { data: rawData, meta } = paginateList(
@@ -654,31 +637,25 @@ export function registerDatasetTools(
         const progressCb = extra._meta?.progressToken
           ? (msg: string) => void progress.step(msg)
           : undefined;
-        const fullResult = deps.responseCache
-          ? await deps.responseCache.getOrFetch(
-              buildCacheKey('searchInDataset', {
-                systemId: resolved.systemId,
-                dsn: resolved.dsn,
-                member: resolved.member ?? '',
-                string: searchString,
-                parms,
-                encoding: resolvedEncoding,
-              }),
-              () =>
-                deps.backend.searchInDataset(
-                  resolved.systemId,
-                  resolved.dsn,
-                  searchOptions,
-                  progressCb
-                ),
-              [buildScopeDsn(resolved.systemId, resolved.dsn)]
-            )
-          : await deps.backend.searchInDataset(
+        const fullResult = await withCache(
+          deps.responseCache,
+          buildCacheKey('searchInDataset', {
+            systemId: resolved.systemId,
+            dsn: resolved.dsn,
+            member: resolved.member ?? '',
+            string: searchString,
+            parms,
+            encoding: resolvedEncoding,
+          }),
+          () =>
+            deps.backend.searchInDataset(
               resolved.systemId,
               resolved.dsn,
               searchOptions,
               progressCb
-            );
+            ),
+          [buildScopeDsn(resolved.systemId, resolved.dsn)]
+        );
 
         const { members: slicedMembers, meta } = paginateSearchResult(
           fullResult,
@@ -883,35 +860,28 @@ export function registerDatasetTools(
         const progressCb = extra._meta?.progressToken
           ? (msg: string) => void progress.step(msg)
           : undefined;
-        const result = deps.responseCache
-          ? await deps.responseCache.getOrFetch(
-              buildCacheKey('readDataset', {
-                systemId: resolved.systemId,
-                userId,
-                dsn: resolved.dsn,
-                member: resolved.member ?? '',
-                encoding: resolvedEncoding,
-              }),
-              () =>
-                deps.backend.readDataset(
-                  resolved.systemId,
-                  resolved.dsn,
-                  resolved.member,
-                  resolvedEncoding,
-                  progressCb
-                ),
-              [
-                buildScopeDsn(resolved.systemId, resolved.dsn),
-                buildScopeMember(resolved.systemId, resolved.dsn, resolved.member ?? ''),
-              ]
-            )
-          : await deps.backend.readDataset(
+        const result = await withCache(
+          deps.responseCache,
+          buildCacheKey('readDataset', {
+            systemId: resolved.systemId,
+            userId,
+            dsn: resolved.dsn,
+            member: resolved.member ?? '',
+            encoding: resolvedEncoding,
+          }),
+          () =>
+            deps.backend.readDataset(
               resolved.systemId,
               resolved.dsn,
               resolved.member,
               resolvedEncoding,
               progressCb
-            );
+            ),
+          [
+            buildScopeDsn(resolved.systemId, resolved.dsn),
+            buildScopeMember(resolved.systemId, resolved.dsn, resolved.member ?? ''),
+          ]
+        );
 
         const sanitized = sanitizeTextForDisplay(result.text);
         const windowed = windowContent(sanitized, startLine, lineCount);

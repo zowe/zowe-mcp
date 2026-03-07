@@ -189,3 +189,21 @@ export function buildScopeDsn(systemId: string, dsn: string): string {
 export function buildScopeMember(systemId: string, dsn: string, member: string): string {
   return `member:${systemId}:${dsn}:${member}`;
 }
+
+// --- Cache-or-fetch helper ---
+
+/**
+ * Runs `fetch()` through the cache when available, or directly when cache is disabled.
+ * Eliminates the repeated `cache ? cache.getOrFetch(...) : fetch()` ternary at call sites.
+ */
+export async function withCache<T extends object>(
+  cache: ResponseCache | undefined,
+  key: string,
+  fetch: () => Promise<T>,
+  scopes?: string[]
+): Promise<T> {
+  if (cache) {
+    return cache.getOrFetch(key, fetch, scopes);
+  }
+  return fetch();
+}

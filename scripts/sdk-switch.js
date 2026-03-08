@@ -68,11 +68,25 @@ function removeRootOverrides() {
   }
 }
 
-function removeLockfile() {
+function removeSdkIntegrityFromLockfile() {
   const lockPath = path.join(repoRoot, 'package-lock.json');
-  if (fs.existsSync(lockPath)) {
-    fs.unlinkSync(lockPath);
-    console.log('Removed package-lock.json (stale integrity hashes after SDK switch)');
+  if (!fs.existsSync(lockPath)) return;
+
+  const lock = JSON.parse(fs.readFileSync(lockPath, 'utf8'));
+  let changed = false;
+
+  for (const [key, entry] of Object.entries(lock.packages || {})) {
+    if (key.endsWith(`/${PKG_NAME}`) || entry.name === PKG_NAME) {
+      if (entry.integrity) {
+        delete entry.integrity;
+        changed = true;
+        console.log('Removed integrity hash for %s from package-lock.json (%s)', PKG_NAME, key);
+      }
+    }
+  }
+
+  if (changed) {
+    fs.writeFileSync(lockPath, JSON.stringify(lock, null, 2) + '\n', 'utf8');
   }
 }
 
@@ -90,7 +104,7 @@ function handleArtifactory(version) {
   const spec = `^${v}`;
   removeRootOverrides();
   setDependency(spec);
-  removeLockfile();
+  removeSdkIntegrityFromLockfile();
   npmInstall();
   console.log('\nSDK switched to Zowe Artifactory: %s', spec);
 }
@@ -177,7 +191,7 @@ function handlePr(prNumber) {
 
   removeRootOverrides();
   setDependency(relPath);
-  removeLockfile();
+  removeSdkIntegrityFromLockfile();
   npmInstall();
   console.log('\nSDK switched to PR #%s build: sdk-pr/%s', prNumber, tgz);
 }

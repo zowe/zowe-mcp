@@ -202,4 +202,31 @@ if (cacheHit) {
   fs.writeFileSync(cacheHashFile, depsHash);
 }
 
+// Install zowe-mcp-common into out/node_modules/ so the extension code
+// (out/extension.js) can resolve `require("zowe-mcp-common")` at runtime.
+// We use out/node_modules/ because out/ is included in the VSIX (via !out/**
+// in .vscodeignore) while the root node_modules/ is excluded by .gitignore.
+const outDir = path.join(extDir, 'out');
+const outCommonDir = path.join(outDir, 'node_modules', 'zowe-mcp-common');
+fs.mkdirSync(outCommonDir, { recursive: true });
+const commonDistDir = path.join(commonPkg, 'dist');
+if (!fs.existsSync(commonDistDir)) {
+  throw new Error('zowe-mcp-common has no dist/ — run "npm run build" first.');
+}
+fs.cpSync(commonDistDir, path.join(outCommonDir, 'dist'), { recursive: true });
+const commonPkgJson = JSON.parse(fs.readFileSync(path.join(commonPkg, 'package.json'), 'utf-8'));
+fs.writeFileSync(
+  path.join(outCommonDir, 'package.json'),
+  JSON.stringify(
+    {
+      name: commonPkgJson.name,
+      version: commonPkgJson.version,
+      main: commonPkgJson.main,
+      types: commonPkgJson.types,
+    },
+    null,
+    2
+  )
+);
+
 console.log('Server bundled successfully into server/');

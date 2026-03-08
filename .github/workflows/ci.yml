@@ -49,7 +49,7 @@ jobs:
       - run: npm run test
 
       - name: Generate MCP reference docs
-        run: npx zowe-mcp-server generate-docs --output docs/mcp-reference.md
+        run: node packages/zowe-mcp-server/dist/index.js generate-docs --output docs/mcp-reference.md
 
       - name: Build VS Code extension (VSIX)
         working-directory: packages/zowe-mcp-vscode

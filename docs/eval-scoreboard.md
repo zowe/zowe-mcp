@@ -112,3 +112,30 @@ Automatically updated by `npm run eval-compare`.
 | 2026-03-07 | gemini-3-flash-all        | gemini-3-flash   | gemini-3-flash-preview          | tso                 | 3         | 100.0%    | 6      | 6     | 0fefa64 |           |          |
 | 2026-03-07 | gemini-3-flash-all        | gemini-3-flash   | gemini-3-flash-preview          | uss-copy            | 3         | 100.0%    | 6      | 6     | 0fefa64 |           |          |
 | 2026-03-07 | gemini-3-flash-all        | gemini-3-flash   | gemini-3-flash-preview          | uss                 | 4         | 100.0%    | 8      | 8     | 0fefa64 |           |          |
+| 2026-03-07 | after-assertion-fixes     | gemini-3-flash   | gemini-3-flash-preview          | context             | 2         | 100.0%    | 4      | 4     | 79f2287 | c1ed4994  |          |
+| 2026-03-07 | after-assertion-fixes     | gemini-3-flash   | gemini-3-flash-preview          | core                | 1         | 100.0%    | 2      | 2     | 79f2287 | c1ed4994  |          |
+| 2026-03-07 | after-assertion-fixes     | gemini-3-flash   | gemini-3-flash-preview          | dataset-attributes  | 1         | 100.0%    | 2      | 2     | 79f2287 | c1ed4994  |          |
+| 2026-03-07 | after-assertion-fixes     | gemini-3-flash   | gemini-3-flash-preview          | dataset-copy-rename | 2         | 100.0%    | 4      | 4     | 79f2287 | c1ed4994  |          |
+| 2026-03-07 | after-assertion-fixes     | gemini-3-flash   | gemini-3-flash-preview          | datasets            | 5         | 100.0%    | 10     | 10    | 79f2287 | c1ed4994  |          |
+| 2026-03-07 | after-assertion-fixes     | gemini-3-flash   | gemini-3-flash-preview          | description-quality | 11        | 97.3%     | 107    | 110   | 79f2287 | c1ed4994  |          |
+| 2026-03-07 | after-assertion-fixes     | gemini-3-flash   | gemini-3-flash-preview          | detail-levels       | 4         | 100.0%    | 20     | 20    | 79f2287 | c1ed4994  |          |
+| 2026-03-07 | after-assertion-fixes     | gemini-3-flash   | gemini-3-flash-preview          | jobs                | 4         | 100.0%    | 4      | 4     | 79f2287 | c1ed4994  |          |
+| 2026-03-07 | after-assertion-fixes     | gemini-3-flash   | gemini-3-flash-preview          | mutations           | 2         | 100.0%    | 10     | 10    | 79f2287 | c1ed4994  |          |
+| 2026-03-07 | after-assertion-fixes     | gemini-3-flash   | gemini-3-flash-preview          | naming-stress       | 18        | 98.3%     | 177    | 180   | 79f2287 | c1ed4994  |          |
+| 2026-03-07 | after-assertion-fixes     | gemini-3-flash   | gemini-3-flash-preview          | pagination          | 2         | 100.0%    | 4      | 4     | 79f2287 | c1ed4994  |          |
+| 2026-03-07 | after-assertion-fixes     | gemini-3-flash   | gemini-3-flash-preview          | read-pagination     | 1         | 100.0%    | 2      | 2     | 79f2287 | c1ed4994  |          |
+| 2026-03-07 | after-assertion-fixes     | gemini-3-flash   | gemini-3-flash-preview          | restore-dataset     | 1         | 100.0%    | 1      | 1     | 79f2287 | c1ed4994  |          |
+| 2026-03-07 | after-assertion-fixes     | gemini-3-flash   | gemini-3-flash-preview          | search-pagination   | 1         | 50.0%     | 1      | 2     | 79f2287 | c1ed4994  |          |
+| 2026-03-07 | after-assertion-fixes     | gemini-3-flash   | gemini-3-flash-preview          | search              | 2         | 75.0%     | 3      | 4     | 79f2287 | c1ed4994  |          |
+| 2026-03-07 | after-assertion-fixes     | gemini-3-flash   | gemini-3-flash-preview          | sms-allocation      | 4         | 100.0%    | 20     | 20    | 79f2287 | c1ed4994  |          |
+| 2026-03-07 | after-assertion-fixes     | gemini-3-flash   | gemini-3-flash-preview          | tso                 | 3         | 100.0%    | 6      | 6     | 79f2287 | c1ed4994  |          |
+| 2026-03-07 | after-assertion-fixes     | gemini-3-flash   | gemini-3-flash-preview          | uss-copy            | 3         | 100.0%    | 6      | 6     | 79f2287 | c1ed4994  |          |
+| 2026-03-07 | after-assertion-fixes     | gemini-3-flash   | gemini-3-flash-preview          | uss                 | 4         | 100.0%    | 8      | 8     | 79f2287 | c1ed4994  |          |
+| 2026-03-08 | after-validDsn            | gemini-3-flash   | gemini-3-flash-preview          | datasets            | 5         | 100.0%    | 10     | 10    | 79f2287 | 7ef1ed03  |          |
+| 2026-03-08 | after-validDsn            | gemini-3-flash   | gemini-3-flash-preview          | description-quality | 11        | 92.7%     | 102    | 110   | 79f2287 | 7ef1ed03  |          |
+| 2026-03-08 | after-validDsn            | gemini-3-flash   | gemini-3-flash-preview          | search              | 2         | 100.0%    | 4      | 4     | 79f2287 | 7ef1ed03  |          |
+| 2026-03-08 | after-validDsn            | gemini-3-flash   | gemini-3-flash-preview          | naming-stress       | 18        | 98.9%     | 178    | 180   | 79f2287 | 7ef1ed03  |          |
+| 2026-03-08 | after-validDsn            | gemini-3-flash   | gemini-3-flash-preview          | search-pagination   | 1         | 50.0%     | 1      | 2     | 79f2287 | 7ef1ed03  |          |
+| 2026-03-08 | after-validDsn            | gemini-3-flash   | gemini-3-flash-preview          | dataset-attributes  | 1         | 100.0%    | 2      | 2     | 79f2287 | 7ef1ed03  |          |
+| 2026-03-08 | after-validDsn            | gemini-3-flash   | gemini-3-flash-preview          | sms-allocation      | 4         | 100.0%    | 20     | 20    | 79f2287 | 7ef1ed03  |          |
+| 2026-03-08 | after-validDsn            | gemini-3-flash   | gemini-3-flash-preview          | pagination          | 2         | 100.0%    | 4      | 4     | 79f2287 | 7ef1ed03  |          |

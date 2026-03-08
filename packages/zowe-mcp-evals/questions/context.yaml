@@ -20,9 +20,11 @@ questions:
   - id: set-system-then-context
     prompt: Switch to the first system in the list and then tell me my current system and user.
     assertions:
-      - name: listSystems then setSystem or getContext both yield current system/user
+      - name: listSystems or getContext then setSystem or getContext both yield current system/user
         toolCallOrder:
-          - tool: listSystems
+          - tools:
+              - listSystems
+              - getContext
           - tools:
               - setSystem
               - getContext

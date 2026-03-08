@@ -10,32 +10,44 @@ config:
     initArgs: --preset pagination
 
 questions:
-  # All 4 pages: offset 0, 500, 1000, 1500 (limit 500 each).
+  # All 4 pages: offset 0, 500, 1000, 1500 (limit 500 each; limit optional when default).
   - id: list-members-inventory-all-pages
     prompt: List members of USER.INVNTORY
     assertions:
       - name: listMembers pagination across 4 pages
         toolCallOrder:
           - tool: listMembers
-            args: { dsn: "USER.INVNTORY" }
+            args: { validDsn: "USER.INVNTORY" }
           - tool: listMembers
-            args: { dsn: "USER.INVNTORY", offset: 500, limit: 500 }
+            args:
+              - { validDsn: "USER.INVNTORY", offset: 500, limit: 500 }
+              - { validDsn: "USER.INVNTORY", offset: 500 }
           - tool: listMembers
-            args: { dsn: "USER.INVNTORY", offset: 1000, limit: 500 }
+            args:
+              - { validDsn: "USER.INVNTORY", offset: 1000, limit: 500 }
+              - { validDsn: "USER.INVNTORY", offset: 1000 }
           - tool: listMembers
-            args: { dsn: "USER.INVNTORY", offset: 1500, limit: 500 }
+            args:
+              - { validDsn: "USER.INVNTORY", offset: 1500, limit: 500 }
+              - { validDsn: "USER.INVNTORY", offset: 1500 }
       - answerContains:
           pattern: "2,?000"
 
-  # listDatasets USER.PEOPLE.*: 2 pages (offset 0, 500 with limit 500 each).
+  # listDatasets USER.PEOPLE: 2 pages (offset 0, 500 with limit 500 each; pattern/limit variants accepted).
   - id: list-datasets-people-all-pages
     prompt: List data sets under USER.PEOPLE
     assertions:
       - name: listDatasets pagination across 2 pages
         toolCallOrder:
           - tool: listDatasets
-            args: { dsnPattern: "USER.PEOPLE.*" }
+            args:
+              - { dsnPattern: "USER.PEOPLE.*" }
+              - { dsnPattern: "USER.PEOPLE.**" }
           - tool: listDatasets
-            args: { dsnPattern: "USER.PEOPLE.*", offset: 500, limit: 500 }
+            args:
+              - { dsnPattern: "USER.PEOPLE.*", offset: 500, limit: 500 }
+              - { dsnPattern: "USER.PEOPLE.**", offset: 500, limit: 500 }
+              - { dsnPattern: "USER.PEOPLE.*", offset: 500 }
+              - { dsnPattern: "USER.PEOPLE.**", offset: 500 }
       - answerContains:
           pattern: "1,?000"

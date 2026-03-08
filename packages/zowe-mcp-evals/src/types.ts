@@ -82,7 +82,8 @@ export interface AssertToolCallOrder {
   sequence: {
     tool?: string;
     tools?: string[];
-    args?: Record<string, unknown>;
+    /** Partial match. If array, step matches when actual args match any element. */
+    args?: Record<string, unknown> | Record<string, unknown>[];
   }[];
 }
 

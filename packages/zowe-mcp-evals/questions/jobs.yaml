@@ -32,11 +32,7 @@ questions:
       - toolCall:
           tool: submitJobFromDataset
           args:
-            dsn:
-              - "SYS1.SAMPLIB(BPXISJCL)"
-              - "'SYS1.SAMPLIB(BPXISJCL)'"
-              - "SYS1.SAMPLIB"
-              - "'SYS1.SAMPLIB'"
+            validDsn: "SYS1.SAMPLIB(BPXISJCL)"
 
   - id: list-jobs-then-spool-and-read
     prompt: List my jobs, then list the spool files for the most recent job and show me the content of the first spool file.

@@ -88,22 +88,23 @@ function parseAssertionItem(raw: unknown): AssertionItem {
 function parseToolCallOrderStep(s: unknown): {
   tool?: string;
   tools?: string[];
-  args?: Record<string, unknown>;
+  args?: Record<string, unknown> | Record<string, unknown>[];
 } {
   if (!s || typeof s !== 'object') throw new Error('toolCallOrder step must be an object');
   const step = s as Record<string, unknown>;
   const tool = step.tool as string | undefined;
   const tools = step.tools as string[] | undefined;
+  const args = step.args;
+  const argsOut =
+    args === undefined
+      ? undefined
+      : Array.isArray(args)
+        ? (args as Record<string, unknown>[])
+        : (args as Record<string, unknown>);
   if (tool !== undefined && typeof tool === 'string' && tool.trim())
-    return {
-      tool: tool.trim(),
-      args: step.args as Record<string, unknown> | undefined,
-    };
+    return { tool: tool.trim(), args: argsOut };
   if (Array.isArray(tools) && tools.length > 0)
-    return {
-      tools: tools.map((t: unknown) => String(t).trim()),
-      args: step.args as Record<string, unknown> | undefined,
-    };
+    return { tools: tools.map((t: unknown) => String(t).trim()), args: argsOut };
   throw new Error('toolCallOrder step must have tool (string) or tools (non-empty array)');
 }
 

@@ -16,9 +16,7 @@ questions:
       - toolCall:
           tool: createDataset
           args:
-            dsn:
-              - "USER.TEST.VOLDATA"
-              - "'USER.TEST.VOLDATA'"
+            validDsn: "USER.TEST.VOLDATA"
             type:
               - "PS"
               - "SEQUENTIAL"
@@ -32,9 +30,7 @@ questions:
       - toolCall:
           tool: createDataset
           args:
-            dsn:
-              - "USER.TEST.SMSDATA"
-              - "'USER.TEST.SMSDATA'"
+            validDsn: "USER.TEST.SMSDATA"
             dataClass: "DCLAS01"
             storageClass: "SCLAS01"
 
@@ -44,9 +40,7 @@ questions:
       - toolCall:
           tool: createDataset
           args:
-            dsn:
-              - "USER.TEST.MANAGED"
-              - "'USER.TEST.MANAGED'"
+            validDsn: "USER.TEST.MANAGED"
             type:
               - "PO-E"
               - "PDSE"
@@ -59,10 +53,7 @@ questions:
       - toolCall:
           tool: createDataset
           args:
-            dsn:
-            # todo: can we use some pattern or special directive like validDsn here are elsewhere?
-              - "USER.TEST.FULL"
-              - "'USER.TEST.FULL'"
+            validDsn: "USER.TEST.FULL"
             type:
               - "PS"
               - "SEQUENTIAL"

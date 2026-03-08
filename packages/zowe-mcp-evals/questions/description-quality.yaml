@@ -19,9 +19,7 @@ questions:
           tool: listMembers
           minCount: 1
           args:
-            dsn:
-              - "USER.INVNTORY"
-              - "'USER.INVNTORY'"
+            validDsn: "USER.INVNTORY"
       - answerContains:
           pattern: "2[,.]?00[01]"
 
@@ -32,11 +30,7 @@ questions:
           tool: listDatasets
           minCount: 1
           args:
-            dsnPattern:
-              - "USER.PEOPLE.**"
-              - "'USER.PEOPLE.**'"
-              - "USER.PEOPLE.*"
-              - "'USER.PEOPLE.*'"
+            validDsn: "USER.PEOPLE.**"
       - answerContains:
           pattern: "1[,.]?000"
 
@@ -48,9 +42,7 @@ questions:
       - toolCall:
           tool: searchInDataset
           args:
-            dsn:
-              - "USER.SRC.COBOL"
-              - "'USER.SRC.COBOL'"
+            validDsn: "USER.SRC.COBOL"
             string: "COBOL"
             caseSensitive: true
 
@@ -60,9 +52,7 @@ questions:
       - toolCall:
           tool: searchInDataset
           args:
-            dsn:
-              - "USER.SRC.COBOL"
-              - "'USER.SRC.COBOL'"
+            validDsn: "USER.SRC.COBOL"
             string: "DIVISION"
             ignoreSequenceNumbers: true
 
@@ -72,9 +62,7 @@ questions:
       - toolCall:
           tool: searchInDataset
           args:
-            dsn:
-              - "USER.SRC.COBOL"
-              - "'USER.SRC.COBOL'"
+            validDsn: "USER.SRC.COBOL"
             string: "PERFORM"
             cobol: true
 
@@ -84,9 +72,7 @@ questions:
       - toolCall:
           tool: searchInDataset
           args:
-            dsn:
-              - "USER.SRC.COBOL"
-              - "'USER.SRC.COBOL'"
+            validDsn: "USER.SRC.COBOL"
             string: "PERFORM"
             includeContextLines: true
 
@@ -96,9 +82,7 @@ questions:
       - toolCall:
           tool: searchInDataset
           args:
-            dsn:
-              - "USER.SRC.COBOL"
-              - "'USER.SRC.COBOL'"
+            validDsn: "USER.SRC.COBOL"
             string: "SECTION"
             cobol: true
             ignoreSequenceNumbers: true
@@ -111,10 +95,7 @@ questions:
       - toolCall:
           tool: readDataset
           args:
-            dsn:
-              - "USER.SRC.COBOL"
-              - "'USER.SRC.COBOL'"
-            member: "CUSTFILE"
+            validDsn: "USER.SRC.COBOL(CUSTFILE)"
             lineCount: 10
 
   - id: read-specific-range
@@ -123,10 +104,7 @@ questions:
       - toolCall:
           tool: readDataset
           args:
-            dsn:
-              - "USER.SRC.COBOL"
-              - "'USER.SRC.COBOL'"
-            member: "CUSTFILE"
+            validDsn: "USER.SRC.COBOL(CUSTFILE)"
             startLine: 20
 
   # --- Search in specific member ---
@@ -137,10 +115,7 @@ questions:
       - toolCall:
           tool: searchInDataset
           args:
-            dsn:
-              - "USER.SRC.COBOL"
-              - "'USER.SRC.COBOL'"
-            member: "CUSTFILE"
+            validDsn: "USER.SRC.COBOL(CUSTFILE)"
             string: "PROCEDURE"
 
   # --- Dataset attributes ---
@@ -151,8 +126,6 @@ questions:
       - toolCall:
           tool: getDatasetAttributes
           args:
-            dsn:
-              - "USER.SRC.COBOL"
-              - "'USER.SRC.COBOL'"
+            validDsn: "USER.SRC.COBOL"
       - answerContains:
           pattern: "RECFM|recfm|FB|VB"

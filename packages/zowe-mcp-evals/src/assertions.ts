@@ -10,6 +10,8 @@
  */
 
 import { plural } from 'zowe-mcp-common';
+import { normalizeDsnOrPattern, parseDsnAndMember } from './dsn-utils.js';
+import { getToolDsnParams } from './tool-dsn-registry.js';
 import type { Assertion, AssertionBlock, AssertionItem, ToolCallRecord } from './types.js';
 
 /**
@@ -38,12 +40,56 @@ function valueMatches(expected: unknown, actual: unknown): boolean {
   return JSON.stringify(expected) === JSON.stringify(actual);
 }
 
+/**
+ * Check whether the `validDsn` key in expected args matches the actual tool call args.
+ * Uses the tool DSN registry to know which actual params hold the DSN and member.
+ * Returns true if the logical (dsn, member) from actual matches the expected canonical form.
+ */
+function validDsnMatches(
+  expectedValue: string,
+  toolName: string,
+  actual: Record<string, unknown>
+): boolean {
+  const registry = getToolDsnParams(toolName);
+  const expectedParsed = parseDsnAndMember(expectedValue);
+  const expectedDsn = normalizeDsnOrPattern(expectedParsed.dsn);
+  const expectedMember = expectedParsed.member?.toUpperCase();
+
+  const rawDsnParam = actual[registry.dsnParam];
+  if (rawDsnParam === undefined || typeof rawDsnParam !== 'string') return false;
+
+  const dsnParsed = parseDsnAndMember(rawDsnParam);
+  let actualDsn = normalizeDsnOrPattern(dsnParsed.dsn);
+  let actualMember = dsnParsed.member?.toUpperCase();
+
+  if (registry.memberParam) {
+    const rawMemberParam = actual[registry.memberParam];
+    if (typeof rawMemberParam === 'string' && rawMemberParam.trim().length > 0) {
+      actualMember = rawMemberParam.trim().toUpperCase();
+      actualDsn = normalizeDsnOrPattern(dsnParsed.dsn);
+    }
+  }
+
+  if (actualDsn !== expectedDsn) return false;
+  if (expectedMember !== undefined) {
+    return actualMember === expectedMember;
+  }
+  return true;
+}
+
 function argsMatch(
   expected: Record<string, unknown> | undefined,
-  actual: Record<string, unknown>
+  actual: Record<string, unknown>,
+  toolName?: string
 ): boolean {
   if (!expected || Object.keys(expected).length === 0) return true;
   for (const [k, v] of Object.entries(expected)) {
+    if (k === 'validDsn') {
+      if (!toolName) return false;
+      if (typeof v !== 'string') return false;
+      if (!validDsnMatches(v, toolName, actual)) return false;
+      continue;
+    }
     const a = actual[k];
     if (!valueMatches(v, a)) return false;
   }
@@ -56,7 +102,7 @@ function findMatchingToolCall(
   args?: Record<string, unknown>
 ): boolean {
   const normalized = tool.trim();
-  return toolCalls.some(tc => tc.name === normalized && argsMatch(args, tc.arguments));
+  return toolCalls.some(tc => tc.name === normalized && argsMatch(args, tc.arguments, normalized));
 }
 
 function withName(name: string | undefined, msg: string): string {
@@ -120,7 +166,7 @@ function runLeafAssertion(
         if (toolName && a.args) {
           const matching = toolCalls.filter(tc => tc.name === toolName);
           const last = matching[matching.length - 1];
-          if (last && !argsMatch(a.args, last.arguments)) {
+          if (last && !argsMatch(a.args, last.arguments, toolName)) {
             return fail(
               a.name,
               `Expected tool "${toolName}" with args matching ${JSON.stringify(a.args)}, got ${JSON.stringify(last.arguments)}`
@@ -157,7 +203,12 @@ function runLeafAssertion(
       }
 
       if (a.tools) {
-        const anyMatch = a.tools.some(t => findMatchingToolCall(toolCalls, t, a.args));
+        const anyMatch = a.tools.some(t => {
+          const normalized = t.trim();
+          return toolCalls.some(
+            tc => tc.name === normalized && argsMatch(a.args, tc.arguments, normalized)
+          );
+        });
         if (!anyMatch) {
           return fail(
             a.name,
@@ -172,7 +223,7 @@ function runLeafAssertion(
         if (!lastRelevant) {
           return fail(a.name, `Expected tool "${a.tool}" to be called`);
         }
-        if (!argsMatch(a.args, lastRelevant.arguments)) {
+        if (!argsMatch(a.args, lastRelevant.arguments, a.tool)) {
           return fail(
             a.name,
             `Expected tool "${a.tool}" with args matching ${JSON.stringify(a.args)}, got ${JSON.stringify(lastRelevant.arguments)}`
@@ -188,13 +239,25 @@ function runLeafAssertion(
       let lastIndex = -1;
       for (let i = 0; i < a.sequence.length; i++) {
         const step = a.sequence[i];
+        const stepArgsMatch = (
+          expected: Record<string, unknown> | Record<string, unknown>[] | undefined,
+          actual: Record<string, unknown>,
+          matchedToolName?: string
+        ): boolean => {
+          if (Array.isArray(expected)) {
+            return expected.some((alt: Record<string, unknown>) =>
+              argsMatch(alt, actual, matchedToolName)
+            );
+          }
+          return argsMatch(expected ?? undefined, actual, matchedToolName);
+        };
         const stepMatches = (tc: ToolCallRecord) => {
           const name = tc.name.trim();
           const toolMatch =
             step.tool !== undefined
               ? name === step.tool.trim()
               : (step.tools?.some((t: string) => t.trim() === name) ?? false);
-          return toolMatch && argsMatch(step.args, tc.arguments);
+          return toolMatch && stepArgsMatch(step.args, tc.arguments, name);
         };
         const idx = toolCalls.findIndex((tc, pos) => pos > lastIndex && stepMatches(tc));
         if (idx === -1) {

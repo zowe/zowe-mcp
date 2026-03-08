@@ -15,20 +15,15 @@ questions:
       - toolCall:
           tool: searchInDataset
           args:
-            dsn:
-              - "USER.SRC.COBOL"
-              - "'USER.SRC.COBOL'"
+            validDsn: "USER.SRC.COBOL"
             string: "DIVISION"
       - answerContains:
-          substring: search
+          pattern: "DIVISION|found|matches|members"
   - id: search-in-member
     prompt: Search for PROCEDURE in member CUSTFILE of USER.SRC.COBOL.
     assertions:
       - toolCall:
           tool: searchInDataset
           args:
-            dsn:
-              - "USER.SRC.COBOL"
-              - "'USER.SRC.COBOL'"
-            member: "CUSTFILE"
+            validDsn: "USER.SRC.COBOL(CUSTFILE)"
             string: "PROCEDURE"

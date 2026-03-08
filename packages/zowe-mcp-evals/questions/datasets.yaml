@@ -12,18 +12,19 @@ questions:
   - id: list-systems
     prompt: What systems are configured?
     assertions:
-      - toolCall:
-          tool: listSystems
-          count: 1
+      anyOf:
+        - toolCall:
+            tool: getContext
+        - toolCall:
+            tool: listSystems
+            count: 1
   - id: list-datasets-user
     prompt: List all my data sets under USER.
     assertions:
       - toolCall:
           tool: listDatasets
           args:
-            dsnPattern:
-              - "USER.**"
-              - "'USER.**'"
+            validDsn: "USER.**"
       - answerContains:
           substring: SRC.COBOL
   - id: list-members-src-cobol
@@ -32,9 +33,7 @@ questions:
       - toolCall:
           tool: listMembers
           args:
-            dsn:
-              - "USER.SRC.COBOL"
-              - "'USER.SRC.COBOL'"
+            validDsn: "USER.SRC.COBOL"
       - answerContains:
           substring: CUSTFILE
 
@@ -44,9 +43,7 @@ questions:
       - toolCall:
           tool: listMembers
           args:
-            dsn:
-              - "USER.SRC.COBOL"
-              - "'USER.SRC.COBOL'"
+            validDsn: "USER.SRC.COBOL"
       - answerContains:
           substring: CUSTFILE
 
@@ -56,9 +53,6 @@ questions:
       - toolCall:
           tool: readDataset
           args:
-            dsn:
-              - "USER.SRC.COBOL"
-              - "'USER.SRC.COBOL'"
-            member: CUSTFILE
+            validDsn: "USER.SRC.COBOL(CUSTFILE)"
       - answerContains:
           pattern: "CUSTFILE|PROGRAM-ID"

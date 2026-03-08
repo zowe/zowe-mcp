@@ -140,6 +140,29 @@ describe('runAssertions', () => {
       expect(result.passed).toBe(false);
       expect(result.failedAssertion).toContain('[create then write]');
     });
+
+    it('passes when step args is array and actual matches second alternative (e.g. optional limit)', () => {
+      const assertions: Assertion[] = [
+        {
+          type: 'toolCallOrder',
+          sequence: [
+            { tool: 'listMembers', args: { dsn: 'USER.INVNTORY' } },
+            {
+              tool: 'listMembers',
+              args: [
+                { dsn: 'USER.INVNTORY', offset: 500, limit: 500 },
+                { dsn: 'USER.INVNTORY', offset: 500 },
+              ],
+            },
+          ],
+        },
+      ];
+      const toolCalls: ToolCallRecord[] = [
+        tc('listMembers', { dsn: 'USER.INVNTORY' }),
+        tc('listMembers', { dsn: 'USER.INVNTORY', offset: 500 }),
+      ];
+      expect(runAssertions(block(assertions), toolCalls, '')).toEqual({ passed: true });
+    });
   });
 
   describe('toolCall with oneOf (was toolCallOneOf)', () => {
@@ -268,6 +291,227 @@ describe('runAssertions', () => {
       const result = runAssertions(block(assertions), toolCalls, '');
       expect(result.passed).toBe(false);
       expect(result.failedAssertion).toContain('[must call listDatasets]');
+    });
+  });
+
+  describe('validDsn in toolCall.args', () => {
+    it('passes when dsn and member are separate params', () => {
+      const assertions: Assertion[] = [
+        {
+          type: 'toolCall',
+          tool: 'readDataset',
+          args: { validDsn: 'USER.SRC.COBOL(CUSTFILE)' },
+        },
+      ];
+      const toolCalls: ToolCallRecord[] = [
+        tc('readDataset', { dsn: 'USER.SRC.COBOL', member: 'CUSTFILE' }),
+      ];
+      expect(runAssertions(block(assertions), toolCalls, '')).toEqual({ passed: true });
+    });
+
+    it('passes when dsn is parenthesized (no member param)', () => {
+      const assertions: Assertion[] = [
+        {
+          type: 'toolCall',
+          tool: 'readDataset',
+          args: { validDsn: 'USER.SRC.COBOL(CUSTFILE)' },
+        },
+      ];
+      const toolCalls: ToolCallRecord[] = [tc('readDataset', { dsn: 'USER.SRC.COBOL(CUSTFILE)' })];
+      expect(runAssertions(block(assertions), toolCalls, '')).toEqual({ passed: true });
+    });
+
+    it('passes when dsn is quoted with separate member', () => {
+      const assertions: Assertion[] = [
+        {
+          type: 'toolCall',
+          tool: 'readDataset',
+          args: { validDsn: 'USER.SRC.COBOL(CUSTFILE)' },
+        },
+      ];
+      const toolCalls: ToolCallRecord[] = [
+        tc('readDataset', { dsn: "'USER.SRC.COBOL'", member: 'CUSTFILE' }),
+      ];
+      expect(runAssertions(block(assertions), toolCalls, '')).toEqual({ passed: true });
+    });
+
+    it('passes with case-insensitive matching', () => {
+      const assertions: Assertion[] = [
+        {
+          type: 'toolCall',
+          tool: 'readDataset',
+          args: { validDsn: 'USER.SRC.COBOL(CUSTFILE)' },
+        },
+      ];
+      const toolCalls: ToolCallRecord[] = [
+        tc('readDataset', { dsn: 'user.src.cobol', member: 'custfile' }),
+      ];
+      expect(runAssertions(block(assertions), toolCalls, '')).toEqual({ passed: true });
+    });
+
+    it('fails when dsn does not match', () => {
+      const assertions: Assertion[] = [
+        {
+          type: 'toolCall',
+          tool: 'readDataset',
+          args: { validDsn: 'USER.SRC.COBOL(CUSTFILE)' },
+        },
+      ];
+      const toolCalls: ToolCallRecord[] = [
+        tc('readDataset', { dsn: 'USER.OTHER.LIB', member: 'CUSTFILE' }),
+      ];
+      const result = runAssertions(block(assertions), toolCalls, '');
+      expect(result.passed).toBe(false);
+    });
+
+    it('fails when member does not match', () => {
+      const assertions: Assertion[] = [
+        {
+          type: 'toolCall',
+          tool: 'readDataset',
+          args: { validDsn: 'USER.SRC.COBOL(CUSTFILE)' },
+        },
+      ];
+      const toolCalls: ToolCallRecord[] = [
+        tc('readDataset', { dsn: 'USER.SRC.COBOL', member: 'OTHER' }),
+      ];
+      const result = runAssertions(block(assertions), toolCalls, '');
+      expect(result.passed).toBe(false);
+    });
+
+    it('works with validDsn and other args together', () => {
+      const assertions: Assertion[] = [
+        {
+          type: 'toolCall',
+          tool: 'searchInDataset',
+          args: { validDsn: 'USER.SRC.COBOL(CUSTFILE)', string: 'PROCEDURE' },
+        },
+      ];
+      const toolCalls: ToolCallRecord[] = [
+        tc('searchInDataset', {
+          dsn: 'USER.SRC.COBOL(CUSTFILE)',
+          string: 'PROCEDURE',
+        }),
+      ];
+      expect(runAssertions(block(assertions), toolCalls, '')).toEqual({ passed: true });
+    });
+
+    it('fails when other args do not match', () => {
+      const assertions: Assertion[] = [
+        {
+          type: 'toolCall',
+          tool: 'searchInDataset',
+          args: { validDsn: 'USER.SRC.COBOL(CUSTFILE)', string: 'PROCEDURE' },
+        },
+      ];
+      const toolCalls: ToolCallRecord[] = [
+        tc('searchInDataset', {
+          dsn: 'USER.SRC.COBOL',
+          member: 'CUSTFILE',
+          string: 'DIVISION',
+        }),
+      ];
+      const result = runAssertions(block(assertions), toolCalls, '');
+      expect(result.passed).toBe(false);
+    });
+
+    it('works with DSN-only (no member) for listDatasets', () => {
+      const assertions: Assertion[] = [
+        {
+          type: 'toolCall',
+          tool: 'listDatasets',
+          args: { validDsn: 'USER.**' },
+        },
+      ];
+      const toolCalls: ToolCallRecord[] = [tc('listDatasets', { dsnPattern: 'USER.**' })];
+      expect(runAssertions(block(assertions), toolCalls, '')).toEqual({ passed: true });
+    });
+
+    it('works with quoted pattern for listDatasets', () => {
+      const assertions: Assertion[] = [
+        {
+          type: 'toolCall',
+          tool: 'listDatasets',
+          args: { validDsn: 'USER.**' },
+        },
+      ];
+      const toolCalls: ToolCallRecord[] = [tc('listDatasets', { dsnPattern: "'USER.**'" })];
+      expect(runAssertions(block(assertions), toolCalls, '')).toEqual({ passed: true });
+    });
+
+    it('works with DSN-only (no member) for listMembers', () => {
+      const assertions: Assertion[] = [
+        {
+          type: 'toolCall',
+          tool: 'listMembers',
+          args: { validDsn: 'USER.SRC.COBOL' },
+        },
+      ];
+      const toolCalls: ToolCallRecord[] = [tc('listMembers', { dsn: 'USER.SRC.COBOL' })];
+      expect(runAssertions(block(assertions), toolCalls, '')).toEqual({ passed: true });
+    });
+
+    it('throws for unregistered tool', () => {
+      const assertions: Assertion[] = [
+        {
+          type: 'toolCall',
+          tool: 'unknownTool',
+          args: { validDsn: 'USER.SRC.COBOL' },
+        },
+      ];
+      const toolCalls: ToolCallRecord[] = [tc('unknownTool', { dsn: 'USER.SRC.COBOL' })];
+      expect(() => runAssertions(block(assertions), toolCalls, '')).toThrow(
+        /not in the DSN param registry/
+      );
+    });
+
+    it('works inside toolCallOrder steps', () => {
+      const assertions: Assertion[] = [
+        {
+          type: 'toolCallOrder',
+          sequence: [{ tool: 'readDataset', args: { validDsn: 'USER.SRC.COBOL(CUSTFILE)' } }],
+        },
+      ];
+      const toolCalls: ToolCallRecord[] = [tc('readDataset', { dsn: 'USER.SRC.COBOL(CUSTFILE)' })];
+      expect(runAssertions(block(assertions), toolCalls, '')).toEqual({ passed: true });
+    });
+
+    it('works inside toolCallOrder with separate dsn+member', () => {
+      const assertions: Assertion[] = [
+        {
+          type: 'toolCallOrder',
+          sequence: [
+            {
+              tool: 'searchInDataset',
+              args: { validDsn: 'USER.SRC.COBOL(CUSTFILE)', string: 'PERFORM' },
+            },
+          ],
+        },
+      ];
+      const toolCalls: ToolCallRecord[] = [
+        tc('searchInDataset', { dsn: "'USER.SRC.COBOL'", member: 'CUSTFILE', string: 'PERFORM' }),
+      ];
+      expect(runAssertions(block(assertions), toolCalls, '')).toEqual({ passed: true });
+    });
+
+    it('works with minCount and validDsn in args', () => {
+      const assertions: Assertion[] = [
+        {
+          type: 'toolCall',
+          tool: 'searchInDataset',
+          minCount: 2,
+        },
+        {
+          type: 'toolCall',
+          tool: 'searchInDataset',
+          args: { validDsn: 'USER.INVNTORY', string: 'name' },
+        },
+      ];
+      const toolCalls: ToolCallRecord[] = [
+        tc('searchInDataset', { dsn: 'USER.INVNTORY', string: 'name' }),
+        tc('searchInDataset', { dsn: "'USER.INVNTORY'", string: 'name', offset: 500 }),
+      ];
+      expect(runAssertions(block(assertions), toolCalls, '')).toEqual({ passed: true });
     });
   });
 

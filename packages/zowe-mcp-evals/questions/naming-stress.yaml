@@ -18,9 +18,7 @@ questions:
       - toolCall:
           tool: listDatasets
           args:
-            dsnPattern:
-              - "USER.**"
-              - "'USER.**'"
+            validDsn: "USER.**"
 
   - id: cli-view-uss-file
     prompt: View the contents of the USS file /u/USER/file.txt on the mainframe.
@@ -38,9 +36,7 @@ questions:
       - toolCall:
           tool: searchInDataset
           args:
-            dsn:
-              - "USER.SRC.COBOL"
-              - "'USER.SRC.COBOL'"
+            validDsn: "USER.SRC.COBOL"
             string: "DIVISION"
 
   - id: cli-create-ds-like-zowe
@@ -49,9 +45,7 @@ questions:
       - toolCall:
           tool: createDataset
           args:
-            dsn:
-              - "USER.TEST.DATA"
-              - "'USER.TEST.DATA'"
+            validDsn: "USER.TEST.DATA"
             recfm: "FB"
             lrecl: 80
 
@@ -63,9 +57,7 @@ questions:
       - toolCall:
           tool: createDataset
           args:
-            dsn:
-              - "USER.NEW.SEQ"
-              - "'USER.NEW.SEQ'"
+            validDsn: "USER.NEW.SEQ"
             type:
               - "PS"
               - "SEQUENTIAL"
@@ -78,10 +70,7 @@ questions:
       - toolCall:
           tool: readDataset
           args:
-            dsn:
-              - "USER.SRC.COBOL"
-              - "'USER.SRC.COBOL'"
-            member: "CUSTFILE"
+            validDsn: "USER.SRC.COBOL(CUSTFILE)"
 
   - id: zos-catalog-search
     prompt: Show me all cataloged data sets under the high-level qualifier USER.
@@ -101,9 +90,7 @@ questions:
       - toolCall:
           tool: listMembers
           args:
-            dsn:
-              - "USER.SRC.COBOL"
-              - "'USER.SRC.COBOL'"
+            validDsn: "USER.SRC.COBOL"
 
   - id: zos-dsorg-vocabulary
     prompt: I need a new PDSE called USER.TEST.LIB. Allocate it for me.
@@ -111,9 +98,7 @@ questions:
       - toolCall:
           tool: createDataset
           args:
-            dsn:
-              - "USER.TEST.LIB"
-              - "'USER.TEST.LIB'"
+            validDsn: "USER.TEST.LIB"
             type:
               - "PO-E"
               - "PO"
@@ -129,9 +114,7 @@ questions:
       - toolCall:
           tool: searchInDataset
           args:
-            dsn:
-              - "USER.SRC.COBOL"
-              - "'USER.SRC.COBOL'"
+            validDsn: "USER.SRC.COBOL"
             string: "PERFORM"
 
   - id: ambiguous-show-files
@@ -140,9 +123,7 @@ questions:
       - toolCall:
           tool: listMembers
           args:
-            dsn:
-              - "USER.SRC.COBOL"
-              - "'USER.SRC.COBOL'"
+            validDsn: "USER.SRC.COBOL"
 
   - id: ambiguous-what-datasets
     prompt: What data sets do I have?
@@ -156,10 +137,7 @@ questions:
       - toolCall:
           tool: readDataset
           args:
-            dsn:
-              - "USER.SRC.COBOL"
-              - "'USER.SRC.COBOL'"
-            member: "CUSTFILE"
+            validDsn: "USER.SRC.COBOL(CUSTFILE)"
 
   - id: ambiguous-grep-cobol
     prompt: Grep for WORKING-STORAGE in the COBOL library USER.SRC.COBOL.
@@ -167,9 +145,7 @@ questions:
       - toolCall:
           tool: searchInDataset
           args:
-            dsn:
-              - "USER.SRC.COBOL"
-              - "'USER.SRC.COBOL'"
+            validDsn: "USER.SRC.COBOL"
             string: "WORKING-STORAGE"
 
   # --- ISPF-style patterns ---

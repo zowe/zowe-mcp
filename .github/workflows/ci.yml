@@ -17,7 +17,7 @@ jobs:
     if: (github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository) && !contains(github.event.head_commit.message, '[ci skip]')
 
     env:
-      NODE_OPTIONS: --max_old_space_size=6144
+      NODE_OPTIONS: --max_old_space_size=16384
 
     steps:
       - uses: actions/checkout@v4

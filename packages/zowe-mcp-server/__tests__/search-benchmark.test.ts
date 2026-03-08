@@ -110,7 +110,7 @@ const configSystems = configPath
 const firstSpec = configSystems.length > 0 ? parseConnectionSpec(configSystems[0]) : undefined;
 const passwordEnvVar = firstSpec ? toPasswordEnvVarName(firstSpec.user, firstSpec.host) : '';
 const password =
-  (passwordEnvVar && process.env[passwordEnvVar]) || process.env.ZOS_PASSWORD || undefined;
+  (passwordEnvVar && process.env[passwordEnvVar]) ?? process.env.ZOS_PASSWORD ?? undefined;
 
 const SEARCH_DSN = process.env.ZOWE_MCP_SEARCH_BENCHMARK_DSN ?? 'SYS1.PARMLIB';
 const SEARCH_STRING = process.env.ZOWE_MCP_SEARCH_BENCHMARK_STRING ?? 'SYSTEM';
@@ -199,6 +199,7 @@ async function runSearch(client: Client): Promise<BenchmarkResult & { path: stri
 
 describe.skipIf(skipReason !== undefined)('Search Benchmark', () => {
   if (skipReason) {
+    // eslint-disable-next-line @typescript-eslint/no-empty-function, vitest/expect-expect
     it(`skipped: ${skipReason}`, () => {});
     return;
   }

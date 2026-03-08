@@ -82,6 +82,11 @@ export default tseslint.config(
     },
     rules: {
       ...vitest.configs.recommended.rules,
+      // Test files routinely access .mock on spied functions (typed as any by Vitest)
+      '@typescript-eslint/no-unsafe-member-access': 'off',
+      '@typescript-eslint/no-unsafe-call': 'off',
+      '@typescript-eslint/no-unsafe-return': 'off',
+      'vitest/no-conditional-expect': 'warn',
     },
   }
 );

@@ -17,7 +17,7 @@ jobs:
     if: (github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository) && !contains(github.event.head_commit.message, '[ci skip]')
 
     env:
-      NODE_OPTIONS: --max_old_space_size=8192
+      NODE_OPTIONS: --max_old_space_size=4096
 
     steps:
       - uses: actions/checkout@v4
@@ -31,6 +31,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: node scripts/sdk-switch.js pr ${{ inputs.znp-pr || '809' }}
 
-      - run: npm run build
+      - name: Build (common + server)
+        run: |
+          npm run build -w packages/zowe-mcp-common
+          npm run build -w packages/zowe-mcp-server
+
       - run: npm run lint
+
       - run: npm run test

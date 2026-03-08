@@ -1,6 +1,6 @@
 {
   "name": "zowe-mcp",
-  "version": "0.7.0",
+  "version": "0.8.0-dev",
   "private": true,
   "description": "Zowe MCP - Model Context Protocol server and VS Code extension for z/OS",
   "workspaces": [

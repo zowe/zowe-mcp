@@ -2,6 +2,15 @@
 
 All notable changes to the Zowe MCP extension will be documented in this file.
 
+## `0.7.0`
+
+### New features and enhancements
+
+- **Data set list detail levels**: `listDatasets` now supports a `detail` parameter (`minimal`, `basic`, `full`) to control response verbosity. Default is `basic`; `minimal` returns only essential fields (dsn, dsorg, dsntype); `full` includes all attributes including dates, SMS classes, and volume serials.
+- **Merged `info` into `getContext`**: The `getContext` tool now includes server information (name, version, backend type, available components), replacing the separate `info` tool. One fewer tool call for the AI agent to discover server capabilities.
+- **Improved tool descriptions**: Standardized system parameter descriptions across all tools, placed pagination notes after the first sentence for better readability, and expanded z/OS terminology in parameter descriptions to help AI models select correct parameters.
+- **Scoped output schemas**: Tool response `_context` is now narrowed per component (datasets, USS, jobs, TSO) so AI clients see only the relevant fields for each tool, reducing noise.
+
 ## `0.6.0`
 
 ### New features and enhancements

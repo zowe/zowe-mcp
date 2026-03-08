@@ -68,6 +68,14 @@ function removeRootOverrides() {
   }
 }
 
+function removeLockfile() {
+  const lockPath = path.join(repoRoot, 'package-lock.json');
+  if (fs.existsSync(lockPath)) {
+    fs.unlinkSync(lockPath);
+    console.log('Removed package-lock.json (stale integrity hashes after SDK switch)');
+  }
+}
+
 function npmInstall() {
   console.log('Running npm install...');
   execSync('npm install', {
@@ -82,6 +90,7 @@ function handleArtifactory(version) {
   const spec = `^${v}`;
   removeRootOverrides();
   setDependency(spec);
+  removeLockfile();
   npmInstall();
   console.log('\nSDK switched to Zowe Artifactory: %s', spec);
 }
@@ -168,6 +177,7 @@ function handlePr(prNumber) {
 
   removeRootOverrides();
   setDependency(relPath);
+  removeLockfile();
   npmInstall();
   console.log('\nSDK switched to PR #%s build: sdk-pr/%s', prNumber, tgz);
 }

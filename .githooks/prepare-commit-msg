@@ -1,0 +1,19 @@
+#!/bin/sh
+# Automatically add Signed-off-by trailer (DCO requirement for Zowe)
+# Skips merge commits and commits that already have a sign-off
+
+COMMIT_MSG_FILE=$1
+COMMIT_SOURCE=$2
+
+# Skip merge commits
+if [ "$COMMIT_SOURCE" = "merge" ]; then
+  exit 0
+fi
+
+SOB=$(git var GIT_COMMITTER_IDENT | sed -n 's/^\(.*>\).*$/Signed-off-by: \1/p')
+
+# Only add if not already present
+if ! grep -qF "$SOB" "$COMMIT_MSG_FILE"; then
+  echo "" >> "$COMMIT_MSG_FILE"
+  echo "$SOB" >> "$COMMIT_MSG_FILE"
+fi

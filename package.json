@@ -30,7 +30,8 @@
     "validate-tool-calls": "npm run validate-tool-calls -w packages/zowe-mcp-server",
     "release-vsix": "bash scripts/release-vsix.sh",
     "sdk:zowe-artifactory": "node scripts/sdk-switch.js zowe-artifactory",
-    "sdk:pr": "node scripts/sdk-switch.js pr"
+    "sdk:pr": "node scripts/sdk-switch.js pr",
+    "prepare": "git config core.hooksPath .githooks"
   },
   "devDependencies": {
     "@vitest/eslint-plugin": "^1.6.7",

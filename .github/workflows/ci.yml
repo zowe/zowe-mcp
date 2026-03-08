@@ -24,7 +24,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 24
+          node-version-file: ".nvmrc"
 
       - name: Download SDK from ZNP PR
         env:
@@ -47,3 +47,25 @@ jobs:
       - run: npm run lint
 
       - run: npm run test
+
+      - name: Generate MCP reference docs
+        run: npx zowe-mcp-server generate-docs --output docs/mcp-reference.md
+
+      - name: Build VS Code extension (VSIX)
+        working-directory: packages/zowe-mcp-vscode
+        run: |
+          npm run bundle:server
+          npm run build
+          npx vsce package --no-dependencies --allow-missing-repository
+
+      - name: Upload VSIX artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vsix
+          path: packages/zowe-mcp-vscode/*.vsix
+
+      - name: Upload MCP reference docs
+        uses: actions/upload-artifact@v4
+        with:
+          name: mcp-reference
+          path: docs/mcp-reference.md

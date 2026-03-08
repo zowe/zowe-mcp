@@ -34,8 +34,6 @@ const ZNP_REPO = 'zowe/zowe-native-proto';
 const PKG_NAME = 'zowe-native-proto-sdk';
 const DEFAULT_VERSION = '0.2.4';
 
-const NVM_PREFIX = '. $NVM_DIR/nvm.sh && nvm use && ';
-
 function readServerPkg() {
   return JSON.parse(fs.readFileSync(serverPkgPath, 'utf8'));
 }
@@ -48,7 +46,7 @@ function run(cmd, opts) {
   return execSync(cmd, {
     encoding: 'utf8',
     cwd: repoRoot,
-    shell: '/bin/zsh',
+    shell: true,
     ...opts,
   }).trim();
 }
@@ -72,10 +70,10 @@ function removeRootOverrides() {
 
 function npmInstall() {
   console.log('Running npm install...');
-  execSync(NVM_PREFIX + 'npm install', {
+  execSync('npm install', {
     cwd: repoRoot,
     stdio: 'inherit',
-    shell: '/bin/zsh',
+    shell: true,
   });
 }
 

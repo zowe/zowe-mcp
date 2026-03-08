@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      znp-pr:
+        description: "ZNP PR number for SDK artifact (default: 809)"
+        required: false
+        default: "809"
+        type: string
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    if: (github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository) && !contains(github.event.head_commit.message, '[ci skip]')
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Download SDK from ZNP PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/sdk-switch.js pr ${{ inputs.znp-pr || '809' }}
+
+      - run: npm run build
+      - run: npm run lint
+      - run: npm run test

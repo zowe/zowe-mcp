@@ -17,19 +17,22 @@ jobs:
     if: (github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository) && !contains(github.event.head_commit.message, '[ci skip]')
 
     env:
-      NODE_OPTIONS: --max_old_space_size=16384
+      NODE_OPTIONS: --max_old_space_size=4096
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Increase swap space
-        uses: actionhippie/swap-space@v1
-        with:
-          size: 10G
-
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
+
+      - name: Environment info
+        run: |
+          echo "Node: $(node --version)"
+          echo "npm: $(npm --version)"
+          echo "tsc: $(npx tsc --version 2>/dev/null || echo 'not yet installed')"
+          echo "OS: $(uname -srm)"
+          echo "RAM: $(free -h | grep Mem | awk '{print $2}')"
 
       - name: Download SDK from ZNP PR
         env:

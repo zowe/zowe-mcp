@@ -11,6 +11,9 @@ on:
         default: "809"
         type: string
 
+permissions:
+  pull-requests: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -56,12 +59,25 @@ jobs:
 
       - name: Upload VSIX artifact
         uses: actions/upload-artifact@v4
+        id: vsix-upload
         with:
           name: vsix
           path: packages/zowe-mcp-vscode/*.vsix
 
       - name: Upload MCP reference docs
         uses: actions/upload-artifact@v4
+        id: docs-upload
         with:
           name: mcp-reference
           path: docs/mcp-reference.md
+
+      - name: Comment on PR
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: Build artifacts
+          number: ${{ github.event.pull_request.number }}
+          message: |
+            Build artifacts:
+             - VS Code Extension (VSIX): ${{ steps.vsix-upload.outputs.artifact-url }}
+             - MCP Reference Docs: ${{ steps.docs-upload.outputs.artifact-url }}

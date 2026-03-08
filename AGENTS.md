@@ -285,7 +285,7 @@ The project uses a data-driven approach to validate tool definition changes. Eve
 
 ### eval-compare Tool
 
-`npm run eval-compare` (`packages/zowe-mcp-evals/src/eval-compare.ts`) runs evals across one or more models and auto-updates `docs/eval-scoreboard.md`. Key options: `--set` (comma-separated set names or `all`), `--model` (comma-separated model IDs from `evals.config.json` or `all`), `--label` (human-readable tag), `--repetitions` (override set default). Reports go to `evals-report/<label>-<timestamp>/`.
+`npm run eval-compare` (`packages/zowe-mcp-evals/src/eval-compare.ts`) runs evals across one or more models and auto-updates `docs/eval-scoreboard.md`. Key options: `--set` (comma-separated set names or `all`), `--model` (comma-separated model IDs from `evals.config.json` or `all`), `--label` (human-readable tag), `--repetitions` (override set default), `--no-cache` (disable LLM result cache). Reports go to `evals-report/<label>-<timestamp>/`. **LLM result cache**: Both `npm run evals` and `npm run eval-compare` cache LLM run results (tool calls + final text) in `.evals-cache/` keyed by a stable hash of system prompt, question prompt, tool definitions, and model ID. When a cache hit occurs, the cached result is replayed against the current assertions (no LLM call). Cache entries are written only when the question's pass rate meets `minSuccessRate`. Use `--no-cache` to force fresh LLM calls for every run. Cache stats (hits, writes, LLM calls) are reported in the console output and in `comparison.md`.
 
 ### Stress-Test Question Sets
 
@@ -318,7 +318,7 @@ The project uses a data-driven approach to validate tool definition changes. Eve
 | `npm run duplication` | Scan all packages for code duplication using jscpd (config: `.jscpd.json`). Exits non-zero if duplication exceeds threshold. |
 | `npm run markdownlint <file>` | Fix markdown lint issues |
 | `npx zowe-mcp-server init-mock --output <dir>` | Generate mock data directory |
-| `npm run eval-compare` | Run eval-compare: evals across models with auto-scoreboard update. Options after `--`: `--set`, `--model`, `--label`, `--repetitions`, `--system-prompt-addition`. Results in `evals-report/` and `docs/eval-scoreboard.md`. |
+| `npm run eval-compare` | Run eval-compare: evals across models with auto-scoreboard update. Options after `--`: `--set`, `--model`, `--label`, `--repetitions`, `--system-prompt-addition`, `--no-cache`. Results in `evals-report/` and `docs/eval-scoreboard.md`. Cached LLM results in `.evals-cache/` are reused by default; `--no-cache` forces fresh calls. |
 | `npm run evals` | Run AI evals from repo root (requires `evals.config.json` at root; pass options after `--`: `--set`, `--model <id>`, `--number`, `--id`, `--filter`) |
 | `node scripts/set-version.js <version>` | Set `version` in all `package.json` (root and workspaces) and extension’s `zowe-mcp-server` dependency. Use before release or when aligning versions. |
 | `npm run release-vsix` | Sync versions via `set-version.js`, build extension, create tag from extension version, push tag, create GitHub release and upload VSIX (requires `gh` auth). Ensures VSIX filename matches tag. |

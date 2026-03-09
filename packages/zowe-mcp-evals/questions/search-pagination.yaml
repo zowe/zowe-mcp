@@ -1,0 +1,24 @@
+# yaml-language-server: $schema=../schemas/evals-question-set.schema.json
+# Search with pagination: USER.INVNTORY has 2000 members; agent should page through search results.
+config:
+  name: search-pagination
+  description: Agent must use searchInDataset and page when hasMore is true
+  repetitions: 2
+  minSuccessRate: 0.8
+  mock:
+    initArgs: --preset pagination
+
+questions:
+  - id: search-inventory-many-members
+    prompt: Search for the string "name:" in data set USER.INVNTORY and count how many of the all matched content are clothes.
+    assertions:
+      - toolCall:
+          tool: searchInDataset
+          minCount: 2
+      - toolCall:
+          tool: searchInDataset
+          args:
+            validDsn: "USER.INVNTORY"
+            string: "name"
+      - answerContains:
+          substring: "2000"

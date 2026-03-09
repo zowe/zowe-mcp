@@ -1,0 +1,75 @@
+{
+  "dangerous": [
+    {
+      "id": "console-quiesce",
+      "message": "QUIESCE stops system activity.",
+      "pattern": "^QUIESCE\\b"
+    },
+    { "id": "console-halt", "message": "HALT stops the system.", "pattern": "^HALT\\b" },
+    {
+      "id": "console-z-eod",
+      "message": "Z EOD terminates the system.",
+      "pattern": "^Z\\s+EOD\\b"
+    },
+    {
+      "id": "console-shutdown",
+      "message": "SHUTDOWN stops the system.",
+      "pattern": "^SHUTDOWN\\b"
+    }
+  ],
+  "elicit": [
+    { "id": "console-set", "message": "SET modifies system parameters.", "pattern": "^SET\\b" },
+    {
+      "id": "console-vary",
+      "message": "VARY changes device/subsystem status.",
+      "pattern": "^VARY\\b"
+    },
+    {
+      "id": "console-cancel",
+      "message": "CANCEL terminates address spaces.",
+      "pattern": "^CANCEL\\b"
+    },
+    {
+      "id": "console-force",
+      "message": "FORCE terminates address spaces forcefully.",
+      "pattern": "^FORCE\\b"
+    },
+    { "id": "console-stop", "message": "STOP terminates address spaces.", "pattern": "^STOP\\b" },
+    { "id": "console-p", "message": "P (STOP) terminates address spaces.", "pattern": "^P\\s+" },
+    {
+      "id": "console-modify",
+      "message": "MODIFY changes running programs.",
+      "pattern": "^MODIFY\\b"
+    },
+    { "id": "console-f", "message": "F (MODIFY) changes running programs.", "pattern": "^F\\s+" },
+    { "id": "console-start", "message": "START initiates started tasks.", "pattern": "^START\\b" },
+    { "id": "console-s", "message": "S (START) initiates started tasks.", "pattern": "^S\\s+" },
+    {
+      "id": "console-route",
+      "message": "ROUTE sends commands to other systems.",
+      "pattern": "^ROUTE\\b"
+    }
+  ],
+  "safe": [
+    { "id": "console-d-t", "pattern": "^D\\s+T\\b" },
+    { "id": "console-display-t", "pattern": "^DISPLAY\\s+T\\b" },
+    { "id": "console-d-a", "pattern": "^D\\s+A\\b" },
+    { "id": "console-display-a", "pattern": "^DISPLAY\\s+A\\b" },
+    { "id": "console-d-m", "pattern": "^D\\s+M\\b" },
+    { "id": "console-display-m", "pattern": "^DISPLAY\\s+M\\b" },
+    { "id": "console-d-iplinfo", "pattern": "^D\\s+IPLINFO\\b" },
+    { "id": "console-display-iplinfo", "pattern": "^DISPLAY\\s+IPLINFO\\b" },
+    { "id": "console-d-r", "pattern": "^D\\s+R\\b" },
+    { "id": "console-display-r", "pattern": "^DISPLAY\\s+R\\b" },
+    { "id": "console-d-j", "pattern": "^D\\s+J\\b" },
+    { "id": "console-display-j", "pattern": "^DISPLAY\\s+J\\b" },
+    { "id": "console-d-smf", "pattern": "^D\\s+SMF\\b" },
+    { "id": "console-display-smf", "pattern": "^DISPLAY\\s+SMF\\b" },
+    { "id": "console-d-asm", "pattern": "^D\\s+ASM\\b" },
+    { "id": "console-display-asm", "pattern": "^DISPLAY\\s+ASM\\b" },
+    { "id": "console-d-prog", "pattern": "^D\\s+PROG\\b" },
+    { "id": "console-display-prog", "pattern": "^DISPLAY\\s+PROG\\b" },
+    { "id": "console-d-parmlib", "pattern": "^D\\s+PARMLIB\\b" },
+    { "id": "console-display-parmlib", "pattern": "^DISPLAY\\s+PARMLIB\\b" }
+  ]
+}

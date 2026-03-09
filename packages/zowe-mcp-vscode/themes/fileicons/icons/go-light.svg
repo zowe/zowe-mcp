@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <path fill="#dddee0" d="M4 2h18l6 6v22H4V2z"/>
+  <path fill="#c7c9cc" d="M22 2v6h6l-6-6z"/>
+  <rect x="6" y="6" width="20" height="3" rx=".5" fill="#0096b8"/>
+  <text x="16" y="22" font-family="system-ui, sans-serif" font-size="11" font-weight="700" fill="#0d0d0e" text-anchor="middle">GO</text>
+</svg>

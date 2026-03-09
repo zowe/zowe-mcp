@@ -1,0 +1,83 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      znp-pr:
+        description: "ZNP PR number for SDK artifact (default: 809)"
+        required: false
+        default: "809"
+        type: string
+
+permissions:
+  pull-requests: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    if: "!contains(github.event.head_commit.message || '', '[ci skip]')"
+
+    env:
+      NODE_OPTIONS: --max_old_space_size=4096
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: ".nvmrc"
+
+      - name: Download SDK from ZNP PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/sdk-switch.js pr ${{ inputs.znp-pr || '809' }}
+
+      - name: Environment info
+        run: |
+          echo "Node: $(node --version)"
+          echo "npm: $(npm --version)"
+          echo "tsc: $(npx tsc --version)"
+          echo "OS: $(uname -srm)"
+          echo "RAM: $(free -h | grep Mem | awk '{print $2}')"
+
+      - name: Build (common + server)
+        run: |
+          npm run build -w packages/zowe-mcp-common
+          npm run build -w packages/zowe-mcp-server
+
+      - run: npm run lint
+
+      - run: npm run test
+
+      - name: Generate MCP reference docs
+        run: npm run generate-docs
+
+      - name: Build VS Code extension (VSIX)
+        run: npm run package -w packages/zowe-mcp-vscode
+
+      - name: Upload VSIX artifact
+        uses: actions/upload-artifact@v4
+        id: vsix-upload
+        with:
+          name: vsix
+          path: packages/zowe-mcp-vscode/*.vsix
+
+      - name: Upload MCP reference docs
+        uses: actions/upload-artifact@v4
+        id: docs-upload
+        with:
+          name: mcp-reference
+          path: docs/mcp-reference.md
+
+      - name: Comment on PR
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: Build artifacts
+          number: ${{ github.event.pull_request.number }}
+          message: |
+            Build artifacts:
+             - VS Code Extension (VSIX): ${{ steps.vsix-upload.outputs.artifact-url }}
+             - MCP Reference Docs: ${{ steps.docs-upload.outputs.artifact-url }}

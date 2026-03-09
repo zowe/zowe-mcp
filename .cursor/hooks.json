@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "hooks": {
+    "afterFileEdit": [
+      {
+        "command": ".cursor/hooks/format.sh"
+      },
+      {
+        "command": ".cursor/hooks/duplication.sh"
+      }
+    ],
+    "afterTabFileEdit": [
+      {
+        "command": ".cursor/hooks/format.sh"
+      }
+    ]
+  }
+}

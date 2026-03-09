@@ -1,0 +1,35 @@
+{
+  "cSpell.words": [
+    "abend",
+    "abended",
+    "abends",
+    "blksz",
+    "blockinfile",
+    "BYOK",
+    "ceedump",
+    "CNTL",
+    "dirblk",
+    "dsorg",
+    "evals",
+    "hostnames",
+    "INVNTORY",
+    "ISPF",
+    "lrecl",
+    "MACLIB",
+    "modelcontextprotocol",
+    "OSMF",
+    "PARMLIB",
+    "PDSE",
+    "plape",
+    "PROCLIB",
+    "Qwen",
+    "recfm",
+    "recompiles",
+    "SAMPLIB",
+    "volser",
+    "waitable"
+  ],
+  "yaml.schemas": {
+    "packages/zowe-mcp-evals/schemas/evals-question-set.schema.json": "packages/zowe-mcp-evals/questions/*.yaml"
+  }
+}

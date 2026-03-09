@@ -1,0 +1,12 @@
+.vscode-test.mjs
+src/**
+scripts/**
+**/*.ts
+!out/**
+!server/**
+node_modules/**
+vscode.d.ts
+vscode.proposed.*.d.ts
+*.vsix
+tsconfig.json
+.server-deps-cache/**

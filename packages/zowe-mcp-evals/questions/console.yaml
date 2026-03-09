@@ -1,0 +1,39 @@
+# yaml-language-server: $schema=../schemas/evals-question-set.schema.json
+# Console command evals: runConsoleCommand (native only — console commands need real z/OS)
+config:
+  name: console
+  description: Agent must use runConsoleCommand for z/OS operator console commands
+  skip: "ZNP does not yet support console.issueCmd — tool not registered until SDK adds support"
+  repetitions: 1
+  minSuccessRate: 0.8
+  native:
+    serverArgs: --native --config native-config.json
+
+questions:
+  - id: console-display-time
+    prompt: What is the current time on the z/OS system? Use a console command.
+    assertions:
+      - toolCall:
+          tool: runConsoleCommand
+          args:
+          # TODO: Can we be smarter about this? Use some case insensitive pattern? 
+            commandText:
+              - "D T"
+              - "DISPLAY T"
+              - "d t"
+      - answerContains:
+          pattern: "TIME|time|:\\d{2}:\\d{2}"
+
+  - id: console-display-active
+    prompt: Show me the active address spaces on the z/OS system using a console command.
+    assertions:
+      - toolCall:
+          tool: runConsoleCommand
+          args:
+            commandText:
+              - "D A"
+              - "DISPLAY A"
+              - "D A,L"
+              - "d a"
+      - answerContains:
+          pattern: "ACTIVE|active|address|JOB|STC|TSU"

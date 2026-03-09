@@ -1,0 +1,51 @@
+{
+  "name": "zowe-mcp",
+  "version": "0.8.0-dev",
+  "private": true,
+  "description": "Zowe MCP - Model Context Protocol server and VS Code extension for z/OS",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build-and-install": "npm run build-and-install -w packages/zowe-mcp-vscode",
+    "build": "npm run build --workspaces",
+    "call-tool": "npx zowe-mcp-server call-tool",
+    "check-format": "prettier --check \"**/*.{ts,js,mjs,json,jsonc}\"",
+    "cloc": "cloc --vcs git .",
+    "duplication": "jscpd ./packages",
+    "eval-compare": "npm run build -w packages/zowe-mcp-server && npm run build -w packages/zowe-mcp-evals && node packages/zowe-mcp-evals/dist/eval-compare.js",
+    "evals": "npm run build -w packages/zowe-mcp-server && npm run build -w packages/zowe-mcp-evals && npm run evals -w packages/zowe-mcp-evals -- \"$@\"",
+    "format": "prettier --write \"**/*.{ts,js,mjs,json,jsonc}\"",
+    "generate-docs": "npm run build -w packages/zowe-mcp-common && npm run build -w packages/zowe-mcp-server && node packages/zowe-mcp-server/dist/index.js generate-docs",
+    "inspector:mock": "npx @modelcontextprotocol/inspector node packages/zowe-mcp-server/dist/index.js --stdio --mock ./zowe-mcp-mock-data",
+    "inspector:native": "dotenv -e .env -- npx @modelcontextprotocol/inspector node packages/zowe-mcp-server/dist/index.js -- --stdio --native --config native-config.json",
+    "inspector": "npx @modelcontextprotocol/inspector node packages/zowe-mcp-server/dist/index.js --stdio",
+    "lint:fix": "eslint --fix \"packages/**/*.ts\"",
+    "lint": "eslint \"packages/**/*.ts\"",
+    "markdownlint": "markdownlint-cli2 --fix",
+    "test:all": "npm run test --workspaces",
+    "test:server": "npm run test -w packages/zowe-mcp-server",
+    "test:vscode": "npm run test -w packages/zowe-mcp-vscode",
+    "test": "npm run test -w packages/zowe-mcp-server",
+    "validate-tool-calls": "npm run validate-tool-calls -w packages/zowe-mcp-server",
+    "release-vsix": "bash scripts/release-vsix.sh",
+    "sdk:zowe-artifactory": "node scripts/sdk-switch.js zowe-artifactory",
+    "sdk:pr": "node scripts/sdk-switch.js pr",
+    "prepare": "git config core.hooksPath .githooks"
+  },
+  "devDependencies": {
+    "@vitest/eslint-plugin": "^1.6.7",
+    "cloc": "^2.6.0",
+    "dotenv-cli": "^7.4.2",
+    "eslint": "^9.39.2",
+    "eslint-plugin-headers": "^1.3.4",
+    "jscpd": "^4.0.8",
+    "markdown-table-formatter": "^1.7.0",
+    "markdownlint-cli2": "^0.21.0",
+    "prettier": "^3.8.1",
+    "prettier-plugin-organize-imports": "^4.3.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.9.2",
+    "typescript-eslint": "^8.55.0"
+  }
+}

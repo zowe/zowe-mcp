@@ -1,0 +1,256 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/zowe/zowe-mcp/evals-question-set.schema.json",
+  "title": "Zowe MCP Evals Question Set",
+  "description": "Schema for eval question set YAML files. Ansible-style assertions: each assertion is an object with a key (toolCall, toolCallOrder, answerContains) and an optional name.",
+  "type": "object",
+  "required": ["questions"],
+  "properties": {
+    "config": {
+      "type": "object",
+      "description": "Set-level eval configuration: backend (mock or native), repetitions, minimum success rate, and optional system prompt overrides.",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Short identifier for this question set (e.g. datasets, pagination, jobs). Used when running evals with --set <name>."
+        },
+        "description": {
+          "type": "string",
+          "description": "Human-readable description of what this set tests (e.g. 'List data sets and basic context')."
+        },
+        "repetitions": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 5,
+          "description": "Number of times each question is run per eval. Results are aggregated to compute pass rate."
+        },
+        "minSuccessRate": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 0.8,
+          "description": "Minimum fraction of runs that must pass (0–1) for the set to be considered successful."
+        },
+        "mock": {
+          "type": "object",
+          "description": "Use the mock backend. A temporary mock data directory is created via init-mock before starting the server.",
+          "properties": {
+            "initArgs": {
+              "type": "string",
+              "description": "Arguments passed to init-mock (after --output <dir>). Typical: '--preset default' or '--preset pagination'."
+            }
+          },
+          "required": ["initArgs"],
+          "additionalProperties": false
+        },
+        "native": {
+          "type": "object",
+          "description": "Use the native (SSH) backend. Requires a config file and credentials.",
+          "properties": {
+            "serverArgs": {
+              "type": "string",
+              "description": "Server arguments after --stdio. Typical: '--native --config native-config.json'."
+            }
+          },
+          "required": ["serverArgs"],
+          "additionalProperties": false
+        },
+        "systemPrompt": {
+          "type": "string",
+          "description": "Override the default system prompt entirely."
+        },
+        "systemPromptAddition": {
+          "type": "string",
+          "description": "Appended to the default system prompt."
+        },
+        "skip": {
+          "type": "string",
+          "description": "When set, the entire question set is skipped with this reason shown in the log."
+        }
+      },
+      "additionalProperties": false
+    },
+    "questions": {
+      "type": "array",
+      "description": "List of questions. Each question has an id, a user prompt, and assertions.",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "prompt", "assertions"],
+        "description": "A single eval question: the prompt sent to the agent and the assertions checked against tool calls and final answer.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique identifier for this question within the set. Use kebab-case (e.g. list-members-src-cobol)."
+          },
+          "prompt": {
+            "type": "string",
+            "description": "The user prompt sent to the AI agent."
+          },
+          "preset": {
+            "type": "string",
+            "enum": ["default", "inventory"],
+            "description": "Override mock preset for this question when using mock backend."
+          },
+          "skip": {
+            "type": "string",
+            "description": "When set, this question is skipped with this reason shown in the log."
+          },
+          "assertions": {
+            "description": "Assertions block. An array (all must pass), or an object with allOf/anyOf.",
+            "oneOf": [
+              {
+                "type": "array",
+                "minItems": 1,
+                "items": { "$ref": "#/$defs/AssertionItem" }
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "allOf": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": { "$ref": "#/$defs/AssertionItem" }
+                  }
+                },
+                "required": ["allOf"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "anyOf": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": { "$ref": "#/$defs/AssertionItem" }
+                  }
+                },
+                "required": ["anyOf"],
+                "additionalProperties": false
+              }
+            ]
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "AssertionItem": {
+      "type": "object",
+      "description": "One assertion item: leaf assertion (toolCall, toolCallOrder, answerContains) or composite (allOf/anyOf). Exactly one assertion key must be present.",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Optional human-readable name for this assertion. Shown in failure messages."
+        },
+        "toolCall": {
+          "type": "object",
+          "description": "Unified tool-call assertion. Specify tool (single), tools (any of), or oneOf (per-tool args). Optional count/minCount.",
+          "properties": {
+            "tool": {
+              "type": "string",
+              "description": "Single tool name to check."
+            },
+            "tools": {
+              "type": "array",
+              "minItems": 1,
+              "items": { "type": "string" },
+              "description": "Any of these tools matches (no per-tool args)."
+            },
+            "oneOf": {
+              "type": "array",
+              "minItems": 1,
+              "description": "Any of these tool specs matches (with per-tool args).",
+              "items": {
+                "type": "object",
+                "required": ["tool"],
+                "properties": {
+                  "tool": { "type": "string" },
+                  "args": {
+                    "type": "object",
+                    "description": "Argument matchers (partial match)."
+                  }
+                },
+                "additionalProperties": false
+              }
+            },
+            "args": {
+              "type": "object",
+              "description": "Argument matchers (partial match). Used with tool or tools. Use the special key 'validDsn' with a canonical DSN string (e.g. 'USER.SRC.COBOL(CUSTFILE)') to match any server-equivalent form of the DSN and member."
+            },
+            "count": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Exact number of total tool calls expected."
+            },
+            "minCount": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Minimum number of calls expected."
+            }
+          },
+          "additionalProperties": false
+        },
+        "toolCallOrder": {
+          "type": "array",
+          "minItems": 1,
+          "description": "Ordered tool-call sequence. Each step: tool (single) or tools (any of), plus optional args.",
+          "items": {
+            "type": "object",
+            "description": "One step: use tool (single) or tools (any of), plus optional args.",
+            "properties": {
+              "tool": {
+                "type": "string",
+                "description": "Single tool name for this step."
+              },
+              "tools": {
+                "type": "array",
+                "minItems": 1,
+                "items": { "type": "string" },
+                "description": "Step matches when any of these tools is called."
+              },
+              "args": {
+                "description": "Argument matchers (partial match). If array, step matches when actual args match any element (e.g. optional limit). Use the special key 'validDsn' with a canonical DSN string to match any server-equivalent form.",
+                "oneOf": [
+                  { "type": "object" },
+                  { "type": "array", "minItems": 1, "items": { "type": "object" } }
+                ]
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "answerContains": {
+          "type": "object",
+          "description": "Assert final answer contains a substring or matches a regex pattern.",
+          "properties": {
+            "substring": {
+              "type": "string",
+              "description": "Literal substring that must appear in the final answer (case-sensitive)."
+            },
+            "pattern": {
+              "type": "string",
+              "description": "Regex pattern that the final answer must match."
+            }
+          },
+          "additionalProperties": false
+        },
+        "allOf": {
+          "type": "array",
+          "minItems": 1,
+          "description": "All nested assertions must pass (logical AND).",
+          "items": { "$ref": "#/$defs/AssertionItem" }
+        },
+        "anyOf": {
+          "type": "array",
+          "minItems": 1,
+          "description": "At least one nested assertion must pass (logical OR).",
+          "items": { "$ref": "#/$defs/AssertionItem" }
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "systems": ["user@host.example.com", "user@host.example.com:22"],
+  "jobCards": {
+    "user@host.example.com": [
+      "//{jobname}  JOB (ACCT),'{programmer}',CLASS=A,MSGCLASS=X,NOTIFY=&SYSUID",
+      "/*JOBPARM S=*"
+    ]
+  }
+}

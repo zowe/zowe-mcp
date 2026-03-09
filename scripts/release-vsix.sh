@@ -1,0 +1,80 @@
+#!/usr/bin/env bash
+#
+# This program and the accompanying materials are made available under the terms of the
+# Eclipse Public License v2.0 which accompanies this distribution, and is available at
+# https://www.eclipse.org/legal/epl-v20.html
+#
+# SPDX-License-Identifier: EPL-2.0
+#
+# Copyright Contributors to the Zowe Project.
+#
+
+#
+# Build the Zowe MCP VS Code extension and create a GitHub Release with the VSIX.
+# Requires: npm, gh (GitHub CLI), and gh auth login.
+#
+# Usage:
+#   ./scripts/release-vsix.sh [TAG]
+#
+# If TAG is omitted, uses v<VERSION> from packages/zowe-mcp-vscode/package.json
+# (e.g. v0.1.0). The tag is created from the current HEAD and pushed; then
+# a release is created and the VSIX is uploaded.
+#
+# Examples:
+#   ./scripts/release-vsix.sh           # use version from package.json
+#   ./scripts/release-vsix.sh v0.1.0    # explicit tag
+
+set -e
+
+REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$REPO_ROOT"
+
+# Resolve tag
+if [ -n "$1" ]; then
+  TAG="$1"
+  VERSION="${TAG#v}"
+else
+  VERSION=$(node -p "require('./packages/zowe-mcp-vscode/package.json').version")
+  TAG="v${VERSION}"
+fi
+
+# Sync version in all package.json so VSIX and builds use the same version
+node scripts/set-version.js "$VERSION"
+
+echo "Building and packaging extension for tag: $TAG"
+
+# Build all (server + extension)
+npm run build
+
+# Package VSIX (writes to packages/zowe-mcp-vscode/*.vsix)
+npm run package -w packages/zowe-mcp-vscode
+
+# Use the VSIX that matches the release version (ignore any leftover old .vsix files)
+VSIX_DIR="$REPO_ROOT/packages/zowe-mcp-vscode"
+VSIX="$VSIX_DIR/zowe-mcp-vscode-${VERSION}.vsix"
+
+if [ ! -f "$VSIX" ]; then
+  echo "Error: Expected VSIX not found: $VSIX" >&2
+  exit 1
+fi
+
+echo "VSIX: $VSIX"
+
+# Create and push tag if it doesn't exist
+if ! git rev-parse "$TAG" >/dev/null 2>&1; then
+  echo "Creating tag $TAG from current HEAD..."
+  git tag "$TAG"
+  echo "Pushing tag $TAG..."
+  git push origin "$TAG"
+fi
+
+# Create release with VSIX or upload to existing release
+if gh release view "$TAG" >/dev/null 2>&1; then
+  echo "Release $TAG already exists; uploading VSIX..."
+  gh release upload "$TAG" "$VSIX" --clobber
+else
+  echo "Creating GitHub Release and uploading VSIX..."
+  gh release create "$TAG" "$VSIX" --generate-notes
+fi
+
+echo "Done. Release: $(gh release view "$TAG" --json url -q .url)"

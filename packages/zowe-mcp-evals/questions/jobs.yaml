@@ -1,0 +1,47 @@
+# yaml-language-server: $schema=../schemas/evals-question-set.schema.json
+# Job evals: require native backend (mock does not implement job operations).
+# For submit-jcl-from-dataset, the native system must have SYS1.SAMPLIB(BPXISJCL).
+config:
+  name: jobs
+  description: Agent must use listJobs or getJobStatus; requires native z/OS backend
+  repetitions: 1
+  minSuccessRate: 0.8
+  native:
+    serverArgs: --native --config native-config.json
+
+questions:
+  - id: list-my-jobs
+    prompt: List my recent jobs on the system.
+    assertions:
+      - toolCall:
+          tool: listJobs
+      - answerContains:
+          pattern: "job|Job|JOB"
+
+  - id: job-status
+    prompt: What is the status of my most recent job?
+    assertions:
+      - toolCall:
+          tool: listJobs
+      - answerContains:
+          pattern: "status|ACTIVE|OUTPUT|CC|RC|retcode|phase"
+
+  - id: submit-jcl-from-dataset
+    prompt: Submit the JCL in data set SYS1.SAMPLIB(BPXISJCL) as a job.
+    assertions:
+      - toolCall:
+          tool: submitJobFromDataset
+          args:
+            validDsn: "SYS1.SAMPLIB(BPXISJCL)"
+
+  - id: list-jobs-then-spool-and-read
+    prompt: List my jobs, then list the spool files for the most recent job and show me the content of the first spool file.
+    assertions:
+      anyOf:
+        - toolCallOrder:
+            - tool: listJobs
+            - tool: listJobFiles
+            - tool: readJobFile
+        - toolCallOrder:
+            - tool: listJobs
+            - tool: getJobOutput

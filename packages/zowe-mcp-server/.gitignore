@@ -1,0 +1,9 @@
+# Build output
+dist/
+*.tsbuildinfo
+
+# Coverage
+coverage/
+
+# Logs
+*.log

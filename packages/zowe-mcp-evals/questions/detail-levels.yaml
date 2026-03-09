@@ -1,0 +1,48 @@
+# yaml-language-server: $schema=../schemas/evals-question-set.schema.json
+# Detail level selection evals (mock, default preset)
+config:
+  name: detail-levels
+  description: Agent should select the appropriate detail level for listDatasets
+  repetitions: 5
+  minSuccessRate: 0.5
+  mock:
+    initArgs: --preset default
+
+questions:
+  - id: minimal-just-names
+    prompt: Just give me the names of data sets under USER, I don't need any details.
+    assertions:
+      - toolCall:
+          tool: listDatasets
+          args:
+            detail: minimal
+
+  - id: full-sms-classes
+    prompt: What SMS storage class is used by data sets under USER?
+    assertions:
+      - toolCall:
+          tool: listDatasets
+          args:
+            detail: full
+
+  - id: default-no-preference
+    prompt: List data sets under USER.
+    assertions:
+      - toolCall:
+          tool: listDatasets
+          args:
+            dsnPattern:
+              - "USER.**"
+              - "'USER.**'"
+              - "USER.*"
+              - "'USER.*'"
+
+  - id: basic-recfm-lrecl
+    prompt: Show me the record format and record length of data sets matching USER.*.
+    assertions:
+      - toolCall:
+          tool: listDatasets
+          args:
+            detail:
+              - basic
+              - full

@@ -1,0 +1,64 @@
+# yaml-language-server: $schema=../schemas/evals-question-set.schema.json
+# SMS/allocation parameter stress-test: VOLSER, DATACLAS, STORCLAS, MGMTCLAS, JCL-style allocation.
+# Validates that the agent maps z/OS SMS and allocation vocabulary to createDataset parameters.
+config:
+  name: sms-allocation
+  description: Stress-test SMS and allocation parameter mapping (volser, dataClass, storageClass, managementClass)
+  repetitions: 5
+  minSuccessRate: 0.8
+  mock:
+    initArgs: --preset default
+
+questions:
+  - id: sms-allocate-with-volser
+    prompt: Allocate a new sequential data set USER.TEST.VOLDATA on volume VOL001 with RECFM=FB and LRECL=80.
+    assertions:
+      - toolCall:
+          tool: createDataset
+          args:
+            validDsn: "USER.TEST.VOLDATA"
+            type:
+              - "PS"
+              - "SEQUENTIAL"
+            recfm: "FB"
+            lrecl: 80
+            volser: "VOL001"
+
+  - id: sms-allocate-with-dataclas
+    prompt: Create a PDS called USER.TEST.SMSDATA with data class DCLAS01 and storage class SCLAS01.
+    assertions:
+      - toolCall:
+          tool: createDataset
+          args:
+            validDsn: "USER.TEST.SMSDATA"
+            dataClass: "DCLAS01"
+            storageClass: "SCLAS01"
+
+  - id: sms-allocate-with-mgmtclas
+    prompt: Allocate USER.TEST.MANAGED as a PDSE with management class MCLAS01.
+    assertions:
+      - toolCall:
+          tool: createDataset
+          args:
+            validDsn: "USER.TEST.MANAGED"
+            type:
+              - "PO-E"
+              - "PDSE"
+              - "LIBRARY"
+            managementClass: "MCLAS01"
+
+  - id: sms-jcl-style-allocation
+    prompt: "Allocate a data set USER.TEST.FULL with these JCL-style attributes: DSORG=PS, RECFM=VB, LRECL=255, BLKSIZE=27998, VOL=SER=USR001, DATACLAS=BIGDATA, STORCLAS=FAST."
+    assertions:
+      - toolCall:
+          tool: createDataset
+          args:
+            validDsn: "USER.TEST.FULL"
+            type:
+              - "PS"
+              - "SEQUENTIAL"
+            recfm: "VB"
+            lrecl: 255
+            volser: "USR001"
+            dataClass: "BIGDATA"
+            storageClass: "FAST"

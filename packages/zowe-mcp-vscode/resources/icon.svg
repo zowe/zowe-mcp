@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <defs>
+    <clipPath id="roundedSquare">
+      <rect width="256" height="256" rx="32" ry="32"/>
+    </clipPath>
+  </defs>
+
+  <!-- Background -->
+  <rect width="256" height="256" rx="32" ry="32" fill="#0033A1"/>
+
+  <!-- Zowe logo (simplified) -->
+  <g transform="translate(28, 20) scale(0.65)">
+    <polygon fill="#ffffff" points="177.436 81.429 252.085 184.753 127.906 274.872 51 154.716"/>
+    <polygon fill="#1a237e" points="168.197 136.32 181.956 55.782 29.202 156.633 81.719 155.81 153.203 105.713"/>
+    <polygon fill="#2a7de1" points="271.51 191.418 164.529 154.712 181.954 55.777"/>
+    <polyline fill="#1a237e" points="131.223 229.511 139.675 241.691 216.405 187.184 203.42 168.057 159.152 198.91 164.527 154.716 271.508 191.416 125.787 294.202"/>
+    <polygon fill="#2a7de1" points="29.2 156.634 81.723 155.811 94.075 176.677 143.275 143.238 125.788 293.012"/>
+    <polygon fill="#1a237e" points="94.075 176.677 137.471 193.298 143.275 143.239"/>
+  </g>
+
+  <!-- MCP badge circle -->
+  <circle cx="200" cy="200" r="52" fill="#ffffff" stroke="#0033A1" stroke-width="3"/>
+
+  <!-- MCP text in badge -->
+  <text x="200" y="210" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-weight="bold" font-size="28" fill="#0033A1">MCP</text>
+</svg>

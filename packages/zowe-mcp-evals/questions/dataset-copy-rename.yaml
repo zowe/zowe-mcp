@@ -1,0 +1,54 @@
+# yaml-language-server: $schema=../schemas/evals-question-set.schema.json
+# copyDataset and renameDataset evals (mock, default preset) - temp data sets and cleanup
+config:
+  name: dataset-copy-rename
+  description: Agent must copy/rename data sets and clean up temp prefix
+  repetitions: 2
+  minSuccessRate: 0.8
+  mock:
+    initArgs: --preset minimal
+
+questions:
+  - id: copy-member-then-cleanup
+    prompt: Create a temporary PDS, copy member CUSTFILE from USER.SRC.COBOL into that PDS as member BACKUP, then list the members of the temp PDS to confirm, then delete all data sets under that temp prefix.
+    assertions:
+      - name: create temp PDS, copy member, list, cleanup
+        toolCallOrder:
+          - tool: createTempDataset
+            args:
+              type:
+                - "PO"
+                - "PO-E"
+                - "PDS"
+                - "PDSE"
+                - "LIBRARY"
+          - tool: copyDataset
+            args:
+              sourceDsn:
+                - "USER.SRC.COBOL"
+                - "'USER.SRC.COBOL'"
+              sourceMember: "CUSTFILE"
+              targetMember: "BACKUP"
+          - tool: listMembers
+          - tool: deleteDatasetsUnderPrefix
+      - answerContains:
+          pattern: "BACKUP|member|success|complete|deleted"
+
+  - id: rename-dataset-temp
+    prompt: Create a temporary sequential data set with createTempDataset, rename it by changing the last qualifier to TEST, then write one line "Rename test" to it with writeDataset.
+    assertions:
+      - name: create temp, rename, write
+        toolCallOrder:
+          - tool: createTempDataset
+            args:
+              type:
+                - "PS"
+                - "SEQUENTIAL"
+          - tool: renameDataset
+            args:
+              newDsn: "TEST"
+          - tool: writeDataset
+            args:
+              lines: ["Rename test"]
+      - answerContains:
+          pattern: "Rename test|success|written|created"

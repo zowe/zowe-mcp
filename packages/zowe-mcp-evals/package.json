@@ -1,0 +1,38 @@
+{
+  "name": "zowe-mcp-evals",
+  "version": "0.8.0-dev",
+  "description": "AI evaluations for Zowe MCP data set/member tools",
+  "type": "module",
+  "main": "dist/run.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "evals": "node dist/run.js",
+    "test": "vitest run",
+    "format": "prettier --write \"**/*.{ts,js,json}\"",
+    "check-format": "prettier --check \"**/*.{ts,js,json}\""
+  },
+  "keywords": [
+    "zowe",
+    "mcp",
+    "evals",
+    "evaluation"
+  ],
+  "license": "EPL-2.0",
+  "dependencies": {
+    "zowe-mcp-common": "*",
+    "@ai-sdk/google": "^2.0.0",
+    "@ai-sdk/openai-compatible": "1.0.33",
+    "@modelcontextprotocol/sdk": "^1.26.0",
+    "ai": "^5.0.0",
+    "ajv": "^8.18.0",
+    "dotenv": "^16.6.1",
+    "js-yaml": "^4.1.0",
+    "markdown-table": "^3.0.4"
+  },
+  "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^22.0.0",
+    "typescript": "^5.9.2",
+    "vitest": "^3.2.4"
+  }
+}

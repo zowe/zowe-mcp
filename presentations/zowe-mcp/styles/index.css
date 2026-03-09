@@ -1,0 +1,305 @@
+:root {
+  --zowe-primary: #3162ac;
+  --zowe-dark-blue: #1b375f;
+  --zowe-accent: #3975d0;
+  --zowe-hover: #264c86;
+  --zowe-bg: #ffffff;
+  --zowe-bg-alt: #f3f4f4;
+  --zowe-text: #0d0d0e;
+  --zowe-text-muted: #6d7176;
+  --zowe-green: #16825d;
+  --zowe-red: #e0182d;
+  --zowe-light-blue: #c9d9f2;
+  --zowe-border: #dddee0;
+
+  --slidev-theme-primary: var(--zowe-primary);
+}
+
+/* ── Force light mode backgrounds ── */
+
+html,
+html.light,
+html:not(.dark) {
+  color-scheme: light;
+}
+
+body,
+#app,
+#slide-content,
+.slidev-page,
+.slide-content {
+  background: var(--zowe-bg) !important;
+  color: var(--zowe-text) !important;
+}
+
+/* ── Global slide styling ── */
+
+.slidev-layout {
+  font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  color: var(--zowe-text);
+  background: var(--zowe-bg);
+}
+
+/* ── Cover / title slide ── */
+
+.slidev-layout.cover,
+.slidev-layout.intro {
+  background: linear-gradient(135deg, var(--zowe-dark-blue) 0%, var(--zowe-primary) 60%, var(--zowe-accent) 100%);
+  color: #ffffff;
+}
+
+.slidev-layout.cover h1,
+.slidev-layout.intro h1 {
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 2.6em;
+  line-height: 1.15;
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.18);
+}
+
+.slidev-layout.cover p,
+.slidev-layout.intro p {
+  color: rgba(255, 255, 255, 0.88);
+  font-size: 1.15em;
+}
+
+/* ── Section divider slides ── */
+
+.slidev-layout.section {
+  background: var(--zowe-bg-alt);
+  border-left: 6px solid var(--zowe-primary);
+}
+
+.slidev-layout.section h1 {
+  color: var(--zowe-primary);
+  font-weight: 700;
+}
+
+/* ── Default content slides ── */
+
+.slidev-layout.default h1,
+.slidev-layout h1 {
+  color: var(--zowe-primary);
+  font-weight: 700;
+  border-bottom: 3px solid var(--zowe-accent);
+  padding-bottom: 0.3em;
+  margin-bottom: 0.6em;
+}
+
+.slidev-layout h2 {
+  color: var(--zowe-dark-blue);
+  font-weight: 600;
+}
+
+.slidev-layout h3 {
+  color: var(--zowe-hover);
+  font-weight: 600;
+}
+
+/* ── Links ── */
+
+.slidev-layout a {
+  color: var(--zowe-primary);
+  text-decoration: underline;
+  text-decoration-color: var(--zowe-light-blue);
+  text-underline-offset: 3px;
+  transition: color 0.2s;
+}
+
+.slidev-layout a:hover {
+  color: var(--zowe-hover);
+}
+
+/* ── Code blocks ── */
+
+.slidev-layout pre,
+.slidev-layout code {
+  font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+}
+
+.slidev-layout :not(pre) > code {
+  background: var(--zowe-bg-alt);
+  color: var(--zowe-dark-blue);
+  padding: 0.15em 0.4em;
+  border-radius: 4px;
+  font-size: 0.88em;
+  border: 1px solid var(--zowe-border);
+}
+
+.slidev-layout pre {
+  background: var(--zowe-dark-blue) !important;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* ── Lists ── */
+
+.slidev-layout ul {
+  list-style: none;
+  padding-left: 1.2em;
+}
+
+.slidev-layout ul > li::before {
+  content: '▸';
+  color: var(--zowe-primary);
+  font-weight: 700;
+  display: inline-block;
+  width: 1em;
+  margin-left: -1.2em;
+}
+
+.slidev-layout ol {
+  padding-left: 1.4em;
+}
+
+.slidev-layout ol > li::marker {
+  color: var(--zowe-primary);
+  font-weight: 700;
+}
+
+.slidev-layout li {
+  margin-bottom: 0.35em;
+  line-height: 1.55;
+}
+
+/* ── Tables ── */
+
+.slidev-layout table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 0.88em;
+}
+
+.slidev-layout th {
+  background: var(--zowe-primary);
+  color: #ffffff;
+  padding: 0.55em 0.8em;
+  text-align: left;
+  font-weight: 600;
+}
+
+.slidev-layout td {
+  padding: 0.45em 0.8em;
+  border-bottom: 1px solid var(--zowe-border);
+}
+
+.slidev-layout tr:nth-child(even) td {
+  background: var(--zowe-bg-alt);
+}
+
+/* ── Blockquotes (used for callouts) ── */
+
+.slidev-layout blockquote {
+  border-left: 4px solid var(--zowe-accent);
+  background: rgba(49, 98, 172, 0.06);
+  padding: 0.6em 1em;
+  border-radius: 0 6px 6px 0;
+  margin: 0.8em 0;
+  font-style: normal;
+}
+
+.slidev-layout blockquote p {
+  margin: 0;
+}
+
+/* ── Strong / emphasis ── */
+
+.slidev-layout strong {
+  color: var(--zowe-dark-blue);
+  font-weight: 700;
+}
+
+/* ── Stat cards (custom utility) ── */
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 1em;
+  margin: 1em 0;
+}
+
+.stat-card {
+  background: var(--zowe-bg-alt);
+  border: 1px solid var(--zowe-border);
+  border-top: 4px solid var(--zowe-primary);
+  border-radius: 8px;
+  padding: 1em;
+  text-align: center;
+}
+
+.stat-card .number {
+  font-size: 2.2em;
+  font-weight: 800;
+  color: var(--zowe-primary);
+  line-height: 1.1;
+}
+
+.stat-card .label {
+  font-size: 0.85em;
+  color: var(--zowe-text-muted);
+  margin-top: 0.3em;
+}
+
+/* ── Feature grid ── */
+
+.feature-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.8em;
+  margin: 0.6em 0;
+}
+
+.feature-item {
+  background: var(--zowe-bg-alt);
+  border-radius: 8px;
+  padding: 0.7em 1em;
+  border-left: 3px solid var(--zowe-primary);
+}
+
+.feature-item h4 {
+  color: var(--zowe-dark-blue);
+  margin: 0 0 0.2em;
+  font-size: 0.95em;
+}
+
+.feature-item p {
+  margin: 0;
+  font-size: 0.82em;
+  color: var(--zowe-text-muted);
+  line-height: 1.4;
+}
+
+/* ── Mermaid diagram overrides ── */
+
+.mermaid {
+  margin: 0.5em auto;
+}
+
+/* ── Footer branding bar ── */
+
+.slidev-layout::after {
+  content: '';
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, var(--zowe-dark-blue), var(--zowe-primary), var(--zowe-accent));
+  z-index: 100;
+}
+
+/* ── End slide ── */
+
+.slidev-layout.end {
+  background: linear-gradient(135deg, var(--zowe-dark-blue) 0%, var(--zowe-primary) 60%, var(--zowe-accent) 100%);
+  color: #ffffff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.slidev-layout.end h1 {
+  color: #ffffff;
+  border-bottom: none;
+}

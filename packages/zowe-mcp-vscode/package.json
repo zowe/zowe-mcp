@@ -1,0 +1,264 @@
+{
+  "name": "zowe-mcp-vscode",
+  "displayName": "Zowe MCP",
+  "description": "Zowe MCP Server for z/OS - provides AI tools for data sets, jobs, and UNIX System Services.",
+  "version": "0.8.0-dev",
+  "publisher": "Zowe",
+  "author": "Zowe",
+  "license": "EPL-2.0",
+  "icon": "resources/icon.png",
+  "engines": {
+    "vscode": "^1.101.0"
+  },
+  "categories": [
+    "AI",
+    "Other",
+    "Themes"
+  ],
+  "keywords": [
+    "zowe",
+    "mcp",
+    "z/OS",
+    "mainframe",
+    "model-context-protocol",
+    "theme"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "iconThemes": [
+      {
+        "id": "zowe-mainframe",
+        "label": "Zowe Mainframe",
+        "path": "./themes/fileicons/zowe-file-icon-theme.json"
+      },
+      {
+        "id": "ispf-file-icons",
+        "label": "ISPF",
+        "path": "./themes/fileicons/ispf-file-icon-theme.json"
+      },
+      {
+        "id": "ispf-modern-file-icons",
+        "label": "ISPF Modern",
+        "path": "./themes/fileicons/ispf-modern-file-icon-theme.json"
+      }
+    ],
+    "themes": [
+      {
+        "id": "zowe-dark-classic",
+        "label": "Zowe Dark (Classic)",
+        "path": "./themes/zowe-dark-classic-color-theme.json",
+        "uiTheme": "vs-dark"
+      },
+      {
+        "id": "zowe-light-classic",
+        "label": "Zowe Light (Classic)",
+        "path": "./themes/zowe-light-classic-color-theme.json",
+        "uiTheme": "vs"
+      },
+      {
+        "id": "zowe-dark-official",
+        "label": "Zowe Dark (Official)",
+        "path": "./themes/zowe-dark-official-color-theme.json",
+        "uiTheme": "vs-dark"
+      },
+      {
+        "id": "zowe-light-official",
+        "label": "Zowe Light (Official)",
+        "path": "./themes/zowe-light-official-color-theme.json",
+        "uiTheme": "vs"
+      },
+      {
+        "id": "ispf-classic-dark",
+        "label": "ISPF Classic (Dark)",
+        "path": "./themes/ispf-classic-dark-color-theme.json",
+        "uiTheme": "vs-dark"
+      },
+      {
+        "id": "ispf-green",
+        "label": "ISPF Green (Dark)",
+        "path": "./themes/ispf-green-color-theme.json",
+        "uiTheme": "vs-dark"
+      },
+      {
+        "id": "ispf-modern-dark",
+        "label": "ISPF Modern (Dark)",
+        "path": "./themes/ispf-modern-dark-color-theme.json",
+        "uiTheme": "vs-dark"
+      },
+      {
+        "id": "ispf-modern-light",
+        "label": "ISPF Modern (Light)",
+        "path": "./themes/ispf-modern-light-color-theme.json",
+        "uiTheme": "vs"
+      }
+    ],
+    "mcpServerDefinitionProviders": [
+      {
+        "id": "zowe",
+        "label": "Zowe"
+      }
+    ],
+    "commands": [
+      {
+        "command": "zowe-mcp.initMockData",
+        "title": "Generate Mock Data",
+        "category": "Zowe MCP"
+      },
+      {
+        "command": "zowe-mcp.clearStoredPassword",
+        "title": "Clear Stored Password",
+        "category": "Zowe MCP"
+      },
+      {
+        "command": "zowe-mcp.resetAllSettingsAndState",
+        "title": "Reset All Settings and State",
+        "category": "Zowe MCP"
+      }
+    ],
+    "configuration": {
+      "title": "Zowe MCP",
+      "properties": {
+        "zoweMCP.nativeConnections": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[^@]+@[a-zA-Z0-9.-]+(:\\d+)?$",
+            "patternErrorMessage": "Must be user@host or user@host:port"
+          },
+          "default": [],
+          "description": "SSH connection specs (user@host or user@host:port) that define access to z/OS systems. Each entry is one connection (e.g. USERID@sys1.example.com). You can have multiple connections to the same z/OS system (e.g. different user IDs). When non-empty, the MCP server starts with the native backend. Passwords are stored in the shared Zowe secret namespace (zowe.ssh.password.*).",
+          "markdownDescription": "SSH connection specs (`user@host` or `user@host:port`) that define access to z/OS systems. Each entry is one connection (e.g. `USERID@sys1.example.com`). You can have multiple connections to the same z/OS system (e.g. different user IDs). When non-empty, the MCP server starts with the native backend. Passwords are stored in the shared Zowe secret namespace (`zowe.ssh.password.*`).",
+          "order": 1
+        },
+        "zoweMCP.logLevel": {
+          "type": "string",
+          "default": "info",
+          "enum": [
+            "debug",
+            "info",
+            "notice",
+            "warning",
+            "error"
+          ],
+          "enumDescriptions": [
+            "Verbose debug messages",
+            "Informational messages",
+            "Normal but significant conditions",
+            "Warning conditions",
+            "Error conditions"
+          ],
+          "description": "Minimum log level for the Zowe MCP Server. Changes take effect immediately without restarting.",
+          "order": 2
+        },
+        "zoweMCP.installZoweNativeServerAutomatically": {
+          "type": "boolean",
+          "default": true,
+          "description": "When true, automatically install the Zowe Native server on the host when \"Server not found\" is detected. Set to false to disable auto-install. Changes are sent to the server and apply to future connections.",
+          "markdownDescription": "When `true`, automatically install the Zowe Native server on the host when \"Server not found\" is detected. Set to `false` to disable auto-install. Changes are sent to the server and apply to future connections.",
+          "order": 3
+        },
+        "zoweMCP.zoweNativeServerPath": {
+          "type": "string",
+          "default": "~/.zowe-server",
+          "pattern": "^(/|~).*",
+          "patternErrorMessage": "Must be a Unix-style path for z/OS UNIX System Services (e.g. ~/.zowe-server or /var/zowe-server)",
+          "description": "Remote path on the z/OS host (UNIX System Services). Must start with / or ~. Changes are sent to the server and apply to future connections.",
+          "markdownDescription": "Remote path on the z/OS host (UNIX System Services). Must start with `/` or `~` (e.g. `~/.zowe-server` or `/var/zowe-server`). Changes are sent to the server and apply to future connections.",
+          "order": 4
+        },
+        "zoweMCP.nativeResponseTimeout": {
+          "type": "number",
+          "default": 60,
+          "minimum": 1,
+          "maximum": 3600,
+          "description": "Response timeout in seconds for each Zowe Native (ZNP) request. Increase on overloaded systems to avoid timeouts. Changes are sent to the server and apply to future connections.",
+          "markdownDescription": "Response timeout in seconds for each Zowe Native (ZNP) request (e.g. list data sets, read data set). Increase on overloaded systems to avoid timeouts. Changes are sent to the server and apply to future connections.",
+          "order": 5
+        },
+        "zoweMCP.mockDataDirectory": {
+          "type": "string",
+          "default": "",
+          "pattern": "^[^\u0000-\u001f]*$",
+          "patternErrorMessage": "Must not contain control characters. Use an absolute path for your OS (e.g. /path, C:\\path, or ~/path).",
+          "description": "Local absolute path to a mock data directory. When set and Native connections is empty, the MCP server starts in mock mode. Use the 'Zowe MCP: Generate Mock Data' command to create one. Leave empty to use native (SSH) mode. Changes require running 'Developer: Reload Window' command.",
+          "markdownDescription": "Local absolute path to a mock data directory (e.g. `/path`, `C:\\\\path`, or `~/path`). When set and **Native connections** is empty, the MCP server starts in mock mode. Use the **Zowe MCP: Generate Mock Data** command to create one. Leave empty to use native (SSH) mode. Changes require running **Developer: Reload Window** command.",
+          "order": 6
+        },
+        "zoweMCP.defaultMainframeMvsEncoding": {
+          "type": "string",
+          "default": "IBM-037",
+          "pattern": "^IBM-[0-9]+$",
+          "patternErrorMessage": "Must be a valid IBM encoding format (e.g. IBM-037, IBM-1047)",
+          "description": "Default mainframe encoding (EBCDIC) for data set read/write (e.g. IBM-037, IBM-1047). Use the encoding used at your site. Changes are sent to the server and take effect immediately.",
+          "markdownDescription": "Default mainframe encoding (EBCDIC) for data set read/write (e.g. `IBM-037`, `IBM-1047`). Use the encoding used at your site. Changes are sent to the server and take effect immediately.",
+          "order": 7
+        },
+        "zoweMCP.defaultMainframeUssEncoding": {
+          "type": "string",
+          "default": "IBM-1047",
+          "pattern": "^IBM-[0-9]+$",
+          "patternErrorMessage": "Must be a valid IBM encoding format (e.g. IBM-1047)",
+          "description": "Default mainframe encoding for USS file operations (e.g. IBM-1047). Use the encoding used at your site. Changes are sent to the server and take effect immediately.",
+          "markdownDescription": "Default mainframe encoding for USS file operations (e.g. `IBM-1047`). Use the encoding used at your site. Changes are sent to the server and take effect immediately.",
+          "order": 8
+        },
+        "zoweMCP.jobCards": {
+          "type": "object",
+          "additionalProperties": {
+            "oneOf": [
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Job card as list of lines (recommended; one line per array element)."
+              },
+              {
+                "type": "string",
+                "description": "Full job card as a single string (use \\n for newlines)."
+              }
+            ]
+          },
+          "default": {},
+          "description": "JCL job cards per connection spec (key: user@host or user@host:port). Prefer array of lines, e.g. [\"//{jobname}  JOB (ACCT),'{programmer}',CLASS=A,...\", \"/*JOBPARM S=*\"]. Use placeholders {jobname} and {programmer}; submitJob substitutes them. Changes are sent to the server and take effect immediately.",
+          "markdownDescription": "JCL job cards per connection spec. Key is `user@host` or `user@host:port`. **Prefer an array of lines** (one string per line), for example:\n\n```json\n\"USER@zos.example.com\": [\n  \"//{jobname}  JOB (ACCT),'{programmer}',CLASS=A,MSGCLASS=X,NOTIFY=&SYSUID\",\n  \"/*JOBPARM S=*\"\n]\n```\n\nUse placeholders `{jobname}` and `{programmer}`; `submitJob` substitutes them. You can also use a single string with `\\n` for newlines. Changes are sent to the server and take effect immediately.",
+          "order": 9
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run build:all",
+    "build": "tsc -p ./",
+    "build:server": "npm run build -w zowe-mcp-server && npm run bundle:server",
+    "bundle:server": "node scripts/bundle-server.js",
+    "build:all": "npm run build:server && npm run build",
+    "dev": "tsc -watch -p ./",
+    "pretest": "npm run build:all",
+    "test": "vscode-test",
+    "package": "vsce package --no-dependencies --allow-missing-repository",
+    "install-extension": "node scripts/install-extension.js",
+    "build-and-install": "npm run package && npm run install-extension",
+    "download-api": "npx @vscode/dts dev",
+    "postdownload-api": "npx @vscode/dts main",
+    "format": "prettier --write \"**/*.{ts,js,mjs,json,jsonc}\"",
+    "check-format": "prettier --check \"**/*.{ts,js,mjs,json,jsonc}\"",
+    "postinstall": "npm run download-api"
+  },
+  "dependencies": {
+    "@zowe/imperative": "^8.30.1",
+    "zowe-mcp-common": "*",
+    "zowe-mcp-server": "0.8.0-dev"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@vscode/dts": "^0.4.1",
+    "@vscode/vsce": "^3.0.0",
+    "@vscode/test-cli": "^0.0.10",
+    "@vscode/test-electron": "^2.5.2",
+    "typescript": "^5.9.2"
+  }
+}

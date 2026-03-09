@@ -1,0 +1,19 @@
+{
+  "minLines": 10,
+  "minTokens": 50,
+  "threshold": 5,
+  "ignore": [
+    "**/dist/**",
+    "**/out/**",
+    "**/node_modules/**",
+    "**/__tests__/**",
+    "**/themes/**",
+    "**/server/**",
+    "**/.vscode-test/**",
+    "**/*.d.ts",
+    "**/vscode.d.ts"
+  ],
+  "gitignore": true,
+  "reporters": ["console", "json"],
+  "format": ["typescript", "javascript"]
+}

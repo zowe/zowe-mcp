@@ -1,0 +1,20 @@
+# yaml-language-server: $schema=../schemas/evals-question-set.schema.json
+# getDatasetAttributes evals (mock, default preset) - RECFM, LRECL, DSORG from IBM docs
+config:
+  name: dataset-attributes
+  description: Agent must use getDatasetAttributes to report record format and organization
+  repetitions: 2
+  minSuccessRate: 0.8
+  mock:
+    initArgs: --preset default
+
+questions:
+  - id: get-attributes-cobol
+    prompt: What are the record format and organization of data set USER.SRC.COBOL?
+    assertions:
+      - toolCall:
+          tool: getDatasetAttributes
+          args:
+            validDsn: "USER.SRC.COBOL"
+      - answerContains:
+          pattern: "PO|FB|RECFM|dsorg|record|organization"

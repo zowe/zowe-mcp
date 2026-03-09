@@ -1,0 +1,24 @@
+{
+  "models": [
+    {
+      "id": "vllm-local",
+      "provider": "vllm",
+      "baseUrl": "http://localhost:8000/v1",
+      "serverModel": "your-model-name",
+      "apiKey": "no key needed"
+    },
+    {
+      "id": "gemini-2.5-flash",
+      "provider": "gemini",
+      "serverModel": "gemini-2.5-flash",
+      "apiKey": "your-gemini-api-key-or-set-GEMINI_API_KEY-env"
+    },
+    {
+      "id": "lmstudio-local",
+      "provider": "lmstudio",
+      "baseUrl": "http://localhost:1234/v1",
+      "serverModel": "your-model-id",
+      "contextLength": 32768
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+DSLEVEL pattern (dataset list pattern for dsnPattern). It is not the same as grep regex or Windows filename masks.
+
+Rules:
+- Pattern must not begin with a wildcard (first qualifier must be literal, e.g. USER or MY.HIGH.LEVEL).
+- Maximum length 44 characters.
+
+Wildcards:
+- % — any single character in that position (e.g. USER.TEST% matches USER.TEST1 and USER.TEST2).
+- * — any characters within that one qualifier only (e.g. USER.J*.OLD matches USER.JCL.OLD but not USER.JCL.VERY.OLD).
+- ** — any characters across any number of qualifiers (e.g. USER.**.OLD matches both USER.JCL.OLD and USER.JCL.VERY.OLD).
+
+Patterns are fully qualified. MY.DATASET and 'MY.DATASET' are equivalent.
+
+Examples:
+- Exact or prefix: USER, MY.DATASET, USER.**
+- Single qualifier wildcard: USER.J*.CNTL
+- Multi-qualifier: USER.**.CNTL (anything under USER ending in qualifier CNTL)
+
+Correct use of * and ** in one pattern:
+- USER.T*.**.OLD — * matches any second qualifier that starts with T (e.g. TEST, TST); ** matches zero or more qualifiers before the final OLD. Matches USER.TEST.OLD, USER.TEST.BACKUP.OLD, USER.TST.X.Y.OLD.
+- USER.**.*JCL* — * matches any last qualifier that contains JCL (e.g. JCL, MYJCL, JCLOLD); ** matches zero or more qualifiers before the final segment. Matches USER.JCL, USER.BACKUP.JCLS, USER.TEST.SAMPJCL.
+
+Invalid patterns:
+- USER.**JCL — Invalid: ** must be the entire qualifier (no other characters). Use USER.**.*JCL* instead.
+- USER.**JCL* — Invalid: ** and * cannot be combined in the same qualifier. Use USER.**.*JCL* instead.
+- USER.**.**.OLD — Avoid using ** more than once; a single ** already matches any number of qualifiers.
+
+Notes:
+- USER.*.OLD — Wrong when you want names like USER.JCL.VERY.OLD that match multiple qualifiers. * matches only one qualifier, so it matches USER.JCL.OLD but not USER.JCL.VERY.OLD. Use USER.**.OLD to match any number of middle qualifiers.
+- *.DATASET or **.DATASET — Possible but will cause all catalogs on the system to be searched. It will take a considerable amount of time to complete this search. If you can be more specific, do so.

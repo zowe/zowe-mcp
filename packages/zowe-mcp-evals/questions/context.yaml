@@ -1,0 +1,32 @@
+# yaml-language-server: $schema=../schemas/evals-question-set.schema.json
+# Context evals: getContext, setSystem (mock, default preset)
+config:
+  name: context
+  description: Agent must use getContext or setSystem then getContext
+  repetitions: 2
+  minSuccessRate: 0.8
+  mock:
+    initArgs: --preset default
+
+questions:
+  - id: get-context-after-list
+    prompt: What z/OS system am I connected to and what is my user ID?
+    assertions:
+      - toolCall:
+          tool: getContext
+      - answerContains:
+          pattern: "system|user|USER|mainframe"
+
+  - id: set-system-then-context
+    prompt: Switch to the first system in the list and then tell me my current system and user.
+    assertions:
+      - name: listSystems or getContext then setSystem or getContext both yield current system/user
+        toolCallOrder:
+          - tools:
+              - listSystems
+              - getContext
+          - tools:
+              - setSystem
+              - getContext
+      - answerContains:
+          pattern: "system|user|mainframe"

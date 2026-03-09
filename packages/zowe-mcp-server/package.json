@@ -1,0 +1,53 @@
+{
+  "name": "zowe-mcp-server",
+  "version": "0.8.0-dev",
+  "description": "Zowe MCP Server - Model Context Protocol server providing tools for z/OS",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "zowe-mcp-server": "dist/index.js"
+  },
+  "files": [
+    "dist/"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json && node scripts/copy-resources.cjs",
+    "dev": "tsc -p tsconfig.build.json --watch",
+    "pretest": "npm run build",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "format": "prettier --write \"**/*.{ts,js,mjs,json,jsonc}\"",
+    "check-format": "prettier --check \"**/*.{ts,js,mjs,json,jsonc}\""
+  },
+  "keywords": [
+    "zowe",
+    "mcp",
+    "model-context-protocol",
+    "z/OS",
+    "mainframe"
+  ],
+  "license": "EPL-2.0",
+  "dependencies": {
+    "zowe-mcp-common": "*",
+    "@faker-js/faker": "^9.0.0",
+    "js-yaml": "^4.1.0",
+    "@modelcontextprotocol/sdk": "^1.27.1",
+    "@zowe/imperative": "^8.30.1",
+    "@zowe/zos-uss-for-zowe-sdk": "^8.30.1",
+    "express": "^5.1.0",
+    "hardstop-patterns": "^1.0.0",
+    "lru-cache": "^11.2.6",
+    "yargs": "^17.7.2",
+    "zod": "^3.25.0",
+    "zowe-native-proto-sdk": "file:../../sdk-pr/zowe-native-proto-sdk-0.3.0.tgz"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^22.0.0",
+    "@types/ssh2": "^1.15.5",
+    "ssh2": "^1.17.0",
+    "vitest": "^4.0.18"
+  }
+}

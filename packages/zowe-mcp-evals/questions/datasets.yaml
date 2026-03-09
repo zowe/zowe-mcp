@@ -1,0 +1,58 @@
+# yaml-language-server: $schema=../schemas/evals-question-set.schema.json
+# Dataset-focused eval set (mock, default preset)
+config:
+  name: datasets
+  description: List data sets and basic context
+  repetitions: 2
+  minSuccessRate: 0.8
+  mock:
+    initArgs: --preset default
+
+questions:
+  - id: list-systems
+    prompt: What systems are configured?
+    assertions:
+      anyOf:
+        - toolCall:
+            tool: getContext
+        - toolCall:
+            tool: listSystems
+            count: 1
+  - id: list-datasets-user
+    prompt: List all my data sets under USER.
+    assertions:
+      - toolCall:
+          tool: listDatasets
+          args:
+            validDsn: "USER.**"
+      - answerContains:
+          substring: SRC.COBOL
+  - id: list-members-src-cobol
+    prompt: List members of USER.SRC.COBOL.
+    assertions:
+      - toolCall:
+          tool: listMembers
+          args:
+            validDsn: "USER.SRC.COBOL"
+      - answerContains:
+          substring: CUSTFILE
+
+  - id: list-members-with-prefix
+    prompt: List the members of the data set USER.SRC.COBOL that start with the prefix CUST.
+    assertions:
+      - toolCall:
+          tool: listMembers
+          args:
+            validDsn: "USER.SRC.COBOL"
+      - answerContains:
+          substring: CUSTFILE
+
+  - id: read-member-summarize
+    prompt: Read the content of member CUSTFILE from USER.SRC.COBOL and tell me what program name appears in the IDENTIFICATION DIVISION.
+    assertions:
+      - toolCall:
+          tool: readDataset
+          args:
+            validDsn: "USER.SRC.COBOL(CUSTFILE)"
+      - answerContains:
+          pattern: "CUSTFILE|PROGRAM-ID"

@@ -1,0 +1,77 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+out/
+
+# VS Code extension artifacts
+packages/zowe-mcp-vscode/server/
+packages/zowe-mcp-vscode/.server-deps-cache/
+
+# VS Code extension package
+*.vsix
+
+# VS Code extension generated types
+packages/zowe-mcp-vscode/vscode.d.ts
+packages/zowe-mcp-vscode/vscode.proposed.*.d.ts
+
+# VS Code test runner
+.vscode-test/
+
+# TypeScript incremental build info
+*.tsbuildinfo
+
+# IDE
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+zowe-ceedump*
+
+# Environment
+.env
+.env.local
+.env.*
+# Local native systems (copy from native-config.example.json)
+native-config.json
+
+# Coverage
+coverage/
+*.lcov
+.nyc_output/
+
+# Output of 'npm pack'
+*.tgz
+
+# Temporary files
+*.tmp
+*.temp
+temp/
+tmp/
+
+# SDK PR artifacts
+sdk-pr/
+
+# Mock data
+zowe-mcp-mock-data/
+
+# Evals (gitignored config, cache, and report output)
+evals.config.json
+evals.config.local.json
+packages/zowe-mcp-evals/evals.config.json
+packages/zowe-mcp-evals/evals.config.local.json
+.evals-cache/
+evals-report/
+
+# Presentation build artifacts
+presentations/*/dist/
+presentations/zowe-mcp/slides-export.pdf

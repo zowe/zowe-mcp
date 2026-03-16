@@ -31,7 +31,7 @@ zowe-mcp/                       # npm workspaces monorepo
 - **VS Code** >= 1.101 (for the extension)
 - **GitHub Copilot Chat** extension installed in VS Code
 
-## Quick start
+## Quick start (building from source)
 
 ```bash
 # 1. Install dependencies (both packages are linked automatically)
@@ -40,15 +40,21 @@ npm install
 # 2. Build everything
 npm run build
 
-# 3. Generate mock z/OS data
-npx zowe-mcp-server init-mock --output ./zowe-mcp-mock-data
-
-# 4. Build and install the VS Code extension
+# 3. Build and install the VS Code extension
 npm run build-and-install
 ```
 
-After step 4, reload VS Code and the Zowe MCP tools will be available in
+After step 3, reload VS Code and the Zowe MCP tools will be available in
 GitHub Copilot Chat.
+
+To use the tools you need a z/OS backend — either a real system
+([native mode](#native-ssh-backend)) or mock data ([mock mode](#mock-mode)).
+Mock data is **not** required for building; generate it only when you want to
+test without a mainframe:
+
+```bash
+npx zowe-mcp-server init-mock --output ./zowe-mcp-mock-data
+```
 
 ## Building
 

@@ -37,14 +37,22 @@ zowe-mcp/                       # npm workspaces monorepo
 # 1. Install dependencies (both packages are linked automatically)
 npm install
 
-# 2. Build everything
+# 2. Fetch the Zowe Native Proto SDK (required for the native backend)
+npm run sdk:nightly
+
+# 3. Build everything
 npm run build
 
-# 3. Build and install the VS Code extension
+# 4. Build and install the VS Code extension
 npm run build-and-install
 ```
 
-After step 3, reload VS Code and the Zowe MCP tools will be available in
+Step 2 fetches the latest nightly build of the
+[Zowe Native Proto](https://github.com/zowe/zowe-native-proto) SDK. Use
+`npm run sdk:release` for the latest stable release instead. See
+[Zowe Native Proto SDK](#zowe-native-proto-sdk) for all options.
+
+After step 4, reload VS Code and the Zowe MCP tools will be available in
 GitHub Copilot Chat.
 
 To use the tools you need a z/OS backend — either a real system
@@ -137,6 +145,28 @@ npx zowe-mcp-server --stdio --mock ./zowe-mcp-mock-data
 # Via environment variable
 ZOWE_MCP_MOCK_DIR=./zowe-mcp-mock-data npx zowe-mcp-server --stdio
 ```
+
+## Zowe Native Proto SDK
+
+The server depends on the
+[Zowe Native Proto](https://github.com/zowe/zowe-native-proto) SDK for
+connecting to z/OS over SSH. The SDK is not published to the public npm
+registry; use one of the scripts below to fetch it.
+
+| Script | Source | Description |
+| --- | --- | --- |
+| `npm run sdk:release` | Artifactory npm | Latest stable release |
+| `npm run sdk:release -- <version>` | Artifactory npm | Specific release (e.g. `0.3.0`) |
+| `npm run sdk:nightly` | Artifactory / GitHub | Latest nightly build (recommended for development) |
+| `npm run sdk:pr -- <pr-number>` | GitHub Actions | Build from a specific pull request |
+| `npm run sdk:branch -- <branch>` | GitHub Actions | Latest successful build for a branch |
+| `npm run sdk:local -- <path>` | Local filesystem | A `.tgz` file or a `zowe-native-proto` repo directory |
+
+After switching, rebuild (`npm run build`) and run tests (`npm test`) to
+verify compatibility. The SDK tarball is stored in `sdk-pr/` (gitignored).
+
+Requires [GitHub CLI](https://cli.github.com/) (`gh`) for the `pr`, `branch`,
+and `nightly` (fallback) modes.
 
 ## Native (SSH) backend
 
@@ -435,6 +465,11 @@ To publish a VSIX to GitHub Releases from your machine (no GitHub Actions): run 
 | `npm run format` | Format all files with Prettier |
 | `npx zowe-mcp-server init-mock --output <dir>` | Generate mock data |
 | `npx zowe-mcp-server call-tool [--mock=<dir>] [<tool-name> [key=value ...]]` | Call a tool from the CLI |
+| `npm run sdk:release [-- version]` | Fetch latest (or specific) SDK release from Zowe Artifactory |
+| `npm run sdk:nightly` | Fetch latest nightly SDK build |
+| `npm run sdk:pr -- <pr-number>` | Fetch SDK from a specific PR build (requires `gh`) |
+| `npm run sdk:branch -- <branch>` | Fetch SDK from the latest successful build for a branch (requires `gh`) |
+| `npm run sdk:local -- <path>` | Use a local `.tgz` or ZNP repo directory |
 | `npm run release-vsix [-- TAG]` | Build VSIX and create/update GitHub Release (requires `gh`). Optional tag after `--`, e.g. `v0.1.0`; default from extension version. |
 
 ## License

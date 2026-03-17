@@ -543,12 +543,23 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
             );
           }
           try {
+            let systemLabel: string;
+            try {
+              const { systemId } = resolveSystemForTool(
+                deps.systemRegistry,
+                deps.sessionState,
+                system
+              );
+              systemLabel = systemId;
+            } catch {
+              systemLabel = system != null ? String(system) : 'active system';
+            }
             const cmdDisplay = commandText.trim();
             const cmdPreview =
               cmdDisplay.length > 120 ? `${cmdDisplay.slice(0, 120)}…` : cmdDisplay;
             const result = await deps.mcpServer.server.elicitInput({
               mode: 'form',
-              message: `Command requires user confirmation (unknown command): ${cmdPreview} Do you want to run this USS command?`,
+              message: `Command requires user confirmation (unknown command): "${cmdPreview}" on system "${systemLabel}". Do you want to run this USS command?`,
               requestedSchema: {
                 type: 'object',
                 properties: {

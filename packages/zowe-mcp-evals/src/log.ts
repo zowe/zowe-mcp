@@ -13,8 +13,8 @@
  * Logger that uses the same stderr format as the Zowe MCP server:
  * YYYY-MM-DDTHH:mm:ss.sssZ [LEVEL] [name] message {data}
  */
- 
-// ToDo: Is it duplicated? 
+
+// ToDo: Is it duplicated?
 
 const NAME = 'evals';
 

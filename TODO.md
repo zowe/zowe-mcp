@@ -17,8 +17,8 @@ Items to address later. Not ordered by priority.
 ## Testing
 
 - **Copilot resources and prompts**: Test how the current resources and prompts work in GitHub Copilot.
-- **Windows**: Test on Windows — mainly the named pipe behavior.
-- **Other AI assistants**: Test with Cline (VS Code) and with Claude Desktop / Claude Code.
+- **Windows**: Test on Windows — mainly the named pipe behavior. Test on Linux and headless Linux.
+- **Other AI assistants**: Test with Cline/Roo (VS Code) and with Claude Desktop / Claude Code.
 - ✅ **Password error messages**: Validate that the password error messages match what really happens when errors occur.
 - ✅ **Tool description quality**: Evaluate tool descriptions; see how Code4z Assistant does it for reference.
 - ✅ **z/OS integration tests**: Add or run z/OS integration tests. (Native stdio E2E tests)

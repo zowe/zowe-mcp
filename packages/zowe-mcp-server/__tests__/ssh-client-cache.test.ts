@@ -32,6 +32,19 @@ describe('isZnpServerNotFoundError', () => {
     expect(isZnpServerNotFoundError(new Error('stderr: FSUM7351'))).toBe(true);
   });
 
+  it('returns true for "Error starting Zowe server" (SDK generic fallback)', () => {
+    expect(
+      isZnpServerNotFoundError(
+        new Error('Error starting Zowe server: ~/.zowe-server/zowex server')
+      )
+    ).toBe(true);
+    expect(
+      isZnpServerNotFoundError(
+        new Error('Error starting Zowe server: /opt/zowe/server/zowex server')
+      )
+    ).toBe(true);
+  });
+
   it('returns false for other errors', () => {
     expect(isZnpServerNotFoundError(new Error('ENOTFOUND'))).toBe(false);
     expect(isZnpServerNotFoundError(new Error('Connection refused'))).toBe(false);
@@ -97,6 +110,21 @@ describe('SshClientCache', () => {
         expect.anything(),
         expect.objectContaining({ serverPath: customPath })
       );
+    });
+
+    it('calls installServer when SDK throws "Error starting Zowe server" (generic fallback)', async () => {
+      const fakeClient = { ds: {}, dispose: vi.fn() };
+      createMock.mockRejectedValueOnce(
+        new Error('Error starting Zowe server: ~/.zowe-server/zowex server')
+      );
+      createMock.mockResolvedValueOnce(fakeClient);
+
+      const cache = new SshClientCache({ autoInstallZnp: true });
+      const client = await cache.getOrCreate(SPEC, CREDS);
+
+      expect(client).toBe(fakeClient);
+      expect(installServerMock).toHaveBeenCalledTimes(1);
+      expect(createMock).toHaveBeenCalledTimes(2);
     });
 
     it('does not call installServer when autoInstallZnp is false and create throws "Server not found"', async () => {

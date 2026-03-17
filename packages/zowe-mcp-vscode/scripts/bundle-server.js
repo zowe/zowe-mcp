@@ -59,11 +59,11 @@ function isCacheValid(currentHash) {
  */
 const fileDepDirs = [
   { prefix: 'file:../../bin/', absDir: binDir },
-  { prefix: 'file:../../sdk-pr/', absDir: path.join(repoRoot, 'sdk-pr') },
+  { prefix: 'file:../../deps/', absDir: path.join(repoRoot, 'deps') },
 ];
 
 /**
- * Copy any file:../../{bin,sdk-pr}/*.tgz dependencies into server/.tgz/ and
+ * Copy any file:../../{bin,deps}/*.tgz dependencies into server/.tgz/ and
  * rewrite package.json so "npm install" from server/ can resolve them.
  */
 function prepareFileDepsForBundle(targetPackageJsonPath) {

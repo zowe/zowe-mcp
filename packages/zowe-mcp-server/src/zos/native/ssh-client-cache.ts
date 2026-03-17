@@ -32,11 +32,20 @@ export function cacheKey(spec: ParsedConnectionSpec): string {
 }
 
 /**
- * Returns true if the error indicates the ZNP server binary is not present on the remote (FSUM7351 / "Server not found").
+ * Returns true if the error indicates the ZNP server binary is not present or could not start on the remote.
+ *
+ * The SDK throws "Server not found" (with FSUM7351 in additionalDetails) when the shell reports USS FSUM7351.
+ * When the shell error does not contain FSUM7351 (e.g. different locale, /bin/sh "not found"), the SDK falls
+ * back to "Error starting Zowe server: <command>" — we treat that as server-not-found too, since the most
+ * common cause is a missing binary that can be resolved by auto-install.
  */
 export function isZnpServerNotFoundError(err: unknown): boolean {
   const msg = err instanceof Error ? err.message : String(err);
-  return msg.includes('Server not found') || msg.includes('FSUM7351');
+  return (
+    msg.includes('Server not found') ||
+    msg.includes('FSUM7351') ||
+    msg.includes('Error starting Zowe server')
+  );
 }
 
 /** Default ZNP response timeout in seconds (used when not configured). */

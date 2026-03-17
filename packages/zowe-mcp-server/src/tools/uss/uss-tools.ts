@@ -86,51 +86,6 @@ function errorResult(message: string): {
   };
 }
 
-/** Typical USS base paths to probe when echo $HOME is unavailable (e.g. ZNP unixCommand not implemented). */
-const USS_HOME_PROBE_BASES = ['/u', '/a', '/z', '/u/users', '/u/users/group/product'] as const;
-
-/**
- * When getUssHome and echo $HOME are unavailable (e.g. ZNP unixCommand not implemented),
- * probe typical USS base paths for a directory matching the user ID (case-insensitive).
- * Returns the first existing path or '' if none found.
- */
-async function probeUssHomeFromBases(
-  backend: ZosBackend,
-  systemId: string,
-  userId: string,
-  log: Logger
-): Promise<string> {
-  const lower = userId.toLowerCase();
-  for (const base of USS_HOME_PROBE_BASES) {
-    try {
-      const entries = await backend.listUssFiles(systemId, base, { includeHidden: true }, userId);
-      const entry = entries.find(
-        e => (e.name === userId || e.name === lower) && e.isDirectory !== false
-      );
-      if (entry) {
-        const path = `${base}/${entry.name}`;
-        log.info('getUssHome resolved USS home via directory check', {
-          systemId,
-          path,
-        });
-        return path;
-      }
-      const fallback = entries.find(e => e.name === userId || e.name === lower);
-      if (fallback) {
-        const path = `${base}/${fallback.name}`;
-        log.info('getUssHome resolved USS home via directory check', {
-          systemId,
-          path,
-        });
-        return path;
-      }
-    } catch {
-      // Base path may not exist or be listable; skip
-    }
-  }
-  return '';
-}
-
 export interface UssToolDeps {
   backend: ZosBackend;
   systemRegistry: SystemRegistry;
@@ -184,50 +139,8 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
         }
 
         const userId = ctx?.userId;
-        let home: string;
-        try {
-          log.debug('getUssHome calling backend.getUssHome', { systemId, userId });
-          home = await deps.backend.getUssHome(systemId, userId);
-          log.debug('getUssHome backend.getUssHome returned', { systemId, path: home });
-        } catch (backendErr) {
-          log.info('getUssHome backend.getUssHome failed, falling back to echo $HOME', {
-            systemId,
-            error: (backendErr as Error).message,
-          });
-          try {
-            const out = await deps.backend.runUnixCommand(
-              systemId,
-              'echo $HOME',
-              userId,
-              extra._meta?.progressToken ? (msg: string) => void progress.step(msg) : undefined
-            );
-            home = (out ?? '').trim().split('\n')[0]?.trim() ?? '';
-            log.debug('getUssHome echo $HOME result', {
-              systemId,
-              rawLength: (out ?? '').length,
-              home,
-            });
-          } catch (echoErr) {
-            log.info('getUssHome echo $HOME failed, probing typical home bases', {
-              systemId,
-              error: (echoErr as Error).message,
-            });
-            if (userId) {
-              const probed = await probeUssHomeFromBases(deps.backend, systemId, userId, log);
-              if (probed) {
-                home = probed;
-              } else {
-                home = `/u/${userId.toLowerCase()}`;
-                log.warning(
-                  'getUssHome no home directory found under typical bases; defaulting to /u/<userid>',
-                  { systemId, path: home }
-                );
-              }
-            } else {
-              throw echoErr;
-            }
-          }
-        }
+        log.debug('getUssHome calling backend.getUssHome', { systemId, userId });
+        const home = await deps.backend.getUssHome(systemId, userId);
         if (home && ctx) {
           ctx.ussHome = home;
           log.debug('getUssHome cached ussHome in session context', { systemId, path: home });

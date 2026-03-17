@@ -58,8 +58,8 @@ coverage/
 temp/
 tmp/
 
-# SDK PR artifacts
-sdk-pr/
+# Local dependency artifacts (SDK tarballs from sdk:pr, sdk:local, sdk:nightly, etc.)
+deps/
 
 # Mock data
 zowe-mcp-mock-data/

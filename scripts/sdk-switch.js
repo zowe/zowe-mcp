@@ -39,7 +39,7 @@ const { execSync } = require('child_process');
 
 const repoRoot = path.resolve(__dirname, '..');
 const serverPkgPath = path.join(repoRoot, 'packages', 'zowe-mcp-server', 'package.json');
-const sdkPrDir = path.join(repoRoot, 'sdk-pr');
+const depsDir = path.join(repoRoot, 'deps');
 const ZNP_REPO = 'zowe/zowe-native-proto';
 const PKG_NAME = 'zowe-native-proto-sdk';
 const DEFAULT_VERSION = '0.3.0';
@@ -116,11 +116,11 @@ function npmInstall() {
   });
 }
 
-function prepareSdkDir() {
-  if (fs.existsSync(sdkPrDir)) {
-    fs.rmSync(sdkPrDir, { recursive: true });
+function prepareDepsDir() {
+  if (fs.existsSync(depsDir)) {
+    fs.rmSync(depsDir, { recursive: true });
   }
-  fs.mkdirSync(sdkPrDir, { recursive: true });
+  fs.mkdirSync(depsDir, { recursive: true });
 }
 
 /**
@@ -141,46 +141,47 @@ function findSdkArtifactFromRun(runId) {
  * Returns the tgz filename.
  */
 function downloadAndInstallGhArtifact(artifactId, label) {
-  prepareSdkDir();
+  prepareDepsDir();
 
-  const zipPath = path.join(sdkPrDir, 'artifact.zip');
+  const zipPath = path.join(depsDir, 'artifact.zip');
   console.log('Downloading artifact %s...', artifactId);
   run(`gh api repos/${ZNP_REPO}/actions/artifacts/${artifactId}/zip > "${zipPath}"`);
 
-  run(`unzip -o "${zipPath}" -d "${sdkPrDir}"`);
+  run(`unzip -o "${zipPath}" -d "${depsDir}"`);
   fs.unlinkSync(zipPath);
 
-  const tgz = findTgzInDir(sdkPrDir);
+  const tgz = findTgzInDir(depsDir);
 
-  const relPath = `file:../../sdk-pr/${tgz}`;
-  console.log('Extracted SDK tarball: sdk-pr/%s', tgz);
+  const relPath = `file:../../deps/${tgz}`;
+  const tgzFullPath = path.join(depsDir, tgz);
+  console.log('Extracted SDK tarball: %s', tgzFullPath);
 
   removeRootOverrides();
   setDependency(relPath);
   npmInstall();
   removeSdkIntegrityFromLockfile();
-  console.log('\nSDK switched to %s: sdk-pr/%s', label, tgz);
+  console.log('\nSDK switched to %s: %s', label, tgzFullPath);
   return tgz;
 }
 
 /**
- * Install an SDK from a local tgz file path. Copies to sdk-pr/ and sets the file: dependency.
+ * Install an SDK from a local tgz file path. Copies to deps/ and sets the file: dependency.
  */
 function installFromLocalTgz(tgzPath, label) {
-  prepareSdkDir();
+  prepareDepsDir();
 
   const tgzName = path.basename(tgzPath);
-  const dest = path.join(sdkPrDir, tgzName);
+  const dest = path.join(depsDir, tgzName);
   fs.copyFileSync(tgzPath, dest);
-  console.log('Copied SDK tarball to sdk-pr/%s', tgzName);
+  console.log('Copied SDK tarball to %s', dest);
 
-  const relPath = `file:../../sdk-pr/${tgzName}`;
+  const relPath = `file:../../deps/${tgzName}`;
 
   removeRootOverrides();
   setDependency(relPath);
   npmInstall();
   removeSdkIntegrityFromLockfile();
-  console.log('\nSDK switched to %s: sdk-pr/%s', label, tgzName);
+  console.log('\nSDK switched to %s: %s', label, dest);
 }
 
 function findTgzInDir(dir) {
@@ -262,8 +263,8 @@ function tryArtifactoryNightly() {
     console.log('Found nightly SDK: %s', tgzName);
     const url = `${ARTIFACTORY_SNAPSHOT_BASE}/${tgzName}`;
 
-    prepareSdkDir();
-    const dest = path.join(sdkPrDir, tgzName);
+    prepareDepsDir();
+    const dest = path.join(depsDir, tgzName);
     console.log('Downloading %s...', url);
     run(`curl -sfL -o "${dest}" "${url}"`);
 
@@ -272,7 +273,7 @@ function tryArtifactoryNightly() {
       return false;
     }
 
-    const relPath = `file:../../sdk-pr/${tgzName}`;
+    const relPath = `file:../../deps/${tgzName}`;
     removeRootOverrides();
     setDependency(relPath);
     npmInstall();
@@ -281,7 +282,7 @@ function tryArtifactoryNightly() {
     const datestamp = tgzName.match(/(\d{4}-\d{2}-\d{2}-\d{6})/);
     console.log(
       '\nSDK switched to nightly (Artifactory): %s%s',
-      tgzName,
+      dest,
       datestamp ? ` (built ${datestamp[1]})` : ''
     );
     return true;

@@ -67,9 +67,6 @@ const ZNP_ISSUES_URL = 'https://github.com/zowe/zowe-native-proto/issues';
 /** Per connection (user@host:port) lock so only one request uses the client at a time. */
 const connectionLocks = new Map<string, Promise<void>>();
 
-/** Typical USS base paths to probe for home when echo $HOME is unavailable (same as uss-tools). */
-const USS_HOME_PROBE_BASES = ['/u', '/a', '/z', '/u/users', '/u/users/group/product'] as const;
-
 /** Local encoding for ZNP read result; data in the MCP server is always UTF-8. */
 const LOCAL_ENCODING_UTF8 = 'utf-8';
 
@@ -550,48 +547,6 @@ export class NativeBackend {
   }
 
   /**
-   * Probe typical USS base paths for a directory matching the user ID (case-insensitive).
-   * Used for CEEDUMP collection when echo $HOME is unavailable (e.g. ZNP unixCommand not implemented).
-   * Returns the first existing path or '' if none found.
-   */
-  private async probeUssHomeFromBases(uss: NativeUssApi, userId: string): Promise<string> {
-    const lower = userId.toLowerCase();
-    for (const base of USS_HOME_PROBE_BASES) {
-      try {
-        const res = await uss.listFiles({
-          fspath: base,
-          all: true,
-          maxItems: 500,
-        });
-        const items = res.items ?? [];
-        const entry = items.find(
-          e => (e.name === userId || e.name === lower) && (e.mode?.startsWith('d') ?? true)
-        );
-        if (entry) {
-          const homePath = `${base.replace(/\/$/, '')}/${entry.name}`;
-          log.info('CEEDUMP collection: resolved USS home via directory probe', {
-            path: homePath,
-            base,
-          });
-          return homePath;
-        }
-        const fallback = items.find(e => e.name === userId || e.name === lower);
-        if (fallback) {
-          const homePath = `${base.replace(/\/$/, '')}/${fallback.name}`;
-          log.info('CEEDUMP collection: resolved USS home via directory probe', {
-            path: homePath,
-            base,
-          });
-          return homePath;
-        }
-      } catch {
-        // Base may not exist or be listable; skip
-      }
-    }
-    return '';
-  }
-
-  /**
    * After a ZNP server abend, connect with a new session, locate CEEDUMP in the user's
    * USS home, and save it locally (YAML meta + dump in one file). Runs fire-and-forget.
    * Save dir: ZOWE_MCP_CEEDUMP_SAVE_DIR ?? ZOWE_MCP_WORKSPACE_DIR ?? process.cwd().
@@ -617,22 +572,10 @@ export class NativeBackend {
       client = await this.options.clientCache.getOrCreate(spec, credentials);
       const uss = this.getUss(client);
 
-      let home: string;
-      try {
-        const res = await uss.issueCmd({ commandText: 'echo $HOME' });
-        home = (res.data ?? '').trim();
-      } catch {
-        home = '';
-      }
+      const res = await uss.issueCmd({ commandText: 'echo $HOME' });
+      const home = (res.data ?? '').trim();
       if (!home) {
-        log.debug('CEEDUMP collection: echo $HOME failed or empty, probing typical home bases');
-        home = await this.probeUssHomeFromBases(uss, spec.user);
-      }
-      if (!home) {
-        home = `/u/${spec.user.toLowerCase()}`;
-        log.debug('CEEDUMP collection: no home found under typical bases, using fallback', {
-          home,
-        });
+        throw new Error('Could not determine USS home directory (echo $HOME returned empty).');
       }
 
       const listRes = await uss.listFiles({

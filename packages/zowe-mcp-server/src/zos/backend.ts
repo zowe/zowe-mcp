@@ -862,9 +862,7 @@ export interface ZosBackend {
 
   /**
    * Get the USS home directory path for a user on the system.
-   * Native backend uses echo $HOME when ZNP supports unixCommand.
-   * If not implemented, the tool layer may use runUnixCommand('echo $HOME') and cache the result.
-   * Note: TSO "OSHELL cmd" fails with rc 255 in ZNP, so it is not used for home resolution.
+   * Native backend uses `uss.issueCmd('echo $HOME')`.
    *
    * @param systemId - Target z/OS system.
    * @param userId - User ID (default from session context).

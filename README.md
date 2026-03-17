@@ -163,7 +163,7 @@ registry; use one of the scripts below to fetch it.
 | `npm run sdk:local -- <path>` | Local filesystem | A `.tgz` file or a `zowe-native-proto` repo directory |
 
 After switching, rebuild (`npm run build`) and run tests (`npm test`) to
-verify compatibility. The SDK tarball is stored in `sdk-pr/` (gitignored).
+verify compatibility. The SDK tarball is stored in `deps/` (gitignored).
 
 Requires [GitHub CLI](https://cli.github.com/) (`gh`) for the `pr`, `branch`,
 and `nightly` (fallback) modes.

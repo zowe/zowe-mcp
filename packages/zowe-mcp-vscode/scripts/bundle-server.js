@@ -32,6 +32,16 @@ const cacheHashFile = path.join(cacheDir, '.deps-hash');
 const binDir = path.join(repoRoot, 'bin');
 
 /**
+ * Directories (relative to repo root) that may contain file: tgz dependencies.
+ * Each entry maps the prefix used in package.json (e.g. "file:../../bin/") to
+ * the absolute directory where the tgz lives.
+ */
+const fileDepDirs = [
+  { prefix: 'file:../../bin/', absDir: binDir },
+  { prefix: 'file:../../deps/', absDir: path.join(repoRoot, 'deps') },
+];
+
+/**
  * Compute a hash of the server's production dependencies
  * so we know when to invalidate the cache.
  */
@@ -39,7 +49,22 @@ function computeDepsHash() {
   const pkg = JSON.parse(fs.readFileSync(path.join(serverPkg, 'package.json'), 'utf-8'));
   const deps = JSON.stringify(pkg.dependencies || {});
   const commonPkgJson = fs.readFileSync(path.join(commonPkg, 'package.json'), 'utf-8');
-  return crypto.createHash('sha256').update(deps).update(commonPkgJson).digest('hex');
+  const hash = crypto.createHash('sha256').update(deps).update(commonPkgJson);
+
+  // Include the content hash of any file: tgz dependencies so the cache
+  // invalidates when the tgz is replaced with a new build (same filename).
+  for (const spec of Object.values(pkg.dependencies || {})) {
+    if (typeof spec !== 'string' || !spec.endsWith('.tgz')) continue;
+    for (const d of fileDepDirs) {
+      if (!spec.startsWith(d.prefix)) continue;
+      const tgzPath = path.join(d.absDir, path.basename(spec.replace(/^file:/, '')));
+      if (fs.existsSync(tgzPath)) {
+        hash.update(fs.readFileSync(tgzPath));
+      }
+    }
+  }
+
+  return hash.digest('hex');
 }
 
 /**
@@ -51,16 +76,6 @@ function isCacheValid(currentHash) {
   const cachedHash = fs.readFileSync(cacheHashFile, 'utf-8').trim();
   return cachedHash === currentHash;
 }
-
-/**
- * Directories (relative to repo root) that may contain file: tgz dependencies.
- * Each entry maps the prefix used in package.json (e.g. "file:../../bin/") to
- * the absolute directory where the tgz lives.
- */
-const fileDepDirs = [
-  { prefix: 'file:../../bin/', absDir: binDir },
-  { prefix: 'file:../../deps/', absDir: path.join(repoRoot, 'deps') },
-];
 
 /**
  * Copy any file:../../{bin,deps}/*.tgz dependencies into server/.tgz/ and

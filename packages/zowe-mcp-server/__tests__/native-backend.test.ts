@@ -362,6 +362,47 @@ describe('NativeBackend', () => {
       expect(options.onPasswordInvalid).toHaveBeenCalledWith(SPEC.user, SPEC.host, SPEC.port);
     });
 
+    it('on expired password calls markInvalid, evict, onPasswordInvalid and throws user-facing message', async () => {
+      const expiredError = Object.assign(
+        new Error('Password expired on the remote z/OS system. Change your password and retry.'),
+        { code: 'EPASSWD_EXPIRED' }
+      );
+      const options = createOptions({
+        clientCache: {
+          getOrCreate: vi.fn().mockRejectedValue(expiredError),
+          evict: vi.fn(),
+          hasKey: vi.fn().mockReturnValue(true),
+        },
+      });
+      const backend = new NativeBackend(options);
+
+      await expect(backend.listDatasets(SYSTEM_ID, 'USER.*')).rejects.toThrow(
+        'Password for USER@host.example.com has expired'
+      );
+
+      expect(options.credentialProvider.markInvalid).toHaveBeenCalledWith(SPEC);
+      expect(options.clientCache.evict).toHaveBeenCalledWith(SPEC);
+      expect(options.onPasswordInvalid).toHaveBeenCalledWith(SPEC.user, SPEC.host, SPEC.port);
+    });
+
+    it('classifies FOTS1668 as expired password', async () => {
+      const expiredError = new Error('FOTS1668 Your password has expired');
+      const options = createOptions({
+        clientCache: {
+          getOrCreate: vi.fn().mockRejectedValue(expiredError),
+          evict: vi.fn(),
+          hasKey: vi.fn().mockReturnValue(true),
+        },
+      });
+      const backend = new NativeBackend(options);
+
+      await expect(backend.listDatasets(SYSTEM_ID, 'USER.*')).rejects.toThrow(
+        'Password for USER@host.example.com has expired'
+      );
+
+      expect(options.credentialProvider.markInvalid).toHaveBeenCalledWith(SPEC);
+    });
+
     it('on non-auth error does not call evict or markInvalid', async () => {
       // Use an error that is not classified as connection or auth (e.g. "timeout" triggers evict)
       const otherError = new Error('Disk full');
@@ -379,6 +420,42 @@ describe('NativeBackend', () => {
       expect(options.credentialProvider.markInvalid).not.toHaveBeenCalled();
       expect(options.clientCache.evict).not.toHaveBeenCalled();
       expect(options.onPasswordInvalid).not.toHaveBeenCalled();
+    });
+
+    it('includes additionalDetails from SDK ImperativeError in thrown error', async () => {
+      const sdkError = Object.assign(
+        new Error('Error starting Zowe server: ~/.zowe-server/zowex server'),
+        {
+          additionalDetails:
+            'CEE3561S External function _ZNSt5__1_e13__hash_memoryEPKvm was not found in DLL CRTEQCXE.',
+        }
+      );
+      const options = createOptions({
+        clientCache: {
+          getOrCreate: vi.fn().mockRejectedValue(sdkError),
+          evict: vi.fn(),
+          hasKey: vi.fn().mockReturnValue(true),
+        },
+      });
+      const backend = new NativeBackend(options);
+
+      await expect(backend.listDatasets(SYSTEM_ID, 'USER.*')).rejects.toThrow(
+        /Error starting Zowe server.*\nDetails:\nCEE3561S/
+      );
+    });
+
+    it('does not alter error when additionalDetails is absent', async () => {
+      const plainError = new Error('Some SDK error');
+      const options = createOptions({
+        clientCache: {
+          getOrCreate: vi.fn().mockRejectedValue(plainError),
+          evict: vi.fn(),
+          hasKey: vi.fn().mockReturnValue(true),
+        },
+      });
+      const backend = new NativeBackend(options);
+
+      await expect(backend.listDatasets(SYSTEM_ID, 'USER.*')).rejects.toThrow('Some SDK error');
     });
   });
 

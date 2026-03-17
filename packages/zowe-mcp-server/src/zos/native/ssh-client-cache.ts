@@ -22,6 +22,7 @@ import { getLogger } from '../../server.js';
 import type { Credentials } from '../credentials.js';
 import type { ParsedConnectionSpec } from './connection-spec.js';
 import { passwordHash } from './password-hash.js';
+import { formatErrorWithDetails, getAdditionalDetails } from './sdk-error-details.js';
 
 const log = getLogger().child('native.ssh');
 
@@ -177,7 +178,13 @@ export class SshClientCache {
         });
         progress?.(`Updating Zowe Native server on ${spec.host}`);
         client.dispose();
-        await ZSshUtils.installServer(session, opts.serverPath);
+        const redeployed = await ZSshUtils.installServer(session, opts.serverPath);
+        if (!redeployed) {
+          log.warning('ZNP redeploy returned false, proceeding with reconnect anyway', {
+            host: spec.host,
+            port: spec.port,
+          });
+        }
         const reconnectOpts = {
           ...createOpts,
           responseTimeout: (opts.responseTimeout ?? DEFAULT_NATIVE_RESPONSE_TIMEOUT_SEC) * 2,
@@ -186,6 +193,7 @@ export class SshClientCache {
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
+      const additionalDetails = getAdditionalDetails(err);
       const code =
         err && typeof err === 'object' && 'code' in err
           ? String((err as { code: unknown }).code)
@@ -197,9 +205,13 @@ export class SshClientCache {
         user: spec.user,
         passwordHash: passwordHash(credentials.password),
         errorMessage: msg,
+        additionalDetails,
         errorCode: code,
       });
       if (!isZnpServerNotFoundError(err) || !opts.autoInstallZnp) {
+        if (additionalDetails) {
+          throw new Error(formatErrorWithDetails(msg, additionalDetails));
+        }
         throw err;
       }
       progress?.(`Deploying Zowe Native server to ${spec.host}`);
@@ -215,10 +227,21 @@ export class SshClientCache {
         responseTimeout: installTimeoutSec,
       };
       try {
-        await ZSshUtils.installServer(session, opts.serverPath);
+        const installed = await ZSshUtils.installServer(session, opts.serverPath);
+        if (!installed) {
+          throw new Error(
+            `ZSshUtils.installServer returned false — server deployment to ${opts.serverPath} on ${spec.host} did not complete successfully`
+          );
+        }
+        log.info('ZNP install succeeded, reconnecting', {
+          host: spec.host,
+          port: spec.port,
+          serverPath: opts.serverPath,
+        });
         client = await ZSshClient.create(session, createOptsAfterInstall);
       } catch (installErr) {
         const installMsg = installErr instanceof Error ? installErr.message : String(installErr);
+        const installDetails = getAdditionalDetails(installErr);
         const installCode =
           installErr && typeof installErr === 'object' && 'code' in installErr
             ? String((installErr as { code: unknown }).code)
@@ -229,8 +252,12 @@ export class SshClientCache {
           port: spec.port,
           user: spec.user,
           errorMessage: installMsg,
+          additionalDetails: installDetails,
           errorCode: installCode,
         });
+        if (installDetails) {
+          throw new Error(formatErrorWithDetails(installMsg, installDetails));
+        }
         throw installErr;
       }
     }

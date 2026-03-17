@@ -30,7 +30,7 @@
  *
  *   node scripts/sdk-switch.js local <path>
  *     Uses a local .tgz file or a zowe-native-proto repo directory.
- *     If a directory is given, runs `npm pack` in packages/sdk to produce the tgz.
+ *     If a directory is given, looks for a pre-built .tgz in dist/ (run "npm run package" in the SDK repo first).
  */
 
 const fs = require('fs');
@@ -107,7 +107,16 @@ function removeSdkIntegrityFromLockfile() {
   }
 }
 
+function removeInstalledSdk() {
+  const installed = path.join(repoRoot, 'node_modules', PKG_NAME);
+  if (fs.existsSync(installed)) {
+    fs.rmSync(installed, { recursive: true });
+    console.log('Removed cached %s from node_modules', PKG_NAME);
+  }
+}
+
 function npmInstall() {
+  removeInstalledSdk();
   console.log('Running npm install...');
   execSync('npm install', {
     cwd: repoRoot,
@@ -439,17 +448,26 @@ function handleLocal(inputPath) {
       process.exit(1);
     }
 
-    console.log('Running npm pack in %s...', sdkPkgDir);
-    const packOutput = run('npm pack --pack-destination .', { cwd: sdkPkgDir });
-    const tgzName = packOutput.split('\n').filter(Boolean).pop();
-
-    if (!tgzName || !tgzName.endsWith('.tgz')) {
-      console.error('npm pack did not produce a .tgz file. Output:\n%s', packOutput);
+    const distDir = path.join(resolved, 'dist');
+    if (!fs.existsSync(distDir)) {
+      console.error(
+        'No dist/ directory found in %s. Run "npm run package" in the SDK repo first.',
+        resolved
+      );
       process.exit(1);
     }
 
-    const tgzPath = path.join(sdkPkgDir, tgzName);
-    console.log('Packed SDK: %s', tgzPath);
+    const tgzName = fs.readdirSync(distDir).find(f => f.endsWith('.tgz'));
+    if (!tgzName) {
+      console.error(
+        'No .tgz file found in %s. Run "npm run package" in the SDK repo first.',
+        distDir
+      );
+      process.exit(1);
+    }
+
+    const tgzPath = path.join(distDir, tgzName);
+    console.log('Using pre-built SDK tgz: %s', tgzPath);
     installFromLocalTgz(tgzPath, `local repo (${resolved})`);
     return;
   }

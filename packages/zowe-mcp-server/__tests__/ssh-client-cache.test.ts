@@ -58,7 +58,8 @@ describe('isZnpServerNotFoundError', () => {
 });
 
 const createMock = vi.hoisted(() => vi.fn());
-const installServerMock = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
+const installServerMock = vi.hoisted(() => vi.fn().mockResolvedValue(true));
+const checkIfOutdatedMock = vi.hoisted(() => vi.fn().mockResolvedValue(false));
 
 vi.mock('zowe-native-proto-sdk', () => ({
   ZSshClient: {
@@ -67,7 +68,8 @@ vi.mock('zowe-native-proto-sdk', () => ({
       createMock(...args) as Promise<{ ds: unknown; dispose: () => void }>,
   },
   ZSshUtils: {
-    installServer: (...args: unknown[]) => installServerMock(...args) as Promise<void>,
+    installServer: (...args: unknown[]) => installServerMock(...args) as Promise<boolean>,
+    checkIfOutdated: (...args: unknown[]) => checkIfOutdatedMock(...args) as Promise<boolean>,
   },
 }));
 
@@ -75,12 +77,14 @@ describe('SshClientCache', () => {
   beforeEach(() => {
     vi.mocked(createMock).mockClear();
     vi.mocked(installServerMock).mockClear();
-    vi.mocked(installServerMock).mockResolvedValue(undefined);
+    vi.mocked(installServerMock).mockResolvedValue(true);
+    vi.mocked(checkIfOutdatedMock).mockClear();
+    vi.mocked(checkIfOutdatedMock).mockResolvedValue(false);
   });
 
   describe('getOrCreate with auto-install', () => {
     it('calls installServer and retries create when "Server not found" on first create and autoInstallZnp true', async () => {
-      const fakeClient = { ds: {}, dispose: vi.fn() };
+      const fakeClient = { ds: {}, dispose: vi.fn(), serverChecksums: {} };
       createMock.mockRejectedValueOnce(new Error('Server not found'));
       createMock.mockResolvedValueOnce(fakeClient);
 
@@ -95,7 +99,7 @@ describe('SshClientCache', () => {
 
     it('uses custom serverPath for install and create', async () => {
       const customPath = '/opt/zowe/server';
-      const fakeClient = { ds: {}, dispose: vi.fn() };
+      const fakeClient = { ds: {}, dispose: vi.fn(), serverChecksums: {} };
       createMock.mockRejectedValueOnce(new Error('Server not found'));
       createMock.mockResolvedValueOnce(fakeClient);
 
@@ -113,7 +117,7 @@ describe('SshClientCache', () => {
     });
 
     it('calls installServer when SDK throws "Error starting Zowe server" (generic fallback)', async () => {
-      const fakeClient = { ds: {}, dispose: vi.fn() };
+      const fakeClient = { ds: {}, dispose: vi.fn(), serverChecksums: {} };
       createMock.mockRejectedValueOnce(
         new Error('Error starting Zowe server: ~/.zowe-server/zowex server')
       );
@@ -156,6 +160,31 @@ describe('SshClientCache', () => {
 
       expect(installServerMock).toHaveBeenCalledTimes(1);
       expect(createMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('includes additionalDetails from SDK error when not a server-not-found error', async () => {
+      const sdkError = Object.assign(new Error('Connection refused'), {
+        additionalDetails: 'TCP connection to host.example.com:22 was refused by the remote host.',
+      });
+      createMock.mockRejectedValue(sdkError);
+
+      const cache = new SshClientCache({ autoInstallZnp: true });
+      await expect(cache.getOrCreate(SPEC, CREDS)).rejects.toThrow(
+        /Connection refused\nDetails:\nTCP connection/
+      );
+    });
+
+    it('includes additionalDetails from install failure', async () => {
+      createMock.mockRejectedValueOnce(new Error('Server not found'));
+      const installError = Object.assign(new Error('Install failed'), {
+        additionalDetails: 'Received exit code 1 while establishing SFTP session',
+      });
+      installServerMock.mockRejectedValueOnce(installError);
+
+      const cache = new SshClientCache({ autoInstallZnp: true });
+      await expect(cache.getOrCreate(SPEC, CREDS)).rejects.toThrow(
+        /Install failed\nDetails:\nReceived exit code 1/
+      );
     });
   });
 });

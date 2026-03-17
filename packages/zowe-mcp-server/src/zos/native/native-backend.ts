@@ -51,6 +51,7 @@ import { runSearchWithListAndRead, type SearchBackendAdapter } from '../search-r
 import type { SystemId } from '../system.js';
 import type { ParsedConnectionSpec } from './connection-spec.js';
 import type { NativeCredentialProvider } from './native-credential-provider.js';
+import { formatErrorWithDetails, getAdditionalDetails } from './sdk-error-details.js';
 import { cacheKey, type SshClientCache } from './ssh-client-cache.js';
 import {
   installStderrAbendCapture,
@@ -337,13 +338,17 @@ function mapDatasetToEntry(item: {
 }
 
 /**
- * Classifies an error message as connection/network/backend error or invalid-password error.
+ * Classifies an error message as connection/network/backend error, invalid-password, or expired-password.
  * Connection/backend errors mean the client should be evicted so the next request gets a new connection.
- * Password errors should mark credentials invalid.
+ * Password errors (invalid or expired) should mark credentials invalid and prompt for a new password.
  */
-function classifyNativeError(message: string): {
+function classifyNativeError(
+  message: string,
+  errorCode?: string
+): {
   isConnectionError: boolean;
   isInvalidPassword: boolean;
+  isPasswordExpired: boolean;
 } {
   const lowerCaseMessage = message.toLowerCase();
   const isConnectionError =
@@ -360,14 +365,25 @@ function classifyNativeError(message: string): {
     lowerCaseMessage.includes('completion code') ||
     /\b0c4\b/i.test(message);
 
+  // SDK throws EPASSWD_EXPIRED with FOTS1668/FOTS1669 indicators
+  const isPasswordExpired =
+    !isConnectionError &&
+    (errorCode === 'EPASSWD_EXPIRED' ||
+      lowerCaseMessage.includes('password expired') ||
+      lowerCaseMessage.includes('password has expired') ||
+      lowerCaseMessage.includes('password change required') ||
+      message.includes('FOTS1668') ||
+      message.includes('FOTS1669'));
+
   const isInvalidPassword =
     !isConnectionError &&
+    !isPasswordExpired &&
     (/invalid.*password|password.*invalid|authentication failed|auth failed|permission denied/i.test(
       lowerCaseMessage
     ) ||
       (lowerCaseMessage.includes('authentication') && lowerCaseMessage.includes('fail')));
 
-  return { isConnectionError, isInvalidPassword };
+  return { isConnectionError, isInvalidPassword, isPasswordExpired };
 }
 
 /**
@@ -477,21 +493,26 @@ export class NativeBackend {
       const isTimeout = err instanceof Error && err.message.includes('timed out');
       const toThrow = abendSnippet && isTimeout ? new Error(abendSnippet) : err;
       const msg = toThrow instanceof Error ? toThrow.message : String(toThrow);
+      const additionalDetails = getAdditionalDetails(toThrow) ?? getAdditionalDetails(err);
       const code =
         toThrow && typeof toThrow === 'object' && 'code' in toThrow
           ? String((toThrow as { code: unknown }).code)
           : undefined;
-      const { isConnectionError, isInvalidPassword } = classifyNativeError(msg);
-      const abendDetected = isAbendError(msg);
+      const fullMsg = additionalDetails ? `${msg} | ${additionalDetails}` : msg;
+      const { isConnectionError, isInvalidPassword, isPasswordExpired } = classifyNativeError(
+        fullMsg,
+        code
+      );
+      const abendDetected = isAbendError(fullMsg);
       const znpOperation = operationContext?.operation ?? 'unknown';
       const mcpTool = getCurrentMcpTool() ?? 'unknown';
-      // Error message used as display string only (sanitized for trailing dots/spaces)
 
       const abendReason: string | undefined = abendDetected
-        ? sanitizeAbendMessage(String(msg))
+        ? sanitizeAbendMessage(String(fullMsg))
         : undefined;
       log.info('Native backend error (SSH/connection or auth)', {
         message: msg,
+        additionalDetails,
         errorCode: code,
         systemId,
         host: spec.host,
@@ -499,6 +520,7 @@ export class NativeBackend {
         user: spec.user,
         isConnectionError,
         isInvalidPassword,
+        isPasswordExpired,
         abendDetected,
       });
       if (abendDetected) {
@@ -514,7 +536,14 @@ export class NativeBackend {
         err: toThrow instanceof Error ? toThrow.stack : String(toThrow),
       });
 
-      if (isInvalidPassword) {
+      if (isPasswordExpired) {
+        this.options.credentialProvider.markInvalid(spec);
+        this.options.clientCache.evict(spec);
+        this.options.onPasswordInvalid?.(spec.user, spec.host, spec.port);
+        throw new Error(
+          `Password for ${spec.user}@${spec.host} has expired. Change your password on z/OS (e.g. via a 3270 terminal) and provide the new password.`
+        );
+      } else if (isInvalidPassword) {
         this.options.credentialProvider.markInvalid(spec);
         this.options.clientCache.evict(spec);
         this.options.onPasswordInvalid?.(spec.user, spec.host, spec.port);
@@ -538,6 +567,9 @@ export class NativeBackend {
       if (abendDetected) {
         const userMessage = `An unexpected internal error occurred in Zowe Native (z/OS). Details: ${abendReason}. Please report via GitHub issues: ${ZNP_ISSUES_URL}`;
         throw new Error(userMessage);
+      }
+      if (additionalDetails) {
+        throw new Error(formatErrorWithDetails(msg, additionalDetails));
       }
       throw toThrow;
     } finally {

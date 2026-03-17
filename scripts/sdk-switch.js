@@ -241,28 +241,11 @@ function handleRelease(version) {
 function handleNightly() {
   console.log('Looking for latest nightly SDK on Artifactory...');
 
-  // Try Artifactory libs-snapshot-local first
   if (tryArtifactoryNightly()) return;
 
-  // Fallback: GitHub Actions Build artifacts
-  // TODO: After zowe/zowe-native-proto#863 is merged and the first nightly publishes the SDK
-  // to Artifactory, remove the publish-sdk fallback and simplify to just main.
-  console.log('No nightly SDK found on Artifactory, falling back to GitHub Actions...');
-  const fallbackBranches = ['publish-sdk', 'main'];
-  for (const branch of fallbackBranches) {
-    try {
-      console.log("Trying branch '%s'...", branch);
-      handleBranch(branch);
-      return;
-    } catch {
-      console.log("Branch '%s' failed, trying next...", branch);
-    }
-  }
-  console.error(
-    'No nightly SDK found on Artifactory or GitHub Actions.\nCheck: https://github.com/%s/actions/workflows/build.yml',
-    ZNP_REPO
-  );
-  process.exit(1);
+  // Fallback: latest successful Build workflow run on main
+  console.log('No nightly SDK found on Artifactory, falling back to GitHub Actions (main)...');
+  handleBranch('main');
 }
 
 function tryArtifactoryNightly() {

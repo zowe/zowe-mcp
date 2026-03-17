@@ -157,8 +157,8 @@ function downloadAndInstallGhArtifact(artifactId, label) {
 
   removeRootOverrides();
   setDependency(relPath);
-  removeSdkIntegrityFromLockfile();
   npmInstall();
+  removeSdkIntegrityFromLockfile();
   console.log('\nSDK switched to %s: sdk-pr/%s', label, tgz);
   return tgz;
 }
@@ -178,8 +178,8 @@ function installFromLocalTgz(tgzPath, label) {
 
   removeRootOverrides();
   setDependency(relPath);
-  removeSdkIntegrityFromLockfile();
   npmInstall();
+  removeSdkIntegrityFromLockfile();
   console.log('\nSDK switched to %s: sdk-pr/%s', label, tgzName);
 }
 
@@ -229,8 +229,8 @@ function handleRelease(version) {
   const spec = `^${v}`;
   removeRootOverrides();
   setDependency(spec);
-  removeSdkIntegrityFromLockfile();
   npmInstall();
+  removeSdkIntegrityFromLockfile();
   console.log('\nSDK switched to Artifactory release: %s', spec);
 }
 
@@ -275,8 +275,8 @@ function tryArtifactoryNightly() {
     const relPath = `file:../../sdk-pr/${tgzName}`;
     removeRootOverrides();
     setDependency(relPath);
-    removeSdkIntegrityFromLockfile();
     npmInstall();
+    removeSdkIntegrityFromLockfile();
 
     const datestamp = tgzName.match(/(\d{4}-\d{2}-\d{2}-\d{6})/);
     console.log(

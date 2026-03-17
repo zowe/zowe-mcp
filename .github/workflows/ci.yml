@@ -5,10 +5,19 @@ on:
   pull_request:
   workflow_dispatch:
     inputs:
-      znp-pr:
-        description: "ZNP PR number for SDK artifact (default: 809)"
+      sdk-mode:
+        description: "SDK source (nightly, release, pr, branch)"
         required: false
-        default: "809"
+        default: "nightly"
+        type: choice
+        options:
+          - nightly
+          - release
+          - pr
+          - branch
+      sdk-arg:
+        description: "Argument for the SDK mode (version, PR number, or branch name)"
+        required: false
         type: string
 
 permissions:
@@ -29,10 +38,10 @@ jobs:
         with:
           node-version-file: ".nvmrc"
 
-      - name: Download SDK from ZNP PR
+      - name: Download ZNP SDK
         env:
           GH_TOKEN: ${{ github.token }}
-        run: node scripts/sdk-switch.js pr ${{ inputs.znp-pr || '809' }}
+        run: node scripts/sdk-switch.js ${{ inputs.sdk-mode || 'nightly' }} ${{ inputs.sdk-arg }}
 
       - name: Environment info
         run: |

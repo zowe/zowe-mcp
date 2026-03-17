@@ -138,7 +138,7 @@ export function registerTsoTools(server: McpServer, deps: TsoToolDeps, logger: L
           try {
             const result = await deps.mcpServer.server.elicitInput({
               mode: 'form',
-              message: `${elicitMsg} Do you want to run this TSO command?`,
+              message: `${elicitMsg} Command: ${cmdPreview} Do you want to run this TSO command?`,
               requestedSchema: {
                 type: 'object',
                 properties: {

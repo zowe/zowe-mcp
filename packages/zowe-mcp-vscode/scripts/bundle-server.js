@@ -39,6 +39,7 @@ const binDir = path.join(repoRoot, 'bin');
 const fileDepDirs = [
   { prefix: 'file:../../bin/', absDir: binDir },
   { prefix: 'file:../../deps/', absDir: path.join(repoRoot, 'deps') },
+  { prefix: 'file:../../resources/', absDir: path.join(repoRoot, 'resources') },
 ];
 
 /**
@@ -78,7 +79,7 @@ function isCacheValid(currentHash) {
 }
 
 /**
- * Copy any file:../../{bin,deps}/*.tgz dependencies into server/.tgz/ and
+ * Copy any file:../../{bin,deps,resources}/*.tgz dependencies into server/.tgz/ and
  * rewrite package.json so "npm install" from server/ can resolve them.
  */
 function prepareFileDepsForBundle(targetPackageJsonPath) {

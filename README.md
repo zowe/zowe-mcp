@@ -157,7 +157,7 @@ registry; use one of the scripts below to fetch it.
 | --- | --- | --- |
 | `npm run sdk:release` | Artifactory npm | Latest stable release |
 | `npm run sdk:release -- <version>` | Artifactory npm | Specific release (e.g. `0.3.0`) |
-| `npm run sdk:fallback` | In-repo (LFS) | Fallback resource for CI and when nightly is unavailable |
+| `npm run sdk:fallback` | In-repo | Fallback resource for CI and when nightly is unavailable |
 | `npm run sdk:nightly` | Artifactory / GitHub | Latest nightly build (recommended for development) |
 | `npm run sdk:pr -- <pr-number>` | GitHub Actions | Build from a specific pull request |
 | `npm run sdk:branch -- <branch>` | GitHub Actions | Latest successful build for a branch |

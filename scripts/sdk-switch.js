@@ -424,17 +424,8 @@ const FALLBACK_PATH = path.join(repoRoot, 'resources', 'znp-sdk-fallback.tgz');
 
 function handleFallback() {
   if (!fs.existsSync(FALLBACK_PATH)) {
-    console.log('Fallback SDK not found, running git lfs pull...');
-    try {
-      run('git lfs pull');
-    } catch (err) {
-      console.error('git lfs pull failed: %s', err.message);
-      process.exit(1);
-    }
-  }
-  if (!fs.existsSync(FALLBACK_PATH)) {
     console.error(
-      'Fallback SDK not found. Run "git lfs pull" or add resources/znp-sdk-fallback.tgz.'
+      'Fallback SDK not found. Add resources/znp-sdk-fallback.tgz to the repo (see docs/znp-sdk-without-marist-zos-build.md).'
     );
     console.error('Expected path: %s', FALLBACK_PATH);
     process.exit(1);

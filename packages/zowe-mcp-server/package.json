@@ -1,5 +1,5 @@
 {
-  "name": "@zowe/zowe-mcp-server",
+  "name": "@zowe/mcp-server",
   "version": "0.8.0-dev",
   "description": "Zowe MCP Server - Model Context Protocol server providing tools for z/OS",
   "type": "module",

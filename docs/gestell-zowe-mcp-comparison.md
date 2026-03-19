@@ -23,7 +23,7 @@ This document compares [Gestell-AI/zowe-mcp](https://github.com/Gestell-AI/zowe-
 
 | Aspect | Gestell-AI/zowe-mcp | This repository |
 |--------|--------------------|------------------|
-| **Packaging** | Single package, npm `@gestell/zowe-mcp` | **Monorepo**: `@zowe/zowe-mcp-server`, `zowe-mcp-vscode`, `zowe-mcp-common`, `zowe-mcp-evals` |
+| **Packaging** | Single package, npm `@gestell/zowe-mcp` | **Monorepo**: `@zowe/mcp-server`, `zowe-mcp-vscode`, `zowe-mcp-common`, `zowe-mcp-evals` |
 | **VS Code** | MCP client config only (e.g. Claude Desktop, Codex) | **Full VS Code extension**: registers MCP (VS Code + Cursor), pipe for passwords/log level/mock, Zowe Explorer “open in editor” |
 | **Transports** | Stdio (implied from MCP client config) | **Stdio** and **HTTP Streamable** (multi-session, port 7542) |
 

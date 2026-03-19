@@ -18,7 +18,7 @@
  * mcp-reference-inputs.yaml, and writes the output to a file.
  *
  * Usage:
- *   npx @zowe/zowe-mcp-server generate-docs [--output <path>] [--inputs <path>]
+ *   npx @zowe/mcp-server generate-docs [--output <path>] [--inputs <path>]
  *
  * Default output: docs/mcp-reference.md (relative to repo root)
  * Default inputs: docs/mcp-reference-inputs.yaml (relative to repo root)
@@ -869,7 +869,7 @@ async function main(): Promise<void> {
       const commitInfo = commitHash ? `, commit ${commitHash}` : '';
       sections.push(
         `> Auto-generated from the MCP server (v${SERVER_VERSION}${commitInfo}). ` +
-          `Do not edit manually — run \`npx @zowe/zowe-mcp-server generate-docs\` to regenerate.\n`
+          `Do not edit manually — run \`npx @zowe/mcp-server generate-docs\` to regenerate.\n`
       );
       const tocLinks: string[] = [];
       if (tools.length > 0) tocLinks.push('[Tools](#tools)');

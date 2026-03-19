@@ -9,7 +9,7 @@ There are two ways to run evals:
 
 ## Setup
 
-1. **Build the server**: From repo root, run `npm run build` (or `npm run build -w @zowe/zowe-mcp-server`).
+1. **Build the server**: From repo root, run `npm run build` (or `npm run build -w @zowe/mcp-server`).
 
 2. **Evals config** (at repo root): Copy an example and set your LLM provider (vLLM, Gemini, or LM Studio):
 

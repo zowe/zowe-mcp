@@ -55,21 +55,21 @@ jobs:
       - name: Build (common + server)
         run: |
           npm run build -w packages/zowe-mcp-common
-          npm run build -w @zowe/zowe-mcp-server
+          npm run build -w @zowe/mcp-server
 
       - run: npm run lint
 
       - run: npm run test
 
-      - name: Pack @zowe/zowe-mcp-server (npm tarball)
-        run: npm pack -w @zowe/zowe-mcp-server --pack-destination .
+      - name: Pack @zowe/mcp-server (npm tarball)
+        run: npm pack -w @zowe/mcp-server --pack-destination .
 
       - name: Upload npm package tarball
         uses: actions/upload-artifact@v4
         id: npm-pack-upload
         with:
           name: zowe-mcp-server-npm
-          path: zowe-zowe-mcp-server-*.tgz
+          path: zowe-mcp-server-*.tgz
           if-no-files-found: error
 
       - name: Generate MCP reference docs

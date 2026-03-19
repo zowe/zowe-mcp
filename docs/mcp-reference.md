@@ -2,7 +2,7 @@
 
 # Zowe MCP Server Reference
 
-> Auto-generated from the MCP server (v0.8.0-dev, commit 5a0bbc0). Do not edit manually — run `npx @zowe/zowe-mcp-server generate-docs` to regenerate.
+> Auto-generated from the MCP server (v0.8.0-dev, commit 5a0bbc0). Do not edit manually — run `npx @zowe/mcp-server generate-docs` to regenerate.
 
 This document describes all [Tools](#tools), [Prompts](#prompts), [Resource Templates](#resource-templates) provided by the Zowe MCP Server.
 

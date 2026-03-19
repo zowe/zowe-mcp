@@ -99,7 +99,7 @@ All options that affect the MCP server are documented below. The extension uses 
 
 ### Server CLI options (standalone)
 
-When running `npx @zowe/zowe-mcp-server` (or the bundled server) outside VS Code:
+When running `npx @zowe/mcp-server` (or the bundled server) outside VS Code:
 
 - **Transport:** `--stdio` (default), `--http`, `--port <N>` (default 7542 for HTTP)
 - **Backend:** `--mock <dir>`, `--native`, `--config <path>`, `--system <spec>` (repeatable). Config file may include `jobCards` per connection.

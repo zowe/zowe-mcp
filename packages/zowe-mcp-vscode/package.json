@@ -233,7 +233,7 @@
   "scripts": {
     "vscode:prepublish": "npm run build:all",
     "build": "tsc -p ./",
-    "build:server": "npm run build -w @zowe/zowe-mcp-server && npm run bundle:server",
+    "build:server": "npm run build -w @zowe/mcp-server && npm run bundle:server",
     "bundle:server": "node scripts/bundle-server.js",
     "build:all": "npm run build:server && npm run build",
     "dev": "tsc -watch -p ./",
@@ -251,7 +251,7 @@
   "dependencies": {
     "@zowe/imperative": "^8.30.1",
     "zowe-mcp-common": "*",
-    "@zowe/zowe-mcp-server": "0.8.0-dev"
+    "@zowe/mcp-server": "0.8.0-dev"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

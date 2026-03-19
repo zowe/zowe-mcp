@@ -24,7 +24,7 @@
 import type {
   ExtensionToServerEvent,
   ServerToExtensionEvent,
-} from '@zowe/zowe-mcp-server/dist/events.js';
+} from '@zowe/mcp-server/dist/events.js';
 import * as crypto from 'crypto';
 import * as vscode from 'vscode';
 import { getNativePasswordKey } from './secrets';

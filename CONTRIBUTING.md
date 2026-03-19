@@ -225,7 +225,7 @@ examples.
 For quick tool testing during development:
 
 ```bash
-npx @zowe/zowe-mcp-server call-tool [--mock=<dir>] [<tool-name> [key=value ...]]
+npx @zowe/mcp-server call-tool [--mock=<dir>] [<tool-name> [key=value ...]]
 ```
 
 ## Dependencies

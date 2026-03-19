@@ -153,7 +153,7 @@ async function main(): Promise<void> {
 
   const serverPath = SERVER_PATH;
   if (!existsSync(serverPath)) {
-    log.error('Server not built. Run: npm run build -w @zowe/zowe-mcp-server');
+    log.error('Server not built. Run: npm run build -w @zowe/mcp-server');
     process.exit(1);
   }
 

@@ -13,7 +13,7 @@
  * CLI helper to call MCP tools on the Zowe MCP Server.
  *
  * Usage:
- *   npx zowe-mcp-server call-tool [--mock=<dir> | --native [--config=<path>] [--system <spec> ...]] [<tool-name> [args]]
+ *   npx @zowe/zowe-mcp-server call-tool [--mock=<dir> | --native [--config=<path>] [--system <spec> ...]] [<tool-name> [args]]
  *
  * Options:
  *   --mock=<dir>  Use the mock backend with the given data directory (or set ZOWE_MCP_MOCK_DIR).
@@ -27,26 +27,26 @@
  *
  * Examples:
  *   # List tools (no backend)
- *   npx zowe-mcp-server call-tool
+ *   npx @zowe/zowe-mcp-server call-tool
  *
  *   # List tools in mock backend
- *   npx zowe-mcp-server call-tool --mock=./zowe-mcp-mock-data listSystems
+ *   npx @zowe/zowe-mcp-server call-tool --mock=./zowe-mcp-mock-data listSystems
  *
  *   # List datasets in mock backend
- *   npx zowe-mcp-server call-tool --mock=./zowe-mcp-mock-data listDatasets "dsnPattern='USER.*'" system=mainframe-dev.example.com
+ *   npx @zowe/zowe-mcp-server call-tool --mock=./zowe-mcp-mock-data listDatasets "dsnPattern='USER.*'" system=mainframe-dev.example.com
  *
  *   # List members in mock backend
- *   npx zowe-mcp-server call-tool --mock=./zowe-mcp-mock-data listMembers dsn=SRC.COBOL  system=mainframe-dev.example.com
+ *   npx @zowe/zowe-mcp-server call-tool --mock=./zowe-mcp-mock-data listMembers dsn=SRC.COBOL  system=mainframe-dev.example.com
  *
  *   # List tools with native backend (systems from config)
  *
- *   ZOWE_MCP_PASSWORD_MYUSER_MYHOST_EXAMPLE_COM=password npx zowe-mcp-server call-tool --native --config=./native-config.json listSystems
+ *   ZOWE_MCP_PASSWORD_MYUSER_MYHOST_EXAMPLE_COM=password npx @zowe/zowe-mcp-server call-tool --native --config=./native-config.json listSystems
  *
  *   # List datasets with native backend (system on command line)
- *   ZOWE_MCP_PASSWORD_MYUSER_MYHOST_EXAMPLE_COM=password npx zowe-mcp-server call-tool --native --system myuser@myhost.example.com listDatasets "dsnPattern='SYS1.SAMPLIB'"
+ *   ZOWE_MCP_PASSWORD_MYUSER_MYHOST_EXAMPLE_COM=password npx @zowe/zowe-mcp-server call-tool --native --system myuser@myhost.example.com listDatasets "dsnPattern='SYS1.SAMPLIB'"
  *
  *   # List members with native backend (system on command line)
- *   ZOWE_MCP_PASSWORD_MYUSER_MYHOST_EXAMPLE_COM=password npx zowe-mcp-server call-tool --native --system myuser@myhost.example.com listMembers "dsn='SYS1.SAMPLIB'"
+ *   ZOWE_MCP_PASSWORD_MYUSER_MYHOST_EXAMPLE_COM=password npx @zowe/zowe-mcp-server call-tool --native --system myuser@myhost.example.com listMembers "dsn='SYS1.SAMPLIB'"
  *
  * Without arguments, lists all available tools.
  */

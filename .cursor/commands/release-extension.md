@@ -48,7 +48,7 @@ TODO: Regenerate docs and publish slides
 
 Only after the user has approved the changelog:
 
-1. **Bump version**: Run **`node scripts/set-version.js <version>`** (e.g. `node scripts/set-version.js 0.2.0`) to set the version in all **`package.json`** files (root and every workspace) and the extension’s **`dependencies["zowe-mcp-server"]`**. Do not edit version in package.json files manually — the script is the single source of truth.
+1. **Bump version**: Run **`node scripts/set-version.js <version>`** (e.g. `node scripts/set-version.js 0.2.0`) to set the version in all **`package.json`** files (root and every workspace) and the extension’s **`dependencies["@zowe/zowe-mcp-server"]`**. Do not edit version in package.json files manually — the script is the single source of truth.
 2. **Write changelog**: Insert the approved changelog section into **`packages/zowe-mcp-vscode/CHANGELOG.md`** at the top of the changelog (below the “Change Log” intro), so the new version is the first listed.
 3. **Commit and push**: Create a single commit (e.g. “Release v0.2.0” or “chore: release v0.2.0”) that includes the version and CHANGELOG changes, then **`git push origin <branch>`**.
 4. **Release**: Run **`npm run release-vsix`** from the repo root. This script uses the version from **`packages/zowe-mcp-vscode/package.json`** to build, tag, and create the GitHub release with the VSIX. Do not pass a tag unless the user asked for a specific tag.

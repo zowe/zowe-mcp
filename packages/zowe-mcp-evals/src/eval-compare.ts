@@ -510,7 +510,7 @@ async function main(): Promise<void> {
   log.info('eval-compare starting', { label: cli.label, sets: cli.set, models: cli.model });
 
   if (!existsSync(SERVER_PATH)) {
-    log.error('Server not built. Run: npm run build -w packages/zowe-mcp-server');
+    log.error('Server not built. Run: npm run build -w @zowe/zowe-mcp-server');
     process.exit(1);
   }
 

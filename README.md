@@ -19,7 +19,7 @@ See [Use cases](docs/use-cases.md) for the full list and more detail.
 ```text
 zowe-mcp/                       # npm workspaces monorepo
   packages/
-    zowe-mcp-server/            # Standalone MCP server (ESM)
+    zowe-mcp-server/            # Server package (npm: @zowe/zowe-mcp-server, ESM)
     zowe-mcp-vscode/            # VS Code extension (CommonJS)
     zowe-mcp-evals/             # AI evaluations (LLM agent + MCP tools)
 ```
@@ -61,7 +61,7 @@ Mock data is **not** required for building; generate it only when you want to
 test without a mainframe:
 
 ```bash
-npx zowe-mcp-server init-mock --output ./zowe-mcp-mock-data
+npx @zowe/zowe-mcp-server init-mock --output ./zowe-mcp-mock-data
 ```
 
 ## Building
@@ -72,13 +72,13 @@ npx zowe-mcp-server init-mock --output ./zowe-mcp-mock-data
 npm run build
 ```
 
-This compiles both `zowe-mcp-server` and `zowe-mcp-vscode`. The server must
+This compiles both `@zowe/zowe-mcp-server` and `zowe-mcp-vscode`. The server must
 be built first because the extension imports types from it.
 
 ### Server only
 
 ```bash
-npm run build -w packages/zowe-mcp-server
+npm run build -w @zowe/zowe-mcp-server
 ```
 
 ### Extension only
@@ -95,7 +95,7 @@ npm run build:all -w packages/zowe-mcp-vscode
 
 ```bash
 # Server — recompiles on file changes
-npm run dev -w packages/zowe-mcp-server
+npm run dev -w @zowe/zowe-mcp-server
 
 # Extension — recompiles on file changes (in a second terminal)
 npm run dev -w packages/zowe-mcp-vscode
@@ -110,16 +110,16 @@ and test without a real mainframe.
 
 ```bash
 # Default preset (2 systems, 2 users each, ~8 datasets per user)
-npx zowe-mcp-server init-mock --output ./zowe-mcp-mock-data
+npx @zowe/zowe-mcp-server init-mock --output ./zowe-mcp-mock-data
 
 # Minimal (1 system, 1 user, 5 datasets)
-npx zowe-mcp-server init-mock --output ./zowe-mcp-mock-data --preset minimal
+npx @zowe/zowe-mcp-server init-mock --output ./zowe-mcp-mock-data --preset minimal
 
 # Large (5 systems, 3 users each, 20 datasets per user)
-npx zowe-mcp-server init-mock --output ./zowe-mcp-mock-data --preset large
+npx @zowe/zowe-mcp-server init-mock --output ./zowe-mcp-mock-data --preset large
 
 # Custom scale
-npx zowe-mcp-server init-mock --output ./zowe-mcp-mock-data \
+npx @zowe/zowe-mcp-server init-mock --output ./zowe-mcp-mock-data \
   --systems 3 --users-per-system 2 --datasets-per-user 10 --members-per-pds 8
 ```
 
@@ -140,10 +140,10 @@ zowe-mcp-mock-data/
 
 ```bash
 # Via CLI flag
-npx zowe-mcp-server --stdio --mock ./zowe-mcp-mock-data
+npx @zowe/zowe-mcp-server --stdio --mock ./zowe-mcp-mock-data
 
 # Via environment variable
-ZOWE_MCP_MOCK_DIR=./zowe-mcp-mock-data npx zowe-mcp-server --stdio
+ZOWE_MCP_MOCK_DIR=./zowe-mcp-mock-data npx @zowe/zowe-mcp-server --stdio
 ```
 
 ## Zowe Native Proto SDK
@@ -187,10 +187,10 @@ Systems come from a config file or CLI:
 
 ```bash
 # Config file (JSON with "systems" array)
-npx zowe-mcp-server --stdio --native --config ./native-config.json
+npx @zowe/zowe-mcp-server --stdio --native --config ./native-config.json
 
 # CLI (repeatable)
-npx zowe-mcp-server --stdio --native --system USERID@sys1.example.com
+npx @zowe/zowe-mcp-server --stdio --native --system USERID@sys1.example.com
 ```
 
 Config file format:
@@ -210,7 +210,7 @@ replaced by `_`). Example for `USERID@sys1.example.com`:
 
 ```bash
 export ZOWE_MCP_PASSWORD_USERID_SYS1_EXAMPLE_COM=password
-npx zowe-mcp-server --stdio --native --system USERID@sys1.example.com
+npx @zowe/zowe-mcp-server --stdio --native --system USERID@sys1.example.com
 ```
 
 If a password is invalid, the server will not retry it for the rest of the
@@ -402,7 +402,7 @@ npm run test:vscode
 
 ### Quick tool testing from the CLI
 
-Build the server first (`npm run build`), then use `npx zowe-mcp-server call-tool`. For usage, options, and examples see the script source: [`packages/zowe-mcp-server/src/scripts/call-tool.ts`](packages/zowe-mcp-server/src/scripts/call-tool.ts).
+Build the server first (`npm run build`), then use `npx @zowe/zowe-mcp-server call-tool`. For usage, options, and examples see the script source: [`packages/zowe-mcp-server/src/scripts/call-tool.ts`](packages/zowe-mcp-server/src/scripts/call-tool.ts).
 
 ### MCP Inspector
 
@@ -413,7 +413,7 @@ Use the script that matches how you want to run the server:
 | Script | Backend | Use when |
 | --- | --- | --- |
 | `npm run inspector` | None | Quick check: only core tools (e.g. `info`) are available; no z/OS systems. |
-| `npm run inspector:mock` | Mock (filesystem) | Try dataset tools without a real z/OS: uses `./zowe-mcp-mock-data`. Generate mock data first with `npx zowe-mcp-server init-mock --output ./zowe-mcp-mock-data`. |
+| `npm run inspector:mock` | Mock (filesystem) | Try dataset tools without a real z/OS: uses `./zowe-mcp-mock-data`. Generate mock data first with `npx @zowe/zowe-mcp-server init-mock --output ./zowe-mcp-mock-data`. |
 | `npm run inspector:native` | Native (SSH) | Connect to real z/OS via SSH. Needs `native-config.json` (systems) and `.env` (passwords). Copy `native-config.example.json` → `native-config.json` and `.env.example` → `.env`, then set `ZOWE_MCP_PASSWORD_<USER>_<HOST>` (see [Standalone mode](#standalone-mode)). |
 
 ```bash
@@ -450,9 +450,12 @@ npm run check-format  # Check formatting without modifying files
 
 To publish a VSIX to GitHub Releases from your machine (no GitHub Actions): run `npm run release-vsix` (tag defaults to `v` + extension version) or `npm run release-vsix -- v0.1.0`. Or run `./scripts/release-vsix.sh [TAG]` directly. Requires [GitHub CLI](https://cli.github.com/) (`gh`) and `gh auth login`. Builds the extension, creates/updates the release for the tag, and uploads the VSIX.
 
+[CI](.github/workflows/ci.yml) uploads build artifacts for every successful run: the VSIX, the MCP reference doc, and an **`npm pack`** tarball of **`@zowe/zowe-mcp-server`** (artifact name `zowe-mcp-server-npm`, file pattern `zowe-zowe-mcp-server-*.tgz`). Download from the workflow run’s **Artifacts** section. Install locally with `npm install ./zowe-zowe-mcp-server-0.x.y.tgz` (or use `npm run pack:server` to build and pack from your clone).
+
 | Script | Description |
 | --- | --- |
 | `npm run build` | Build all packages |
+| `npm run pack:server` | Build the server and create `zowe-zowe-mcp-server-<version>.tgz` in the repo root (same contents as CI npm artifact) |
 | `npm test` | Run server tests (Vitest) |
 | `npm run test:all` | Run all tests (server + VS Code extension) |
 | `npm run test:vscode` | Run VS Code extension tests |
@@ -464,8 +467,8 @@ To publish a VSIX to GitHub Releases from your machine (no GitHub Actions): run 
 | `npm run lint` | Run ESLint |
 | `npm run lint:fix` | Auto-fix ESLint issues |
 | `npm run format` | Format all files with Prettier |
-| `npx zowe-mcp-server init-mock --output <dir>` | Generate mock data |
-| `npx zowe-mcp-server call-tool [--mock=<dir>] [<tool-name> [key=value ...]]` | Call a tool from the CLI |
+| `npx @zowe/zowe-mcp-server init-mock --output <dir>` | Generate mock data |
+| `npx @zowe/zowe-mcp-server call-tool [--mock=<dir>] [<tool-name> [key=value ...]]` | Call a tool from the CLI |
 | `npm run sdk:release [-- version]` | Fetch latest (or specific) SDK release from Zowe Artifactory |
 | `npm run sdk:fallback` | Use in-repo fallback SDK (for CI and when nightly is unavailable) |
 | `npm run sdk:nightly` | Fetch latest nightly SDK build |

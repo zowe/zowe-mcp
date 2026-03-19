@@ -2,7 +2,7 @@
 
 # Zowe MCP Server Reference
 
-> Auto-generated from the MCP server (v0.8.0-dev, commit 49c08ae). Do not edit manually — run `npx zowe-mcp-server generate-docs` to regenerate.
+> Auto-generated from the MCP server (v0.8.0-dev, commit 5a0bbc0). Do not edit manually — run `npx @zowe/zowe-mcp-server generate-docs` to regenerate.
 
 This document describes all [Tools](#tools), [Prompts](#prompts), [Resource Templates](#resource-templates) provided by the Zowe MCP Server.
 
@@ -2094,7 +2094,7 @@ Output:
   },
   "data": {
     "lines": [
-      "TIME-09:40:46 PM. CPU-00:00:00 SERVICE-26895 SESSION-00:01:53 MARCH 19,2026"
+      "TIME-11:20:54 PM. CPU-00:00:00 SERVICE-26895 SESSION-00:01:53 MARCH 19,2026"
     ],
     "mimeType": "text/plain"
   }

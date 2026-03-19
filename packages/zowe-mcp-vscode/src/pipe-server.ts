@@ -19,15 +19,15 @@
  * Events are framed as newline-delimited JSON (NDJSON).
  */
 
+import type {
+  ExtensionToServerEvent,
+  ServerToExtensionEvent,
+} from '@zowe/zowe-mcp-server/dist/events.js';
 import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as net from 'net';
 import * as path from 'path';
 import * as vscode from 'vscode';
-import type {
-  ExtensionToServerEvent,
-  ServerToExtensionEvent,
-} from 'zowe-mcp-server/dist/events.js';
 import { handleServerEvent } from './event-handler';
 import { getLog } from './log';
 

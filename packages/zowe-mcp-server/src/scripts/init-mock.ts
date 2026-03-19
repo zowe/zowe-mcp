@@ -15,9 +15,9 @@
  * CLI script to generate a realistic mock data directory.
  *
  * Usage:
- *   npx zowe-mcp-server init-mock --output ./zowe-mcp-mock-data
- *   npx zowe-mcp-server init-mock --output ./zowe-mcp-mock-data --preset minimal
- *   npx zowe-mcp-server init-mock --output ./zowe-mcp-mock-data --systems 5 --users-per-system 3
+ *   npx @zowe/zowe-mcp-server init-mock --output ./zowe-mcp-mock-data
+ *   npx @zowe/zowe-mcp-server init-mock --output ./zowe-mcp-mock-data --preset minimal
+ *   npx @zowe/zowe-mcp-server init-mock --output ./zowe-mcp-mock-data --systems 5 --users-per-system 3
  */
 
 import { type Faker, fakerCS_CZ, fakerDE, fakerEN, fakerES, fakerIT } from '@faker-js/faker';

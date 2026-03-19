@@ -157,6 +157,7 @@ registry; use one of the scripts below to fetch it.
 | --- | --- | --- |
 | `npm run sdk:release` | Artifactory npm | Latest stable release |
 | `npm run sdk:release -- <version>` | Artifactory npm | Specific release (e.g. `0.3.0`) |
+| `npm run sdk:fallback` | In-repo (LFS) | Fallback resource for CI and when nightly is unavailable |
 | `npm run sdk:nightly` | Artifactory / GitHub | Latest nightly build (recommended for development) |
 | `npm run sdk:pr -- <pr-number>` | GitHub Actions | Build from a specific pull request |
 | `npm run sdk:branch -- <branch>` | GitHub Actions | Latest successful build for a branch |
@@ -466,6 +467,7 @@ To publish a VSIX to GitHub Releases from your machine (no GitHub Actions): run 
 | `npx zowe-mcp-server init-mock --output <dir>` | Generate mock data |
 | `npx zowe-mcp-server call-tool [--mock=<dir>] [<tool-name> [key=value ...]]` | Call a tool from the CLI |
 | `npm run sdk:release [-- version]` | Fetch latest (or specific) SDK release from Zowe Artifactory |
+| `npm run sdk:fallback` | Use in-repo fallback SDK (for CI and when nightly is unavailable) |
 | `npm run sdk:nightly` | Fetch latest nightly SDK build |
 | `npm run sdk:pr -- <pr-number>` | Fetch SDK from a specific PR build (requires `gh`) |
 | `npm run sdk:branch -- <branch>` | Fetch SDK from the latest successful build for a branch (requires `gh`) |

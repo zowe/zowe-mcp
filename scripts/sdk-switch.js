@@ -31,6 +31,9 @@
  *   node scripts/sdk-switch.js local <path>
  *     Uses a local .tgz file or a zowe-native-proto repo directory.
  *     If a directory is given, looks for a pre-built .tgz in dist/ (run "npm run package" in the SDK repo first).
+ *
+ *   node scripts/sdk-switch.js fallback
+ *     Uses the in-repo fallback resource (resources/znp-sdk-fallback.tgz). For CI and when nightly is unavailable.
  */
 
 const fs = require('fs');
@@ -414,6 +417,28 @@ function handleBranch(branchName) {
 }
 
 // ---------------------------------------------------------------------------
+// Mode: fallback
+// ---------------------------------------------------------------------------
+
+const FALLBACK_PATH = path.join(repoRoot, 'resources', 'znp-sdk-fallback.tgz');
+
+function handleFallback() {
+  if (!fs.existsSync(FALLBACK_PATH)) {
+    console.error(
+      'Fallback SDK not found. Run "git lfs pull" or add resources/znp-sdk-fallback.tgz.'
+    );
+    console.error('Expected path: %s', FALLBACK_PATH);
+    process.exit(1);
+  }
+  const relPath = 'file:../../resources/znp-sdk-fallback.tgz';
+  removeRootOverrides();
+  setDependency(relPath);
+  npmInstall();
+  removeSdkIntegrityFromLockfile();
+  console.log('\nSDK switched to fallback: %s', FALLBACK_PATH);
+}
+
+// ---------------------------------------------------------------------------
 // Mode: local <path>
 // ---------------------------------------------------------------------------
 
@@ -496,6 +521,9 @@ function main() {
     case 'branch':
       handleBranch(rest[0]);
       break;
+    case 'fallback':
+      handleFallback();
+      break;
     case 'local':
       handleLocal(rest[0]);
       break;
@@ -510,6 +538,9 @@ function main() {
       );
       console.error(
         '  node scripts/sdk-switch.js branch <branch>      Latest successful build for a branch'
+      );
+      console.error(
+        '  node scripts/sdk-switch.js fallback             In-repo fallback resource (for CI)'
       );
       console.error(
         '  node scripts/sdk-switch.js local <path>         Local .tgz file or ZNP repo directory'

@@ -33,6 +33,7 @@
     "sdk:nightly": "node scripts/sdk-switch.js nightly",
     "sdk:pr": "node scripts/sdk-switch.js pr",
     "sdk:branch": "node scripts/sdk-switch.js branch",
+    "sdk:fallback": "node scripts/sdk-switch.js fallback",
     "sdk:local": "node scripts/sdk-switch.js local",
     "prepare": "git config core.hooksPath .githooks"
   },

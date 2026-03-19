@@ -6,11 +6,12 @@ on:
   workflow_dispatch:
     inputs:
       sdk-mode:
-        description: "SDK source (nightly, release, pr, branch)"
+        description: "SDK source (fallback, nightly, release, pr, branch)"
         required: false
-        default: "nightly"
+        default: "fallback"
         type: choice
         options:
+          - fallback
           - nightly
           - release
           - pr
@@ -33,6 +34,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          lfs: true
 
       - uses: actions/setup-node@v4
         with:
@@ -41,7 +44,7 @@ jobs:
       - name: Download ZNP SDK
         env:
           GH_TOKEN: ${{ github.token }}
-        run: node scripts/sdk-switch.js ${{ inputs.sdk-mode || 'nightly' }} ${{ inputs.sdk-arg }}
+        run: node scripts/sdk-switch.js ${{ inputs.sdk-mode || 'fallback' }} ${{ inputs.sdk-arg }}
 
       - name: Environment info
         run: |

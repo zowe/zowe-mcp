@@ -424,6 +424,15 @@ const FALLBACK_PATH = path.join(repoRoot, 'resources', 'znp-sdk-fallback.tgz');
 
 function handleFallback() {
   if (!fs.existsSync(FALLBACK_PATH)) {
+    console.log('Fallback SDK not found, running git lfs pull...');
+    try {
+      run('git lfs pull');
+    } catch (err) {
+      console.error('git lfs pull failed: %s', err.message);
+      process.exit(1);
+    }
+  }
+  if (!fs.existsSync(FALLBACK_PATH)) {
     console.error(
       'Fallback SDK not found. Run "git lfs pull" or add resources/znp-sdk-fallback.tgz.'
     );

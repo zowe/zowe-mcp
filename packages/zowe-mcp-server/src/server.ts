@@ -31,6 +31,7 @@ import { installToolCallLogging } from './tool-call-logging.js';
 import { registerContextTools } from './tools/context/context-tools.js';
 import { registerDatasetTools } from './tools/datasets/dataset-tools.js';
 import { registerJobTools } from './tools/jobs/jobs-tools.js';
+import { registerLocalFileTools } from './tools/local-files/local-file-tools.js';
 import { registerTsoTools } from './tools/tso/tso-tools.js';
 import { registerUssTools } from './tools/uss/uss-tools.js';
 import { registerZoweExplorerTools } from './tools/zowe-explorer/open-in-editor.js';
@@ -174,6 +175,11 @@ export interface CreateServerOptions {
    * Receives the connection spec (e.g. user@host) or null when there is no active system.
    */
   onActiveConnectionChanged?: (activeConnection: string | null) => void;
+  /**
+   * Directories allowed for upload/download tools when MCP roots/list is empty or unavailable.
+   * From ZOWE_MCP_WORKSPACE_DIR, ZOWE_MCP_LOCAL_FILES_ROOT, and --local-files-root.
+   */
+  localFilesFallbackDirectories?: string[];
 }
 
 /** Callbacks required to register Zowe Explorer open-in-editor tools (e.g. for late registration). */
@@ -367,6 +373,20 @@ export function createServer(options?: CreateServerOptions): CreateServerResult 
         sessionState,
         credentialProvider,
         jobCardStore,
+      },
+      logger
+    );
+    registerLocalFileTools(
+      server,
+      {
+        backend,
+        systemRegistry,
+        sessionState,
+        credentialProvider,
+        responseCache: responseCache ?? undefined,
+        encodingOptions,
+        mcpServer: server,
+        localFilesFallbackDirectories: options?.localFilesFallbackDirectories ?? [],
       },
       logger
     );

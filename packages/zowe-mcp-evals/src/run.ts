@@ -18,7 +18,7 @@ import { runAssertions } from './assertions.js';
 import { buildCacheKey, get as cacheGet, set as cacheSet, getToolsUnderTest } from './cache.js';
 import { getConfigDir, loadEvalsConfig } from './config.js';
 import { errorMessage, FAIL, PASS, resolveNativeServerArgs } from './evals-utils.js';
-import { getSystemPrompt, initMockData, McpEvalHarness } from './harness.js';
+import { getSystemPrompt, initMockData, McpEvalHarness, prepareEvalWorkspace } from './harness.js';
 import { listSetNames, loadAndValidateAllSets } from './load-questions.js';
 import { log } from './log.js';
 import { writeReport } from './report.js';
@@ -212,12 +212,16 @@ async function main(): Promise<void> {
     const nativeServerArgs =
       rawNativeArgs != null ? resolveNativeServerArgs(rawNativeArgs) : undefined;
 
+    const workspaceDir = prepareEvalWorkspace();
+    log.info('Eval workspace for local file tools', { workspaceDir });
+
     const harness = new McpEvalHarness({
       serverPath,
       evalsConfig,
       setConfig: config,
       mockDir,
       nativeServerArgs,
+      workspaceDir,
     });
 
     try {
@@ -346,6 +350,7 @@ async function main(): Promise<void> {
       log.info('Stopping MCP server');
       await harness.stop();
       if (mockDir) rmSync(mockDir, { recursive: true, force: true });
+      rmSync(workspaceDir, { recursive: true, force: true });
     }
   }
 

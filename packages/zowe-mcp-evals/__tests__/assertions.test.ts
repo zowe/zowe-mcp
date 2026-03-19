@@ -396,6 +396,24 @@ describe('runAssertions', () => {
       expect(runAssertions(block(assertions), toolCalls, '')).toEqual({ passed: true });
     });
 
+    it('works with validDsn for downloadDatasetToFile (dsn + member + localPath)', () => {
+      const assertions: Assertion[] = [
+        {
+          type: 'toolCall',
+          tool: 'downloadDatasetToFile',
+          args: { validDsn: 'USER.SRC.COBOL(CUSTFILE)', localPath: 'out/x.cbl' },
+        },
+      ];
+      const toolCalls: ToolCallRecord[] = [
+        tc('downloadDatasetToFile', {
+          dsn: 'USER.SRC.COBOL',
+          member: 'CUSTFILE',
+          localPath: 'out/x.cbl',
+        }),
+      ];
+      expect(runAssertions(block(assertions), toolCalls, '')).toEqual({ passed: true });
+    });
+
     it('fails when other args do not match', () => {
       const assertions: Assertion[] = [
         {

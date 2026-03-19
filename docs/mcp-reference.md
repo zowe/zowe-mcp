@@ -2,13 +2,13 @@
 
 # Zowe MCP Server Reference
 
-> Auto-generated from the MCP server (v0.7.0-dev, commit 6a9ef6f). Do not edit manually — run `npx zowe-mcp-server generate-docs` to regenerate.
+> Auto-generated from the MCP server (v0.8.0-dev, commit 49c08ae). Do not edit manually — run `npx zowe-mcp-server generate-docs` to regenerate.
 
 This document describes all [Tools](#tools), [Prompts](#prompts), [Resource Templates](#resource-templates) provided by the Zowe MCP Server.
 
 ## Tools
 
-The server provides **50** tools.
+The server provides **55** tools.
 
 | #  | Tool                                                      | Description                                                                                                                                                                                                                                                                 |
 |----|-----------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -62,6 +62,11 @@ The server provides **50** tools.
 | 48 | [`deleteJob`](#deletejob)                                 | Delete a job from the output queue                                                                                                                                                                                                                                          |
 | 49 | [`submitJobFromDataset`](#submitjobfromdataset)           | Submit a job from a data set or PDS or PDS/E member containing JCL                                                                                                                                                                                                          |
 | 50 | [`submitJobFromUss`](#submitjobfromuss)                   | Submit a job from a USS file path                                                                                                                                                                                                                                           |
+| 51 | [`downloadDatasetToFile`](#downloaddatasettofile)         | Download a sequential data set or PDS/E member from z/OS to a file under the workspace                                                                                                                                                                                      |
+| 52 | [`uploadFileToDataset`](#uploadfiletodataset)             | Upload a UTF-8 text file from the workspace to a sequential data set or PDS/E member on z/OS                                                                                                                                                                                |
+| 53 | [`downloadUssFileToFile`](#downloadussfiletofile)         | Download a z/OS USS file to a local workspace file as UTF-8 text                                                                                                                                                                                                            |
+| 54 | [`uploadFileToUssFile`](#uploadfiletoussfile)             | Upload a UTF-8 workspace file to a z/OS USS path                                                                                                                                                                                                                            |
+| 55 | [`downloadJobFileToFile`](#downloadjobfiletofile)         | Download one job spool file from z/OS to a local workspace file as UTF-8 text                                                                                                                                                                                               |
 
 ### `listSystems`
 
@@ -206,14 +211,15 @@ Return the Zowe MCP server info (version, backend, components) and the current s
 {
   "server": {
     "name": "Zowe MCP Server",
-    "version": "0.7.0-dev",
+    "version": "0.8.0-dev",
     "description": "MCP server providing tools for z/OS systems including data sets, jobs, and UNIX System Services",
     "components": [
       "context",
       "datasets",
       "uss",
       "tso",
-      "jobs"
+      "jobs",
+      "local-files"
     ],
     "backend": "mock"
   },
@@ -2082,13 +2088,13 @@ Output:
     "totalLines": 1,
     "startLine": 1,
     "returnedLines": 1,
-    "contentLength": 74,
+    "contentLength": 75,
     "mimeType": "text/plain",
     "hasMore": false
   },
   "data": {
     "lines": [
-      "TIME-02:38:49 PM. CPU-00:00:00 SERVICE-26895 SESSION-00:01:53 MARCH 7,2026"
+      "TIME-09:40:46 PM. CPU-00:00:00 SERVICE-26895 SESSION-00:01:53 MARCH 19,2026"
     ],
     "mimeType": "text/plain"
   }
@@ -2564,6 +2570,161 @@ Submit a job from a USS file path. The file must contain valid JCL including a j
 | `_result`  | `object`   | Yes      | Result metadata (pagination or success). *(same as [`writeDataset`](#writedataset-output-schema))*          |
 | `messages` | `string`[] | No       | Operational messages: pagination hints, job card notice, or other notes. Omitted when empty.                |
 | `data`     | `object`   | Yes      | *(same as [`submitJobFromDataset`](#submitjobfromdataset-output-schema))*                                   |
+
+---
+
+### `downloadDatasetToFile`
+
+> Read-only
+
+Download a sequential data set or PDS/E member from z/OS to a file under the workspace. Writes UTF-8 text. Requires a local path under an MCP root or configured workspace directory. Missing parent directories for the destination file are created automatically.
+
+#### Parameters
+
+| Parameter   | Type      | Required | Description                                                                                                                                                  |
+|-------------|-----------|----------|--------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `dsn`       | `string`  | Yes      | Fully qualified data set name (e.g. USER.SRC.COBOL).                                                                                                         |
+| `member`    | `string`  | No       | Member name for PDS or PDS/E data sets.                                                                                                                      |
+| `localPath` | `string`  | Yes      | Destination file path: absolute, or relative to the first workspace root when using roots/fallback. Parent directories are created automatically if missing. |
+| `system`    | `string`  | No       | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system.                                          |
+| `encoding`  | `string`  | No       | Mainframe (EBCDIC) encoding for the read.                                                                                                                    |
+| `overwrite` | `boolean` | No       | Allow overwriting an existing local file (default false).                                                                                                    |
+
+<a id="downloaddatasettofile-output-schema"></a>
+
+#### Output Schema
+
+| Field                        | Type                | Required | Description                                                 |
+|------------------------------|---------------------|----------|-------------------------------------------------------------|
+| `_context`                   | `object`            | Yes      | Context for local file transfer tools.                      |
+| &ensp;├─ `system`            | `string`            | Yes      | Resolved z/OS system hostname (target of the operation).    |
+| &ensp;├─ `resolvedLocalPath` | `string`            | Yes      | Absolute local filesystem path written or read.             |
+| &ensp;├─ `rootUri`           | `string`            | Yes      | file:// URI of the workspace root that contained the path.  |
+| &ensp;└─ `rootsSource`       | `mcp` \| `fallback` | Yes      | Whether paths came from MCP roots/list or env/CLI fallback. |
+| `data`                       | `object`            | Yes      |                                                             |
+| &ensp;├─ `bytesWritten`      | `number`            | No       | Bytes written to local disk (UTF-8 encoding).               |
+| &ensp;├─ `bytesRead`         | `number`            | No       | Bytes read from local disk (UTF-8 encoding).                |
+| &ensp;├─ `etag`              | `string`            | No       | z/OS ETag after read or write when applicable.              |
+| &ensp;├─ `dsn`               | `string`            | Yes      | Fully qualified data set name.                              |
+| &ensp;└─ `member`            | `string`            | No       | Member name when applicable.                                |
+
+---
+
+### `uploadFileToDataset`
+
+> Destructive
+
+Upload a UTF-8 text file from the workspace to a sequential data set or PDS/E member on z/OS. Replaces the entire member or data set unless using etag for optimistic locking.
+
+#### Parameters
+
+| Parameter   | Type     | Required | Description                                                                                                         |
+|-------------|----------|----------|---------------------------------------------------------------------------------------------------------------------|
+| `localPath` | `string` | Yes      | Source file path under an MCP root or configured workspace directory.                                               |
+| `dsn`       | `string` | Yes      | Fully qualified data set name.                                                                                      |
+| `member`    | `string` | No       | Member name for PDS or PDS/E data sets.                                                                             |
+| `system`    | `string` | No       | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system. |
+| `etag`      | `string` | No       | ETag from a previous read for optimistic locking.                                                                   |
+| `encoding`  | `string` | No       | Mainframe (EBCDIC) encoding for the write.                                                                          |
+
+<a id="uploadfiletodataset-output-schema"></a>
+
+#### Output Schema
+
+| Field      | Type     | Required | Description                                                                                                        |
+|------------|----------|----------|--------------------------------------------------------------------------------------------------------------------|
+| `_context` | `object` | Yes      | Context for local file transfer tools. *(same as [`downloadDatasetToFile`](#downloaddatasettofile-output-schema))* |
+| `data`     | `object` | Yes      | *(same as [`downloadDatasetToFile`](#downloaddatasettofile-output-schema))*                                        |
+
+---
+
+### `downloadUssFileToFile`
+
+> Read-only
+
+Download a z/OS USS file to a local workspace file as UTF-8 text. Path must be under an MCP root or configured workspace directory. Missing parent directories for the destination file are created automatically.
+
+#### Parameters
+
+| Parameter   | Type      | Required | Description                                                                                                            |
+|-------------|-----------|----------|------------------------------------------------------------------------------------------------------------------------|
+| `path`      | `string`  | Yes      | USS file path on z/OS (absolute or relative to USS cwd; see getContext).                                               |
+| `localPath` | `string`  | Yes      | Destination path under workspace roots or fallback directory. Parent directories are created automatically if missing. |
+| `system`    | `string`  | No       | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system.    |
+| `encoding`  | `string`  | No       | Mainframe encoding for the file read.                                                                                  |
+| `overwrite` | `boolean` | No       | Allow overwriting an existing local file (default false).                                                              |
+
+<a id="downloadussfiletofile-output-schema"></a>
+
+#### Output Schema
+
+| Field                   | Type     | Required | Description                                                                                                        |
+|-------------------------|----------|----------|--------------------------------------------------------------------------------------------------------------------|
+| `_context`              | `object` | Yes      | Context for local file transfer tools. *(same as [`downloadDatasetToFile`](#downloaddatasettofile-output-schema))* |
+| `data`                  | `object` | Yes      |                                                                                                                    |
+| &ensp;├─ `bytesWritten` | `number` | No       | Bytes written to local disk (UTF-8 encoding).                                                                      |
+| &ensp;├─ `bytesRead`    | `number` | No       | Bytes read from local disk (UTF-8 encoding).                                                                       |
+| &ensp;├─ `etag`         | `string` | No       | z/OS ETag after read or write when applicable.                                                                     |
+| &ensp;└─ `ussPath`      | `string` | Yes      | Resolved USS path on z/OS.                                                                                         |
+
+---
+
+### `uploadFileToUssFile`
+
+> Destructive
+
+Upload a UTF-8 workspace file to a z/OS USS path. Creates or overwrites the remote file.
+
+#### Parameters
+
+| Parameter   | Type     | Required | Description                                                                                                         |
+|-------------|----------|----------|---------------------------------------------------------------------------------------------------------------------|
+| `localPath` | `string` | Yes      | Source file under workspace roots or fallback directory.                                                            |
+| `path`      | `string` | Yes      | Target USS path on z/OS.                                                                                            |
+| `system`    | `string` | No       | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system. |
+| `etag`      | `string` | No       | ETag for optimistic locking.                                                                                        |
+| `encoding`  | `string` | No       | Mainframe encoding for the write.                                                                                   |
+
+<a id="uploadfiletoussfile-output-schema"></a>
+
+#### Output Schema
+
+| Field      | Type     | Required | Description                                                                                                        |
+|------------|----------|----------|--------------------------------------------------------------------------------------------------------------------|
+| `_context` | `object` | Yes      | Context for local file transfer tools. *(same as [`downloadDatasetToFile`](#downloaddatasettofile-output-schema))* |
+| `data`     | `object` | Yes      | *(same as [`downloadUssFileToFile`](#downloadussfiletofile-output-schema))*                                        |
+
+---
+
+### `downloadJobFileToFile`
+
+> Read-only
+
+Download one job spool file from z/OS to a local workspace file as UTF-8 text. Use listJobFiles to obtain jobFileId. Missing parent directories for the destination file are created automatically.
+
+#### Parameters
+
+| Parameter   | Type      | Required | Description                                                                                                            |
+|-------------|-----------|----------|------------------------------------------------------------------------------------------------------------------------|
+| `jobId`     | `string`  | Yes      | Job ID (e.g. JOB00123).                                                                                                |
+| `jobFileId` | `integer` | Yes      | Spool file ID from listJobFiles.                                                                                       |
+| `localPath` | `string`  | Yes      | Destination path under workspace roots or fallback directory. Parent directories are created automatically if missing. |
+| `system`    | `string`  | No       | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system.    |
+| `overwrite` | `boolean` | No       | Allow overwriting an existing local file (default false).                                                              |
+
+<a id="downloadjobfiletofile-output-schema"></a>
+
+#### Output Schema
+
+| Field                   | Type      | Required | Description                                                                                                        |
+|-------------------------|-----------|----------|--------------------------------------------------------------------------------------------------------------------|
+| `_context`              | `object`  | Yes      | Context for local file transfer tools. *(same as [`downloadDatasetToFile`](#downloaddatasettofile-output-schema))* |
+| `data`                  | `object`  | Yes      |                                                                                                                    |
+| &ensp;├─ `bytesWritten` | `number`  | No       | Bytes written to local disk (UTF-8 encoding).                                                                      |
+| &ensp;├─ `bytesRead`    | `number`  | No       | Bytes read from local disk (UTF-8 encoding).                                                                       |
+| &ensp;├─ `etag`         | `string`  | No       | z/OS ETag after read or write when applicable.                                                                     |
+| &ensp;├─ `jobId`        | `string`  | Yes      |                                                                                                                    |
+| &ensp;└─ `jobFileId`    | `integer` | Yes      |                                                                                                                    |
 
 ---
 

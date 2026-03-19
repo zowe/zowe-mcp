@@ -31,7 +31,7 @@ import { runAssertions } from './assertions.js';
 import { buildCacheKey, get as cacheGet, set as cacheSet, getToolsUnderTest } from './cache.js';
 import { getConfigDir, loadEvalsConfig, type EvalsConfig } from './config.js';
 import { errorMessage, FAIL, PASS, resolveNativeServerArgs } from './evals-utils.js';
-import { getSystemPrompt, initMockData, McpEvalHarness } from './harness.js';
+import { getSystemPrompt, initMockData, McpEvalHarness, prepareEvalWorkspace } from './harness.js';
 import { listSetNames, loadAndValidateAllSets } from './load-questions.js';
 import { log } from './log.js';
 import { writeReport } from './report.js';
@@ -169,12 +169,15 @@ async function runSetForModel(
   const nativeServerArgs =
     rawNativeArgs != null ? resolveNativeServerArgs(rawNativeArgs) : undefined;
 
+  const workspaceDir = prepareEvalWorkspace();
+
   const harness = new McpEvalHarness({
     serverPath: SERVER_PATH,
     evalsConfig,
     setConfig: effectiveConfig,
     mockDir,
     nativeServerArgs,
+    workspaceDir,
   });
 
   const allResults: RunResult[] = [];
@@ -305,6 +308,7 @@ async function runSetForModel(
   } finally {
     await harness.stop();
     if (mockDir) rmSync(mockDir, { recursive: true, force: true });
+    rmSync(workspaceDir, { recursive: true, force: true });
   }
 
   return {

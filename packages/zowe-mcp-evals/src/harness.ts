@@ -16,9 +16,9 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import type { LanguageModel } from 'ai';
 import { generateText, jsonSchema, stepCountIs, tool } from 'ai';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { EvalsConfig } from './config.js';
 import { log } from './log.js';
@@ -94,6 +94,11 @@ export interface HarnessOptions {
   mockDir?: string;
   /** For native: server args as one string (e.g. "--native --config native-config.json"). */
   nativeServerArgs?: string;
+  /**
+   * Workspace directory for local upload/download MCP tools (`ZOWE_MCP_WORKSPACE_DIR`).
+   * Use {@link prepareEvalWorkspace} to create a temp dir with a seed file for upload questions.
+   */
+  workspaceDir?: string;
 }
 
 export interface AgentRunResult {
@@ -150,10 +155,15 @@ export class McpEvalHarness {
       args.push('--mock', this.options.mockDir);
     }
 
+    const env = { ...process.env } as Record<string, string>;
+    if (this.options.workspaceDir) {
+      env.ZOWE_MCP_WORKSPACE_DIR = this.options.workspaceDir;
+    }
+
     const transport = new StdioClientTransport({
       command: 'node',
       args: [serverPath, ...args],
-      env: { ...process.env } as Record<string, string>,
+      env,
     });
     const client = new Client({ name: 'zowe-mcp-evals', version: '0.1.0' });
     await client.connect(transport);
@@ -292,4 +302,19 @@ export function initMockData(serverPath: string, initArgs: string): string {
     throw new Error(`init-mock failed: ${r.stderr ?? r.stdout}`);
   }
   return tmpDir;
+}
+
+/** Seed file written by {@link prepareEvalWorkspace} for upload eval questions. */
+export const EVAL_UPLOAD_SEED_FILENAME = 'eval-upload-source.txt';
+
+const EVAL_UPLOAD_SEED_CONTENT = 'Zowe MCP local eval upload seed.\n';
+
+/**
+ * Creates a temp workspace directory and a UTF-8 seed file for `uploadFileToDataset` / `uploadFileToUssFile` evals.
+ * Pass the returned path as {@link HarnessOptions.workspaceDir}.
+ */
+export function prepareEvalWorkspace(): string {
+  const dir = mkdtempSync(join(tmpdir(), 'zowe-mcp-evals-ws-'));
+  writeFileSync(join(dir, EVAL_UPLOAD_SEED_FILENAME), EVAL_UPLOAD_SEED_CONTENT, 'utf-8');
+  return dir;
 }

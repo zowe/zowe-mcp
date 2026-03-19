@@ -154,6 +154,10 @@ assertions:
 
 - **Set** `uss` (run with `--set uss`): getUssHome, listUssFiles, readUssFile, and a write-temp-read-cleanup flow. Mock; init-mock creates a minimal USS tree for the first system/user (`/u/<user>/file.txt`, `subdir`) when using default preset.
 
+### Local workspace upload/download
+
+- **Set** `local-files` (run with `--set local-files`): `downloadDatasetToFile`, `downloadUssFileToFile`, `uploadFileToDataset`, `uploadFileToUssFile`. Mock `--preset minimal` (USER on `mainframe-dev.example.com`, USS `file.txt`). The harness sets **`ZOWE_MCP_WORKSPACE_DIR`** to a temp directory and writes **`eval-upload-source.txt`** there so upload questions have a real source file. Does not assert on-disk results (use server Vitest for that).
+
 ### Jobs (native backend only)
 
 - **Set** `jobs` (run with `--set jobs`): listJobs and getJobStatus. **Requires native z/OS backend** (mock does not implement job operations). Use when `native-config.json` and credentials are configured; otherwise this set will fail or be skipped.

@@ -1,5 +1,7 @@
 # Comparison: Gestell-AI/zowe-mcp vs This Repository
 
+<!-- markdownlint-disable MD060 -->
+
 This document compares [Gestell-AI/zowe-mcp](https://github.com/Gestell-AI/zowe-mcp) (a Zowe CLI–based MCP server) with the Zowe MCP server in this repository (Zowe Native Proto over SSH), and summarizes what this repo can learn from Gestell.
 
 ---
@@ -29,11 +31,11 @@ This document compares [Gestell-AI/zowe-mcp](https://github.com/Gestell-AI/zowe-
 
 | Area | Gestell-AI/zowe-mcp | This repository |
 |------|--------------------|------------------|
-| **Count** | **19 tools** | **50 tools** (plus conditional Zowe Explorer open-in-editor) |
-| **Datasets** | List, list members, read, search, upload file, upload dir → PDS | List, list members, read, write, search, get attributes, create, create temp, delete, delete under prefix, copy, rename, restore, temp prefix/name |
-| **Jobs** | List, get status, get output (with error analysis), list spool files, get spool file (paged), submit from dataset | Submit (from JCL/dataset/USS), get status, list jobs, list job files, read job file, get output, search job output, get JCL, cancel, hold, release, delete |
+| **Count** | **19 tools** | **55 tools** (plus conditional Zowe Explorer open-in-editor) |
+| **Datasets** | List, list members, read, search, upload file, upload dir → PDS | List, list members, read, write, search, get attributes, create, create temp, delete, delete under prefix, copy, rename, restore, temp prefix/name; **local workspace**: `downloadDatasetToFile` / `uploadFileToDataset` (single PS or PDS/E member via path under MCP roots — not directory → PDS bulk) |
+| **Jobs** | List, get status, get output (with error analysis), list spool files, get spool file (paged), submit from dataset | Submit (from JCL/dataset/USS), get status, list jobs, list job files, read job file, get output, search job output, get JCL, cancel, hold, release, delete; **local workspace**: `downloadJobFileToFile` (spool → file under roots) |
 | **TSO / Console** | TSO command, console command (with guardrails) | `runSafeTsoCommand`; console tool present but **disabled** (ZNP doesn’t support it yet) |
-| **USS** | — | Full set: list, read, write, create, delete, chmod, chown, chtag, copy, run command, temp dir/file helpers, get home, change directory |
+| **USS** | — | Full set: list, read, write, create, delete, chmod, chown, chtag, copy, run command, temp dir/file helpers, get home, change directory; **local workspace**: `downloadUssFileToFile` / `uploadFileToUssFile` |
 | **Context** | — | `getContext`, `listSystems`, `setSystem` (multi-system, multi-connection) |
 | **Extras** | `zowe_explain_error`, `zowe_list_error_codes`; async task tools (wait, get, list) | No dedicated “explain error” tools; optional **Zowe Explorer** open dataset/USS/job in editor |
 
@@ -108,9 +110,11 @@ Gestell documents **SAFE / CAUTIOUS / BLOCKED** for commands. This repo uses pat
 
 **Suggestion:** In `getContext` or in documentation, add a short “Command safety” section (e.g. read-only = safe, destructive = blocked without confirmation, others = elicit). Optionally tag tools with a `safety` field in schema or description.
 
-### 5. Upload from local filesystem (already on TODO)
+### 5. Upload from local filesystem (partial parity)
 
-Gestell’s **upload file to dataset** and **upload directory to PDS** align with the existing TODO item “Upload from local filesystem.” Their UX (single file vs directory → PDS) is a good reference when implementing that feature in this repo.
+This repo implements **single-file / single-member** transfers with **MCP roots** (or CLI/env fallback): **`downloadDatasetToFile`**, **`uploadFileToDataset`**, **`downloadUssFileToFile`**, **`uploadFileToUssFile`**, **`downloadJobFileToFile`** (`packages/zowe-mcp-server/src/tools/local-files/`). That covers the Gestell-style **upload file to data set** path for one member at a time.
+
+Gestell’s **`zowe_upload_directory_to_pds`** (whole directory → PDS members) and Zowe CLI’s matching **`download all-members`** are **not** implemented as MCP tools here. Implemented single-path tools live under `packages/zowe-mcp-server/src/tools/local-files/`. See [pds-uss-directory-upload-download-zowe-and-cp.md](./pds-uss-directory-upload-download-zowe-and-cp.md) for Zowe CLI / IBM `cp` reference. Tracked as follow-up in [TODO.md](../TODO.md) (“Bulk directory ↔ PDS”).
 
 ### 6. Async / polling abstraction (optional)
 
@@ -121,6 +125,6 @@ Gestell has **async task tools** (wait, get, list) for long-running operations. 
 ## Summary
 
 - **Gestell-AI/zowe-mcp**: Zowe **CLI**–based; good when you already use z/OSMF/APIML and Zowe CLI profiles. Offers 19 tools, error lookup, async tasks, 5 prompts, 5 reference resources, and clear guardrails. Single package, no VS Code extension.
-- **This repo**: **Zowe Native Proto** over SSH; no z/OSMF. Larger surface: 50 tools (datasets, jobs, USS, context), VS Code extension with Cursor support, HTTP transport, pagination, output schemas, mock with presets, and an eval suite. Fewer prompts/resources and no dedicated “explain error” or async-task tools.
+- **This repo**: **Zowe Native Proto** over SSH; no z/OSMF. Larger surface: **55 tools** (datasets, jobs, USS, context, **local-file upload/download**), VS Code extension with Cursor support, HTTP transport, pagination, output schemas, mock with presets, and an eval suite. Fewer prompts/resources and no dedicated “explain error” or async-task tools. Bulk **directory ↔ PDS** (Gestell/Zowe CLI style) remains a gap; single-member and USS/job spool file transfers are covered.
 
 The highest-impact ideas to adopt from Gestell are **error explanation tools** and **reference resources**, since they directly improve how the AI explains failures and mainframe concepts. See also [TODO.md](../TODO.md) for tracked follow-ups.

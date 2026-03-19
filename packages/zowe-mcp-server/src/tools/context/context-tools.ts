@@ -73,7 +73,9 @@ export function registerContextTools(
 
   const hasBackend = !!(systemRegistry && sessionState && credentialProvider);
 
-  const components = hasBackend ? ['context', 'datasets', 'uss', 'tso', 'jobs'] : ['context'];
+  const components = hasBackend
+    ? ['context', 'datasets', 'uss', 'tso', 'jobs', 'local-files']
+    : ['context'];
 
   // -----------------------------------------------------------------------
   // listSystems (only when z/OS backend is configured)

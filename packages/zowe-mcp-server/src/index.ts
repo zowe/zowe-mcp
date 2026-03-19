@@ -79,6 +79,24 @@ interface ParsedArgs {
   defaultMvsEncoding?: string;
   /** Default mainframe encoding for USS files (e.g. IBM-1047). */
   defaultUssEncoding?: string;
+  /** Repeatable CLI directories allowed for local upload/download when MCP roots are unavailable. */
+  localFilesRoots?: string[];
+}
+
+/** Build unique absolute fallback dirs for local file tools (workspace env, CLI, ZOWE_MCP_LOCAL_FILES_ROOT). */
+function buildLocalFilesFallbackDirectories(parsed: ParsedArgs): string[] {
+  const dirs: string[] = [];
+  if (process.env.ZOWE_MCP_WORKSPACE_DIR?.trim()) {
+    dirs.push(resolve(process.env.ZOWE_MCP_WORKSPACE_DIR.trim()));
+  }
+  for (const r of parsed.localFilesRoots ?? []) {
+    dirs.push(resolve(r.trim()));
+  }
+  for (const part of (process.env.ZOWE_MCP_LOCAL_FILES_ROOT ?? '').split(',')) {
+    const t = part.trim();
+    if (t) dirs.push(resolve(t));
+  }
+  return [...new Set(dirs)];
 }
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -288,6 +306,12 @@ function parseArgs(): ParsedArgs {
         type: 'string',
         describe: `Default mainframe encoding for USS files (e.g. IBM-1047; or ZOWE_MCP_DEFAULT_USS_ENCODING)`,
       },
+      'local-files-root': {
+        type: 'array',
+        string: true,
+        describe:
+          'Directory allowed for upload/download tools when MCP roots/list is unavailable (repeatable). Also set ZOWE_MCP_LOCAL_FILES_ROOT (comma-separated) or ZOWE_MCP_WORKSPACE_DIR.',
+      },
     })
     .alias('h', 'help')
     .help();
@@ -318,6 +342,11 @@ function parseArgs(): ParsedArgs {
       )
     : [];
 
+  const localFilesRootArg = argv['local-files-root'];
+  const localFilesRoots = Array.isArray(localFilesRootArg)
+    ? localFilesRootArg.filter((s): s is string => typeof s === 'string' && s.trim().length > 0)
+    : [];
+
   const parsed: ParsedArgs = {
     transport: argv.http ? 'http' : 'stdio',
     port: (argv.port as number) ?? 7542,
@@ -331,6 +360,7 @@ function parseArgs(): ParsedArgs {
     nativeResponseTimeout: (argv['native-response-timeout'] as number) ?? 60,
     defaultMvsEncoding: argv['default-mvs-encoding'] as string | undefined,
     defaultUssEncoding: argv['default-uss-encoding'] as string | undefined,
+    localFilesRoots,
   };
   applyEnvOverrides(parsed);
   return parsed;
@@ -821,6 +851,10 @@ async function main(): Promise<void> {
 
   if (serverOptions && responseCacheConfig !== undefined) {
     serverOptions.responseCache = responseCacheConfig;
+  }
+
+  if (serverOptions) {
+    serverOptions.localFilesFallbackDirectories = buildLocalFilesFallbackDirectories(parsed);
   }
 
   const buildZoweExplorerCallbacks = (): ZoweExplorerCallbacks | null => {

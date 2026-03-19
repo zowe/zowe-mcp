@@ -2,6 +2,17 @@
 
 Items to address later. Not ordered by priority.
 
+## Learn from Gestell-AI/zowe-mcp
+
+Ideas inspired by [Gestell-AI/zowe-mcp](https://github.com/Gestell-AI/zowe-mcp) (Zowe CLI–based MCP server):
+
+- **Error explanation tools**: Add tool(s) to look up and explain z/OS error codes (ABEND, return codes, condition codes). Gestell has `zowe_explain_error` and `zowe_list_error_codes`; we have job failure diagnostics in use-cases but no dedicated “explain this code” tool — the LLM could call it after seeing an ABEND in job output.
+- **Reference resources**: Expose read-only reference content (JCL basics, COBOL structure, ABEND codes, data set types) as MCP resources so the LLM can fetch them when needed. Gestell has 5 resources (`zos://reference/...`); we have 2 resource templates (data set/member content) and a glossary in SERVER_INSTRUCTIONS — adding static reference docs would reduce hallucination and improve explanations.
+- **Workflow prompts**: Consider prompts similar to Gestell’s — e.g. “diagnose-job-failure” (analyze failed job, suggest fixes), “explore-codebase” (map COBOL structure/data flows), “code-review” (review COBOL for issues), “daily-ops-check” (health report). We have reviewJcl, explainDataset, compareMembers, reflectZoweMcp; more task-oriented prompts could improve guided workflows.
+- **Explicit safety labels**: Document or expose a clear SAFE / CAUTIOUS / BLOCKED (or similar) classification for commands/tools so users and agents understand risk at a glance. We use pattern-based blocking and `readOnlyHint`/`destructiveHint`; a short classification in getContext or in docs could align with Gestell’s approach.
+- **Upload from local**: Already in Features/Components below; Gestell’s `zowe_upload_file_to_dataset` and `zowe_upload_directory_to_pds` are a good reference for UX (single file, directory → PDS).
+- **Async/polling abstraction** (optional): Gestell has async task tools (wait, get, list) for long-running ops. We have submitJob with `wait: true`; a generic “wait for task” could be useful for other long operations if we introduce task IDs elsewhere.
+
 ## Zowe Native / SDK
 
 - ✅ **Deploy ZNP via ZSshUtils**: Implemented in `ssh-client-cache.ts` — auto-redeploy via `ZSshUtils.installServer` when remote checksums mismatch.
@@ -93,4 +104,4 @@ Items to address later. Not ordered by priority.
 - **Explicit tool calls for eval setup**: Add explicit tool calls for setup or data-fetching in assertions (similar to how Ansible can access results of commands), so evals can verify state before and after.
 - ✅ **Document eval-compare**: Documented in `packages/zowe-mcp-evals/README.md` — CLI options, examples, outputs (comparison report + scoreboard), typical workflow, and key findings.
 - **Case-insensitive pattern matching in eval assertions**: Support case-insensitive matching for command argument assertions (e.g. `D T` vs `d t` in console commands).
-- **`validDsn` assertion directive**: Add a special assertion directive for validating data set names in eval assertions, so questions don't need to enumerate all valid forms.
+- ✅ **`validDsn` assertion directive**: Add a special assertion directive for validating data set names in eval assertions, so questions don't need to enumerate all valid forms.

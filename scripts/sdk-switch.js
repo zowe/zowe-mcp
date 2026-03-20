@@ -88,21 +88,42 @@ function removeRootOverrides() {
   }
 }
 
+/** Lockfile path prefix for deps bundled inside the file-based zowe-native-proto-sdk tarball. */
+const NESTED_SDK_NODE_MODULES_PREFIX =
+  'packages/zowe-mcp-server/node_modules/zowe-native-proto-sdk/node_modules/';
+
 function removeSdkIntegrityFromLockfile() {
   const lockPath = path.join(repoRoot, 'package-lock.json');
   if (!fs.existsSync(lockPath)) return;
 
   const lock = JSON.parse(fs.readFileSync(lockPath, 'utf8'));
   let changed = false;
+  let nestedRemoved = 0;
 
   for (const [key, entry] of Object.entries(lock.packages || {})) {
+    if (!entry || typeof entry !== 'object') continue;
+
     if (key.endsWith(`/${PKG_NAME}`) || entry.name === PKG_NAME) {
       if (entry.integrity) {
         delete entry.integrity;
         changed = true;
         console.log('Removed integrity hash for %s from package-lock.json (%s)', PKG_NAME, key);
       }
+    } else if (key.startsWith(NESTED_SDK_NODE_MODULES_PREFIX)) {
+      if (entry.integrity) {
+        delete entry.integrity;
+        changed = true;
+        nestedRemoved += 1;
+      }
     }
+  }
+
+  if (nestedRemoved > 0) {
+    console.log(
+      'Removed integrity hash for %d nested package(s) under %s',
+      nestedRemoved,
+      NESTED_SDK_NODE_MODULES_PREFIX
+    );
   }
 
   if (changed) {

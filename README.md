@@ -248,6 +248,8 @@ wins.
 
 **New to Zowe MCP?** See **[Copilot setup guide](docs/COPILOT-SETUP.md)** for installing the extension from a VSIX, configuring Gemini (e.g. for Broadcom), defining `user@host`, and Copilot/MCP tips (list servers, restart, view output).
 
+**Clients that do not use VS Code–registered MCP servers** (for example Roo Code with `.roo/mcp.json`): use the **`@zowe/mcp-server`** package in stdio mode — see **[Roo and standalone MCP](docs/roo-or-standalone-mcp.md)** (install, tarball, passwords, job cards via `--config`, example JSON).
+
 There are two ways to use Zowe MCP with GitHub Copilot in VS Code:
 
 ### Option A: Install the VS Code extension (recommended)
@@ -452,10 +454,21 @@ To publish a VSIX to GitHub Releases from your machine (no GitHub Actions): run 
 
 [CI](.github/workflows/ci.yml) uploads build artifacts for every successful run: the VSIX, the MCP reference doc, and an **`npm pack`** tarball of **`@zowe/mcp-server`** (artifact name `zowe-mcp-server-npm`, file pattern `zowe-mcp-server-*.tgz`). Download from the workflow run’s **Artifacts** section. Install locally with `npm install ./zowe-mcp-server-0.x.y.tgz` (or use `npm run pack:server` to build and pack from your clone).
 
+The packed tarball **bundles all dependencies** (including workspace package `zowe-mcp-common` and file-based `zowe-native-proto-sdk`) so it can be installed standalone without requiring the monorepo or external file dependencies. The `prepack` script automatically bundles these dependencies before packing, and `bundledDependencies` in `package.json` ensures npm includes them in the tarball.
+
+Test airgapped/offline installation:
+
+- `npm run test:airgap` — uses existing tarball (requires `npm run pack:server` first)
+- `npm run test:airgap:build` — builds and packs the server, then tests installation
+
+The test simulates an airgapped system using an empty cache, invalid registry (`http://localhost`), and 5ms timeout to verify no network access is required. It also verifies the binary works after installation with detailed error output if it fails.
+
 | Script | Description |
 | --- | --- |
 | `npm run build` | Build all packages |
 | `npm run pack:server` | Build the server and create `zowe-mcp-server-<version>.tgz` in the repo root (same contents as CI npm artifact) |
+| `npm run test:airgap` | Test that the packed tarball installs in airgapped mode (uses existing tarball) |
+| `npm run test:airgap:build` | Build, pack, and test airgapped installation (all-in-one) |
 | `npm test` | Run server tests (Vitest) |
 | `npm run test:all` | Run all tests (server + VS Code extension) |
 | `npm run test:vscode` | Run VS Code extension tests |

@@ -9,6 +9,10 @@ out/
 packages/zowe-mcp-vscode/server/
 packages/zowe-mcp-vscode/.server-deps-cache/
 
+# Bundled dependencies for npm pack (created by prepack, cleaned by postpack)
+packages/zowe-mcp-server/.local/
+packages/zowe-mcp-server/.tgz/
+
 # VS Code extension package
 *.vsix
 

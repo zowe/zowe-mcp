@@ -16,8 +16,7 @@
  * should evict the entry so the next request can retry with new credentials.
  */
 
-import { SshSession } from '@zowe/zos-uss-for-zowe-sdk';
-import { ZSshClient, ZSshUtils } from 'zowe-native-proto-sdk';
+import { SshSession, ZSshClient, ZSshUtils } from 'zowe-native-proto-sdk';
 import { getLogger } from '../../server.js';
 import type { Credentials } from '../credentials.js';
 import type { ParsedConnectionSpec } from './connection-spec.js';

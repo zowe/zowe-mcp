@@ -42,6 +42,23 @@ const fileDepDirs = [
   { prefix: 'file:../../resources/', absDir: path.join(repoRoot, 'resources') },
 ];
 
+/** Safe directory name under server/.unpack/ (scoped names become filesystem-safe). */
+function safeDepFolderName(depName) {
+  return depName.replace(/[^a-zA-Z0-9._-]/g, '_');
+}
+
+/** Remove integrity fields so npm does not fail with EINTEGRITY when shrinkwrap hashes disagree with the registry. */
+function stripIntegrityDeep(obj) {
+  if (!obj || typeof obj !== 'object') return;
+  if (Array.isArray(obj)) {
+    for (const item of obj) stripIntegrityDeep(item);
+    return;
+  }
+  delete obj.integrity;
+  delete obj._integrity;
+  for (const k of Object.keys(obj)) stripIntegrityDeep(obj[k]);
+}
+
 /**
  * Compute a hash of the server's production dependencies
  * so we know when to invalidate the cache.
@@ -79,8 +96,9 @@ function isCacheValid(currentHash) {
 }
 
 /**
- * Copy any file:../../{bin,deps,resources}/*.tgz dependencies into server/.tgz/ and
- * rewrite package.json so "npm install" from server/ can resolve them.
+ * Expand file:../../{bin,deps,resources}/*.tgz dependencies into server/.unpack/<name>/,
+ * strip integrity from embedded npm-shrinkwrap.json (avoids EINTEGRITY vs registry tarballs),
+ * and rewrite package.json to file:.unpack/<name> so "npm install" from server/ resolves them.
  */
 function prepareFileDepsForBundle(targetPackageJsonPath) {
   const pkg = JSON.parse(fs.readFileSync(targetPackageJsonPath, 'utf-8'));
@@ -95,10 +113,33 @@ function prepareFileDepsForBundle(targetPackageJsonPath) {
     if (!fs.existsSync(srcTgz)) {
       throw new Error(`Server dependency ${name} points to ${spec} but ${srcTgz} does not exist.`);
     }
-    const tgzDir = path.join(targetDir, '.tgz');
-    fs.mkdirSync(tgzDir, { recursive: true });
-    fs.copyFileSync(srcTgz, path.join(tgzDir, tgzName));
-    deps[name] = `file:.tgz/${tgzName}`;
+
+    const tempExtract = path.join(targetDir, '.extract-tmp', safeDepFolderName(name));
+    fs.rmSync(tempExtract, { recursive: true, force: true });
+    fs.mkdirSync(tempExtract, { recursive: true });
+    execSync(`tar -xzf "${srcTgz}" -C "${tempExtract}"`, { stdio: 'ignore' });
+
+    const extractedPackage = path.join(tempExtract, 'package');
+    if (!fs.existsSync(extractedPackage)) {
+      throw new Error(
+        `Extracted ${tgzName} does not contain a package/ directory (npm pack layout).`
+      );
+    }
+
+    const unpackDir = path.join(targetDir, '.unpack', safeDepFolderName(name));
+    fs.rmSync(unpackDir, { recursive: true, force: true });
+    fs.mkdirSync(path.dirname(unpackDir), { recursive: true });
+    fs.cpSync(extractedPackage, unpackDir, { recursive: true });
+    fs.rmSync(path.join(targetDir, '.extract-tmp'), { recursive: true, force: true });
+
+    const shrinkwrapPath = path.join(unpackDir, 'npm-shrinkwrap.json');
+    if (fs.existsSync(shrinkwrapPath)) {
+      const sw = JSON.parse(fs.readFileSync(shrinkwrapPath, 'utf8'));
+      stripIntegrityDeep(sw);
+      fs.writeFileSync(shrinkwrapPath, JSON.stringify(sw, null, 2) + '\n', 'utf8');
+    }
+
+    deps[name] = `file:.unpack/${safeDepFolderName(name)}`;
     changed = true;
   }
   if (changed) {
@@ -194,7 +235,7 @@ if (cacheHit) {
   // Cache miss — install fresh and update cache.
   // When using a private registry (e.g. Artifactory), ensure npm is logged in so this install can authenticate.
   console.log('Installing server production dependencies...');
-  execSync('npm install --omit=dev --ignore-scripts', {
+  execSync('npm install --omit=dev --ignore-scripts --force', {
     cwd: targetDir,
     stdio: 'inherit',
   });

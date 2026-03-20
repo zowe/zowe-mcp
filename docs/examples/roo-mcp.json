@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "zowe": {
+      "command": "zowe-mcp-server",
+      "args": ["--stdio", "--native", "--system", "USERID@zos.example.com"],
+      "env": {
+        "ZOWE_MCP_PASSWORD_USERID_ZOS_EXAMPLE_COM": "replace-with-secret-or-use-os-env"
+      },
+      "timeout": 120
+    }
+  }
+}

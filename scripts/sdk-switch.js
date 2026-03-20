@@ -142,7 +142,7 @@ function removeInstalledSdk() {
 function npmInstall() {
   removeInstalledSdk();
   console.log('Running npm install...');
-  execSync('npm install', {
+  execSync('npm install --ignore-scripts', {
     cwd: repoRoot,
     stdio: 'inherit',
     shell: true,

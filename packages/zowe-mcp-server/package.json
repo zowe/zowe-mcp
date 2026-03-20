@@ -48,7 +48,7 @@
     "node-ssh": "^13.2.0",
     "yargs": "^17.7.2",
     "zod": "^3.25.0",
-    "zowe-native-proto-sdk": "file:../../deps/zowe-native-proto-cli-0.3.0.tgz"
+    "zowe-native-proto-sdk": "file:../../resources/znp-sdk-fallback.tgz"
   },
   "devDependencies": {
     "@types/express": "^5.0.0",

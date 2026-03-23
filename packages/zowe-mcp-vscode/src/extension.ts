@@ -138,12 +138,25 @@ export function activate(context: vscode.ExtensionContext): void {
           const config = vscode.workspace.getConfiguration('zoweMCP');
           const backend = config.get<string>('backend', 'native');
           log.info(`Backend setting changed to "${backend}"`);
+          // Clear stale active connection so the status bar starts fresh after reload
+          updateZoweMcpStatusBar(null, context);
           if (backend === 'mock') {
             const mockDir = config.get<string>('mockDataDirectory', '').trim();
             if (!mockDir) {
               void promptForMockDataDirectory();
             }
           }
+          const reload = 'Reload Window';
+          void vscode.window
+            .showInformationMessage(
+              `Zowe MCP: Backend changed to "${backend}". Reload the window to apply.`,
+              reload
+            )
+            .then(choice => {
+              if (choice === reload) {
+                void vscode.commands.executeCommand('workbench.action.reloadWindow');
+              }
+            });
         });
       }
       // When running in Cursor, update Cursor's stored MCP config so the next server start uses current settings

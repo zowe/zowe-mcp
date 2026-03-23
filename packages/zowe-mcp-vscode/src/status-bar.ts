@@ -14,16 +14,62 @@
  * Read-only; updated when the MCP server sends active-connection-changed events.
  */
 
+import * as fs from 'fs';
+import * as path from 'path';
 import * as vscode from 'vscode';
 
 const STATUS_BAR_PRIORITY = 50;
 const GLOBAL_STATE_KEY_LAST_CONNECTION = 'zoweMcpLastActiveConnection';
 
-const TOOLTIP =
-  'Zowe MCP active connection. Connections are added in Settings (zoweMCP.nativeConnections or mock data directory). ' +
-  'The active system is set via Chat (e.g. “set active system to SYS1” or “switch to USER@SYS1).';
-
 let statusBarItem: vscode.StatusBarItem | undefined;
+
+/**
+ * Builds a tooltip string that includes the backend type and real system/connection
+ * names when available, falling back to generic examples.
+ */
+function buildTooltip(backend: 'native' | 'mock', systems: string[]): string {
+  const examples =
+    systems.length > 0
+      ? systems.length === 1
+        ? `"set active system to ${systems[0]}"`
+        : `"set active system to ${systems[0]}" or "switch to ${systems[1]}"`
+      : '"set active system to SYS1" or "switch to USER@SYS1"';
+
+  const source =
+    backend === 'native'
+      ? 'Connections are added in Settings (zoweMCP.nativeConnections).'
+      : 'Systems are defined in the mock data directory.';
+
+  return `Zowe MCP active connection (${backend}). ${source} The active system is set via Chat (e.g. ${examples}).`;
+}
+
+/**
+ * Reads system/connection names from the current configuration.
+ * For native: returns connection specs from settings.
+ * For mock: reads host names from systems.json (best-effort, sync).
+ */
+function getConfiguredSystems(backend: 'native' | 'mock'): string[] {
+  const config = vscode.workspace.getConfiguration('zoweMCP');
+  if (backend === 'native') {
+    const connections = config.get<string[]>('nativeConnections', []) ?? [];
+    return connections.filter((s): s is string => typeof s === 'string' && s.trim().length > 0);
+  }
+  const mockDir = config.get<string>('mockDataDirectory', '').trim();
+  if (!mockDir) return [];
+  try {
+    const systemsPath = path.join(mockDir, 'systems.json');
+    const raw = fs.readFileSync(systemsPath, 'utf-8');
+    const parsed = JSON.parse(raw) as { systems?: { host?: string }[] };
+    return (parsed.systems ?? []).map(s => s.host ?? '').filter(h => h.length > 0);
+  } catch {
+    return [];
+  }
+}
+
+function getCurrentBackend(): 'native' | 'mock' {
+  const config = vscode.workspace.getConfiguration('zoweMCP');
+  return config.get<string>('backend', 'native') === 'mock' ? 'mock' : 'native';
+}
 
 /**
  * Initializes the Zowe MCP status bar item. Call once from extension activation.
@@ -38,8 +84,10 @@ export function initZoweMcpStatusBar(context: vscode.ExtensionContext): void {
 
   const lastConnection = context.globalState.get<string>(GLOBAL_STATE_KEY_LAST_CONNECTION);
   if (lastConnection) {
+    const backend = getCurrentBackend();
+    const systems = getConfiguredSystems(backend);
     statusBarItem.text = `$(server-environment) ${lastConnection}`;
-    statusBarItem.tooltip = TOOLTIP;
+    statusBarItem.tooltip = buildTooltip(backend, systems);
     statusBarItem.show();
   }
 }
@@ -63,8 +111,10 @@ export function updateZoweMcpStatusBar(
     return;
   }
 
+  const backend = getCurrentBackend();
+  const systems = getConfiguredSystems(backend);
   statusBarItem.text = `$(server-environment) ${value}`;
-  statusBarItem.tooltip = TOOLTIP;
+  statusBarItem.tooltip = buildTooltip(backend, systems);
   statusBarItem.show();
   void context.globalState.update(GLOBAL_STATE_KEY_LAST_CONNECTION, value);
 }

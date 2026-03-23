@@ -25,7 +25,7 @@ This document compares [Gestell-AI/zowe-mcp](https://github.com/Gestell-AI/zowe-
 |--------|--------------------|------------------|
 | **Packaging** | Single package, npm `@gestell/zowe-mcp` | **Monorepo**: `@zowe/mcp-server`, `zowe-mcp-vscode`, `zowe-mcp-common`, `zowe-mcp-evals` |
 | **VS Code** | MCP client config only (e.g. Claude Desktop, Codex) | **Full VS Code extension**: registers MCP (VS Code + Cursor), pipe for passwords/log level/mock, Zowe Explorer “open in editor” |
-| **Transports** | Stdio (implied from MCP client config) | **Stdio** and **HTTP Streamable** (multi-session, port 7542) |
+| **Transports** | Stdio (implied from MCP client config) | **Stdio**; HTTP Streamable has code foundations but is **not yet usable** (configuration and authorization incomplete) |
 
 ### Tools
 
@@ -125,6 +125,6 @@ Gestell has **async task tools** (wait, get, list) for long-running operations. 
 ## Summary
 
 - **Gestell-AI/zowe-mcp**: Zowe **CLI**–based; good when you already use z/OSMF/APIML and Zowe CLI profiles. Offers 19 tools, error lookup, async tasks, 5 prompts, 5 reference resources, and clear guardrails. Single package, no VS Code extension.
-- **This repo**: **Zowe Native Proto** over SSH; no z/OSMF. Larger surface: **55 tools** (datasets, jobs, USS, context, **local-file upload/download**), VS Code extension with Cursor support, HTTP transport, pagination, output schemas, mock with presets, and an eval suite. Fewer prompts/resources and no dedicated “explain error” or async-task tools. Bulk **directory ↔ PDS** (Gestell/Zowe CLI style) remains a gap; single-member and USS/job spool file transfers are covered.
+- **This repo**: **Zowe Native Proto** over SSH; no z/OSMF. Larger surface: **55 tools** (datasets, jobs, USS, context, **local-file upload/download**), VS Code extension with Cursor support, pagination, output schemas, mock with presets, and an eval suite. Fewer prompts/resources and no dedicated “explain error” or async-task tools. Bulk **directory ↔ PDS** (Gestell/Zowe CLI style) remains a gap; single-member and USS/job spool file transfers are covered.
 
 The highest-impact ideas to adopt from Gestell are **error explanation tools** and **reference resources**, since they directly improve how the AI explains failures and mainframe concepts. See also [TODO.md](../TODO.md) for tracked follow-ups.

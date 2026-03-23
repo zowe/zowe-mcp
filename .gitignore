@@ -11,7 +11,10 @@ packages/zowe-mcp-vscode/.server-deps-cache/
 
 # Bundled dependencies for npm pack (created by prepack, cleaned by postpack)
 packages/zowe-mcp-server/.local/
+packages/zowe-mcp-server/.unpack/
+packages/zowe-mcp-server/.extract-tmp/
 packages/zowe-mcp-server/.tgz/
+packages/zowe-mcp-server/.package.json.backup
 
 # VS Code extension package
 *.vsix
@@ -53,8 +56,15 @@ coverage/
 *.lcov
 .nyc_output/
 
-# Output of 'npm pack'
+# Output of 'npm pack' (repo root only)
 *.tgz
+# Committed SDK baseline(s) in resources/ are tracked despite *.tgz rule
+!resources/zowe-native-proto-sdk-*.tgz
+!resources/znp-sdk-fallback.tgz
+
+# SDK switch temporary directories
+.sdk-download-tmp/
+.sdk-version-tmp/
 
 # Temporary files
 *.tmp
@@ -62,7 +72,7 @@ coverage/
 temp/
 tmp/
 
-# Local dependency artifacts (SDK tarballs from sdk:pr, sdk:local, sdk:nightly, etc.)
+# Legacy local dependency artifacts (superseded by resources/)
 deps/
 
 # Mock data

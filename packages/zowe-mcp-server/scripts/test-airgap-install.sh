@@ -6,6 +6,7 @@
 # Usage:
 #   npm run test:airgap              # Use existing tarball
 #   npm run test:airgap:build       # Build and pack before testing
+#   npm run test:airgap:build:native # Build, pack, offline install, then native z/OS smoke
 
 set -euo pipefail
 
@@ -14,9 +15,13 @@ SERVER_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 REPO_ROOT="$(cd "$SERVER_DIR/../.." && pwd)"
 
 BUILD_AND_PACK=false
-if [[ "${1:-}" == "--build" ]]; then
-  BUILD_AND_PACK=true
-fi
+NATIVE_SMOKE=false
+for arg in "$@"; do
+  case "$arg" in
+    --build) BUILD_AND_PACK=true ;;
+    --native) NATIVE_SMOKE=true ;;
+  esac
+done
 
 # Build and pack if requested
 if [ "$BUILD_AND_PACK" = true ]; then
@@ -66,23 +71,23 @@ if npm install \
   --loglevel verbose \
   "$TARBALL" 2>&1; then
   echo ""
-  echo "✅ SUCCESS: Installation completed in airgapped mode!"
+  echo "SUCCESS: Installation completed in airgapped mode!"
   echo ""
   echo "Verifying installation..."
   if [ -d "node_modules/@zowe/mcp-server" ]; then
-    echo "✅ Package installed: node_modules/@zowe/mcp-server"
+    echo "  Package installed: node_modules/@zowe/mcp-server"
   fi
   if [ -d "node_modules/zowe-mcp-common" ]; then
-    echo "✅ Bundled dependency installed: node_modules/zowe-mcp-common"
+    echo "  Bundled dependency installed: node_modules/zowe-mcp-common"
   fi
   if [ -d "node_modules/zowe-native-proto-sdk" ]; then
-    echo "✅ Bundled dependency installed: node_modules/zowe-native-proto-sdk"
+    echo "  Bundled dependency installed: node_modules/zowe-native-proto-sdk"
   fi
   echo ""
   echo "Testing binary..."
   BIN_PATH="node_modules/.bin/zowe-mcp-server"
   if [ ! -f "$BIN_PATH" ]; then
-    echo "❌ Binary not found: $BIN_PATH"
+    echo "FAILED: Binary not found: $BIN_PATH"
     echo "  Looking for binaries in node_modules/.bin/:"
     ls -la node_modules/.bin/ 2>/dev/null || echo "    (directory does not exist)"
     exit 1
@@ -91,7 +96,7 @@ if npm install \
   echo "  Running: $BIN_PATH --version"
   OUTPUT=$("$BIN_PATH" --version 2>&1) || {
     EXIT_CODE=$?
-    echo "❌ Binary test failed (exit code: $EXIT_CODE)"
+    echo "FAILED: Binary test failed (exit code: $EXIT_CODE)"
     echo "  Output:"
     echo "$OUTPUT" | sed 's/^/    /'
     echo ""
@@ -112,10 +117,96 @@ if npm install \
     fi
     exit 1
   }
-  echo "✅ Binary works: $OUTPUT"
+  echo "  Binary works: $OUTPUT"
 else
   echo ""
-  echo "❌ FAILED: Installation failed in airgapped mode"
-  echo "This indicates bundledDependencies are not working correctly."
+  echo "FAILED: Installation failed in airgapped mode"
+  echo "The packed tarball does not contain all required dependencies."
+  exit 1
+fi
+
+echo ""
+echo "Offline airgap test passed."
+
+# ---------------------------------------------------------------------------
+# Optional native z/OS smoke test
+# ---------------------------------------------------------------------------
+
+if [ "$NATIVE_SMOKE" = false ]; then
+  exit 0
+fi
+
+echo ""
+echo "=== Native z/OS smoke test ==="
+echo ""
+
+NATIVE_CONFIG="$REPO_ROOT/native-config.json"
+ENV_FILE="$REPO_ROOT/.env"
+
+if [ ! -f "$NATIVE_CONFIG" ]; then
+  echo "SKIP: $NATIVE_CONFIG not found (copy from native-config.example.json)"
+  exit 0
+fi
+
+# Source .env for ZOWE_MCP_PASSWORD_* variables
+if [ -f "$ENV_FILE" ]; then
+  set -a
+  # shellcheck disable=SC1090
+  . "$ENV_FILE"
+  set +a
+  echo "Loaded credentials from $ENV_FILE"
+fi
+
+# Read the first system from native-config.json to check for password
+FIRST_SYSTEM=$(node -e "
+  const c = require('$NATIVE_CONFIG');
+  if (Array.isArray(c.systems) && c.systems.length > 0) {
+    console.log(c.systems[0]);
+  }
+" 2>/dev/null || true)
+
+if [ -z "$FIRST_SYSTEM" ]; then
+  echo "SKIP: No systems configured in $NATIVE_CONFIG"
+  exit 0
+fi
+
+# Derive the password env var name (USER_HOST with dots → underscores, uppercase)
+USER_PART=$(echo "$FIRST_SYSTEM" | cut -d@ -f1 | tr '[:lower:]' '[:upper:]')
+HOST_PART=$(echo "$FIRST_SYSTEM" | cut -d@ -f2 | tr '.' '_' | tr ':' '_' | tr '[:lower:]' '[:upper:]')
+PASSWORD_VAR="ZOWE_MCP_PASSWORD_${USER_PART}_${HOST_PART}"
+
+PASSWORD_VALUE="${!PASSWORD_VAR:-${ZOS_PASSWORD:-}}"
+if [ -z "$PASSWORD_VALUE" ]; then
+  echo "SKIP: No password found (set $PASSWORD_VAR or ZOS_PASSWORD in .env)"
+  exit 0
+fi
+
+echo "System: $FIRST_SYSTEM"
+echo "Running: call-tool --native --config ... getContext"
+echo ""
+
+ENTRY_POINT="node_modules/@zowe/mcp-server/dist/index.js"
+if [ ! -f "$ENTRY_POINT" ]; then
+  echo "FAILED: Installed entry point not found: $ENTRY_POINT"
+  exit 1
+fi
+
+TOOL_OUTPUT=$(node "$ENTRY_POINT" call-tool --native --config="$NATIVE_CONFIG" getContext 2>&1) || {
+  EXIT_CODE=$?
+  echo "FAILED: call-tool getContext failed (exit code: $EXIT_CODE)"
+  echo "Output:"
+  echo "$TOOL_OUTPUT" | sed 's/^/  /'
+  exit 1
+}
+
+echo "$TOOL_OUTPUT" | sed 's/^/  /'
+
+# Basic sanity: output should contain "native" (the backend type)
+if echo "$TOOL_OUTPUT" | grep -qi "native"; then
+  echo ""
+  echo "Native z/OS smoke test passed."
+else
+  echo ""
+  echo "WARNING: Output did not contain 'native' — review output above."
   exit 1
 fi

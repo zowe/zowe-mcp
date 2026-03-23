@@ -9,32 +9,33 @@
  */
 
 /**
- * Restores the original package.json after npm pack completes.
- * Cleans up bundled directories (.local/, .tgz/, and local node_modules/).
+ * Restores the original package.json after npm pack completes and cleans up
+ * the temporary directories created by the prepack script.
  *
  * Runs as a postpack script (after npm pack).
  */
 
 const fs = require('fs');
 const path = require('path');
+const { execSync } = require('child_process');
 
 const serverPkgDir = path.resolve(__dirname, '..');
+const repoRoot = path.resolve(serverPkgDir, '..', '..');
 const packageJsonPath = path.join(serverPkgDir, 'package.json');
 const backupPath = path.join(serverPkgDir, '.package.json.backup');
 
-// Restore original package.json (this restores the original files array too)
+// Restore original package.json
 if (fs.existsSync(backupPath)) {
   const originalPkg = JSON.parse(fs.readFileSync(backupPath, 'utf-8'));
   fs.writeFileSync(packageJsonPath, JSON.stringify(originalPkg, null, 2));
   fs.unlinkSync(backupPath);
-  console.log('Restored original package.json (including files array)');
+  console.log('Restored original package.json');
 } else {
   console.warn('Warning: No backup package.json found to restore');
 }
 
-// Clean up any temporary directories (if they exist)
-// Note: .local/ and .tgz/ are no longer created, but clean up if they exist from old runs
-const dirsToClean = ['.local', '.tgz', '.temp-extract'];
+// Clean up temporary directories created by prepack
+const dirsToClean = ['.local', '.unpack', '.extract-tmp', '.tgz', '.temp-extract'];
 for (const dir of dirsToClean) {
   const dirPath = path.join(serverPkgDir, dir);
   if (fs.existsSync(dirPath)) {
@@ -43,42 +44,18 @@ for (const dir of dirsToClean) {
   }
 }
 
-// Clean up local node_modules (only the production deps we copied, keep dev deps)
-// We only remove packages that were copied during prepack, not all of node_modules
+// Remove the production node_modules tree that prepack created and
+// restore workspace state with a fresh npm install from the repo root.
 const nodeModulesPath = path.join(serverPkgDir, 'node_modules');
 if (fs.existsSync(nodeModulesPath)) {
-  // Read the current package.json to see what dependencies should be removed
-  const currentPkg = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
-  const prodDeps = Object.keys(currentPkg.dependencies || {});
-  
-  // Remove production dependencies that were copied (but keep dev deps like vitest)
-  for (const depName of prodDeps) {
-    // Skip workspace/file deps - they're not in node_modules
-    if (depName === 'zowe-mcp-common' || depName === 'zowe-native-proto-sdk') {
-      continue;
-    }
-    
-    const depPath = path.join(nodeModulesPath, depName);
-    const scopedMatch = depName.match(/^(@[^/]+)\/(.+)$/);
-    if (scopedMatch) {
-      const scopeDepPath = path.join(nodeModulesPath, scopedMatch[1], scopedMatch[2]);
-      if (fs.existsSync(scopeDepPath)) {
-        fs.rmSync(scopeDepPath, { recursive: true, force: true });
-      }
-      // Remove scope directory if empty
-      const scopeDir = path.join(nodeModulesPath, scopedMatch[1]);
-      try {
-        const scopeContents = fs.readdirSync(scopeDir);
-        if (scopeContents.length === 0) {
-          fs.rmdirSync(scopeDir);
-        }
-      } catch {
-        // Ignore errors
-      }
-    } else if (fs.existsSync(depPath)) {
-      fs.rmSync(depPath, { recursive: true, force: true });
-    }
-  }
-  
-  console.log('Cleaned up copied production dependencies from node_modules/');
+  fs.rmSync(nodeModulesPath, { recursive: true, force: true });
+  console.log('Removed prepack node_modules/');
 }
+
+console.log('Restoring workspace dependencies...');
+execSync('npm install --ignore-scripts', {
+  cwd: repoRoot,
+  stdio: 'inherit',
+});
+
+console.log('Postpack cleanup complete.');

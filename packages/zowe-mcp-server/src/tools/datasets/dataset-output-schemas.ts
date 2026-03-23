@@ -330,7 +330,7 @@ const createDatasetDataSchema = z.object({
   allocation: z
     .object({
       applied: z
-        .record(z.unknown())
+        .record(z.string(), z.unknown())
         .optional()
         .describe(
           'Attributes actually applied (dsorg, recfm, lrecl, blksz, volser, etc.); may differ from request due to defaults or SMS.'

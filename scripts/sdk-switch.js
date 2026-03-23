@@ -12,28 +12,30 @@
 /**
  * Switch the zowe-native-proto-sdk dependency between multiple sources.
  *
+ * All modes download/copy the SDK tarball into resources/ with a versioned
+ * filename (e.g. resources/zowe-native-proto-sdk-0.3.0.tgz) and set the
+ * server's package.json dependency to file:../../resources/<filename>.
+ *
  * Usage:
  *   node scripts/sdk-switch.js release [version]
  *     Latest (or specific) release from Zowe Artifactory npm registry.
- *     Without version: queries the registry for the latest published version.
- *     With version: sets dependency to "^<version>".
  *
  *   node scripts/sdk-switch.js nightly
  *     Latest nightly SDK from Artifactory libs-snapshot-local.
- *     Falls back to the latest successful Build workflow on main if no snapshot exists.
+ *     Falls back to the latest successful Build workflow on main.
  *
  *   node scripts/sdk-switch.js pr <pr-number>
  *     Downloads the SDK artifact from the PR's Build workflow run.
  *
  *   node scripts/sdk-switch.js branch <branch-name>
- *     Downloads the SDK artifact from the latest successful Build workflow run for a branch.
+ *     Downloads the SDK artifact from the latest successful Build workflow run.
  *
  *   node scripts/sdk-switch.js local <path>
  *     Uses a local .tgz file or a zowe-native-proto repo directory.
- *     If a directory is given, looks for a pre-built .tgz in dist/ (run "npm run package" in the SDK repo first).
+ *     If a directory is given, looks for a pre-built .tgz in dist/.
  *
  *   node scripts/sdk-switch.js fallback
- *     Uses the in-repo fallback resource (resources/znp-sdk-fallback.tgz). For CI and when nightly is unavailable.
+ *     Uses the committed baseline in resources/ (for CI and when nightly is unavailable).
  */
 
 const fs = require('fs');
@@ -42,13 +44,18 @@ const { execSync } = require('child_process');
 
 const repoRoot = path.resolve(__dirname, '..');
 const serverPkgPath = path.join(repoRoot, 'packages', 'zowe-mcp-server', 'package.json');
-const depsDir = path.join(repoRoot, 'deps');
+const resourcesDir = path.join(repoRoot, 'resources');
 const ZNP_REPO = 'zowe/zowe-native-proto';
 const PKG_NAME = 'zowe-native-proto-sdk';
 const DEFAULT_VERSION = '0.3.0';
 const ARTIFACTORY_NPM = 'https://zowe.jfrog.io/artifactory/api/npm/npm-release/';
 const ARTIFACTORY_SNAPSHOT_BASE =
   'https://zowe.jfrog.io/artifactory/libs-snapshot-local/org/zowe/zowe-native-proto/SDK/Nightly';
+
+/** Canonical filename for the SDK tarball in resources/. */
+function sdkTgzFilename(version) {
+  return `zowe-native-proto-sdk-${version}.tgz`;
+}
 
 // ---------------------------------------------------------------------------
 // Shared helpers
@@ -149,11 +156,55 @@ function npmInstall() {
   });
 }
 
-function prepareDepsDir() {
-  if (fs.existsSync(depsDir)) {
-    fs.rmSync(depsDir, { recursive: true });
+/**
+ * Read the version from a tarball by extracting its package.json.
+ * Returns the version string or the provided fallback.
+ */
+function readVersionFromTgz(tgzPath, fallback) {
+  const tmpDir = path.join(repoRoot, '.sdk-version-tmp');
+  try {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+    fs.mkdirSync(tmpDir, { recursive: true });
+    execSync(`tar -xzf "${tgzPath}" -C "${tmpDir}" --include='package/package.json'`, {
+      stdio: 'ignore',
+    });
+    const pkgJson = path.join(tmpDir, 'package', 'package.json');
+    if (fs.existsSync(pkgJson)) {
+      const pkg = JSON.parse(fs.readFileSync(pkgJson, 'utf8'));
+      return pkg.version || fallback;
+    }
+  } catch {
+    // fall through
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
   }
-  fs.mkdirSync(depsDir, { recursive: true });
+  return fallback;
+}
+
+/**
+ * Copy a tgz to resources/ with a versioned filename and set the dependency.
+ * Returns the destination path.
+ */
+function installSdkToResources(srcTgzPath, version, label) {
+  if (!fs.existsSync(resourcesDir)) {
+    fs.mkdirSync(resourcesDir, { recursive: true });
+  }
+
+  const filename = sdkTgzFilename(version);
+  const dest = path.join(resourcesDir, filename);
+
+  if (path.resolve(srcTgzPath) !== path.resolve(dest)) {
+    fs.copyFileSync(srcTgzPath, dest);
+  }
+  console.log('SDK tarball: %s', dest);
+
+  const relPath = `file:../../resources/${filename}`;
+  removeRootOverrides();
+  setDependency(relPath);
+  npmInstall();
+  removeSdkIntegrityFromLockfile();
+  console.log('\nSDK switched to %s: %s', label, dest);
+  return dest;
 }
 
 /**
@@ -170,51 +221,29 @@ function findSdkArtifactFromRun(runId) {
 }
 
 /**
- * Download a GitHub Actions artifact by ID, extract the tgz, set the dependency, and install.
- * Returns the tgz filename.
+ * Download a GitHub Actions artifact by ID, extract the tgz, install to resources/.
  */
 function downloadAndInstallGhArtifact(artifactId, label) {
-  prepareDepsDir();
+  const tmpDir = path.join(repoRoot, '.sdk-download-tmp');
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+  fs.mkdirSync(tmpDir, { recursive: true });
 
-  const zipPath = path.join(depsDir, 'artifact.zip');
+  const zipPath = path.join(tmpDir, 'artifact.zip');
   console.log('Downloading artifact %s...', artifactId);
   run(`gh api repos/${ZNP_REPO}/actions/artifacts/${artifactId}/zip > "${zipPath}"`);
 
-  run(`unzip -o "${zipPath}" -d "${depsDir}"`);
+  run(`unzip -o "${zipPath}" -d "${tmpDir}"`);
   fs.unlinkSync(zipPath);
 
-  const tgz = findTgzInDir(depsDir);
+  const tgz = findTgzInDir(tmpDir);
+  const tgzPath = path.join(tmpDir, tgz);
+  const version = readVersionFromTgz(
+    tgzPath,
+    tgz.replace(/^zowe-native-proto-sdk-/, '').replace(/\.tgz$/, '')
+  );
 
-  const relPath = `file:../../deps/${tgz}`;
-  const tgzFullPath = path.join(depsDir, tgz);
-  console.log('Extracted SDK tarball: %s', tgzFullPath);
-
-  removeRootOverrides();
-  setDependency(relPath);
-  npmInstall();
-  removeSdkIntegrityFromLockfile();
-  console.log('\nSDK switched to %s: %s', label, tgzFullPath);
-  return tgz;
-}
-
-/**
- * Install an SDK from a local tgz file path. Copies to deps/ and sets the file: dependency.
- */
-function installFromLocalTgz(tgzPath, label) {
-  prepareDepsDir();
-
-  const tgzName = path.basename(tgzPath);
-  const dest = path.join(depsDir, tgzName);
-  fs.copyFileSync(tgzPath, dest);
-  console.log('Copied SDK tarball to %s', dest);
-
-  const relPath = `file:../../deps/${tgzName}`;
-
-  removeRootOverrides();
-  setDependency(relPath);
-  npmInstall();
-  removeSdkIntegrityFromLockfile();
-  console.log('\nSDK switched to %s: %s', label, dest);
+  installSdkToResources(tgzPath, version, label);
+  fs.rmSync(tmpDir, { recursive: true, force: true });
 }
 
 function findTgzInDir(dir) {
@@ -229,7 +258,6 @@ function findTgzInDir(dir) {
 
 /**
  * Find the latest successful Build workflow run for a branch and event type.
- * Returns { id, sha, date, event } or null.
  */
 function findSuccessfulBuildRun(branch, event) {
   const json = run(
@@ -252,7 +280,7 @@ function handleRelease(version) {
     try {
       v = run(`npm view ${PKG_NAME} version --registry ${ARTIFACTORY_NPM}`);
       console.log('Latest published version: %s', v);
-    } catch (err) {
+    } catch {
       console.error(
         'Failed to query latest version from Artifactory. Using default: %s',
         DEFAULT_VERSION
@@ -260,12 +288,18 @@ function handleRelease(version) {
       v = DEFAULT_VERSION;
     }
   }
-  const spec = `^${v}`;
-  removeRootOverrides();
-  setDependency(spec);
-  npmInstall();
-  removeSdkIntegrityFromLockfile();
-  console.log('\nSDK switched to Artifactory release: %s', spec);
+
+  console.log('Downloading %s@%s from Artifactory...', PKG_NAME, v);
+  const tmpDir = path.join(repoRoot, '.sdk-download-tmp');
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+  fs.mkdirSync(tmpDir, { recursive: true });
+
+  run(`npm pack ${PKG_NAME}@${v} --registry ${ARTIFACTORY_NPM} --pack-destination "${tmpDir}"`);
+  const tgz = findTgzInDir(tmpDir);
+  const tgzPath = path.join(tmpDir, tgz);
+
+  installSdkToResources(tgzPath, v, `Artifactory release ${v}`);
+  fs.rmSync(tmpDir, { recursive: true, force: true });
 }
 
 // ---------------------------------------------------------------------------
@@ -277,7 +311,6 @@ function handleNightly() {
 
   if (tryArtifactoryNightly()) return;
 
-  // Fallback: latest successful Build workflow run on main
   console.log('No nightly SDK found on Artifactory, falling back to GitHub Actions (main)...');
   handleBranch('main');
 }
@@ -296,28 +329,26 @@ function tryArtifactoryNightly() {
     console.log('Found nightly SDK: %s', tgzName);
     const url = `${ARTIFACTORY_SNAPSHOT_BASE}/${tgzName}`;
 
-    prepareDepsDir();
-    const dest = path.join(depsDir, tgzName);
-    console.log('Downloading %s...', url);
-    run(`curl -sfL -o "${dest}" "${url}"`);
+    const tmpDir = path.join(repoRoot, '.sdk-download-tmp');
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+    fs.mkdirSync(tmpDir, { recursive: true });
 
-    if (!fs.existsSync(dest) || fs.statSync(dest).size === 0) {
+    const tmpDest = path.join(tmpDir, tgzName);
+    console.log('Downloading %s...', url);
+    run(`curl -sfL -o "${tmpDest}" "${url}"`);
+
+    if (!fs.existsSync(tmpDest) || fs.statSync(tmpDest).size === 0) {
       console.log('Download failed or empty file.');
+      fs.rmSync(tmpDir, { recursive: true, force: true });
       return false;
     }
 
-    const relPath = `file:../../deps/${tgzName}`;
-    removeRootOverrides();
-    setDependency(relPath);
-    npmInstall();
-    removeSdkIntegrityFromLockfile();
-
+    const version = readVersionFromTgz(tmpDest, 'nightly');
     const datestamp = tgzName.match(/(\d{4}-\d{2}-\d{2}-\d{6})/);
-    console.log(
-      '\nSDK switched to nightly (Artifactory): %s%s',
-      dest,
-      datestamp ? ` (built ${datestamp[1]})` : ''
-    );
+    const versionLabel = datestamp ? `${version}-nightly-${datestamp[1]}` : version;
+
+    installSdkToResources(tmpDest, versionLabel, `nightly (Artifactory)`);
+    fs.rmSync(tmpDir, { recursive: true, force: true });
     return true;
   } catch {
     return false;
@@ -336,7 +367,6 @@ function handlePr(prNumber) {
 
   console.log('Looking up PR #%s in %s...', prNumber, ZNP_REPO);
 
-  // Strategy 1: Parse the artifact URL from PR comments
   let artifactId;
   try {
     const comments = run(`gh api repos/${ZNP_REPO}/issues/${prNumber}/comments --jq '.[].body'`);
@@ -351,7 +381,6 @@ function handlePr(prNumber) {
     // fall through to strategy 2
   }
 
-  // Strategy 2: Find the Build workflow run for the PR head SHA
   if (!artifactId) {
     console.log('No SDK link in PR comments, looking up Build workflow run...');
     const headSha = run(
@@ -395,7 +424,6 @@ function handleBranch(branchName) {
   let runId;
   let runInfo;
 
-  // Try push events first (works for main and branches with direct pushes)
   try {
     runInfo = findSuccessfulBuildRun(branchName, 'push');
     if (runInfo) runId = runInfo.id;
@@ -403,7 +431,6 @@ function handleBranch(branchName) {
     // fall through
   }
 
-  // Try pull_request events (works for feature branches with open PRs)
   if (!runId) {
     try {
       runInfo = findSuccessfulBuildRun(branchName, 'pull_request');
@@ -441,22 +468,22 @@ function handleBranch(branchName) {
 // Mode: fallback
 // ---------------------------------------------------------------------------
 
-const FALLBACK_PATH = path.join(repoRoot, 'resources', 'znp-sdk-fallback.tgz');
-
 function handleFallback() {
-  if (!fs.existsSync(FALLBACK_PATH)) {
-    console.error(
-      'Fallback SDK not found. Add resources/znp-sdk-fallback.tgz to the repo (see docs/znp-sdk-without-marist-zos-build.md).'
-    );
-    console.error('Expected path: %s', FALLBACK_PATH);
+  const baselineTgz = path.join(resourcesDir, sdkTgzFilename(DEFAULT_VERSION));
+  const legacyFallback = path.join(resourcesDir, 'znp-sdk-fallback.tgz');
+
+  let tgzPath;
+  if (fs.existsSync(baselineTgz)) {
+    tgzPath = baselineTgz;
+  } else if (fs.existsSync(legacyFallback)) {
+    tgzPath = legacyFallback;
+  } else {
+    console.error('Fallback SDK not found. Expected: %s or %s', baselineTgz, legacyFallback);
     process.exit(1);
   }
-  const relPath = 'file:../../resources/znp-sdk-fallback.tgz';
-  removeRootOverrides();
-  setDependency(relPath);
-  npmInstall();
-  removeSdkIntegrityFromLockfile();
-  console.log('\nSDK switched to fallback: %s', FALLBACK_PATH);
+
+  const version = readVersionFromTgz(tgzPath, DEFAULT_VERSION);
+  installSdkToResources(tgzPath, version, 'fallback');
 }
 
 // ---------------------------------------------------------------------------
@@ -480,7 +507,8 @@ function handleLocal(inputPath) {
 
   if (stat.isFile() && resolved.endsWith('.tgz')) {
     console.log('Using local SDK tgz: %s', resolved);
-    installFromLocalTgz(resolved, 'local tgz');
+    const version = readVersionFromTgz(resolved, 'local');
+    installSdkToResources(resolved, version, 'local tgz');
     return;
   }
 
@@ -514,7 +542,8 @@ function handleLocal(inputPath) {
 
     const tgzPath = path.join(distDir, tgzName);
     console.log('Using pre-built SDK tgz: %s', tgzPath);
-    installFromLocalTgz(tgzPath, `local repo (${resolved})`);
+    const version = readVersionFromTgz(tgzPath, 'local');
+    installSdkToResources(tgzPath, version, `local repo (${resolved})`);
     return;
   }
 
@@ -561,7 +590,7 @@ function main() {
         '  node scripts/sdk-switch.js branch <branch>      Latest successful build for a branch'
       );
       console.error(
-        '  node scripts/sdk-switch.js fallback             In-repo fallback resource (for CI)'
+        '  node scripts/sdk-switch.js fallback             In-repo fallback (resources/)'
       );
       console.error(
         '  node scripts/sdk-switch.js local <path>         Local .tgz file or ZNP repo directory'

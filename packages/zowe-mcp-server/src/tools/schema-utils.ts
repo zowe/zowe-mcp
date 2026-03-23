@@ -49,9 +49,7 @@ export const recfmSchema = z
  * @param allowed - Array of allowed values (e.g. ['asterisk', 'cobolComment']).
  * @returns Zod schema that accepts any case and normalizes to the first matching value.
  */
-export function enumInsensitiveLower<T extends string>(
-  allowed: readonly T[]
-): z.ZodType<T, z.ZodTypeDef, string> {
+export function enumInsensitiveLower<T extends string>(allowed: readonly T[]) {
   const allowedArr = allowed as readonly string[];
   return z.string().transform((s): T => {
     const lower = s.trim().toLowerCase();

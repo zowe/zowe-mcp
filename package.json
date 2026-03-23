@@ -31,6 +31,7 @@
     "pack:server": "npm run build -w @zowe/mcp-server && npm pack -w @zowe/mcp-server --pack-destination .",
     "test:airgap": "npm run test:airgap -w @zowe/mcp-server",
     "test:airgap:build": "npm run test:airgap:build -w @zowe/mcp-server",
+    "test:airgap:build:native": "npm run test:airgap:build:native -w @zowe/mcp-server",
     "release-vsix": "bash scripts/release-vsix.sh",
     "sdk:release": "node scripts/sdk-switch.js release",
     "sdk:nightly": "node scripts/sdk-switch.js nightly",

@@ -52,6 +52,9 @@ jobs:
           echo "OS: $(uname -srm)"
           echo "RAM: $(free -h | grep Mem | awk '{print $2}')"
 
+      - name: Download VS Code API types
+        run: npm run download-api -w packages/zowe-mcp-vscode
+
       - name: Build (common + server)
         run: |
           npm run build -w packages/zowe-mcp-common

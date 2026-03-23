@@ -102,9 +102,10 @@ suite('Zowe MCP VS Code Extension', () => {
       ).showInformationMessage = originalShowInformationMessage;
     });
 
-    test('Shows notification when no connections are configured', async () => {
+    test('Shows notification when native backend with no connections', async () => {
       const mockConfig: vscode.WorkspaceConfiguration = {
         get: (key: string, defaultValue?: unknown) => {
+          if (key === 'backend') return 'native';
           if (key === 'nativeConnections') return [];
           if (key === 'nativeSystems') return [];
           if (key === 'mockDataDirectory') return '';
@@ -188,9 +189,10 @@ suite('Zowe MCP VS Code Extension', () => {
       assert.strictEqual(showCalls, 0, 'Should not show notification when connections are set');
     });
 
-    test('Does not show notification when mock data directory is set', () => {
+    test('Does not show notification when backend is mock', () => {
       const mockConfig: vscode.WorkspaceConfiguration = {
         get: (key: string, defaultValue?: unknown) => {
+          if (key === 'backend') return 'mock';
           if (key === 'nativeConnections') return [];
           if (key === 'nativeSystems') return [];
           if (key === 'mockDataDirectory') return '/path/to/mock';
@@ -221,11 +223,7 @@ suite('Zowe MCP VS Code Extension', () => {
 
       showNoConnectionsNotificationIfNeeded();
 
-      assert.strictEqual(
-        showCalls,
-        0,
-        'Should not show notification when mock data directory is set'
-      );
+      assert.strictEqual(showCalls, 0, 'Should not show notification when backend is mock');
     });
   });
 
@@ -245,9 +243,10 @@ suite('Zowe MCP VS Code Extension', () => {
       ).getConfiguration = originalGetConfiguration;
     });
 
-    test('With fresh config (no connections, no mock dir), server gets native backend and zero systems', async () => {
+    test('With fresh config (backend=native default, no connections), server gets native backend and zero systems', async () => {
       const mockConfig: vscode.WorkspaceConfiguration = {
         get: (key: string, defaultValue?: unknown) => {
+          if (key === 'backend') return 'native';
           if (key === 'nativeConnections') return [];
           if (key === 'nativeSystems') return [];
           if (key === 'mockDataDirectory') return '';
@@ -291,6 +290,64 @@ suite('Zowe MCP VS Code Extension', () => {
         systemFlagCount,
         0,
         'Fresh config should pass zero systems (no --system args)'
+      );
+    });
+
+    test('With backend=mock and mock dir set, server gets mock backend', async () => {
+      const mockConfig: vscode.WorkspaceConfiguration = {
+        get: (key: string, defaultValue?: unknown) => {
+          if (key === 'backend') return 'mock';
+          if (key === 'nativeConnections') return [];
+          if (key === 'nativeSystems') return [];
+          if (key === 'mockDataDirectory') return '/tmp/mock-data';
+          return defaultValue;
+        },
+        has: () => false,
+        inspect: <T>(key: string) => {
+          if (key === 'backend') {
+            return {
+              key: 'zoweMCP.backend',
+              globalValue: 'mock' as unknown as T,
+            };
+          }
+          return undefined;
+        },
+        update: () => Promise.resolve(),
+      };
+      (
+        vscode.workspace as {
+          getConfiguration: (section: string) => vscode.WorkspaceConfiguration;
+        }
+      ).getConfiguration = (section: string) => {
+        assert.strictEqual(section, 'zoweMCP');
+        return mockConfig;
+      };
+
+      const zoweMcp = findZoweMcpExtension();
+      assert.ok(zoweMcp, 'Extension should be present');
+      const dummyContext = {
+        extensionPath: zoweMcp.extensionPath,
+      } as vscode.ExtensionContext;
+      const serverModule = path.join(dummyContext.extensionPath, 'server', 'index.js');
+      const log = getLog();
+      assert.ok(log, 'Log should be initialized after activation');
+
+      const serverConfig = await buildServerConfig(
+        dummyContext,
+        serverModule,
+        '/tmp/discovery',
+        'test-workspace-id',
+        log
+      );
+
+      const args = serverConfig.args;
+      assert.ok(args.includes('--mock'), 'Backend=mock should use mock mode');
+      assert.ok(!args.includes('--native'), 'Backend=mock should not use native mode');
+      const mockIdx = args.indexOf('--mock');
+      assert.strictEqual(
+        args[mockIdx + 1],
+        '/tmp/mock-data',
+        'Mock dir should be passed after --mock'
       );
     });
   });

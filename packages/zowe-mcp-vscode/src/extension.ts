@@ -133,8 +133,22 @@ export function activate(context: vscode.ExtensionContext): void {
         log.info('Job cards setting changed, forwarding to MCP servers');
         sendJobCardsUpdateEvent();
       }
+      if (e.affectsConfiguration('zoweMCP.backend')) {
+        void Promise.resolve().then(() => {
+          const config = vscode.workspace.getConfiguration('zoweMCP');
+          const backend = config.get<string>('backend', 'native');
+          log.info(`Backend setting changed to "${backend}"`);
+          if (backend === 'mock') {
+            const mockDir = config.get<string>('mockDataDirectory', '').trim();
+            if (!mockDir) {
+              void promptForMockDataDirectory();
+            }
+          }
+        });
+      }
       // When running in Cursor, update Cursor's stored MCP config so the next server start uses current settings
       const affectsServerStartup =
+        e.affectsConfiguration('zoweMCP.backend') ||
         e.affectsConfiguration('zoweMCP.mockDataDirectory') ||
         e.affectsConfiguration('zoweMCP.nativeConnections') ||
         e.affectsConfiguration('zoweMCP.installZoweNativeServerAutomatically') ||
@@ -176,21 +190,24 @@ export function activate(context: vscode.ExtensionContext): void {
 }
 
 /**
- * If no Zowe MCP connections are configured (no native connections and no mock
- * data directory), shows a one-time notification with a button to open Settings.
+ * If the native backend is selected but no connections are configured,
+ * shows a one-time notification with a button to open Settings.
  * Exported for tests.
  */
 export function showNoConnectionsNotificationIfNeeded(): void {
   const config = vscode.workspace.getConfiguration('zoweMCP');
+  const backend = config.get<string>('backend', 'native');
+  if (backend === 'mock') {
+    return;
+  }
   const nativeConnections = getNativeConnectionsWithMigration(config);
-  const mockDataDirectory = config.get<string>('mockDataDirectory', '').trim();
-  if (nativeConnections.length > 0 || mockDataDirectory) {
+  if (nativeConnections.length > 0) {
     return;
   }
   const openSettings = 'Open Settings';
   void vscode.window
     .showInformationMessage(
-      'Zowe MCP: No connections are configured. Add connections in Settings to connect to z/OS.',
+      'Zowe MCP: No connections are configured. Add connections in Settings to connect to z/OS, or switch the backend to "mock" for testing.',
       openSettings
     )
     .then(choice => {
@@ -225,6 +242,39 @@ function resolveServerPath(context: vscode.ExtensionContext): string {
 }
 
 /**
+ * Returns the effective backend setting, applying auto-migration from the
+ * legacy implicit logic: if `backend` has never been set by the user AND
+ * `mockDataDirectory` is non-empty AND `nativeConnections` is empty, migrate
+ * to `"mock"` and persist the choice.
+ */
+function getBackendWithMigration(
+  config: vscode.WorkspaceConfiguration,
+  nativeConnections: string[],
+  log: ReturnType<typeof initLog>
+): 'native' | 'mock' {
+  const inspection = config.inspect<string>('backend');
+  const hasUserValue =
+    inspection?.globalValue !== undefined ||
+    inspection?.workspaceValue !== undefined ||
+    inspection?.workspaceFolderValue !== undefined;
+
+  if (hasUserValue) {
+    return config.get<string>('backend', 'native') as 'native' | 'mock';
+  }
+
+  const mockDataDirectory = config.get<string>('mockDataDirectory', '').trim();
+  if (mockDataDirectory && nativeConnections.length === 0) {
+    log.info(
+      'Auto-migrating backend setting to "mock" (mockDataDirectory is set, no native connections)'
+    );
+    void config.update('backend', 'mock', vscode.ConfigurationTarget.Global);
+    return 'mock';
+  }
+
+  return 'native';
+}
+
+/**
  * Builds the command, args, and env used to start the Zowe MCP server.
  * Shared by the VS Code MCP provider and Cursor's registerServer.
  * Exported for tests (fresh-config server args).
@@ -238,8 +288,8 @@ export async function buildServerConfig(
 ): Promise<{ command: string; args: string[]; env: Record<string, string> }> {
   const args = [serverModule, '--stdio'];
   const config = vscode.workspace.getConfiguration('zoweMCP');
-  const mockDataDirectory = config.get<string>('mockDataDirectory', '').trim();
   const nativeConnections = getNativeConnectionsWithMigration(config);
+  const backend = getBackendWithMigration(config, nativeConnections, log);
   const installZoweNativeServerAutomatically = config.get<boolean>(
     'installZoweNativeServerAutomatically',
     true
@@ -252,9 +302,14 @@ export async function buildServerConfig(
     'IBM-1047'
   );
 
-  if (mockDataDirectory && nativeConnections.length === 0) {
-    args.push('--mock', mockDataDirectory);
-    log.info(`Mock mode enabled: ${mockDataDirectory}`);
+  if (backend === 'mock') {
+    const mockDataDirectory = config.get<string>('mockDataDirectory', '').trim();
+    if (mockDataDirectory) {
+      args.push('--mock', mockDataDirectory);
+      log.info(`Mock mode enabled: ${mockDataDirectory}`);
+    } else {
+      log.warn('Backend is set to "mock" but no mock data directory is configured');
+    }
   } else {
     args.push('--native');
     for (const spec of nativeConnections) {
@@ -511,6 +566,49 @@ async function initMockData(
 }
 
 /**
+ * Prompts the user to generate or select a mock data directory when
+ * the backend is set to "mock" but no mock data directory is configured.
+ */
+async function promptForMockDataDirectory(): Promise<void> {
+  const log = getLog();
+  const generateMock = 'Generate Mock Data';
+  const selectExisting = 'Select Existing Directory';
+  const choice = await vscode.window.showInformationMessage(
+    'Zowe MCP: Backend is set to "mock" but no mock data directory is configured.',
+    generateMock,
+    selectExisting
+  );
+  if (choice === generateMock) {
+    void vscode.commands.executeCommand('zowe-mcp.initMockData');
+  } else if (choice === selectExisting) {
+    const folders = await vscode.window.showOpenDialog({
+      canSelectFolders: true,
+      canSelectFiles: false,
+      canSelectMany: false,
+      openLabel: 'Select mock data directory',
+      title: 'Select Zowe MCP Mock Data Directory',
+    });
+    if (folders && folders.length > 0) {
+      const config = vscode.workspace.getConfiguration('zoweMCP');
+      await config.update(
+        'mockDataDirectory',
+        folders[0].fsPath,
+        vscode.ConfigurationTarget.Workspace
+      );
+      log.info(`Set zoweMCP.mockDataDirectory to: ${folders[0].fsPath}`);
+      const reload = 'Reload Window';
+      const reloadChoice = await vscode.window.showInformationMessage(
+        'Mock data directory configured. Reload the window to restart the MCP server with mock data.',
+        reload
+      );
+      if (reloadChoice === reload) {
+        void vscode.commands.executeCommand('workbench.action.reloadWindow');
+      }
+    }
+  }
+}
+
+/**
  * Returns the list of native connection specs, migrating from the old
  * nativeSystems setting to nativeConnections on first read if needed.
  */
@@ -594,6 +692,7 @@ async function clearStoredPassword(context: vscode.ExtensionContext): Promise<vo
 
 /** zoweMCP configuration keys to reset (without the "zoweMCP." prefix). */
 const ZOWE_MCP_CONFIG_KEYS = [
+  'backend',
   'nativeConnections',
   'logLevel',
   'installZoweNativeServerAutomatically',
@@ -642,7 +741,7 @@ async function clearAllZoweMcpSettingsAndState(context: vscode.ExtensionContext)
   log.info('Zowe MCP: reset all settings and state');
   const reload = 'Reload Window';
   const chosen = await vscode.window.showInformationMessage(
-    'Zowe MCP settings and state have been reset (connections, mock path, encodings, job cards, stored passwords, last connection). Reload the window so the MCP server restarts with a clean slate.',
+    'Zowe MCP settings and state have been reset (backend, connections, mock path, encodings, job cards, stored passwords, last connection). Reload the window so the MCP server restarts with a clean slate.',
     reload
   );
   if (chosen === reload) {

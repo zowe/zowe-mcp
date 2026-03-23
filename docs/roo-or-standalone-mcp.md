@@ -6,13 +6,11 @@ Use the `**@zowe/mcp-server`** npm package in **stdio** mode: `command` + `args`
 
 ## Package identity
 
-
 | Item                 | Value                                                                |
 | -------------------- | -------------------------------------------------------------------- |
 | **npm package**      | `@zowe/mcp-server`                                                   |
 | **CLI / `bin` name** | `zowe-mcp-server` (what you run after `npm install -g` or via `npx`) |
 | `**npx`**            | `npx @zowe/mcp-server …` or `npx -y @zowe/mcp-server@<version> …`    |
-
 
 ## Install the server
 
@@ -103,7 +101,11 @@ See the server CLI in `[index.ts](../packages/zowe-mcp-server/src/index.ts)` (`-
 Add `--mock` / `ZOWE_MCP_MOCK_DIR`, or pass `"--mock", "/absolute/path/to/mock-data"` in `args`. Generate mock data:
 
 ```bash
-npx @zowe/mcp-server init-mock --output ./zowe-mcp-mock-data
+# If zowe-mcp-server is installed (globally or project-local):
+zowe-mcp-server init-mock --output ./zowe-mcp-mock-data
+
+# Or from a local tarball (see "Obtaining the .tgz" above):
+npx --package=file:/absolute/path/to/zowe-mcp-server-0.8.0-dev.tgz zowe-mcp-server init-mock --output ./zowe-mcp-mock-data
 ```
 
 ## Local file tools
@@ -114,4 +116,3 @@ If the client does not expose MCP workspace roots, set `**ZOWE_MCP_WORKSPACE_DIR
 
 - [README.md](../README.md) — Standalone mode, `native-config.json`, VS Code `.vscode/mcp.json`
 - [COPILOT-SETUP.md](COPILOT-SETUP.md) — Extension-based setup with Copilot
-

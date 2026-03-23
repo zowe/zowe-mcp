@@ -19,7 +19,7 @@ Ideas inspired by [Gestell-AI/zowe-mcp](https://github.com/Gestell-AI/zowe-mcp) 
 - ✅ **listDatasets member-name pattern**: Implemented client-side in `native-backend.ts` using `memberPatternToRegExp()` after the RPC; also passes `pattern` to ZNP `listDsMembers` for server-side filtering.
 - **listDatasets error messages**: Confirm whether listDatasets returns useful error messages (e.g. invalid data set name or invalid pattern). Good error messages help the AI agent or human fix parameters. Can be done in the MCP server, but native-level support is the desired choice for everyone.
 - ✅ **listDatasets attributes**: Follow up with Dan: attributes are not returned by Zowe Native listDatasets. Exposing them would help the AI agent reason about data sets (e.g. type, format)
-- List the first segments (names of catalogs).
+- **List HLQs (catalog aliases)**: Add a `listHighLevelQualifiers` (or similar) tool that returns all HLQ aliases from the master catalog, so agents can quickly see the top-level data set structure without listing all data sets. **Research findings** (verified on ca32): `listDatasets('*')` works via ZNP but returns individual data sets (capped at ~1000), not HLQs; ISPF DSLEVEL with `*` alone gives "Invalid Dsname Level" (first qualifier must be literal); LISTCAT `LEVEL(*)`, `LEVEL(%)`, `LEVEL(1)` all fail (LEVEL requires a literal qualifier); `LISTCAT LEVEL(ICF.MASTER) ALL` works and shows user catalogs with their ALIAS entries (the HLQs), but output is verbose, requires text parsing, and the master catalog HLQ prefix is installation-specific; direct master catalog access via `CAT(mastercat)` is blocked by security. No single z/OS command returns a clean list of all HLQs. **Decision**: Request a new ZNP SDK API (e.g. `ds.listCatalogAliases` or `catalog.listAliases`) that uses the Catalog Search Interface (CSI / IGGCSI00) natively on z/OS — the IBM-recommended programmatic API for catalog queries that can enumerate all aliases in the master catalog efficiently and portably, avoiding fragile LISTCAT output parsing and installation-specific assumptions.
 
 ## Security / Infrastructure
 
@@ -76,7 +76,7 @@ Ideas inspired by [Gestell-AI/zowe-mcp](https://github.com/Gestell-AI/zowe-mcp) 
 ## Documentation & Maintenance
 
 - **MCP SDK v2**: MCP SDK v1.x is stable and SDK `main` is v2 pre-alpha. When v2 is stable, evaluate migration and update dependencies.
-- **Mock config hot-reload**: Currently changing `zoweMCP.mockDataDirectory` requires restarting the MCP server; consider supporting config/systems change without full restart if feasible.
+- ✅ **Mock config hot-reload**: Resolved by the `zoweMCP.backend` dropdown setting — users switch between native and mock via a single setting with auto-migration and prompt-on-select. A window reload is still required but the UX is clear.
 - ✅ **Format tables in generated doc**: The `generate-docs` script now formats all Markdown tables consistently using `markdown-table-prettify` (via the `markdown-table-formatter` devDependency).
 
 ## Code Quality / Refactoring

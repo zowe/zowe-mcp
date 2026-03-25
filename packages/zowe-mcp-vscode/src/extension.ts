@@ -350,6 +350,30 @@ export async function buildServerConfig(
     args.push('--default-uss-encoding', defaultMainframeUssEncoding.trim());
   }
 
+  // CLI plugin bridge entries
+  const cliPlugins = config.get<
+    { yaml?: string; connectionFile?: string; descVariant?: string }[]
+  >('cliPlugins', []);
+  let cliPluginDescVariantPushed = false;
+  for (const plugin of cliPlugins) {
+    const yamlPath = plugin.yaml?.trim();
+    if (!yamlPath) continue;
+    args.push('--cli-plugin-yaml', yamlPath);
+    const connFile = plugin.connectionFile?.trim();
+    if (connFile) {
+      args.push('--cli-plugin-connection-file', connFile);
+    }
+    if (!cliPluginDescVariantPushed && plugin.descVariant?.trim()) {
+      args.push('--cli-plugin-desc-variant', plugin.descVariant.trim());
+      cliPluginDescVariantPushed = true;
+    }
+  }
+  if (cliPlugins.length > 0) {
+    log.info(
+      `CLI plugin bridge: ${cliPlugins.length} ${cliPlugins.length === 1 ? 'plugin' : 'plugins'} configured`
+    );
+  }
+
   let zeExt = vscode.extensions.getExtension('Zowe.vscode-extension-for-zowe');
   if (!zeExt) {
     await new Promise(r => setTimeout(r, 400));

@@ -32,6 +32,36 @@ export interface SetNativeConfig {
 export type SetBackendConfig = { mock: SetMockConfig } | { native: SetNativeConfig };
 
 /**
+ * Configuration for starting the mock Endevor Web Services server and optionally
+ * an alternative MCP server (e.g. code4z-gen-ai) for cross-comparison evals.
+ */
+export interface SetEndevorMockEwsConfig {
+  /**
+   * Absolute path to mock_ews_server dist/cli/index.js.
+   * The server is started with: node <cliScript> serve --config <configPath> --port <port>
+   */
+  cliScript: string;
+  /** Path to mock-ews-config.json (passed as --config). */
+  configPath: string;
+  /** Port to start the mock EWS server on (default 8080). */
+  port?: number;
+  /**
+   * Optional: path to an alternative MCP server script (e.g. code4z-gen-ai stdio-server.js).
+   * When set, this server is started instead of the default zowe-mcp-server.
+   */
+  mcpServerScript?: string;
+  /** Extra args passed to the alternative MCP server, one string split on whitespace. */
+  mcpServerArgs?: string;
+  /**
+   * Tool name aliases: maps the actual tool name exposed by the server to the canonical
+   * assertion tool name used in the question YAML assertions.
+   * Example: { "get_elements": "endevorListElements", "get_element_content": "endevorPrintElement" }
+   * After a run, actual tool call names are normalized using this map so assertions work.
+   */
+  toolAliases?: Record<string, string>;
+}
+
+/**
  * Set-level eval config (repetitions, success rate, backend, system prompt).
  */
 export interface SetConfig {
@@ -41,10 +71,18 @@ export interface SetConfig {
   minSuccessRate?: number;
   mock?: SetMockConfig;
   native?: SetNativeConfig;
+  /** Endevor mock EWS config: starts mock_ews_server and optional alternative MCP server. */
+  endevorMockEws?: SetEndevorMockEwsConfig;
   systemPrompt?: string;
   systemPromptAddition?: string;
   /** When set, the entire question set is skipped with this reason. */
   skip?: string;
+  /**
+   * Load questions from another named question set instead of defining them locally.
+   * The referenced set must exist in the questions/ directory. Used by mirror sets
+   * (e.g. endevor-code4z) that run the same questions against a different server.
+   */
+  questionsFrom?: string;
 }
 
 /**
@@ -163,6 +201,18 @@ export interface ToolCallRecord {
 }
 
 /**
+ * Token usage for one agent run, from the Vercel AI SDK result.usage.
+ */
+export interface TokenUsage {
+  /** Tokens in the LLM prompt (input). */
+  input: number;
+  /** Tokens in the LLM response (output). */
+  output: number;
+  /** Total tokens (input + output). */
+  total: number;
+}
+
+/**
  * Result of one run (one question, one repetition).
  */
 export interface RunResult {
@@ -174,4 +224,10 @@ export interface RunResult {
   finalText: string;
   error?: string;
   assertionFailed?: string;
+  /** Wall-clock duration of the agent run in milliseconds. */
+  durationMs?: number;
+  /** Token usage for this run (from Vercel AI SDK). */
+  tokenUsage?: TokenUsage;
+  /** Number of agent steps (tool call rounds) taken. */
+  stepCount?: number;
 }

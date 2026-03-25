@@ -43,6 +43,8 @@ import type {
 import { connectExtensionClient, type ExtensionClient } from './extension-client.js';
 import type { CreateServerOptions, CreateServerResult, ZoweExplorerCallbacks } from './server.js';
 import { createServer, getLogger, getServer, SERVER_VERSION } from './server.js';
+import { loadAndRegisterPluginYaml } from './tools/cli-bridge/cli-tool-loader.js';
+import type { CliConnectionConfig } from './tools/cli-bridge/types.js';
 import { startHttp } from './transports/http.js';
 import { startStdio } from './transports/stdio.js';
 import {
@@ -81,6 +83,21 @@ interface ParsedArgs {
   defaultUssEncoding?: string;
   /** Repeatable CLI directories allowed for local upload/download when MCP roots are unavailable. */
   localFilesRoots?: string[];
+  /**
+   * CLI plugin bridge entries loaded from repeatable --cli-plugin-yaml / --cli-plugin-connection-file flag pairs.
+   * Each entry activates one plugin YAML. When connectionFile is present its JSON is read as CliConnectionConfig.
+   */
+  cliPlugins: CliPluginEntry[];
+  /** Description variant applied to all CLI plugins (cli | intent | optimized). Sets ZOWE_MCP_CLI_DESC_VARIANT. */
+  cliPluginDescVariant?: string;
+}
+
+/** One CLI plugin bridge entry (one --cli-plugin-yaml / --cli-plugin-connection-file pair). */
+interface CliPluginEntry {
+  /** Absolute path to the plugin YAML file. */
+  yamlPath: string;
+  /** Absolute path to a CliConnectionConfig JSON file. When absent, an empty connection config is used. */
+  connectionFile?: string;
 }
 
 /** Build unique absolute fallback dirs for local file tools (workspace env, CLI, ZOWE_MCP_LOCAL_FILES_ROOT). */
@@ -312,6 +329,24 @@ function parseArgs(): ParsedArgs {
         describe:
           'Directory allowed for upload/download tools when MCP roots/list is unavailable (repeatable). Also set ZOWE_MCP_LOCAL_FILES_ROOT (comma-separated) or ZOWE_MCP_WORKSPACE_DIR.',
       },
+      'cli-plugin-yaml': {
+        type: 'array',
+        string: true,
+        describe:
+          'Path to a CLI plugin YAML file (repeatable). Each occurrence activates one plugin. ' +
+          'Pair with --cli-plugin-connection-file by index for the connection config.',
+      },
+      'cli-plugin-connection-file': {
+        type: 'array',
+        string: true,
+        describe:
+          'Path to a CliConnectionConfig JSON file for the corresponding --cli-plugin-yaml (repeatable, matched by index).',
+      },
+      'cli-plugin-desc-variant': {
+        type: 'string',
+        describe:
+          'Description variant for CLI plugin tools: cli, intent, or optimized (default: intent). Sets ZOWE_MCP_CLI_DESC_VARIANT.',
+      },
     })
     .alias('h', 'help')
     .help();
@@ -347,6 +382,24 @@ function parseArgs(): ParsedArgs {
     ? localFilesRootArg.filter((s): s is string => typeof s === 'string' && s.trim().length > 0)
     : [];
 
+  // Build CLI plugin entries from repeatable --cli-plugin-yaml / --cli-plugin-connection-file pairs
+  const cliPluginYamlArg = argv['cli-plugin-yaml'];
+  const cliPluginYamlPaths = Array.isArray(cliPluginYamlArg)
+    ? (cliPluginYamlArg as string[]).filter(
+        (s): s is string => typeof s === 'string' && s.trim().length > 0
+      )
+    : [];
+  const cliPluginConnectionFileArg = argv['cli-plugin-connection-file'];
+  const cliPluginConnectionFiles = Array.isArray(cliPluginConnectionFileArg)
+    ? (cliPluginConnectionFileArg as string[]).filter(
+        (s): s is string => typeof s === 'string' && s.trim().length > 0
+      )
+    : [];
+  const cliPlugins: CliPluginEntry[] = cliPluginYamlPaths.map((yamlPath, i) => ({
+    yamlPath,
+    connectionFile: cliPluginConnectionFiles[i] ?? undefined,
+  }));
+
   const parsed: ParsedArgs = {
     transport: argv.http ? 'http' : 'stdio',
     port: (argv.port as number) ?? 7542,
@@ -361,6 +414,8 @@ function parseArgs(): ParsedArgs {
     defaultMvsEncoding: argv['default-mvs-encoding'] as string | undefined,
     defaultUssEncoding: argv['default-uss-encoding'] as string | undefined,
     localFilesRoots,
+    cliPlugins,
+    cliPluginDescVariant: argv['cli-plugin-desc-variant'] as string | undefined,
   };
   applyEnvOverrides(parsed);
   return parsed;
@@ -921,6 +976,28 @@ async function main(): Promise<void> {
     };
   }
 
+  // Apply description variant env var before registering CLI plugin tools
+  if (parsed.cliPluginDescVariant) {
+    process.env.ZOWE_MCP_CLI_DESC_VARIANT = parsed.cliPluginDescVariant;
+  }
+
+  /** Register all CLI plugin bridge tools on an already-created server. */
+  function registerCliPlugins(server: ReturnType<typeof getServer>): void {
+    for (const entry of parsed.cliPlugins) {
+      let connection: CliConnectionConfig = {};
+      if (entry.connectionFile) {
+        const raw = readFileSync(entry.connectionFile, 'utf-8');
+        connection = JSON.parse(raw) as CliConnectionConfig;
+      }
+      loadAndRegisterPluginYaml(server, entry.yamlPath, { connection, context: {} }, logger);
+      logger.info('CLI plugin bridge tools registered', {
+        yamlPath: entry.yamlPath,
+        connectionFile: entry.connectionFile,
+        descVariant: process.env.ZOWE_MCP_CLI_DESC_VARIANT ?? 'intent',
+      });
+    }
+  }
+
   if (transport === 'stdio') {
     const created = createServer(serverOptions);
     const server = getServer(created);
@@ -930,6 +1007,7 @@ async function main(): Promise<void> {
     if (zoweExplorerCallbacksRef.current && 'registerZoweExplorerTools' in created) {
       zoweExplorerToolsRegisteredRef.current = true;
     }
+    registerCliPlugins(server);
     await startStdio(server, logger);
   } else {
     await startHttp(
@@ -943,7 +1021,9 @@ async function main(): Promise<void> {
           opts.openJobInZoweEditor = zoweExplorerCallbacksRef.current.openJobInZoweEditor;
         }
         const result = createServer(opts);
-        return getServer(result);
+        const server = getServer(result);
+        registerCliPlugins(server);
+        return server;
       },
       port,
       logger

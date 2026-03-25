@@ -199,8 +199,8 @@ export type CreateServerResult =
 
 /** Returns the McpServer from a CreateServerResult (for callers that only need the server). */
 export function getServer(result: CreateServerResult): McpServer {
-  const s = 'server' in result ? result.server : result;
-  return s as McpServer;
+  const s = 'registerZoweExplorerTools' in result ? result.server : result;
+  return s;
 }
 
 /** Known backend kind names for the getContext tool. */

@@ -1,0 +1,34 @@
+# yaml-language-server: $schema=../schemas/evals-question-set.schema.json
+# Endevor stress test (code4z-gen-ai server): same hard questions as endevor-stress.yaml
+# but running the code4z-gen-ai TypeScript MCP server. Uses questionsFrom for equal
+# question count. The context-then-multi question reveals multi-step gaps without setContext.
+config:
+  name: endevor-stress-code4z
+  description: >
+    Same hard questions as endevor-stress.yaml but running the code4z-gen-ai TypeScript
+    MCP server against the mock EWS server. Tool aliases normalize assertion names.
+    The context-then-multi question will reveal whether the code4z server can handle
+    multi-step workflows without an explicit setContext tool.
+  repetitions: 5
+  minSuccessRate: 0.5
+  questionsFrom: endevor-stress
+  endevorMockEws:
+    cliScript: /Users/plape03/workspace/github.gwd.broadcom.net/code4z-gen-ai/mock_ews_server/dist/cli/index.js
+    configPath: /Users/plape03/workspace/github.gwd.broadcom.net/code4z-gen-ai/mock_ews_server/mock-ews-config.json
+    port: 8080
+    mcpServerScript: /Users/plape03/workspace/github.gwd.broadcom.net/code4z-gen-ai/mcp_servers_typescript/dist/mcp-server/stdio-server.js
+    mcpServerArgs: >-
+      --ews-url=http://localhost:8080
+      --ews-api=EndevorService/api/v2
+      --datasource=ENDEVOR
+      --credentials=USER:PASSWORD
+    toolAliases:
+      get_environments: endevorListEnvironments
+      get_stages: endevorListStages
+      get_systems: endevorListSystems
+      get_subsystems: endevorListSubsystems
+      get_types: endevorListTypes
+      get_elements: endevorListElements
+      get_element_content: endevorPrintElement
+      get_element_history: endevorPrintElement
+      get_element_listing: endevorPrintElement

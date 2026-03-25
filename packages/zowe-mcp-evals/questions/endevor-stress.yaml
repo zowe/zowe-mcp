@@ -1,0 +1,139 @@
+# yaml-language-server: $schema=../schemas/evals-question-set.schema.json
+# Endevor stress test: harder questions adapted from code4z-gen-ai failing tasks.
+# Requires multi-step reasoning, wildcard matching, cross-env comparison, and counting.
+config:
+  name: endevor-stress
+  description: >
+    Harder Endevor questions inspired by the code4z-gen-ai e2e evaluation tasks that
+    scored 0/4. Tests wildcard element names, cross-environment comparison, exact counts,
+    missing-element detection, multi-step workflows, and ambiguous natural-language phrasing.
+    Run against the mock EWS server (DEV/PRD, SYS1/SUB1, PROG01-05, CPYBK01/02).
+  repetitions: 5
+  minSuccessRate: 0.5
+  endevorMockEws:
+    cliScript: /Users/plape03/workspace/github.gwd.broadcom.net/code4z-gen-ai/mock_ews_server/dist/cli/index.js
+    configPath: /Users/plape03/workspace/github.gwd.broadcom.net/code4z-gen-ai/mock_ews_server/mock-ews-config.json
+    port: 8080
+
+questions:
+  - id: wildcard-name
+    prompt: >
+      Find all elements in DEV environment, stage 1, system SYS1, subsystem SUB1
+      whose name starts with PROG.
+    assertions:
+      - toolCall:
+          tool: endevorListElements
+          args:
+            environment: DEV
+            system: SYS1
+            subsystem: SUB1
+      - answerContains:
+          pattern: "PROG0[1-5]"
+
+  - id: cross-env-compare
+    prompt: >
+      Are the same COBPGM elements present in PRD stage 2 as in DEV stage 1 under system SYS1,
+      subsystem SUB1? List any differences.
+    assertions:
+      - toolCall:
+          tool: endevorListElements
+          minCount: 2
+      - answerContains:
+          pattern: "PROG0[1-5]"
+
+  - id: count-all-elements
+    prompt: >
+      How many total elements of all types are there in DEV environment, stage 1,
+      system SYS1, subsystem SUB1? Give the exact number.
+    assertions:
+      - toolCall:
+          tool: endevorListElements
+      - answerContains:
+          pattern: "\\b7\\b|seven"
+
+  - id: count-copybooks
+    prompt: >
+      Exactly how many COPYBOOK elements exist in DEV environment, stage 1,
+      system SYS1, subsystem SUB1?
+    assertions:
+      - toolCall:
+          tool: endevorListElements
+          args:
+            type: COPYBOOK
+      - answerContains:
+          pattern: "\\b2\\b|two"
+
+  - id: missing-element
+    prompt: >
+      Is there a PROG99 element in the DEV environment, system SYS1, subsystem SUB1?
+    assertions:
+      - toolCall:
+          tool: endevorListElements
+      - answerContains:
+          pattern: "[Nn]ot found|[Nn]o.*PROG99|[Dd]oes not exist|[Nn]o element|[Cc]ould not find"
+
+  - id: multi-step-source
+    prompt: >
+      List all COBPGM elements in DEV environment stage 1 system SYS1 subsystem SUB1,
+      then show me the source code of the element named PROG03.
+    assertions:
+      - toolCallOrder:
+          - tool: endevorListElements
+          - tool: endevorPrintElement
+            args:
+              element: PROG03
+      - answerContains:
+          pattern: "PROG03|PROGRAM-ID|IDENTIFICATION DIVISION"
+
+  - id: ambiguous-type
+    prompt: >
+      What COBOL programs are available in PRD stage 2 system SYS1 subsystem SUB1?
+    assertions:
+      - toolCall:
+          tool: endevorListElements
+          args:
+            type: COBPGM
+      - answerContains:
+          pattern: "PROG0[1-5]"
+
+  - id: implicit-stage
+    prompt: >
+      List all elements in the DEV environment, system SYS1, subsystem SUB1.
+      Do not specify a stage number.
+    assertions:
+      - toolCall:
+          tool: endevorListElements
+          args:
+            environment: DEV
+            system: SYS1
+            subsystem: SUB1
+      - answerContains:
+          pattern: "PROG0[1-5]|CPYBK0[12]"
+
+  - id: natural-language-count
+    prompt: >
+      Show me all elements under SYS1 in PRD stage 2 system SYS1 subsystem SUB1,
+      and tell me the total count at the end.
+    assertions:
+      - toolCall:
+          tool: endevorListElements
+          args:
+            environment: PRD
+      - answerContains:
+          pattern: "PROG0[1-5]"
+      - answerContains:
+          pattern: "\\b[0-9]+\\b"
+
+  - id: context-then-multi
+    prompt: >
+      Set the Endevor context to environment DEV, stage 1, system SYS1, subsystem SUB1.
+      Then list all COBPGM elements. Then print the source code of PROG02.
+    assertions:
+      - toolCallOrder:
+          - tool: endevorSetContext
+          - tool: endevorListElements
+          - tool: endevorPrintElement
+            args:
+              element: PROG02
+      - answerContains:
+          pattern: "PROG02|PROGRAM-ID|IDENTIFICATION DIVISION"

@@ -241,6 +241,38 @@
           "description": "JCL job cards per connection spec (key: user@host or user@host:port). Prefer array of lines, e.g. [\"//{jobname}  JOB (ACCT),'{programmer}',CLASS=A,...\", \"/*JOBPARM S=*\"]. Use placeholders {jobname} and {programmer}; submitJob substitutes them. Changes are sent to the server and take effect immediately.",
           "markdownDescription": "JCL job cards per connection spec. Key is `user@host` or `user@host:port`. **Prefer an array of lines** (one string per line), for example:\n\n```json\n\"USER@zos.example.com\": [\n  \"//{jobname}  JOB (ACCT),'{programmer}',CLASS=A,MSGCLASS=X,NOTIFY=&SYSUID\",\n  \"/*JOBPARM S=*\"\n]\n```\n\nUse placeholders `{jobname}` and `{programmer}`; `submitJob` substitutes them. You can also use a single string with `\\n` for newlines. Changes are sent to the server and take effect immediately.",
           "order": 9
+        },
+        "zoweMCP.cliPlugins": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "yaml": {
+                "type": "string",
+                "description": "Absolute path to the CLI plugin YAML file (e.g. /path/to/endevor-tools.yaml)."
+              },
+              "connectionFile": {
+                "type": "string",
+                "description": "Absolute path to a CliConnectionConfig JSON file with host/port/user/password/pluginParams. Omit for profile-only authentication."
+              },
+              "descVariant": {
+                "type": "string",
+                "enum": [
+                  "cli",
+                  "intent",
+                  "optimized"
+                ],
+                "description": "Description variant to use for the plugin's tools (default: intent)."
+              }
+            },
+            "required": [
+              "yaml"
+            ]
+          },
+          "default": [],
+          "description": "CLI plugin bridge configurations. Each entry activates one plugin YAML as a set of MCP tools. For Endevor: point 'yaml' to the bundled endevor-tools.yaml in the extension's server directory, and optionally 'connectionFile' to a JSON with your Endevor connection details. Changes require restarting the MCP server (Reload Window).",
+          "markdownDescription": "CLI plugin bridge configurations. Each entry activates one plugin YAML as a set of MCP tools.\n\nFor Endevor, example entry:\n```json\n{\n  \"yaml\": \"/absolute/path/to/endevor-tools.yaml\",\n  \"connectionFile\": \"/path/to/.endevor-connection.json\",\n  \"descVariant\": \"intent\"\n}\n```\n\nThe connection JSON file (`CliConnectionConfig`) can contain `host`, `port`, `user`, `password`, `protocol`, `basePath`, and `pluginParams` (e.g. `{\"pluginProfile\": \"my-endevor-profile\"}`). Omit `connectionFile` to rely on Zowe CLI profiles. Changes require **Developer: Reload Window**.",
+          "order": 10
         }
       }
     }

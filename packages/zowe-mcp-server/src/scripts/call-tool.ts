@@ -54,10 +54,16 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { readFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { Logger } from '../log.js';
 import { createServer, getServer, type CreateServerOptions } from '../server.js';
+import { loadAndRegisterPluginYaml } from '../tools/cli-bridge/cli-tool-loader.js';
+import type { CliConnectionConfig } from '../tools/cli-bridge/types.js';
 import { loadMock } from '../zos/mock/load-mock.js';
 import { loadNative } from '../zos/native/load-native.js';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const log = new Logger({ name: 'call-tool' });
 
@@ -78,6 +84,9 @@ function parseArgs(): {
   toolName: string | undefined;
   /** Everything after the tool name (key=value args). */
   argsRest: string[];
+  endevorConnection?: CliConnectionConfig;
+  endevorYamlPath?: string;
+  endevorDescVariant?: string;
 } {
   const args = process.argv.slice(2);
   let i = 0;
@@ -85,6 +94,10 @@ function parseArgs(): {
   let native = false;
   let configPath: string | undefined;
   const systemSpecs: string[] = [];
+  const endevorConn: Partial<CliConnectionConfig> = {};
+  const endevorPluginParams: Record<string, string> = {};
+  let endevorYamlPath: string | undefined;
+  let endevorDescVariant: string | undefined;
 
   while (i < args.length) {
     const arg = args[i];
@@ -112,6 +125,39 @@ function parseArgs(): {
     } else if (arg === '--system' && i + 1 < args.length) {
       systemSpecs.push(args[i + 1]);
       i += 2;
+    } else if (arg === '--endevor-profile' && i + 1 < args.length) {
+      endevorPluginParams.pluginProfile = args[i + 1];
+      i += 2;
+    } else if (arg === '--endevor-host' && i + 1 < args.length) {
+      endevorConn.host = args[i + 1];
+      i += 2;
+    } else if (arg === '--endevor-port' && i + 1 < args.length) {
+      endevorConn.port = parseInt(args[i + 1], 10);
+      i += 2;
+    } else if (arg === '--endevor-user' && i + 1 < args.length) {
+      endevorConn.user = args[i + 1];
+      i += 2;
+    } else if (arg === '--endevor-password' && i + 1 < args.length) {
+      endevorConn.password = args[i + 1];
+      i += 2;
+    } else if (arg === '--endevor-instance' && i + 1 < args.length) {
+      endevorPluginParams.instance = args[i + 1];
+      i += 2;
+    } else if (arg === '--endevor-protocol' && i + 1 < args.length) {
+      endevorConn.protocol = args[i + 1];
+      i += 2;
+    } else if (arg === '--endevor-location-profile' && i + 1 < args.length) {
+      endevorPluginParams.locationProfile = args[i + 1];
+      i += 2;
+    } else if (arg === '--endevor-base-path' && i + 1 < args.length) {
+      endevorConn.basePath = args[i + 1];
+      i += 2;
+    } else if (arg === '--endevor-yaml' && i + 1 < args.length) {
+      endevorYamlPath = args[i + 1];
+      i += 2;
+    } else if (arg === '--endevor-desc-variant' && i + 1 < args.length) {
+      endevorDescVariant = args[i + 1];
+      i += 2;
     } else {
       break;
     }
@@ -120,9 +166,29 @@ function parseArgs(): {
   if (!mockDir && process.env.ZOWE_MCP_MOCK_DIR) {
     mockDir = process.env.ZOWE_MCP_MOCK_DIR;
   }
+
+  const endevorConnection: CliConnectionConfig | undefined =
+    endevorConn.host !== undefined || endevorPluginParams.pluginProfile !== undefined
+      ? {
+          ...endevorConn,
+          pluginParams:
+            Object.keys(endevorPluginParams).length > 0 ? endevorPluginParams : undefined,
+        }
+      : undefined;
+
   const toolName = args[i];
   const argsRest = i + 1 < args.length ? args.slice(i + 1) : [];
-  return { mockDir, native, configPath, systemSpecs, toolName, argsRest };
+  return {
+    mockDir,
+    native,
+    configPath,
+    systemSpecs,
+    toolName,
+    argsRest,
+    endevorConnection,
+    endevorYamlPath,
+    endevorDescVariant,
+  };
 }
 
 /**
@@ -158,7 +224,17 @@ function coerceValue(raw: string): string | number | boolean {
 }
 
 async function main(): Promise<void> {
-  const { mockDir, native, configPath, systemSpecs, toolName, argsRest } = parseArgs();
+  const {
+    mockDir,
+    native,
+    configPath,
+    systemSpecs,
+    toolName,
+    argsRest,
+    endevorConnection,
+    endevorYamlPath,
+    endevorDescVariant,
+  } = parseArgs();
   log.info('Parsed args', { mockDir, native, configPath, systemSpecs, toolName, argsRest });
 
   if (mockDir && native) {
@@ -212,6 +288,23 @@ async function main(): Promise<void> {
       })
     : createServer();
   const server = getServer(created);
+
+  // Register Endevor CLI bridge tools if --endevor-host or --endevor-profile was provided
+  if (endevorConnection) {
+    if (endevorDescVariant) {
+      process.env.ZOWE_MCP_CLI_DESC_VARIANT = endevorDescVariant;
+    }
+    const yamlPath =
+      endevorYamlPath ?? resolve(__dirname, '..', 'tools', 'cli-bridge', 'endevor-tools.yaml');
+    loadAndRegisterPluginYaml(
+      server,
+      yamlPath,
+      { connection: endevorConnection, context: {} },
+      log
+    );
+    log.info('Endevor CLI bridge tools registered', { yamlPath });
+  }
+
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   const client = new Client({ name: 'call-tool-cli', version: '1.0.0' });
 

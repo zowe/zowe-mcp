@@ -4,7 +4,8 @@
   "title": "Zowe MCP Evals Question Set",
   "description": "Schema for eval question set YAML files. Ansible-style assertions: each assertion is an object with a key (toolCall, toolCallOrder, answerContains) and an optional name.",
   "type": "object",
-  "required": ["questions"],
+  "required": [],
+  "anyOf": [{ "required": ["questions"] }, { "required": ["config"] }],
   "properties": {
     "config": {
       "type": "object",
@@ -55,6 +56,40 @@
           "required": ["serverArgs"],
           "additionalProperties": false
         },
+        "endevorMockEws": {
+          "type": "object",
+          "description": "Start a mock Endevor Web Services server and connect the Endevor CLI bridge (or an alternative MCP server) to it. Used for Endevor cross-comparison evals.",
+          "properties": {
+            "cliScript": {
+              "type": "string",
+              "description": "Absolute path to the mock_ews_server CLI script (dist/cli/index.js)."
+            },
+            "configPath": {
+              "type": "string",
+              "description": "Path to mock-ews-config.json (passed as --config)."
+            },
+            "port": {
+              "type": "integer",
+              "default": 8080,
+              "description": "Port for the mock EWS server (default 8080)."
+            },
+            "mcpServerScript": {
+              "type": "string",
+              "description": "Optional: path to an alternative MCP server script (e.g. code4z-gen-ai stdio-server.js). When set, starts this instead of zowe-mcp-server."
+            },
+            "mcpServerArgs": {
+              "type": "string",
+              "description": "Extra args for the alternative MCP server, one string split on whitespace."
+            },
+            "toolAliases": {
+              "type": "object",
+              "description": "Maps actual tool names from the server to canonical assertion names in the question YAML.",
+              "additionalProperties": { "type": "string" }
+            }
+          },
+          "required": ["cliScript", "configPath"],
+          "additionalProperties": false
+        },
         "systemPrompt": {
           "type": "string",
           "description": "Override the default system prompt entirely."
@@ -66,6 +101,10 @@
         "skip": {
           "type": "string",
           "description": "When set, the entire question set is skipped with this reason shown in the log."
+        },
+        "questionsFrom": {
+          "type": "string",
+          "description": "Load questions from another named question set (e.g. 'endevor'). When set, a local 'questions' array is not required."
         }
       },
       "additionalProperties": false

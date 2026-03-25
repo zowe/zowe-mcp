@@ -212,10 +212,27 @@ function parseSetConfig(raw: unknown): SetConfig {
     const n = o.native as Record<string, unknown>;
     if (typeof n.serverArgs === 'string') config.native = { serverArgs: n.serverArgs };
   }
+  if (o.endevorMockEws && typeof o.endevorMockEws === 'object') {
+    const e = o.endevorMockEws as Record<string, unknown>;
+    if (typeof e.cliScript === 'string' && typeof e.configPath === 'string') {
+      config.endevorMockEws = {
+        cliScript: e.cliScript,
+        configPath: e.configPath,
+        port: typeof e.port === 'number' ? e.port : undefined,
+        mcpServerScript: typeof e.mcpServerScript === 'string' ? e.mcpServerScript : undefined,
+        mcpServerArgs: typeof e.mcpServerArgs === 'string' ? e.mcpServerArgs : undefined,
+        toolAliases:
+          e.toolAliases && typeof e.toolAliases === 'object'
+            ? (e.toolAliases as Record<string, string>)
+            : undefined,
+      };
+    }
+  }
   if (typeof o.systemPrompt === 'string') config.systemPrompt = o.systemPrompt;
   if (typeof o.systemPromptAddition === 'string')
     config.systemPromptAddition = o.systemPromptAddition;
   if (typeof o.skip === 'string') config.skip = o.skip;
+  if (typeof o.questionsFrom === 'string') config.questionsFrom = o.questionsFrom;
   return config;
 }
 
@@ -231,9 +248,17 @@ export function loadSetYaml(path: string): QuestionSet {
 
   const config = parseSetConfig(data.config ?? data);
   const questionsRaw = data.questions;
-  if (!Array.isArray(questionsRaw))
-    throw new Error(`${path}: missing or invalid "questions" array`);
-  const questions = questionsRaw.map(parseQuestion);
+  if (!Array.isArray(questionsRaw) && !config.questionsFrom)
+    throw new Error(`${path}: missing or invalid "questions" array (or set config.questionsFrom)`);
+
+  let questions: Question[];
+  if (config.questionsFrom) {
+    questions = loadSet(config.questionsFrom).questions;
+  } else {
+    if (!Array.isArray(questionsRaw))
+      throw new Error(`${path}: missing or invalid "questions" array`);
+    questions = (questionsRaw as unknown[]).map(parseQuestion);
+  }
   return { config, questions };
 }
 

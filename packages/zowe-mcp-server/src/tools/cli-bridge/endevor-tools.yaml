@@ -1,0 +1,216 @@
+plugin: endevor
+activeDescription: intent
+connection:
+  flags:
+    - configKey: pluginProfile
+      cliFlag: endevor-profile
+    - configKey: locationProfile
+      cliFlag: endevor-location-profile
+    - configKey: instance
+      cliFlag: instance
+context:
+  toolName: endevorSetContext
+  description: >-
+    Sets the default Endevor location context (environment, stageNumber, system, subsystem, type) for all subsequent Endevor tool calls. Call this once before working with elements to avoid repeating
+    location parameters on every invocation.
+  fields:
+    - name: environment
+      cliOption: env
+      description: "$.endevor.context.fields.environment"
+    - name: stageNumber
+      cliOption: sn
+      description: "$.endevor.context.fields.stageNumber"
+    - name: system
+      cliOption: sys
+      description: "$.endevor.context.fields.system"
+    - name: subsystem
+      cliOption: sub
+      description: "$.endevor.context.fields.subsystem"
+    - name: type
+      cliOption: typ
+      description: "$.endevor.context.fields.type"
+      default: "*"
+tools:
+  - toolName: endevorListEnvironments
+    zoweCommand: endevor list environments
+    readOnlyHint: true
+    descriptions:
+      cli: "$.endevor.list.environments.description"
+      intent: Lists all available Endevor environments. Use this to discover the environments configured in the Endevor instance (e.g. DEV, PRD) before working with elements.
+      optimized: Lists all available Endevor environments, enabling discovery of the environments configured in the Endevor instance (e.g., DEV, PRD) before working with elements.
+    params:
+      - name: environment
+        cliPositional: true
+        description: Environment name filter. Use * for all environments.
+        default: "*"
+      - name: instance
+        cliOption: i
+        description: Endevor instance (datasource) name. Required when not using a profile.
+  - toolName: endevorListStages
+    zoweCommand: endevor list stages
+    readOnlyHint: true
+    locationParams:
+      - environment
+    descriptions:
+      cli: "$.endevor.list.stages.description"
+      intent: Lists the stages (1, 2) configured for the given environment. Use this to discover which stage numbers are valid before listing elements.
+      optimized: Lists the stages configured for a specified Endevor environment, enabling discovery of valid stage numbers before operations like listing elements.
+    params:
+      - name: stage
+        cliPositional: true
+        description: Stage number filter. Use * for all stages.
+        default: "*"
+      - name: instance
+        cliOption: i
+        description: Endevor instance (datasource) name.
+  - toolName: endevorListSystems
+    zoweCommand: endevor list systems
+    readOnlyHint: true
+    locationParams:
+      - environment
+      - stageNumber
+    descriptions:
+      cli: "$.endevor.list.systems.description"
+      intent: Lists all systems within the given environment and stage. Use this to discover system names (e.g. SYS1, ACME) before listing elements.
+      optimized: Lists all systems within a specified Endevor environment and stage, useful for discovering system names like SYS1 or ACME before listing elements.
+    params:
+      - name: system
+        cliPositional: true
+        description: System name filter. Use * for all systems.
+        default: "*"
+      - name: instance
+        cliOption: i
+        description: Endevor instance (datasource) name.
+  - toolName: endevorListSubsystems
+    zoweCommand: endevor list subsystems
+    readOnlyHint: true
+    locationParams:
+      - environment
+      - stageNumber
+      - system
+    descriptions:
+      cli: "$.endevor.list.subsystems.description"
+      intent: Lists all subsystems within the given environment, stage, and system. Use this to discover subsystem names (e.g. SUB1, CORE) before listing elements.
+      optimized: Lists all Endevor subsystems within a specified environment, stage, and system, useful for discovering subsystem names like SUB1 or CORE before listing elements.
+    params:
+      - name: subsystem
+        cliPositional: true
+        description: Subsystem name filter. Use * for all subsystems.
+        default: "*"
+      - name: instance
+        cliOption: i
+        description: Endevor instance (datasource) name.
+  - toolName: endevorListTypes
+    zoweCommand: endevor list types
+    readOnlyHint: true
+    locationParams:
+      - environment
+      - stageNumber
+      - system
+    descriptions:
+      cli: "$.endevor.list.types.description"
+      intent: Lists element types (e.g. COBPGM, COPYBOOK, JCL) within the given location. Use this to discover what types exist before listing or retrieving elements.
+      optimized: >-
+        Lists Endevor element types (e.g., COBPGM, COPYBOOK, JCL) within a specified environment, stage, system, and subsystem, useful for discovering available types before listing elements of a
+        specific type.
+    params:
+      - name: type
+        cliPositional: true
+        description: Element type name filter. Use * for all types.
+        default: "*"
+      - name: instance
+        cliOption: i
+        description: Endevor instance (datasource) name.
+  - toolName: endevorListElements
+    zoweCommand: endevor list elements
+    readOnlyHint: true
+    locationParams: true
+    descriptions:
+      cli: "$.endevor.list.elements.description"
+      intent: >-
+        Lists elements in the Endevor inventory matching the given location (environment, stageNumber, system, subsystem, type). All location parameters default to the active context set by
+        endevorSetContext. Use wildcard * to match all values for a location level (e.g. system=* lists across all systems).
+      optimized: >-
+        Lists elements in the Endevor inventory by specifying an Endevor location (environment, stageNumber, system, subsystem, type). Location parameters default to the active context set by
+        endevorSetContext.
+    params:
+      - name: element
+        cliPositional: true
+        description: "Element name filter. Supports wildcards: * matches any characters. Omit or use * to list all elements in the location."
+      - name: instance
+        cliOption: i
+        description: Endevor instance (datasource) name.
+      - name: search
+        cliOption: sea
+        description: When true, searches through the Endevor map to include elements from preceding stages (map traversal / search up the map).
+      - name: data
+        cliOption: dat
+        description: Controls the level of metadata returned per element. BAS (default) = basic fields only; ELE = adds last-action info; ALL = all fields including package, processor, and signout data.
+  - toolName: endevorPrintElement
+    zoweCommand: endevor print element
+    readOnlyHint: true
+    locationParams: true
+    outputPath: stdout
+    descriptions:
+      cli: "$.endevor.print.element.description"
+      intent: Retrieves and returns the source code content of an Endevor element. Use this to read the content of a COBOL program, copybook, JCL, or any other element type stored in Endevor.
+      optimized: Retrieves and returns the source code content of an Endevor element, such as a COBOL program, copybook, or JCL, to read its stored content.
+    params:
+      - name: element
+        cliPositional: true
+        required: true
+        description: Name of the element whose source code to retrieve (e.g. PROG01, CPYBK01).
+      - name: instance
+        cliOption: i
+        description: Endevor instance (datasource) name.
+      - name: search
+        cliOption: sea
+        description: When true, searches up the Endevor map to find the element in preceding stages.
+  - toolName: endevorListProcessorGroups
+    zoweCommand: endevor list processor-groups
+    readOnlyHint: true
+    locationParams: true
+    descriptions:
+      cli: "$.endevor.list.processorGroups.description"
+      intent: Lists processor groups defined for the given element type in Endevor. Processor groups define how elements are generated, compiled, and deployed.
+      optimized: Lists processor groups defined for a specified element type in Endevor. Use this to understand how elements of that type are generated, compiled, and deployed across the Endevor lifecycle.
+    params:
+      - name: instance
+        cliOption: i
+        description: Endevor instance (datasource) name.
+  - toolName: endevorQueryComponents
+    zoweCommand: endevor queryacm components
+    readOnlyHint: true
+    locationParams: true
+    descriptions:
+      cli: "$.endevor.queryacm.components.description"
+      intent: >-
+        Queries the components (dependencies) used by a specific element in Endevor. Use this to find what COBOL copybooks, subprograms, or JCL procedures an element depends on, enabling impact
+        analysis and change management.
+      optimized: Queries the components, such as COBOL copybooks, subprograms, or JCL procedures, that a specific Endevor element depends on, facilitating impact analysis and change management.
+    params:
+      - name: element
+        cliPositional: true
+        required: true
+        description: Name of the element to query for component dependencies (e.g. PROG01).
+      - name: instance
+        cliOption: i
+        description: Endevor instance (datasource) name.
+  - toolName: endevorListPackages
+    zoweCommand: endevor list packages
+    readOnlyHint: true
+    descriptions:
+      cli: "$.endevor.list.packages.description"
+      intent: >-
+        Lists Endevor packages (change bundles used to promote elements through environments). Use this to discover packages, their status, and associated elements for release management and promotion
+        tracking.
+      optimized: >-
+        Lists Endevor packages, which are change bundles used to promote elements through environments. It provides details on package status and associated elements, useful for release management,
+        promotion tracking, and auditing across environments and stages of the software development lifecycle.
+    params:
+      - name: instance
+        cliOption: i
+        description: Endevor instance (datasource) name.
+      - name: status
+        cliOption: st
+        description: Filter packages by status (e.g. INENDEVOR, APPROVED, EXECUTED, COMMITTED).

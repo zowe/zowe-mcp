@@ -15,14 +15,15 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import type { LanguageModel } from 'ai';
 import { generateText, jsonSchema, stepCountIs, tool } from 'ai';
-import { spawnSync } from 'node:child_process';
+import type { ChildProcess } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { EvalsConfig } from './config.js';
 import { log } from './log.js';
-import type { SetConfig, ToolCallRecord } from './types.js';
+import type { SetConfig, SetEndevorMockEwsConfig, TokenUsage, ToolCallRecord } from './types.js';
 
 const DEBUG_MAX_TEXT = 500;
 
@@ -99,11 +100,22 @@ export interface HarnessOptions {
    * Use {@link prepareEvalWorkspace} to create a temp dir with a seed file for upload questions.
    */
   workspaceDir?: string;
+  /**
+   * When set, the harness starts a mock Endevor Web Services server before starting the MCP server,
+   * and optionally uses an alternative MCP server (e.g. code4z-gen-ai) instead of zowe-mcp-server.
+   */
+  endevorMockEws?: SetEndevorMockEwsConfig;
 }
 
 export interface AgentRunResult {
   finalText: string;
   toolCalls: ToolCallRecord[];
+  /** Wall-clock duration of the agent run in milliseconds. */
+  durationMs: number;
+  /** Token usage from the Vercel AI SDK (undefined when provider does not report usage). */
+  tokenUsage?: TokenUsage;
+  /** Number of agent steps taken. */
+  stepCount: number;
 }
 
 function buildModel(evalsConfig: EvalsConfig): LanguageModel {
@@ -143,16 +155,50 @@ export interface ToolDefinition {
 
 export class McpEvalHarness {
   private client: Client | null = null;
+  private mockEwsProcess: ChildProcess | null = null;
+
   constructor(private options: HarnessOptions) {}
 
   async start(): Promise<Client> {
-    const { serverPath, setConfig } = this.options;
-    const args: string[] = ['--stdio'];
+    const { setConfig } = this.options;
+    const ewsCfg = this.options.endevorMockEws;
 
-    if (setConfig.native && this.options.nativeServerArgs) {
-      args.push(...splitArgs(this.options.nativeServerArgs));
-    } else if (this.options.mockDir) {
-      args.push('--mock', this.options.mockDir);
+    if (ewsCfg) {
+      await this.startMockEws(ewsCfg);
+    }
+
+    const mcpScript = ewsCfg?.mcpServerScript ?? this.options.serverPath;
+    const args: string[] = [];
+
+    if (ewsCfg?.mcpServerScript) {
+      if (ewsCfg.mcpServerArgs) {
+        args.push(...splitArgs(ewsCfg.mcpServerArgs));
+      }
+    } else {
+      args.push('--stdio');
+      if (setConfig.native && this.options.nativeServerArgs) {
+        args.push(...splitArgs(this.options.nativeServerArgs));
+      } else if (this.options.mockDir) {
+        args.push('--mock', this.options.mockDir);
+      } else if (ewsCfg) {
+        const port = ewsCfg.port ?? 8080;
+        args.push(
+          '--endevor-host',
+          'localhost',
+          '--endevor-port',
+          String(port),
+          '--endevor-user',
+          'USER',
+          '--endevor-password',
+          'PASSWORD',
+          '--endevor-instance',
+          'ENDEVOR',
+          '--endevor-protocol',
+          'http',
+          '--endevor-base-path',
+          'EndevorService/api/v2'
+        );
+      }
     }
 
     const env = { ...process.env } as Record<string, string>;
@@ -162,7 +208,7 @@ export class McpEvalHarness {
 
     const transport = new StdioClientTransport({
       command: 'node',
-      args: [serverPath, ...args],
+      args: [mcpScript, ...args],
       env,
     });
     const client = new Client({ name: 'zowe-mcp-evals', version: '0.1.0' });
@@ -171,10 +217,35 @@ export class McpEvalHarness {
     return client;
   }
 
+  /**
+   * Start the mock Endevor Web Services server and wait for it to be ready.
+   */
+  private async startMockEws(cfg: SetEndevorMockEwsConfig): Promise<void> {
+    const port = cfg.port ?? 8080;
+    const args = ['serve', '--config', cfg.configPath, '--port', String(port)];
+    log.info('Starting mock EWS server', { cliScript: cfg.cliScript, port });
+    this.mockEwsProcess = spawn('node', [cfg.cliScript, ...args], {
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    this.mockEwsProcess.stderr?.on('data', (data: Buffer) => {
+      log.debug('mock-ews stderr', { text: data.toString().trim() });
+    });
+    this.mockEwsProcess.stdout?.on('data', (data: Buffer) => {
+      log.debug('mock-ews stdout', { text: data.toString().trim() });
+    });
+    await waitForPort(port, 15000);
+    log.info('Mock EWS server ready', { port });
+  }
+
   async stop(): Promise<void> {
     if (this.client) {
       await this.client.close();
       this.client = null;
+    }
+    if (this.mockEwsProcess) {
+      this.mockEwsProcess.kill('SIGTERM');
+      this.mockEwsProcess = null;
+      log.info('Mock EWS server stopped');
     }
   }
 
@@ -202,11 +273,14 @@ export class McpEvalHarness {
 
   /**
    * Run the agent for one question and return final text and all tool calls.
+   * Tool call names are normalized using toolAliases (if configured) so assertions
+   * can use canonical names regardless of which MCP server was used.
    */
   async runOne(prompt: string): Promise<AgentRunResult> {
     if (!this.client) throw new Error('Harness not started');
     const { tools: mcpTools } = await this.client.listTools();
     const toolCallRecords: ToolCallRecord[] = [];
+    const toolAliases = this.options.endevorMockEws?.toolAliases ?? {};
 
     const tools: Record<string, ReturnType<typeof tool>> = {};
     for (const t of mcpTools) {
@@ -223,7 +297,8 @@ export class McpEvalHarness {
           const text = content?.find(c => c.type === 'text')?.text ?? JSON.stringify(result);
           const resultForReport =
             text.length > 16000 ? text.slice(0, 16000) + '\n… [truncated]' : text;
-          toolCallRecords.push({ name, arguments: a, result: resultForReport });
+          const canonicalName = toolAliases[name] ?? name;
+          toolCallRecords.push({ name: canonicalName, arguments: a, result: resultForReport });
           return text;
         },
       }) as unknown as ReturnType<typeof tool>;
@@ -238,6 +313,7 @@ export class McpEvalHarness {
     });
     const systemPrompt = getSystemPrompt(this.options.setConfig, serverInstructions);
 
+    const t0 = Date.now();
     const result = await generateText({
       model,
       system: systemPrompt,
@@ -260,6 +336,7 @@ export class McpEvalHarness {
         log.debug('AI SDK onStepFinish', stepFinishPayload(stepResult));
       },
     });
+    const durationMs = Date.now() - t0;
 
     log.debug('AI SDK generateText result', {
       finishReason: result.finishReason,
@@ -270,8 +347,13 @@ export class McpEvalHarness {
       reasoningPreview: result.reasoningText != null ? truncate(result.reasoningText) : undefined,
     });
 
+    const u = result.usage;
+    const tokenUsage: TokenUsage | undefined = u
+      ? { input: u.inputTokens ?? 0, output: u.outputTokens ?? 0, total: u.totalTokens ?? 0 }
+      : undefined;
+    const stepCount = result.steps?.length ?? 0;
     const finalText = result.text ?? '';
-    return { finalText, toolCalls: toolCallRecords };
+    return { finalText, toolCalls: toolCallRecords, durationMs, tokenUsage, stepCount };
   }
 }
 
@@ -283,6 +365,27 @@ export class McpEvalHarness {
  */
 function splitArgs(s: string): string[] {
   return s.trim().split(/\s+/).filter(Boolean);
+}
+
+/**
+ * Poll a TCP port until it accepts connections or the timeout expires.
+ * Used to wait for the mock EWS server to become ready.
+ */
+async function waitForPort(port: number, timeoutMs: number): Promise<void> {
+  const { createConnection } = await import('node:net');
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    await new Promise(res => setTimeout(res, 200));
+    const ok = await new Promise<boolean>(resolve => {
+      const s = createConnection({ port, host: '127.0.0.1' }, () => {
+        s.destroy();
+        resolve(true);
+      });
+      s.on('error', () => resolve(false));
+    });
+    if (ok) return;
+  }
+  throw new Error(`Timed out waiting for port ${port.toString()} to be ready`);
 }
 
 export function initMockData(serverPath: string, initArgs: string): string {

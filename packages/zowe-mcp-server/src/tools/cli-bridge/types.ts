@@ -92,8 +92,17 @@ export interface ContextFieldDef {
   name: string;
   /** CLI option name without '--' (e.g. env, sn, sys). Used when building CLI args. */
   cliOption?: string;
-  /** Human-readable description for the MCP parameter. */
-  description: string;
+  /**
+   * Plain description string (fallback for all variants).
+   * May be a `$.dotted.path` JSON reference resolved against the companion
+   * `<plugin>-commands.json` file. Optional when `descriptions` is provided.
+   */
+  description?: string;
+  /**
+   * Per-variant description strings. Same resolution order as tool-level descriptions:
+   * active variant → intent → cli → description (plain).
+   */
+  descriptions?: DescriptionVariants;
   /** Optional default value for the context field. */
   default?: string;
 }
@@ -102,8 +111,16 @@ export interface ContextFieldDef {
 export interface ContextDef {
   /** MCP tool name for the context setter, e.g. endevorSetContext. */
   toolName: string;
-  /** Tool description. */
+  /**
+   * Plain description string (fallback for all variants).
+   * Optional when `descriptions` is provided.
+   */
   description?: string;
+  /**
+   * Per-variant descriptions for the set-context tool itself.
+   * Resolved with the same priority as tool descriptions.
+   */
+  descriptions?: DescriptionVariants;
   /** Location fields (e.g. environment, stageNumber, system, subsystem, type). */
   fields: ContextFieldDef[];
 }
@@ -156,8 +173,17 @@ export interface PluginParam {
    * (the first bare word after the sub-command), not as --option value.
    */
   cliPositional?: boolean;
-  /** Human-readable description. */
-  description: string;
+  /**
+   * Plain description string (fallback for all variants).
+   * May be a `$.dotted.path` JSON reference resolved against the companion
+   * `<plugin>-commands.json` file. Optional when `descriptions` is provided.
+   */
+  description?: string;
+  /**
+   * Per-variant description strings (same resolution order as tool descriptions:
+   * active variant → intent → cli → description plain).
+   */
+  descriptions?: DescriptionVariants;
   /** Whether this parameter is required. */
   required?: boolean;
   /** Default value if not provided by the caller. */

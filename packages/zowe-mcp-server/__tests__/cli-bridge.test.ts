@@ -26,12 +26,15 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { z } from 'zod';
 import { buildConnectionArgs, invokeZoweCli } from '../src/tools/cli-bridge/cli-invoker.js';
 import {
   buildCliArgs,
+  buildToolInputSchema,
   loadAndRegisterPluginYaml,
   loadPluginYaml,
   resolveDescription,
+  resolveFieldDescription,
   resolveJsonRef,
 } from '../src/tools/cli-bridge/cli-tool-loader.js';
 import type { CliPluginState, PluginToolDef } from '../src/tools/cli-bridge/types.js';
@@ -217,6 +220,128 @@ describe('resolveDescription', () => {
     delete process.env.ZOWE_MCP_CLI_DESC_VARIANT;
     const tool = makeTool({});
     expect(resolveDescription(tool)).toBe('testTool');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Field / param description resolution (resolveFieldDescription)
+// ---------------------------------------------------------------------------
+
+describe('resolveFieldDescription', () => {
+  afterEach(() => {
+    delete process.env.ZOWE_MCP_CLI_DESC_VARIANT;
+  });
+
+  it('returns descriptions[variant] when present', () => {
+    expect(
+      resolveFieldDescription({ descriptions: { cli: 'CLI text', intent: 'Intent text' } }, 'cli')
+    ).toBe('CLI text');
+  });
+
+  it('falls back to intent then cli when variant not found', () => {
+    expect(
+      resolveFieldDescription(
+        { descriptions: { cli: 'CLI text', intent: 'Intent text' } },
+        'optimized'
+      )
+    ).toBe('Intent text');
+    expect(resolveFieldDescription({ descriptions: { cli: 'CLI text' } }, 'optimized')).toBe(
+      'CLI text'
+    );
+  });
+
+  it('falls back to plain description when descriptions is absent', () => {
+    expect(resolveFieldDescription({ description: 'Plain text' })).toBe('Plain text');
+  });
+
+  it('prefers descriptions over plain description', () => {
+    expect(
+      resolveFieldDescription({
+        descriptions: { intent: 'Variant text' },
+        description: 'Plain text',
+      })
+    ).toBe('Variant text');
+  });
+
+  it('falls back to plain description when all descriptions entries are empty', () => {
+    expect(resolveFieldDescription({ descriptions: {}, description: 'Plain fallback' })).toBe(
+      'Plain fallback'
+    );
+  });
+
+  it('returns empty string when nothing is defined', () => {
+    expect(resolveFieldDescription({})).toBe('');
+  });
+
+  it('picks up ZOWE_MCP_CLI_DESC_VARIANT env var', () => {
+    process.env.ZOWE_MCP_CLI_DESC_VARIANT = 'cli';
+    expect(
+      resolveFieldDescription({ descriptions: { cli: 'CLI text', intent: 'Intent text' } })
+    ).toBe('CLI text');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Param $.ref resolution in buildToolInputSchema
+// ---------------------------------------------------------------------------
+
+describe('buildToolInputSchema — param description resolution', () => {
+  /**
+   * Extracts the Zod v4 schema description.
+   * In Zod v4, `description` is on the schema instance; for optional wrappers
+   * the actual description lives on `schema.def.innerType`.
+   */
+  const zodDesc = (s: z.ZodTypeAny): string | undefined => {
+    const desc = (s as { description?: string }).description;
+    if (desc !== undefined) return desc;
+    const inner = (s as { def?: { innerType?: z.ZodTypeAny } }).def?.innerType;
+    return inner ? zodDesc(inner) : undefined;
+  };
+
+  it('resolves $.path param descriptions after loadPluginYaml', () => {
+    const config = loadPluginYaml(YAML_PATH);
+    const tool = config.tools.find(t => t.toolName === 'endevorListEnvironments')!;
+    const contextFields = config.context?.fields ?? [];
+    const schema = buildToolInputSchema(tool, contextFields);
+    // After $.path resolution the description must be plain text, not a $.path
+    const desc = zodDesc(schema.environment);
+    expect(desc).toBeTruthy();
+    expect(desc).not.toMatch(/^\$\./);
+  });
+
+  it('uses descriptions.intent over description when variants are defined on a param', () => {
+    const tool: PluginToolDef = {
+      toolName: 'testTool',
+      zoweCommand: 'test cmd',
+      descriptions: { cli: 'Tool desc' },
+      params: [
+        {
+          name: 'myParam',
+          cliOption: 'my',
+          descriptions: { cli: 'CLI param text', intent: 'Intent param text' },
+        },
+      ],
+    };
+    delete process.env.ZOWE_MCP_CLI_DESC_VARIANT;
+    const schema = buildToolInputSchema(tool, [], 'intent');
+    expect(zodDesc(schema.myParam)).toBe('Intent param text');
+  });
+
+  it('plain description on param acts as fallback', () => {
+    const tool: PluginToolDef = {
+      toolName: 'testTool',
+      zoweCommand: 'test cmd',
+      descriptions: { cli: 'Tool desc' },
+      params: [
+        {
+          name: 'myParam',
+          cliOption: 'my',
+          description: 'Plain fallback',
+        },
+      ],
+    };
+    const schema = buildToolInputSchema(tool, []);
+    expect(zodDesc(schema.myParam)).toBe('Plain fallback');
   });
 });
 

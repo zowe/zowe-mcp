@@ -75,13 +75,35 @@ export function resolveJsonRef(path: string, jsonData: unknown): string | undefi
 }
 
 /**
- * Resolves all `$.` references in a string value using the provided JSON data.
- * Returns the original string unchanged if it does not start with `$.`.
+ * Resolves a single `$.` reference string. Returns the original if it does not
+ * start with `$.` or if the path cannot be resolved.
  */
 function resolveIfRef(value: string | undefined, jsonData: unknown): string | undefined {
   if (!value?.startsWith(JSON_REF_PREFIX)) return value;
   const path = value.slice(JSON_REF_PREFIX.length);
   return resolveJsonRef(path, jsonData) ?? value;
+}
+
+/**
+ * Resolves all `$.` references in a `description` string and all entries of a
+ * `descriptions` variants object, modifying the item in-place.
+ * Works for ContextDef, ContextFieldDef, PluginParam, and PluginToolDef alike.
+ */
+function resolveDescribableRefs(
+  item: { description?: string; descriptions?: Record<string, string | undefined> },
+  jsonData: unknown
+): void {
+  if (item.description !== undefined) {
+    const resolved = resolveIfRef(item.description, jsonData);
+    if (resolved !== undefined) item.description = resolved;
+  }
+  if (item.descriptions) {
+    const descs = item.descriptions;
+    for (const key of Object.keys(descs)) {
+      const resolved = resolveIfRef(descs[key], jsonData);
+      if (resolved !== undefined) descs[key] = resolved;
+    }
+  }
 }
 
 /**
@@ -97,22 +119,22 @@ function loadCompanionJson(yamlPath: string, pluginName: string): unknown | null
 
 /**
  * Resolves all `$.` JSON references in the plugin config in-place.
- * Modifies tool descriptions and context field descriptions.
+ * Covers: context tool description, context field descriptions, tool description
+ * variants, and tool param descriptions (both `description` and `descriptions`).
  */
 function resolveJsonRefs(config: CliPluginConfig, jsonData: unknown): void {
-  // Resolve context field descriptions
-  if (config.context?.fields) {
+  // Context tool description (including variants)
+  if (config.context) {
+    resolveDescribableRefs(config.context, jsonData);
     for (const field of config.context.fields) {
-      const resolved = resolveIfRef(field.description, jsonData);
-      if (resolved !== undefined) field.description = resolved;
+      resolveDescribableRefs(field, jsonData);
     }
   }
-  // Resolve tool description variants
+  // Tool descriptions and per-tool params
   for (const tool of config.tools) {
-    const descs = tool.descriptions;
-    for (const key of Object.keys(descs) as (keyof typeof descs)[]) {
-      const resolved = resolveIfRef(descs[key], jsonData);
-      if (resolved !== undefined) descs[key] = resolved;
+    resolveDescribableRefs(tool, jsonData);
+    for (const param of tool.params ?? []) {
+      resolveDescribableRefs(param, jsonData);
     }
   }
 }
@@ -140,6 +162,32 @@ export function loadPluginYaml(yamlPath: string): CliPluginConfig {
 // ---------------------------------------------------------------------------
 
 /**
+ * Resolves the description for any item that carries either a plain `description`
+ * string or a `descriptions` variants object (ContextDef, ContextFieldDef,
+ * PluginParam, or PluginToolDef).
+ *
+ * Priority:
+ *   descriptions[variant] → descriptions.intent → descriptions.cli
+ *   → first non-empty descriptions value → description (plain) → ''
+ */
+export function resolveFieldDescription(
+  item: { description?: string; descriptions?: Record<string, string | undefined> },
+  variant?: string
+): string {
+  const v = variant ?? process.env.ZOWE_MCP_CLI_DESC_VARIANT ?? 'intent';
+  const descs = item.descriptions;
+  if (descs) {
+    const text =
+      descs[v] ??
+      descs.intent ??
+      descs.cli ??
+      Object.values(descs).find(val => val != null && val !== '');
+    if (text) return text;
+  }
+  return item.description ?? '';
+}
+
+/**
  * Returns the active description text for a tool.
  *
  * Priority:
@@ -151,15 +199,7 @@ export function resolveDescription(tool: PluginToolDef, pluginActiveDescription?
     pluginActiveDescription ??
     process.env.ZOWE_MCP_CLI_DESC_VARIANT ??
     'intent';
-
-  const text =
-    tool.descriptions[variant] ??
-    tool.descriptions.intent ??
-    tool.descriptions.cli ??
-    Object.values(tool.descriptions).find(v => v != null && v !== '') ??
-    tool.toolName;
-
-  return text ?? tool.toolName;
+  return resolveFieldDescription(tool, variant) || tool.toolName;
 }
 
 // ---------------------------------------------------------------------------
@@ -190,9 +230,10 @@ function resolveLocationParams(
 }
 
 /** Builds a Zod schema for a single PluginParam. */
-function buildParamSchema(param: PluginParam): z.ZodTypeAny {
+function buildParamSchema(param: PluginParam, variant?: string): z.ZodTypeAny {
   // Use z.coerce.string() so AI agents (or call-tool) can pass numbers/booleans; they are coerced to string.
-  let schema: z.ZodTypeAny = z.coerce.string().describe(param.description);
+  const desc = resolveFieldDescription(param, variant);
+  let schema: z.ZodTypeAny = z.coerce.string().describe(desc);
   if (!param.required) {
     schema = schema.optional();
   }
@@ -202,10 +243,12 @@ function buildParamSchema(param: PluginParam): z.ZodTypeAny {
 /**
  * Builds the full Zod input schema for a tool, merging location params + extra params.
  * @param contextFields - the plugin's context fields (from YAML `context.fields`)
+ * @param variant - the active description variant (used for param descriptions)
  */
 export function buildToolInputSchema(
   tool: PluginToolDef,
-  contextFields: ContextFieldDef[]
+  contextFields: ContextFieldDef[],
+  variant?: string
 ): Record<string, z.ZodTypeAny> {
   const shape: Record<string, z.ZodTypeAny> = {};
   const allParams: PluginParam[] = [
@@ -213,7 +256,7 @@ export function buildToolInputSchema(
     ...(tool.params ?? []),
   ];
   for (const param of allParams) {
-    shape[param.name] = buildParamSchema(param);
+    shape[param.name] = buildParamSchema(param, variant);
   }
   return shape;
 }
@@ -294,7 +337,7 @@ export function loadCliBridgeTools(
   const contextFields = pluginConfig.context?.fields ?? [];
 
   if (pluginConfig.context) {
-    registerContextTool(server, pluginConfig.context, state, log);
+    registerContextTool(server, pluginConfig.context, state, log, pluginConfig.activeDescription);
   }
 
   const connectionFlags = pluginConfig.connection?.flags ?? [];
@@ -325,15 +368,20 @@ function registerContextTool(
   server: McpServer,
   contextDef: ContextDef,
   state: CliPluginState,
-  log: Logger
+  log: Logger,
+  activeDescription?: string
 ): void {
+  const variant = activeDescription ?? process.env.ZOWE_MCP_CLI_DESC_VARIANT ?? 'intent';
   const shape: Record<string, z.ZodTypeAny> = {};
   for (const field of contextDef.fields) {
-    shape[field.name] = z.coerce.string().optional().describe(field.description);
+    shape[field.name] = z.coerce
+      .string()
+      .optional()
+      .describe(resolveFieldDescription(field, variant));
   }
 
   const description =
-    contextDef.description ??
+    resolveFieldDescription(contextDef, variant) ||
     'Sets the default location context for subsequent tool calls. Call this once to avoid repeating location parameters on every tool invocation.';
 
   server.registerTool(
@@ -387,8 +435,13 @@ function registerPluginTool(
   connectionFlags: CliConnectionFlag[],
   log: Logger
 ): void {
+  const variant =
+    toolDef.activeDescription ??
+    pluginActiveDescription ??
+    process.env.ZOWE_MCP_CLI_DESC_VARIANT ??
+    'intent';
   const description = resolveDescription(toolDef, pluginActiveDescription);
-  const inputSchema = buildToolInputSchema(toolDef, contextFields);
+  const inputSchema = buildToolInputSchema(toolDef, contextFields, variant);
 
   // Split zoweCommand into args array: "endevor list elements" → ['endevor', 'list', 'elements']
   const command = toolDef.zoweCommand.trim().split(/\s+/);

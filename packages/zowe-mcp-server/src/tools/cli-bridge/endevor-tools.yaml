@@ -42,11 +42,11 @@ tools:
     params:
       - name: environment
         cliPositional: true
-        description: Environment name filter. Use * for all environments.
+        description: "$.endevor.list.environments.params.environment"
         default: "*"
       - name: instance
         cliOption: i
-        description: Endevor instance (datasource) name. Required when not using a profile.
+        description: "$.endevor.list.environments.params.instance"
   - toolName: endevorListStages
     zoweCommand: endevor list stages
     readOnlyHint: true
@@ -59,11 +59,13 @@ tools:
     params:
       - name: stage
         cliPositional: true
-        description: Stage number filter. Use * for all stages.
+        descriptions:
+          cli: "$.endevor.list.stages.params.stage"
+          intent: Stage number filter (1 or 2). Use * for all stages.
         default: "*"
       - name: instance
         cliOption: i
-        description: Endevor instance (datasource) name.
+        description: "$.endevor.list.stages.params.instance"
   - toolName: endevorListSystems
     zoweCommand: endevor list systems
     readOnlyHint: true
@@ -77,11 +79,11 @@ tools:
     params:
       - name: system
         cliPositional: true
-        description: System name filter. Use * for all systems.
+        description: "$.endevor.list.systems.params.system"
         default: "*"
       - name: instance
         cliOption: i
-        description: Endevor instance (datasource) name.
+        description: "$.endevor.list.systems.params.instance"
   - toolName: endevorListSubsystems
     zoweCommand: endevor list subsystems
     readOnlyHint: true
@@ -96,11 +98,11 @@ tools:
     params:
       - name: subsystem
         cliPositional: true
-        description: Subsystem name filter. Use * for all subsystems.
+        description: "$.endevor.list.subsystems.params.subsystem"
         default: "*"
       - name: instance
         cliOption: i
-        description: Endevor instance (datasource) name.
+        description: "$.endevor.list.subsystems.params.instance"
   - toolName: endevorListTypes
     zoweCommand: endevor list types
     readOnlyHint: true
@@ -117,11 +119,11 @@ tools:
     params:
       - name: type
         cliPositional: true
-        description: Element type name filter. Use * for all types.
+        description: "$.endevor.list.types.params.type"
         default: "*"
       - name: instance
         cliOption: i
-        description: Endevor instance (datasource) name.
+        description: "$.endevor.list.types.params.instance"
   - toolName: endevorListElements
     zoweCommand: endevor list elements
     readOnlyHint: true
@@ -137,16 +139,22 @@ tools:
     params:
       - name: element
         cliPositional: true
-        description: "Element name filter. Supports wildcards: * matches any characters. Omit or use * to list all elements in the location."
+        descriptions:
+          cli: "$.endevor.list.elements.params.element"
+          intent: "Element name filter. Supports wildcards: * matches any characters. Omit or use * to list all elements in the location."
       - name: instance
         cliOption: i
-        description: Endevor instance (datasource) name.
+        description: "$.endevor.list.elements.params.instance"
       - name: search
         cliOption: sea
-        description: When true, searches through the Endevor map to include elements from preceding stages (map traversal / search up the map).
+        descriptions:
+          cli: "$.endevor.list.elements.params.search"
+          intent: When true, searches through the Endevor map to include elements from preceding stages (map traversal / search up the map).
       - name: data
         cliOption: dat
-        description: Controls the level of metadata returned per element. BAS (default) = basic fields only; ELE = adds last-action info; ALL = all fields including package, processor, and signout data.
+        descriptions:
+          cli: "$.endevor.list.elements.params.data"
+          intent: Controls the level of metadata returned per element. BAS (default) = basic fields only; ELE = adds last-action info; ALL = all fields including package, processor, and signout data.
   - toolName: endevorPrintElement
     zoweCommand: endevor print element
     readOnlyHint: true
@@ -160,13 +168,17 @@ tools:
       - name: element
         cliPositional: true
         required: true
-        description: Name of the element whose source code to retrieve (e.g. PROG01, CPYBK01).
+        descriptions:
+          cli: "$.endevor.print.element.params.element"
+          intent: Name of the element whose source code to retrieve (e.g. PROG01, CPYBK01).
       - name: instance
         cliOption: i
-        description: Endevor instance (datasource) name.
+        description: "$.endevor.print.element.params.instance"
       - name: search
         cliOption: sea
-        description: When true, searches up the Endevor map to find the element in preceding stages.
+        descriptions:
+          cli: "$.endevor.print.element.params.search"
+          intent: When true, searches up the Endevor map to find the element in preceding stages.
   - toolName: endevorListProcessorGroups
     zoweCommand: endevor list processor-groups
     readOnlyHint: true
@@ -178,7 +190,7 @@ tools:
     params:
       - name: instance
         cliOption: i
-        description: Endevor instance (datasource) name.
+        description: "$.endevor.list.processorGroups.params.instance"
   - toolName: endevorQueryComponents
     zoweCommand: endevor queryacm components
     readOnlyHint: true
@@ -193,10 +205,12 @@ tools:
       - name: element
         cliPositional: true
         required: true
-        description: Name of the element to query for component dependencies (e.g. PROG01).
+        descriptions:
+          cli: "$.endevor.queryacm.components.params.element"
+          intent: Name of the element to query for component dependencies (e.g. PROG01).
       - name: instance
         cliOption: i
-        description: Endevor instance (datasource) name.
+        description: "$.endevor.queryacm.components.params.instance"
   - toolName: endevorListPackages
     zoweCommand: endevor list packages
     readOnlyHint: true
@@ -211,7 +225,7 @@ tools:
     params:
       - name: instance
         cliOption: i
-        description: Endevor instance (datasource) name.
+        description: "$.endevor.list.packages.params.instance"
       - name: status
         cliOption: st
-        description: Filter packages by status (e.g. INENDEVOR, APPROVED, EXECUTED, COMMITTED).
+        description: "$.endevor.list.packages.params.status"

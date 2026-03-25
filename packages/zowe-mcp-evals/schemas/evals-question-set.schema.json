@@ -85,6 +85,14 @@
               "type": "object",
               "description": "Maps actual tool names from the server to canonical assertion names in the question YAML.",
               "additionalProperties": { "type": "string" }
+            },
+            "descVariant": {
+              "type": "string",
+              "description": "Description variant for the Zowe MCP CLI bridge (cli | intent | optimized). Passed as --cli-plugin-desc-variant."
+            },
+            "pluginYamlPath": {
+              "type": "string",
+              "description": "Absolute path to the plugin YAML file. Defaults to the bundled endevor-tools.yaml next to the server dist."
             }
           },
           "required": ["cliScript", "configPath"],

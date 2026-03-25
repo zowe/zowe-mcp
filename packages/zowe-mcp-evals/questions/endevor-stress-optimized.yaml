@@ -1,0 +1,14 @@
+# yaml-language-server: $schema=../schemas/evals-question-set.schema.json
+# Endevor stress test — "optimized" description variant.
+config:
+  name: endevor-stress-optimized
+  description: >
+    Same stress questions as endevor-stress.yaml but using the 'optimized' description variant.
+  repetitions: 5
+  minSuccessRate: 0.5
+  questionsFrom: endevor-stress
+  endevorMockEws:
+    cliScript: /Users/plape03/workspace/github.gwd.broadcom.net/code4z-gen-ai/mock_ews_server/dist/cli/index.js
+    configPath: /Users/plape03/workspace/github.gwd.broadcom.net/code4z-gen-ai/mock_ews_server/mock-ews-config.json
+    port: 8080
+    descVariant: optimized

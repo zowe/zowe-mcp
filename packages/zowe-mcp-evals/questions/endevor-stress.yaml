@@ -87,7 +87,7 @@ questions:
 
   - id: ambiguous-type
     prompt: >
-      What COBOL programs are available in PRD stage 2 system SYS1 subsystem SUB1?
+      What COBOL programs are available in PRD stage 1 system SYS1 subsystem SUB1?
     assertions:
       - toolCall:
           tool: endevorListElements
@@ -112,7 +112,7 @@ questions:
 
   - id: natural-language-count
     prompt: >
-      Show me all elements under SYS1 in PRD stage 2 system SYS1 subsystem SUB1,
+      Show me all elements under SYS1 in PRD stage 1 system SYS1 subsystem SUB1,
       and tell me the total count at the end.
     assertions:
       - toolCall:

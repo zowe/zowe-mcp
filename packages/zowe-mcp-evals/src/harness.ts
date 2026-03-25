@@ -182,22 +182,24 @@ export class McpEvalHarness {
         args.push('--mock', this.options.mockDir);
       } else if (ewsCfg) {
         const port = ewsCfg.port ?? 8080;
-        args.push(
-          '--endevor-host',
-          'localhost',
-          '--endevor-port',
-          String(port),
-          '--endevor-user',
-          'USER',
-          '--endevor-password',
-          'PASSWORD',
-          '--endevor-instance',
-          'ENDEVOR',
-          '--endevor-protocol',
-          'http',
-          '--endevor-base-path',
-          'EndevorService/api/v2'
-        );
+        const yamlPath =
+          ewsCfg.pluginYamlPath ??
+          resolve(dirname(mcpScript), 'tools', 'cli-bridge', 'endevor-tools.yaml');
+        const connJson = JSON.stringify({
+          host: 'localhost',
+          port,
+          user: 'USER',
+          password: 'PASSWORD',
+          protocol: 'http',
+          basePath: 'EndevorService/api/v2',
+          pluginParams: { instance: 'ENDEVOR' },
+        });
+        const connFile = join(tmpdir(), `endevor-conn-${Date.now()}.json`);
+        writeFileSync(connFile, connJson);
+        args.push('--cli-plugin-yaml', yamlPath, '--cli-plugin-connection-file', connFile);
+        if (ewsCfg.descVariant) {
+          args.push('--cli-plugin-desc-variant', ewsCfg.descVariant);
+        }
       }
     }
 

@@ -20,6 +20,7 @@ context:
     - name: stageNumber
       cliOption: sn
       description: "$.endevor.context.fields.stageNumber"
+      default: "*"
     - name: system
       cliOption: sys
       description: "$.endevor.context.fields.system"

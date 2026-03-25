@@ -59,6 +59,18 @@ export interface SetEndevorMockEwsConfig {
    * After a run, actual tool call names are normalized using this map so assertions work.
    */
   toolAliases?: Record<string, string>;
+  /**
+   * Description variant to use for the Zowe MCP CLI plugin bridge.
+   * Passed as --cli-plugin-desc-variant to the server (sets ZOWE_MCP_CLI_DESC_VARIANT).
+   * Only used when mcpServerScript is absent (i.e. using the default Zowe MCP server).
+   * Values: 'cli' | 'intent' | 'optimized' or any custom variant name.
+   */
+  descVariant?: string;
+  /**
+   * Absolute path to the plugin YAML file. When absent, defaults to the endevor-tools.yaml
+   * bundled alongside the server dist (../tools/cli-bridge/endevor-tools.yaml).
+   */
+  pluginYamlPath?: string;
 }
 
 /**

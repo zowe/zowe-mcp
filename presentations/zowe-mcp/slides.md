@@ -69,17 +69,19 @@ mdc: true
 
 An **MCP server** and **VS Code extension** that gives AI assistants direct, structured access to z/OS systems and mainframe resources, such as data sets, jobs, and USS files, and do actions with them.
 
-// TODO: Mention that Zowe MCP has been developed in Cursor with Anthropic models without a single line written manually guided and reviewed by architect with experience of developing of MCP servers and AI applications at Broadcom
+<div class="mt-3 p-3 bg-[#eef2f8] rounded-lg border-l-4 border-[#3975d0] text-sm">
+  <carbon-machine-learning class="inline text-[#3162ac]" /> <strong class="text-[#1b375f]">Built with AI:</strong> Not a single line of Zowe MCP was written manually — every line was coded with <strong>frontier AI models in VS Code</strong>, guided and reviewed by architects at Broadcom with experience building MCP servers and AI applications and strong mainframe background.
+</div>
 
 <div class="grid grid-cols-4 gap-4 mt-8">
   <div class="text-center p-4 bg-[#f3f4f4] rounded-lg border-t-4 border-[#3162ac]">
     <carbon-assembly-cluster class="text-2xl text-[#3162ac] mb-1" />
-    <div class="text-4xl font-extrabold text-[#3162ac]">6</div>
+    <div class="text-4xl font-extrabold text-[#3162ac]">7</div>
     <div class="text-sm text-[#6d7176] mt-1">Components</div>
   </div>
   <div class="text-center p-4 bg-[#f3f4f4] rounded-lg border-t-4 border-[#3162ac]">
     <carbon-tool-box class="text-2xl text-[#3162ac] mb-1" />
-    <div class="text-4xl font-extrabold text-[#3162ac]">50</div>
+    <div class="text-4xl font-extrabold text-[#3162ac]">59</div>
     <div class="text-sm text-[#6d7176] mt-1">Tools</div>
   </div>
   <div class="text-center p-4 bg-[#f3f4f4] rounded-lg border-t-4 border-[#3162ac]">
@@ -208,7 +210,7 @@ flowchart TD
 
   subgraph Server ["Zowe MCP Server"]
     direction LR
-    Tools["50 Tools divided into 6&nbsp;Components"]
+    Tools["59 Tools divided into 7&nbsp;Components"]
     Cache["Response Cache"]
     Tools --> ZosBackendInterface
     ZosBackendInterface["ZosBackend Interface"]
@@ -232,7 +234,7 @@ flowchart TD
 
 <div class="grid grid-cols-4 gap-3 mt-4">
   <div class="col-span-4 text-center p-3 bg-[#1b375f] text-white rounded-lg font-bold text-lg">
-    Zowe MCP Server — 50 tools
+    Zowe MCP Server — 59 tools
   </div>
   <div class="p-3 bg-[#f3f4f4] rounded-lg border-t-3 border-[#3162ac] text-center">
     <carbon-data-base class="text-xl text-[#3162ac]" />
@@ -272,6 +274,12 @@ flowchart TD
     <div class="font-bold text-[#1b375f]">tso</div>
     <div class="text-xl font-extrabold text-[#3975d0]">1</div>
     <div class="text-xs text-[#6d7176]">runSafeTsoCommand</div>
+  </div>
+  <div class="p-3 bg-[#f3f4f4] rounded-lg border-t-3 border-[#3975d0] text-center">
+    <carbon-document-export class="text-xl text-[#3975d0]" />
+    <div class="font-bold text-[#1b375f]">local-files</div>
+    <div class="text-xl font-extrabold text-[#3975d0]">5</div>
+    <div class="text-xs text-[#6d7176]">download · upload · dataset · USS · job</div>
   </div>
 </div>
 

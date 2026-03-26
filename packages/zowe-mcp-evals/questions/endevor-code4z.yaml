@@ -11,23 +11,24 @@ config:
   repetitions: 5
   minSuccessRate: 0.7
   questionsFrom: endevor
-  endevorMockEws:
-    cliScript: /Users/plape03/workspace/github.gwd.broadcom.net/code4z-gen-ai/mock_ews_server/dist/cli/index.js
-    configPath: /Users/plape03/workspace/github.gwd.broadcom.net/code4z-gen-ai/mock_ews_server/mock-ews-config.json
-    port: 8080
-    mcpServerScript: /Users/plape03/workspace/github.gwd.broadcom.net/code4z-gen-ai/mcp_servers_typescript/dist/mcp-server/stdio-server.js
-    mcpServerArgs: >-
-      --ews-url=http://localhost:8080
-      --ews-api=EndevorService/api/v2
-      --datasource=ENDEVOR
-      --credentials=USER:PASSWORD
-    toolAliases:
-      get_environments: endevorListEnvironments
-      get_stages: endevorListStages
-      get_systems: endevorListSystems
-      get_subsystems: endevorListSubsystems
-      get_types: endevorListTypes
-      get_elements: endevorListElements
-      get_element_content: endevorPrintElement
-      get_element_history: endevorPrintElement
-      get_element_listing: endevorPrintElement
+  mockServers:
+    - name: endevor-ews
+      cliScript: /Users/plape03/workspace/github.gwd.broadcom.net/code4z-gen-ai/mock_ews_server/dist/cli/index.js
+      initArgs: "init ENDEVOR --output {dataDir}"
+      port: 8080
+  mcpServerScript: /Users/plape03/workspace/github.gwd.broadcom.net/code4z-gen-ai/mcp_servers_typescript/dist/mcp-server/stdio-server.js
+  mcpServerArgs: >-
+    --ews-url=http://localhost:8080
+    --ews-api=EndevorService/api/v2
+    --datasource=ENDEVOR
+    --credentials=USER:PASSWORD
+  toolAliases:
+    get_environments: endevorListEnvironments
+    get_stages: endevorListStages
+    get_systems: endevorListSystems
+    get_subsystems: endevorListSubsystems
+    get_types: endevorListTypes
+    get_elements: endevorListElements
+    get_element_content: endevorPrintElement
+    get_element_history: endevorPrintElement
+    get_element_listing: endevorPrintElement

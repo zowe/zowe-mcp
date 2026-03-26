@@ -178,7 +178,6 @@ async function runSetForModel(
     mockDir,
     nativeServerArgs,
     workspaceDir,
-    endevorMockEws: effectiveConfig.endevorMockEws,
   });
 
   const allResults: RunResult[] = [];

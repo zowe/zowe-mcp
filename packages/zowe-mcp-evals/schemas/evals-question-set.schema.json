@@ -56,47 +56,113 @@
           "required": ["serverArgs"],
           "additionalProperties": false
         },
-        "endevorMockEws": {
-          "type": "object",
-          "description": "Start a mock Endevor Web Services server and connect the Endevor CLI bridge (or an alternative MCP server) to it. Used for Endevor cross-comparison evals.",
-          "properties": {
-            "cliScript": {
-              "type": "string",
-              "description": "Absolute path to the mock_ews_server CLI script (dist/cli/index.js)."
-            },
-            "configPath": {
-              "type": "string",
-              "description": "Path to mock-ews-config.json (passed as --config)."
-            },
-            "port": {
-              "type": "integer",
-              "default": 8080,
-              "description": "Port for the mock EWS server (default 8080)."
-            },
-            "mcpServerScript": {
-              "type": "string",
-              "description": "Optional: path to an alternative MCP server script (e.g. code4z-gen-ai stdio-server.js). When set, starts this instead of zowe-mcp-server."
-            },
-            "mcpServerArgs": {
-              "type": "string",
-              "description": "Extra args for the alternative MCP server, one string split on whitespace."
-            },
-            "toolAliases": {
-              "type": "object",
-              "description": "Maps actual tool names from the server to canonical assertion names in the question YAML.",
-              "additionalProperties": { "type": "string" }
-            },
-            "descVariant": {
-              "type": "string",
-              "description": "Description variant for the Zowe MCP CLI bridge (cli | intent | optimized). Passed as --cli-plugin-desc-variant."
-            },
-            "pluginsDir": {
-              "type": "string",
-              "description": "Absolute path to the plugins directory passed as --cli-plugins-dir. Defaults to <server-dist>/tools/cli-bridge/plugins/."
+        "mockServers": {
+          "type": "array",
+          "description": "Generic mock servers started before the MCP server. Each entry can optionally run an init command in a harness-managed temp directory so data and config are created fresh per eval run.",
+          "items": {
+            "type": "object",
+            "description": "A single generic mock server definition.",
+            "required": ["name", "cliScript"],
+            "additionalProperties": false,
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "Human-readable name used in log messages (e.g. 'endevor-ews')."
+              },
+              "cliScript": {
+                "type": "string",
+                "description": "Absolute path to the Node.js CLI script (invoked as 'node <cliScript>')."
+              },
+              "initArgs": {
+                "type": "string",
+                "description": "Arguments for the init subcommand run once in a harness-managed temp directory. Use {dataDir} as a placeholder for the temp data sub-path. Example: 'init ENDEVOR --output {dataDir}'"
+              },
+              "configTemplate": {
+                "type": "object",
+                "description": "Optional config template written to a temp JSON file and passed as --config. String values may contain {dataDir} and {port} placeholders.",
+                "additionalProperties": true
+              },
+              "configOutputName": {
+                "type": "string",
+                "description": "Filename of the config file created by initArgs (default: 'mock-ews-config.json')."
+              },
+              "configFlag": {
+                "type": "string",
+                "description": "CLI flag for passing the config file to the server start command (default: '--config')."
+              },
+              "startArgs": {
+                "type": "string",
+                "description": "Extra arguments appended to the start command. {dataDir} and {port} are substituted."
+              },
+              "port": {
+                "type": "integer",
+                "default": 8080,
+                "description": "Port the server listens on; harness waits for readiness (default 8080)."
+              },
+              "pluginName": {
+                "type": "string",
+                "description": "When set, the harness auto-creates a CLI bridge connection for this plugin pointing to localhost:<port>. Plugin defaults are applied (e.g. for 'endevor': user/password/basePath/etc.), so no separate cliPluginConnections entry is needed. Explicit cliPluginConnections take precedence."
+              }
             }
-          },
-          "required": ["cliScript", "configPath"],
-          "additionalProperties": false
+          }
+        },
+        "cliPluginConnections": {
+          "type": "object",
+          "description": "Connection config per CLI plugin name. The harness writes each entry as a temp JSON file and passes --cli-plugin-connection <name>=<file> to the server. For the 'endevor' plugin, host/user/password/protocol/basePath/pluginParams are pre-filled; only 'port' is usually needed.",
+          "additionalProperties": {
+            "type": "object",
+            "description": "Connection config for one CLI plugin. All fields optional; plugin-specific defaults are applied by the harness.",
+            "additionalProperties": false,
+            "properties": {
+              "host": {
+                "type": "string",
+                "description": "Hostname (default for endevor: 'localhost')."
+              },
+              "port": { "type": "integer", "description": "Port number." },
+              "user": {
+                "type": "string",
+                "description": "Username (default for endevor: 'USER')."
+              },
+              "password": {
+                "type": "string",
+                "description": "Password (default for endevor: 'PASSWORD')."
+              },
+              "protocol": {
+                "type": "string",
+                "description": "Protocol: 'http' or 'https' (default for endevor: 'http')."
+              },
+              "basePath": {
+                "type": "string",
+                "description": "API base path (default for endevor: 'EndevorService/api/v2')."
+              },
+              "pluginParams": {
+                "type": "object",
+                "description": "Plugin-specific params (default for endevor: { instance: 'ENDEVOR' }).",
+                "additionalProperties": { "type": "string" }
+              }
+            }
+          }
+        },
+        "cliPluginsDir": {
+          "type": "string",
+          "description": "Override for the CLI plugins directory (--cli-plugins-dir). Defaults to <server-dist>/tools/cli-bridge/plugins/."
+        },
+        "cliPluginDescVariant": {
+          "type": "string",
+          "description": "Description variant for CLI bridge tools (--cli-plugin-desc-variant). Values: cli | intent | optimized or any custom name."
+        },
+        "mcpServerScript": {
+          "type": "string",
+          "description": "Path to an alternative MCP server script. When set, starts this instead of zowe-mcp-server (e.g. for code4z-gen-ai cross-comparison evals)."
+        },
+        "mcpServerArgs": {
+          "type": "string",
+          "description": "Extra args for the alternative MCP server, one string split on whitespace."
+        },
+        "toolAliases": {
+          "type": "object",
+          "description": "Maps actual tool names from the server to canonical assertion names in the question YAML. Applied after each run.",
+          "additionalProperties": { "type": "string" }
         },
         "systemPrompt": {
           "type": "string",

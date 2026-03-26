@@ -1,0 +1,19 @@
+{
+  "port": 8080,
+  "basePath": "/EndevorService/api/v2",
+  "version": "2.22",
+  "datasources": [
+    {
+      "name": "ENDEVOR",
+      "gitRepoPath": "/tmp/mock-ews-test",
+      "acmEnabled": true,
+      "defaultEnvironment": "DEV",
+      "credentials": [
+        {
+          "username": "USER",
+          "password": "PASSWORD"
+        }
+      ]
+    }
+  ]
+}

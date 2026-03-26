@@ -23,7 +23,13 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { EvalsConfig } from './config.js';
 import { log } from './log.js';
-import type { SetConfig, SetEndevorMockEwsConfig, TokenUsage, ToolCallRecord } from './types.js';
+import type {
+  CliPluginConnection,
+  MockServerDef,
+  SetConfig,
+  TokenUsage,
+  ToolCallRecord,
+} from './types.js';
 
 const DEBUG_MAX_TEXT = 500;
 
@@ -100,11 +106,6 @@ export interface HarnessOptions {
    * Use {@link prepareEvalWorkspace} to create a temp dir with a seed file for upload questions.
    */
   workspaceDir?: string;
-  /**
-   * When set, the harness starts a mock Endevor Web Services server before starting the MCP server,
-   * and optionally uses an alternative MCP server (e.g. code4z-gen-ai) instead of zowe-mcp-server.
-   */
-  endevorMockEws?: SetEndevorMockEwsConfig;
 }
 
 export interface AgentRunResult {
@@ -153,26 +154,49 @@ export interface ToolDefinition {
   inputSchema?: unknown;
 }
 
+/**
+ * Applies plugin-specific defaults to a CliPluginConnection so only the fields
+ * that differ from the defaults need to be specified in the YAML.
+ * Currently knows defaults for the `endevor` plugin (localhost/USER/PASSWORD/http/etc.).
+ */
+function resolveCliPluginConnection(
+  pluginName: string,
+  conn: CliPluginConnection
+): Record<string, unknown> {
+  const endevorDefaults: CliPluginConnection = {
+    host: 'localhost',
+    user: 'USER',
+    password: 'PASSWORD',
+    protocol: 'http',
+    basePath: 'EndevorService/api/v2',
+    pluginParams: { instance: 'ENDEVOR' },
+  };
+  const defaults = pluginName === 'endevor' ? endevorDefaults : {};
+  return { ...defaults, ...conn };
+}
+
 export class McpEvalHarness {
   private client: Client | null = null;
-  private mockEwsProcess: ChildProcess | null = null;
+  /** All running external mock server processes (EWS + generic). Killed in stop(). */
+  private mockServerProcesses: ChildProcess[] = [];
+  /** Temp directories created for mock server data/config. Removed in stop(). */
+  private mockServerDirs: string[] = [];
 
   constructor(private options: HarnessOptions) {}
 
   async start(): Promise<Client> {
     const { setConfig } = this.options;
-    const ewsCfg = this.options.endevorMockEws;
 
-    if (ewsCfg) {
-      await this.startMockEws(ewsCfg);
+    for (const def of setConfig.mockServers ?? []) {
+      await this.startGenericMockServer(def);
     }
 
-    const mcpScript = ewsCfg?.mcpServerScript ?? this.options.serverPath;
+    const mcpScript = setConfig.mcpServerScript ?? this.options.serverPath;
     const args: string[] = [];
 
-    if (ewsCfg?.mcpServerScript) {
-      if (ewsCfg.mcpServerArgs) {
-        args.push(...splitArgs(ewsCfg.mcpServerArgs));
+    if (setConfig.mcpServerScript) {
+      if (setConfig.mcpServerArgs) {
+        args.push(...splitArgs(setConfig.mcpServerArgs));
       }
     } else {
       args.push('--stdio');
@@ -180,29 +204,31 @@ export class McpEvalHarness {
         args.push(...splitArgs(this.options.nativeServerArgs));
       } else if (this.options.mockDir) {
         args.push('--mock', this.options.mockDir);
-      } else if (ewsCfg) {
-        const port = ewsCfg.port ?? 8080;
+      }
+      // CLI bridge plugin connections (can coexist with any backend).
+      // Auto-derive from mockServers[].pluginName; explicit cliPluginConnections take precedence.
+      const autoConnections: Record<string, CliPluginConnection> = {};
+      for (const def of setConfig.mockServers ?? []) {
+        if (def.pluginName) {
+          autoConnections[def.pluginName] = { port: def.port ?? 8080 };
+        }
+      }
+      const effectiveConnections = {
+        ...autoConnections,
+        ...(setConfig.cliPluginConnections ?? {}),
+      };
+      if (Object.keys(effectiveConnections).length > 0) {
         const pluginsDir =
-          ewsCfg.pluginsDir ?? resolve(dirname(mcpScript), 'tools', 'cli-bridge', 'plugins');
-        const connJson = JSON.stringify({
-          host: 'localhost',
-          port,
-          user: 'USER',
-          password: 'PASSWORD',
-          protocol: 'http',
-          basePath: 'EndevorService/api/v2',
-          pluginParams: { instance: 'ENDEVOR' },
-        });
-        const connFile = join(tmpdir(), `endevor-conn-${Date.now()}.json`);
-        writeFileSync(connFile, connJson);
-        args.push(
-          '--cli-plugins-dir',
-          pluginsDir,
-          '--cli-plugin-connection',
-          `endevor=${connFile}`
-        );
-        if (ewsCfg.descVariant) {
-          args.push('--cli-plugin-desc-variant', ewsCfg.descVariant);
+          setConfig.cliPluginsDir ?? resolve(dirname(mcpScript), 'tools', 'cli-bridge', 'plugins');
+        args.push('--cli-plugins-dir', pluginsDir);
+        for (const [pluginName, conn] of Object.entries(effectiveConnections)) {
+          const resolved = resolveCliPluginConnection(pluginName, conn);
+          const connFile = join(tmpdir(), `cli-plugin-conn-${pluginName}-${Date.now()}.json`);
+          writeFileSync(connFile, JSON.stringify(resolved));
+          args.push('--cli-plugin-connection', `${pluginName}=${connFile}`);
+        }
+        if (setConfig.cliPluginDescVariant) {
+          args.push('--cli-plugin-desc-variant', setConfig.cliPluginDescVariant);
         }
       }
     }
@@ -224,23 +250,66 @@ export class McpEvalHarness {
   }
 
   /**
-   * Start the mock Endevor Web Services server and wait for it to be ready.
+   * Starts a generic mock server, optionally running an init command first in a
+   * harness-managed temp directory. The temp dir and any generated config file
+   * are cleaned up when stop() is called.
    */
-  private async startMockEws(cfg: SetEndevorMockEwsConfig): Promise<void> {
-    const port = cfg.port ?? 8080;
-    const args = ['serve', '--config', cfg.configPath, '--port', String(port)];
-    log.info('Starting mock EWS server', { cliScript: cfg.cliScript, port });
-    this.mockEwsProcess = spawn('node', [cfg.cliScript, ...args], {
-      stdio: ['ignore', 'pipe', 'pipe'],
+  private async startGenericMockServer(def: MockServerDef): Promise<void> {
+    const port = def.port ?? 8080;
+    let configFilePath: string | undefined;
+
+    if (def.initArgs ?? def.configTemplate) {
+      const tempDir = mkdtempSync(join(tmpdir(), `mock-server-${def.name}-`));
+      this.mockServerDirs.push(tempDir);
+      const dataDir = join(tempDir, 'data');
+
+      if (def.initArgs) {
+        const resolvedInitArgs = def.initArgs.replace(/\{dataDir\}/g, dataDir);
+        log.info('Running mock server init', { name: def.name, initArgs: resolvedInitArgs });
+        const result = spawnSync('node', [def.cliScript, ...splitArgs(resolvedInitArgs)], {
+          cwd: tempDir,
+          stdio: 'pipe',
+        });
+        if (result.status !== 0) {
+          throw new Error(
+            `Mock server init failed (${def.name}): ${result.stderr?.toString().trim()}`
+          );
+        }
+      }
+
+      if (def.configTemplate) {
+        const filled = JSON.stringify(def.configTemplate)
+          .replace(/\{dataDir\}/g, dataDir)
+          .replace(/\{port\}/g, String(port));
+        configFilePath = join(tempDir, def.configOutputName ?? 'config.json');
+        writeFileSync(configFilePath, filled);
+      } else if (def.initArgs) {
+        configFilePath = join(tempDir, def.configOutputName ?? 'mock-ews-config.json');
+      }
+    }
+
+    const startArgsList = def.startArgs
+      ? splitArgs(
+          def.startArgs
+            .replace(/\{dataDir\}/g, join(this.mockServerDirs.at(-1) ?? tmpdir(), 'data'))
+            .replace(/\{port\}/g, String(port))
+        )
+      : [];
+    const args = ['serve'];
+    if (configFilePath) args.push(def.configFlag ?? '--config', configFilePath);
+    args.push('--port', String(port), ...startArgsList);
+
+    log.info('Starting mock server', { name: def.name, cliScript: def.cliScript, port });
+    const proc = spawn('node', [def.cliScript, ...args], { stdio: ['ignore', 'pipe', 'pipe'] });
+    proc.stderr?.on('data', (data: Buffer) => {
+      log.debug(`mock-server(${def.name}) stderr`, { text: data.toString().trim() });
     });
-    this.mockEwsProcess.stderr?.on('data', (data: Buffer) => {
-      log.debug('mock-ews stderr', { text: data.toString().trim() });
+    proc.stdout?.on('data', (data: Buffer) => {
+      log.debug(`mock-server(${def.name}) stdout`, { text: data.toString().trim() });
     });
-    this.mockEwsProcess.stdout?.on('data', (data: Buffer) => {
-      log.debug('mock-ews stdout', { text: data.toString().trim() });
-    });
+    this.mockServerProcesses.push(proc);
     await waitForPort(port, 15000);
-    log.info('Mock EWS server ready', { port });
+    log.info('Mock server ready', { name: def.name, port });
   }
 
   async stop(): Promise<void> {
@@ -248,11 +317,17 @@ export class McpEvalHarness {
       await this.client.close();
       this.client = null;
     }
-    if (this.mockEwsProcess) {
-      this.mockEwsProcess.kill('SIGTERM');
-      this.mockEwsProcess = null;
-      log.info('Mock EWS server stopped');
+    for (const proc of this.mockServerProcesses) {
+      proc.kill('SIGTERM');
     }
+    if (this.mockServerProcesses.length > 0) {
+      log.info('Mock server(s) stopped', { count: this.mockServerProcesses.length });
+      this.mockServerProcesses = [];
+    }
+    for (const dir of this.mockServerDirs) {
+      rmSync(dir, { recursive: true, force: true });
+    }
+    this.mockServerDirs = [];
   }
 
   /**
@@ -286,7 +361,7 @@ export class McpEvalHarness {
     if (!this.client) throw new Error('Harness not started');
     const { tools: mcpTools } = await this.client.listTools();
     const toolCallRecords: ToolCallRecord[] = [];
-    const toolAliases = this.options.endevorMockEws?.toolAliases ?? {};
+    const toolAliases = this.options.setConfig.toolAliases ?? {};
 
     const tools: Record<string, ReturnType<typeof tool>> = {};
     for (const t of mcpTools) {

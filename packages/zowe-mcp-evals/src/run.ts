@@ -228,7 +228,6 @@ async function main(): Promise<void> {
       mockDir,
       nativeServerArgs,
       workspaceDir,
-      endevorMockEws: config.endevorMockEws,
     });
 
     try {

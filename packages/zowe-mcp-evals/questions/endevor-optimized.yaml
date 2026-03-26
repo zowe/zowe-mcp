@@ -12,6 +12,6 @@ config:
     - name: endevor-ews
       cliScript: "${ZOWE_MCP_MOCK_EWS_DIR}/dist/cli/index.js"
       initArgs: "init ENDEVOR --output {dataDir}"
-      port: 8080
+      serveArgs: "serve --port ${availablePort}"
       pluginName: endevor
   cliPluginDescVariant: optimized

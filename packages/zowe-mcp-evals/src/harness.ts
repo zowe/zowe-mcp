@@ -214,6 +214,8 @@ export class McpEvalHarness {
   private mockServerProcesses: ChildProcess[] = [];
   /** Temp directories created for mock server data/config. Removed in stop(). */
   private mockServerDirs: string[] = [];
+  /** Resolved port per mock server name (set in startGenericMockServer, read in start()). */
+  private mockServerPorts = new Map<string, number>();
 
   constructor(private options: HarnessOptions) {}
 
@@ -230,7 +232,7 @@ export class McpEvalHarness {
 
     if (setConfig.mcpServerScript) {
       if (setConfig.mcpServerArgs) {
-        args.push(...splitArgs(setConfig.mcpServerArgs));
+        args.push(...splitArgs(substitutePortRefs(setConfig.mcpServerArgs, this.mockServerPorts)));
       }
     } else {
       args.push('--stdio');
@@ -244,7 +246,9 @@ export class McpEvalHarness {
       const autoConnections: Record<string, CliPluginConnection> = {};
       for (const def of setConfig.mockServers ?? []) {
         if (def.pluginName) {
-          autoConnections[def.pluginName] = { port: def.port ?? 8080 };
+          autoConnections[def.pluginName] = {
+            port: this.mockServerPorts.get(def.name) ?? def.port ?? 8080,
+          };
         }
       }
       const effectiveConnections = {
@@ -292,13 +296,13 @@ export class McpEvalHarness {
    * are cleaned up when stop() is called.
    */
   private async startGenericMockServer(def: MockServerDef): Promise<void> {
-    const port = def.port ?? 8080;
     let configFilePath: string | undefined;
+    let dataDir = '';
 
     if (def.initArgs ?? def.configTemplate) {
       const tempDir = mkdtempSync(join(tmpdir(), `mock-server-${def.name}-`));
       this.mockServerDirs.push(tempDir);
-      const dataDir = join(tempDir, 'data');
+      dataDir = join(tempDir, 'data');
 
       if (def.initArgs) {
         const resolvedInitArgs = def.initArgs.replace(/\{dataDir\}/g, dataDir);
@@ -315,29 +319,59 @@ export class McpEvalHarness {
       }
 
       if (def.configTemplate) {
-        const filled = JSON.stringify(def.configTemplate)
-          .replace(/\{dataDir\}/g, dataDir)
-          .replace(/\{port\}/g, String(port));
+        // Content written below after port is resolved
         configFilePath = join(tempDir, def.configOutputName ?? 'config.json');
-        writeFileSync(configFilePath, filled);
       } else if (def.initArgs) {
         configFilePath = join(tempDir, def.configOutputName ?? 'mock-ews-config.json');
       }
     }
 
-    const startArgsList = def.startArgs
-      ? splitArgs(
-          def.startArgs
-            .replace(/\{dataDir\}/g, join(this.mockServerDirs.at(-1) ?? tmpdir(), 'data'))
-            .replace(/\{port\}/g, String(port))
-        )
-      : [];
-    const args = ['serve'];
-    if (configFilePath) args.push(def.configFlag ?? '--config', configFilePath);
-    args.push('--port', String(port), ...startArgsList);
+    // Determine port: dynamic allocation when serveArgs contains ${availablePort}, else fixed.
+    const port = def.serveArgs?.includes('${availablePort}')
+      ? await findAvailablePort()
+      : (def.port ?? 8080);
+    this.mockServerPorts.set(def.name, port);
+
+    // Write configTemplate content now that port is known
+    if (def.configTemplate && configFilePath) {
+      const filled = JSON.stringify(def.configTemplate)
+        .replace(/\{dataDir\}/g, dataDir)
+        .replace(/\{port\}/g, String(port));
+      writeFileSync(configFilePath, filled);
+    }
+
+    // Build the server start args
+    let serverArgs: string[];
+    if (def.serveArgs) {
+      const resolved = def.serveArgs
+        .replace(/\$\{availablePort\}/g, String(port))
+        .replace(/\{port\}/g, String(port))
+        .replace(/\{dataDir\}/g, dataDir);
+      const baseArgs = splitArgs(resolved);
+      if (configFilePath) {
+        // Inject --config <path> after the subcommand (first word)
+        const [subcommand, ...rest] = baseArgs;
+        serverArgs = [subcommand, def.configFlag ?? '--config', configFilePath, ...rest];
+      } else {
+        serverArgs = baseArgs;
+      }
+    } else {
+      // Legacy: build from fixed port + optional startArgs
+      const legacyDataDir = dataDir || join(this.mockServerDirs.at(-1) ?? tmpdir(), 'data');
+      const startArgsList = def.startArgs
+        ? splitArgs(
+            def.startArgs.replace(/\{dataDir\}/g, legacyDataDir).replace(/\{port\}/g, String(port))
+          )
+        : [];
+      serverArgs = ['serve'];
+      if (configFilePath) serverArgs.push(def.configFlag ?? '--config', configFilePath);
+      serverArgs.push('--port', String(port), ...startArgsList);
+    }
 
     log.info('Starting mock server', { name: def.name, cliScript: def.cliScript, port });
-    const proc = spawn('node', [def.cliScript, ...args], { stdio: ['ignore', 'pipe', 'pipe'] });
+    const proc = spawn('node', [def.cliScript, ...serverArgs], {
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
     proc.stderr?.on('data', (data: Buffer) => {
       log.debug(`mock-server(${def.name}) stderr`, { text: data.toString().trim() });
     });
@@ -483,6 +517,49 @@ export class McpEvalHarness {
  */
 function splitArgs(s: string): string[] {
   return s.trim().split(/\s+/).filter(Boolean);
+}
+
+/**
+ * Module-level set of ports allocated in this process.
+ * Prevents two harness instances in the same process from picking the same port.
+ */
+const allocatedPorts = new Set<number>();
+
+/**
+ * Find the first available TCP port starting from `startFrom` (default 10000).
+ * Records the chosen port so subsequent calls in the same process don't reuse it.
+ */
+async function findAvailablePort(startFrom = 10000): Promise<number> {
+  const { createServer } = await import('node:net');
+  let port = startFrom;
+  while (true) {
+    if (allocatedPorts.has(port)) {
+      port++;
+      continue;
+    }
+    const available = await new Promise<boolean>(resolve => {
+      const srv = createServer();
+      srv.once('error', () => resolve(false));
+      srv.listen(port, () => srv.close(() => resolve(true)));
+    });
+    if (available) {
+      allocatedPorts.add(port);
+      return port;
+    }
+    port++;
+  }
+}
+
+/**
+ * Replace `${port:<serverName>}` placeholders in a string using the resolved port map.
+ * Used to inject dynamic mock server ports into `mcpServerArgs`.
+ */
+function substitutePortRefs(s: string, ports: Map<string, number>): string {
+  return s.replace(/\$\{port:([^}]+)\}/g, (match, name: string) => {
+    const p = ports.get(name);
+    if (p === undefined) throw new Error(`${match}: no resolved port for mock server '${name}'`);
+    return String(p);
+  });
 }
 
 /**

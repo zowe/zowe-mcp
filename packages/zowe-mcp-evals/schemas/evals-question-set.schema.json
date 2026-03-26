@@ -90,14 +90,17 @@
                 "type": "string",
                 "description": "CLI flag for passing the config file to the server start command (default: '--config')."
               },
+              "serveArgs": {
+                "type": "string",
+                "description": "Full argument string for starting the server (after 'node <cliScript>'). Replaces the default 'serve --port <port>' construction. Use ${availablePort} for dynamic port allocation (first free port from 10000). {dataDir} and {port} are also substituted. Config file (from initArgs or configTemplate) is auto-injected after the first word. Example: 'serve --port ${availablePort}'"
+              },
               "startArgs": {
                 "type": "string",
-                "description": "Extra arguments appended to the start command. {dataDir} and {port} are substituted."
+                "description": "Extra arguments appended to the start command. {dataDir} and {port} are substituted. Ignored when serveArgs is set."
               },
               "port": {
                 "type": "integer",
-                "default": 8080,
-                "description": "Port the server listens on; harness waits for readiness (default 8080)."
+                "description": "Fixed port for the server. Ignored when serveArgs contains ${availablePort} (dynamic allocation). Defaults to 8080 when neither serveArgs nor port are set."
               },
               "pluginName": {
                 "type": "string",

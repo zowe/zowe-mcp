@@ -73,11 +73,29 @@ export interface MockServerDef {
    */
   configFlag?: string;
   /**
+   * Full argument string for starting the server (everything after `node <cliScript>`).
+   * When present, this replaces the default `serve --port <port>` construction.
+   * Use `${availablePort}` as a placeholder — the harness finds the first available
+   * TCP port starting from 10000 and substitutes it. `{dataDir}` and `{port}` are
+   * also substituted for backward compatibility.
+   * When a config file is produced by `initArgs` or `configTemplate`, it is automatically
+   * injected (via `configFlag`) after the first word (subcommand).
+   * Example: `"serve --port ${availablePort}"`
+   */
+  serveArgs?: string;
+  /**
    * Extra arguments appended after the start subcommand and config flag.
    * `{dataDir}` and `{port}` placeholders are substituted.
+   * Ignored when `serveArgs` is set (use `serveArgs` instead for full control).
    */
   startArgs?: string;
-  /** Port the server listens on; the harness waits for it to be ready (default 8080). */
+  /**
+   * Port the server listens on; the harness waits for it to be ready.
+   * When `serveArgs` contains `${availablePort}`, the port is allocated dynamically
+   * and this field is ignored. Use this only when `serveArgs` is absent and you
+   * need a specific fixed port. Defaults to 8080 when neither `serveArgs` nor
+   * `port` are set (legacy behavior).
+   */
   port?: number;
   /**
    * When set, the harness automatically creates a CLI bridge connection for this plugin

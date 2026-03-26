@@ -225,6 +225,7 @@ function parseSetConfig(raw: unknown): SetConfig {
             : undefined,
         configOutputName: typeof s.configOutputName === 'string' ? s.configOutputName : undefined,
         configFlag: typeof s.configFlag === 'string' ? s.configFlag : undefined,
+        serveArgs: typeof s.serveArgs === 'string' ? s.serveArgs : undefined,
         startArgs: typeof s.startArgs === 'string' ? s.startArgs : undefined,
         port: typeof s.port === 'number' ? s.port : undefined,
         pluginName: typeof s.pluginName === 'string' ? s.pluginName : undefined,

@@ -75,6 +75,24 @@ async function waitForPort(port: number, timeoutMs: number): Promise<void> {
   throw new Error(`Timed out waiting for port ${port.toString()} to be ready`);
 }
 
+/**
+ * Find the first available TCP port starting from `startFrom` (default 10000).
+ * Avoids the fixed-port collision problem when tests run in parallel.
+ */
+async function findAvailablePort(startFrom = 10000): Promise<number> {
+  const { createServer } = await import('node:net');
+  let port = startFrom;
+  while (true) {
+    const available = await new Promise<boolean>(resolve => {
+      const srv = createServer();
+      srv.once('error', () => resolve(false));
+      srv.listen(port, () => srv.close(() => resolve(true)));
+    });
+    if (available) return port;
+    port++;
+  }
+}
+
 /** Parsed tool result content. */
 interface ToolContent {
   type: string;
@@ -102,8 +120,6 @@ const skipReason = !canRunEwsE2E
     : `Mock EWS CLI not found at ${cliScript}`
   : '';
 
-const EWS_PORT = 8081;
-
 describe.skipIf(!canRunEwsE2E)(
   `Zowe MCP Server — Endevor CLI bridge (mock EWS stdio E2E)${skipReason ? ` [skipped: ${skipReason}]` : ''}`,
   () => {
@@ -111,8 +127,12 @@ describe.skipIf(!canRunEwsE2E)(
     let ewsProcess: ChildProcess;
     let tempDir: string;
     let connFile: string;
+    let ewsPort: number;
 
     beforeAll(async () => {
+      // 0. Find an available port so we don't collide with other running tests.
+      ewsPort = await findAvailablePort(10000);
+
       // 1. Create a temp directory; run init to generate EWS data + config.
       tempDir = mkdtempSync(join(tmpdir(), 'zowe-mcp-mock-ews-e2e-'));
       const dataDir = join(tempDir, 'data');
@@ -130,11 +150,11 @@ describe.skipIf(!canRunEwsE2E)(
       const configFilePath = join(tempDir, 'mock-ews-config.json');
       ewsProcess = spawn(
         'node',
-        [cliScript, 'serve', '--config', configFilePath, '--port', String(EWS_PORT)],
+        [cliScript, 'serve', '--config', configFilePath, '--port', String(ewsPort)],
         { stdio: ['ignore', 'pipe', 'pipe'] }
       );
 
-      await waitForPort(EWS_PORT, 15_000);
+      await waitForPort(ewsPort, 15_000);
 
       // 3. Write a temp profiles JSON for the Endevor CLI bridge (CliPluginProfilesFile format).
       // Passwords are NOT stored in the file; they are passed via env vars to the server process.
@@ -147,7 +167,7 @@ describe.skipIf(!canRunEwsE2E)(
               {
                 id: 'default',
                 host: 'localhost',
-                port: EWS_PORT,
+                port: ewsPort,
                 user: 'USER',
                 protocol: 'http',
                 basePath: 'EndevorService/api/v2',

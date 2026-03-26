@@ -15,10 +15,10 @@ config:
     - name: endevor-ews
       cliScript: "${ZOWE_MCP_MOCK_EWS_DIR}/dist/cli/index.js"
       initArgs: "init ENDEVOR --output {dataDir}"
-      port: 8080
+      serveArgs: "serve --port ${availablePort}"
   mcpServerScript: "${ZOWE_MCP_MOCK_EWS_DIR}/../mcp_servers_typescript/dist/mcp-server/stdio-server.js"
   mcpServerArgs: >-
-    --ews-url=http://localhost:8080
+    --ews-url=http://localhost:${port:endevor-ews}
     --ews-api=EndevorService/api/v2
     --datasource=ENDEVOR
     --credentials=USER:PASSWORD

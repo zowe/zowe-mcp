@@ -16,6 +16,7 @@
  * enabling AI agents to use z/OS tools through the Model Context Protocol.
  */
 
+import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { plural } from 'zowe-mcp-common';
@@ -171,7 +172,7 @@ export function activate(context: vscode.ExtensionContext): void {
         e.affectsConfiguration('zoweMCP.defaultMainframeUssEncoding') ||
         e.affectsConfiguration('zoweMCP.jobCards') ||
         e.affectsConfiguration('zoweMCP.enabledCliPlugins') ||
-        e.affectsConfiguration('zoweMCP.cliPluginConnections') ||
+        e.affectsConfiguration('zoweMCP.cliPluginConfiguration') ||
         e.affectsConfiguration('zoweMCP.cliPlugins');
       if (
         affectsServerStartup &&
@@ -296,7 +297,7 @@ function getBackendWithMigration(
  * Exported for tests (fresh-config server args).
  */
 export async function buildServerConfig(
-  _context: vscode.ExtensionContext,
+  context: vscode.ExtensionContext,
   serverModule: string,
   discoveryDir: string,
   workspaceId: string,
@@ -355,22 +356,27 @@ export async function buildServerConfig(
 
   // CLI plugin bridge: auto-discovery from bundled plugins dir
   const enabledCliPlugins = config.get<string[]>('enabledCliPlugins', []) ?? [];
-  const cliPluginConnections =
-    config.get<Record<string, string>>('cliPluginConnections', {}) ?? {};
+  const cliPluginConfiguration =
+    config.get<Record<string, unknown>>('cliPluginConfiguration', {}) ?? {};
   for (const name of enabledCliPlugins) {
     if (typeof name === 'string' && name.trim()) {
       args.push('--cli-plugin-enable', name.trim());
     }
   }
-  for (const [name, connFile] of Object.entries(cliPluginConnections)) {
-    if (typeof connFile === 'string' && connFile.trim()) {
-      args.push('--cli-plugin-connection', `${name}=${connFile.trim()}`);
+  for (const [name, profilesObj] of Object.entries(cliPluginConfiguration)) {
+    if (profilesObj !== null && typeof profilesObj === 'object') {
+      // Inline profiles object — serialize to a temp file in globalStorageUri
+      const storageDir = context.globalStorageUri.fsPath;
+      fs.mkdirSync(storageDir, { recursive: true });
+      const connFile = path.join(storageDir, `cli-plugin-conn-${name}.json`);
+      fs.writeFileSync(connFile, JSON.stringify(profilesObj));
+      args.push('--cli-plugin-connection', `${name}=${connFile}`);
     }
   }
-  if (enabledCliPlugins.length > 0 || Object.keys(cliPluginConnections).length > 0) {
+  if (enabledCliPlugins.length > 0 || Object.keys(cliPluginConfiguration).length > 0) {
     log.info('CLI plugin bridge (auto-discovery)', {
       enabledPlugins: enabledCliPlugins.length > 0 ? enabledCliPlugins : 'all',
-      connections: Object.keys(cliPluginConnections),
+      connections: Object.keys(cliPluginConfiguration),
     });
   }
 
@@ -764,7 +770,7 @@ const ZOWE_MCP_CONFIG_KEYS = [
   'defaultMainframeUssEncoding',
   'jobCards',
   'enabledCliPlugins',
-  'cliPluginConnections',
+  'cliPluginConfiguration',
   'cliPlugins',
 ] as const;
 

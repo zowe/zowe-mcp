@@ -119,7 +119,7 @@ Transfer files between z/OS (data sets and USS paths) and the local workspace.
 
 The server provides **11** tools.
 
-Registered from `plugins/endevor-tools.yaml`. These tools require the [Zowe CLI Endevor plug-in](https://www.npmjs.com/package/@broadcom/endevor-for-zowe-cli) to be installed. Configure a connection via `zoweMCP.cliPluginConnections` (VS Code) or `--cli-plugin-connection endevor=<connfile>` (standalone).
+Registered from `plugins/endevor-tools.yaml`. These tools require the [Zowe CLI Endevor plug-in](https://www.npmjs.com/package/@broadcom/endevor-for-zowe-cli) to be installed. Configure a connection via `zoweMCP.cliPluginConfiguration` (VS Code) or `--cli-plugin-connection endevor=<connfile>` (standalone).
 
 | #  | Tool                                                        | Description                                                                                                                         |
 |----|-------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------|

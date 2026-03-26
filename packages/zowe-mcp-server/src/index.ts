@@ -43,8 +43,11 @@ import type {
 import { connectExtensionClient, type ExtensionClient } from './extension-client.js';
 import type { CreateServerOptions, CreateServerResult, ZoweExplorerCallbacks } from './server.js';
 import { createServer, getLogger, getServer, SERVER_VERSION } from './server.js';
-import { loadAndRegisterPluginYaml } from './tools/cli-bridge/cli-tool-loader.js';
-import type { CliConnectionConfig } from './tools/cli-bridge/types.js';
+import {
+  createEmptyPluginState,
+  loadAndRegisterPluginYaml,
+} from './tools/cli-bridge/cli-tool-loader.js';
+import type { CliPluginProfilesFile, CliPluginState } from './tools/cli-bridge/types.js';
 import { startHttp } from './transports/http.js';
 import { startStdio } from './transports/stdio.js';
 import {
@@ -85,7 +88,7 @@ interface ParsedArgs {
   localFilesRoots?: string[];
   /**
    * CLI plugin bridge entries loaded from repeatable --cli-plugin-yaml / --cli-plugin-connection-file flag pairs.
-   * Each entry activates one plugin YAML. When connectionFile is present its JSON is read as CliConnectionConfig.
+   * Each entry activates one plugin YAML. When connectionFile is present its JSON is read as CliPluginProfilesFile.
    */
   cliPlugins: CliPluginEntry[];
   /** Description variant applied to all CLI plugins (cli | intent | optimized). Sets ZOWE_MCP_CLI_DESC_VARIANT. */
@@ -104,14 +107,14 @@ interface ParsedArgs {
    * Map of plugin name to connection JSON file path for auto-discovered plugins.
    * Populated from repeatable --cli-plugin-connection name=file flags.
    */
-  cliPluginConnections: Record<string, string>;
+  cliPluginConfiguration: Record<string, string>;
 }
 
 /** One CLI plugin bridge entry (one --cli-plugin-yaml / --cli-plugin-connection-file pair). */
 interface CliPluginEntry {
   /** Absolute path to the plugin YAML file. */
   yamlPath: string;
-  /** Absolute path to a CliConnectionConfig JSON file. When absent, an empty connection config is used. */
+  /** Absolute path to a CliPluginProfilesFile JSON file. When absent, an empty profile state is used. */
   connectionFile?: string;
 }
 
@@ -358,7 +361,7 @@ function parseArgs(): ParsedArgs {
         type: 'array',
         string: true,
         describe:
-          'Path to a CliConnectionConfig JSON file for the corresponding --cli-plugin-yaml (repeatable, matched by index).',
+          'Path to a CliPluginProfilesFile JSON file for the corresponding --cli-plugin-yaml (repeatable, matched by index).',
       },
       'cli-plugin-desc-variant': {
         type: 'string',
@@ -444,7 +447,7 @@ function parseArgs(): ParsedArgs {
     : [];
 
   const cliPluginConnectionArg = argv['cli-plugin-connection'];
-  const cliPluginConnections: Record<string, string> = {};
+  const cliPluginConfiguration: Record<string, string> = {};
   if (Array.isArray(cliPluginConnectionArg)) {
     for (const entry of cliPluginConnectionArg as string[]) {
       const eqIdx = entry.indexOf('=');
@@ -452,7 +455,7 @@ function parseArgs(): ParsedArgs {
         const name = entry.slice(0, eqIdx).trim();
         const file = entry.slice(eqIdx + 1).trim();
         if (name && file) {
-          cliPluginConnections[name] = file;
+          cliPluginConfiguration[name] = file;
         }
       }
     }
@@ -476,7 +479,7 @@ function parseArgs(): ParsedArgs {
     cliPluginDescVariant: argv['cli-plugin-desc-variant'] as string | undefined,
     cliPluginsDir: argv['cli-plugins-dir'] as string | undefined,
     enabledCliPlugins,
-    cliPluginConnections,
+    cliPluginConfiguration,
   };
   applyEnvOverrides(parsed);
   return parsed;
@@ -1042,16 +1045,70 @@ async function main(): Promise<void> {
     process.env.ZOWE_MCP_CLI_DESC_VARIANT = parsed.cliPluginDescVariant;
   }
 
+  /**
+   * Builds a CliPluginState from a CliPluginProfilesFile.
+   * Populates profilesByType and activeProfileId from the file.
+   * A standalone password resolver (env vars) is always created;
+   * in VS Code mode the shared WaitablePasswordStore is used when available.
+   */
+  function buildPluginState(
+    profilesFile: CliPluginProfilesFile,
+    vsCodePasswordStore?: {
+      get(key: string): string | undefined;
+      waitFor(key: string, timeoutMs: number): Promise<string | undefined>;
+    }
+  ): CliPluginState {
+    const state = createEmptyPluginState();
+    for (const [typeKey, typeData] of Object.entries(profilesFile)) {
+      state.profilesByType.set(typeKey, typeData.profiles ?? []);
+      if (typeData.default) {
+        state.activeProfileId.set(typeKey, typeData.default);
+      }
+    }
+
+    // Wire password resolver
+    state.passwordResolver = {
+      async getPassword(user: string, host: string): Promise<string> {
+        // VS Code mode: use waitable password store (request-password events)
+        if (vsCodePasswordStore) {
+          const key = `${user}@${host}`;
+          const cached = vsCodePasswordStore.get(key);
+          if (cached !== undefined) return cached;
+          const pw = await vsCodePasswordStore.waitFor(key, 120_000);
+          if (pw !== undefined) return pw;
+        }
+        // Standalone mode (or VS Code fallback): read from env var
+        // Format: ZOWE_MCP_PASSWORD_<USER>_<HOST> (uppercase, dots/special chars → _)
+        const userPart = user.toUpperCase().replace(/[^A-Z0-9]/g, '_');
+        const hostPart = host.toUpperCase().replace(/[^A-Z0-9_]/g, '_');
+        const envVar = `ZOWE_MCP_PASSWORD_${userPart}_${hostPart}`;
+        const envPw = process.env[envVar];
+        if (envPw !== undefined && envPw !== '') return envPw;
+        throw new Error(
+          `No password available for ${user}@${host}. Set ${envVar} environment variable.`
+        );
+      },
+    };
+    return state;
+  }
+
   /** Register all CLI plugin bridge tools on an already-created server. */
-  function registerCliPlugins(server: ReturnType<typeof getServer>): void {
+  function registerCliPlugins(
+    server: ReturnType<typeof getServer>,
+    vsCodePasswordStore?: {
+      get(key: string): string | undefined;
+      waitFor(key: string, timeoutMs: number): Promise<string | undefined>;
+    }
+  ): void {
     // Explicit entries (--cli-plugin-yaml / --cli-plugin-connection-file pairs)
     for (const entry of parsed.cliPlugins) {
-      let connection: CliConnectionConfig = {};
+      let profilesFile: CliPluginProfilesFile = {};
       if (entry.connectionFile) {
         const raw = readFileSync(entry.connectionFile, 'utf-8');
-        connection = JSON.parse(raw) as CliConnectionConfig;
+        profilesFile = JSON.parse(raw) as CliPluginProfilesFile;
       }
-      loadAndRegisterPluginYaml(server, entry.yamlPath, { connection, context: {} }, logger);
+      const state = buildPluginState(profilesFile, vsCodePasswordStore);
+      loadAndRegisterPluginYaml(server, entry.yamlPath, state, logger);
       logger.info('CLI plugin bridge tools registered (explicit)', {
         yamlPath: entry.yamlPath,
         connectionFile: entry.connectionFile,
@@ -1086,19 +1143,15 @@ async function main(): Promise<void> {
         });
         continue;
       }
-      // Build connection from --cli-plugin-connection map
-      let connection: CliConnectionConfig = {};
-      const connFile = parsed.cliPluginConnections[heuristicName];
+      // Build state from profiles file (--cli-plugin-connection map)
+      let profilesFile: CliPluginProfilesFile = {};
+      const connFile = parsed.cliPluginConfiguration[heuristicName];
       if (connFile) {
         const raw = readFileSync(connFile, 'utf-8');
-        connection = JSON.parse(raw) as CliConnectionConfig;
+        profilesFile = JSON.parse(raw) as CliPluginProfilesFile;
       }
-      const pluginConfig = loadAndRegisterPluginYaml(
-        server,
-        yamlPath,
-        { connection, context: {} },
-        logger
-      );
+      const state = buildPluginState(profilesFile, vsCodePasswordStore);
+      const pluginConfig = loadAndRegisterPluginYaml(server, yamlPath, state, logger);
       logger.info('CLI plugin bridge tools registered (auto-discovered)', {
         plugin: pluginConfig.plugin,
         yamlPath,

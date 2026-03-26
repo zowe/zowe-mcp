@@ -155,24 +155,57 @@ export interface ToolDefinition {
 }
 
 /**
- * Applies plugin-specific defaults to a CliPluginConnection so only the fields
- * that differ from the defaults need to be specified in the YAML.
- * Currently knows defaults for the `endevor` plugin (localhost/USER/PASSWORD/http/etc.).
+ * Applies plugin-specific defaults to a CliPluginConnection and returns
+ * a CliPluginProfilesFile JSON object for writing to the connection temp file.
+ *
+ * Currently knows defaults for the `endevor` plugin (localhost/USER/http/etc.).
+ * The password is NOT written to the file; instead the env var
+ * `ZOWE_MCP_PASSWORD_<USER>_<HOST>` is set on the server process.
  */
 function resolveCliPluginConnection(
   pluginName: string,
   conn: CliPluginConnection
-): Record<string, unknown> {
+): { profilesFile: Record<string, unknown>; passwordEnvVars: Record<string, string> } {
   const endevorDefaults: CliPluginConnection = {
     host: 'localhost',
     user: 'USER',
     password: 'PASSWORD',
     protocol: 'http',
     basePath: 'EndevorService/api/v2',
-    pluginParams: { instance: 'ENDEVOR' },
+    instance: 'ENDEVOR',
   };
   const defaults = pluginName === 'endevor' ? endevorDefaults : {};
-  return { ...defaults, ...conn };
+  const merged: CliPluginConnection = { ...defaults, ...conn };
+
+  // Collect password env vars (not stored in profiles file)
+  const passwordEnvVars: Record<string, string> = {};
+  if (merged.password && merged.user && merged.host) {
+    const userPart = merged.user.toUpperCase().replace(/[^A-Z0-9]/g, '_');
+    const hostPart = merged.host.toUpperCase().replace(/[^A-Z0-9_]/g, '_');
+    passwordEnvVars[`ZOWE_MCP_PASSWORD_${userPart}_${hostPart}`] = merged.password;
+  }
+
+  // Build CliPluginProfilesFile format
+  const connectionProfile: Record<string, unknown> = { id: 'default' };
+  if (merged.host !== undefined) connectionProfile.host = merged.host;
+  if (merged.port !== undefined) connectionProfile.port = merged.port;
+  if (merged.user !== undefined) connectionProfile.user = merged.user;
+  if (merged.protocol !== undefined) connectionProfile.protocol = merged.protocol;
+  if (merged.basePath !== undefined) connectionProfile.basePath = merged.basePath;
+  if ((merged as { rejectUnauthorized?: boolean }).rejectUnauthorized !== undefined) {
+    connectionProfile.rejectUnauthorized = (
+      merged as { rejectUnauthorized?: boolean }
+    ).rejectUnauthorized;
+  }
+  // instance from pluginParams (legacy) or top-level instance field
+  const instance = (merged as { instance?: string }).instance ?? merged.pluginParams?.instance;
+  if (instance !== undefined) connectionProfile.instance = instance;
+
+  const profilesFile: Record<string, unknown> = {
+    connection: { profiles: [connectionProfile], default: 'default' },
+  };
+
+  return { profilesFile, passwordEnvVars };
 }
 
 export class McpEvalHarness {
@@ -193,6 +226,7 @@ export class McpEvalHarness {
 
     const mcpScript = setConfig.mcpServerScript ?? this.options.serverPath;
     const args: string[] = [];
+    const passwordEnvVarsForServer: Record<string, string> = {};
 
     if (setConfig.mcpServerScript) {
       if (setConfig.mcpServerArgs) {
@@ -206,7 +240,7 @@ export class McpEvalHarness {
         args.push('--mock', this.options.mockDir);
       }
       // CLI bridge plugin connections (can coexist with any backend).
-      // Auto-derive from mockServers[].pluginName; explicit cliPluginConnections take precedence.
+      // Auto-derive from mockServers[].pluginName; explicit cliPluginConfiguration take precedence.
       const autoConnections: Record<string, CliPluginConnection> = {};
       for (const def of setConfig.mockServers ?? []) {
         if (def.pluginName) {
@@ -215,17 +249,20 @@ export class McpEvalHarness {
       }
       const effectiveConnections = {
         ...autoConnections,
-        ...(setConfig.cliPluginConnections ?? {}),
+        ...(setConfig.cliPluginConfiguration ?? {}),
       };
       if (Object.keys(effectiveConnections).length > 0) {
         const pluginsDir =
           setConfig.cliPluginsDir ?? resolve(dirname(mcpScript), 'tools', 'cli-bridge', 'plugins');
         args.push('--cli-plugins-dir', pluginsDir);
         for (const [pluginName, conn] of Object.entries(effectiveConnections)) {
-          const resolved = resolveCliPluginConnection(pluginName, conn);
+          const { profilesFile, passwordEnvVars: pluginPasswordEnvVars } =
+            resolveCliPluginConnection(pluginName, conn);
           const connFile = join(tmpdir(), `cli-plugin-conn-${pluginName}-${Date.now()}.json`);
-          writeFileSync(connFile, JSON.stringify(resolved));
+          writeFileSync(connFile, JSON.stringify(profilesFile));
           args.push('--cli-plugin-connection', `${pluginName}=${connFile}`);
+          // Merge plugin password env vars into the process env for the server
+          Object.assign(passwordEnvVarsForServer, pluginPasswordEnvVars);
         }
         if (setConfig.cliPluginDescVariant) {
           args.push('--cli-plugin-desc-variant', setConfig.cliPluginDescVariant);
@@ -233,7 +270,7 @@ export class McpEvalHarness {
       }
     }
 
-    const env = { ...process.env } as Record<string, string>;
+    const env = { ...process.env, ...passwordEnvVarsForServer } as Record<string, string>;
     if (this.options.workspaceDir) {
       env.ZOWE_MCP_WORKSPACE_DIR = this.options.workspaceDir;
     }

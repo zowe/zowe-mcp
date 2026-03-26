@@ -230,8 +230,8 @@ function parseSetConfig(raw: unknown): SetConfig {
         pluginName: typeof s.pluginName === 'string' ? s.pluginName : undefined,
       }));
   }
-  if (o.cliPluginConnections && typeof o.cliPluginConnections === 'object') {
-    const raw = o.cliPluginConnections as Record<string, unknown>;
+  if (o.cliPluginConfiguration && typeof o.cliPluginConfiguration === 'object') {
+    const raw = o.cliPluginConfiguration as Record<string, unknown>;
     const connections: Record<string, import('./types.js').CliPluginConnection> = {};
     for (const [name, val] of Object.entries(raw)) {
       if (val && typeof val === 'object') {
@@ -250,7 +250,7 @@ function parseSetConfig(raw: unknown): SetConfig {
         };
       }
     }
-    config.cliPluginConnections = connections;
+    config.cliPluginConfiguration = connections;
   }
   if (typeof o.cliPluginsDir === 'string')
     config.cliPluginsDir = interpolateEnvVars(o.cliPluginsDir);

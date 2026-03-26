@@ -16,13 +16,15 @@
  * The loader:
  *   1. Reads and validates the YAML plugin config.
  *   2. Resolves the active description variant (YAML default → env override).
- *   3. Generates Zod schemas from the parameter definitions.
- *   4. Builds CLI argument arrays from tool call arguments + CliContext.
- *   5. Registers each tool via `server.registerTool()`.
- *   6. Registers the set-context tool from the `context:` block.
+ *   3. Generates profile management tools (list/set) for each profile type.
+ *   4. Generates Zod schemas from the parameter definitions (tool-specific params +
+ *      per-tool-override profile fields).
+ *   5. Builds CLI argument arrays from tool call arguments + virtual location context.
+ *   6. Resolves the active connection profile and awaits the password before invoking.
+ *   7. Registers each tool via `server.registerTool()`.
  *
- * No plugin-specific code lives here. All plugin-specific details (location field
- * names, CLI option names, connection flag names) are read from the YAML.
+ * No plugin-specific code lives here. All plugin-specific details (profile type
+ * definitions, field names, CLI option names) are read from the YAML.
  */
 
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
@@ -31,16 +33,15 @@ import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { z } from 'zod';
 import type { Logger } from '../../log.js';
-import { invokeZoweCli } from './cli-invoker.js';
+import { buildProfileArgs, invokeZoweCli } from './cli-invoker.js';
 import type {
-  CliConnectionFlag,
-  CliContext,
+  CliNamedProfile,
   CliPluginConfig,
   CliPluginState,
-  ContextDef,
-  ContextFieldDef,
   PluginParam,
   PluginToolDef,
+  ProfileFieldDef,
+  ProfileTypeDef,
 } from './types.js';
 
 // ---------------------------------------------------------------------------
@@ -87,7 +88,7 @@ function resolveIfRef(value: string | undefined, jsonData: unknown): string | un
 /**
  * Resolves all `$.` references in a `description` string and all entries of a
  * `descriptions` variants object, modifying the item in-place.
- * Works for ContextDef, ContextFieldDef, PluginParam, and PluginToolDef alike.
+ * Works for ProfileTypeDef, ProfileFieldDef, PluginParam, and PluginToolDef alike.
  */
 function resolveDescribableRefs(
   item: { description?: string; descriptions?: Record<string, string | undefined> },
@@ -110,7 +111,7 @@ function resolveDescribableRefs(
  * Attempts to load a companion `<plugin>-commands.json` file from the same
  * directory as the plugin YAML. Returns `null` when the file does not exist.
  */
-function loadCompanionJson(yamlPath: string, pluginName: string): unknown | null {
+function loadCompanionJson(yamlPath: string, pluginName: string): unknown {
   const companionPath = join(dirname(yamlPath), `${pluginName}-commands.json`);
   if (!existsSync(companionPath)) return null;
   const raw = readFileSync(companionPath, 'utf-8');
@@ -119,15 +120,51 @@ function loadCompanionJson(yamlPath: string, pluginName: string): unknown | null
 
 /**
  * Resolves all `$.` JSON references in the plugin config in-place.
- * Covers: context tool description, context field descriptions, tool description
- * variants, and tool param descriptions (both `description` and `descriptions`).
+ * Covers: profile type descriptions, profile field descriptions,
+ * tool description variants, and tool param descriptions.
  */
 function resolveJsonRefs(config: CliPluginConfig, jsonData: unknown): void {
-  // Context tool description (including variants)
-  if (config.context) {
-    resolveDescribableRefs(config.context, jsonData);
-    for (const field of config.context.fields) {
-      resolveDescribableRefs(field, jsonData);
+  // Profile type descriptions and field descriptions
+  if (config.profiles) {
+    for (const typeDef of Object.values(config.profiles)) {
+      // listDescription / listDescriptions and setDescription / setDescriptions
+      resolveDescribableRefs(
+        {
+          description: typeDef.listDescription,
+          descriptions: typeDef.listDescriptions,
+        },
+        jsonData
+      );
+      // Apply resolved values back (resolveDescribableRefs mutates a proxy object above)
+      // We need to handle this differently since ProfileTypeDef has separate fields
+      if (typeDef.listDescription?.startsWith(JSON_REF_PREFIX)) {
+        const resolved = resolveIfRef(typeDef.listDescription, jsonData);
+        if (resolved) typeDef.listDescription = resolved;
+      }
+      if (typeDef.setDescription?.startsWith(JSON_REF_PREFIX)) {
+        const resolved = resolveIfRef(typeDef.setDescription, jsonData);
+        if (resolved) typeDef.setDescription = resolved;
+      }
+      if (typeDef.listDescriptions) {
+        for (const key of Object.keys(typeDef.listDescriptions)) {
+          const val = typeDef.listDescriptions[key];
+          if (val?.startsWith(JSON_REF_PREFIX)) {
+            typeDef.listDescriptions[key] = resolveIfRef(val, jsonData) ?? val;
+          }
+        }
+      }
+      if (typeDef.setDescriptions) {
+        for (const key of Object.keys(typeDef.setDescriptions)) {
+          const val = typeDef.setDescriptions[key];
+          if (val?.startsWith(JSON_REF_PREFIX)) {
+            typeDef.setDescriptions[key] = resolveIfRef(val, jsonData) ?? val;
+          }
+        }
+      }
+      // Resolve each field's descriptions
+      for (const field of typeDef.fields) {
+        resolveDescribableRefs(field, jsonData);
+      }
     }
   }
   // Tool descriptions and per-tool params
@@ -163,8 +200,8 @@ export function loadPluginYaml(yamlPath: string): CliPluginConfig {
 
 /**
  * Resolves the description for any item that carries either a plain `description`
- * string or a `descriptions` variants object (ContextDef, ContextFieldDef,
- * PluginParam, or PluginToolDef).
+ * string or a `descriptions` variants object (ProfileFieldDef, PluginParam,
+ * or PluginToolDef).
  *
  * Priority:
  *   descriptions[variant] → descriptions.intent → descriptions.cli
@@ -207,22 +244,24 @@ export function resolveDescription(tool: PluginToolDef, pluginActiveDescription?
 // ---------------------------------------------------------------------------
 
 /**
- * Resolves which context fields to inject as location params based on the locationParams field.
+ * Resolves which profile fields to inject as location params based on the locationParams field.
  * - false/undefined: none
- * - true: all context fields
+ * - true: all fields
  * - string[]: only the named fields
  *
- * Context fields come from the plugin YAML `context.fields` block — no hardcoded list.
+ * Profile fields come from the ProfileTypeDef for the `perToolOverride: true` type in the
+ * plugin YAML's `profiles:` block — no hardcoded list.
  */
 function resolveLocationParams(
   locationParams: PluginToolDef['locationParams'],
-  contextFields: ContextFieldDef[]
+  fields: ProfileFieldDef[]
 ): PluginParam[] {
   if (!locationParams) return [];
-  const asParams: PluginParam[] = contextFields.map(f => ({
+  const asParams: PluginParam[] = fields.map(f => ({
     name: f.name,
     cliOption: f.cliOption,
     description: f.description,
+    descriptions: f.descriptions,
     default: f.default,
   }));
   if (locationParams === true) return asParams;
@@ -241,23 +280,44 @@ function buildParamSchema(param: PluginParam, variant?: string): z.ZodTypeAny {
 }
 
 /**
- * Builds the full Zod input schema for a tool, merging location params + extra params.
- * @param contextFields - the plugin's context fields (from YAML `context.fields`)
- * @param variant - the active description variant (used for param descriptions)
+ * Builds the full Zod input schema for a tool, merging:
+ *   1. Optional `<typeKey>Id` for each profile type (all types).
+ *   2. Location field params from `perToolOverride: true` profile types (if tool.locationParams set).
+ *   3. Tool-specific extra params from tool.params.
+ *
+ * @param profileDefs - the plugin's profile type definitions (from YAML `profiles:`)
+ * @param variant     - the active description variant (used for param descriptions)
  */
 export function buildToolInputSchema(
   tool: PluginToolDef,
-  contextFields: ContextFieldDef[],
+  profileDefs?: Record<string, ProfileTypeDef>,
   variant?: string
 ): Record<string, z.ZodTypeAny> {
   const shape: Record<string, z.ZodTypeAny> = {};
-  const allParams: PluginParam[] = [
-    ...resolveLocationParams(tool.locationParams, contextFields),
-    ...(tool.params ?? []),
-  ];
-  for (const param of allParams) {
+
+  // Add optional <typeKey>Id parameter for every profile type
+  for (const [typeKey, typeDef] of Object.entries(profileDefs ?? {})) {
+    const idParamName = `${typeKey}Id`;
+    const idDesc = typeDef.required
+      ? `Override the active ${typeDef.name} for this single call without changing the global default.`
+      : `ID of a named ${typeDef.name} profile to prime field defaults for this call.`;
+    shape[idParamName] = z.coerce.string().optional().describe(idDesc);
+  }
+
+  // For perToolOverride: true types, inject location fields controlled by tool.locationParams
+  for (const [, typeDef] of Object.entries(profileDefs ?? {})) {
+    if (!typeDef.perToolOverride) continue;
+    const locationParamsList = resolveLocationParams(tool.locationParams, typeDef.fields);
+    for (const param of locationParamsList) {
+      shape[param.name] = buildParamSchema(param, variant);
+    }
+  }
+
+  // Tool-specific extra params
+  for (const param of tool.params ?? []) {
     shape[param.name] = buildParamSchema(param, variant);
   }
+
   return shape;
 }
 
@@ -266,41 +326,42 @@ export function buildToolInputSchema(
 // ---------------------------------------------------------------------------
 
 /**
- * Builds the extra CLI argument array for a tool call.
+ * Builds the extra CLI argument array for a tool call (location fields + tool-specific params).
  *
  * For each param:
  *   - cliPositional: true  → value added as bare positional word (first in the result)
  *   - cliOption: 'opt'     → ['--opt', value]
  *
- * Context field params use the context value when the caller omits the arg.
- * Because the context keys are the same as the param names (both come from
- * the YAML `context.fields` block), the lookup is a direct key match.
+ * Location field params use the effective context when the caller omits the arg.
+ * The effective context is already merged (virtual context + per-call locationId profile)
+ * before this function is called.
  *
- * @param contextFields - the plugin's context fields (from YAML `context.fields`)
+ * @param effectiveContext - pre-merged context for perToolOverride: true profile fields
+ * @param locationFields   - field definitions for the perToolOverride: true profile type
  */
 export function buildCliArgs(
   tool: PluginToolDef,
   args: Record<string, unknown>,
-  context: CliContext,
-  contextFields: ContextFieldDef[]
+  effectiveContext: Record<string, string | undefined>,
+  locationFields: ProfileFieldDef[]
 ): string[] {
   const allParams: PluginParam[] = [
-    ...resolveLocationParams(tool.locationParams, contextFields),
+    ...resolveLocationParams(tool.locationParams, locationFields),
     ...(tool.params ?? []),
   ];
 
   const positionals: string[] = [];
   const options: string[] = [];
 
-  // Build a set of context field names for fast lookup
-  const contextFieldNames = new Set(contextFields.map(f => f.name));
+  // Build a set of location field names for fast lookup
+  const locationFieldNames = new Set(locationFields.map(f => f.name));
 
   for (const param of allParams) {
-    // Resolve value: call arg → context default (for context fields) → param default
+    // Resolve value: call arg → effective context default (for location fields) → param default
     let value: string | undefined = args[param.name] as string | undefined;
 
-    if (value === undefined && contextFieldNames.has(param.name)) {
-      value = context[param.name];
+    if (value === undefined && locationFieldNames.has(param.name)) {
+      value = effectiveContext[param.name];
     }
     if (value === undefined && param.default !== undefined) {
       value = param.default;
@@ -320,106 +381,213 @@ export function buildCliArgs(
 }
 
 // ---------------------------------------------------------------------------
-// Tool registration
+// Profile tool registration
 // ---------------------------------------------------------------------------
 
 /**
- * Registers all tools from the plugin config on the MCP server.
- * Also registers the set-context tool if a context block is defined.
+ * Registers list and set management tools for each profile type defined in
+ * `config.profiles`. Called once from `loadCliBridgeTools`.
+ *
+ * For each type key (e.g. "connection", "location"):
+ *
+ *   List tool (toolListName):
+ *     - `readOnlyHint: true`
+ *     - Returns all configured profiles (non-sensitive fields only), marks active ID
+ *     - For `perToolOverride: true` types also shows the current virtual context
+ *
+ *   Set tool (toolSetName):
+ *     - `required: true, perToolOverride: false` (connection-style):
+ *         Takes one required `<typeKey>Id` param; validates and sets the active profile.
+ *     - `required: false, perToolOverride: true` (location-style):
+ *         All params optional; primes from named profile and/or sets individual fields.
+ *         No args → clears the virtual context.
  */
-export function loadCliBridgeTools(
+function registerProfileTools(
   server: McpServer,
-  pluginConfig: CliPluginConfig,
-  state: CliPluginState,
-  logger: Logger
-): void {
-  const log = logger.child('cli-bridge');
-  const contextFields = pluginConfig.context?.fields ?? [];
-
-  if (pluginConfig.context) {
-    registerContextTool(server, pluginConfig.context, state, log, pluginConfig.activeDescription);
-  }
-
-  const connectionFlags = pluginConfig.connection?.flags ?? [];
-
-  for (const toolDef of pluginConfig.tools) {
-    registerPluginTool(
-      server,
-      toolDef,
-      pluginConfig.activeDescription,
-      state,
-      contextFields,
-      connectionFlags,
-      log
-    );
-  }
-
-  log.info(`Registered ${pluginConfig.tools.length} CLI bridge tools from plugin YAML`, {
-    plugin: pluginConfig.plugin,
-    tools: pluginConfig.tools.map(t => t.toolName),
-  });
-}
-
-// ---------------------------------------------------------------------------
-// Context tool registration
-// ---------------------------------------------------------------------------
-
-function registerContextTool(
-  server: McpServer,
-  contextDef: ContextDef,
+  config: CliPluginConfig,
   state: CliPluginState,
   log: Logger,
   activeDescription?: string
 ): void {
+  if (!config.profiles) return;
+
   const variant = activeDescription ?? process.env.ZOWE_MCP_CLI_DESC_VARIANT ?? 'intent';
-  const shape: Record<string, z.ZodTypeAny> = {};
-  for (const field of contextDef.fields) {
-    shape[field.name] = z.coerce
-      .string()
-      .optional()
-      .describe(resolveFieldDescription(field, variant));
-  }
 
-  const description =
-    resolveFieldDescription(contextDef, variant) ||
-    'Sets the default location context for subsequent tool calls. Call this once to avoid repeating location parameters on every tool invocation.';
+  for (const [typeKey, typeDef] of Object.entries(config.profiles)) {
+    // ---- List tool -------------------------------------------------------
+    const listDescDefault = `Lists all configured ${typeDef.name} profiles.`;
+    const listDesc =
+      resolveFieldDescription(
+        { description: typeDef.listDescription, descriptions: typeDef.listDescriptions },
+        variant
+      ) || listDescDefault;
 
-  server.registerTool(
-    contextDef.toolName,
-    {
-      description,
-      inputSchema: shape,
-      annotations: { readOnlyHint: false },
-    },
-    (args: Record<string, unknown>) => {
-      const prev = { ...state.context };
-      for (const field of contextDef.fields) {
-        const val = args[field.name];
-        if (typeof val === 'string') {
-          state.context[field.name] = val;
+    server.registerTool(
+      typeDef.toolListName,
+      {
+        description: listDesc,
+        inputSchema: {},
+        annotations: { readOnlyHint: true },
+      },
+      () => {
+        const profiles = (state.profilesByType.get(typeKey) ?? []).map(p => {
+          const display: Record<string, unknown> = { id: p.id };
+          for (const field of typeDef.fields) {
+            if (p[field.name] !== undefined) {
+              display[field.name] = p[field.name];
+            }
+          }
+          display.active = state.activeProfileId.get(typeKey) === p.id;
+          return display;
+        });
+
+        const result: Record<string, unknown> = { profiles };
+        if (typeDef.perToolOverride) {
+          result.currentContext = state.virtualContextByType.get(typeKey) ?? {};
         }
+
+        return {
+          content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }],
+        };
       }
-      log.debug('Context updated', { prev, next: state.context });
+    );
 
-      const contextSummary = Object.entries(state.context)
-        .filter(([, v]) => v !== undefined)
-        .map(([k, v]) => `${k}=${String(v)}`)
-        .join(', ');
+    // ---- Set tool --------------------------------------------------------
+    const setDescDefault =
+      typeDef.required && !typeDef.perToolOverride
+        ? `Sets the active ${typeDef.name}. Call once before using tools; auto-selected when only one profile is configured.`
+        : `Sets the virtual ${typeDef.name} context used as defaults for subsequent tool calls. All parameters are optional; call with no arguments to clear.`;
+    const setDesc =
+      resolveFieldDescription(
+        { description: typeDef.setDescription, descriptions: typeDef.setDescriptions },
+        variant
+      ) || setDescDefault;
 
-      return {
-        content: [
-          {
-            type: 'text' as const,
-            text: JSON.stringify({
-              success: true,
-              context: state.context,
-              message: contextSummary ? `Context set: ${contextSummary}` : 'Context cleared.',
-            }),
+    if (typeDef.required && !typeDef.perToolOverride) {
+      // Connection-style: one required ID param
+      const idParamName = `${typeKey}Id`;
+      server.registerTool(
+        typeDef.toolSetName,
+        {
+          description: setDesc,
+          inputSchema: {
+            [idParamName]: z
+              .string()
+              .describe(`The ID of the ${typeDef.name} profile to activate.`),
           },
-        ],
+          annotations: { readOnlyHint: false },
+        },
+        (args: Record<string, unknown>) => {
+          const id = args[idParamName] as string;
+          const profiles = state.profilesByType.get(typeKey) ?? [];
+          const profile = profiles.find(p => p.id === id);
+          if (!profile) {
+            const validIds = profiles.map(p => p.id).join(', ');
+            return {
+              content: [
+                {
+                  type: 'text' as const,
+                  text: JSON.stringify({
+                    error: `Unknown ${typeDef.name} profile "${id}". Valid IDs: ${validIds || 'none configured'}`,
+                  }),
+                },
+              ],
+              isError: true,
+            };
+          }
+          state.activeProfileId.set(typeKey, id);
+
+          const display: Record<string, unknown> = { id };
+          for (const field of typeDef.fields) {
+            if (profile[field.name] !== undefined) {
+              display[field.name] = profile[field.name];
+            }
+          }
+          log.debug(`Active ${typeDef.name} set`, { typeKey, id });
+          return {
+            content: [
+              {
+                type: 'text' as const,
+                text: JSON.stringify({ success: true, active: display }),
+              },
+            ],
+          };
+        }
+      );
+    } else {
+      // Location-style: optional ID + all fields as optional params
+      const idParamName = `${typeKey}Id`;
+      const shape: Record<string, z.ZodTypeAny> = {
+        [idParamName]: z.coerce
+          .string()
+          .optional()
+          .describe(`ID of a named ${typeDef.name} profile to prime the context from.`),
       };
+      for (const field of typeDef.fields) {
+        shape[field.name] = z.coerce
+          .string()
+          .optional()
+          .describe(resolveFieldDescription(field, variant));
+      }
+
+      server.registerTool(
+        typeDef.toolSetName,
+        {
+          description: setDesc,
+          inputSchema: shape,
+          annotations: { readOnlyHint: false },
+        },
+        (args: Record<string, unknown>) => {
+          // Start fresh (no args = clear)
+          const newContext: Record<string, string | undefined> = {};
+
+          // If <typeKey>Id given, prime from that profile
+          const primeId = args[idParamName] as string | undefined;
+          if (primeId) {
+            const profile = state.profilesByType.get(typeKey)?.find(p => p.id === primeId);
+            if (profile) {
+              for (const f of typeDef.fields) {
+                if (profile[f.name] !== undefined) {
+                  newContext[f.name] = String(profile[f.name]);
+                }
+              }
+            }
+          }
+
+          // Apply directly specified field overrides
+          for (const field of typeDef.fields) {
+            const val = args[field.name];
+            if (typeof val === 'string' && val !== '') {
+              newContext[field.name] = val;
+            }
+          }
+
+          state.virtualContextByType.set(typeKey, newContext);
+          log.debug(`Virtual ${typeDef.name} context updated`, { typeKey, context: newContext });
+
+          const contextSummary = Object.entries(newContext)
+            .filter(([, v]) => v !== undefined)
+            .map(([k, v]) => `${k}=${String(v)}`)
+            .join(', ');
+
+          return {
+            content: [
+              {
+                type: 'text' as const,
+                text: JSON.stringify({
+                  success: true,
+                  context: newContext,
+                  message: contextSummary
+                    ? `${typeDef.name} context set: ${contextSummary}`
+                    : `${typeDef.name} context cleared.`,
+                }),
+              },
+            ],
+          };
+        }
+      );
     }
-  );
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -431,8 +599,7 @@ function registerPluginTool(
   toolDef: PluginToolDef,
   pluginActiveDescription: string | undefined,
   state: CliPluginState,
-  contextFields: ContextFieldDef[],
-  connectionFlags: CliConnectionFlag[],
+  config: CliPluginConfig,
   log: Logger
 ): void {
   const variant =
@@ -441,7 +608,7 @@ function registerPluginTool(
     process.env.ZOWE_MCP_CLI_DESC_VARIANT ??
     'intent';
   const description = resolveDescription(toolDef, pluginActiveDescription);
-  const inputSchema = buildToolInputSchema(toolDef, contextFields, variant);
+  const inputSchema = buildToolInputSchema(toolDef, config.profiles, variant);
 
   // Split zoweCommand into args array: "endevor list elements" → ['endevor', 'list', 'elements']
   const command = toolDef.zoweCommand.trim().split(/\s+/);
@@ -460,10 +627,110 @@ function registerPluginTool(
       const toolLog = log.child(toolDef.toolName);
       toolLog.debug('Tool called', { args });
 
-      const extraArgs = buildCliArgs(toolDef, args, state.context, contextFields);
-      toolLog.debug('Invoking zowe CLI', { command, extraArgs });
+      // --- 1. Resolve profiles and build connection args ---
+      const allProfileArgs: string[] = [];
 
-      const result = invokeZoweCli(command, extraArgs, state.connection, connectionFlags);
+      for (const [typeKey, typeDef] of Object.entries(config.profiles ?? {})) {
+        if (!typeDef.required) continue;
+
+        // Per-call <typeKey>Id override or fallback to active
+        const perCallId = args[`${typeKey}Id`] as string | undefined;
+        const profileId = perCallId ?? state.activeProfileId.get(typeKey);
+
+        if (!profileId) {
+          return {
+            content: [
+              {
+                type: 'text' as const,
+                text: JSON.stringify({
+                  error: `No active ${typeDef.name} profile. Call ${typeDef.toolSetName} to set one, or pass ${typeKey}Id.`,
+                }),
+              },
+            ],
+            isError: true,
+          };
+        }
+
+        const profiles = state.profilesByType.get(typeKey) ?? [];
+        const profile = profiles.find(p => p.id === profileId);
+        if (!profile) {
+          const validIds = profiles.map(p => p.id).join(', ');
+          return {
+            content: [
+              {
+                type: 'text' as const,
+                text: JSON.stringify({
+                  error: `Unknown ${typeDef.name} profile "${profileId}". Valid IDs: ${validIds || 'none configured'}`,
+                }),
+              },
+            ],
+            isError: true,
+          };
+        }
+
+        // Get password if needed
+        let password: string | undefined;
+        const usernameField = typeDef.fields.find(f => f.isUsername);
+        if (usernameField && state.passwordResolver) {
+          const hostField = typeDef.fields.find(f => f.name === 'host');
+          const user = String(profile[usernameField.name] ?? '');
+          const host = String(profile[hostField?.name ?? 'host'] ?? '');
+          if (user && host) {
+            try {
+              password = await state.passwordResolver.getPassword(user, host);
+            } catch (err) {
+              const msg = err instanceof Error ? err.message : String(err);
+              return {
+                content: [
+                  {
+                    type: 'text' as const,
+                    text: JSON.stringify({ error: `Could not resolve password: ${msg}` }),
+                  },
+                ],
+                isError: true,
+              };
+            }
+          }
+        }
+
+        allProfileArgs.push(...buildProfileArgs(profile, typeDef.fields, password));
+      }
+
+      // --- 2. Build effective location context for perToolOverride: true types ---
+      let effectiveContext: Record<string, string | undefined> = {};
+      let locationFields: ProfileFieldDef[] = [];
+
+      for (const [typeKey, typeDef] of Object.entries(config.profiles ?? {})) {
+        if (!typeDef.perToolOverride) continue;
+
+        // Start with virtual context
+        effectiveContext = { ...(state.virtualContextByType.get(typeKey) ?? {}) };
+        locationFields = typeDef.fields;
+
+        // Per-call <typeKey>Id: prime from that profile (override virtual context)
+        const perCallLocId = args[`${typeKey}Id`] as string | undefined;
+        if (perCallLocId) {
+          const profile = state.profilesByType.get(typeKey)?.find(p => p.id === perCallLocId);
+          if (profile) {
+            for (const f of typeDef.fields) {
+              if (profile[f.name] !== undefined) {
+                effectiveContext[f.name] = String(profile[f.name]);
+              }
+            }
+          }
+        }
+      }
+
+      // --- 3. Build extra CLI args (location fields + tool-specific params) ---
+      const extraArgs = buildCliArgs(toolDef, args, effectiveContext, locationFields);
+      toolLog.debug('Invoking zowe CLI', {
+        command,
+        extraArgs,
+        profileArgCount: allProfileArgs.length,
+      });
+
+      // --- 4. Invoke CLI ---
+      const result = invokeZoweCli(command, extraArgs, allProfileArgs);
 
       if (!result.ok) {
         toolLog.warning('CLI invocation failed', {
@@ -482,7 +749,7 @@ function registerPluginTool(
         };
       }
 
-      // Determine output
+      // --- 5. Determine output ---
       const outputPath = toolDef.outputPath ?? 'data';
       let output: unknown;
 
@@ -491,7 +758,6 @@ function registerPluginTool(
       } else if (outputPath === '.') {
         output = result.data;
       } else {
-        // Extract nested key from data (e.g. "data" or "data.items")
         output = extractOutputPath(result.data, outputPath);
         if (output === undefined) {
           output = result.data;
@@ -503,6 +769,51 @@ function registerPluginTool(
       return {
         content: [{ type: 'text' as const, text }],
       };
+    }
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Top-level tool registration
+// ---------------------------------------------------------------------------
+
+/**
+ * Registers all tools from the plugin config on the MCP server.
+ * Registers profile management tools first, then the plugin command tools.
+ */
+export function loadCliBridgeTools(
+  server: McpServer,
+  pluginConfig: CliPluginConfig,
+  state: CliPluginState,
+  logger: Logger
+): void {
+  const log = logger.child('cli-bridge');
+
+  // Auto-select single profile for required types (if no active ID already set)
+  for (const [typeKey, typeDef] of Object.entries(pluginConfig.profiles ?? {})) {
+    if (!typeDef.required) continue;
+    const profiles = state.profilesByType.get(typeKey) ?? [];
+    const hasActive = state.activeProfileId.get(typeKey) !== undefined;
+    if (!hasActive && profiles.length === 1) {
+      state.activeProfileId.set(typeKey, profiles[0].id);
+      log.debug(`Auto-selected single ${typeDef.name} profile`, { typeKey, id: profiles[0].id });
+    }
+  }
+
+  // Register profile management tools (list/set for each profile type)
+  registerProfileTools(server, pluginConfig, state, log, pluginConfig.activeDescription);
+
+  // Register plugin command tools
+  for (const toolDef of pluginConfig.tools) {
+    registerPluginTool(server, toolDef, pluginConfig.activeDescription, state, pluginConfig, log);
+  }
+
+  const profileToolCount = Object.keys(pluginConfig.profiles ?? {}).length * 2;
+  log.info(
+    `Registered ${pluginConfig.tools.length} CLI bridge tools + ${profileToolCount} profile management tools from plugin YAML`,
+    {
+      plugin: pluginConfig.plugin,
+      tools: pluginConfig.tools.map(t => t.toolName),
     }
   );
 }
@@ -549,22 +860,57 @@ export function extractOutputPath(body: unknown, path: string): unknown {
 // ---------------------------------------------------------------------------
 
 /** Returns the current CliPluginState as a display record (for getContext). */
-export function formatPluginContextForDisplay(state: CliPluginState): Record<string, unknown> {
-  const connDisplay: Record<string, unknown> = {};
-  if (state.connection.host) connDisplay.host = state.connection.host;
-  if (state.connection.port !== undefined) connDisplay.port = state.connection.port;
-  if (state.connection.user) connDisplay.user = state.connection.user;
-  if (state.connection.pluginParams) {
-    const params = state.connection.pluginParams;
-    for (const [k, v] of Object.entries(params)) {
-      if (v !== undefined && k !== 'password') {
-        connDisplay[k] = v;
+export function formatPluginContextForDisplay(
+  state: CliPluginState,
+  config?: CliPluginConfig
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+
+  for (const [typeKey, profiles] of state.profilesByType.entries()) {
+    const typeDef = config?.profiles?.[typeKey];
+    const activeId = state.activeProfileId.get(typeKey);
+    const activeProfile = profiles.find(p => p.id === activeId);
+
+    const display: Record<string, unknown> = {
+      activeId,
+      profileCount: profiles.length,
+    };
+
+    if (activeProfile && typeDef) {
+      const activeDisplay: Record<string, unknown> = { id: activeProfile.id };
+      for (const field of typeDef.fields) {
+        if (activeProfile[field.name] !== undefined && !field.isUsername) {
+          activeDisplay[field.name] = activeProfile[field.name];
+        }
+      }
+      display.active = activeDisplay;
+    }
+
+    // For perToolOverride types, include current virtual context
+    if (typeDef?.perToolOverride) {
+      const ctx = state.virtualContextByType.get(typeKey) ?? {};
+      if (Object.keys(ctx).length > 0) {
+        display.currentContext = ctx;
       }
     }
+
+    result[typeKey] = display;
   }
 
+  return result;
+}
+
+// ---------------------------------------------------------------------------
+// State factory
+// ---------------------------------------------------------------------------
+
+/**
+ * Creates an empty CliPluginState. Useful for tests and generate-docs.
+ */
+export function createEmptyPluginState(): CliPluginState {
   return {
-    connection: connDisplay,
-    location: Object.fromEntries(Object.entries(state.context).filter(([, v]) => v !== undefined)),
+    profilesByType: new Map<string, CliNamedProfile[]>(),
+    activeProfileId: new Map<string, string | undefined>(),
+    virtualContextByType: new Map<string, Record<string, string | undefined>>(),
   };
 }

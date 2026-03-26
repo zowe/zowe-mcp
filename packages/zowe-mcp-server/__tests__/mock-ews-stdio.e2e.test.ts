@@ -136,23 +136,32 @@ describe.skipIf(!canRunEwsE2E)(
 
       await waitForPort(EWS_PORT, 15_000);
 
-      // 3. Write a temp connection JSON for the Endevor CLI bridge.
+      // 3. Write a temp profiles JSON for the Endevor CLI bridge (CliPluginProfilesFile format).
+      // Passwords are NOT stored in the file; they are passed via env vars to the server process.
       connFile = join(tmpdir(), `endevor-e2e-conn-${Date.now()}.json`);
       writeFileSync(
         connFile,
         JSON.stringify({
-          host: 'localhost',
-          port: EWS_PORT,
-          user: 'USER',
-          password: 'PASSWORD',
-          protocol: 'http',
-          basePath: 'EndevorService/api/v2',
-          pluginParams: { instance: 'ENDEVOR' },
+          connection: {
+            profiles: [
+              {
+                id: 'default',
+                host: 'localhost',
+                port: EWS_PORT,
+                user: 'USER',
+                protocol: 'http',
+                basePath: 'EndevorService/api/v2',
+                instance: 'ENDEVOR',
+              },
+            ],
+            default: 'default',
+          },
         })
       );
 
       // 4. Start the MCP server with the Endevor CLI bridge.
       const pluginsDir = resolve(dirname(serverPath), 'tools', 'cli-bridge', 'plugins');
+      // Pass the password via env var (ZOWE_MCP_PASSWORD_USER_LOCALHOST for user=USER, host=localhost)
       const transport = new StdioClientTransport({
         command: 'node',
         args: [
@@ -163,7 +172,10 @@ describe.skipIf(!canRunEwsE2E)(
           '--cli-plugin-connection',
           `endevor=${connFile}`,
         ],
-        env: { ...process.env } as Record<string, string>,
+        env: {
+          ...process.env,
+          ZOWE_MCP_PASSWORD_USER_LOCALHOST: 'PASSWORD',
+        } as Record<string, string>,
       });
       client = new Client({ name: 'e2e-mock-ews-test', version: '1.0.0' });
       await client.connect(transport);
@@ -190,9 +202,9 @@ describe.skipIf(!canRunEwsE2E)(
       expect(endevorTools.length).toBeGreaterThanOrEqual(9);
     });
 
-    it('endevorSetContext sets DEV/1/SYS1/SUB1 and returns success', async () => {
+    it('endevorSetLocation sets DEV/1/SYS1/SUB1 and returns success', async () => {
       const result = await client.callTool({
-        name: 'endevorSetContext',
+        name: 'endevorSetLocation',
         arguments: { environment: 'DEV', stageNumber: '1', system: 'SYS1', subsystem: 'SUB1' },
       });
       expect(result.isError).not.toBe(true);

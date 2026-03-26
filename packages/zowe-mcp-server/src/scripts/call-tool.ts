@@ -58,8 +58,11 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Logger } from '../log.js';
 import { createServer, getServer, type CreateServerOptions } from '../server.js';
-import { loadAndRegisterPluginYaml } from '../tools/cli-bridge/cli-tool-loader.js';
-import type { CliConnectionConfig } from '../tools/cli-bridge/types.js';
+import {
+  createEmptyPluginState,
+  loadAndRegisterPluginYaml,
+} from '../tools/cli-bridge/cli-tool-loader.js';
+import type { CliPluginProfilesFile } from '../tools/cli-bridge/types.js';
 import { loadMock } from '../zos/mock/load-mock.js';
 import { loadNative } from '../zos/native/load-native.js';
 
@@ -84,7 +87,8 @@ function parseArgs(): {
   toolName: string | undefined;
   /** Everything after the tool name (key=value args). */
   argsRest: string[];
-  endevorConnection?: CliConnectionConfig;
+  /** Path to a CliPluginProfilesFile JSON for the Endevor plugin. */
+  endevorConnectionFile?: string;
   endevorYamlPath?: string;
   endevorDescVariant?: string;
 } {
@@ -94,8 +98,7 @@ function parseArgs(): {
   let native = false;
   let configPath: string | undefined;
   const systemSpecs: string[] = [];
-  const endevorConn: Partial<CliConnectionConfig> = {};
-  const endevorPluginParams: Record<string, string> = {};
+  let endevorConnectionFile: string | undefined;
   let endevorYamlPath: string | undefined;
   let endevorDescVariant: string | undefined;
 
@@ -125,32 +128,8 @@ function parseArgs(): {
     } else if (arg === '--system' && i + 1 < args.length) {
       systemSpecs.push(args[i + 1]);
       i += 2;
-    } else if (arg === '--endevor-profile' && i + 1 < args.length) {
-      endevorPluginParams.pluginProfile = args[i + 1];
-      i += 2;
-    } else if (arg === '--endevor-host' && i + 1 < args.length) {
-      endevorConn.host = args[i + 1];
-      i += 2;
-    } else if (arg === '--endevor-port' && i + 1 < args.length) {
-      endevorConn.port = parseInt(args[i + 1], 10);
-      i += 2;
-    } else if (arg === '--endevor-user' && i + 1 < args.length) {
-      endevorConn.user = args[i + 1];
-      i += 2;
-    } else if (arg === '--endevor-password' && i + 1 < args.length) {
-      endevorConn.password = args[i + 1];
-      i += 2;
-    } else if (arg === '--endevor-instance' && i + 1 < args.length) {
-      endevorPluginParams.instance = args[i + 1];
-      i += 2;
-    } else if (arg === '--endevor-protocol' && i + 1 < args.length) {
-      endevorConn.protocol = args[i + 1];
-      i += 2;
-    } else if (arg === '--endevor-location-profile' && i + 1 < args.length) {
-      endevorPluginParams.locationProfile = args[i + 1];
-      i += 2;
-    } else if (arg === '--endevor-base-path' && i + 1 < args.length) {
-      endevorConn.basePath = args[i + 1];
+    } else if (arg === '--endevor-connection' && i + 1 < args.length) {
+      endevorConnectionFile = args[i + 1];
       i += 2;
     } else if (arg === '--endevor-yaml' && i + 1 < args.length) {
       endevorYamlPath = args[i + 1];
@@ -167,15 +146,6 @@ function parseArgs(): {
     mockDir = process.env.ZOWE_MCP_MOCK_DIR;
   }
 
-  const endevorConnection: CliConnectionConfig | undefined =
-    endevorConn.host !== undefined || endevorPluginParams.pluginProfile !== undefined
-      ? {
-          ...endevorConn,
-          pluginParams:
-            Object.keys(endevorPluginParams).length > 0 ? endevorPluginParams : undefined,
-        }
-      : undefined;
-
   const toolName = args[i];
   const argsRest = i + 1 < args.length ? args.slice(i + 1) : [];
   return {
@@ -185,7 +155,7 @@ function parseArgs(): {
     systemSpecs,
     toolName,
     argsRest,
-    endevorConnection,
+    endevorConnectionFile,
     endevorYamlPath,
     endevorDescVariant,
   };
@@ -231,7 +201,7 @@ async function main(): Promise<void> {
     systemSpecs,
     toolName,
     argsRest,
-    endevorConnection,
+    endevorConnectionFile,
     endevorYamlPath,
     endevorDescVariant,
   } = parseArgs();
@@ -289,19 +259,38 @@ async function main(): Promise<void> {
     : createServer();
   const server = getServer(created);
 
-  // Register Endevor CLI bridge tools if --endevor-host or --endevor-profile was provided
-  if (endevorConnection) {
+  // Register Endevor CLI bridge tools if --endevor-connection was provided
+  if (endevorConnectionFile) {
     if (endevorDescVariant) {
       process.env.ZOWE_MCP_CLI_DESC_VARIANT = endevorDescVariant;
     }
+    const { readFileSync: rf } = await import('node:fs');
+    const raw = rf(endevorConnectionFile, 'utf-8');
+    const profilesFile = JSON.parse(raw) as CliPluginProfilesFile;
+
+    const endevorState = createEmptyPluginState();
+    for (const [typeKey, typeData] of Object.entries(profilesFile)) {
+      endevorState.profilesByType.set(typeKey, typeData.profiles ?? []);
+      if (typeData.default) {
+        endevorState.activeProfileId.set(typeKey, typeData.default);
+      }
+    }
+    // Standalone password resolver via env vars
+    endevorState.passwordResolver = {
+      getPassword(user: string, host: string): Promise<string> {
+        const userPart = user.toUpperCase().replace(/[^A-Z0-9]/g, '_');
+        const hostPart = host.toUpperCase().replace(/[^A-Z0-9_]/g, '_');
+        const envVar = `ZOWE_MCP_PASSWORD_${userPart}_${hostPart}`;
+        const pw = process.env[envVar];
+        if (pw !== undefined && pw !== '') return Promise.resolve(pw);
+        return Promise.reject(new Error(`No password for ${user}@${host}. Set ${envVar}.`));
+      },
+    };
+
     const yamlPath =
-      endevorYamlPath ?? resolve(__dirname, '..', 'tools', 'cli-bridge', 'endevor-tools.yaml');
-    loadAndRegisterPluginYaml(
-      server,
-      yamlPath,
-      { connection: endevorConnection, context: {} },
-      log
-    );
+      endevorYamlPath ??
+      resolve(__dirname, '..', 'tools', 'cli-bridge', 'plugins', 'endevor-tools.yaml');
+    loadAndRegisterPluginYaml(server, yamlPath, endevorState, log);
     log.info('Endevor CLI bridge tools registered', { yamlPath });
   }
 

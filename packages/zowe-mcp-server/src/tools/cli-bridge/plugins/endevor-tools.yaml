@@ -1,36 +1,66 @@
 plugin: endevor
 activeDescription: intent
-connection:
-  flags:
-    - configKey: pluginProfile
-      cliFlag: endevor-profile
-    - configKey: locationProfile
-      cliFlag: endevor-location-profile
-    - configKey: instance
-      cliFlag: instance
-context:
-  toolName: endevorSetContext
-  description: >-
-    Sets the default Endevor location context (environment, stageNumber, system, subsystem, type) for all subsequent Endevor tool calls. Call this once before working with elements to avoid repeating
-    location parameters on every invocation.
-  fields:
-    - name: environment
-      cliOption: env
-      description: "$.endevor.context.fields.environment"
-    - name: stageNumber
-      cliOption: sn
-      description: "$.endevor.context.fields.stageNumber"
-      default: "*"
-    - name: system
-      cliOption: sys
-      description: "$.endevor.context.fields.system"
-    - name: subsystem
-      cliOption: sub
-      description: "$.endevor.context.fields.subsystem"
-    - name: type
-      cliOption: typ
-      description: "$.endevor.context.fields.type"
-      default: "*"
+profiles:
+  connection:
+    name: Endevor connection
+    toolListName: endevorListConnections
+    toolSetName: endevorSetConnection
+    required: true
+    perToolOverride: false
+    fields:
+      - name: host
+        cliOption: host
+        required: true
+        description: "Base host name for Endevor Web Services."
+      - name: port
+        cliOption: port
+        description: "Port number for Endevor Web Services."
+      - name: user
+        cliOption: user
+        required: true
+        isUsername: true
+        description: "Username for Endevor Web Services."
+      - name: protocol
+        cliOption: protocol
+        default: https
+        description: "Protocol for connecting to Endevor Web Services: http or https (default: https)."
+      - name: rejectUnauthorized
+        cliOption: reject-unauthorized
+        description: "Reject unauthorized TLS certificates when connecting to Endevor Web Services."
+      - name: basePath
+        cliOption: base-path
+        description: "Base path for the Endevor Web Services API (e.g. EndevorService/api/v2)."
+      - name: instance
+        cliOption: i
+        description: "$.endevor.list.environments.params.instance"
+  location:
+    name: Endevor location
+    toolListName: endevorListLocations
+    toolSetName: endevorSetLocation
+    required: false
+    perToolOverride: true
+    fields:
+      - name: environment
+        cliOption: env
+        description: "$.endevor.context.fields.environment"
+      - name: stageNumber
+        cliOption: sn
+        default: "*"
+        description: "$.endevor.context.fields.stageNumber"
+      - name: system
+        cliOption: sys
+        description: "$.endevor.context.fields.system"
+      - name: subsystem
+        cliOption: sub
+        description: "$.endevor.context.fields.subsystem"
+      - name: type
+        cliOption: typ
+        default: "*"
+        description: "$.endevor.context.fields.type"
+      - name: maxrc
+        cliOption: maxrc
+        default: "8"
+        description: "Maximum return code of a successful action. When greater than this value, the command fails (default: 8)."
 tools:
   - toolName: endevorListEnvironments
     zoweCommand: endevor list environments
@@ -44,9 +74,6 @@ tools:
         cliPositional: true
         description: "$.endevor.list.environments.params.environment"
         default: "*"
-      - name: instance
-        cliOption: i
-        description: "$.endevor.list.environments.params.instance"
   - toolName: endevorListStages
     zoweCommand: endevor list stages
     readOnlyHint: true
@@ -63,9 +90,6 @@ tools:
           cli: "$.endevor.list.stages.params.stage"
           intent: Stage number filter (1 or 2). Use * for all stages.
         default: "*"
-      - name: instance
-        cliOption: i
-        description: "$.endevor.list.stages.params.instance"
   - toolName: endevorListSystems
     zoweCommand: endevor list systems
     readOnlyHint: true
@@ -81,9 +105,6 @@ tools:
         cliPositional: true
         description: "$.endevor.list.systems.params.system"
         default: "*"
-      - name: instance
-        cliOption: i
-        description: "$.endevor.list.systems.params.instance"
   - toolName: endevorListSubsystems
     zoweCommand: endevor list subsystems
     readOnlyHint: true
@@ -100,9 +121,6 @@ tools:
         cliPositional: true
         description: "$.endevor.list.subsystems.params.subsystem"
         default: "*"
-      - name: instance
-        cliOption: i
-        description: "$.endevor.list.subsystems.params.instance"
   - toolName: endevorListTypes
     zoweCommand: endevor list types
     readOnlyHint: true
@@ -121,9 +139,6 @@ tools:
         cliPositional: true
         description: "$.endevor.list.types.params.type"
         default: "*"
-      - name: instance
-        cliOption: i
-        description: "$.endevor.list.types.params.instance"
   - toolName: endevorListElements
     zoweCommand: endevor list elements
     readOnlyHint: true
@@ -132,19 +147,16 @@ tools:
       cli: "$.endevor.list.elements.description"
       intent: >-
         Lists elements in the Endevor inventory matching the given location (environment, stageNumber, system, subsystem, type). All location parameters default to the active context set by
-        endevorSetContext. Use wildcard * to match all values for a location level (e.g. system=* lists across all systems).
+        endevorSetLocation. Use wildcard * to match all values for a location level (e.g. system=* lists across all systems).
       optimized: >-
         Lists elements in the Endevor inventory by specifying an Endevor location (environment, stageNumber, system, subsystem, type). Location parameters default to the active context set by
-        endevorSetContext.
+        endevorSetLocation.
     params:
       - name: element
         cliPositional: true
         descriptions:
           cli: "$.endevor.list.elements.params.element"
           intent: "Element name filter. Supports wildcards: * matches any characters. Omit or use * to list all elements in the location."
-      - name: instance
-        cliOption: i
-        description: "$.endevor.list.elements.params.instance"
       - name: search
         cliOption: sea
         descriptions:
@@ -171,9 +183,6 @@ tools:
         descriptions:
           cli: "$.endevor.print.element.params.element"
           intent: Name of the element whose source code to retrieve (e.g. PROG01, CPYBK01).
-      - name: instance
-        cliOption: i
-        description: "$.endevor.print.element.params.instance"
       - name: search
         cliOption: sea
         descriptions:
@@ -187,10 +196,6 @@ tools:
       cli: "$.endevor.list.processorGroups.description"
       intent: Lists processor groups defined for the given element type in Endevor. Processor groups define how elements are generated, compiled, and deployed.
       optimized: Lists processor groups defined for a specified element type in Endevor. Use this to understand how elements of that type are generated, compiled, and deployed across the Endevor lifecycle.
-    params:
-      - name: instance
-        cliOption: i
-        description: "$.endevor.list.processorGroups.params.instance"
   - toolName: endevorQueryComponents
     zoweCommand: endevor queryacm components
     readOnlyHint: true
@@ -208,9 +213,6 @@ tools:
         descriptions:
           cli: "$.endevor.queryacm.components.params.element"
           intent: Name of the element to query for component dependencies (e.g. PROG01).
-      - name: instance
-        cliOption: i
-        description: "$.endevor.queryacm.components.params.instance"
   - toolName: endevorListPackages
     zoweCommand: endevor list packages
     readOnlyHint: true
@@ -223,9 +225,6 @@ tools:
         Lists Endevor packages, which are change bundles used to promote elements through environments. It provides details on package status and associated elements, useful for release management,
         promotion tracking, and auditing across environments and stages of the software development lifecycle.
     params:
-      - name: instance
-        cliOption: i
-        description: "$.endevor.list.packages.params.instance"
       - name: status
         cliOption: st
         description: "$.endevor.list.packages.params.status"

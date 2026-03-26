@@ -248,18 +248,44 @@
             "type": "string"
           },
           "default": [],
-          "description": "Plugin names to enable from the bundled CLI plugins directory (e.g. [\"endevor\"]). Empty array (default) enables all bundled plugins. Use zoweMCP.cliPluginConnections to supply connection details for each plugin. Changes require restarting the MCP server (Reload Window).",
-          "markdownDescription": "Plugin names to enable from the bundled CLI plugins directory (e.g. `[\"endevor\"]`). Empty array (default) enables **all** bundled plugins.\n\nUse `zoweMCP.cliPluginConnections` to supply connection details per plugin. Changes require **Developer: Reload Window**.",
+          "description": "Plugin names to enable from the bundled CLI plugins directory (e.g. [\"endevor\"]). Empty array (default) enables all bundled plugins. Use zoweMCP.cliPluginConfiguration to supply connection details for each plugin. Changes require restarting the MCP server (Reload Window).",
+          "markdownDescription": "Plugin names to enable from the bundled CLI plugins directory (e.g. `[\"endevor\"]`). Empty array (default) enables **all** bundled plugins.\n\nUse `zoweMCP.cliPluginConfiguration` to supply connection details per plugin. Changes require **Developer: Reload Window**.",
           "order": 10
         },
-        "zoweMCP.cliPluginConnections": {
+        "zoweMCP.cliPluginConfiguration": {
           "type": "object",
           "additionalProperties": {
-            "type": "string"
+            "type": "object",
+            "description": "Named profile sets for one CLI plugin. Maps profile type keys (e.g. \"connection\", \"location\") to a list of named profiles and an optional default.",
+            "additionalProperties": {
+              "type": "object",
+              "properties": {
+                "profiles": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "description": "Unique profile ID."
+                      }
+                    },
+                    "required": [
+                      "id"
+                    ]
+                  },
+                  "description": "List of named profiles. Each profile has an id plus plugin-specific fields."
+                },
+                "default": {
+                  "type": "string",
+                  "description": "ID of the profile to use by default."
+                }
+              }
+            }
           },
           "default": {},
-          "description": "Connection files for auto-discovered CLI plugins. Key = plugin name (e.g. \"endevor\"), value = absolute path to a CliConnectionConfig JSON file with host/port/user/password/pluginParams. Changes require restarting the MCP server (Reload Window).",
-          "markdownDescription": "Connection files for auto-discovered CLI plugins.\n\nKey = plugin name (e.g. `endevor`), value = absolute path to a CliConnectionConfig JSON file.\n\nExample:\n```json\n{\n  \"endevor\": \"/path/to/.endevor-connection.json\"\n}\n```\n\nThe connection JSON can contain `host`, `port`, `user`, `password`, `protocol`, `basePath`, and `pluginParams`. Changes require **Developer: Reload Window**.",
+          "description": "Connection profiles for auto-discovered CLI plugins. Key = plugin name (e.g. \"endevor\"), value = profile configuration object. Passwords are not stored here; set ZOWE_MCP_PASSWORD_USER_HOST environment variables. Changes require restarting the MCP server (Reload Window).",
+          "markdownDescription": "Connection profiles for auto-discovered CLI plugins.\n\nKey = plugin name (e.g. `endevor`), value = an inline `CliPluginProfilesFile` object that maps profile type keys (e.g. `connection`, `location`) to `{ profiles: [{id, ...fields}], default?: id }`.\n\nPasswords are **not** stored here. Set `ZOWE_MCP_PASSWORD_<USER>_<HOST>` environment variables instead (uppercase, dots/special chars → `_`).\n\nExample (Endevor):\n```json\n{\n  \"endevor\": {\n    \"connection\": {\n      \"profiles\": [{\n        \"id\": \"prod\",\n        \"host\": \"zos.example.com\",\n        \"user\": \"USER\",\n        \"protocol\": \"https\",\n        \"basePath\": \"EndevorService/api/v2\",\n        \"instance\": \"ENDEVOR\"\n      }],\n      \"default\": \"prod\"\n    },\n    \"location\": {\n      \"profiles\": [{\n        \"id\": \"dev\",\n        \"environment\": \"DEV\",\n        \"stageNumber\": \"1\"\n      }]\n    }\n  }\n}\n```\n\nChanges require **Developer: Reload Window**.",
           "order": 11
         },
         "zoweMCP.cliPlugins": {
@@ -290,8 +316,8 @@
             ]
           },
           "default": [],
-          "description": "Explicit CLI plugin bridge configurations (legacy/advanced). Each entry activates one plugin YAML by absolute path. Prefer zoweMCP.enabledCliPlugins and zoweMCP.cliPluginConnections for bundled plugins. Changes require restarting the MCP server (Reload Window).",
-          "markdownDescription": "Explicit CLI plugin bridge configurations (legacy/advanced). Each entry activates one plugin YAML by absolute path.\n\nPrefer `zoweMCP.enabledCliPlugins` + `zoweMCP.cliPluginConnections` for bundled plugins.\n\nExample entry:\n```json\n{\n  \"yaml\": \"/absolute/path/to/endevor-tools.yaml\",\n  \"connectionFile\": \"/path/to/.endevor-connection.json\",\n  \"descVariant\": \"intent\"\n}\n```\n\nChanges require **Developer: Reload Window**.",
+          "description": "Explicit CLI plugin bridge configurations (legacy/advanced). Each entry activates one plugin YAML by absolute path. Prefer zoweMCP.enabledCliPlugins and zoweMCP.cliPluginConfiguration for bundled plugins. Changes require restarting the MCP server (Reload Window).",
+          "markdownDescription": "Explicit CLI plugin bridge configurations (legacy/advanced). Each entry activates one plugin YAML by absolute path.\n\nPrefer `zoweMCP.enabledCliPlugins` + `zoweMCP.cliPluginConfiguration` for bundled plugins.\n\nExample entry:\n```json\n{\n  \"yaml\": \"/absolute/path/to/endevor-tools.yaml\",\n  \"connectionFile\": \"/path/to/.endevor-connection.json\",\n  \"descVariant\": \"intent\"\n}\n```\n\nChanges require **Developer: Reload Window**.",
           "order": 12
         }
       }

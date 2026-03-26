@@ -19,7 +19,7 @@
  */
 
 import { spawnSync, type SpawnSyncOptions } from 'node:child_process';
-import type { CliConnectionConfig, CliConnectionFlag } from './types.js';
+import type { CliNamedProfile, ProfileFieldDef } from './types.js';
 
 /** Structured --rfj response from Zowe CLI. */
 export interface ZoweRfjResponse {
@@ -45,87 +45,60 @@ export interface CliInvokeResult {
 }
 
 /**
- * Build the connection arguments array from the connection config.
+ * Build the CLI argument array from a named profile's field values.
  *
- * Generic flags (host, port, user, password, etc.) are always added when present.
- * Plugin-specific flags are driven by the `flags` parameter from the YAML
- * `connection.flags` block: each entry maps a `pluginParams` config key to a CLI flag.
+ * Iterates the ProfileFieldDef array in order and maps each field to
+ * `--<cliOption> <value>`.  When a field is marked `isUsername: true`,
+ * the password argument (`--password <pw>`) is injected immediately
+ * after the username argument.
  *
- * @param connection - connection config
- * @param flags - plugin-specific flag mappings from the YAML `connection.flags` block
+ * Fields with no value in the profile are skipped.
+ *
+ * @param profile - the named profile instance (contains field values)
+ * @param fields  - ordered field definitions from the profile type
+ * @param password - plaintext password to inject after the isUsername field
  */
-export function buildConnectionArgs(
-  connection: CliConnectionConfig,
-  flags: CliConnectionFlag[] = []
+export function buildProfileArgs(
+  profile: CliNamedProfile,
+  fields: ProfileFieldDef[],
+  password?: string
 ): string[] {
   const args: string[] = [];
-
-  // Plugin-specific params driven entirely by the YAML connection.flags block
-  for (const flag of flags) {
-    const value = connection.pluginParams?.[flag.configKey];
-    if (value !== undefined) {
-      args.push(`--${flag.cliFlag}`, value);
+  for (const field of fields) {
+    const value = profile[field.name];
+    if (value !== undefined && value !== '' && field.cliOption) {
+      args.push(`--${field.cliOption}`, String(value));
+    }
+    if (field.isUsername && password !== undefined) {
+      args.push('--password', password);
     }
   }
-
-  // Generic connection params (common to all Zowe CLI plugins)
-  if (connection.host) {
-    args.push('--host', connection.host);
-  }
-  if (connection.port !== undefined) {
-    args.push('--port', String(connection.port));
-  }
-  if (connection.user) {
-    args.push('--user', connection.user);
-  }
-  if (connection.password) {
-    args.push('--password', connection.password);
-  }
-  if (connection.rejectUnauthorized !== undefined) {
-    args.push('--reject-unauthorized', String(connection.rejectUnauthorized));
-  }
-  if (connection.protocol) {
-    args.push('--protocol', connection.protocol);
-  }
-  if (connection.basePath) {
-    args.push('--base-path', connection.basePath);
-  }
-
   return args;
 }
 
 /**
  * Invoke a Zowe CLI command with --rfj and parse the response.
  *
- * @param command - zowe subcommand args array, e.g. ['endevor', 'list', 'elements']
- * @param extraArgs - additional CLI args (options, positionals) already built
- * @param connection - connection config
- * @param connectionFlags - plugin-specific flag mappings from YAML `connection.flags`
- * @param env - optional extra env vars (e.g. ZOWE_CLI_HOME for custom config dir)
+ * @param command     - zowe subcommand args array, e.g. ['endevor', 'list', 'elements']
+ * @param extraArgs   - additional CLI args (location params, tool-specific options) already built
+ * @param profileArgs - connection profile CLI args built via buildProfileArgs (host, user, password, …)
+ * @param env         - optional extra env vars (e.g. ZOWE_CLI_HOME for a custom config dir)
  */
 export function invokeZoweCli(
   command: string[],
   extraArgs: string[],
-  connection: CliConnectionConfig,
-  connectionFlags: CliConnectionFlag[] = [],
+  profileArgs: string[] = [],
   env?: Record<string, string>
 ): CliInvokeResult {
-  const zoweBin = connection.zoweBin ?? 'zowe';
-  const connectionArgs = buildConnectionArgs(connection, connectionFlags);
+  const zoweBin = process.env.ZOWE_MCP_ZOWE_BIN ?? 'zowe';
 
-  // Build full args: [subcommand parts..., extra args..., connection args..., --rfj]
-  const args = [...command, ...extraArgs, ...connectionArgs, '--rfj'];
+  // Build full args: [subcommand parts..., extra args..., profile args..., --rfj]
+  const args = [...command, ...extraArgs, ...profileArgs, '--rfj'];
 
   const spawnEnv: Record<string, string> = { ...process.env, ...(env ?? {}) } as Record<
     string,
     string
   >;
-
-  // When a custom config dir is set, point ZOWE_CLI_HOME there so the
-  // generated zowe.config.json is used instead of the user's global config.
-  if (connection.zoweConfigDir) {
-    spawnEnv.ZOWE_CLI_HOME = connection.zoweConfigDir;
-  }
 
   const options: SpawnSyncOptions = {
     encoding: 'utf-8',

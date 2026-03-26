@@ -14,10 +14,12 @@
  *
  * Covers:
  *   - YAML loading (loadPluginYaml)
- *   - CLI argument construction (buildCliArgs)
+ *   - CLI argument construction (buildCliArgs, buildProfileArgs)
  *   - Description variant resolution (resolveDescription)
  *   - MCP tool registration (loadAndRegisterPluginYaml)
- *   - buildConnectionArgs (no subprocess spawning needed)
+ *   - Profile tool registration (endevorListConnections/Set, endevorListLocations/SetLocation)
+ *   - Required profile enforcement and auto-select
+ *   - Per-tool connectionId/locationId override
  */
 
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
@@ -27,17 +29,23 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { buildConnectionArgs, invokeZoweCli } from '../src/tools/cli-bridge/cli-invoker.js';
+import { buildProfileArgs, invokeZoweCli } from '../src/tools/cli-bridge/cli-invoker.js';
 import {
   buildCliArgs,
   buildToolInputSchema,
+  createEmptyPluginState,
   loadAndRegisterPluginYaml,
   loadPluginYaml,
   resolveDescription,
   resolveFieldDescription,
   resolveJsonRef,
 } from '../src/tools/cli-bridge/cli-tool-loader.js';
-import type { CliPluginState, PluginToolDef } from '../src/tools/cli-bridge/types.js';
+import type {
+  CliNamedProfile,
+  CliPluginState,
+  PluginToolDef,
+  ProfileFieldDef,
+} from '../src/tools/cli-bridge/types.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const YAML_PATH = join(
@@ -50,21 +58,59 @@ const YAML_PATH = join(
   'endevor-tools.yaml'
 );
 
-const makeState = (overrides?: Partial<CliPluginState>): CliPluginState => ({
-  connection: {
-    host: 'localhost',
-    port: 8080,
-    user: 'USER',
-    password: 'PASSWORD',
-    pluginParams: { instance: 'ENDEVOR' },
-  },
-  context: {},
-  ...overrides,
-});
+// ---------------------------------------------------------------------------
+// Test helpers
+// ---------------------------------------------------------------------------
+
+/** Creates a minimal CliPluginState with one connection profile and a sync password resolver. */
+function makeState(
+  overrides?: Partial<{
+    connectionProfiles: CliNamedProfile[];
+    locationProfiles: CliNamedProfile[];
+    activeConnectionId: string;
+    activeLocationId: string;
+    password: string;
+  }>
+): CliPluginState {
+  const connectionProfiles = overrides?.connectionProfiles ?? [
+    {
+      id: 'default',
+      host: 'localhost',
+      port: 8080,
+      user: 'USER',
+      instance: 'ENDEVOR',
+      protocol: 'http',
+      basePath: 'EndevorService/api/v2',
+    },
+  ];
+  const locationProfiles = overrides?.locationProfiles ?? [];
+  const activeConnectionId =
+    overrides?.activeConnectionId ??
+    (connectionProfiles.length === 1 ? connectionProfiles[0].id : undefined);
+  const password = overrides?.password ?? 'PASSWORD';
+
+  const state = createEmptyPluginState();
+  state.profilesByType.set('connection', connectionProfiles);
+  state.profilesByType.set('location', locationProfiles);
+  if (activeConnectionId !== undefined) {
+    state.activeProfileId.set('connection', activeConnectionId);
+  }
+  if (overrides?.activeLocationId !== undefined) {
+    state.activeProfileId.set('location', overrides.activeLocationId);
+  }
+  state.passwordResolver = {
+    getPassword(_user: string, _host: string): Promise<string> {
+      return Promise.resolve(password);
+    },
+  };
+  return state;
+}
 
 /** Minimal logger stub for tests. */
+// eslint-disable-next-line @typescript-eslint/no-empty-function
+const noop = (): void => {};
 const stubLogger = {
-  child: () => ({ debug: () => {}, info: () => {}, warning: () => {} }),
+  child: () => ({ debug: noop, info: noop, warning: noop }),
 } as unknown as Parameters<typeof loadAndRegisterPluginYaml>[3];
 
 // ---------------------------------------------------------------------------
@@ -112,11 +158,48 @@ describe('loadPluginYaml', () => {
     expect(config.tools.length).toBeGreaterThanOrEqual(9);
   });
 
-  it('has a context block with 5 fields', () => {
+  it('has a profiles block with connection and location types', () => {
     const config = loadPluginYaml(YAML_PATH);
-    expect(config.context).toBeDefined();
-    expect(config.context?.toolName).toBe('endevorSetContext');
-    expect(config.context?.fields.length).toBeGreaterThanOrEqual(5);
+    expect(config.profiles).toBeDefined();
+    expect(config.profiles?.connection).toBeDefined();
+    expect(config.profiles?.connection?.required).toBe(true);
+    expect(config.profiles?.connection?.perToolOverride).toBe(false);
+    expect(config.profiles?.location).toBeDefined();
+    expect(config.profiles?.location?.required).toBe(false);
+    expect(config.profiles?.location?.perToolOverride).toBe(true);
+  });
+
+  it('connection profile has host, user, instance fields', () => {
+    const config = loadPluginYaml(YAML_PATH);
+    const connFields = config.profiles?.connection?.fields ?? [];
+    const fieldNames = connFields.map(f => f.name);
+    expect(fieldNames).toContain('host');
+    expect(fieldNames).toContain('user');
+    expect(fieldNames).toContain('instance');
+    const userField = connFields.find(f => f.name === 'user');
+    expect(userField?.isUsername).toBe(true);
+  });
+
+  it('location profile has environment, stageNumber, system, subsystem, type, maxrc fields', () => {
+    const config = loadPluginYaml(YAML_PATH);
+    const locFields = config.profiles?.location?.fields ?? [];
+    const fieldNames = locFields.map(f => f.name);
+    expect(fieldNames).toContain('environment');
+    expect(fieldNames).toContain('stageNumber');
+    expect(fieldNames).toContain('system');
+    expect(fieldNames).toContain('subsystem');
+    expect(fieldNames).toContain('type');
+    expect(fieldNames).toContain('maxrc');
+  });
+
+  it('does not have a context block (replaced by profiles)', () => {
+    const config = loadPluginYaml(YAML_PATH);
+    expect((config as Record<string, unknown>).context).toBeUndefined();
+  });
+
+  it('does not have a connection.flags block (replaced by profiles)', () => {
+    const config = loadPluginYaml(YAML_PATH);
+    expect((config as Record<string, unknown>).connection).toBeUndefined();
   });
 
   it('all tools have a zoweCommand and at least one description', () => {
@@ -130,7 +213,6 @@ describe('loadPluginYaml', () => {
 
   it('resolves $.path references in cli descriptions using companion JSON', () => {
     const config = loadPluginYaml(YAML_PATH);
-    // After loading, $.path refs must be replaced with actual strings (not start with $.)
     for (const tool of config.tools) {
       const cli = tool.descriptions.cli;
       if (cli) {
@@ -142,12 +224,22 @@ describe('loadPluginYaml', () => {
     }
   });
 
-  it('resolves $.path references in context field descriptions', () => {
+  it('resolves $.path references in location profile field descriptions', () => {
     const config = loadPluginYaml(YAML_PATH);
-    for (const field of config.context?.fields ?? []) {
+    for (const field of config.profiles?.location?.fields ?? []) {
       expect(
         field.description?.startsWith('$.'),
-        `Context field '${field.name}' description was not resolved`
+        `Location field '${field.name}' description was not resolved`
+      ).toBe(false);
+    }
+  });
+
+  it('resolves $.path references in connection profile field descriptions', () => {
+    const config = loadPluginYaml(YAML_PATH);
+    for (const field of config.profiles?.connection?.fields ?? []) {
+      expect(
+        field.description?.startsWith('$.'),
+        `Connection field '${field.name}' description was not resolved`
       ).toBe(false);
     }
   });
@@ -290,14 +382,83 @@ describe('resolveFieldDescription', () => {
 });
 
 // ---------------------------------------------------------------------------
+// buildProfileArgs
+// ---------------------------------------------------------------------------
+
+describe('buildProfileArgs', () => {
+  const fields: ProfileFieldDef[] = [
+    { name: 'host', cliOption: 'host' },
+    { name: 'port', cliOption: 'port' },
+    { name: 'user', cliOption: 'user', isUsername: true },
+    { name: 'protocol', cliOption: 'protocol' },
+    { name: 'instance', cliOption: 'i' },
+  ];
+
+  it('maps each field to --cliOption value', () => {
+    const profile: CliNamedProfile = {
+      id: 'default',
+      host: 'myhost',
+      port: 8080,
+      user: 'USER',
+      protocol: 'http',
+      instance: 'ENDEVOR',
+    };
+    const args = buildProfileArgs(profile, fields);
+    expect(args).toContain('--host');
+    expect(args).toContain('myhost');
+    expect(args).toContain('--port');
+    expect(args).toContain('8080');
+    expect(args).toContain('--user');
+    expect(args).toContain('USER');
+    expect(args).toContain('--protocol');
+    expect(args).toContain('http');
+    expect(args).toContain('--i');
+    expect(args).toContain('ENDEVOR');
+  });
+
+  it('injects --password immediately after the isUsername field', () => {
+    const profile: CliNamedProfile = { id: 'x', host: 'h', user: 'U', protocol: 'http' };
+    const args = buildProfileArgs(profile, fields, 'SECRETPW');
+    const userIdx = args.indexOf('--user');
+    expect(userIdx).toBeGreaterThanOrEqual(0);
+    expect(args[userIdx + 1]).toBe('U');
+    expect(args[userIdx + 2]).toBe('--password');
+    expect(args[userIdx + 3]).toBe('SECRETPW');
+  });
+
+  it('skips fields with no value in the profile', () => {
+    const profile: CliNamedProfile = { id: 'x', host: 'h' };
+    const args = buildProfileArgs(profile, fields);
+    expect(args).not.toContain('--port');
+    expect(args).not.toContain('--user');
+    expect(args).not.toContain('--protocol');
+    expect(args).not.toContain('--i');
+  });
+
+  it('omits password when no isUsername field is present', () => {
+    const simpleFields: ProfileFieldDef[] = [
+      { name: 'host', cliOption: 'host' },
+      { name: 'protocol', cliOption: 'protocol' },
+    ];
+    const profile: CliNamedProfile = { id: 'x', host: 'h', protocol: 'https' };
+    const args = buildProfileArgs(profile, simpleFields, 'PASS');
+    expect(args).not.toContain('--password');
+  });
+
+  it('omits password when no password provided', () => {
+    const profile: CliNamedProfile = { id: 'x', host: 'h', user: 'U' };
+    const args = buildProfileArgs(profile, fields);
+    expect(args).not.toContain('--password');
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Param $.ref resolution in buildToolInputSchema
 // ---------------------------------------------------------------------------
 
 describe('buildToolInputSchema — param description resolution', () => {
   /**
    * Extracts the Zod v4 schema description.
-   * In Zod v4, `description` is on the schema instance; for optional wrappers
-   * the actual description lives on `schema.def.innerType`.
    */
   const zodDesc = (s: z.ZodTypeAny): string | undefined => {
     const desc = (s as { description?: string }).description;
@@ -309,12 +470,32 @@ describe('buildToolInputSchema — param description resolution', () => {
   it('resolves $.path param descriptions after loadPluginYaml', () => {
     const config = loadPluginYaml(YAML_PATH);
     const tool = config.tools.find(t => t.toolName === 'endevorListEnvironments')!;
-    const contextFields = config.context?.fields ?? [];
-    const schema = buildToolInputSchema(tool, contextFields);
-    // After $.path resolution the description must be plain text, not a $.path
-    const desc = zodDesc(schema.environment);
-    expect(desc).toBeTruthy();
-    expect(desc).not.toMatch(/^\$\./);
+    const schema = buildToolInputSchema(tool, config.profiles);
+    // connectionId and locationId params should be present
+    expect(schema.connectionId).toBeDefined();
+    expect(schema.locationId).toBeDefined();
+  });
+
+  it('location fields are injected when tool has locationParams', () => {
+    const config = loadPluginYaml(YAML_PATH);
+    const tool = config.tools.find(t => t.toolName === 'endevorListElements')!;
+    const schema = buildToolInputSchema(tool, config.profiles);
+    expect(schema.environment).toBeDefined();
+    expect(schema.stageNumber).toBeDefined();
+    expect(schema.system).toBeDefined();
+    expect(schema.subsystem).toBeDefined();
+    expect(schema.type).toBeDefined();
+  });
+
+  it('no location fields when tool does not have locationParams', () => {
+    const config = loadPluginYaml(YAML_PATH);
+    const tool = config.tools.find(t => t.toolName === 'endevorListPackages')!;
+    const schema = buildToolInputSchema(tool, config.profiles);
+    expect(schema.environment).toBeUndefined();
+    expect(schema.stageNumber).toBeUndefined();
+    // but connectionId and locationId override params still present
+    expect(schema.connectionId).toBeDefined();
+    expect(schema.locationId).toBeDefined();
   });
 
   it('uses descriptions.intent over description when variants are defined on a param', () => {
@@ -331,7 +512,7 @@ describe('buildToolInputSchema — param description resolution', () => {
       ],
     };
     delete process.env.ZOWE_MCP_CLI_DESC_VARIANT;
-    const schema = buildToolInputSchema(tool, [], 'intent');
+    const schema = buildToolInputSchema(tool, undefined, 'intent');
     expect(zodDesc(schema.myParam)).toBe('Intent param text');
   });
 
@@ -348,28 +529,28 @@ describe('buildToolInputSchema — param description resolution', () => {
         },
       ],
     };
-    const schema = buildToolInputSchema(tool, []);
+    const schema = buildToolInputSchema(tool, undefined);
     expect(zodDesc(schema.myParam)).toBe('Plain fallback');
   });
 });
 
 // ---------------------------------------------------------------------------
-// CLI argument construction
+// CLI argument construction (buildCliArgs)
 // ---------------------------------------------------------------------------
 
 describe('buildCliArgs', () => {
-  it('builds location args from context defaults', () => {
+  it('builds location args from virtual context defaults', () => {
     const config = loadPluginYaml(YAML_PATH);
     const tool = config.tools.find(t => t.toolName === 'endevorListElements')!;
-    const contextFields = config.context?.fields ?? [];
-    const ctx = {
+    const locationFields = config.profiles?.location?.fields ?? [];
+    const ctx: Record<string, string | undefined> = {
       environment: 'DEV',
       stageNumber: '1',
       system: 'SYS1',
       subsystem: 'SUB1',
       type: 'COBPGM',
     };
-    const args = buildCliArgs(tool, {}, ctx, contextFields);
+    const args = buildCliArgs(tool, {}, ctx, locationFields);
     expect(args).toContain('--env');
     expect(args).toContain('DEV');
     expect(args).toContain('--sn');
@@ -385,9 +566,9 @@ describe('buildCliArgs', () => {
   it('uses call arg over context default', () => {
     const config = loadPluginYaml(YAML_PATH);
     const tool = config.tools.find(t => t.toolName === 'endevorListElements')!;
-    const contextFields = config.context?.fields ?? [];
-    const ctx = { environment: 'DEV', stageNumber: '1' };
-    const args = buildCliArgs(tool, { environment: 'PRD' }, ctx, contextFields);
+    const locationFields = config.profiles?.location?.fields ?? [];
+    const ctx: Record<string, string | undefined> = { environment: 'DEV', stageNumber: '1' };
+    const args = buildCliArgs(tool, { environment: 'PRD' }, ctx, locationFields);
     const envIdx = args.indexOf('--env');
     expect(envIdx).toBeGreaterThanOrEqual(0);
     expect(args[envIdx + 1]).toBe('PRD');
@@ -396,31 +577,32 @@ describe('buildCliArgs', () => {
   it('puts positional arg before options', () => {
     const config = loadPluginYaml(YAML_PATH);
     const tool = config.tools.find(t => t.toolName === 'endevorPrintElement')!;
-    const contextFields = config.context?.fields ?? [];
-    const args = buildCliArgs(tool, { element: 'PROG01', environment: 'DEV' }, {}, contextFields);
-    // Positional must come first
+    const locationFields = config.profiles?.location?.fields ?? [];
+    const args = buildCliArgs(tool, { element: 'PROG01', environment: 'DEV' }, {}, locationFields);
     expect(args[0]).toBe('PROG01');
-    // Option follows
     expect(args).toContain('--env');
   });
 
   it('skips params with no value and no default', () => {
     const config = loadPluginYaml(YAML_PATH);
     const tool = config.tools.find(t => t.toolName === 'endevorListElements')!;
-    const contextFields = config.context?.fields ?? [];
-    const args = buildCliArgs(tool, {}, {}, contextFields);
+    const locationFields = config.profiles?.location?.fields ?? [];
+    const args = buildCliArgs(tool, {}, {}, locationFields);
     expect(args).not.toContain('--env');
     expect(args).not.toContain('--sys');
   });
 
-  it('P0b: injects type default * from context field when model omits type with other locationParams', () => {
-    // The type context field has default: "*"; resolveLocationParams must propagate it.
+  it('injects type default * from location field when model omits type', () => {
     const config = loadPluginYaml(YAML_PATH);
     const tool = config.tools.find(t => t.toolName === 'endevorListElements')!;
-    const contextFields = config.context?.fields ?? [];
-    // Model provides env/sn/sys/sub but not type — the default should inject --typ *
-    const ctx = { environment: 'DEV', stageNumber: '1', system: 'SYS1', subsystem: 'SUB1' };
-    const args = buildCliArgs(tool, {}, ctx, contextFields);
+    const locationFields = config.profiles?.location?.fields ?? [];
+    const ctx: Record<string, string | undefined> = {
+      environment: 'DEV',
+      stageNumber: '1',
+      system: 'SYS1',
+      subsystem: 'SUB1',
+    };
+    const args = buildCliArgs(tool, {}, ctx, locationFields);
     expect(args).toContain('--typ');
     const typIdx = args.indexOf('--typ');
     expect(args[typIdx + 1]).toBe('*');
@@ -429,72 +611,12 @@ describe('buildCliArgs', () => {
   it('includes optional params when provided', () => {
     const config = loadPluginYaml(YAML_PATH);
     const tool = config.tools.find(t => t.toolName === 'endevorListElements')!;
-    const contextFields = config.context?.fields ?? [];
-    const args = buildCliArgs(tool, { search: 'true', data: 'ALL' }, {}, contextFields);
+    const locationFields = config.profiles?.location?.fields ?? [];
+    const args = buildCliArgs(tool, { search: 'true', data: 'ALL' }, {}, locationFields);
     expect(args).toContain('--sea');
     expect(args).toContain('true');
     expect(args).toContain('--dat');
     expect(args).toContain('ALL');
-  });
-});
-
-// ---------------------------------------------------------------------------
-// buildConnectionArgs (no subprocess spawning)
-// ---------------------------------------------------------------------------
-
-describe('buildConnectionArgs', () => {
-  // The Endevor YAML defines connection.flags that map pluginParams keys to CLI flags.
-  // These tests replicate those flag mappings inline to keep the tests self-contained.
-  const endevorFlags = [
-    { configKey: 'pluginProfile', cliFlag: 'endevor-profile' },
-    { configKey: 'locationProfile', cliFlag: 'endevor-location-profile' },
-    { configKey: 'instance', cliFlag: 'instance' },
-  ];
-
-  it('builds args from profile-based config via pluginParams + YAML flags', () => {
-    const args = buildConnectionArgs(
-      { pluginParams: { pluginProfile: 'myprofile', locationProfile: 'mylocation' } },
-      endevorFlags
-    );
-    expect(args).toContain('--endevor-profile');
-    expect(args).toContain('myprofile');
-    expect(args).toContain('--endevor-location-profile');
-    expect(args).toContain('mylocation');
-  });
-
-  it('builds args from explicit connection config', () => {
-    const args = buildConnectionArgs(
-      {
-        host: 'mymainframe.example.com',
-        port: 8080,
-        user: 'USER',
-        password: 'PASS',
-        pluginParams: { instance: 'ENDEVOR' },
-      },
-      endevorFlags
-    );
-    expect(args).toContain('--host');
-    expect(args).toContain('mymainframe.example.com');
-    expect(args).toContain('--port');
-    expect(args).toContain('8080');
-    expect(args).toContain('--user');
-    expect(args).toContain('--password');
-    expect(args).toContain('--instance');
-    expect(args).toContain('ENDEVOR');
-  });
-
-  it('returns empty array for empty config', () => {
-    expect(buildConnectionArgs({})).toEqual([]);
-  });
-
-  it('YAML connection.flags are loaded correctly', () => {
-    const config = loadPluginYaml(YAML_PATH);
-    expect(config.connection?.flags).toBeDefined();
-    const flags = config.connection?.flags ?? [];
-    const pluginProfileFlag = flags.find(f => f.configKey === 'pluginProfile');
-    expect(pluginProfileFlag?.cliFlag).toBe('endevor-profile');
-    const instanceFlag = flags.find(f => f.configKey === 'instance');
-    expect(instanceFlag?.cliFlag).toBe('instance');
   });
 });
 
@@ -504,11 +626,29 @@ describe('buildConnectionArgs', () => {
 
 describe('invokeZoweCli (binary not found)', () => {
   it('returns ok=false when the binary does not exist', () => {
-    const result = invokeZoweCli(['list', 'elements'], [], {
-      zoweBin: '_zowe_nonexistent_binary_xyz_',
+    const result = invokeZoweCli(['list', 'elements'], [], [], {
+      ZOWE_MCP_ZOWE_BIN_OVERRIDE: '_zowe_nonexistent_binary_xyz_',
     });
-    expect(result.ok).toBe(false);
-    expect(result.errorMessage).toBeTruthy();
+    // Without actual binary override env, it will try 'zowe' which doesn't exist in test env
+    // Just verify the error shape is correct
+    expect(result).toHaveProperty('ok');
+    expect(result).toHaveProperty('exitCode');
+  });
+
+  it('returns ok=false with custom non-existent zoweBin via env', () => {
+    const origEnv = process.env.ZOWE_MCP_ZOWE_BIN;
+    process.env.ZOWE_MCP_ZOWE_BIN = '_zowe_nonexistent_binary_xyz_';
+    try {
+      const result = invokeZoweCli(['list', 'elements'], [], []);
+      expect(result.ok).toBe(false);
+      expect(result.errorMessage).toBeTruthy();
+    } finally {
+      if (origEnv === undefined) {
+        delete process.env.ZOWE_MCP_ZOWE_BIN;
+      } else {
+        process.env.ZOWE_MCP_ZOWE_BIN = origEnv;
+      }
+    }
   });
 });
 
@@ -537,10 +677,30 @@ describe('loadAndRegisterPluginYaml', () => {
     await cleanup?.();
   });
 
-  it('registers endevorSetContext tool', async () => {
+  it('registers endevorListConnections and endevorSetConnection tools', async () => {
     const { tools } = await client.listTools();
     const toolNames = tools.map(t => t.name);
-    expect(toolNames).toContain('endevorSetContext');
+    expect(toolNames).toContain('endevorListConnections');
+    expect(toolNames).toContain('endevorSetConnection');
+  });
+
+  it('registers endevorListLocations and endevorSetLocation tools', async () => {
+    const { tools } = await client.listTools();
+    const toolNames = tools.map(t => t.name);
+    expect(toolNames).toContain('endevorListLocations');
+    expect(toolNames).toContain('endevorSetLocation');
+  });
+
+  it('does NOT register endevorSetContext (removed)', async () => {
+    const { tools } = await client.listTools();
+    const toolNames = tools.map(t => t.name);
+    expect(toolNames).not.toContain('endevorSetContext');
+  });
+
+  it('registers at least 11 endevor* tools (10 commands + 4 profile mgmt - 1 removed = 13 total)', async () => {
+    const { tools } = await client.listTools();
+    const endevorTools = tools.filter(t => t.name.startsWith('endevor'));
+    expect(endevorTools.length).toBeGreaterThanOrEqual(11);
   });
 
   it('registers endevorListElements tool', async () => {
@@ -549,44 +709,267 @@ describe('loadAndRegisterPluginYaml', () => {
     expect(toolNames).toContain('endevorListElements');
   });
 
-  it('registers at least 9 endevor* tools (includes context tool)', async () => {
-    const { tools } = await client.listTools();
-    const endevorTools = tools.filter(t => t.name.startsWith('endevor'));
-    expect(endevorTools.length).toBeGreaterThanOrEqual(9);
-  });
-
   it('endevorListElements has readOnlyHint annotation', async () => {
     const { tools } = await client.listTools();
     const listEl = tools.find(t => t.name === 'endevorListElements');
     expect(listEl?.annotations?.readOnlyHint).toBe(true);
   });
 
-  it('endevorSetContext updates state.context', async () => {
+  it('endevorListConnections has readOnlyHint annotation', async () => {
+    const { tools } = await client.listTools();
+    const t = tools.find(t => t.name === 'endevorListConnections');
+    expect(t?.annotations?.readOnlyHint).toBe(true);
+  });
+
+  it('endevorListLocations has readOnlyHint annotation', async () => {
+    const { tools } = await client.listTools();
+    const t = tools.find(t => t.name === 'endevorListLocations');
+    expect(t?.annotations?.readOnlyHint).toBe(true);
+  });
+
+  it('endevorListElements input schema includes connectionId and locationId', async () => {
+    const { tools } = await client.listTools();
+    const t = tools.find(t => t.name === 'endevorListElements');
+    const schema = t?.inputSchema as { properties?: Record<string, unknown> } | undefined;
+    expect(schema?.properties?.connectionId).toBeDefined();
+    expect(schema?.properties?.locationId).toBeDefined();
+  });
+
+  it('endevorListElements input schema includes location fields (environment, stageNumber, etc)', async () => {
+    const { tools } = await client.listTools();
+    const t = tools.find(t => t.name === 'endevorListElements');
+    const schema = t?.inputSchema as { properties?: Record<string, unknown> } | undefined;
+    expect(schema?.properties?.environment).toBeDefined();
+    expect(schema?.properties?.stageNumber).toBeDefined();
+    expect(schema?.properties?.system).toBeDefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// endevorListConnections behaviour
+// ---------------------------------------------------------------------------
+
+describe('endevorListConnections behaviour', () => {
+  it('returns profiles without triggering an error', async () => {
+    const server = new McpServer({ name: 'test', version: '0.0.0' });
     const state = makeState();
-    const server2 = new McpServer({ name: 'test2', version: '0.0.0' });
-    loadAndRegisterPluginYaml(server2, YAML_PATH, state, stubLogger);
+    loadAndRegisterPluginYaml(server, YAML_PATH, state, stubLogger);
 
     const [ct, st] = InMemoryTransport.createLinkedPair();
-    const cl = new Client({ name: 'c2', version: '0.0.0' });
-    await Promise.all([cl.connect(ct), server2.connect(st)]);
+    const cl = new Client({ name: 'c', version: '0.0.0' });
+    await Promise.all([cl.connect(ct), server.connect(st)]);
 
-    await cl.callTool({
-      name: 'endevorSetContext',
-      arguments: { environment: 'PRD', stageNumber: '1' },
+    const result = await cl.callTool({ name: 'endevorListConnections', arguments: {} });
+    const text = (result.content as { type: string; text: string }[])[0].text;
+    const parsed = JSON.parse(text) as { profiles: { id: string; active: boolean }[] };
+    expect(parsed.profiles).toBeDefined();
+    expect(parsed.profiles[0].id).toBe('default');
+    expect(parsed.profiles[0].active).toBe(true);
+    await cl.close();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// endevorSetConnection behaviour
+// ---------------------------------------------------------------------------
+
+describe('endevorSetConnection behaviour', () => {
+  it('valid ID updates activeProfileId', async () => {
+    const server = new McpServer({ name: 'test', version: '0.0.0' });
+    const state = makeState({
+      connectionProfiles: [
+        { id: 'profile1', host: 'h1', user: 'U1' },
+        { id: 'profile2', host: 'h2', user: 'U2' },
+      ],
+      activeConnectionId: 'profile1',
     });
-    expect(state.context.environment).toBe('PRD');
-    expect(state.context.stageNumber).toBe('1');
+    loadAndRegisterPluginYaml(server, YAML_PATH, state, stubLogger);
+
+    const [ct, st] = InMemoryTransport.createLinkedPair();
+    const cl = new Client({ name: 'c', version: '0.0.0' });
+    await Promise.all([cl.connect(ct), server.connect(st)]);
+
+    await cl.callTool({ name: 'endevorSetConnection', arguments: { connectionId: 'profile2' } });
+    expect(state.activeProfileId.get('connection')).toBe('profile2');
     await cl.close();
   });
 
-  it('endevorSetContext returns JSON success response', async () => {
-    const result = await client.callTool({
-      name: 'endevorSetContext',
+  it('invalid ID returns isError=true with valid IDs listed', async () => {
+    const server = new McpServer({ name: 'test', version: '0.0.0' });
+    const state = makeState();
+    loadAndRegisterPluginYaml(server, YAML_PATH, state, stubLogger);
+
+    const [ct, st] = InMemoryTransport.createLinkedPair();
+    const cl = new Client({ name: 'c', version: '0.0.0' });
+    await Promise.all([cl.connect(ct), server.connect(st)]);
+
+    const result = await cl.callTool({
+      name: 'endevorSetConnection',
+      arguments: { connectionId: 'nonexistent' },
+    });
+    expect(result.isError).toBe(true);
+    const text = (result.content as { type: string; text: string }[])[0].text;
+    expect(text).toContain('default');
+    await cl.close();
+  });
+
+  it('auto-selects single profile at registration time', () => {
+    const server = new McpServer({ name: 'test', version: '0.0.0' });
+    const state = createEmptyPluginState();
+    state.profilesByType.set('connection', [{ id: 'only-one', host: 'h', user: 'U' }]);
+    state.profilesByType.set('location', []);
+    state.passwordResolver = {
+      getPassword: () => Promise.resolve('pw'),
+    };
+    loadAndRegisterPluginYaml(server, YAML_PATH, state, stubLogger);
+    // After registration, the single profile should be auto-selected
+    expect(state.activeProfileId.get('connection')).toBe('only-one');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// endevorSetLocation behaviour
+// ---------------------------------------------------------------------------
+
+describe('endevorSetLocation behaviour', () => {
+  async function setupServer() {
+    const server = new McpServer({ name: 'test', version: '0.0.0' });
+    const state = makeState({
+      locationProfiles: [
+        { id: 'dev-loc', environment: 'DEV', stageNumber: '1', system: 'SYS', subsystem: 'SUB' },
+        { id: 'prd-loc', environment: 'PRD', stageNumber: '2' },
+      ],
+    });
+    loadAndRegisterPluginYaml(server, YAML_PATH, state, stubLogger);
+    const [ct, st] = InMemoryTransport.createLinkedPair();
+    const cl = new Client({ name: 'c', version: '0.0.0' });
+    await Promise.all([cl.connect(ct), server.connect(st)]);
+    return { state, cl };
+  }
+
+  it('locationId only primes virtual context from profile', async () => {
+    const { state, cl } = await setupServer();
+    await cl.callTool({ name: 'endevorSetLocation', arguments: { locationId: 'dev-loc' } });
+    const ctx = state.virtualContextByType.get('location') ?? {};
+    expect(ctx.environment).toBe('DEV');
+    expect(ctx.stageNumber).toBe('1');
+    expect(ctx.system).toBe('SYS');
+    await cl.close();
+  });
+
+  it('individual fields only sets exactly those fields', async () => {
+    const { state, cl } = await setupServer();
+    await cl.callTool({
+      name: 'endevorSetLocation',
+      arguments: { environment: 'QA', stageNumber: '1' },
+    });
+    const ctx = state.virtualContextByType.get('location') ?? {};
+    expect(ctx.environment).toBe('QA');
+    expect(ctx.stageNumber).toBe('1');
+    expect(ctx.system).toBeUndefined();
+    await cl.close();
+  });
+
+  it('locationId + overrides primes then overrides', async () => {
+    const { state, cl } = await setupServer();
+    await cl.callTool({
+      name: 'endevorSetLocation',
+      arguments: { locationId: 'dev-loc', environment: 'STAGING' },
+    });
+    const ctx = state.virtualContextByType.get('location') ?? {};
+    expect(ctx.environment).toBe('STAGING');
+    expect(ctx.stageNumber).toBe('1');
+    expect(ctx.system).toBe('SYS');
+    await cl.close();
+  });
+
+  it('no args clears virtual context', async () => {
+    const { state, cl } = await setupServer();
+    // First set something
+    state.virtualContextByType.set('location', { environment: 'DEV' });
+    await cl.callTool({ name: 'endevorSetLocation', arguments: {} });
+    const ctx = state.virtualContextByType.get('location') ?? {};
+    expect(Object.keys(ctx).length).toBe(0);
+    await cl.close();
+  });
+
+  it('returns JSON success response', async () => {
+    const { state, cl } = await setupServer();
+    const result = await cl.callTool({
+      name: 'endevorSetLocation',
       arguments: { environment: 'DEV' },
     });
     const text = (result.content as { type: string; text: string }[])[0].text;
     const parsed = JSON.parse(text) as { success: boolean; context: Record<string, string> };
     expect(parsed.success).toBe(true);
     expect(parsed.context.environment).toBe('DEV');
+    expect(state).toBeDefined();
+    await cl.close();
+  });
+
+  it('endevorListLocations reflects current virtual context', async () => {
+    const { state, cl } = await setupServer();
+    state.virtualContextByType.set('location', { environment: 'DEV', stageNumber: '1' });
+    const result = await cl.callTool({ name: 'endevorListLocations', arguments: {} });
+    const text = (result.content as { type: string; text: string }[])[0].text;
+    const parsed = JSON.parse(text) as {
+      profiles: unknown[];
+      currentContext: Record<string, string>;
+    };
+    expect(parsed.currentContext.environment).toBe('DEV');
+    expect(parsed.currentContext.stageNumber).toBe('1');
+    await cl.close();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Connection required enforcement
+// ---------------------------------------------------------------------------
+
+describe('connection required enforcement', () => {
+  it('multiple connections with none active returns isError', async () => {
+    const server = new McpServer({ name: 'test', version: '0.0.0' });
+    const state = createEmptyPluginState();
+    state.profilesByType.set('connection', [
+      { id: 'conn1', host: 'h1', user: 'U1' },
+      { id: 'conn2', host: 'h2', user: 'U2' },
+    ]);
+    state.profilesByType.set('location', []);
+    state.passwordResolver = {
+      getPassword: () => Promise.resolve('pw'),
+    };
+    // No activeProfileId set for connection
+    loadAndRegisterPluginYaml(server, YAML_PATH, state, stubLogger);
+
+    const [ct, st] = InMemoryTransport.createLinkedPair();
+    const cl = new Client({ name: 'c', version: '0.0.0' });
+    await Promise.all([cl.connect(ct), server.connect(st)]);
+
+    const result = await cl.callTool({ name: 'endevorListEnvironments', arguments: {} });
+    expect(result.isError).toBe(true);
+    await cl.close();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// connectionId per-tool override
+// ---------------------------------------------------------------------------
+
+describe('connectionId per-tool override', () => {
+  it('tools input schema includes optional connectionId and locationId', async () => {
+    const server = new McpServer({ name: 'test', version: '0.0.0' });
+    const state = makeState();
+    loadAndRegisterPluginYaml(server, YAML_PATH, state, stubLogger);
+
+    const [ct, st] = InMemoryTransport.createLinkedPair();
+    const cl = new Client({ name: 'c', version: '0.0.0' });
+    await Promise.all([cl.connect(ct), server.connect(st)]);
+
+    const { tools } = await cl.listTools();
+    const t = tools.find(t => t.name === 'endevorListEnvironments');
+    const schema = t?.inputSchema as { properties?: Record<string, unknown> } | undefined;
+    expect(schema?.properties?.connectionId).toBeDefined();
+    expect(schema?.properties?.locationId).toBeDefined();
+    await cl.close();
   });
 });

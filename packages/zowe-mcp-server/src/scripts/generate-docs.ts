@@ -44,8 +44,10 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Logger } from '../log.js';
 import { createServer, getServer, SERVER_VERSION } from '../server.js';
-import { loadAndRegisterPluginYaml } from '../tools/cli-bridge/cli-tool-loader.js';
-import type { CliConnectionConfig, CliPluginState } from '../tools/cli-bridge/types.js';
+import {
+  createEmptyPluginState,
+  loadAndRegisterPluginYaml,
+} from '../tools/cli-bridge/cli-tool-loader.js';
 
 const log = new Logger({ name: 'generate-docs' });
 
@@ -933,12 +935,8 @@ async function main(): Promise<void> {
         const pluginYamlFiles = readdirSync(pluginsDir).filter((f: string) => f.endsWith('.yaml'));
         for (const yamlFile of pluginYamlFiles) {
           const yamlPath = resolve(pluginsDir, yamlFile);
-          // connection is required by type but only used during actual tool invocation; docs
-          // generation never calls any tool, so a stub value is sufficient here.
-          const pluginState: CliPluginState = {
-            context: {},
-            connection: {} as CliConnectionConfig,
-          };
+          // Docs generation never calls tools, so an empty state is sufficient here.
+          const pluginState = createEmptyPluginState();
           const pluginConfig = loadAndRegisterPluginYaml(server, yamlPath, pluginState, log);
           const updatedToolsResult = await client.listTools();
           const allTools = updatedToolsResult.tools as unknown as ToolInfo[];
@@ -952,7 +950,7 @@ async function main(): Promise<void> {
               label: `${pluginConfig.plugin} CLI Plugin Tools`,
               description:
                 `Registered from \`plugins/${yamlFile}\`. ` +
-                'Configure a connection via `zoweMCP.cliPluginConnections` (VS Code) or ' +
+                'Configure a connection via `zoweMCP.cliPluginConfiguration` (VS Code) or ' +
                 `\`--cli-plugin-connection ${pluginConfig.plugin}=<connfile>\` (standalone).`,
               tools: pluginTools,
             });

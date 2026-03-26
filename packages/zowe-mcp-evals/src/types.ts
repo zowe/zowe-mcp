@@ -83,8 +83,8 @@ export interface MockServerDef {
    * When set, the harness automatically creates a CLI bridge connection for this plugin
    * pointing to `localhost:<port>`. Plugin-specific defaults are applied (e.g. for
    * `endevor`: user=USER, password=PASSWORD, protocol=http, etc.), so no separate
-   * `cliPluginConnections` entry is needed for the common case.
-   * Explicit `cliPluginConnections` entries always take precedence if present.
+   * `cliPluginConfiguration` entry is needed for the common case.
+   * Explicit `cliPluginConfiguration` entries always take precedence if present.
    */
   pluginName?: string;
 }
@@ -101,13 +101,15 @@ export interface CliPluginConnection {
   port?: number;
   /** Username (default for endevor: 'USER'). */
   user?: string;
-  /** Password (default for endevor: 'PASSWORD'). */
+  /** Password (default for endevor: 'PASSWORD'). Passed as ZOWE_MCP_PASSWORD_USER_HOST env var, not stored in the profiles file. */
   password?: string;
   /** Protocol: 'http' or 'https' (default for endevor: 'http'). */
   protocol?: string;
   /** API base path (default for endevor: 'EndevorService/api/v2'). */
   basePath?: string;
-  /** Plugin-specific parameters (default for endevor: { instance: 'ENDEVOR' }). */
+  /** Endevor Web Services instance name (default for endevor: 'ENDEVOR'). */
+  instance?: string;
+  /** Plugin-specific parameters (legacy, mapped to instance for endevor). */
   pluginParams?: Record<string, string>;
 }
 
@@ -133,7 +135,7 @@ export interface SetConfig {
    * Known plugin defaults are applied automatically (e.g. for `endevor` the host, user,
    * password, protocol, basePath, and pluginParams are pre-filled).
    */
-  cliPluginConnections?: Record<string, CliPluginConnection>;
+  cliPluginConfiguration?: Record<string, CliPluginConnection>;
   /**
    * Override for the CLI plugins directory (--cli-plugins-dir).
    * Defaults to `<server-dist>/tools/cli-bridge/plugins/`.

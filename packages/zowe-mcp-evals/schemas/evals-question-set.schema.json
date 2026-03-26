@@ -101,12 +101,12 @@
               },
               "pluginName": {
                 "type": "string",
-                "description": "When set, the harness auto-creates a CLI bridge connection for this plugin pointing to localhost:<port>. Plugin defaults are applied (e.g. for 'endevor': user/password/basePath/etc.), so no separate cliPluginConnections entry is needed. Explicit cliPluginConnections take precedence."
+                "description": "When set, the harness auto-creates a CLI bridge connection for this plugin pointing to localhost:<port>. Plugin defaults are applied (e.g. for 'endevor': user/password/basePath/etc.), so no separate cliPluginConfiguration entry is needed. Explicit cliPluginConfiguration take precedence."
               }
             }
           }
         },
-        "cliPluginConnections": {
+        "cliPluginConfiguration": {
           "type": "object",
           "description": "Connection config per CLI plugin name. The harness writes each entry as a temp JSON file and passes --cli-plugin-connection <name>=<file> to the server. For the 'endevor' plugin, host/user/password/protocol/basePath/pluginParams are pre-filled; only 'port' is usually needed.",
           "additionalProperties": {

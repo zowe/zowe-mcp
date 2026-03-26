@@ -14,119 +14,15 @@
  *
  * The bridge reads YAML metadata files that describe how Zowe CLI plugin commands
  * map to MCP tools. The execution engine spawns `zowe <command> --rfj` subprocesses,
- * using either a pre-configured Zowe profile or explicit connection parameters.
+ * using named connection profiles whose credentials are resolved via the same
+ * password store as the native z/OS backend.
  *
- * All plugin-specific details (profile flag names, location parameter names and CLI
- * options, connection flag mappings) are defined in the plugin YAML — no plugin-specific
- * code belongs here.
+ * All plugin-specific details (profile type definitions, field names, CLI option
+ * names) are defined in the plugin YAML — no plugin-specific code belongs here.
  */
 
 // ---------------------------------------------------------------------------
-// Connection / runtime config (passed at server startup, not in YAML)
-// ---------------------------------------------------------------------------
-
-/**
- * Generic connection configuration for the CLI bridge.
- * Either profile mode (Zowe resolves host/port/creds) or explicit mode.
- *
- * Plugin-specific flags (e.g. --endevor-profile, --instance) are NOT hardcoded here.
- * Instead, the plugin YAML defines a `connection.flags` block that maps keys from
- * `pluginParams` to the correct CLI flag names.
- */
-export interface CliConnectionConfig {
-  // --- Explicit connection params ---
-  /** Remote host. */
-  host?: string;
-  /** Remote port. */
-  port?: number;
-  /** Mainframe username. */
-  user?: string;
-  /** Mainframe password. */
-  password?: string;
-  /** When true, TLS certificate errors are rejected. */
-  rejectUnauthorized?: boolean;
-  /** HTTP protocol. Default: https. Use 'http' for local/dev servers. */
-  protocol?: string;
-  /** Base path for the API (e.g. EndevorService/api/v2). */
-  basePath?: string;
-
-  // --- Path to zowe binary (optional, defaults to 'zowe' from PATH) ---
-  zoweBin?: string;
-
-  // --- Optional zowe config dir (when a generated zowe.config.json is in a temp dir) ---
-  zoweConfigDir?: string;
-
-  /**
-   * Plugin-specific connection params, keyed by configKey as declared in the YAML
-   * `connection.flags` block. For example, for Endevor:
-   *   pluginParams: { pluginProfile: 'myprofile', locationProfile: 'myloc', instance: 'ENDEVOR' }
-   */
-  pluginParams?: Record<string, string>;
-}
-
-// ---------------------------------------------------------------------------
-// YAML-driven connection flags definition
-// ---------------------------------------------------------------------------
-
-/** Maps a pluginParams key to the CLI flag name that should carry its value. */
-export interface CliConnectionFlag {
-  /** Key in CliConnectionConfig.pluginParams to read the value from. */
-  configKey: string;
-  /** CLI flag name without '--' (e.g. 'endevor-profile', 'instance'). */
-  cliFlag: string;
-}
-
-/** The optional `connection:` block in the plugin YAML. */
-export interface CliConnectionDef {
-  /** Plugin-specific flags to append to every Zowe CLI invocation. */
-  flags?: CliConnectionFlag[];
-}
-
-// ---------------------------------------------------------------------------
-// YAML-driven context definition
-// ---------------------------------------------------------------------------
-
-/** A single context field (e.g. environment, stageNumber, system). */
-export interface ContextFieldDef {
-  /** MCP parameter name (camelCase, e.g. environment, stageNumber). */
-  name: string;
-  /** CLI option name without '--' (e.g. env, sn, sys). Used when building CLI args. */
-  cliOption?: string;
-  /**
-   * Plain description string (fallback for all variants).
-   * May be a `$.dotted.path` JSON reference resolved against the companion
-   * `<plugin>-commands.json` file. Optional when `descriptions` is provided.
-   */
-  description?: string;
-  /**
-   * Per-variant description strings. Same resolution order as tool-level descriptions:
-   * active variant → intent → cli → description (plain).
-   */
-  descriptions?: DescriptionVariants;
-  /** Optional default value for the context field. */
-  default?: string;
-}
-
-/** The context block in the plugin YAML — describes the set-context tool. */
-export interface ContextDef {
-  /** MCP tool name for the context setter, e.g. endevorSetContext. */
-  toolName: string;
-  /**
-   * Plain description string (fallback for all variants).
-   * Optional when `descriptions` is provided.
-   */
-  description?: string;
-  /**
-   * Per-variant descriptions for the set-context tool itself.
-   * Resolved with the same priority as tool descriptions.
-   */
-  descriptions?: DescriptionVariants;
-  /** Location fields (e.g. environment, stageNumber, system, subsystem, type). */
-  fields: ContextFieldDef[];
-}
-
-// ---------------------------------------------------------------------------
-// YAML-driven tool definition
+// Description variants (shared by all description-bearing nodes)
 // ---------------------------------------------------------------------------
 
 /**
@@ -136,7 +32,7 @@ export interface ContextDef {
  * variant is resolved by `resolveDescription()` using this priority:
  *   tool.activeDescription > plugin.activeDescription > ZOWE_MCP_CLI_DESC_VARIANT > 'intent' > 'cli' > first available
  *
- * **JSON-path reference syntax**: any variant value (including `context.fields[].description`)
+ * **JSON-path reference syntax**: any variant value (including profile field `description`)
  * that starts with `$.` is treated as a dotted path into a companion
  * `<plugin>-commands.json` file located next to the plugin YAML.
  * The loader resolves the reference at load time and replaces the `$.path`
@@ -158,6 +54,138 @@ export interface DescriptionVariants {
   optimized?: string;
   [key: string]: string | undefined;
 }
+
+// ---------------------------------------------------------------------------
+// Profile type definitions (YAML-driven)
+// ---------------------------------------------------------------------------
+
+/**
+ * A single field in a named profile type (e.g. host, user, environment).
+ *
+ * Supports the same `description`/`descriptions` dual pattern as every other
+ * description-bearing node; `$.path` references are resolved against the
+ * companion `<plugin>-commands.json` at load time.
+ */
+export interface ProfileFieldDef {
+  /** Field name used as the key in named profile instances (camelCase). */
+  name: string;
+  /** CLI option name without '--' (e.g. 'host', 'env', 'sn'). */
+  cliOption?: string;
+  /**
+   * Plain description string (fallback for all variants).
+   * May be a `$.dotted.path` JSON reference resolved against the companion JSON.
+   */
+  description?: string;
+  /** Per-variant description strings. */
+  descriptions?: DescriptionVariants;
+  /** When true, this field must be present in every profile of this type. */
+  required?: boolean;
+  /** Default value injected when the field is absent from the profile and the tool call. */
+  default?: string;
+  /**
+   * When true, this field's value is the username for password lookup.
+   * The password is keyed as `user@host` (where `host` is the field named "host").
+   */
+  isUsername?: boolean;
+}
+
+/**
+ * Defines one named-profile type in the `profiles:` YAML block.
+ *
+ * Two flags control the runtime behaviour for every tool that uses this type:
+ *   - `required`         — a profile of this type must be active (or passed per-tool)
+ *   - `perToolOverride`  — individual fields are injected into each tool's input schema
+ *
+ * Tool descriptions are auto-generated from `name` when no explicit
+ * `listDescription`/`setDescription` (or their `*Descriptions` variant siblings) are given.
+ */
+export interface ProfileTypeDef {
+  /** Human-readable label, e.g. "Endevor connection". Used in auto-generated descriptions. */
+  name: string;
+  /** MCP tool name for listing profiles of this type (e.g. endevorListConnections). */
+  toolListName: string;
+  /** MCP tool name for setting the active profile (e.g. endevorSetConnection). */
+  toolSetName: string;
+  /**
+   * When true a profile of this type MUST be active (or passed as `<typeKey>Id`)
+   * before any tool can be invoked.  Auto-selects when exactly one profile is loaded.
+   */
+  required: boolean;
+  /**
+   * When true, individual fields of this type are injected into each tool's input
+   * schema (controlled per-tool by `locationParams`).  A `<typeKey>Id` per-tool
+   * parameter is also added to let the caller prime from a named profile per call.
+   *
+   * When false, only a `<typeKey>Id` override parameter is added to tools;
+   * individual fields are NOT exposed in the tool schemas.
+   */
+  perToolOverride: boolean;
+  /** Plain description for the list tool. Auto-generated from `name` when absent. */
+  listDescription?: string;
+  /** Variant descriptions for the list tool. */
+  listDescriptions?: DescriptionVariants;
+  /** Plain description for the set tool. Auto-generated from `name` when absent. */
+  setDescription?: string;
+  /** Variant descriptions for the set tool. */
+  setDescriptions?: DescriptionVariants;
+  /** Profile fields (non-sensitive; password is managed via the password store). */
+  fields: ProfileFieldDef[];
+}
+
+// ---------------------------------------------------------------------------
+// Runtime named profiles
+// ---------------------------------------------------------------------------
+
+/**
+ * A single named profile instance loaded from the config file.
+ * The `id` field is required; all other keys are profile field values.
+ */
+export interface CliNamedProfile {
+  id: string;
+  [field: string]: string | number | boolean | undefined;
+}
+
+/**
+ * Config file format for CLI plugin named profiles.
+ *
+ * The top-level keys match the profile type keys defined in the plugin YAML's
+ * `profiles:` block (e.g. "connection", "location"). This shape is generic so
+ * any plugin's profile types are supported without code changes.
+ *
+ * Example (Endevor):
+ * ```json
+ * {
+ *   "connection": {
+ *     "profiles": [{ "id": "prod", "host": "zos.prod.com", "user": "U1", "instance": "ENDEVOR" }],
+ *     "default": "prod"
+ *   },
+ *   "location": {
+ *     "profiles": [{ "id": "dev", "environment": "DEV", "stageNumber": "1" }]
+ *   }
+ * }
+ * ```
+ */
+export type CliPluginProfilesFile = Record<
+  string,
+  { profiles: CliNamedProfile[]; default?: string }
+>;
+
+// ---------------------------------------------------------------------------
+// Password resolver
+// ---------------------------------------------------------------------------
+
+/**
+ * Resolves the password for a given user@host pair.
+ * Implementations may read from env vars (standalone) or from the shared
+ * WaitablePasswordStore (VS Code mode).
+ */
+export interface CliPluginPasswordResolver {
+  getPassword(user: string, host: string): Promise<string>;
+}
+
+// ---------------------------------------------------------------------------
+// YAML-driven tool definition
+// ---------------------------------------------------------------------------
 
 /** A single extra parameter for a tool. */
 export interface PluginParam {
@@ -196,7 +224,7 @@ export interface PluginToolDef {
   toolName: string;
   /**
    * The `zowe` command string to execute, e.g. "endevor list elements".
-   * The bridge prepends "zowe" and appends "--rfj" plus connection flags.
+   * The bridge prepends "zowe" and appends "--rfj" plus connection profile args.
    */
   zoweCommand: string;
   /**
@@ -212,9 +240,9 @@ export interface PluginToolDef {
   /** When true, VS Code shows a warning before calling this tool. */
   destructiveHint?: boolean;
   /**
-   * When true, automatically inject all context fields defined in the plugin's `context.fields`
-   * as optional parameters (with context defaults).
-   * When a string array, only the named context fields are injected.
+   * When true, automatically inject all `perToolOverride: true` profile fields
+   * as optional parameters (with virtual context defaults).
+   * When a string array, only the named fields are injected.
    */
   locationParams?: boolean | string[];
   /** Additional tool-specific parameters beyond the location params. */
@@ -240,10 +268,11 @@ export interface CliPluginConfig {
    * Can be overridden at runtime by ZOWE_MCP_CLI_DESC_VARIANT env var.
    */
   activeDescription?: string;
-  /** Optional connection flags block — maps pluginParams keys to CLI flag names. */
-  connection?: CliConnectionDef;
-  /** Context definition (generates the set-context tool). */
-  context?: ContextDef;
+  /**
+   * Named profile type definitions. Keys are arbitrary type identifiers
+   * (e.g. "connection", "location"); values describe the type's fields and behaviour.
+   */
+  profiles?: Record<string, ProfileTypeDef>;
   /** Tool definitions. */
   tools: PluginToolDef[];
 }
@@ -252,14 +281,25 @@ export interface CliPluginConfig {
 // Runtime session state
 // ---------------------------------------------------------------------------
 
-/**
- * Generic runtime context — a key-value map where the keys are the field names
- * defined in the plugin YAML's `context.fields` block.
- */
-export type CliContext = Record<string, string | undefined>;
-
 /** Mutable container for the plugin session state. */
 export interface CliPluginState {
-  connection: CliConnectionConfig;
-  context: CliContext;
+  /** Loaded named profiles per type key (e.g. "connection", "location"). */
+  profilesByType: Map<string, CliNamedProfile[]>;
+  /**
+   * Currently active profile ID per type key.
+   * For `required: true` types the active ID is set at startup (auto-select or default)
+   * or by calling the set tool.
+   */
+  activeProfileId: Map<string, string | undefined>;
+  /**
+   * Virtual field context per type key for `perToolOverride: true` types.
+   * Updated by the set tool (e.g. endevorSetLocation): primed from a named profile,
+   * then individual field overrides applied on top.  Used as defaults for tool calls.
+   */
+  virtualContextByType: Map<string, Record<string, string | undefined>>;
+  /**
+   * Resolves password for user@host.  Only needed when at least one profile type
+   * has `required: true` and contains a field with `isUsername: true`.
+   */
+  passwordResolver?: CliPluginPasswordResolver;
 }

@@ -24,7 +24,9 @@ This guide explains how to make the Endevor CLI bridge MCP tools available in VS
 
 ## Configuration via `.vscode/mcp.json`
 
-> **Note**: The Zowe MCP VS Code extension can also be used to activate Endevor tools via the `zoweMCP.cliPlugins` VS Code setting — see [VS Code Extension: cliPlugins setting](#vs-code-extension-cliplugins-setting) below. The `.vscode/mcp.json` approach gives you full control of the server arguments and works with any MCP client.
+> **Note**: The Zowe MCP VS Code extension can also be used to activate Endevor tools via the `zoweMCP.cliPluginConnections` VS Code setting — see [VS Code Extension settings](#vs-code-extension-settings) below. The `.vscode/mcp.json` approach gives you full control of the server arguments and works with any MCP client.
+
+The Endevor plugin YAML is bundled with the server and loaded automatically. You only need to supply a **connection file** pointing the server at your Endevor instance.
 
 Create or edit `.vscode/mcp.json` in your workspace root:
 
@@ -41,8 +43,7 @@ Use an existing Zowe Endevor profile and optional location profile:
       "args": [
         "/path/to/zowe-mcp-server/dist/index.js",
         "--stdio",
-        "--cli-plugin-yaml", "/path/to/zowe-mcp-server/dist/tools/cli-bridge/endevor-tools.yaml",
-        "--cli-plugin-connection-file", "${workspaceFolder}/.endevor-connection.json"
+        "--cli-plugin-connection", "endevor=${workspaceFolder}/.endevor-connection.json"
       ]
     }
   }
@@ -95,8 +96,7 @@ When the Zowe MCP VS Code extension is installed, the server is bundled inside t
       "args": [
         "${env:HOME}/.vscode/extensions/zowe.zowe-mcp-vscode-<version>/server/index.js",
         "--stdio",
-        "--cli-plugin-yaml", "${env:HOME}/.vscode/extensions/zowe.zowe-mcp-vscode-<version>/server/tools/cli-bridge/endevor-tools.yaml",
-        "--cli-plugin-connection-file", "${workspaceFolder}/.endevor-connection.json"
+        "--cli-plugin-connection", "endevor=${workspaceFolder}/.endevor-connection.json"
       ]
     }
   }
@@ -124,8 +124,7 @@ Example for `optimized`:
 ```json
 "args": [
   "...",
-  "--cli-plugin-yaml", "/path/to/endevor-tools.yaml",
-  "--cli-plugin-connection-file", "/path/to/.endevor-connection.json",
+  "--cli-plugin-connection", "endevor=/path/to/.endevor-connection.json",
   "--cli-plugin-desc-variant", "optimized"
 ]
 ```
@@ -223,27 +222,25 @@ Agent returns: [source code of CUSTMAIN]
 
 ---
 
-## VS Code Extension: cliPlugins setting
+## VS Code Extension settings
 
-The Zowe MCP VS Code extension supports a `zoweMCP.cliPlugins` array setting that activates CLI plugin tools directly through the extension-managed server — no `.vscode/mcp.json` needed.
+When the Zowe MCP VS Code extension manages the server, you can configure Endevor tools directly through VS Code settings — no `.vscode/mcp.json` needed.
 
-Open VS Code **Settings** (<kbd>Cmd+,</kbd> / <kbd>Ctrl+,</kbd>), search for **Zowe MCP CLI Plugins**, and add entries to the JSON:
+Open VS Code **Settings** (<kbd>Cmd+,</kbd> / <kbd>Ctrl+,</kbd>) and set:
+
+**`zoweMCP.cliPluginConnections`** — map of plugin name to connection file:
 
 ```json
-"zoweMCP.cliPlugins": [
-  {
-    "yaml": "/absolute/path/to/endevor-tools.yaml",
-    "connectionFile": "/absolute/path/to/.endevor-connection.json",
-    "descVariant": "intent"
-  }
-]
+"zoweMCP.cliPluginConnections": {
+  "endevor": "/absolute/path/to/.endevor-connection.json"
+}
 ```
 
-| Field | Required | Description |
-| --- | --- | --- |
-| `yaml` | Yes | Absolute path to the plugin YAML file |
-| `connectionFile` | No | Absolute path to a `CliConnectionConfig` JSON file |
-| `descVariant` | No | Description variant: `cli`, `intent` (default), or `optimized` |
+**`zoweMCP.enabledCliPlugins`** — optionally restrict which bundled plugins are loaded (default: all):
+
+```json
+"zoweMCP.enabledCliPlugins": ["endevor"]
+```
 
 The connection JSON uses the same format as described in [Option A / B above](#option-a--profile-based-recommended).
 

@@ -42,8 +42,8 @@ for (const createProvider of allProviders) {
 
     it('should list the info tool', async () => {
       const { tools } = await client.listTools();
-      expect(tools).toHaveLength(1);
-      expect(tools[0].name).toBe('getContext');
+      expect(tools.length).toBeGreaterThanOrEqual(1);
+      expect(tools.find(t => t.name === 'getContext')).toBeDefined();
     });
 
     it('should have a description for getContext', async () => {

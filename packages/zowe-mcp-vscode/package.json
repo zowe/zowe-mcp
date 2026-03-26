@@ -242,6 +242,26 @@
           "markdownDescription": "JCL job cards per connection spec. Key is `user@host` or `user@host:port`. **Prefer an array of lines** (one string per line), for example:\n\n```json\n\"USER@zos.example.com\": [\n  \"//{jobname}  JOB (ACCT),'{programmer}',CLASS=A,MSGCLASS=X,NOTIFY=&SYSUID\",\n  \"/*JOBPARM S=*\"\n]\n```\n\nUse placeholders `{jobname}` and `{programmer}`; `submitJob` substitutes them. You can also use a single string with `\\n` for newlines. Changes are sent to the server and take effect immediately.",
           "order": 9
         },
+        "zoweMCP.enabledCliPlugins": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "Plugin names to enable from the bundled CLI plugins directory (e.g. [\"endevor\"]). Empty array (default) enables all bundled plugins. Use zoweMCP.cliPluginConnections to supply connection details for each plugin. Changes require restarting the MCP server (Reload Window).",
+          "markdownDescription": "Plugin names to enable from the bundled CLI plugins directory (e.g. `[\"endevor\"]`). Empty array (default) enables **all** bundled plugins.\n\nUse `zoweMCP.cliPluginConnections` to supply connection details per plugin. Changes require **Developer: Reload Window**.",
+          "order": 10
+        },
+        "zoweMCP.cliPluginConnections": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "default": {},
+          "description": "Connection files for auto-discovered CLI plugins. Key = plugin name (e.g. \"endevor\"), value = absolute path to a CliConnectionConfig JSON file with host/port/user/password/pluginParams. Changes require restarting the MCP server (Reload Window).",
+          "markdownDescription": "Connection files for auto-discovered CLI plugins.\n\nKey = plugin name (e.g. `endevor`), value = absolute path to a CliConnectionConfig JSON file.\n\nExample:\n```json\n{\n  \"endevor\": \"/path/to/.endevor-connection.json\"\n}\n```\n\nThe connection JSON can contain `host`, `port`, `user`, `password`, `protocol`, `basePath`, and `pluginParams`. Changes require **Developer: Reload Window**.",
+          "order": 11
+        },
         "zoweMCP.cliPlugins": {
           "type": "array",
           "items": {
@@ -270,9 +290,9 @@
             ]
           },
           "default": [],
-          "description": "CLI plugin bridge configurations. Each entry activates one plugin YAML as a set of MCP tools. For Endevor: point 'yaml' to the bundled endevor-tools.yaml in the extension's server directory, and optionally 'connectionFile' to a JSON with your Endevor connection details. Changes require restarting the MCP server (Reload Window).",
-          "markdownDescription": "CLI plugin bridge configurations. Each entry activates one plugin YAML as a set of MCP tools.\n\nFor Endevor, example entry:\n```json\n{\n  \"yaml\": \"/absolute/path/to/endevor-tools.yaml\",\n  \"connectionFile\": \"/path/to/.endevor-connection.json\",\n  \"descVariant\": \"intent\"\n}\n```\n\nThe connection JSON file (`CliConnectionConfig`) can contain `host`, `port`, `user`, `password`, `protocol`, `basePath`, and `pluginParams` (e.g. `{\"pluginProfile\": \"my-endevor-profile\"}`). Omit `connectionFile` to rely on Zowe CLI profiles. Changes require **Developer: Reload Window**.",
-          "order": 10
+          "description": "Explicit CLI plugin bridge configurations (legacy/advanced). Each entry activates one plugin YAML by absolute path. Prefer zoweMCP.enabledCliPlugins and zoweMCP.cliPluginConnections for bundled plugins. Changes require restarting the MCP server (Reload Window).",
+          "markdownDescription": "Explicit CLI plugin bridge configurations (legacy/advanced). Each entry activates one plugin YAML by absolute path.\n\nPrefer `zoweMCP.enabledCliPlugins` + `zoweMCP.cliPluginConnections` for bundled plugins.\n\nExample entry:\n```json\n{\n  \"yaml\": \"/absolute/path/to/endevor-tools.yaml\",\n  \"connectionFile\": \"/path/to/.endevor-connection.json\",\n  \"descVariant\": \"intent\"\n}\n```\n\nChanges require **Developer: Reload Window**.",
+          "order": 12
         }
       }
     }

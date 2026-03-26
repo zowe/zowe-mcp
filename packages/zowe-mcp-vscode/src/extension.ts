@@ -169,7 +169,10 @@ export function activate(context: vscode.ExtensionContext): void {
         e.affectsConfiguration('zoweMCP.nativeResponseTimeout') ||
         e.affectsConfiguration('zoweMCP.defaultMainframeMvsEncoding') ||
         e.affectsConfiguration('zoweMCP.defaultMainframeUssEncoding') ||
-        e.affectsConfiguration('zoweMCP.jobCards');
+        e.affectsConfiguration('zoweMCP.jobCards') ||
+        e.affectsConfiguration('zoweMCP.enabledCliPlugins') ||
+        e.affectsConfiguration('zoweMCP.cliPluginConnections') ||
+        e.affectsConfiguration('zoweMCP.cliPlugins');
       if (
         affectsServerStartup &&
         cursorMcpRegistered &&
@@ -350,7 +353,28 @@ export async function buildServerConfig(
     args.push('--default-uss-encoding', defaultMainframeUssEncoding.trim());
   }
 
-  // CLI plugin bridge entries
+  // CLI plugin bridge: auto-discovery from bundled plugins dir
+  const enabledCliPlugins = config.get<string[]>('enabledCliPlugins', []) ?? [];
+  const cliPluginConnections =
+    config.get<Record<string, string>>('cliPluginConnections', {}) ?? {};
+  for (const name of enabledCliPlugins) {
+    if (typeof name === 'string' && name.trim()) {
+      args.push('--cli-plugin-enable', name.trim());
+    }
+  }
+  for (const [name, connFile] of Object.entries(cliPluginConnections)) {
+    if (typeof connFile === 'string' && connFile.trim()) {
+      args.push('--cli-plugin-connection', `${name}=${connFile.trim()}`);
+    }
+  }
+  if (enabledCliPlugins.length > 0 || Object.keys(cliPluginConnections).length > 0) {
+    log.info('CLI plugin bridge (auto-discovery)', {
+      enabledPlugins: enabledCliPlugins.length > 0 ? enabledCliPlugins : 'all',
+      connections: Object.keys(cliPluginConnections),
+    });
+  }
+
+  // CLI plugin bridge entries (explicit/legacy --cli-plugin-yaml paths)
   const cliPlugins = config.get<
     { yaml?: string; connectionFile?: string; descVariant?: string }[]
   >('cliPlugins', []);
@@ -370,7 +394,7 @@ export async function buildServerConfig(
   }
   if (cliPlugins.length > 0) {
     log.info(
-      `CLI plugin bridge: ${cliPlugins.length} ${cliPlugins.length === 1 ? 'plugin' : 'plugins'} configured`
+      `CLI plugin bridge (explicit): ${cliPlugins.length} ${cliPlugins.length === 1 ? 'plugin' : 'plugins'} configured`
     );
   }
 
@@ -739,6 +763,9 @@ const ZOWE_MCP_CONFIG_KEYS = [
   'defaultMainframeMvsEncoding',
   'defaultMainframeUssEncoding',
   'jobCards',
+  'enabledCliPlugins',
+  'cliPluginConnections',
+  'cliPlugins',
 ] as const;
 
 /**

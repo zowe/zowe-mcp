@@ -37,3 +37,4 @@ copyDir(
   dist('tools/cli-bridge'),
   f => f.endsWith('.yaml') || f.endsWith('.json')
 );
+copyDirRecursive(src('tools/cli-bridge/plugins'), dist('tools/cli-bridge/plugins'));

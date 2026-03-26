@@ -67,10 +67,11 @@ export interface SetEndevorMockEwsConfig {
    */
   descVariant?: string;
   /**
-   * Absolute path to the plugin YAML file. When absent, defaults to the endevor-tools.yaml
-   * bundled alongside the server dist (../tools/cli-bridge/endevor-tools.yaml).
+   * Absolute path to the plugins directory to pass as --cli-plugins-dir.
+   * When absent, defaults to `<server-dist>/tools/cli-bridge/plugins/`.
+   * Use this to point at the source tree during development/testing.
    */
-  pluginYamlPath?: string;
+  pluginsDir?: string;
 }
 
 /**

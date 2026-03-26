@@ -40,7 +40,15 @@ import {
 import type { CliPluginState, PluginToolDef } from '../src/tools/cli-bridge/types.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const YAML_PATH = join(__dirname, '..', 'src', 'tools', 'cli-bridge', 'endevor-tools.yaml');
+const YAML_PATH = join(
+  __dirname,
+  '..',
+  'src',
+  'tools',
+  'cli-bridge',
+  'plugins',
+  'endevor-tools.yaml'
+);
 
 const makeState = (overrides?: Partial<CliPluginState>): CliPluginState => ({
   connection: {

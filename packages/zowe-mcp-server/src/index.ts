@@ -29,7 +29,7 @@
  */
 
 import { spawnSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import yargs from 'yargs';
@@ -90,6 +90,21 @@ interface ParsedArgs {
   cliPlugins: CliPluginEntry[];
   /** Description variant applied to all CLI plugins (cli | intent | optimized). Sets ZOWE_MCP_CLI_DESC_VARIANT. */
   cliPluginDescVariant?: string;
+  /**
+   * Directory to scan for plugin YAML files. Defaults to `<server-dist>/tools/cli-bridge/plugins/`.
+   * Override via --cli-plugins-dir or ZOWE_MCP_CLI_PLUGINS_DIR env var.
+   */
+  cliPluginsDir?: string;
+  /**
+   * Plugin names to enable from the plugins directory. Empty = all plugins in the dir.
+   * Populated from repeatable --cli-plugin-enable flags.
+   */
+  enabledCliPlugins: string[];
+  /**
+   * Map of plugin name to connection JSON file path for auto-discovered plugins.
+   * Populated from repeatable --cli-plugin-connection name=file flags.
+   */
+  cliPluginConnections: Record<string, string>;
 }
 
 /** One CLI plugin bridge entry (one --cli-plugin-yaml / --cli-plugin-connection-file pair). */
@@ -172,6 +187,9 @@ function applyEnvOverrides(parsed: ParsedArgs): void {
   }
   if (process.env.ZOWE_MCP_DEFAULT_USS_ENCODING?.trim()) {
     parsed.defaultUssEncoding = process.env.ZOWE_MCP_DEFAULT_USS_ENCODING.trim();
+  }
+  if (!parsed.cliPluginsDir && process.env.ZOWE_MCP_CLI_PLUGINS_DIR?.trim()) {
+    parsed.cliPluginsDir = process.env.ZOWE_MCP_CLI_PLUGINS_DIR.trim();
   }
 }
 
@@ -347,6 +365,24 @@ function parseArgs(): ParsedArgs {
         describe:
           'Description variant for CLI plugin tools: cli, intent, or optimized (default: intent). Sets ZOWE_MCP_CLI_DESC_VARIANT.',
       },
+      'cli-plugins-dir': {
+        type: 'string',
+        describe:
+          'Directory to scan for plugin YAML files (default: <server-dist>/tools/cli-bridge/plugins). ' +
+          'Override with ZOWE_MCP_CLI_PLUGINS_DIR env var.',
+      },
+      'cli-plugin-enable': {
+        type: 'array',
+        string: true,
+        describe:
+          'Plugin name(s) to enable from the plugins directory (repeatable). Default: all plugins in the dir.',
+      },
+      'cli-plugin-connection': {
+        type: 'array',
+        string: true,
+        describe:
+          'Connection file for an auto-discovered plugin: name=connfile (repeatable, e.g. endevor=/path/to/conn.json).',
+      },
     })
     .alias('h', 'help')
     .help();
@@ -400,6 +436,28 @@ function parseArgs(): ParsedArgs {
     connectionFile: cliPluginConnectionFiles[i] ?? undefined,
   }));
 
+  const cliPluginEnableArg = argv['cli-plugin-enable'];
+  const enabledCliPlugins = Array.isArray(cliPluginEnableArg)
+    ? (cliPluginEnableArg as string[]).filter(
+        (s): s is string => typeof s === 'string' && s.trim().length > 0
+      )
+    : [];
+
+  const cliPluginConnectionArg = argv['cli-plugin-connection'];
+  const cliPluginConnections: Record<string, string> = {};
+  if (Array.isArray(cliPluginConnectionArg)) {
+    for (const entry of cliPluginConnectionArg as string[]) {
+      const eqIdx = entry.indexOf('=');
+      if (eqIdx > 0) {
+        const name = entry.slice(0, eqIdx).trim();
+        const file = entry.slice(eqIdx + 1).trim();
+        if (name && file) {
+          cliPluginConnections[name] = file;
+        }
+      }
+    }
+  }
+
   const parsed: ParsedArgs = {
     transport: argv.http ? 'http' : 'stdio',
     port: (argv.port as number) ?? 7542,
@@ -416,6 +474,9 @@ function parseArgs(): ParsedArgs {
     localFilesRoots,
     cliPlugins,
     cliPluginDescVariant: argv['cli-plugin-desc-variant'] as string | undefined,
+    cliPluginsDir: argv['cli-plugins-dir'] as string | undefined,
+    enabledCliPlugins,
+    cliPluginConnections,
   };
   applyEnvOverrides(parsed);
   return parsed;
@@ -983,6 +1044,7 @@ async function main(): Promise<void> {
 
   /** Register all CLI plugin bridge tools on an already-created server. */
   function registerCliPlugins(server: ReturnType<typeof getServer>): void {
+    // Explicit entries (--cli-plugin-yaml / --cli-plugin-connection-file pairs)
     for (const entry of parsed.cliPlugins) {
       let connection: CliConnectionConfig = {};
       if (entry.connectionFile) {
@@ -990,9 +1052,57 @@ async function main(): Promise<void> {
         connection = JSON.parse(raw) as CliConnectionConfig;
       }
       loadAndRegisterPluginYaml(server, entry.yamlPath, { connection, context: {} }, logger);
-      logger.info('CLI plugin bridge tools registered', {
+      logger.info('CLI plugin bridge tools registered (explicit)', {
         yamlPath: entry.yamlPath,
         connectionFile: entry.connectionFile,
+        descVariant: process.env.ZOWE_MCP_CLI_DESC_VARIANT ?? 'intent',
+      });
+    }
+
+    // Auto-discovery: scan plugins directory for YAML files
+    const pluginsDir =
+      parsed.cliPluginsDir ?? resolve(__dirname, 'tools', 'cli-bridge', 'plugins');
+    if (!existsSync(pluginsDir)) {
+      if (parsed.cliPluginsDir) {
+        logger.warning('CLI plugins directory not found', { pluginsDir });
+      }
+      return;
+    }
+    const yamlFiles = readdirSync(pluginsDir).filter((f: string) => f.endsWith('.yaml'));
+    if (yamlFiles.length === 0) return;
+    for (const fileName of yamlFiles) {
+      const yamlPath = resolve(pluginsDir, fileName);
+      // Filter by enabled plugin names (based on the plugin: field in the YAML)
+      // We do a quick name check by stripping -tools.yaml suffix as a heuristic,
+      // but we validate against the actual plugin name after loading.
+      const heuristicName = fileName.replace(/-tools\.yaml$/, '').replace(/\.yaml$/, '');
+      if (
+        parsed.enabledCliPlugins.length > 0 &&
+        !parsed.enabledCliPlugins.includes(heuristicName)
+      ) {
+        logger.info('CLI plugin skipped (not in --cli-plugin-enable list)', {
+          plugin: heuristicName,
+          yamlPath,
+        });
+        continue;
+      }
+      // Build connection from --cli-plugin-connection map
+      let connection: CliConnectionConfig = {};
+      const connFile = parsed.cliPluginConnections[heuristicName];
+      if (connFile) {
+        const raw = readFileSync(connFile, 'utf-8');
+        connection = JSON.parse(raw) as CliConnectionConfig;
+      }
+      const pluginConfig = loadAndRegisterPluginYaml(
+        server,
+        yamlPath,
+        { connection, context: {} },
+        logger
+      );
+      logger.info('CLI plugin bridge tools registered (auto-discovered)', {
+        plugin: pluginConfig.plugin,
+        yamlPath,
+        connectionFile: connFile,
         descVariant: process.env.ZOWE_MCP_CLI_DESC_VARIANT ?? 'intent',
       });
     }

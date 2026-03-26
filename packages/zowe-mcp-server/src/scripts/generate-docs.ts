@@ -30,7 +30,14 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
@@ -921,40 +928,46 @@ async function main(): Promise<void> {
         toolGroups.push({ label: 'Other', tools: unassignedCoreTools });
       }
 
-      const endevorYamlPath = resolve(
-        __dirname,
-        '..',
-        'tools',
-        'cli-bridge',
-        'endevor-tools.yaml'
-      );
-      if (existsSync(endevorYamlPath)) {
-        // connection is required by type but only used during actual tool invocation; docs
-        // generation never calls any tool, so a stub value is sufficient here.
-        const pluginState: CliPluginState = {
-          context: {},
-          connection: {} as CliConnectionConfig,
-        };
-        loadAndRegisterPluginYaml(server, endevorYamlPath, pluginState, log);
-        const updatedToolsResult = await client.listTools();
-        const allTools = updatedToolsResult.tools as unknown as ToolInfo[];
-        const pluginTools = allTools.filter(t => !coreToolNameSet.has(t.name));
-        if (pluginTools.length > 0) {
-          toolGroups.push({
-            label: 'Endevor CLI Plugin Tools',
-            description:
-              'Registered from `endevor-tools.yaml`. These tools require the ' +
-              '[Zowe CLI Endevor plug-in](https://www.npmjs.com/package/@broadcom/endevor-for-zowe-cli) ' +
-              'to be installed. Enable them via `--cli-plugin-yaml` / `--cli-plugin-connection-file` ' +
-              '(standalone) or `zoweMCP.cliPlugins` (VS Code extension).',
-            tools: pluginTools,
-          });
-          log.info('Registered Endevor CLI bridge tools', { count: pluginTools.length });
+      const pluginsDir = resolve(__dirname, '..', 'tools', 'cli-bridge', 'plugins');
+      if (existsSync(pluginsDir)) {
+        const pluginYamlFiles = readdirSync(pluginsDir).filter((f: string) => f.endsWith('.yaml'));
+        for (const yamlFile of pluginYamlFiles) {
+          const yamlPath = resolve(pluginsDir, yamlFile);
+          // connection is required by type but only used during actual tool invocation; docs
+          // generation never calls any tool, so a stub value is sufficient here.
+          const pluginState: CliPluginState = {
+            context: {},
+            connection: {} as CliConnectionConfig,
+          };
+          const pluginConfig = loadAndRegisterPluginYaml(server, yamlPath, pluginState, log);
+          const updatedToolsResult = await client.listTools();
+          const allTools = updatedToolsResult.tools as unknown as ToolInfo[];
+          const knownToolNames = new Set([
+            ...coreToolNameSet,
+            ...toolGroups.flatMap(g => g.tools.map(t => t.name)),
+          ]);
+          const pluginTools = allTools.filter(t => !knownToolNames.has(t.name));
+          if (pluginTools.length > 0) {
+            toolGroups.push({
+              label: `${pluginConfig.plugin} CLI Plugin Tools`,
+              description:
+                `Registered from \`plugins/${yamlFile}\`. ` +
+                'Configure a connection via `zoweMCP.cliPluginConnections` (VS Code) or ' +
+                `\`--cli-plugin-connection ${pluginConfig.plugin}=<connfile>\` (standalone).`,
+              tools: pluginTools,
+            });
+            log.info('Registered CLI bridge plugin tools', {
+              plugin: pluginConfig.plugin,
+              yamlFile,
+              count: pluginTools.length,
+            });
+          }
+        }
+        if (pluginYamlFiles.length === 0) {
+          log.info('No plugin YAML files found in plugins directory', { pluginsDir });
         }
       } else {
-        log.info('endevor-tools.yaml not found — skipping CLI plugin tools', {
-          path: endevorYamlPath,
-        });
+        log.info('CLI plugins directory not found — skipping plugin tools', { pluginsDir });
       }
 
       const tools = toolGroups.flatMap(g => g.tools);

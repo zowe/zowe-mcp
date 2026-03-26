@@ -217,7 +217,7 @@ function parseSetConfig(raw: unknown): SetConfig {
       .filter((s): s is Record<string, unknown> => !!s && typeof s === 'object')
       .map(s => ({
         name: typeof s.name === 'string' ? s.name : 'unnamed',
-        cliScript: typeof s.cliScript === 'string' ? s.cliScript : '',
+        cliScript: typeof s.cliScript === 'string' ? interpolateEnvVars(s.cliScript) : '',
         initArgs: typeof s.initArgs === 'string' ? s.initArgs : undefined,
         configTemplate:
           s.configTemplate && typeof s.configTemplate === 'object'
@@ -252,10 +252,12 @@ function parseSetConfig(raw: unknown): SetConfig {
     }
     config.cliPluginConnections = connections;
   }
-  if (typeof o.cliPluginsDir === 'string') config.cliPluginsDir = o.cliPluginsDir;
+  if (typeof o.cliPluginsDir === 'string')
+    config.cliPluginsDir = interpolateEnvVars(o.cliPluginsDir);
   if (typeof o.cliPluginDescVariant === 'string')
     config.cliPluginDescVariant = o.cliPluginDescVariant;
-  if (typeof o.mcpServerScript === 'string') config.mcpServerScript = o.mcpServerScript;
+  if (typeof o.mcpServerScript === 'string')
+    config.mcpServerScript = interpolateEnvVars(o.mcpServerScript);
   if (typeof o.mcpServerArgs === 'string') config.mcpServerArgs = o.mcpServerArgs;
   if (o.toolAliases && typeof o.toolAliases === 'object')
     config.toolAliases = o.toolAliases as Record<string, string>;
@@ -265,6 +267,15 @@ function parseSetConfig(raw: unknown): SetConfig {
   if (typeof o.skip === 'string') config.skip = o.skip;
   if (typeof o.questionsFrom === 'string') config.questionsFrom = o.questionsFrom;
   return config;
+}
+
+/**
+ * Replaces `${VAR_NAME}` placeholders in a string with the corresponding
+ * `process.env` value. When the variable is not set the placeholder is
+ * left unchanged so callers can detect missing configuration.
+ */
+function interpolateEnvVars(s: string): string {
+  return s.replace(/\$\{([^}]+)\}/g, (match, name: string) => process.env[name] ?? match);
 }
 
 export function loadSetYaml(path: string): QuestionSet {

@@ -9,7 +9,7 @@ config:
   minSuccessRate: 0.7
   mockServers:
     - name: endevor-ews
-      cliScript: /Users/plape03/workspace/github.gwd.broadcom.net/code4z-gen-ai/mock_ews_server/dist/cli/index.js
+      cliScript: "${ZOWE_MCP_MOCK_EWS_DIR}/dist/cli/index.js"
       initArgs: "init ENDEVOR --output {dataDir}"
       port: 8080
       pluginName: endevor

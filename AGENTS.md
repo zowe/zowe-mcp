@@ -229,6 +229,8 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 
 ## Things to Remember
 
+- **Mermaid node label line breaks**: Cursor's Mermaid renderer does not support line breaks inside node labels. Do not use `\n` or `<br/>` in node labels — write single-line labels instead, shortening the text as needed. Also avoid wrapping node labels or edge labels in double quotes — Cursor displays them literally. Use only simple alphanumeric labels, hyphens, and spaces; avoid parentheses, slashes, and `?` in labels where possible.
+
 - **`ZOWE_MCP_MOCK_EWS_DIR` env var**: Set to the `mock_ews_server` directory (e.g. `/path/to/code4z-gen-ai/mock_ews_server`) to enable Endevor E2E tests (`mock-ews-stdio.e2e.test.ts`) and to resolve the `${ZOWE_MCP_MOCK_EWS_DIR}` placeholder in all Endevor eval YAML files. When unset, all Endevor E2E and eval tests that depend on the mock EWS server are skipped/fail gracefully. The placeholder is substituted at YAML load time by `interpolateEnvVars()` in `load-questions.ts`. Set in `.env` at the repo root.
 - **System parameter description**: All tools use `SYSTEM_PARAM_DESCRIPTION` from `response.ts` for the optional `system` parameter. This ensures consistent wording across all tools. Zowe Explorer open-in-editor tools have a unique description (includes profile matching context).
 - **Optional `messages` in response envelope**: The `messages` field in `ToolResponseEnvelope` is optional. `wrapResponse()` omits it when the array is empty to reduce noise for LLMs. Output schemas mark it as `.optional()`.

@@ -593,6 +593,61 @@ function registerProfileTools(
 }
 
 // ---------------------------------------------------------------------------
+// CLI error diagnostics helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Builds a human-readable URL string from a required connection profile for use in
+ * error messages and log entries.  Password and other sensitive fields are never included.
+ *
+ * Looks for common field names (`host`, `port`, `protocol`, `basePath` / `base-path`)
+ * in the profile and assembles them into a URL like `https://host:port/basePath`.
+ * Returns `undefined` when no `host` field is found.
+ */
+function buildConnectionSummary(
+  profile: CliNamedProfile,
+  fields: ProfileFieldDef[]
+): string | undefined {
+  const find = (...names: string[]) =>
+    fields.find(f => names.includes(f.name) || names.includes(f.cliOption ?? ''));
+  const get = (f: ProfileFieldDef | undefined) => (f ? String(profile[f.name] ?? '') : '');
+
+  const host = get(find('host'));
+  if (!host) return undefined;
+
+  const port = get(find('port'));
+  const protocol = get(find('protocol')) || 'http';
+  const basePath = get(find('basePath', 'base-path'));
+
+  let url = `${protocol}://${host}`;
+  if (port) url += `:${port}`;
+  if (basePath) url += `/${basePath.replace(/^\/+/, '')}`;
+  return url;
+}
+
+/**
+ * Returns a remediation hint that tells the user where to look to fix a failed
+ * CLI invocation.  The hint is context-aware: it references VS Code settings when
+ * the plugin configuration came from the VS Code extension, and the CLI config
+ * file otherwise.
+ */
+function buildRemediationHint(state: CliPluginState, pluginName?: string): string {
+  const plugin = pluginName ? `${pluginName} ` : '';
+  if (state.configSource === 'vscode') {
+    return (
+      `Check the ${plugin}connection configuration in VS Code Settings under ` +
+      `"Zowe MCP: Cli Plugin Configuration". ` +
+      `Verify that the host, port, and protocol are correct and that the server is reachable from this machine.`
+    );
+  }
+  return (
+    `Check the ${plugin}connection configuration file ` +
+    `(passed via --cli-plugin-connection or configured in mcp.json). ` +
+    `Verify that the host, port, and protocol are correct and that the server is reachable.`
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Plugin tool registration
 // ---------------------------------------------------------------------------
 
@@ -631,6 +686,8 @@ function registerPluginTool(
 
       // --- 1. Resolve profiles and build connection args ---
       const allProfileArgs: string[] = [];
+      // URL of the first required connection profile — used in error messages (no password).
+      let connectionSummary: string | undefined;
 
       for (const [typeKey, typeDef] of Object.entries(config.profiles ?? {})) {
         if (!typeDef.required) continue;
@@ -669,6 +726,9 @@ function registerPluginTool(
             isError: true,
           };
         }
+
+        // Capture connection URL for error diagnostics (first required profile only)
+        connectionSummary ??= buildConnectionSummary(profile, typeDef.fields);
 
         // Get password if needed
         let password: string | undefined;
@@ -735,16 +795,22 @@ function registerPluginTool(
       const result = invokeZoweCli(command, extraArgs, allProfileArgs);
 
       if (!result.ok) {
+        const remedy = buildRemediationHint(state, config.plugin);
         toolLog.warning('CLI invocation failed', {
           command,
-          extraArgs,
+          ...(connectionSummary ? { connectionTarget: connectionSummary } : {}),
           error: result.errorMessage,
+          remedy,
         });
         return {
           content: [
             {
               type: 'text' as const,
-              text: JSON.stringify({ error: result.errorMessage }),
+              text: JSON.stringify({
+                error: result.errorMessage,
+                ...(connectionSummary ? { connectionTarget: connectionSummary } : {}),
+                suggestion: remedy,
+              }),
             },
           ],
           isError: true,

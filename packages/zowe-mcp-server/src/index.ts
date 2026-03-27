@@ -53,6 +53,7 @@ import type {
   CliPluginState,
 } from './tools/cli-bridge/types.js';
 import { startHttp } from './transports/http.js';
+import { startStdio } from './transports/stdio.js';
 import {
   DEFAULT_MAINFRAME_MVS_ENCODING,
   DEFAULT_MAINFRAME_USS_ENCODING,
@@ -1104,6 +1105,7 @@ async function main(): Promise<void> {
     }
   ): CliPluginState {
     const state = createEmptyPluginState();
+    state.configSource = extensionClient?.connected ? 'vscode' : 'cli';
     for (const [typeKey, typeData] of Object.entries(profilesFile)) {
       state.profilesByType.set(typeKey, typeData.profiles ?? []);
       if (typeData.default) {
@@ -1260,6 +1262,7 @@ async function main(): Promise<void> {
       zoweExplorerToolsRegisteredRef.current = true;
     }
     registerCliPlugins(server, undefined, cliPluginStatesByPlugin);
+    await startStdio(server, logger);
   } else {
     await startHttp(
       () => {

@@ -307,4 +307,11 @@ export interface CliPluginState {
    * Set by the server to forward the updated active profiles to the VS Code extension.
    */
   onActiveProfilesChanged?: () => void;
+  /**
+   * Where this plugin's configuration came from.
+   * Used to tailor remediation hints in error messages:
+   * - 'vscode' — configuration arrived via the VS Code extension pipe (zoweMCP.cliPluginConfiguration)
+   * - 'cli'    — configuration came from a file passed via --cli-plugin-connection / mcp.json
+   */
+  configSource?: 'vscode' | 'cli';
 }

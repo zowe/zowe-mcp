@@ -1,4 +1,5 @@
 plugin: endevor
+displayName: Endevor
 activeDescription: intent
 profiles:
   connection:

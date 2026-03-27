@@ -264,6 +264,11 @@ export interface CliPluginConfig {
   /** Plugin identifier, e.g. "endevor". */
   plugin: string;
   /**
+   * Human-readable display name shown in error messages and logs,
+   * e.g. "Endevor". Falls back to `plugin` when absent.
+   */
+  displayName?: string;
+  /**
    * Default active description variant for all tools that don't specify their own.
    * Can be overridden at runtime by ZOWE_MCP_CLI_DESC_VARIANT env var.
    */
@@ -314,4 +319,18 @@ export interface CliPluginState {
    * - 'cli'    — configuration came from a file passed via --cli-plugin-connection / mcp.json
    */
   configSource?: 'vscode' | 'cli';
+  /**
+   * When set (VS Code mode only), sends a notification to the VS Code extension so the user
+   * sees a native error dialog in addition to the in-chat error message.
+   *
+   * @param message     - Human-readable description of the problem.
+   * @param severity    - 'info' | 'warning' | 'error'
+   * @param settingsKey - When provided, the notification shows only an "Open Settings" button
+   *                      that opens this specific settings key (no "Generate Mock Data" button).
+   */
+  sendNotification?: (
+    message: string,
+    severity: 'info' | 'warning' | 'error',
+    settingsKey?: string
+  ) => void;
 }

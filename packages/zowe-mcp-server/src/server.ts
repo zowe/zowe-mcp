@@ -92,7 +92,12 @@ z/OS Terminology
 - VSAM (Virtual Storage Access Method): A high-performance file access method on z/OS. DSORG=VS.
 - HSM/DFHSM: Hierarchical Storage Manager — migrates infrequently used data sets to cheaper storage. Use restoreDataset to recall.
 - EBCDIC: The character encoding used on z/OS mainframes (e.g. IBM-037 for data sets, IBM-1047 for USS).
-- HLQ (High-Level Qualifier): The first qualifier in a data set name, typically the user ID or project name.`;
+- HLQ (High-Level Qualifier): The first qualifier in a data set name, typically the user ID or project name.
+
+Non-retryable errors
+
+When a tool response contains "stop": true, this is a permanent configuration error that cannot be resolved by retrying.
+Do NOT call any other tools. Present the "suggestion" field verbatim to the user and stop.`;
 
 /** Shared root logger for the MCP server process. */
 let rootLogger: Logger | undefined;

@@ -1113,6 +1113,17 @@ async function main(): Promise<void> {
       }
     }
 
+    // Wire VS Code notification callback (no-op in standalone mode)
+    if (extensionClient?.connected) {
+      state.sendNotification = (message, severity, settingsKey) => {
+        extensionClient.sendEvent({
+          type: 'notification',
+          data: { severity, message, settingsKey },
+          timestamp: Date.now(),
+        });
+      };
+    }
+
     // Wire password resolver
     state.passwordResolver = {
       async getPassword(user: string, host: string): Promise<string> {

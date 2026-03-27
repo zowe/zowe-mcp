@@ -56,6 +56,11 @@ export interface NotificationEventData {
   severity: NotificationSeverity;
   /** The message to display. */
   message: string;
+  /**
+   * When set, only an "Open Settings" button is shown that opens this specific
+   * settings key. When absent the extension shows its default action buttons.
+   */
+  settingsKey?: string;
 }
 
 /** Displays a notification message in the VS Code UI. */

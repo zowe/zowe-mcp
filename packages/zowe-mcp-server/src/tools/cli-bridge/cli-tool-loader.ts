@@ -630,17 +630,22 @@ function buildConnectionSummary(
  * CLI invocation.  The hint is context-aware: it references VS Code settings when
  * the plugin configuration came from the VS Code extension, and the CLI config
  * file otherwise.
+ *
+ * The returned string is placed in the "suggestion" field of the error payload
+ * alongside "stop": true so LLM agents know not to retry.
  */
 function buildRemediationHint(state: CliPluginState, pluginName?: string): string {
   const plugin = pluginName ? `${pluginName} ` : '';
   if (state.configSource === 'vscode') {
     return (
-      `Check the ${plugin}connection configuration in VS Code Settings under ` +
+      `This is a configuration error — do NOT retry this or other ${plugin}tools. ` +
+      `Check the ${plugin}connection in VS Code Settings under ` +
       `"Zowe MCP: Cli Plugin Configuration". ` +
-      `Verify that the host, port, and protocol are correct and that the server is reachable from this machine.`
+      `Verify that the host, port, and protocol are correct and that the server is reachable, then reload the window.`
     );
   }
   return (
+    `This is a configuration error — do NOT retry this or other ${plugin}tools. ` +
     `Check the ${plugin}connection configuration file ` +
     `(passed via --cli-plugin-connection or configured in mcp.json). ` +
     `Verify that the host, port, and protocol are correct and that the server is reachable.`
@@ -795,13 +800,22 @@ function registerPluginTool(
       const result = invokeZoweCli(command, extraArgs, allProfileArgs);
 
       if (!result.ok) {
-        const remedy = buildRemediationHint(state, config.plugin);
+        const pluginLabel = config.displayName ?? config.plugin;
+        const remedy = buildRemediationHint(state, pluginLabel);
         toolLog.warning('CLI invocation failed', {
           command,
           ...(connectionSummary ? { connectionTarget: connectionSummary } : {}),
           error: result.errorMessage,
           remedy,
         });
+        // In VS Code mode, also show a native error dialog so the user sees
+        // the problem immediately — even if the agent chat stays open.
+        if (state.sendNotification) {
+          const notifMsg = connectionSummary
+            ? `${pluginLabel} tool failed (${connectionSummary}): ${result.errorMessage}`
+            : `${pluginLabel} tool failed: ${result.errorMessage}`;
+          state.sendNotification(notifMsg, 'error', 'zoweMCP.cliPluginConfiguration');
+        }
         return {
           content: [
             {
@@ -809,6 +823,7 @@ function registerPluginTool(
               text: JSON.stringify({
                 error: result.errorMessage,
                 ...(connectionSummary ? { connectionTarget: connectionSummary } : {}),
+                stop: true,
                 suggestion: remedy,
               }),
             },

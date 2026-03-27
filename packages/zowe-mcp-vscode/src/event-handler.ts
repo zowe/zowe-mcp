@@ -28,7 +28,7 @@ import type {
 import * as crypto from 'crypto';
 import * as vscode from 'vscode';
 import { getNativePasswordKey } from './secrets';
-import { updateZoweMcpStatusBar } from './status-bar';
+import { updateCliPluginActiveProfiles, updateZoweMcpStatusBar } from './status-bar';
 import {
   getAllZosmfProfileNames,
   getDefaultZosmfProfileName,
@@ -525,6 +525,13 @@ export function handleServerEvent(
       if (options?.context) {
         updateZoweMcpStatusBar(event.data.activeConnection, options.context);
       }
+      break;
+    case 'cli-plugin-active-profiles-changed':
+      updateCliPluginActiveProfiles(
+        event.data.pluginName,
+        event.data.activeProfiles,
+        event.data.activeContext
+      );
       break;
     default:
       log.warn(`Unknown event type from MCP server: ${(event as { type: string }).type}`);

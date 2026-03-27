@@ -47,9 +47,12 @@ import {
   createEmptyPluginState,
   loadAndRegisterPluginYaml,
 } from './tools/cli-bridge/cli-tool-loader.js';
-import type { CliPluginProfilesFile, CliPluginState } from './tools/cli-bridge/types.js';
+import type {
+  CliNamedProfile,
+  CliPluginProfilesFile,
+  CliPluginState,
+} from './tools/cli-bridge/types.js';
 import { startHttp } from './transports/http.js';
-import { startStdio } from './transports/stdio.js';
 import {
   DEFAULT_MAINFRAME_MVS_ENCODING,
   DEFAULT_MAINFRAME_USS_ENCODING,
@@ -633,6 +636,10 @@ interface ExtensionEventHandlerOptions {
   zoweExplorerToolsRegisteredRef: { current: boolean };
   serverRef?: { current: CreateServerResult | null };
   buildZoweExplorerCallbacks: () => ZoweExplorerCallbacks | null;
+  /** Map of plugin name → CliPluginState, populated by registerCliPlugins. Used to apply live profile updates. */
+  cliPluginStatesByPlugin?: Map<string, CliPluginState>;
+  /** Waitable password store for CLI plugin bridge tools (key = user@host). */
+  cliPluginPasswordStore?: { set: (key: string, password: string) => void };
 }
 
 /**
@@ -668,6 +675,10 @@ function setupExtensionEventHandlers(
           });
           opts.nativePasswordStore.set(key, password);
         }
+        if (opts.cliPluginPasswordStore) {
+          const { user, host, password } = event.data;
+          opts.cliPluginPasswordStore.set(`${user}@${host}`, password);
+        }
         break;
       }
 
@@ -678,6 +689,33 @@ function setupExtensionEventHandlers(
             opts.jobCardStore.mergeFromObject(jobCards);
             logger.info('Applied job-cards-update from VS Code extension', {
               count: Object.keys(jobCards).length,
+            });
+          }
+        }
+        break;
+      }
+
+      case 'cli-plugin-configuration-update': {
+        if (opts.cliPluginStatesByPlugin) {
+          const { configuration } = event.data as { configuration: Record<string, unknown> };
+          for (const [pluginName, profilesObj] of Object.entries(configuration)) {
+            const state = opts.cliPluginStatesByPlugin.get(pluginName);
+            if (!state || profilesObj === null || typeof profilesObj !== 'object') continue;
+            const profilesFile = profilesObj as Record<
+              string,
+              { profiles?: unknown[]; default?: string }
+            >;
+            for (const [typeKey, typeData] of Object.entries(profilesFile)) {
+              if (!typeData || typeof typeData !== 'object') continue;
+              const profiles = (typeData as { profiles?: unknown[] }).profiles;
+              state.profilesByType.set(typeKey, (profiles ?? []) as CliNamedProfile[]);
+              const defaultId = (typeData as { default?: string }).default;
+              if (typeof defaultId === 'string') {
+                state.activeProfileId.set(typeKey, defaultId);
+              }
+            }
+            logger.info('Applied cli-plugin-configuration-update from VS Code extension', {
+              plugin: pluginName,
             });
           }
         }
@@ -1004,6 +1042,10 @@ async function main(): Promise<void> {
   };
 
   // Register all extension event handlers in one consolidated dispatch
+  const cliPluginStatesByPlugin = new Map<string, CliPluginState>();
+  const cliPluginPasswordStore = extensionClient?.connected
+    ? new (await import('./zos/native/password-store.js')).WaitablePasswordStore()
+    : undefined;
   if (extensionClient?.connected) {
     setupExtensionEventHandlers(extensionClient, {
       logger,
@@ -1015,6 +1057,8 @@ async function main(): Promise<void> {
       zoweExplorerToolsRegisteredRef,
       serverRef,
       buildZoweExplorerCallbacks,
+      cliPluginStatesByPlugin,
+      cliPluginPasswordStore,
     });
   }
 
@@ -1048,8 +1092,9 @@ async function main(): Promise<void> {
   /**
    * Builds a CliPluginState from a CliPluginProfilesFile.
    * Populates profilesByType and activeProfileId from the file.
-   * A standalone password resolver (env vars) is always created;
-   * in VS Code mode the shared WaitablePasswordStore is used when available.
+   * When the VS Code extension is connected, the password resolver sends a
+   * request-password event and waits for the response via cliPluginPasswordStore.
+   * In standalone mode it falls back to ZOWE_MCP_PASSWORD_<USER>_<HOST> env vars.
    */
   function buildPluginState(
     profilesFile: CliPluginProfilesFile,
@@ -1069,14 +1114,30 @@ async function main(): Promise<void> {
     // Wire password resolver
     state.passwordResolver = {
       async getPassword(user: string, host: string): Promise<string> {
-        // VS Code mode: use waitable password store (request-password events)
+        const key = `${user}@${host}`;
+
+        // VS Code mode: send request-password event; wait for the password event response
+        if (extensionClient?.connected && cliPluginPasswordStore) {
+          const cached = cliPluginPasswordStore.get(key);
+          if (cached !== undefined) return cached;
+          extensionClient.sendEvent({
+            type: 'request-password',
+            data: { user, host },
+            timestamp: Date.now(),
+          });
+          const pw = await cliPluginPasswordStore.waitFor(key, 120_000);
+          if (pw !== undefined) return pw;
+          throw new Error(`Password request for ${user}@${host} timed out or was cancelled.`);
+        }
+
+        // Legacy/parameter-based VS Code store (kept for external callers)
         if (vsCodePasswordStore) {
-          const key = `${user}@${host}`;
           const cached = vsCodePasswordStore.get(key);
           if (cached !== undefined) return cached;
           const pw = await vsCodePasswordStore.waitFor(key, 120_000);
           if (pw !== undefined) return pw;
         }
+
         // Standalone mode (or VS Code fallback): read from env var
         // Format: ZOWE_MCP_PASSWORD_<USER>_<HOST> (uppercase, dots/special chars → _)
         const userPart = user.toUpperCase().replace(/[^A-Z0-9]/g, '_');
@@ -1098,8 +1159,30 @@ async function main(): Promise<void> {
     vsCodePasswordStore?: {
       get(key: string): string | undefined;
       waitFor(key: string, timeoutMs: number): Promise<string | undefined>;
-    }
+    },
+    statesByPlugin?: Map<string, CliPluginState>
   ): void {
+    /** Sends a cli-plugin-active-profiles-changed event for the given plugin/state pair. */
+    function sendActiveProfilesEvent(pluginName: string, state: CliPluginState): void {
+      if (!extensionClient?.connected) return;
+      const activeProfiles: Record<string, string> = {};
+      for (const [typeKey, id] of state.activeProfileId) {
+        if (id !== undefined) activeProfiles[typeKey] = id;
+      }
+      const activeContext: Record<string, Record<string, string>> = {};
+      for (const [typeKey, ctx] of state.virtualContextByType) {
+        const defined = Object.fromEntries(
+          Object.entries(ctx).filter((e): e is [string, string] => e[1] !== undefined)
+        );
+        if (Object.keys(defined).length > 0) activeContext[typeKey] = defined;
+      }
+      extensionClient.sendEvent({
+        type: 'cli-plugin-active-profiles-changed',
+        data: { pluginName, activeProfiles, activeContext },
+        timestamp: Date.now(),
+      });
+    }
+
     // Explicit entries (--cli-plugin-yaml / --cli-plugin-connection-file pairs)
     for (const entry of parsed.cliPlugins) {
       let profilesFile: CliPluginProfilesFile = {};
@@ -1108,7 +1191,10 @@ async function main(): Promise<void> {
         profilesFile = JSON.parse(raw) as CliPluginProfilesFile;
       }
       const state = buildPluginState(profilesFile, vsCodePasswordStore);
-      loadAndRegisterPluginYaml(server, entry.yamlPath, state, logger);
+      const pluginConfig = loadAndRegisterPluginYaml(server, entry.yamlPath, state, logger);
+      statesByPlugin?.set(pluginConfig.plugin, state);
+      state.onActiveProfilesChanged = () => sendActiveProfilesEvent(pluginConfig.plugin, state);
+      sendActiveProfilesEvent(pluginConfig.plugin, state);
       logger.info('CLI plugin bridge tools registered (explicit)', {
         yamlPath: entry.yamlPath,
         connectionFile: entry.connectionFile,
@@ -1152,6 +1238,9 @@ async function main(): Promise<void> {
       }
       const state = buildPluginState(profilesFile, vsCodePasswordStore);
       const pluginConfig = loadAndRegisterPluginYaml(server, yamlPath, state, logger);
+      statesByPlugin?.set(pluginConfig.plugin, state);
+      state.onActiveProfilesChanged = () => sendActiveProfilesEvent(pluginConfig.plugin, state);
+      sendActiveProfilesEvent(pluginConfig.plugin, state);
       logger.info('CLI plugin bridge tools registered (auto-discovered)', {
         plugin: pluginConfig.plugin,
         yamlPath,
@@ -1170,8 +1259,7 @@ async function main(): Promise<void> {
     if (zoweExplorerCallbacksRef.current && 'registerZoweExplorerTools' in created) {
       zoweExplorerToolsRegisteredRef.current = true;
     }
-    registerCliPlugins(server);
-    await startStdio(server, logger);
+    registerCliPlugins(server, undefined, cliPluginStatesByPlugin);
   } else {
     await startHttp(
       () => {
@@ -1185,7 +1273,7 @@ async function main(): Promise<void> {
         }
         const result = createServer(opts);
         const server = getServer(result);
-        registerCliPlugins(server);
+        registerCliPlugins(server, undefined, cliPluginStatesByPlugin);
         return server;
       },
       port,

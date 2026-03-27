@@ -246,6 +246,26 @@ export interface JobCardsUpdateEventData {
 /** Sends job cards from VS Code setting to the server. Merged with file-sourced job cards. */
 export type JobCardsUpdateEvent = McpEvent<'job-cards-update', JobCardsUpdateEventData>;
 
+/** Payload for a `cli-plugin-configuration-update` event (extension → server). */
+export interface CliPluginConfigurationUpdateEventData {
+  /**
+   * Map of plugin name → CliPluginProfilesFile inline object.
+   * Same shape as the zoweMCP.cliPluginConfiguration VS Code setting.
+   * The server updates profilesByType and activeProfileId on each named plugin state in-place.
+   */
+  configuration: Record<string, unknown>;
+}
+
+/** Updates CLI plugin profiles on the running server without restart. */
+export type CliPluginConfigurationUpdateEvent = McpEvent<
+  'cli-plugin-configuration-update',
+  CliPluginConfigurationUpdateEventData
+>;
+
+// ---------------------------------------------------------------------------
+// Extension → Server events
+// ---------------------------------------------------------------------------
+
 /** Payload for a `job-card` event (extension → server). */
 export interface JobCardEventData {
   user: string;
@@ -268,6 +288,28 @@ export interface ZoweExplorerUpdateEventData {
 export type ZoweExplorerUpdateEvent = McpEvent<
   'zowe-explorer-update',
   ZoweExplorerUpdateEventData
+>;
+
+/** Payload for a `cli-plugin-active-profiles-changed` event (server → extension). */
+export interface CliPluginActiveProfilesChangedEventData {
+  /** Plugin name (e.g. "endevor"). */
+  pluginName: string;
+  /**
+   * Active named profile ID per type key (for `required: true` types, e.g. connection).
+   * Only entries with a defined ID are included.
+   */
+  activeProfiles: Record<string, string>;
+  /**
+   * Active virtual context fields per type key (for `perToolOverride: true` types, e.g. location).
+   * Only entries with at least one defined field are included.
+   */
+  activeContext: Record<string, Record<string, string>>;
+}
+
+/** Notifies the extension when the active CLI plugin profile or location context changes. */
+export type CliPluginActiveProfilesChangedEvent = McpEvent<
+  'cli-plugin-active-profiles-changed',
+  CliPluginActiveProfilesChangedEventData
 >;
 
 /** Payload for an `active-connection-changed` event (server → extension). */
@@ -299,6 +341,7 @@ export type ServerToExtensionEvent =
   | OpenUssFileInEditorEvent
   | OpenJobInEditorEvent
   | CeedumpCollectedEvent
+  | CliPluginActiveProfilesChangedEvent
   | ActiveConnectionChangedEvent;
 
 /** Events that flow from the VS Code extension to the MCP server. */
@@ -310,7 +353,8 @@ export type ExtensionToServerEvent =
   | EncodingOptionsUpdateEvent
   | JobCardsUpdateEvent
   | JobCardEvent
-  | ZoweExplorerUpdateEvent;
+  | ZoweExplorerUpdateEvent
+  | CliPluginConfigurationUpdateEvent;
 
 /** Union of all event types exchanged over the pipe. */
 export type AnyMcpEvent = ServerToExtensionEvent | ExtensionToServerEvent;

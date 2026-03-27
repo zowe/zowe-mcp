@@ -101,6 +101,7 @@ export function startPipeServer(context: vscode.ExtensionContext): PipeServerInf
     sendInitialNativeOptions();
     sendInitialEncodingOptions();
     sendInitialJobCards();
+    sendInitialCliPluginConfiguration();
     sendInitialZoweExplorerStatus();
 
     let buffer = '';
@@ -351,6 +352,35 @@ function sendInitialJobCards(): void {
  */
 export function sendJobCardsUpdateEvent(): void {
   sendInitialJobCards();
+}
+
+/**
+ * Sends the current CLI plugin configuration to all connected servers.
+ * Called when a new server connects.
+ */
+function sendInitialCliPluginConfiguration(): void {
+  const config = vscode.workspace.getConfiguration('zoweMCP');
+  const cliPluginConfiguration =
+    config.get<Record<string, unknown>>('cliPluginConfiguration', {}) ?? {};
+  const configuration: Record<string, unknown> = {};
+  for (const [name, profilesObj] of Object.entries(cliPluginConfiguration)) {
+    if (profilesObj !== null && typeof profilesObj === 'object') {
+      configuration[name] = profilesObj;
+    }
+  }
+  sendEventToServers({
+    type: 'cli-plugin-configuration-update',
+    data: { configuration },
+    timestamp: Date.now(),
+  } as unknown as ExtensionToServerEvent);
+}
+
+/**
+ * Sends the current CLI plugin configuration to all connected MCP server instances.
+ * Call when zoweMCP.cliPluginConfiguration changes.
+ */
+export function sendCliPluginConfigurationUpdateEvent(): void {
+  sendInitialCliPluginConfiguration();
 }
 
 const ZOWE_EXPLORER_EXTENSION_ID = 'Zowe.vscode-extension-for-zowe';

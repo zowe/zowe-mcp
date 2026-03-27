@@ -302,4 +302,9 @@ export interface CliPluginState {
    * has `required: true` and contains a field with `isUsername: true`.
    */
   passwordResolver?: CliPluginPasswordResolver;
+  /**
+   * Called whenever activeProfileId or virtualContextByType changes.
+   * Set by the server to forward the updated active profiles to the VS Code extension.
+   */
+  onActiveProfilesChanged?: () => void;
 }

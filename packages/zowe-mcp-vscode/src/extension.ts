@@ -22,6 +22,7 @@ import * as vscode from 'vscode';
 import { plural } from 'zowe-mcp-common';
 import { getDisplayName, getLog, initLog } from './log';
 import {
+  sendCliPluginConfigurationUpdateEvent,
   sendConnectionsUpdateEvent,
   sendEncodingOptionsUpdateEvent,
   sendJobCardsUpdateEvent,
@@ -134,6 +135,10 @@ export function activate(context: vscode.ExtensionContext): void {
         log.info('Job cards setting changed, forwarding to MCP servers');
         sendJobCardsUpdateEvent();
       }
+      if (e.affectsConfiguration('zoweMCP.cliPluginConfiguration')) {
+        log.info('CLI plugin configuration setting changed, forwarding to MCP servers');
+        sendCliPluginConfigurationUpdateEvent();
+      }
       if (e.affectsConfiguration('zoweMCP.backend')) {
         void Promise.resolve().then(() => {
           const config = vscode.workspace.getConfiguration('zoweMCP');
@@ -172,7 +177,6 @@ export function activate(context: vscode.ExtensionContext): void {
         e.affectsConfiguration('zoweMCP.defaultMainframeUssEncoding') ||
         e.affectsConfiguration('zoweMCP.jobCards') ||
         e.affectsConfiguration('zoweMCP.enabledCliPlugins') ||
-        e.affectsConfiguration('zoweMCP.cliPluginConfiguration') ||
         e.affectsConfiguration('zoweMCP.cliPlugins');
       if (
         affectsServerStartup &&

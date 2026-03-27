@@ -496,6 +496,7 @@ function registerProfileTools(
             };
           }
           state.activeProfileId.set(typeKey, id);
+          state.onActiveProfilesChanged?.();
 
           const display: Record<string, unknown> = { id };
           for (const field of typeDef.fields) {
@@ -563,6 +564,7 @@ function registerProfileTools(
           }
 
           state.virtualContextByType.set(typeKey, newContext);
+          state.onActiveProfilesChanged?.();
           log.debug(`Virtual ${typeDef.name} context updated`, { typeKey, context: newContext });
 
           const contextSummary = Object.entries(newContext)

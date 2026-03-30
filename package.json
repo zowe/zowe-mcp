@@ -39,7 +39,9 @@
     "sdk:branch": "node scripts/sdk-switch.js branch",
     "sdk:fallback": "node scripts/sdk-switch.js fallback",
     "sdk:local": "node scripts/sdk-switch.js local",
-    "prepare": "git config core.hooksPath .githooks"
+    "prepare": "git config core.hooksPath .githooks",
+    "vendor:extract": "remote=${VENDOR_REMOTE:?Set VENDOR_REMOTE=<git-remote>} && branch=${VENDOR_BRANCH:?Set VENDOR_BRANCH=<branch>} && git fetch \"$remote\" && git archive \"$remote/$branch\" vendor/ | tar -x",
+    "vendor:clean": "rm -rf vendor/"
   },
   "devDependencies": {
     "@vitest/eslint-plugin": "^1.6.7",

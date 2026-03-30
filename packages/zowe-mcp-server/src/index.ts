@@ -1215,19 +1215,41 @@ async function main(): Promise<void> {
       });
     }
 
-    // Auto-discovery: scan plugins directory for YAML files
+    // Collect plugin YAML files from built-in dir and vendor dirs
+    const yamlEntries: Array<{ fileName: string; yamlPath: string; source: string }> = [];
+
     const pluginsDir =
       parsed.cliPluginsDir ?? resolve(__dirname, 'tools', 'cli-bridge', 'plugins');
     if (!existsSync(pluginsDir)) {
       if (parsed.cliPluginsDir) {
         logger.warning('CLI plugins directory not found', { pluginsDir });
       }
-      return;
+    } else {
+      for (const f of readdirSync(pluginsDir).filter((f: string) => f.endsWith('.yaml'))) {
+        yamlEntries.push({ fileName: f, yamlPath: resolve(pluginsDir, f), source: 'built-in' });
+      }
     }
-    const yamlFiles = readdirSync(pluginsDir).filter((f: string) => f.endsWith('.yaml'));
-    if (yamlFiles.length === 0) return;
-    for (const fileName of yamlFiles) {
-      const yamlPath = resolve(pluginsDir, fileName);
+
+    // Vendor scan: <repo-root>/vendor/*/cli-bridge-plugins/*.yaml
+    const vendorDir = resolve(__dirname, '..', '..', '..', 'vendor');
+    if (existsSync(vendorDir)) {
+      for (const entry of readdirSync(vendorDir, { withFileTypes: true })) {
+        if (!entry.isDirectory()) continue;
+        const vPluginsDir = resolve(vendorDir, entry.name, 'cli-bridge-plugins');
+        if (!existsSync(vPluginsDir)) continue;
+        for (const f of readdirSync(vPluginsDir).filter((f: string) => f.endsWith('.yaml'))) {
+          yamlEntries.push({
+            fileName: f,
+            yamlPath: resolve(vPluginsDir, f),
+            source: `vendor/${entry.name}`,
+          });
+        }
+      }
+    }
+
+    if (yamlEntries.length === 0) return;
+
+    for (const { fileName, yamlPath, source } of yamlEntries) {
       // Filter by enabled plugin names (based on the plugin: field in the YAML)
       // We do a quick name check by stripping -tools.yaml suffix as a heuristic,
       // but we validate against the actual plugin name after loading.
@@ -1257,6 +1279,7 @@ async function main(): Promise<void> {
       logger.info('CLI plugin bridge tools registered (auto-discovered)', {
         plugin: pluginConfig.plugin,
         yamlPath,
+        source,
         connectionFile: connFile,
         descVariant: process.env.ZOWE_MCP_CLI_DESC_VARIANT ?? 'intent',
       });

@@ -27,6 +27,8 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const QUESTIONS_DIR = resolve(__dirname, '..', 'questions');
 const SCHEMA_PATH = resolve(__dirname, '..', 'schemas', 'evals-question-set.schema.json');
+// Vendor extension: <repo-root>/vendor/*/eval-questions/
+const VENDOR_DIR = resolve(__dirname, '..', '..', '..', 'vendor');
 
 let cachedValidator: ValidateFunction | undefined;
 
@@ -306,13 +308,41 @@ export function loadSetYaml(path: string): QuestionSet {
 }
 
 export function listSetNames(): string[] {
-  if (!existsSync(QUESTIONS_DIR)) return [];
-  return readdirSync(QUESTIONS_DIR)
-    .filter(f => f.endsWith('.yaml') || f.endsWith('.yml'))
-    .map(f => f.replace(/\.(yaml|yml)$/, ''));
+  const names: string[] = [];
+  if (existsSync(QUESTIONS_DIR)) {
+    names.push(
+      ...readdirSync(QUESTIONS_DIR)
+        .filter(f => f.endsWith('.yaml') || f.endsWith('.yml'))
+        .map(f => f.replace(/\.(yaml|yml)$/, ''))
+    );
+  }
+  // Vendor eval-questions: vendor/<name>/eval-questions/*.yaml → "<name>/setName"
+  if (existsSync(VENDOR_DIR)) {
+    for (const entry of readdirSync(VENDOR_DIR, { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue;
+      const vendorQDir = resolve(VENDOR_DIR, entry.name, 'eval-questions');
+      if (!existsSync(vendorQDir)) continue;
+      for (const f of readdirSync(vendorQDir)) {
+        if (!f.endsWith('.yaml') && !f.endsWith('.yml')) continue;
+        names.push(`${entry.name}/${f.replace(/\.(yaml|yml)$/, '')}`);
+      }
+    }
+  }
+  return names;
 }
 
 export function getSetPath(setName: string): string {
+  if (setName.includes('/')) {
+    // Vendor-namespaced set: "<vendorName>/<name>" → vendor/<vendorName>/eval-questions/<name>.yaml
+    const slashIdx = setName.indexOf('/');
+    const vendorName = setName.slice(0, slashIdx);
+    const name = setName.slice(slashIdx + 1);
+    const yamlPath = resolve(VENDOR_DIR, vendorName, 'eval-questions', `${name}.yaml`);
+    const ymlPath = resolve(VENDOR_DIR, vendorName, 'eval-questions', `${name}.yml`);
+    if (existsSync(yamlPath)) return yamlPath;
+    if (existsSync(ymlPath)) return ymlPath;
+    throw new Error(`Vendor question set "${setName}" not found in ${VENDOR_DIR}`);
+  }
   const yamlPath = resolve(QUESTIONS_DIR, `${setName}.yaml`);
   const ymlPath = resolve(QUESTIONS_DIR, `${setName}.yml`);
   if (existsSync(yamlPath)) return yamlPath;

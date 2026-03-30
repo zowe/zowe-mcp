@@ -91,6 +91,24 @@ fs.mkdirSync(targetDir, { recursive: true });
 // Copy server dist
 fs.cpSync(path.join(serverPkg, 'dist'), targetDir, { recursive: true });
 
+// Copy vendor CLI plugin files into the bundle so the extension works with
+// vendor-extracted content (vendor/ is gitignored on develop but populated
+// via `npm run vendor:extract`).
+const vendorDir = path.join(repoRoot, 'vendor');
+const bundledPluginsDir = path.join(targetDir, 'tools', 'cli-bridge', 'plugins');
+if (fs.existsSync(vendorDir)) {
+  for (const vendorEntry of fs.readdirSync(vendorDir, { withFileTypes: true })) {
+    if (!vendorEntry.isDirectory()) continue;
+    const vPluginsDir = path.join(vendorDir, vendorEntry.name, 'cli-bridge-plugins');
+    if (!fs.existsSync(vPluginsDir)) continue;
+    fs.mkdirSync(bundledPluginsDir, { recursive: true });
+    for (const f of fs.readdirSync(vPluginsDir)) {
+      fs.cpSync(path.join(vPluginsDir, f), path.join(bundledPluginsDir, f));
+    }
+    console.log(`Bundled vendor CLI plugins from vendor/${vendorEntry.name}/cli-bridge-plugins/`);
+  }
+}
+
 // Copy server package.json (needed for version resolution at runtime)
 const targetPackageJson = path.join(targetDir, 'package.json');
 fs.cpSync(path.join(serverPkg, 'package.json'), targetPackageJson);

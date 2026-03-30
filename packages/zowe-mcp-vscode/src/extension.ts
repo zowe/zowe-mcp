@@ -176,8 +176,7 @@ export function activate(context: vscode.ExtensionContext): void {
         e.affectsConfiguration('zoweMCP.defaultMainframeMvsEncoding') ||
         e.affectsConfiguration('zoweMCP.defaultMainframeUssEncoding') ||
         e.affectsConfiguration('zoweMCP.jobCards') ||
-        e.affectsConfiguration('zoweMCP.enabledCliPlugins') ||
-        e.affectsConfiguration('zoweMCP.cliPlugins');
+        e.affectsConfiguration('zoweMCP.enabledCliPlugins');
       if (
         affectsServerStartup &&
         cursorMcpRegistered &&
@@ -382,30 +381,6 @@ export async function buildServerConfig(
       enabledPlugins: enabledCliPlugins.length > 0 ? enabledCliPlugins : 'all',
       connections: Object.keys(cliPluginConfiguration),
     });
-  }
-
-  // CLI plugin bridge entries (explicit/legacy --cli-plugin-yaml paths)
-  const cliPlugins = config.get<
-    { yaml?: string; connectionFile?: string; descVariant?: string }[]
-  >('cliPlugins', []);
-  let cliPluginDescVariantPushed = false;
-  for (const plugin of cliPlugins) {
-    const yamlPath = plugin.yaml?.trim();
-    if (!yamlPath) continue;
-    args.push('--cli-plugin-yaml', yamlPath);
-    const connFile = plugin.connectionFile?.trim();
-    if (connFile) {
-      args.push('--cli-plugin-connection-file', connFile);
-    }
-    if (!cliPluginDescVariantPushed && plugin.descVariant?.trim()) {
-      args.push('--cli-plugin-desc-variant', plugin.descVariant.trim());
-      cliPluginDescVariantPushed = true;
-    }
-  }
-  if (cliPlugins.length > 0) {
-    log.info(
-      `CLI plugin bridge (explicit): ${cliPlugins.length} ${cliPlugins.length === 1 ? 'plugin' : 'plugins'} configured`
-    );
   }
 
   let zeExt = vscode.extensions.getExtension('Zowe.vscode-extension-for-zowe');
@@ -775,7 +750,6 @@ const ZOWE_MCP_CONFIG_KEYS = [
   'jobCards',
   'enabledCliPlugins',
   'cliPluginConfiguration',
-  'cliPlugins',
 ] as const;
 
 /**

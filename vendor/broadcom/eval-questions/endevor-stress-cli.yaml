@@ -1,16 +1,16 @@
 # yaml-language-server: $schema=../schemas/evals-question-set.schema.json
-# Endevor stress test — "optimized" description variant.
+# Endevor stress test — "cli" description variant.
 config:
-  name: endevor-stress-optimized
+  name: endevor-stress-cli
   description: >
-    Same stress questions as endevor-stress.yaml but using the 'optimized' description variant.
+    Same stress questions as endevor-stress.yaml but using the 'cli' description variant.
   repetitions: 5
   minSuccessRate: 0.5
-  questionsFrom: endevor-stress
+  questionsFrom: broadcom/endevor-stress
   mockServers:
     - name: endevor-ews
       cliScript: "${ZOWE_MCP_MOCK_EWS_DIR}/dist/cli/index.js"
       initArgs: "init ENDEVOR --output {dataDir}"
       serveArgs: "serve --port ${availablePort}"
       pluginName: endevor
-  cliPluginDescVariant: optimized
+  cliPluginDescVariant: cli

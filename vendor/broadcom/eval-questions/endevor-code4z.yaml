@@ -10,7 +10,7 @@ config:
     Uses questionsFrom to share the endevor question set (same 10 questions, equal comparison).
   repetitions: 5
   minSuccessRate: 0.7
-  questionsFrom: endevor
+  questionsFrom: broadcom/endevor
   mockServers:
     - name: endevor-ews
       cliScript: "${ZOWE_MCP_MOCK_EWS_DIR}/dist/cli/index.js"

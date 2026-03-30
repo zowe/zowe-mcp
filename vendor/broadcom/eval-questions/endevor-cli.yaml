@@ -7,7 +7,7 @@ config:
     (verbatim Zowe CLI --help text). Used for A/B comparison against intent/optimized.
   repetitions: 5
   minSuccessRate: 0.7
-  questionsFrom: endevor
+  questionsFrom: broadcom/endevor
   mockServers:
     - name: endevor-ews
       cliScript: "${ZOWE_MCP_MOCK_EWS_DIR}/dist/cli/index.js"

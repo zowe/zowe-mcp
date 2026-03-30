@@ -11,7 +11,7 @@ config:
     multi-step workflows without an explicit setContext tool.
   repetitions: 5
   minSuccessRate: 0.5
-  questionsFrom: endevor-stress
+  questionsFrom: broadcom/endevor-stress
   mockServers:
     - name: endevor-ews
       cliScript: "${ZOWE_MCP_MOCK_EWS_DIR}/dist/cli/index.js"

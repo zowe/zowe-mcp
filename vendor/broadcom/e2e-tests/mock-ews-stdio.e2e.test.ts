@@ -35,7 +35,17 @@ import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const serverPath = resolve(__dirname, '..', 'dist', 'index.js');
+// vendor/broadcom/e2e-tests/ → repo root → packages/zowe-mcp-server/dist/index.js
+const serverPath = resolve(
+  __dirname,
+  '..',
+  '..',
+  '..',
+  'packages',
+  'zowe-mcp-server',
+  'dist',
+  'index.js'
+);
 
 /** Load .env from the given path; set process.env for each KEY=value line (existing env not overwritten). */
 function loadEnvFile(path: string): void {
@@ -180,18 +190,12 @@ describe.skipIf(!canRunEwsE2E)(
       );
 
       // 4. Start the MCP server with the Endevor CLI bridge.
-      const pluginsDir = resolve(dirname(serverPath), 'tools', 'cli-bridge', 'plugins');
+      // The server auto-discovers vendor/broadcom/cli-bridge-plugins/endevor-tools.yaml;
+      // only --cli-plugin-connection is needed to supply connection credentials.
       // Pass the password via env var (ZOWE_MCP_PASSWORD_USER_LOCALHOST for user=USER, host=localhost)
       const transport = new StdioClientTransport({
         command: 'node',
-        args: [
-          serverPath,
-          '--stdio',
-          '--cli-plugins-dir',
-          pluginsDir,
-          '--cli-plugin-connection',
-          `endevor=${connFile}`,
-        ],
+        args: [serverPath, '--stdio', '--cli-plugin-connection', `endevor=${connFile}`],
         env: {
           ...process.env,
           ZOWE_MCP_PASSWORD_USER_LOCALHOST: 'PASSWORD',

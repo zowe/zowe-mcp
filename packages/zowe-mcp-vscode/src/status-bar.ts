@@ -22,12 +22,24 @@ const STATUS_BAR_PRIORITY = 50;
 const GLOBAL_STATE_KEY_LAST_CONNECTION = 'zoweMcpLastActiveConnection';
 
 let statusBarItem: vscode.StatusBarItem | undefined;
+let statusBarContext: vscode.ExtensionContext | undefined;
+
+/** Snapshot of active profiles for one CLI plugin. */
+interface PluginActiveProfiles {
+  /** Active named profile ID per type key (e.g. { connection: "mock-cowboys" }). */
+  activeProfiles: Record<string, string>;
+  /** Active virtual context fields per type key (e.g. { location: { environment: "DEV", system: "BANKING" } }). */
+  activeContext: Record<string, Record<string, string>>;
+}
+
+/** Stores the latest active profile snapshot per plugin name. */
+const cliPluginActiveProfiles = new Map<string, PluginActiveProfiles>();
 
 /**
- * Builds a tooltip string that includes the backend type and real system/connection
- * names when available, falling back to generic examples.
+ * Builds a tooltip MarkdownString that includes the backend type, system names,
+ * and active CLI plugin profiles when available.
  */
-function buildTooltip(backend: 'native' | 'mock', systems: string[]): string {
+function buildTooltip(backend: 'native' | 'mock', systems: string[]): vscode.MarkdownString {
   const examples =
     systems.length > 0
       ? systems.length === 1
@@ -37,10 +49,32 @@ function buildTooltip(backend: 'native' | 'mock', systems: string[]): string {
 
   const source =
     backend === 'native'
-      ? 'Connections are added in Settings (zoweMCP.nativeConnections).'
+      ? 'Connections are added in Settings (`zoweMCP.nativeConnections`).'
       : 'Systems are defined in the mock data directory.';
 
-  return `Zowe MCP active connection (${backend}). ${source} The active system is set via Chat (e.g. ${examples}).`;
+  const md = new vscode.MarkdownString();
+  md.appendMarkdown(
+    `**Zowe MCP** active connection (${backend})  \n${source} Active system set via Chat (e.g. *${examples}*).`
+  );
+
+  if (cliPluginActiveProfiles.size > 0) {
+    md.appendMarkdown('\n\n**CLI Plugins:**');
+    for (const [pluginName, snapshot] of cliPluginActiveProfiles) {
+      const label = pluginName.charAt(0).toUpperCase() + pluginName.slice(1);
+      for (const [typeKey, id] of Object.entries(snapshot.activeProfiles)) {
+        md.appendMarkdown(`\n- ${label} ${typeKey}: \`${id}\``);
+      }
+      for (const [typeKey, ctx] of Object.entries(snapshot.activeContext)) {
+        const fields = Object.entries(ctx)
+          .filter(([, v]) => v !== undefined && v !== '')
+          .map(([k, v]) => `${k}=${v}`)
+          .join(' ');
+        if (fields) md.appendMarkdown(`\n- ${label} ${typeKey}: \`${fields}\``);
+      }
+    }
+  }
+
+  return md;
 }
 
 /**
@@ -76,6 +110,7 @@ function getCurrentBackend(): 'native' | 'mock' {
  * Restores the last active connection from global state if present (e.g. when MCP server is not started yet).
  */
 export function initZoweMcpStatusBar(context: vscode.ExtensionContext): void {
+  statusBarContext = context;
   statusBarItem = vscode.window.createStatusBarItem(
     vscode.StatusBarAlignment.Right,
     STATUS_BAR_PRIORITY
@@ -117,4 +152,20 @@ export function updateZoweMcpStatusBar(
   statusBarItem.tooltip = buildTooltip(backend, systems);
   statusBarItem.show();
   void context.globalState.update(GLOBAL_STATE_KEY_LAST_CONNECTION, value);
+}
+
+/**
+ * Updates the active CLI plugin profiles snapshot and refreshes the status bar tooltip.
+ * Call when receiving a cli-plugin-active-profiles-changed event from the MCP server.
+ */
+export function updateCliPluginActiveProfiles(
+  pluginName: string,
+  activeProfiles: Record<string, string>,
+  activeContext: Record<string, Record<string, string>>
+): void {
+  cliPluginActiveProfiles.set(pluginName, { activeProfiles, activeContext });
+  if (!statusBarItem || !statusBarContext) return;
+  const backend = getCurrentBackend();
+  const systems = getConfiguredSystems(backend);
+  statusBarItem.tooltip = buildTooltip(backend, systems);
 }

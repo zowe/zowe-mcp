@@ -212,11 +212,71 @@ function parseSetConfig(raw: unknown): SetConfig {
     const n = o.native as Record<string, unknown>;
     if (typeof n.serverArgs === 'string') config.native = { serverArgs: n.serverArgs };
   }
+  if (Array.isArray(o.mockServers) && o.mockServers.length > 0) {
+    config.mockServers = (o.mockServers as unknown[])
+      .filter((s): s is Record<string, unknown> => !!s && typeof s === 'object')
+      .map(s => ({
+        name: typeof s.name === 'string' ? s.name : 'unnamed',
+        cliScript: typeof s.cliScript === 'string' ? interpolateEnvVars(s.cliScript) : '',
+        initArgs: typeof s.initArgs === 'string' ? s.initArgs : undefined,
+        configTemplate:
+          s.configTemplate && typeof s.configTemplate === 'object'
+            ? (s.configTemplate as Record<string, unknown>)
+            : undefined,
+        configOutputName: typeof s.configOutputName === 'string' ? s.configOutputName : undefined,
+        configFlag: typeof s.configFlag === 'string' ? s.configFlag : undefined,
+        serveArgs: typeof s.serveArgs === 'string' ? s.serveArgs : undefined,
+        startArgs: typeof s.startArgs === 'string' ? s.startArgs : undefined,
+        port: typeof s.port === 'number' ? s.port : undefined,
+        pluginName: typeof s.pluginName === 'string' ? s.pluginName : undefined,
+      }));
+  }
+  if (o.cliPluginConfiguration && typeof o.cliPluginConfiguration === 'object') {
+    const raw = o.cliPluginConfiguration as Record<string, unknown>;
+    const connections: Record<string, import('./types.js').CliPluginConnection> = {};
+    for (const [name, val] of Object.entries(raw)) {
+      if (val && typeof val === 'object') {
+        const c = val as Record<string, unknown>;
+        connections[name] = {
+          host: typeof c.host === 'string' ? c.host : undefined,
+          port: typeof c.port === 'number' ? c.port : undefined,
+          user: typeof c.user === 'string' ? c.user : undefined,
+          password: typeof c.password === 'string' ? c.password : undefined,
+          protocol: typeof c.protocol === 'string' ? c.protocol : undefined,
+          basePath: typeof c.basePath === 'string' ? c.basePath : undefined,
+          pluginParams:
+            c.pluginParams && typeof c.pluginParams === 'object'
+              ? (c.pluginParams as Record<string, string>)
+              : undefined,
+        };
+      }
+    }
+    config.cliPluginConfiguration = connections;
+  }
+  if (typeof o.cliPluginsDir === 'string')
+    config.cliPluginsDir = interpolateEnvVars(o.cliPluginsDir);
+  if (typeof o.cliPluginDescVariant === 'string')
+    config.cliPluginDescVariant = o.cliPluginDescVariant;
+  if (typeof o.mcpServerScript === 'string')
+    config.mcpServerScript = interpolateEnvVars(o.mcpServerScript);
+  if (typeof o.mcpServerArgs === 'string') config.mcpServerArgs = o.mcpServerArgs;
+  if (o.toolAliases && typeof o.toolAliases === 'object')
+    config.toolAliases = o.toolAliases as Record<string, string>;
   if (typeof o.systemPrompt === 'string') config.systemPrompt = o.systemPrompt;
   if (typeof o.systemPromptAddition === 'string')
     config.systemPromptAddition = o.systemPromptAddition;
   if (typeof o.skip === 'string') config.skip = o.skip;
+  if (typeof o.questionsFrom === 'string') config.questionsFrom = o.questionsFrom;
   return config;
+}
+
+/**
+ * Replaces `${VAR_NAME}` placeholders in a string with the corresponding
+ * `process.env` value. When the variable is not set the placeholder is
+ * left unchanged so callers can detect missing configuration.
+ */
+function interpolateEnvVars(s: string): string {
+  return s.replace(/\$\{([^}]+)\}/g, (match, name: string) => process.env[name] ?? match);
 }
 
 export function loadSetYaml(path: string): QuestionSet {
@@ -231,9 +291,17 @@ export function loadSetYaml(path: string): QuestionSet {
 
   const config = parseSetConfig(data.config ?? data);
   const questionsRaw = data.questions;
-  if (!Array.isArray(questionsRaw))
-    throw new Error(`${path}: missing or invalid "questions" array`);
-  const questions = questionsRaw.map(parseQuestion);
+  if (!Array.isArray(questionsRaw) && !config.questionsFrom)
+    throw new Error(`${path}: missing or invalid "questions" array (or set config.questionsFrom)`);
+
+  let questions: Question[];
+  if (config.questionsFrom) {
+    questions = loadSet(config.questionsFrom).questions;
+  } else {
+    if (!Array.isArray(questionsRaw))
+      throw new Error(`${path}: missing or invalid "questions" array`);
+    questions = (questionsRaw as unknown[]).map(parseQuestion);
+  }
   return { config, questions };
 }
 

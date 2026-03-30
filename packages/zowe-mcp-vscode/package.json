@@ -241,6 +241,84 @@
           "description": "JCL job cards per connection spec (key: user@host or user@host:port). Prefer array of lines, e.g. [\"//{jobname}  JOB (ACCT),'{programmer}',CLASS=A,...\", \"/*JOBPARM S=*\"]. Use placeholders {jobname} and {programmer}; submitJob substitutes them. Changes are sent to the server and take effect immediately.",
           "markdownDescription": "JCL job cards per connection spec. Key is `user@host` or `user@host:port`. **Prefer an array of lines** (one string per line), for example:\n\n```json\n\"USER@zos.example.com\": [\n  \"//{jobname}  JOB (ACCT),'{programmer}',CLASS=A,MSGCLASS=X,NOTIFY=&SYSUID\",\n  \"/*JOBPARM S=*\"\n]\n```\n\nUse placeholders `{jobname}` and `{programmer}`; `submitJob` substitutes them. You can also use a single string with `\\n` for newlines. Changes are sent to the server and take effect immediately.",
           "order": 9
+        },
+        "zoweMCP.enabledCliPlugins": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "Plugin names to enable from the bundled CLI plugins directory (e.g. [\"endevor\"]). Empty array (default) enables all bundled plugins. Use zoweMCP.cliPluginConfiguration to supply connection details for each plugin. Changes require restarting the MCP server (Reload Window).",
+          "markdownDescription": "Plugin names to enable from the bundled CLI plugins directory (e.g. `[\"endevor\"]`). Empty array (default) enables **all** bundled plugins.\n\nUse `zoweMCP.cliPluginConfiguration` to supply connection details per plugin. Changes require **Developer: Reload Window**.",
+          "order": 10
+        },
+        "zoweMCP.cliPluginConfiguration": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "description": "Named profile sets for one CLI plugin. Maps profile type keys (e.g. \"connection\", \"location\") to a list of named profiles and an optional default.",
+            "additionalProperties": {
+              "type": "object",
+              "properties": {
+                "profiles": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "description": "Unique profile ID."
+                      }
+                    },
+                    "required": [
+                      "id"
+                    ]
+                  },
+                  "description": "List of named profiles. Each profile has an id plus plugin-specific fields."
+                },
+                "default": {
+                  "type": "string",
+                  "description": "ID of the profile to use by default."
+                }
+              }
+            }
+          },
+          "default": {},
+          "description": "Connection profiles for auto-discovered CLI plugins. Key = plugin name (e.g. \"endevor\"), value = profile configuration object. Passwords are not stored here; set ZOWE_MCP_PASSWORD_USER_HOST environment variables. Changes require restarting the MCP server (Reload Window).",
+          "markdownDescription": "Connection profiles for auto-discovered CLI plugins.\n\nKey = plugin name (e.g. `endevor`), value = an inline `CliPluginProfilesFile` object that maps profile type keys (e.g. `connection`, `location`) to `{ profiles: [{id, ...fields}], default?: id }`.\n\nPasswords are **not** stored here. Set `ZOWE_MCP_PASSWORD_<USER>_<HOST>` environment variables instead (uppercase, dots/special chars → `_`).\n\nExample (Endevor):\n```json\n{\n  \"endevor\": {\n    \"connection\": {\n      \"profiles\": [{\n        \"id\": \"prod\",\n        \"host\": \"zos.example.com\",\n        \"user\": \"USER\",\n        \"protocol\": \"https\",\n        \"basePath\": \"EndevorService/api/v2\",\n        \"instance\": \"ENDEVOR\"\n      }],\n      \"default\": \"prod\"\n    },\n    \"location\": {\n      \"profiles\": [{\n        \"id\": \"dev\",\n        \"environment\": \"DEV\",\n        \"stageNumber\": \"1\"\n      }]\n    }\n  }\n}\n```\n\nChanges require **Developer: Reload Window**.",
+          "order": 11
+        },
+        "zoweMCP.cliPlugins": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "yaml": {
+                "type": "string",
+                "description": "Absolute path to the CLI plugin YAML file (e.g. /path/to/endevor-tools.yaml)."
+              },
+              "connectionFile": {
+                "type": "string",
+                "description": "Absolute path to a CliConnectionConfig JSON file with host/port/user/password/pluginParams. Omit for profile-only authentication."
+              },
+              "descVariant": {
+                "type": "string",
+                "enum": [
+                  "cli",
+                  "intent",
+                  "optimized"
+                ],
+                "description": "Description variant to use for the plugin's tools (default: intent)."
+              }
+            },
+            "required": [
+              "yaml"
+            ]
+          },
+          "default": [],
+          "description": "Explicit CLI plugin bridge configurations (legacy/advanced). Each entry activates one plugin YAML by absolute path. Prefer zoweMCP.enabledCliPlugins and zoweMCP.cliPluginConfiguration for bundled plugins. Changes require restarting the MCP server (Reload Window).",
+          "markdownDescription": "Explicit CLI plugin bridge configurations (legacy/advanced). Each entry activates one plugin YAML by absolute path.\n\nPrefer `zoweMCP.enabledCliPlugins` + `zoweMCP.cliPluginConfiguration` for bundled plugins.\n\nExample entry:\n```json\n{\n  \"yaml\": \"/absolute/path/to/endevor-tools.yaml\",\n  \"connectionFile\": \"/path/to/.endevor-connection.json\",\n  \"descVariant\": \"intent\"\n}\n```\n\nChanges require **Developer: Reload Window**.",
+          "order": 12
         }
       }
     }

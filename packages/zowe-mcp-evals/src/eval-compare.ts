@@ -263,6 +263,9 @@ async function runSetForModel(
               toolCalls,
               finalText,
               assertionFailed: failedAssertion,
+              durationMs: runResult.durationMs,
+              tokenUsage: runResult.tokenUsage,
+              stepCount: runResult.stepCount,
             };
             questionResults.push(result);
             allResults.push(result);

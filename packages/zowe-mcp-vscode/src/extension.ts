@@ -16,11 +16,13 @@
  * enabling AI agents to use z/OS tools through the Model Context Protocol.
  */
 
+import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { plural } from 'zowe-mcp-common';
 import { getDisplayName, getLog, initLog } from './log';
 import {
+  sendCliPluginConfigurationUpdateEvent,
   sendConnectionsUpdateEvent,
   sendEncodingOptionsUpdateEvent,
   sendJobCardsUpdateEvent,
@@ -133,6 +135,10 @@ export function activate(context: vscode.ExtensionContext): void {
         log.info('Job cards setting changed, forwarding to MCP servers');
         sendJobCardsUpdateEvent();
       }
+      if (e.affectsConfiguration('zoweMCP.cliPluginConfiguration')) {
+        log.info('CLI plugin configuration setting changed, forwarding to MCP servers');
+        sendCliPluginConfigurationUpdateEvent();
+      }
       if (e.affectsConfiguration('zoweMCP.backend')) {
         void Promise.resolve().then(() => {
           const config = vscode.workspace.getConfiguration('zoweMCP');
@@ -169,7 +175,9 @@ export function activate(context: vscode.ExtensionContext): void {
         e.affectsConfiguration('zoweMCP.nativeResponseTimeout') ||
         e.affectsConfiguration('zoweMCP.defaultMainframeMvsEncoding') ||
         e.affectsConfiguration('zoweMCP.defaultMainframeUssEncoding') ||
-        e.affectsConfiguration('zoweMCP.jobCards');
+        e.affectsConfiguration('zoweMCP.jobCards') ||
+        e.affectsConfiguration('zoweMCP.enabledCliPlugins') ||
+        e.affectsConfiguration('zoweMCP.cliPlugins');
       if (
         affectsServerStartup &&
         cursorMcpRegistered &&
@@ -293,7 +301,7 @@ function getBackendWithMigration(
  * Exported for tests (fresh-config server args).
  */
 export async function buildServerConfig(
-  _context: vscode.ExtensionContext,
+  context: vscode.ExtensionContext,
   serverModule: string,
   discoveryDir: string,
   workspaceId: string,
@@ -350,6 +358,56 @@ export async function buildServerConfig(
     args.push('--default-uss-encoding', defaultMainframeUssEncoding.trim());
   }
 
+  // CLI plugin bridge: auto-discovery from bundled plugins dir
+  const enabledCliPlugins = config.get<string[]>('enabledCliPlugins', []) ?? [];
+  const cliPluginConfiguration =
+    config.get<Record<string, unknown>>('cliPluginConfiguration', {}) ?? {};
+  for (const name of enabledCliPlugins) {
+    if (typeof name === 'string' && name.trim()) {
+      args.push('--cli-plugin-enable', name.trim());
+    }
+  }
+  for (const [name, profilesObj] of Object.entries(cliPluginConfiguration)) {
+    if (profilesObj !== null && typeof profilesObj === 'object') {
+      // Inline profiles object — serialize to a temp file in globalStorageUri
+      const storageDir = context.globalStorageUri.fsPath;
+      fs.mkdirSync(storageDir, { recursive: true });
+      const connFile = path.join(storageDir, `cli-plugin-conn-${name}.json`);
+      fs.writeFileSync(connFile, JSON.stringify(profilesObj));
+      args.push('--cli-plugin-connection', `${name}=${connFile}`);
+    }
+  }
+  if (enabledCliPlugins.length > 0 || Object.keys(cliPluginConfiguration).length > 0) {
+    log.info('CLI plugin bridge (auto-discovery)', {
+      enabledPlugins: enabledCliPlugins.length > 0 ? enabledCliPlugins : 'all',
+      connections: Object.keys(cliPluginConfiguration),
+    });
+  }
+
+  // CLI plugin bridge entries (explicit/legacy --cli-plugin-yaml paths)
+  const cliPlugins = config.get<
+    { yaml?: string; connectionFile?: string; descVariant?: string }[]
+  >('cliPlugins', []);
+  let cliPluginDescVariantPushed = false;
+  for (const plugin of cliPlugins) {
+    const yamlPath = plugin.yaml?.trim();
+    if (!yamlPath) continue;
+    args.push('--cli-plugin-yaml', yamlPath);
+    const connFile = plugin.connectionFile?.trim();
+    if (connFile) {
+      args.push('--cli-plugin-connection-file', connFile);
+    }
+    if (!cliPluginDescVariantPushed && plugin.descVariant?.trim()) {
+      args.push('--cli-plugin-desc-variant', plugin.descVariant.trim());
+      cliPluginDescVariantPushed = true;
+    }
+  }
+  if (cliPlugins.length > 0) {
+    log.info(
+      `CLI plugin bridge (explicit): ${cliPlugins.length} ${cliPlugins.length === 1 ? 'plugin' : 'plugins'} configured`
+    );
+  }
+
   let zeExt = vscode.extensions.getExtension('Zowe.vscode-extension-for-zowe');
   if (!zeExt) {
     await new Promise(r => setTimeout(r, 400));
@@ -374,7 +432,7 @@ export async function buildServerConfig(
   if (zoweExplorerAvailable) {
     env.ZOWE_EXPLORER_AVAILABLE = '1';
   }
-  return { command: 'node', args, env };
+  return { command: process.execPath, args, env };
 }
 
 /**
@@ -715,6 +773,9 @@ const ZOWE_MCP_CONFIG_KEYS = [
   'defaultMainframeMvsEncoding',
   'defaultMainframeUssEncoding',
   'jobCards',
+  'enabledCliPlugins',
+  'cliPluginConfiguration',
+  'cliPlugins',
 ] as const;
 
 /**

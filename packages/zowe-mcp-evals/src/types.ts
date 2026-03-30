@@ -32,6 +32,106 @@ export interface SetNativeConfig {
 export type SetBackendConfig = { mock: SetMockConfig } | { native: SetNativeConfig };
 
 /**
+ * Generic external mock server started and optionally initialized by the eval harness.
+ * Suitable for any CLI-based mock server (not just Endevor EWS).
+ */
+export interface MockServerDef {
+  /** Human-readable name used in log messages. */
+  name: string;
+  /**
+   * Absolute path to the Node.js CLI script (invoked as `node <cliScript>`).
+   */
+  cliScript: string;
+  /**
+   * Arguments for the init subcommand. When present, the harness runs
+   * `node <cliScript> <initArgs>` once in a harness-managed temp directory
+   * before starting the server. The `{dataDir}` placeholder is replaced with
+   * `<tempDir>/data` (a non-existing sub-path so init tools that reject
+   * pre-existing directories work correctly). The init command is run with
+   * CWD set to the temp directory so any config file it creates lands there.
+   * Example: "init ENDEVOR --output {dataDir}"
+   */
+  initArgs?: string;
+  /**
+   * Optional config template (JSON-serializable object) written to a temp file
+   * and passed as `--config <file>` to the start command. All string values
+   * have `{dataDir}` and `{port}` placeholders substituted. When absent and
+   * `initArgs` is set the harness looks for the file named by `configOutputName`
+   * (default `mock-ews-config.json`) created in the temp directory by the init
+   * command. When absent and `initArgs` is also absent no `--config` flag is
+   * added.
+   */
+  configTemplate?: Record<string, unknown>;
+  /**
+   * Filename of the config file created by `initArgs` in the temp directory.
+   * Default: `"mock-ews-config.json"`.
+   */
+  configOutputName?: string;
+  /**
+   * CLI flag used to pass the config file when starting the server.
+   * Default: `"--config"`.
+   */
+  configFlag?: string;
+  /**
+   * Full argument string for starting the server (everything after `node <cliScript>`).
+   * When present, this replaces the default `serve --port <port>` construction.
+   * Use `${availablePort}` as a placeholder — the harness finds the first available
+   * TCP port starting from 10000 and substitutes it. `{dataDir}` and `{port}` are
+   * also substituted for backward compatibility.
+   * When a config file is produced by `initArgs` or `configTemplate`, it is automatically
+   * injected (via `configFlag`) after the first word (subcommand).
+   * Example: `"serve --port ${availablePort}"`
+   */
+  serveArgs?: string;
+  /**
+   * Extra arguments appended after the start subcommand and config flag.
+   * `{dataDir}` and `{port}` placeholders are substituted.
+   * Ignored when `serveArgs` is set (use `serveArgs` instead for full control).
+   */
+  startArgs?: string;
+  /**
+   * Port the server listens on; the harness waits for it to be ready.
+   * When `serveArgs` contains `${availablePort}`, the port is allocated dynamically
+   * and this field is ignored. Use this only when `serveArgs` is absent and you
+   * need a specific fixed port. Defaults to 8080 when neither `serveArgs` nor
+   * `port` are set (legacy behavior).
+   */
+  port?: number;
+  /**
+   * When set, the harness automatically creates a CLI bridge connection for this plugin
+   * pointing to `localhost:<port>`. Plugin-specific defaults are applied (e.g. for
+   * `endevor`: user=USER, password=PASSWORD, protocol=http, etc.), so no separate
+   * `cliPluginConfiguration` entry is needed for the common case.
+   * Explicit `cliPluginConfiguration` entries always take precedence if present.
+   */
+  pluginName?: string;
+}
+
+/**
+ * Connection config for one CLI bridge plugin. All fields are optional; the harness
+ * applies plugin-specific defaults for known plugins (e.g. host/user/password/basePath
+ * for the `endevor` plugin) so only `port` is usually needed in the YAML.
+ */
+export interface CliPluginConnection {
+  /** Hostname (default for endevor: 'localhost'). */
+  host?: string;
+  /** Port number. */
+  port?: number;
+  /** Username (default for endevor: 'USER'). */
+  user?: string;
+  /** Password (default for endevor: 'PASSWORD'). Passed as ZOWE_MCP_PASSWORD_USER_HOST env var, not stored in the profiles file. */
+  password?: string;
+  /** Protocol: 'http' or 'https' (default for endevor: 'http'). */
+  protocol?: string;
+  /** API base path (default for endevor: 'EndevorService/api/v2'). */
+  basePath?: string;
+  /** Endevor Web Services instance name (default for endevor: 'ENDEVOR'). */
+  instance?: string;
+  /** Plugin-specific parameters (legacy, mapped to instance for endevor). */
+  pluginParams?: Record<string, string>;
+}
+
+/**
  * Set-level eval config (repetitions, success rate, backend, system prompt).
  */
 export interface SetConfig {
@@ -41,10 +141,52 @@ export interface SetConfig {
   minSuccessRate?: number;
   mock?: SetMockConfig;
   native?: SetNativeConfig;
+  /**
+   * Generic mock servers to start before the MCP server. Each entry can specify
+   * an optional init command run in a harness-managed temp directory so the
+   * data store and config are created fresh per eval run.
+   */
+  mockServers?: MockServerDef[];
+  /**
+   * Connection config per CLI plugin name. The harness writes each entry as a temp
+   * JSON connection file and passes `--cli-plugin-connection <name>=<file>` to the server.
+   * Known plugin defaults are applied automatically (e.g. for `endevor` the host, user,
+   * password, protocol, basePath, and pluginParams are pre-filled).
+   */
+  cliPluginConfiguration?: Record<string, CliPluginConnection>;
+  /**
+   * Override for the CLI plugins directory (--cli-plugins-dir).
+   * Defaults to `<server-dist>/tools/cli-bridge/plugins/`.
+   */
+  cliPluginsDir?: string;
+  /**
+   * Description variant for CLI bridge tools (--cli-plugin-desc-variant).
+   * Values: 'cli' | 'intent' | 'optimized' or any custom variant name.
+   */
+  cliPluginDescVariant?: string;
+  /**
+   * Path to an alternative MCP server script (e.g. code4z-gen-ai stdio-server.js).
+   * When set, this server is started instead of the default zowe-mcp-server.
+   */
+  mcpServerScript?: string;
+  /** Extra args for the alternative MCP server, one string split on whitespace. */
+  mcpServerArgs?: string;
+  /**
+   * Tool name aliases: maps actual tool names from the server to the canonical assertion
+   * names used in question YAML. Applied after each run so assertions use stable names.
+   * Example: { "get_elements": "endevorListElements" }
+   */
+  toolAliases?: Record<string, string>;
   systemPrompt?: string;
   systemPromptAddition?: string;
   /** When set, the entire question set is skipped with this reason. */
   skip?: string;
+  /**
+   * Load questions from another named question set instead of defining them locally.
+   * The referenced set must exist in the questions/ directory. Used by mirror sets
+   * (e.g. endevor-code4z) that run the same questions against a different server.
+   */
+  questionsFrom?: string;
 }
 
 /**
@@ -163,6 +305,18 @@ export interface ToolCallRecord {
 }
 
 /**
+ * Token usage for one agent run, from the Vercel AI SDK result.usage.
+ */
+export interface TokenUsage {
+  /** Tokens in the LLM prompt (input). */
+  input: number;
+  /** Tokens in the LLM response (output). */
+  output: number;
+  /** Total tokens (input + output). */
+  total: number;
+}
+
+/**
  * Result of one run (one question, one repetition).
  */
 export interface RunResult {
@@ -174,4 +328,10 @@ export interface RunResult {
   finalText: string;
   error?: string;
   assertionFailed?: string;
+  /** Wall-clock duration of the agent run in milliseconds. */
+  durationMs?: number;
+  /** Token usage for this run (from Vercel AI SDK). */
+  tokenUsage?: TokenUsage;
+  /** Number of agent steps (tool call rounds) taken. */
+  stepCount?: number;
 }

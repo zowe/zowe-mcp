@@ -22,7 +22,7 @@ import { getSystemPrompt, initMockData, McpEvalHarness, prepareEvalWorkspace } f
 import { listSetNames, loadAndValidateAllSets } from './load-questions.js';
 import { log } from './log.js';
 import { writeReport } from './report.js';
-import type { Question, QuestionSet, RunResult } from './types.js';
+import type { Question, QuestionSet, RunResult, TokenUsage } from './types.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -35,6 +35,9 @@ interface AssertAndRecordInput {
   finalText: string;
   toolCalls: RunResult['toolCalls'];
   assertionBlock: Question['assertionBlock'];
+  durationMs?: number;
+  tokenUsage?: TokenUsage;
+  stepCount?: number;
 }
 
 function assertAndRecord(input: AssertAndRecordInput): RunResult {
@@ -51,6 +54,9 @@ function assertAndRecord(input: AssertAndRecordInput): RunResult {
     toolCalls: input.toolCalls,
     finalText: input.finalText,
     assertionFailed: failedAssertion,
+    durationMs: input.durationMs,
+    tokenUsage: input.tokenUsage,
+    stepCount: input.stepCount,
   };
 }
 
@@ -301,6 +307,9 @@ async function main(): Promise<void> {
                 finalText,
                 toolCalls,
                 assertionBlock: q.assertionBlock,
+                durationMs: runResult.durationMs,
+                tokenUsage: runResult.tokenUsage,
+                stepCount: runResult.stepCount,
               });
               questionResults.push(result);
               allResults.push(result);

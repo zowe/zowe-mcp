@@ -2,163 +2,122 @@
 
 # Zowe MCP Server Reference
 
-> Auto-generated from the MCP server (v0.8.0-dev, commit 5a0bbc0). Do not edit manually — run `npx @zowe/mcp-server generate-docs` to regenerate.
+> Auto-generated from the MCP server (v0.8.0-dev, commit 6749332). Do not edit manually — run `npx @zowe/mcp-server generate-docs` to regenerate.
 
-This document describes all [Tools](#tools), [Prompts](#prompts), [Resource Templates](#resource-templates) provided by the Zowe MCP Server.
+This document describes all [Context](#context), [Data Sets](#data-sets), [USS](#uss), [TSO](#tso), [Jobs](#jobs), [Local Files](#local-files), [Tool Reference](#tool-reference), [Prompts](#prompts), [Resource Templates](#resource-templates) provided by the Zowe MCP Server.
 
-## Tools
+## Context
 
-The server provides **55** tools.
+The server provides **3** tools.
 
-| #  | Tool                                                      | Description                                                                                                                                                                                                                                                                 |
-|----|-----------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| 1  | [`listSystems`](#listsystems)                             | List all z/OS systems you have access to                                                                                                                                                                                                                                    |
-| 2  | [`setSystem`](#setsystem)                                 | Set the active z/OS system                                                                                                                                                                                                                                                  |
-| 3  | [`getContext`](#getcontext)                               | Return the Zowe MCP server info (version, backend, components) and the current session context: active system, active connection (user@host), user ID, all known systems (with their connections when multiple exist), and recently used systems (those with saved context) |
-| 4  | [`listDatasets`](#listdatasets)                           | List data sets matching a DSLEVEL pattern                                                                                                                                                                                                                                   |
-| 5  | [`listMembers`](#listmembers)                             | List members of a PDS or PDS/E data set Results are paginated (default 500, max 1000 per page); follow the pagination instructions in the server instructions                                                                                                               |
-| 6  | [`searchInDataset`](#searchindataset)                     | Search for a string in a sequential data set, PDS, or PDS/E (all members or one member)                                                                                                                                                                                     |
-| 7  | [`getDatasetAttributes`](#getdatasetattributes)           | Get detailed attributes of a data set: organization, record format, record length, block size, volume, SMS classes, dates, and more                                                                                                                                         |
-| 8  | [`readDataset`](#readdataset)                             | Read the content of a sequential data set or PDS/E member                                                                                                                                                                                                                   |
-| 9  | [`writeDataset`](#writedataset)                           | Write UTF-8 content to a sequential data set or PDS/E member                                                                                                                                                                                                                |
-| 10 | [`getTempDatasetPrefix`](#gettempdatasetprefix)           | Return a unique DSN prefix (HLQ) under which temporary data sets can be created                                                                                                                                                                                             |
-| 11 | [`getTempDatasetName`](#gettempdatasetname)               | Returns a single unique full temporary data set name (for one data set)                                                                                                                                                                                                     |
-| 12 | [`createDataset`](#createdataset)                         | Create a new sequential or partitioned data set                                                                                                                                                                                                                             |
-| 13 | [`createTempDataset`](#createtempdataset)                 | Creates a new data set with a unique temporary name in a single call                                                                                                                                                                                                        |
-| 14 | [`deleteDataset`](#deletedataset)                         | Delete a data set or a specific PDS or PDS/E member                                                                                                                                                                                                                         |
-| 15 | [`deleteDatasetsUnderPrefix`](#deletedatasetsunderprefix) | Delete all data sets whose names start with the given prefix (e.g. tempDsnPrefix from getTempDatasetPrefix)                                                                                                                                                                 |
-| 16 | [`copyDataset`](#copydataset)                             | Copy a data set or PDS or PDS/E member within a single z/OS system                                                                                                                                                                                                          |
-| 17 | [`renameDataset`](#renamedataset)                         | Rename a data set or PDS or PDS/E member                                                                                                                                                                                                                                    |
-| 18 | [`restoreDataset`](#restoredataset)                       | Restore (recall) a migrated data set from the hierarchical storage manager (HSM/DFHSM)                                                                                                                                                                                      |
-| 19 | [`getUssHome`](#getusshome)                               | Return the current user's USS home directory for the active (or specified) system                                                                                                                                                                                           |
-| 20 | [`changeUssDirectory`](#changeussdirectory)               | Set the USS current working directory for the active (or specified) system                                                                                                                                                                                                  |
-| 21 | [`listUssFiles`](#listussfiles)                           | List files and directories in a USS path Results are paginated (default 500, max 1000 per page); follow the pagination instructions in the server instructions                                                                                                              |
-| 22 | [`readUssFile`](#readussfile)                             | Read the content of a USS file Results may be line-windowed; follow the pagination instructions in the server instructions                                                                                                                                                  |
-| 23 | [`runSafeUssCommand`](#runsafeusscommand)                 | Run a Unix command on z/OS USS                                                                                                                                                                                                                                              |
-| 24 | [`writeUssFile`](#writeussfile)                           | Write or overwrite a USS file                                                                                                                                                                                                                                               |
-| 25 | [`createUssFile`](#createussfile)                         | Create a USS file or directory                                                                                                                                                                                                                                              |
-| 26 | [`deleteUssFile`](#deleteussfile)                         | Delete a USS file or directory                                                                                                                                                                                                                                              |
-| 27 | [`chmodUssFile`](#chmodussfile)                           | Change permissions of a USS file or directory                                                                                                                                                                                                                               |
-| 28 | [`chownUssFile`](#chownussfile)                           | Change owner of a USS file or directory                                                                                                                                                                                                                                     |
-| 29 | [`chtagUssFile`](#chtagussfile)                           | Set the z/OS file tag (encoding/type) for a USS file or directory                                                                                                                                                                                                           |
-| 30 | [`copyUssFile`](#copyussfile)                             | Copy a USS file or directory within the same z/OS system                                                                                                                                                                                                                    |
-| 31 | [`getUssTempDir`](#getusstempdir)                         | Generate a unique USS temporary directory path as a subdirectory of the given base path (e.g. /tmp or the user home)                                                                                                                                                        |
-| 32 | [`getUssTempPath`](#getusstemppath)                       | Return a unique USS temporary file path under the given directory                                                                                                                                                                                                           |
-| 33 | [`createTempUssDir`](#createtempussdir)                   | Create a temporary USS directory                                                                                                                                                                                                                                            |
-| 34 | [`createTempUssFile`](#createtempussfile)                 | Create an empty temporary USS file at the given path, creating parent directories if needed                                                                                                                                                                                 |
-| 35 | [`deleteUssTempUnderDir`](#deleteusstempunderdir)         | Delete all files and directories under the given USS path (the path itself is removed)                                                                                                                                                                                      |
-| 36 | [`runSafeTsoCommand`](#runsafetsocommand)                 | Run a TSO command on z/OS                                                                                                                                                                                                                                                   |
-| 37 | [`submitJob`](#submitjob)                                 | Submit JCL to the current (or specified) z/OS system                                                                                                                                                                                                                        |
-| 38 | [`getJobStatus`](#getjobstatus)                           | Get the current status of a z/OS job (INPUT, ACTIVE, or OUTPUT) and its return code when complete                                                                                                                                                                           |
-| 39 | [`listJobFiles`](#listjobfiles)                           | List output files (spools) for a z/OS job                                                                                                                                                                                                                                   |
-| 40 | [`readJobFile`](#readjobfile)                             | Read the content of one job output file (spool); use listJobFiles to get job file IDs Results may be line-windowed; follow the pagination instructions in the server instructions                                                                                           |
-| 41 | [`getJobOutput`](#getjoboutput)                           | Get aggregated output from job files for a completed job                                                                                                                                                                                                                    |
-| 42 | [`searchJobOutput`](#searchjoboutput)                     | Search for a substring in a job's output files (all files or one by jobFileId)                                                                                                                                                                                              |
-| 43 | [`listJobs`](#listjobs)                                   | List jobs on the z/OS system with optional filters (owner, prefix, status)                                                                                                                                                                                                  |
-| 44 | [`getJcl`](#getjcl)                                       | Get the JCL for a job                                                                                                                                                                                                                                                       |
-| 45 | [`cancelJob`](#canceljob)                                 | Cancel a job on the z/OS system                                                                                                                                                                                                                                             |
-| 46 | [`holdJob`](#holdjob)                                     | Hold a job on the z/OS system                                                                                                                                                                                                                                               |
-| 47 | [`releaseJob`](#releasejob)                               | Release a held job on the z/OS system                                                                                                                                                                                                                                       |
-| 48 | [`deleteJob`](#deletejob)                                 | Delete a job from the output queue                                                                                                                                                                                                                                          |
-| 49 | [`submitJobFromDataset`](#submitjobfromdataset)           | Submit a job from a data set or PDS or PDS/E member containing JCL                                                                                                                                                                                                          |
-| 50 | [`submitJobFromUss`](#submitjobfromuss)                   | Submit a job from a USS file path                                                                                                                                                                                                                                           |
-| 51 | [`downloadDatasetToFile`](#downloaddatasettofile)         | Download a sequential data set or PDS/E member from z/OS to a file under the workspace                                                                                                                                                                                      |
-| 52 | [`uploadFileToDataset`](#uploadfiletodataset)             | Upload a UTF-8 text file from the workspace to a sequential data set or PDS/E member on z/OS                                                                                                                                                                                |
-| 53 | [`downloadUssFileToFile`](#downloadussfiletofile)         | Download a z/OS USS file to a local workspace file as UTF-8 text                                                                                                                                                                                                            |
-| 54 | [`uploadFileToUssFile`](#uploadfiletoussfile)             | Upload a UTF-8 workspace file to a z/OS USS path                                                                                                                                                                                                                            |
-| 55 | [`downloadJobFileToFile`](#downloadjobfiletofile)         | Download one job spool file from z/OS to a local workspace file as UTF-8 text                                                                                                                                                                                               |
+Server information and session management — set the active z/OS system and query the current session state (systems, active connection, active user).
 
-### `listSystems`
+| # | Tool                          | Description                                                                                                                                                                                                                                                                 |
+|---|-------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| 1 | [`getContext`](#getcontext)   | Return the Zowe MCP server info (version, backend, components) and the current session context: active system, active connection (user@host), user ID, all known systems (with their connections when multiple exist), and recently used systems (those with saved context) |
+| 2 | [`listSystems`](#listsystems) | List all z/OS systems you have access to                                                                                                                                                                                                                                    |
+| 3 | [`setSystem`](#setsystem)     | Set the active z/OS system                                                                                                                                                                                                                                                  |
 
-> Read-only
+## Data Sets
 
-List all z/OS systems you have access to. Each system is a host; multiple configured connections (user@host) to the same host appear as one system with a connections list. Use setSystem to select which system (and optionally which connection) to use.
+The server provides **15** tools.
 
-#### Parameters
+z/OS data set operations — list, search, read, write, create, copy, rename, delete, and manage PDS/E members and temporary data sets.
 
-*No parameter.*
+| #  | Tool                                                      | Description                                                                                                                                                   |
+|----|-----------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| 1  | [`listDatasets`](#listdatasets)                           | List data sets matching a DSLEVEL pattern                                                                                                                     |
+| 2  | [`listMembers`](#listmembers)                             | List members of a PDS or PDS/E data set Results are paginated (default 500, max 1000 per page); follow the pagination instructions in the server instructions |
+| 3  | [`searchInDataset`](#searchindataset)                     | Search for a string in a sequential data set, PDS, or PDS/E (all members or one member)                                                                       |
+| 4  | [`getDatasetAttributes`](#getdatasetattributes)           | Get detailed attributes of a data set: organization, record format, record length, block size, volume, SMS classes, dates, and more                           |
+| 5  | [`readDataset`](#readdataset)                             | Read the content of a sequential data set or PDS/E member                                                                                                     |
+| 6  | [`writeDataset`](#writedataset)                           | Write UTF-8 content to a sequential data set or PDS/E member                                                                                                  |
+| 7  | [`createDataset`](#createdataset)                         | Create a new sequential or partitioned data set                                                                                                               |
+| 8  | [`createTempDataset`](#createtempdataset)                 | Creates a new data set with a unique temporary name in a single call                                                                                          |
+| 9  | [`getTempDatasetPrefix`](#gettempdatasetprefix)           | Return a unique DSN prefix (HLQ) under which temporary data sets can be created                                                                               |
+| 10 | [`getTempDatasetName`](#gettempdatasetname)               | Returns a single unique full temporary data set name (for one data set)                                                                                       |
+| 11 | [`copyDataset`](#copydataset)                             | Copy a data set or PDS or PDS/E member within a single z/OS system                                                                                            |
+| 12 | [`renameDataset`](#renamedataset)                         | Rename a data set or PDS or PDS/E member                                                                                                                      |
+| 13 | [`deleteDataset`](#deletedataset)                         | Delete a data set or a specific PDS or PDS/E member                                                                                                           |
+| 14 | [`deleteDatasetsUnderPrefix`](#deletedatasetsunderprefix) | Delete all data sets whose names start with the given prefix (e.g. tempDsnPrefix from getTempDatasetPrefix)                                                   |
+| 15 | [`restoreDataset`](#restoredataset)                       | Restore (recall) a migrated data set from the hierarchical storage manager (HSM/DFHSM)                                                                        |
 
-<a id="listsystems-output-schema"></a>
+## USS
 
-#### Output Schema
+The server provides **17** tools.
 
-| Field                  | Type       | Required | Description                                                                                                                                        |
-|------------------------|------------|----------|----------------------------------------------------------------------------------------------------------------------------------------------------|
-| `messages`             | `string`[] | No       | Informational messages (e.g. resolution notes). Omitted when empty.                                                                                |
-| `systems`              | `object`[] | Yes      | All configured z/OS systems you have access to.                                                                                                    |
-| &ensp;├─ `host`        | `string`   | Yes      | z/OS system hostname (e.g. sys1.example.com).                                                                                                      |
-| &ensp;├─ `description` | `string`   | No       | Optional human-readable label for the system.                                                                                                      |
-| &ensp;├─ `connections` | `string`[] | No       | Connection specs (user@host or user@host:port) when multiple connections exist for this host. Use setSystem with one of these when disambiguating. |
-| &ensp;└─ `active`      | `boolean`  | Yes      | True if this system is the currently active one.                                                                                                   |
+UNIX System Services — navigate directories, read/write files, manage permissions and tags, run shell commands, and work with temporary files.
 
-#### Example Output
+| #  | Tool                                              | Description                                                                                                                                                    |
+|----|---------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| 1  | [`getUssHome`](#getusshome)                       | Return the current user's USS home directory for the active (or specified) system                                                                              |
+| 2  | [`changeUssDirectory`](#changeussdirectory)       | Set the USS current working directory for the active (or specified) system                                                                                     |
+| 3  | [`listUssFiles`](#listussfiles)                   | List files and directories in a USS path Results are paginated (default 500, max 1000 per page); follow the pagination instructions in the server instructions |
+| 4  | [`readUssFile`](#readussfile)                     | Read the content of a USS file Results may be line-windowed; follow the pagination instructions in the server instructions                                     |
+| 5  | [`writeUssFile`](#writeussfile)                   | Write or overwrite a USS file                                                                                                                                  |
+| 6  | [`createUssFile`](#createussfile)                 | Create a USS file or directory                                                                                                                                 |
+| 7  | [`deleteUssFile`](#deleteussfile)                 | Delete a USS file or directory                                                                                                                                 |
+| 8  | [`chmodUssFile`](#chmodussfile)                   | Change permissions of a USS file or directory                                                                                                                  |
+| 9  | [`chownUssFile`](#chownussfile)                   | Change owner of a USS file or directory                                                                                                                        |
+| 10 | [`chtagUssFile`](#chtagussfile)                   | Set the z/OS file tag (encoding/type) for a USS file or directory                                                                                              |
+| 11 | [`copyUssFile`](#copyussfile)                     | Copy a USS file or directory within the same z/OS system                                                                                                       |
+| 12 | [`runSafeUssCommand`](#runsafeusscommand)         | Run a Unix command on z/OS USS                                                                                                                                 |
+| 13 | [`getUssTempDir`](#getusstempdir)                 | Generate a unique USS temporary directory path as a subdirectory of the given base path (e.g. /tmp or the user home)                                           |
+| 14 | [`getUssTempPath`](#getusstemppath)               | Return a unique USS temporary file path under the given directory                                                                                              |
+| 15 | [`createTempUssDir`](#createtempussdir)           | Create a temporary USS directory                                                                                                                               |
+| 16 | [`createTempUssFile`](#createtempussfile)         | Create an empty temporary USS file at the given path, creating parent directories if needed                                                                    |
+| 17 | [`deleteUssTempUnderDir`](#deleteusstempunderdir) | Delete all files and directories under the given USS path (the path itself is removed)                                                                         |
 
-```json
-{
-  "systems": [
-    {
-      "host": "mainframe-dev.example.com",
-      "description": "Development LPAR",
-      "active": false
-    },
-    {
-      "host": "mainframe-test.example.com",
-      "description": "Test/QA LPAR",
-      "active": false
-    }
-  ]
-}
-```
+## TSO
 
----
+The server provides **1** tool.
 
-### `setSystem`
+Time Sharing Option — run TSO commands interactively on z/OS.
 
+| # | Tool                                      | Description               |
+|---|-------------------------------------------|---------------------------|
+| 1 | [`runSafeTsoCommand`](#runsafetsocommand) | Run a TSO command on z/OS |
 
-Set the active z/OS system. The system parameter can be a host (e.g. zos.example.com) when only one connection exists for that host, or a connection spec (e.g. USER@zos.example.com) when multiple connections exist for the same host. If you pass only a host and multiple connections exist, the tool fails and lists valid connection values. Optionally set mainframe encodings for this system (data set and USS); omit to leave existing overrides unchanged, or pass null to use MCP server default.
+## Jobs
 
-#### Parameters
+The server provides **14** tools.
 
-| Parameter              | Type               | Required | Description                                                                                                                                                             |
-|------------------------|--------------------|----------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `system`               | `string`           | Yes      | Hostname of the z/OS system to activate (e.g. sys1.example.com or sys1 when unambiguous), or connection spec (user@host) when multiple connections exist for that host. |
-| `mainframeMvsEncoding` | `string` \| `null` | No       | MVS/data set encoding (EBCDIC) for this system. Omit to leave unchanged; pass null to use MCP server default.                                                           |
-| `mainframeUssEncoding` | `string` \| `null` | No       | Mainframe USS encoding (EBCDIC) for this system. Omit to leave unchanged; pass null to use MCP server default.                                                          |
+z/OS batch job management — submit JCL, monitor job status, read spool output, search output, and manage job lifecycle (cancel, hold, release, delete).
 
-<a id="setsystem-output-schema"></a>
+| #  | Tool                                            | Description                                                                                                                                                                       |
+|----|-------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| 1  | [`submitJob`](#submitjob)                       | Submit JCL to the current (or specified) z/OS system                                                                                                                              |
+| 2  | [`submitJobFromDataset`](#submitjobfromdataset) | Submit a job from a data set or PDS or PDS/E member containing JCL                                                                                                                |
+| 3  | [`submitJobFromUss`](#submitjobfromuss)         | Submit a job from a USS file path                                                                                                                                                 |
+| 4  | [`getJobStatus`](#getjobstatus)                 | Get the current status of a z/OS job (INPUT, ACTIVE, or OUTPUT) and its return code when complete                                                                                 |
+| 5  | [`listJobFiles`](#listjobfiles)                 | List output files (spools) for a z/OS job                                                                                                                                         |
+| 6  | [`readJobFile`](#readjobfile)                   | Read the content of one job output file (spool); use listJobFiles to get job file IDs Results may be line-windowed; follow the pagination instructions in the server instructions |
+| 7  | [`getJobOutput`](#getjoboutput)                 | Get aggregated output from job files for a completed job                                                                                                                          |
+| 8  | [`searchJobOutput`](#searchjoboutput)           | Search for a substring in a job's output files (all files or one by jobFileId)                                                                                                    |
+| 9  | [`listJobs`](#listjobs)                         | List jobs on the z/OS system with optional filters (owner, prefix, status)                                                                                                        |
+| 10 | [`getJcl`](#getjcl)                             | Get the JCL for a job                                                                                                                                                             |
+| 11 | [`cancelJob`](#canceljob)                       | Cancel a job on the z/OS system                                                                                                                                                   |
+| 12 | [`holdJob`](#holdjob)                           | Hold a job on the z/OS system                                                                                                                                                     |
+| 13 | [`releaseJob`](#releasejob)                     | Release a held job on the z/OS system                                                                                                                                             |
+| 14 | [`deleteJob`](#deletejob)                       | Delete a job from the output queue                                                                                                                                                |
 
-#### Output Schema
+## Local Files
 
-| Field                  | Type               | Required | Description                                                                                                   |
-|------------------------|--------------------|----------|---------------------------------------------------------------------------------------------------------------|
-| `messages`             | `string`[]         | No       | Resolution or connection messages (e.g. "System resolved from unqualified name 'sys1'."). Omitted when empty. |
-| `activeSystem`         | `string`           | Yes      | Resolved hostname of the active z/OS system.                                                                  |
-| `userId`               | `string`           | Yes      | User ID on that system (e.g. from credentials).                                                               |
-| `description`          | `string`           | No       | Optional system description/label from configuration.                                                         |
-| `mainframeMvsEncoding` | `string` \| `null` | No       | Per-system MVS/data set encoding override (e.g. IBM-037). null = use MCP server default.                      |
-| `mainframeUssEncoding` | `string` \| `null` | No       | Per-system USS encoding override (e.g. IBM-1047). null = use MCP server default.                              |
+The server provides **5** tools.
 
-#### Example Output
+Transfer files between z/OS (data sets and USS paths) and the local workspace.
 
-Input:
+| # | Tool                                              | Description                                                                                  |
+|---|---------------------------------------------------|----------------------------------------------------------------------------------------------|
+| 1 | [`downloadDatasetToFile`](#downloaddatasettofile) | Download a sequential data set or PDS/E member from z/OS to a file under the workspace       |
+| 2 | [`uploadFileToDataset`](#uploadfiletodataset)     | Upload a UTF-8 text file from the workspace to a sequential data set or PDS/E member on z/OS |
+| 3 | [`downloadUssFileToFile`](#downloadussfiletofile) | Download a z/OS USS file to a local workspace file as UTF-8 text                             |
+| 4 | [`uploadFileToUssFile`](#uploadfiletoussfile)     | Upload a UTF-8 workspace file to a z/OS USS path                                             |
+| 5 | [`downloadJobFileToFile`](#downloadjobfiletofile) | Download one job spool file from z/OS to a local workspace file as UTF-8 text                |
 
-```json
-{
-  "system": "mainframe-dev.example.com"
-}
-```
+## Tool Reference
 
-Output:
-
-```json
-{
-  "activeSystem": "mainframe-dev.example.com",
-  "userId": "USER",
-  "description": "Development LPAR"
-}
-```
-
----
+Full parameter and output schema details for every tool. Links in the summary tables above point to the corresponding section here.
 
 ### `getContext`
 
@@ -248,6 +207,98 @@ Return the Zowe MCP server info (version, backend, components) and the current s
       "userId": "USER"
     }
   ]
+}
+```
+
+---
+
+### `listSystems`
+
+> Read-only
+
+List all z/OS systems you have access to. Each system is a host; multiple configured connections (user@host) to the same host appear as one system with a connections list. Use setSystem to select which system (and optionally which connection) to use.
+
+#### Parameters
+
+*No parameter.*
+
+<a id="listsystems-output-schema"></a>
+
+#### Output Schema
+
+| Field                  | Type       | Required | Description                                                                                                                                        |
+|------------------------|------------|----------|----------------------------------------------------------------------------------------------------------------------------------------------------|
+| `messages`             | `string`[] | No       | Informational messages (e.g. resolution notes). Omitted when empty.                                                                                |
+| `systems`              | `object`[] | Yes      | All configured z/OS systems you have access to.                                                                                                    |
+| &ensp;├─ `host`        | `string`   | Yes      | z/OS system hostname (e.g. sys1.example.com).                                                                                                      |
+| &ensp;├─ `description` | `string`   | No       | Optional human-readable label for the system.                                                                                                      |
+| &ensp;├─ `connections` | `string`[] | No       | Connection specs (user@host or user@host:port) when multiple connections exist for this host. Use setSystem with one of these when disambiguating. |
+| &ensp;└─ `active`      | `boolean`  | Yes      | True if this system is the currently active one.                                                                                                   |
+
+#### Example Output
+
+```json
+{
+  "systems": [
+    {
+      "host": "mainframe-dev.example.com",
+      "description": "Development LPAR",
+      "active": false
+    },
+    {
+      "host": "mainframe-test.example.com",
+      "description": "Test/QA LPAR",
+      "active": false
+    }
+  ]
+}
+```
+
+---
+
+### `setSystem`
+
+
+Set the active z/OS system. The system parameter can be a host (e.g. zos.example.com) when only one connection exists for that host, or a connection spec (e.g. USER@zos.example.com) when multiple connections exist for the same host. If you pass only a host and multiple connections exist, the tool fails and lists valid connection values. Optionally set mainframe encodings for this system (data set and USS); omit to leave existing overrides unchanged, or pass null to use MCP server default.
+
+#### Parameters
+
+| Parameter              | Type               | Required | Description                                                                                                                                                             |
+|------------------------|--------------------|----------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `system`               | `string`           | Yes      | Hostname of the z/OS system to activate (e.g. sys1.example.com or sys1 when unambiguous), or connection spec (user@host) when multiple connections exist for that host. |
+| `mainframeMvsEncoding` | `string` \| `null` | No       | MVS/data set encoding (EBCDIC) for this system. Omit to leave unchanged; pass null to use MCP server default.                                                           |
+| `mainframeUssEncoding` | `string` \| `null` | No       | Mainframe USS encoding (EBCDIC) for this system. Omit to leave unchanged; pass null to use MCP server default.                                                          |
+
+<a id="setsystem-output-schema"></a>
+
+#### Output Schema
+
+| Field                  | Type               | Required | Description                                                                                                   |
+|------------------------|--------------------|----------|---------------------------------------------------------------------------------------------------------------|
+| `messages`             | `string`[]         | No       | Resolution or connection messages (e.g. "System resolved from unqualified name 'sys1'."). Omitted when empty. |
+| `activeSystem`         | `string`           | Yes      | Resolved hostname of the active z/OS system.                                                                  |
+| `userId`               | `string`           | Yes      | User ID on that system (e.g. from credentials).                                                               |
+| `description`          | `string`           | No       | Optional system description/label from configuration.                                                         |
+| `mainframeMvsEncoding` | `string` \| `null` | No       | Per-system MVS/data set encoding override (e.g. IBM-037). null = use MCP server default.                      |
+| `mainframeUssEncoding` | `string` \| `null` | No       | Per-system USS encoding override (e.g. IBM-1047). null = use MCP server default.                              |
+
+#### Example Output
+
+Input:
+
+```json
+{
+  "system": "mainframe-dev.example.com"
+}
+```
+
+Output:
+
+```json
+{
+  "activeSystem": "mainframe-dev.example.com",
+  "userId": "USER",
+  "description": "Development LPAR"
 }
 ```
 
@@ -1018,6 +1069,79 @@ Write UTF-8 content to a sequential data set or PDS/E member. When startLine and
 
 ---
 
+### `createDataset`
+
+
+Create a new sequential or partitioned data set. Specify the type (PS/SEQUENTIAL, PO/PDS, PO-E/PDSE/LIBRARY) and optional attributes (primarySpace, secondarySpace, blockSize, recfm, lrecl). Type and recfm values are case-insensitive.
+
+#### Parameters
+
+| Parameter         | Type     | Required | Description                                                                                                                                                                                                                                          |
+|-------------------|----------|----------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `dsn`             | `string` | Yes      | Fully qualified data set name (e.g. USER.SRC.COBOL).                                                                                                                                                                                                 |
+| `type`            | `string` | Yes      | Data set organization type (DSORG): PS or SEQUENTIAL (Physical Sequential — a flat file), PO or PDS (Partitioned Data Set — a directory of members), PO-E or PDSE or LIBRARY (PDS/E — Partitioned Data Set Extended, recommended). Case-insensitive. |
+| `system`          | `string` | No       | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system.                                                                                                                                  |
+| `recfm`           | `string` | No       | Record Format (RECFM). Supported: F (Fixed), FB (Fixed Blocked), V (Variable), VB (Variable Blocked), U (Undefined), FBA, VBA. Default: FB. Case-insensitive.                                                                                        |
+| `lrecl`           | `number` | No       | Logical Record Length (LRECL) in bytes. Default: 80.                                                                                                                                                                                                 |
+| `blockSize`       | `number` | No       | Block Size (BLKSIZE) in bytes. Default: 27920.                                                                                                                                                                                                       |
+| `primarySpace`    | `number` | No       | Primary space allocation in tracks (the initial amount of disk space).                                                                                                                                                                               |
+| `secondarySpace`  | `number` | No       | Secondary space allocation in tracks (additional space allocated when primary is full).                                                                                                                                                              |
+| `dirblk`          | `number` | No       | Directory Blocks (DIRBLK) — number of 256-byte directory blocks (PDS only).                                                                                                                                                                          |
+| `volser`          | `string` | No       | Volume serial (VOLSER) to allocate the data set on (e.g. VOL001).                                                                                                                                                                                    |
+| `dataClass`       | `string` | No       | SMS Data Class for allocation (e.g. DCLAS01).                                                                                                                                                                                                        |
+| `storageClass`    | `string` | No       | SMS Storage Class for allocation (e.g. SCLAS01).                                                                                                                                                                                                     |
+| `managementClass` | `string` | No       | SMS Management Class for allocation (e.g. MCLAS01).                                                                                                                                                                                                  |
+
+<a id="createdataset-output-schema"></a>
+
+#### Output Schema
+
+| Field                 | Type       | Required | Description                                                                                                                               |
+|-----------------------|------------|----------|-------------------------------------------------------------------------------------------------------------------------------------------|
+| `_context`            | `object`   | Yes      | Resolution context: system and optional normalized data set names/patterns. *(same as [`listDatasets`](#listdatasets-output-schema))*     |
+| `_result`             | `object`   | Yes      | Result metadata (pagination, line window, or success). *(same as [`writeDataset`](#writedataset-output-schema))*                          |
+| `messages`            | `string`[] | No       | Operational messages: pagination hints (e.g. call again with offset/limit), resolution notes, or allocation messages. Omitted when empty. |
+| `data`                | `object`   | Yes      |                                                                                                                                           |
+| &ensp;├─ `dsn`        | `string`   | Yes      | Fully qualified name of the created data set.                                                                                             |
+| &ensp;├─ `type`       | `string`   | Yes      | Data set type created: PS (sequential), PO (PDS), PO-E (PDS/E).                                                                           |
+| &ensp;└─ `allocation` | `object`   | No       | Allocation result when the backend returns it.                                                                                            |
+
+---
+
+### `createTempDataset`
+
+
+Creates a new data set with a unique temporary name in a single call. Returns the created DSN for subsequent steps or cleanup. Same creation options as createDataset; optional prefix/suffix/qualifier for naming. Default prefix: current user + .TMP. Use primarySpace, secondarySpace, blockSize (Zowe CLI naming). Type and recfm are case-insensitive.
+
+#### Parameters
+
+| Parameter        | Type     | Required | Description                                                                                                                                                                                                                                          |
+|------------------|----------|----------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `type`           | `string` | Yes      | Data set organization type (DSORG): PS or SEQUENTIAL (Physical Sequential — a flat file), PO or PDS (Partitioned Data Set — a directory of members), PO-E or PDSE or LIBRARY (PDS/E — Partitioned Data Set Extended, recommended). Case-insensitive. |
+| `system`         | `string` | No       | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system.                                                                                                                                  |
+| `prefix`         | `string` | No       | HLQ for temp name (e.g. USER.TMP). Default: current user + .TMP.                                                                                                                                                                                     |
+| `suffix`         | `string` | No       | Optional suffix qualifier for the generated prefix.                                                                                                                                                                                                  |
+| `qualifier`      | `string` | No       | Last qualifier for the DSN (1–8 chars). If omitted, a unique qualifier is generated.                                                                                                                                                                 |
+| `recfm`          | `string` | No       | Record Format (RECFM). Supported: F (Fixed), FB (Fixed Blocked), V (Variable), VB (Variable Blocked), U (Undefined), FBA, VBA. Default: FB. Case-insensitive.                                                                                        |
+| `lrecl`          | `number` | No       | Logical Record Length (LRECL) in bytes. Default: 80.                                                                                                                                                                                                 |
+| `blockSize`      | `number` | No       | Block Size (BLKSIZE) in bytes. Default: 27920.                                                                                                                                                                                                       |
+| `primarySpace`   | `number` | No       | Primary space allocation in tracks (the initial amount of disk space).                                                                                                                                                                               |
+| `secondarySpace` | `number` | No       | Secondary space allocation in tracks (additional space allocated when primary is full).                                                                                                                                                              |
+| `dirblk`         | `number` | No       | Directory Blocks (DIRBLK) — number of 256-byte directory blocks (PDS only).                                                                                                                                                                          |
+
+<a id="createtempdataset-output-schema"></a>
+
+#### Output Schema
+
+| Field      | Type       | Required | Description                                                                                                                               |
+|------------|------------|----------|-------------------------------------------------------------------------------------------------------------------------------------------|
+| `_context` | `object`   | Yes      | Resolution context: system and optional normalized data set names/patterns. *(same as [`listDatasets`](#listdatasets-output-schema))*     |
+| `_result`  | `object`   | Yes      | Result metadata (pagination, line window, or success). *(same as [`writeDataset`](#writedataset-output-schema))*                          |
+| `messages` | `string`[] | No       | Operational messages: pagination hints (e.g. call again with offset/limit), resolution notes, or allocation messages. Omitted when empty. |
+| `data`     | `object`   | Yes      | *(same as [`createDataset`](#createdataset-output-schema))*                                                                               |
+
+---
+
 ### `getTempDatasetPrefix`
 
 > Read-only
@@ -1107,135 +1231,6 @@ Returns a single unique full temporary data set name (for one data set). The DSN
 
 ---
 
-### `createDataset`
-
-
-Create a new sequential or partitioned data set. Specify the type (PS/SEQUENTIAL, PO/PDS, PO-E/PDSE/LIBRARY) and optional attributes (primarySpace, secondarySpace, blockSize, recfm, lrecl). Type and recfm values are case-insensitive.
-
-#### Parameters
-
-| Parameter         | Type     | Required | Description                                                                                                                                                                                                                                          |
-|-------------------|----------|----------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `dsn`             | `string` | Yes      | Fully qualified data set name (e.g. USER.SRC.COBOL).                                                                                                                                                                                                 |
-| `type`            | `string` | Yes      | Data set organization type (DSORG): PS or SEQUENTIAL (Physical Sequential — a flat file), PO or PDS (Partitioned Data Set — a directory of members), PO-E or PDSE or LIBRARY (PDS/E — Partitioned Data Set Extended, recommended). Case-insensitive. |
-| `system`          | `string` | No       | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system.                                                                                                                                  |
-| `recfm`           | `string` | No       | Record Format (RECFM). Supported: F (Fixed), FB (Fixed Blocked), V (Variable), VB (Variable Blocked), U (Undefined), FBA, VBA. Default: FB. Case-insensitive.                                                                                        |
-| `lrecl`           | `number` | No       | Logical Record Length (LRECL) in bytes. Default: 80.                                                                                                                                                                                                 |
-| `blockSize`       | `number` | No       | Block Size (BLKSIZE) in bytes. Default: 27920.                                                                                                                                                                                                       |
-| `primarySpace`    | `number` | No       | Primary space allocation in tracks (the initial amount of disk space).                                                                                                                                                                               |
-| `secondarySpace`  | `number` | No       | Secondary space allocation in tracks (additional space allocated when primary is full).                                                                                                                                                              |
-| `dirblk`          | `number` | No       | Directory Blocks (DIRBLK) — number of 256-byte directory blocks (PDS only).                                                                                                                                                                          |
-| `volser`          | `string` | No       | Volume serial (VOLSER) to allocate the data set on (e.g. VOL001).                                                                                                                                                                                    |
-| `dataClass`       | `string` | No       | SMS Data Class for allocation (e.g. DCLAS01).                                                                                                                                                                                                        |
-| `storageClass`    | `string` | No       | SMS Storage Class for allocation (e.g. SCLAS01).                                                                                                                                                                                                     |
-| `managementClass` | `string` | No       | SMS Management Class for allocation (e.g. MCLAS01).                                                                                                                                                                                                  |
-
-<a id="createdataset-output-schema"></a>
-
-#### Output Schema
-
-| Field                 | Type       | Required | Description                                                                                                                               |
-|-----------------------|------------|----------|-------------------------------------------------------------------------------------------------------------------------------------------|
-| `_context`            | `object`   | Yes      | Resolution context: system and optional normalized data set names/patterns. *(same as [`listDatasets`](#listdatasets-output-schema))*     |
-| `_result`             | `object`   | Yes      | Result metadata (pagination, line window, or success). *(same as [`writeDataset`](#writedataset-output-schema))*                          |
-| `messages`            | `string`[] | No       | Operational messages: pagination hints (e.g. call again with offset/limit), resolution notes, or allocation messages. Omitted when empty. |
-| `data`                | `object`   | Yes      |                                                                                                                                           |
-| &ensp;├─ `dsn`        | `string`   | Yes      | Fully qualified name of the created data set.                                                                                             |
-| &ensp;├─ `type`       | `string`   | Yes      | Data set type created: PS (sequential), PO (PDS), PO-E (PDS/E).                                                                           |
-| &ensp;└─ `allocation` | `object`   | No       | Allocation result when the backend returns it.                                                                                            |
-
----
-
-### `createTempDataset`
-
-
-Creates a new data set with a unique temporary name in a single call. Returns the created DSN for subsequent steps or cleanup. Same creation options as createDataset; optional prefix/suffix/qualifier for naming. Default prefix: current user + .TMP. Use primarySpace, secondarySpace, blockSize (Zowe CLI naming). Type and recfm are case-insensitive.
-
-#### Parameters
-
-| Parameter        | Type     | Required | Description                                                                                                                                                                                                                                          |
-|------------------|----------|----------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `type`           | `string` | Yes      | Data set organization type (DSORG): PS or SEQUENTIAL (Physical Sequential — a flat file), PO or PDS (Partitioned Data Set — a directory of members), PO-E or PDSE or LIBRARY (PDS/E — Partitioned Data Set Extended, recommended). Case-insensitive. |
-| `system`         | `string` | No       | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system.                                                                                                                                  |
-| `prefix`         | `string` | No       | HLQ for temp name (e.g. USER.TMP). Default: current user + .TMP.                                                                                                                                                                                     |
-| `suffix`         | `string` | No       | Optional suffix qualifier for the generated prefix.                                                                                                                                                                                                  |
-| `qualifier`      | `string` | No       | Last qualifier for the DSN (1–8 chars). If omitted, a unique qualifier is generated.                                                                                                                                                                 |
-| `recfm`          | `string` | No       | Record Format (RECFM). Supported: F (Fixed), FB (Fixed Blocked), V (Variable), VB (Variable Blocked), U (Undefined), FBA, VBA. Default: FB. Case-insensitive.                                                                                        |
-| `lrecl`          | `number` | No       | Logical Record Length (LRECL) in bytes. Default: 80.                                                                                                                                                                                                 |
-| `blockSize`      | `number` | No       | Block Size (BLKSIZE) in bytes. Default: 27920.                                                                                                                                                                                                       |
-| `primarySpace`   | `number` | No       | Primary space allocation in tracks (the initial amount of disk space).                                                                                                                                                                               |
-| `secondarySpace` | `number` | No       | Secondary space allocation in tracks (additional space allocated when primary is full).                                                                                                                                                              |
-| `dirblk`         | `number` | No       | Directory Blocks (DIRBLK) — number of 256-byte directory blocks (PDS only).                                                                                                                                                                          |
-
-<a id="createtempdataset-output-schema"></a>
-
-#### Output Schema
-
-| Field      | Type       | Required | Description                                                                                                                               |
-|------------|------------|----------|-------------------------------------------------------------------------------------------------------------------------------------------|
-| `_context` | `object`   | Yes      | Resolution context: system and optional normalized data set names/patterns. *(same as [`listDatasets`](#listdatasets-output-schema))*     |
-| `_result`  | `object`   | Yes      | Result metadata (pagination, line window, or success). *(same as [`writeDataset`](#writedataset-output-schema))*                          |
-| `messages` | `string`[] | No       | Operational messages: pagination hints (e.g. call again with offset/limit), resolution notes, or allocation messages. Omitted when empty. |
-| `data`     | `object`   | Yes      | *(same as [`createDataset`](#createdataset-output-schema))*                                                                               |
-
----
-
-### `deleteDataset`
-
-> Destructive
-
-Delete a data set or a specific PDS or PDS/E member. You may pass dsn as USER.LIB(MEM) and omit member.
-
-#### Parameters
-
-| Parameter | Type     | Required | Description                                                                                                         |
-|-----------|----------|----------|---------------------------------------------------------------------------------------------------------------------|
-| `dsn`     | `string` | Yes      | Fully qualified data set name (e.g. USER.SRC.COBOL).                                                                |
-| `member`  | `string` | No       | Member name to delete (if omitting, the entire data set is deleted).                                                |
-| `system`  | `string` | No       | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system. |
-
-<a id="deletedataset-output-schema"></a>
-
-#### Output Schema
-
-| Field                 | Type       | Required | Description                                                                                                                               |
-|-----------------------|------------|----------|-------------------------------------------------------------------------------------------------------------------------------------------|
-| `_context`            | `object`   | Yes      | Resolution context: system and optional normalized data set names/patterns. *(same as [`listDatasets`](#listdatasets-output-schema))*     |
-| `_result`             | `object`   | Yes      | Result metadata (pagination, line window, or success). *(same as [`writeDataset`](#writedataset-output-schema))*                          |
-| `messages`            | `string`[] | No       | Operational messages: pagination hints (e.g. call again with offset/limit), resolution notes, or allocation messages. Omitted when empty. |
-| `data`                | `object`   | Yes      |                                                                                                                                           |
-| &ensp;└─ `deletedDsn` | `string`   | Yes      | Fully qualified name of the deleted data set or member (e.g. USER.PDS(MEM) for a member).                                                 |
-
----
-
-### `deleteDatasetsUnderPrefix`
-
-> Destructive
-
-Delete all data sets whose names start with the given prefix (e.g. tempDsnPrefix from getTempDatasetPrefix). Prefix must have at least 3 qualifiers and contain TMP.
-
-#### Parameters
-
-| Parameter   | Type     | Required | Description                                                                                                                                                    |
-|-------------|----------|----------|----------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `dsnPrefix` | `string` | Yes      | Fully qualified prefix (e.g. USER.TMP.A1B2C3D4.E5F6G7H8). All data sets matching this prefix will be deleted. Must have at least 3 qualifiers and contain TMP. |
-| `system`    | `string` | No       | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system.                                            |
-
-<a id="deletedatasetsunderprefix-output-schema"></a>
-
-#### Output Schema
-
-| Field              | Type       | Required | Description                                                                                                                               |
-|--------------------|------------|----------|-------------------------------------------------------------------------------------------------------------------------------------------|
-| `_context`         | `object`   | Yes      | Resolution context: system and optional normalized data set names/patterns. *(same as [`listDatasets`](#listdatasets-output-schema))*     |
-| `_result`          | `object`   | Yes      | Result metadata (pagination, line window, or success). *(same as [`writeDataset`](#writedataset-output-schema))*                          |
-| `messages`         | `string`[] | No       | Operational messages: pagination hints (e.g. call again with offset/limit), resolution notes, or allocation messages. Omitted when empty. |
-| `data`             | `object`   | Yes      |                                                                                                                                           |
-| &ensp;├─ `deleted` | `string`[] | Yes      | List of fully qualified data set names that were deleted.                                                                                 |
-| &ensp;└─ `count`   | `number`   | Yes      | Number of data sets deleted.                                                                                                              |
-
----
-
 ### `copyDataset`
 
 
@@ -1293,6 +1288,62 @@ Rename a data set or PDS or PDS/E member. You may pass dsn as USER.LIB(MEM) and 
 | `data`             | `object`   | Yes      |                                                                                                                                           |
 | &ensp;├─ `oldName` | `string`   | Yes      | Fully qualified name before the rename (data set or member).                                                                              |
 | &ensp;└─ `newName` | `string`   | Yes      | Fully qualified name after the rename.                                                                                                    |
+
+---
+
+### `deleteDataset`
+
+> Destructive
+
+Delete a data set or a specific PDS or PDS/E member. You may pass dsn as USER.LIB(MEM) and omit member.
+
+#### Parameters
+
+| Parameter | Type     | Required | Description                                                                                                         |
+|-----------|----------|----------|---------------------------------------------------------------------------------------------------------------------|
+| `dsn`     | `string` | Yes      | Fully qualified data set name (e.g. USER.SRC.COBOL).                                                                |
+| `member`  | `string` | No       | Member name to delete (if omitting, the entire data set is deleted).                                                |
+| `system`  | `string` | No       | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system. |
+
+<a id="deletedataset-output-schema"></a>
+
+#### Output Schema
+
+| Field                 | Type       | Required | Description                                                                                                                               |
+|-----------------------|------------|----------|-------------------------------------------------------------------------------------------------------------------------------------------|
+| `_context`            | `object`   | Yes      | Resolution context: system and optional normalized data set names/patterns. *(same as [`listDatasets`](#listdatasets-output-schema))*     |
+| `_result`             | `object`   | Yes      | Result metadata (pagination, line window, or success). *(same as [`writeDataset`](#writedataset-output-schema))*                          |
+| `messages`            | `string`[] | No       | Operational messages: pagination hints (e.g. call again with offset/limit), resolution notes, or allocation messages. Omitted when empty. |
+| `data`                | `object`   | Yes      |                                                                                                                                           |
+| &ensp;└─ `deletedDsn` | `string`   | Yes      | Fully qualified name of the deleted data set or member (e.g. USER.PDS(MEM) for a member).                                                 |
+
+---
+
+### `deleteDatasetsUnderPrefix`
+
+> Destructive
+
+Delete all data sets whose names start with the given prefix (e.g. tempDsnPrefix from getTempDatasetPrefix). Prefix must have at least 3 qualifiers and contain TMP.
+
+#### Parameters
+
+| Parameter   | Type     | Required | Description                                                                                                                                                    |
+|-------------|----------|----------|----------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `dsnPrefix` | `string` | Yes      | Fully qualified prefix (e.g. USER.TMP.A1B2C3D4.E5F6G7H8). All data sets matching this prefix will be deleted. Must have at least 3 qualifiers and contain TMP. |
+| `system`    | `string` | No       | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system.                                            |
+
+<a id="deletedatasetsunderprefix-output-schema"></a>
+
+#### Output Schema
+
+| Field              | Type       | Required | Description                                                                                                                               |
+|--------------------|------------|----------|-------------------------------------------------------------------------------------------------------------------------------------------|
+| `_context`         | `object`   | Yes      | Resolution context: system and optional normalized data set names/patterns. *(same as [`listDatasets`](#listdatasets-output-schema))*     |
+| `_result`          | `object`   | Yes      | Result metadata (pagination, line window, or success). *(same as [`writeDataset`](#writedataset-output-schema))*                          |
+| `messages`         | `string`[] | No       | Operational messages: pagination hints (e.g. call again with offset/limit), resolution notes, or allocation messages. Omitted when empty. |
+| `data`             | `object`   | Yes      |                                                                                                                                           |
+| &ensp;├─ `deleted` | `string`[] | Yes      | List of fully qualified data set names that were deleted.                                                                                 |
+| &ensp;└─ `count`   | `number`   | Yes      | Number of data sets deleted.                                                                                                              |
 
 ---
 
@@ -1624,91 +1675,6 @@ Output:
 
 ---
 
-### `runSafeUssCommand`
-
-> Read-only
-
-Run a Unix command on z/OS USS. Results may be line-windowed; follow the pagination instructions in the server instructions. Only allowlisted (safe) commands run automatically; unknown commands require user confirmation via elicitation
-
-#### Parameters
-
-| Parameter     | Type      | Required | Description                                                                                                         |
-|---------------|-----------|----------|---------------------------------------------------------------------------------------------------------------------|
-| `commandText` | `string`  | Yes      | The Unix command line to execute (e.g. ls -la /tmp, whoami, pwd).                                                   |
-| `system`      | `string`  | No       | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system. |
-| `startLine`   | `integer` | No       | 1-based first line of output to return. Default: 1.                                                                 |
-| `lineCount`   | `integer` | No       | Number of lines to return. Omit for default window size.                                                            |
-
-<a id="runsafeusscommand-output-schema"></a>
-
-#### Output Schema
-
-| Field               | Type       | Required | Description                                                                                                         |
-|---------------------|------------|----------|---------------------------------------------------------------------------------------------------------------------|
-| `_context`          | `object`   | Yes      | Resolution context: system and optional normalized USS paths. *(same as [`getUssHome`](#getusshome-output-schema))* |
-| `_result`           | `object`   | Yes      | Result metadata (pagination, line window, or success). *(same as [`readDataset`](#readdataset-output-schema))*      |
-| `messages`          | `string`[] | No       | Operational messages: pagination hints, resolution notes, or path warnings. Omitted when empty.                     |
-| `data`              | `object`   | Yes      |                                                                                                                     |
-| &ensp;├─ `lines`    | `string`[] | Yes      | Command stdout (UTF-8) as array of lines.                                                                           |
-| &ensp;└─ `mimeType` | `string`   | Yes      | Content type (e.g. text/plain).                                                                                     |
-
-#### Example Outputs
-
-##### default
-
-Input:
-
-```json
-{
-  "commandText": "pwd"
-}
-```
-
-Output:
-
-```json
-{
-  "_context": {
-    "system": "mainframe-dev.example.com"
-  },
-  "_result": {
-    "totalLines": 1,
-    "startLine": 1,
-    "returnedLines": 1,
-    "contentLength": 7,
-    "mimeType": "text/plain",
-    "hasMore": false
-  },
-  "data": {
-    "lines": [
-      "/u/USER"
-    ],
-    "mimeType": "text/plain"
-  }
-}
-```
-
-##### blocked command
-
-Input:
-
-```json
-{
-  "commandText": "rm -rf /"
-}
-```
-
-Output:
-
-```json
-// isError: true
-{
-  "error": "Deletes root filesystem"
-}
-```
-
----
-
 ### `writeUssFile`
 
 
@@ -1907,6 +1873,91 @@ Copy a USS file or directory within the same z/OS system. For directories, set r
 
 ---
 
+### `runSafeUssCommand`
+
+> Read-only
+
+Run a Unix command on z/OS USS. Results may be line-windowed; follow the pagination instructions in the server instructions. Only allowlisted (safe) commands run automatically; unknown commands require user confirmation via elicitation
+
+#### Parameters
+
+| Parameter     | Type      | Required | Description                                                                                                         |
+|---------------|-----------|----------|---------------------------------------------------------------------------------------------------------------------|
+| `commandText` | `string`  | Yes      | The Unix command line to execute (e.g. ls -la /tmp, whoami, pwd).                                                   |
+| `system`      | `string`  | No       | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system. |
+| `startLine`   | `integer` | No       | 1-based first line of output to return. Default: 1.                                                                 |
+| `lineCount`   | `integer` | No       | Number of lines to return. Omit for default window size.                                                            |
+
+<a id="runsafeusscommand-output-schema"></a>
+
+#### Output Schema
+
+| Field               | Type       | Required | Description                                                                                                         |
+|---------------------|------------|----------|---------------------------------------------------------------------------------------------------------------------|
+| `_context`          | `object`   | Yes      | Resolution context: system and optional normalized USS paths. *(same as [`getUssHome`](#getusshome-output-schema))* |
+| `_result`           | `object`   | Yes      | Result metadata (pagination, line window, or success). *(same as [`readDataset`](#readdataset-output-schema))*      |
+| `messages`          | `string`[] | No       | Operational messages: pagination hints, resolution notes, or path warnings. Omitted when empty.                     |
+| `data`              | `object`   | Yes      |                                                                                                                     |
+| &ensp;├─ `lines`    | `string`[] | Yes      | Command stdout (UTF-8) as array of lines.                                                                           |
+| &ensp;└─ `mimeType` | `string`   | Yes      | Content type (e.g. text/plain).                                                                                     |
+
+#### Example Outputs
+
+##### default
+
+Input:
+
+```json
+{
+  "commandText": "pwd"
+}
+```
+
+Output:
+
+```json
+{
+  "_context": {
+    "system": "mainframe-dev.example.com"
+  },
+  "_result": {
+    "totalLines": 1,
+    "startLine": 1,
+    "returnedLines": 1,
+    "contentLength": 7,
+    "mimeType": "text/plain",
+    "hasMore": false
+  },
+  "data": {
+    "lines": [
+      "/u/USER"
+    ],
+    "mimeType": "text/plain"
+  }
+}
+```
+
+##### blocked command
+
+Input:
+
+```json
+{
+  "commandText": "rm -rf /"
+}
+```
+
+Output:
+
+```json
+// isError: true
+{
+  "error": "Deletes root filesystem"
+}
+```
+
+---
+
 ### `getUssTempDir`
 
 > Read-only
@@ -2094,7 +2145,7 @@ Output:
   },
   "data": {
     "lines": [
-      "TIME-11:20:54 PM. CPU-00:00:00 SERVICE-26895 SESSION-00:01:53 MARCH 19,2026"
+      "TIME-08:17:03 PM. CPU-00:00:00 SERVICE-26895 SESSION-00:01:53 MARCH 30,2026"
     ],
     "mimeType": "text/plain"
   }
@@ -2165,6 +2216,77 @@ Submit JCL to the current (or specified) z/OS system. A job card is added from c
 | &ensp;├─ `correlator`         | `string`   | No       | Correlator (JES3).                                                                                          |
 | &ensp;├─ `timedOut`           | `boolean`  | No       | True if wait for OUTPUT timed out; job continues on z/OS.                                                   |
 | &ensp;└─ `failedStepJobFiles` | `object`[] | No       | Job file entries for failed steps when retcode is non-zero.                                                 |
+
+---
+
+### `submitJobFromDataset`
+
+> Destructive
+
+Submit a job from a data set or PDS or PDS/E member containing JCL. The data set must contain valid JCL including a job card. Set wait: true to wait for the job to reach OUTPUT.
+
+#### Parameters
+
+| Parameter        | Type      | Required | Description                                                                                                              |
+|------------------|-----------|----------|--------------------------------------------------------------------------------------------------------------------------|
+| `dsn`            | `string`  | Yes      | Fully-qualified data set name, optionally with member in parentheses (e.g. USER.JCL.CNTL(MYJOB)).                        |
+| `system`         | `string`  | No       | Optional z/OS system (hostname). If omitted, the active system from setSystem is used.                                   |
+| `wait`           | `boolean` | No       | When true, wait for the job to reach OUTPUT (or timeout) and return status, timedOut, and optionally failedStepJobFiles. |
+| `timeoutSeconds` | `integer` | No       | When wait is true, how long to wait for OUTPUT (seconds). Default 300. The job keeps running on z/OS after timeout.      |
+
+<a id="submitjobfromdataset-output-schema"></a>
+
+#### Output Schema
+
+| Field                         | Type       | Required | Description                                                                                                 |
+|-------------------------------|------------|----------|-------------------------------------------------------------------------------------------------------------|
+| `_context`                    | `object`   | Yes      | Resolution context: target z/OS system. *(same as [`runSafeTsoCommand`](#runsafetsocommand-output-schema))* |
+| `_result`                     | `object`   | Yes      | Result metadata (pagination or success). *(same as [`writeDataset`](#writedataset-output-schema))*          |
+| `messages`                    | `string`[] | No       | Operational messages: pagination hints, job card notice, or other notes. Omitted when empty.                |
+| `data`                        | `object`   | Yes      |                                                                                                             |
+| &ensp;├─ `jobId`              | `string`   | Yes      | Job ID assigned by JES.                                                                                     |
+| &ensp;├─ `jobName`            | `string`   | Yes      | Job name from the JOB statement.                                                                            |
+| &ensp;├─ `id`                 | `string`   | No       | Job ID.                                                                                                     |
+| &ensp;├─ `name`               | `string`   | No       | Job name.                                                                                                   |
+| &ensp;├─ `owner`              | `string`   | No       | Job owner.                                                                                                  |
+| &ensp;├─ `status`             | `string`   | No       | Status: INPUT, ACTIVE, or OUTPUT.                                                                           |
+| &ensp;├─ `type`               | `string`   | No       | Job type: JOB, STC, TSU.                                                                                    |
+| &ensp;├─ `class`              | `string`   | No       | Execution class.                                                                                            |
+| &ensp;├─ `retcode`            | `string`   | No       | Return code when complete (e.g. 0000).                                                                      |
+| &ensp;├─ `subsystem`          | `string`   | No       | Subsystem.                                                                                                  |
+| &ensp;├─ `phase`              | `number`   | No       | Phase number.                                                                                               |
+| &ensp;├─ `phaseName`          | `string`   | No       | Phase name.                                                                                                 |
+| &ensp;├─ `correlator`         | `string`   | No       | Correlator (JES3).                                                                                          |
+| &ensp;├─ `timedOut`           | `boolean`  | No       | True if wait for OUTPUT timed out; job continues on z/OS.                                                   |
+| &ensp;└─ `failedStepJobFiles` | `object`[] | No       | Job file entries for failed steps when retcode is non-zero.                                                 |
+
+---
+
+### `submitJobFromUss`
+
+> Destructive
+
+Submit a job from a USS file path. The file must contain valid JCL including a job card. Set wait: true to wait for the job to reach OUTPUT and return status.
+
+#### Parameters
+
+| Parameter        | Type      | Required | Description                                                                                                              |
+|------------------|-----------|----------|--------------------------------------------------------------------------------------------------------------------------|
+| `path`           | `string`  | Yes      | USS path to the JCL file (e.g. /u/myuser/job.jcl).                                                                       |
+| `system`         | `string`  | No       | Optional z/OS system (hostname). If omitted, the active system from setSystem is used.                                   |
+| `wait`           | `boolean` | No       | When true, wait for the job to reach OUTPUT (or timeout) and return status, timedOut, and optionally failedStepJobFiles. |
+| `timeoutSeconds` | `integer` | No       | When wait is true, how long to wait for OUTPUT (seconds). Default 300. The job keeps running on z/OS after timeout.      |
+
+<a id="submitjobfromuss-output-schema"></a>
+
+#### Output Schema
+
+| Field      | Type       | Required | Description                                                                                                 |
+|------------|------------|----------|-------------------------------------------------------------------------------------------------------------|
+| `_context` | `object`   | Yes      | Resolution context: target z/OS system. *(same as [`runSafeTsoCommand`](#runsafetsocommand-output-schema))* |
+| `_result`  | `object`   | Yes      | Result metadata (pagination or success). *(same as [`writeDataset`](#writedataset-output-schema))*          |
+| `messages` | `string`[] | No       | Operational messages: pagination hints, job card notice, or other notes. Omitted when empty.                |
+| `data`     | `object`   | Yes      | *(same as [`submitJobFromDataset`](#submitjobfromdataset-output-schema))*                                   |
 
 ---
 
@@ -2499,77 +2621,6 @@ Delete a job from the output queue.
 | `_result`  | `object`   | Yes      | Result metadata (pagination or success). *(same as [`writeDataset`](#writedataset-output-schema))*          |
 | `messages` | `string`[] | No       | Operational messages: pagination hints, job card notice, or other notes. Omitted when empty.                |
 | `data`     | `object`   | Yes      | *(same as [`cancelJob`](#canceljob-output-schema))*                                                         |
-
----
-
-### `submitJobFromDataset`
-
-> Destructive
-
-Submit a job from a data set or PDS or PDS/E member containing JCL. The data set must contain valid JCL including a job card. Set wait: true to wait for the job to reach OUTPUT.
-
-#### Parameters
-
-| Parameter        | Type      | Required | Description                                                                                                              |
-|------------------|-----------|----------|--------------------------------------------------------------------------------------------------------------------------|
-| `dsn`            | `string`  | Yes      | Fully-qualified data set name, optionally with member in parentheses (e.g. USER.JCL.CNTL(MYJOB)).                        |
-| `system`         | `string`  | No       | Optional z/OS system (hostname). If omitted, the active system from setSystem is used.                                   |
-| `wait`           | `boolean` | No       | When true, wait for the job to reach OUTPUT (or timeout) and return status, timedOut, and optionally failedStepJobFiles. |
-| `timeoutSeconds` | `integer` | No       | When wait is true, how long to wait for OUTPUT (seconds). Default 300. The job keeps running on z/OS after timeout.      |
-
-<a id="submitjobfromdataset-output-schema"></a>
-
-#### Output Schema
-
-| Field                         | Type       | Required | Description                                                                                                 |
-|-------------------------------|------------|----------|-------------------------------------------------------------------------------------------------------------|
-| `_context`                    | `object`   | Yes      | Resolution context: target z/OS system. *(same as [`runSafeTsoCommand`](#runsafetsocommand-output-schema))* |
-| `_result`                     | `object`   | Yes      | Result metadata (pagination or success). *(same as [`writeDataset`](#writedataset-output-schema))*          |
-| `messages`                    | `string`[] | No       | Operational messages: pagination hints, job card notice, or other notes. Omitted when empty.                |
-| `data`                        | `object`   | Yes      |                                                                                                             |
-| &ensp;├─ `jobId`              | `string`   | Yes      | Job ID assigned by JES.                                                                                     |
-| &ensp;├─ `jobName`            | `string`   | Yes      | Job name from the JOB statement.                                                                            |
-| &ensp;├─ `id`                 | `string`   | No       | Job ID.                                                                                                     |
-| &ensp;├─ `name`               | `string`   | No       | Job name.                                                                                                   |
-| &ensp;├─ `owner`              | `string`   | No       | Job owner.                                                                                                  |
-| &ensp;├─ `status`             | `string`   | No       | Status: INPUT, ACTIVE, or OUTPUT.                                                                           |
-| &ensp;├─ `type`               | `string`   | No       | Job type: JOB, STC, TSU.                                                                                    |
-| &ensp;├─ `class`              | `string`   | No       | Execution class.                                                                                            |
-| &ensp;├─ `retcode`            | `string`   | No       | Return code when complete (e.g. 0000).                                                                      |
-| &ensp;├─ `subsystem`          | `string`   | No       | Subsystem.                                                                                                  |
-| &ensp;├─ `phase`              | `number`   | No       | Phase number.                                                                                               |
-| &ensp;├─ `phaseName`          | `string`   | No       | Phase name.                                                                                                 |
-| &ensp;├─ `correlator`         | `string`   | No       | Correlator (JES3).                                                                                          |
-| &ensp;├─ `timedOut`           | `boolean`  | No       | True if wait for OUTPUT timed out; job continues on z/OS.                                                   |
-| &ensp;└─ `failedStepJobFiles` | `object`[] | No       | Job file entries for failed steps when retcode is non-zero.                                                 |
-
----
-
-### `submitJobFromUss`
-
-> Destructive
-
-Submit a job from a USS file path. The file must contain valid JCL including a job card. Set wait: true to wait for the job to reach OUTPUT and return status.
-
-#### Parameters
-
-| Parameter        | Type      | Required | Description                                                                                                              |
-|------------------|-----------|----------|--------------------------------------------------------------------------------------------------------------------------|
-| `path`           | `string`  | Yes      | USS path to the JCL file (e.g. /u/myuser/job.jcl).                                                                       |
-| `system`         | `string`  | No       | Optional z/OS system (hostname). If omitted, the active system from setSystem is used.                                   |
-| `wait`           | `boolean` | No       | When true, wait for the job to reach OUTPUT (or timeout) and return status, timedOut, and optionally failedStepJobFiles. |
-| `timeoutSeconds` | `integer` | No       | When wait is true, how long to wait for OUTPUT (seconds). Default 300. The job keeps running on z/OS after timeout.      |
-
-<a id="submitjobfromuss-output-schema"></a>
-
-#### Output Schema
-
-| Field      | Type       | Required | Description                                                                                                 |
-|------------|------------|----------|-------------------------------------------------------------------------------------------------------------|
-| `_context` | `object`   | Yes      | Resolution context: target z/OS system. *(same as [`runSafeTsoCommand`](#runsafetsocommand-output-schema))* |
-| `_result`  | `object`   | Yes      | Result metadata (pagination or success). *(same as [`writeDataset`](#writedataset-output-schema))*          |
-| `messages` | `string`[] | No       | Operational messages: pagination hints, job card notice, or other notes. Omitted when empty.                |
-| `data`     | `object`   | Yes      | *(same as [`submitJobFromDataset`](#submitjobfromdataset-output-schema))*                                   |
 
 ---
 

@@ -28,7 +28,7 @@ import type {
 import * as crypto from 'crypto';
 import * as vscode from 'vscode';
 import { getNativePasswordKey } from './secrets';
-import { updateZoweMcpStatusBar } from './status-bar';
+import { updateCliPluginActiveProfiles, updateZoweMcpStatusBar } from './status-bar';
 import {
   getAllZosmfProfileNames,
   getDefaultZosmfProfileName,
@@ -198,8 +198,7 @@ function logToOutputChannel(log: vscode.LogOutputChannel, event: ServerToExtensi
 function showNotification(event: ServerToExtensionEvent): void {
   if (event.type !== 'notification') return;
 
-  const { severity, message } = event.data;
-  const generateMock = 'Generate Mock Data';
+  const { severity, message, settingsKey } = event.data;
   const openSettings = 'Open Settings';
 
   const showFn =
@@ -209,13 +208,24 @@ function showNotification(event: ServerToExtensionEvent): void {
         ? vscode.window.showWarningMessage
         : vscode.window.showInformationMessage;
 
-  void showFn(message, generateMock, openSettings).then(choice => {
-    if (choice === generateMock) {
-      void vscode.commands.executeCommand('zowe-mcp.initMockData');
-    } else if (choice === openSettings) {
-      void vscode.commands.executeCommand('workbench.action.openSettings', 'zoweMCP.backend');
-    }
-  });
+  if (settingsKey) {
+    // Targeted notification: only offer "Open Settings" for the specified key.
+    void showFn(message, openSettings).then(choice => {
+      if (choice === openSettings) {
+        void vscode.commands.executeCommand('workbench.action.openSettings', settingsKey);
+      }
+    });
+  } else {
+    // Generic notification: offer both "Generate Mock Data" and "Open Settings".
+    const generateMock = 'Generate Mock Data';
+    void showFn(message, generateMock, openSettings).then(choice => {
+      if (choice === generateMock) {
+        void vscode.commands.executeCommand('zowe-mcp.initMockData');
+      } else if (choice === openSettings) {
+        void vscode.commands.executeCommand('workbench.action.openSettings', 'zoweMCP.backend');
+      }
+    });
+  }
 }
 
 /**
@@ -525,6 +535,13 @@ export function handleServerEvent(
       if (options?.context) {
         updateZoweMcpStatusBar(event.data.activeConnection, options.context);
       }
+      break;
+    case 'cli-plugin-active-profiles-changed':
+      updateCliPluginActiveProfiles(
+        event.data.pluginName,
+        event.data.activeProfiles,
+        event.data.activeContext
+      );
       break;
     default:
       log.warn(`Unknown event type from MCP server: ${(event as { type: string }).type}`);

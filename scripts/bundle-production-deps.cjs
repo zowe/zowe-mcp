@@ -146,23 +146,50 @@ function prepareFileDepsForBundle({ targetDir, targetPackageJsonPath, fileDepDir
 }
 
 /**
- * npm creates symlinks for file: dependencies. Replace them with real
- * directory copies so tools that cannot follow symlinks (vsce/yazl, npm pack
- * with explicit files) include the actual content.
+ * Recursively dereference all symlinks in a directory tree so tools that
+ * cannot follow symlinks (vsce/yazl, npm pack with explicit files) include
+ * the actual content.
  *
- * @param {string} nodeModulesDir  Path to node_modules/ to dereference
+ * npm creates symlinks for file: dependencies at the top level, for scoped
+ * packages, and for `.bin` entries inside any nested `node_modules`. This
+ * function walks the entire tree to ensure every symlink is replaced with
+ * a real file or directory copy.
+ *
+ * Note: fs.cpSync's `dereference: true` option only resolves the top-level
+ * source symlink, not symlinks nested inside copied subdirectories. We
+ * therefore copy first (preserving internal symlinks) and then recurse into
+ * the newly copied directory to fix them up.
+ *
+ * @param {string} dir  Directory to walk and dereference symlinks in
  */
-function dereferenceSymlinks(nodeModulesDir) {
-  if (!fs.existsSync(nodeModulesDir)) return;
-  for (const entry of fs.readdirSync(nodeModulesDir)) {
-    const full = path.join(nodeModulesDir, entry);
-    const stat = fs.lstatSync(full);
-    if (stat.isSymbolicLink()) {
-      const realPath = fs.realpathSync(full);
-      fs.rmSync(full);
-      fs.cpSync(realPath, full, { recursive: true });
+function dereferenceSymlinks(dir) {
+  if (!fs.existsSync(dir)) return;
+  for (const entry of fs.readdirSync(dir)) {
+    const full = path.join(dir, entry);
+    let stat;
+    try {
+      stat = fs.lstatSync(full);
+    } catch {
+      continue;
     }
-    if (entry.startsWith('@') && stat.isDirectory()) {
+    if (stat.isSymbolicLink()) {
+      let realPath;
+      try {
+        realPath = fs.realpathSync(full);
+      } catch {
+        // Broken symlink — skip
+        continue;
+      }
+      fs.rmSync(full, { force: true });
+      const realStat = fs.statSync(realPath);
+      if (realStat.isDirectory()) {
+        fs.cpSync(realPath, full, { recursive: true });
+        // The copied tree may itself contain symlinks; recurse to fix them.
+        dereferenceSymlinks(full);
+      } else {
+        fs.copyFileSync(realPath, full);
+      }
+    } else if (stat.isDirectory()) {
       dereferenceSymlinks(full);
     }
   }

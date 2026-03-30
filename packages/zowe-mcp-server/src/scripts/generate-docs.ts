@@ -30,13 +30,24 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Logger } from '../log.js';
 import { createServer, getServer, SERVER_VERSION } from '../server.js';
+import {
+  createEmptyPluginState,
+  loadAndRegisterPluginYaml,
+} from '../tools/cli-bridge/cli-tool-loader.js';
 
 const log = new Logger({ name: 'generate-docs' });
 
@@ -130,6 +141,15 @@ interface ResourceTemplateInfo {
   title?: string;
   description?: string;
   mimeType?: string;
+}
+
+/** A named group of tools for doc generation (core tools or a CLI plugin). */
+interface ToolGroup {
+  /** Heading text used as `## <label>`. */
+  label: string;
+  /** Optional introductory paragraph shown under the heading. */
+  description?: string;
+  tools: ToolInfo[];
 }
 
 // ---------------------------------------------------------------------------
@@ -484,48 +504,55 @@ function extractFirstSentence(description: string): string {
 // Section generators
 // ---------------------------------------------------------------------------
 
-function generateToolsSection(tools: ToolInfo[], examples: Map<string, ToolExample[]>): string {
+/**
+ * Renders one tool's detail section (Parameters, Output Schema, Example Output).
+ * Heading level: `###` for the tool name, `####` for sub-sections.
+ * The `outputNestedTracker` is shared across groups so repeated nested schemas
+ * get the cross-tool "same as" shortcut only once.
+ */
+function renderToolDetail(
+  tool: ToolInfo,
+  examples: Map<string, ToolExample[]>,
+  outputNestedTracker: NestedFieldTracker
+): string[] {
   const lines: string[] = [];
-  lines.push('## Tools\n');
-  lines.push(`The server provides **${tools.length}** tools.\n`);
+  lines.push(`### \`${tool.name}\`\n`);
+  lines.push(renderAnnotations(tool.annotations));
+  if (tool.description) {
+    lines.push(tool.description + '\n');
+  }
 
-  // Table of contents — backticks inside the link text, not wrapping the link
-  lines.push('| # | Tool | Description |');
-  lines.push('| --- | --- | --- |');
-  tools.forEach((tool, i) => {
-    const desc = escapeMarkdown(extractFirstSentence(tool.description ?? ''));
-    lines.push(`| ${i + 1} | [\`${tool.name}\`](#${tool.name.toLowerCase()}) | ${desc} |`);
-  });
-  lines.push('');
+  lines.push('#### Parameters\n');
+  lines.push(renderSchemaTable(tool.inputSchema, 'Parameter'));
 
-  const outputNestedTracker: NestedFieldTracker = new Map();
+  if (tool.outputSchema) {
+    const schemaAnchor = `${tool.name.toLowerCase()}-output-schema`;
+    lines.push(`<a id="${schemaAnchor}"></a>\n`);
+    lines.push('#### Output Schema\n');
+    lines.push(renderSchemaTable(tool.outputSchema, 'Field', tool.name, outputNestedTracker));
+  }
 
-  for (const tool of tools) {
-    lines.push(`### \`${tool.name}\`\n`);
-    lines.push(renderAnnotations(tool.annotations));
-    if (tool.description) {
-      lines.push(tool.description + '\n');
-    }
-
-    // Input parameters
-    lines.push('#### Parameters\n');
-    lines.push(renderSchemaTable(tool.inputSchema, 'Parameter'));
-
-    // Output schema — deduplicate repeated nested objects across tools
-    if (tool.outputSchema) {
-      const schemaAnchor = `${tool.name.toLowerCase()}-output-schema`;
-      lines.push(`<a id="${schemaAnchor}"></a>\n`);
-      lines.push('#### Output Schema\n');
-      lines.push(renderSchemaTable(tool.outputSchema, 'Field', tool.name, outputNestedTracker));
-    }
-
-    // Live examples (may have multiple per tool)
-    const toolExamples = examples.get(tool.name);
-    if (toolExamples && toolExamples.length > 0) {
-      if (toolExamples.length === 1) {
-        const ex = toolExamples[0];
-        const heading = ex.label ? `#### Example Output — ${ex.label}` : '#### Example Output';
-        lines.push(heading + '\n');
+  const toolExamples = examples.get(tool.name);
+  if (toolExamples && toolExamples.length > 0) {
+    if (toolExamples.length === 1) {
+      const ex = toolExamples[0];
+      const heading = ex.label ? `#### Example Output — ${ex.label}` : '#### Example Output';
+      lines.push(heading + '\n');
+      if (ex.args && Object.keys(ex.args).length > 0) {
+        lines.push('Input:\n');
+        lines.push('```json');
+        lines.push(JSON.stringify(ex.args, null, 2));
+        lines.push('```\n');
+        lines.push('Output:\n');
+      }
+      lines.push('```json');
+      lines.push(truncateJson(ex.output, 60));
+      lines.push('```\n');
+    } else {
+      lines.push('#### Example Outputs\n');
+      for (const ex of toolExamples) {
+        const subtitle = ex.label ?? 'default';
+        lines.push(`##### ${subtitle}\n`);
         if (ex.args && Object.keys(ex.args).length > 0) {
           lines.push('Input:\n');
           lines.push('```json');
@@ -536,27 +563,58 @@ function generateToolsSection(tools: ToolInfo[], examples: Map<string, ToolExamp
         lines.push('```json');
         lines.push(truncateJson(ex.output, 60));
         lines.push('```\n');
-      } else {
-        lines.push('#### Example Outputs\n');
-        for (const ex of toolExamples) {
-          const subtitle = ex.label ?? 'default';
-          lines.push(`##### ${subtitle}\n`);
-          if (ex.args && Object.keys(ex.args).length > 0) {
-            lines.push('Input:\n');
-            lines.push('```json');
-            lines.push(JSON.stringify(ex.args, null, 2));
-            lines.push('```\n');
-            lines.push('Output:\n');
-          }
-          lines.push('```json');
-          lines.push(truncateJson(ex.output, 60));
-          lines.push('```\n');
-        }
       }
     }
-
-    lines.push('---\n');
   }
+
+  lines.push('---\n');
+  return lines;
+}
+
+/**
+ * Generates all tool sections.
+ *
+ * Each group becomes its own `## <label>` section with a summary table
+ * followed by individual `### \`toolName\`` detail sections.
+ * The `outputNestedTracker` spans all groups so that repeated output
+ * schemas share the "same as" cross-reference.
+ */
+function generateToolsSection(groups: ToolGroup[], examples: Map<string, ToolExample[]>): string {
+  const outputNestedTracker: NestedFieldTracker = new Map();
+  const lines: string[] = [];
+
+  // Pass 1: all summary sections (heading + count + description + table only)
+  for (const group of groups) {
+    lines.push(`## ${group.label}\n`);
+
+    const countWord = group.tools.length === 1 ? 'tool' : 'tools';
+    lines.push(`The server provides **${group.tools.length}** ${countWord}.\n`);
+
+    if (group.description) {
+      lines.push(group.description + '\n');
+    }
+
+    lines.push('| # | Tool | Description |');
+    lines.push('| --- | --- | --- |');
+    group.tools.forEach((tool, i) => {
+      const desc = escapeMarkdown(extractFirstSentence(tool.description ?? ''));
+      lines.push(`| ${i + 1} | [\`${tool.name}\`](#${tool.name.toLowerCase()}) | ${desc} |`);
+    });
+    lines.push('');
+  }
+
+  // Pass 2: all tool detail sections together, after the complete list
+  lines.push('## Tool Reference\n');
+  lines.push(
+    'Full parameter and output schema details for every tool. ' +
+      'Links in the summary tables above point to the corresponding section here.\n'
+  );
+  for (const group of groups) {
+    for (const tool of group.tools) {
+      lines.push(...renderToolDetail(tool, examples, outputNestedTracker));
+    }
+  }
+
   return lines.join('\n');
 }
 
@@ -737,13 +795,185 @@ async function main(): Promise<void> {
         client.listResourceTemplates(),
       ]);
 
-      const tools = toolsResult.tools as unknown as ToolInfo[];
+      // Core tools (z/OS components registered by createServer)
+      const coreTools = toolsResult.tools as unknown as ToolInfo[];
+      const coreToolNameSet = new Set(coreTools.map(t => t.name));
       const prompts = promptsResult.prompts as unknown as PromptInfo[];
       const resources = resourcesResult.resources as unknown as ResourceInfo[];
       const templates = templatesResult.resourceTemplates as unknown as ResourceTemplateInfo[];
 
+      // ---------------------------------------------------------------------------
+      // Component grouping for core tools.
+      // Keep in sync with the component registration in server.ts when new tools
+      // are added (unrecognised tool names fall through to an "Other" group).
+      // ---------------------------------------------------------------------------
+      const CORE_COMPONENT_GROUPS: {
+        label: string;
+        description: string;
+        toolNames: string[];
+      }[] = [
+        {
+          label: 'Context',
+          description:
+            'Server information and session management — set the active z/OS system and query the current session state (systems, active connection, active user).',
+          toolNames: ['getContext', 'listSystems', 'setSystem'],
+        },
+        {
+          label: 'Data Sets',
+          description:
+            'z/OS data set operations — list, search, read, write, create, copy, rename, delete, and manage PDS/E members and temporary data sets.',
+          toolNames: [
+            'listDatasets',
+            'listMembers',
+            'searchInDataset',
+            'getDatasetAttributes',
+            'readDataset',
+            'writeDataset',
+            'createDataset',
+            'createTempDataset',
+            'getTempDatasetPrefix',
+            'getTempDatasetName',
+            'copyDataset',
+            'renameDataset',
+            'deleteDataset',
+            'deleteDatasetsUnderPrefix',
+            'restoreDataset',
+          ],
+        },
+        {
+          label: 'USS',
+          description:
+            'UNIX System Services — navigate directories, read/write files, manage permissions and tags, run shell commands, and work with temporary files.',
+          toolNames: [
+            'getUssHome',
+            'changeUssDirectory',
+            'listUssFiles',
+            'readUssFile',
+            'writeUssFile',
+            'createUssFile',
+            'deleteUssFile',
+            'chmodUssFile',
+            'chownUssFile',
+            'chtagUssFile',
+            'copyUssFile',
+            'runSafeUssCommand',
+            'getUssTempDir',
+            'getUssTempPath',
+            'createTempUssDir',
+            'createTempUssFile',
+            'deleteUssTempUnderDir',
+          ],
+        },
+        {
+          label: 'TSO',
+          description: 'Time Sharing Option — run TSO commands interactively on z/OS.',
+          toolNames: ['runSafeTsoCommand'],
+        },
+        {
+          label: 'Jobs',
+          description:
+            'z/OS batch job management — submit JCL, monitor job status, read spool output, search output, and manage job lifecycle (cancel, hold, release, delete).',
+          toolNames: [
+            'submitJob',
+            'submitJobFromDataset',
+            'submitJobFromUss',
+            'getJobStatus',
+            'listJobFiles',
+            'readJobFile',
+            'getJobOutput',
+            'searchJobOutput',
+            'listJobs',
+            'getJcl',
+            'cancelJob',
+            'holdJob',
+            'releaseJob',
+            'deleteJob',
+          ],
+        },
+        {
+          label: 'Local Files',
+          description:
+            'Transfer files between z/OS (data sets and USS paths) and the local workspace.',
+          toolNames: [
+            'downloadDatasetToFile',
+            'uploadFileToDataset',
+            'downloadUssFileToFile',
+            'uploadFileToUssFile',
+            'downloadJobFileToFile',
+          ],
+        },
+        {
+          label: 'Zowe Explorer',
+          description:
+            'Open z/OS resources in Zowe Explorer editor tabs. Available only when the VS Code Zowe Explorer extension is installed and active.',
+          toolNames: ['openDatasetInEditor', 'openUssFileInEditor', 'openJobInEditor'],
+        },
+      ];
+
+      // Build per-component ToolGroups; unrecognised tool names fall into "Other"
+      const coreToolsById = new Map(coreTools.map(t => [t.name, t]));
+      const assignedToolNames = new Set<string>();
+      const toolGroups: ToolGroup[] = [];
+
+      for (const { label, description, toolNames } of CORE_COMPONENT_GROUPS) {
+        const componentTools = toolNames
+          .map(name => coreToolsById.get(name))
+          .filter((t): t is ToolInfo => t !== undefined);
+        if (componentTools.length > 0) {
+          toolGroups.push({ label, description, tools: componentTools });
+          componentTools.forEach(t => assignedToolNames.add(t.name));
+        }
+      }
+
+      const unassignedCoreTools = coreTools.filter(t => !assignedToolNames.has(t.name));
+      if (unassignedCoreTools.length > 0) {
+        toolGroups.push({ label: 'Other', tools: unassignedCoreTools });
+      }
+
+      const pluginsDir = resolve(__dirname, '..', 'tools', 'cli-bridge', 'plugins');
+      if (existsSync(pluginsDir)) {
+        const pluginYamlFiles = readdirSync(pluginsDir).filter((f: string) => f.endsWith('.yaml'));
+        for (const yamlFile of pluginYamlFiles) {
+          const yamlPath = resolve(pluginsDir, yamlFile);
+          // Docs generation never calls tools, so an empty state is sufficient here.
+          const pluginState = createEmptyPluginState();
+          const pluginConfig = loadAndRegisterPluginYaml(server, yamlPath, pluginState, log);
+          const updatedToolsResult = await client.listTools();
+          const allTools = updatedToolsResult.tools as unknown as ToolInfo[];
+          const knownToolNames = new Set([
+            ...coreToolNameSet,
+            ...toolGroups.flatMap(g => g.tools.map(t => t.name)),
+          ]);
+          const pluginTools = allTools.filter(t => !knownToolNames.has(t.name));
+          if (pluginTools.length > 0) {
+            toolGroups.push({
+              label: `${pluginConfig.plugin} CLI Plugin Tools`,
+              description:
+                `Registered from \`plugins/${yamlFile}\`. ` +
+                'Configure a connection via `zoweMCP.cliPluginConfiguration` (VS Code) or ' +
+                `\`--cli-plugin-connection ${pluginConfig.plugin}=<connfile>\` (standalone).`,
+              tools: pluginTools,
+            });
+            log.info('Registered CLI bridge plugin tools', {
+              plugin: pluginConfig.plugin,
+              yamlFile,
+              count: pluginTools.length,
+            });
+          }
+        }
+        if (pluginYamlFiles.length === 0) {
+          log.info('No plugin YAML files found in plugins directory', { pluginsDir });
+        }
+      } else {
+        log.info('CLI plugins directory not found — skipping plugin tools', { pluginsDir });
+      }
+
+      const tools = toolGroups.flatMap(g => g.tools);
+
       log.info('Collected MCP metadata', {
-        tools: tools.length,
+        coreTools: coreTools.length,
+        pluginGroups: toolGroups.length - 1,
+        totalTools: tools.length,
         prompts: prompts.length,
         resources: resources.length,
         resourceTemplates: templates.length,
@@ -872,7 +1102,14 @@ async function main(): Promise<void> {
           `Do not edit manually — run \`npx @zowe/mcp-server generate-docs\` to regenerate.\n`
       );
       const tocLinks: string[] = [];
-      if (tools.length > 0) tocLinks.push('[Tools](#tools)');
+      for (const g of toolGroups) {
+        const anchor = g.label
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/-+$/, '');
+        tocLinks.push(`[${g.label}](#${anchor})`);
+      }
+      tocLinks.push('[Tool Reference](#tool-reference)');
       if (prompts.length > 0) tocLinks.push('[Prompts](#prompts)');
       if (resources.length > 0) tocLinks.push('[Resources](#resources)');
       if (templates.length > 0) tocLinks.push('[Resource Templates](#resource-templates)');
@@ -881,7 +1118,7 @@ async function main(): Promise<void> {
           tocLinks.join(', ') +
           ' provided by the Zowe MCP Server.\n'
       );
-      sections.push(generateToolsSection(tools, examples));
+      sections.push(generateToolsSection(toolGroups, examples));
       sections.push(generatePromptsSection(prompts, promptMessages));
       sections.push(generateResourcesSection(resources));
       sections.push(generateResourceTemplatesSection(templates));

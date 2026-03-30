@@ -89,3 +89,6 @@ evals-report/
 # Presentation build artifacts
 presentations/*/dist/
 presentations/zowe-mcp/slides-export.pdf
+
+# MCP Registry tokens
+packages/zowe-mcp-server/.mcpregistry_*

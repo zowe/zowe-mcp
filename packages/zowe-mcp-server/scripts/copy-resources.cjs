@@ -37,4 +37,10 @@ copyDir(
   dist('tools/cli-bridge'),
   f => f.endsWith('.yaml') || f.endsWith('.json')
 );
-copyDirRecursive(src('tools/cli-bridge/plugins'), dist('tools/cli-bridge/plugins'));
+// Sync the built-in plugins directory: remove the dist dir first so stale files
+// (e.g. from a previous branch checkout) don't shadow vendor-supplied plugins.
+const pluginsDistDir = dist('tools/cli-bridge/plugins');
+if (fs.existsSync(pluginsDistDir)) {
+  fs.rmSync(pluginsDistDir, { recursive: true });
+}
+copyDirRecursive(src('tools/cli-bridge/plugins'), pluginsDistDir);

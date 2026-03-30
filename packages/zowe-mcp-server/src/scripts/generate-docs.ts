@@ -930,42 +930,70 @@ async function main(): Promise<void> {
         toolGroups.push({ label: 'Other', tools: unassignedCoreTools });
       }
 
+      // Collect plugin YAML entries from built-in dir and vendor dirs
+      const pluginYamlEntries: Array<{ yamlFile: string; yamlPath: string; source: string }> = [];
+
       const pluginsDir = resolve(__dirname, '..', 'tools', 'cli-bridge', 'plugins');
       if (existsSync(pluginsDir)) {
-        const pluginYamlFiles = readdirSync(pluginsDir).filter((f: string) => f.endsWith('.yaml'));
-        for (const yamlFile of pluginYamlFiles) {
-          const yamlPath = resolve(pluginsDir, yamlFile);
-          // Docs generation never calls tools, so an empty state is sufficient here.
-          const pluginState = createEmptyPluginState();
-          const pluginConfig = loadAndRegisterPluginYaml(server, yamlPath, pluginState, log);
-          const updatedToolsResult = await client.listTools();
-          const allTools = updatedToolsResult.tools as unknown as ToolInfo[];
-          const knownToolNames = new Set([
-            ...coreToolNameSet,
-            ...toolGroups.flatMap(g => g.tools.map(t => t.name)),
-          ]);
-          const pluginTools = allTools.filter(t => !knownToolNames.has(t.name));
-          if (pluginTools.length > 0) {
-            toolGroups.push({
-              label: `${pluginConfig.plugin} CLI Plugin Tools`,
-              description:
-                `Registered from \`plugins/${yamlFile}\`. ` +
-                'Configure a connection via `zoweMCP.cliPluginConfiguration` (VS Code) or ' +
-                `\`--cli-plugin-connection ${pluginConfig.plugin}=<connfile>\` (standalone).`,
-              tools: pluginTools,
-            });
-            log.info('Registered CLI bridge plugin tools', {
-              plugin: pluginConfig.plugin,
-              yamlFile,
-              count: pluginTools.length,
-            });
-          }
+        for (const yamlFile of readdirSync(pluginsDir).filter((f: string) => f.endsWith('.yaml'))) {
+          pluginYamlEntries.push({
+            yamlFile,
+            yamlPath: resolve(pluginsDir, yamlFile),
+            source: `plugins/${yamlFile}`,
+          });
         }
-        if (pluginYamlFiles.length === 0) {
+        if (pluginYamlEntries.length === 0) {
           log.info('No plugin YAML files found in plugins directory', { pluginsDir });
         }
       } else {
         log.info('CLI plugins directory not found — skipping plugin tools', { pluginsDir });
+      }
+
+      // Vendor scan: <repo-root>/vendor/*/cli-bridge-plugins/*.yaml
+      const vendorDir = resolve(__dirname, '..', '..', '..', '..', 'vendor');
+      if (existsSync(vendorDir)) {
+        for (const entry of readdirSync(vendorDir, { withFileTypes: true })) {
+          if (!entry.isDirectory()) continue;
+          const vPluginsDir = resolve(vendorDir, entry.name, 'cli-bridge-plugins');
+          if (!existsSync(vPluginsDir)) continue;
+          for (const yamlFile of readdirSync(vPluginsDir).filter((f: string) =>
+            f.endsWith('.yaml')
+          )) {
+            pluginYamlEntries.push({
+              yamlFile,
+              yamlPath: resolve(vPluginsDir, yamlFile),
+              source: `vendor/${entry.name}/cli-bridge-plugins/${yamlFile}`,
+            });
+          }
+        }
+      }
+
+      for (const { yamlFile, yamlPath, source } of pluginYamlEntries) {
+        // Docs generation never calls tools, so an empty state is sufficient here.
+        const pluginState = createEmptyPluginState();
+        const pluginConfig = loadAndRegisterPluginYaml(server, yamlPath, pluginState, log);
+        const updatedToolsResult = await client.listTools();
+        const allTools = updatedToolsResult.tools as unknown as ToolInfo[];
+        const knownToolNames = new Set([
+          ...coreToolNameSet,
+          ...toolGroups.flatMap(g => g.tools.map(t => t.name)),
+        ]);
+        const pluginTools = allTools.filter(t => !knownToolNames.has(t.name));
+        if (pluginTools.length > 0) {
+          toolGroups.push({
+            label: `${pluginConfig.plugin} CLI Plugin Tools`,
+            description:
+              `Registered from \`${source}\`. ` +
+              'Configure a connection via `zoweMCP.cliPluginConfiguration` (VS Code) or ' +
+              `\`--cli-plugin-connection ${pluginConfig.plugin}=<connfile>\` (standalone).`,
+            tools: pluginTools,
+          });
+          log.info('Registered CLI bridge plugin tools', {
+            plugin: pluginConfig.plugin,
+            yamlFile,
+            count: pluginTools.length,
+          });
+        }
       }
 
       const tools = toolGroups.flatMap(g => g.tools);

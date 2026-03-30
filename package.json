@@ -40,7 +40,7 @@
     "sdk:fallback": "node scripts/sdk-switch.js fallback",
     "sdk:local": "node scripts/sdk-switch.js local",
     "prepare": "git config core.hooksPath .githooks",
-    "vendor:extract": "remote=${VENDOR_REMOTE:?Set VENDOR_REMOTE=<git-remote>} && branch=${VENDOR_BRANCH:?Set VENDOR_BRANCH=<branch>} && git fetch \"$remote\" && git archive \"$remote/$branch\" vendor/ | tar -x",
+    "vendor:extract": "remote=${VENDOR_REMOTE:?Set VENDOR_REMOTE=<git-remote>} && branch=${VENDOR_BRANCH:?Set VENDOR_BRANCH=<branch>} && git fetch \"$remote\" && git archive \"$remote/$branch\" vendor/ | tar -x && printf '*\\n' > vendor/.gitignore",
     "vendor:clean": "rm -rf vendor/"
   },
   "devDependencies": {

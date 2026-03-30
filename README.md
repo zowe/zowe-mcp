@@ -453,13 +453,13 @@ vendor/<name>/
   docs/                 ← private documentation
 ```
 
-`vendor/` is gitignored on `develop` so it never accidentally enters the upstream repo. To populate it from a private branch that tracks vendor content:
+The `vendor/` directory is kept out of the upstream repo by a `vendor/.gitignore` containing `*` that the extract script creates automatically — the root `.gitignore` is the same on all branches. To populate it from a private branch that tracks vendor content:
 
 ```bash
 VENDOR_REMOTE=<git-remote> VENDOR_BRANCH=<branch> npm run vendor:extract
 ```
 
-This fetches the branch and extracts the `vendor/` directory into your working tree (gitignored, not staged). To remove it:
+This fetches the branch, extracts the `vendor/` directory into your working tree, and writes `vendor/.gitignore` so git treats the whole directory as ignored. To remove it:
 
 ```bash
 npm run vendor:clean

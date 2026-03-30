@@ -432,7 +432,7 @@ export async function buildServerConfig(
   if (zoweExplorerAvailable) {
     env.ZOWE_EXPLORER_AVAILABLE = '1';
   }
-  return { command: 'node', args, env };
+  return { command: process.execPath, args, env };
 }
 
 /**

@@ -439,6 +439,32 @@ npm run evals -- --set datasets --number 1   # one question
 
 Reports are written to `evals-report/report.md` and `evals-report/failures.md`.
 
+## Vendor extensions
+
+Private or enterprise content (CLI plugin definitions, eval question sets, E2E tests, documentation) can live in a `vendor/` directory at the repo root without touching the upstream codebase. The server, docs generator, and eval harness auto-discover anything placed there — no configuration required.
+
+**Directory layout**
+
+```
+vendor/<name>/
+  cli-bridge-plugins/   ← *.yaml CLI plugin definitions (auto-loaded at server startup)
+  eval-questions/       ← *.yaml eval question sets (referenced as "<name>/set-name")
+  e2e-tests/            ← *.test.ts E2E tests (picked up by Vitest automatically)
+  docs/                 ← private documentation
+```
+
+`vendor/` is gitignored on `develop` so it never accidentally enters the upstream repo. To populate it from a private branch that tracks vendor content:
+
+```bash
+VENDOR_REMOTE=<git-remote> VENDOR_BRANCH=<branch> npm run vendor:extract
+```
+
+This fetches the branch and extracts the `vendor/` directory into your working tree (gitignored, not staged). To remove it:
+
+```bash
+npm run vendor:clean
+```
+
 ## Linting and formatting
 
 ```bash
@@ -489,6 +515,8 @@ The test simulates an airgapped system using an empty cache, invalid registry (`
 | `npm run sdk:branch -- <branch>` | Fetch SDK from the latest successful build for a branch (requires `gh`) |
 | `npm run sdk:local -- <path>` | Use a local `.tgz` or ZNP repo directory |
 | `npm run release-vsix [-- TAG]` | Build VSIX and create/update GitHub Release (requires `gh`). Optional tag after `--`, e.g. `v0.1.0`; default from extension version. |
+| `VENDOR_REMOTE=… VENDOR_BRANCH=… npm run vendor:extract` | Fetch and extract the `vendor/` directory from a private branch into the current checkout (gitignored) |
+| `npm run vendor:clean` | Remove the local `vendor/` directory |
 
 ## License
 

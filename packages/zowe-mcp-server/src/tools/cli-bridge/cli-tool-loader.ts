@@ -291,8 +291,33 @@ function resolveLocationParams(
 
 /** Builds a Zod schema for a single PluginParam. */
 function buildParamSchema(param: PluginParam, variant?: string): z.ZodTypeAny {
-  // Use z.coerce.string() so AI agents (or call-tool) can pass numbers/booleans; they are coerced to string.
   const desc = resolveFieldDescription(param, variant);
+
+  if (param.valueMap && Object.keys(param.valueMap).length > 0) {
+    const keys = Object.keys(param.valueMap) as [string, ...string[]];
+    const map = param.valueMap;
+    // Build the inner enum — optional when required is not set
+    const inner: z.ZodTypeAny = param.required
+      ? z.enum(keys).describe(desc)
+      : z.enum(keys).describe(desc).optional();
+    // Wrap in a preprocess normalizer that accepts both friendly names and raw CLI
+    // codes (case-insensitive), so 'ES' and 'es' are treated the same as 'source'.
+    return z.preprocess(val => {
+      if (val === undefined || val === null) return val;
+      // MCP params arrive as strings; skip objects/arrays so z.enum rejects them cleanly
+      if (typeof val !== 'string' && typeof val !== 'number' && typeof val !== 'boolean')
+        return val;
+      const str = String(val);
+      // Accept raw CLI code case-insensitively (e.g. 'ES' → 'source')
+      const byCode = Object.entries(map).find(([, code]) => code === str.toUpperCase())?.[0];
+      if (byCode !== undefined) return byCode;
+      // Accept friendly name case-insensitively (e.g. 'SOURCE' → 'source')
+      return keys.find(k => k.toLowerCase() === str.toLowerCase()) ?? str;
+      // Unknown values pass through unchanged → z.enum rejects with list of valid values
+    }, inner);
+  }
+
+  // Use z.coerce.string() so AI agents (or call-tool) can pass numbers/booleans; they are coerced to string.
   let schema: z.ZodTypeAny = z.coerce.string().describe(desc);
   if (!param.required) {
     schema = schema.optional();
@@ -547,9 +572,10 @@ export function buildCliArgs(
     if (value === undefined) continue;
 
     if (param.cliPositional) {
-      positionals.push(value);
+      positionals.push(param.valueMap ? (param.valueMap[value] ?? value) : value);
     } else if (param.cliOption) {
-      options.push(`--${param.cliOption}`, value);
+      const cliValue = param.valueMap ? (param.valueMap[value] ?? value) : value;
+      options.push(`--${param.cliOption}`, cliValue);
     }
   }
 

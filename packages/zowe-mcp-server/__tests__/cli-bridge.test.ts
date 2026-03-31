@@ -636,6 +636,86 @@ describe.skipIf(!YAML_AVAILABLE)('buildCliArgs', () => {
 });
 
 // ---------------------------------------------------------------------------
+// valueMap — buildToolInputSchema and buildCliArgs
+// ---------------------------------------------------------------------------
+
+describe('valueMap — buildToolInputSchema and buildCliArgs', () => {
+  const toolWithValueMap: PluginToolDef = {
+    toolName: 'testSearchTool',
+    zoweCommand: 'endevor list elements',
+    descriptions: { cli: 'Test tool' },
+    params: [
+      {
+        name: 'searchIn',
+        cliOption: 'search-in',
+        valueMap: { source: 'ES', history: 'EH', changes: 'EC' },
+        description: 'Where to search',
+      },
+    ],
+  };
+
+  describe('buildToolInputSchema with valueMap', () => {
+    it('is optional when required is not set (omitted value parses fine)', () => {
+      const schema = buildToolInputSchema(toolWithValueMap);
+      const result = z.object({ searchIn: schema.searchIn }).parse({});
+      expect(result.searchIn).toBeUndefined();
+    });
+
+    it('accepts a friendly name as-is', () => {
+      const schema = buildToolInputSchema(toolWithValueMap);
+      const result = z.object({ searchIn: schema.searchIn }).parse({ searchIn: 'source' });
+      expect(result.searchIn).toBe('source');
+    });
+
+    it('accepts a raw CLI code (ES) and normalizes to friendly name', () => {
+      const schema = buildToolInputSchema(toolWithValueMap);
+      const result = z.object({ searchIn: schema.searchIn }).parse({ searchIn: 'ES' });
+      expect(result.searchIn).toBe('source');
+    });
+
+    it('accepts lowercase raw code (es) and normalizes to friendly name', () => {
+      const schema = buildToolInputSchema(toolWithValueMap);
+      const result = z.object({ searchIn: schema.searchIn }).parse({ searchIn: 'es' });
+      expect(result.searchIn).toBe('source');
+    });
+
+    it('accepts friendly name case-insensitively (SOURCE → source)', () => {
+      const schema = buildToolInputSchema(toolWithValueMap);
+      const result = z.object({ searchIn: schema.searchIn }).parse({ searchIn: 'SOURCE' });
+      expect(result.searchIn).toBe('source');
+    });
+
+    it('rejects unknown value and error lists valid friendly names', () => {
+      const schema = buildToolInputSchema(toolWithValueMap);
+      const parse = (): unknown =>
+        z.object({ searchIn: schema.searchIn }).parse({ searchIn: 'INVALID' });
+      expect(parse).toThrow(/source|history|changes/);
+    });
+  });
+
+  describe('buildCliArgs with valueMap', () => {
+    it('translates friendly name to CLI code (source → ES)', () => {
+      const args = buildCliArgs(toolWithValueMap, { searchIn: 'source' }, {}, []);
+      const idx = args.indexOf('--search-in');
+      expect(idx).toBeGreaterThanOrEqual(0);
+      expect(args[idx + 1]).toBe('ES');
+    });
+
+    it('translates history → EH', () => {
+      const args = buildCliArgs(toolWithValueMap, { searchIn: 'history' }, {}, []);
+      const idx = args.indexOf('--search-in');
+      expect(idx).toBeGreaterThanOrEqual(0);
+      expect(args[idx + 1]).toBe('EH');
+    });
+
+    it('omits the option when no value is provided', () => {
+      const args = buildCliArgs(toolWithValueMap, {}, {}, []);
+      expect(args).not.toContain('--search-in');
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
 // resolveToolPagination — plugin-level defaults, shorthand, and auto-detection
 // ---------------------------------------------------------------------------
 

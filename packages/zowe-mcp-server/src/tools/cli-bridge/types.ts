@@ -379,6 +379,22 @@ export interface PluginParam {
   required?: boolean;
   /** Default value if not provided by the caller. */
   default?: string;
+  /**
+   * Optional mapping from friendly MCP parameter values to CLI argument values.
+   *
+   * When present, `buildParamSchema` generates a `z.enum` of the map keys (friendly
+   * names) wrapped in a `z.preprocess` normalizer that also accepts the raw CLI codes
+   * (case-insensitive).  `buildCliArgs` translates the normalized friendly name back
+   * to the CLI value before constructing the `--option value` pair.
+   *
+   * Accepts both friendly names and raw CLI codes (case-insensitive).
+   * Invalid values are rejected by Zod with a message listing all valid friendly names.
+   *
+   * Example: `valueMap: { source: ES, history: EH, changes: EC }`
+   * → `'source'`, `'SOURCE'`, `'ES'`, `'es'` all accepted; `'INVALID'` rejected
+   * → CLI always receives `--search-in ES` (normalized from any accepted form)
+   */
+  valueMap?: Record<string, string>;
 }
 
 /** A single MCP tool definition in the plugin YAML. */

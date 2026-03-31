@@ -1,9 +1,12 @@
+<!-- Last reviewed commit: e5e21de (2026-03-31) — Added CLI Plugin Bridge slide; updated Option 3 on Extensibility slide to "Available Now"; added last-updated date to title slide -->
+
 ---
 theme: default
 title: 'Zowe MCP: AI-Powered z/OS Access'
 info: |
   Zowe MCP — Model Context Protocol server and VS Code extension
   that gives AI assistants direct access to z/OS systems.
+  Last updated: March 2026
 class: text-center
 colorSchema: light
 drawings:
@@ -18,6 +21,7 @@ mdc: true
   <img src="/zowe-logo.svg" class="w-48 mb-6 drop-shadow-lg" alt="Zowe" />
   <h1 class="!text-5xl !font-extrabold !text-white !border-none !mb-4">Zowe MCP</h1>
   <p class="text-2xl !text-white/90 font-light">AI-Powered z/OS Access via Model Context Protocol</p>
+  <p class="text-sm !text-white/50 mt-6">Last updated: March 2026</p>
 </div>
 
 <style>
@@ -851,11 +855,11 @@ The MCP ecosystem is already extensible — anyone can build and register an MCP
       A <strong>plug-in model</strong> for the Zowe MCP server itself — similar to the CLI. Third parties register additional tools, prompts, and resources directly into the server.
     </div>
   </div>
-  <div class="p-4 bg-[#f3f4f4] rounded-lg border-t-4 border-[#3162ac]">
-    <div class="text-xs font-bold text-[#3162ac] mb-2">OPTION 3</div>
-    <div class="font-bold text-[#1b375f] mb-2"><carbon-connect class="inline text-[#3162ac]" /> CLI Plug-ins → MCP Tools</div>
+  <div class="p-4 bg-[#f3f4f4] rounded-lg border-t-4 border-[#16825d]">
+    <div class="text-xs font-bold text-[#16825d] mb-2">AVAILABLE NOW ✓</div>
+    <div class="font-bold text-[#1b375f] mb-2"><carbon-connect class="inline text-[#16825d]" /> CLI Plug-ins → MCP Tools</div>
     <div class="text-sm text-[#6d7176]">
-      Enable existing <strong>Zowe CLI plug-ins</strong> to provide MCP tools. Not a blind 1:1 mapping of CLI commands — MCP tools are <strong>designed purposefully</strong> for AI, using existing plug-in code as the implementation.
+      The <strong>Zowe CLI Plugin Bridge</strong> is implemented — any Zowe CLI plug-in can contribute MCP tools via a declarative YAML definition. First vendor plugin: <strong>Endevor</strong> (Broadcom).
     </div>
   </div>
 </div>
@@ -928,6 +932,56 @@ Event types:
 - `systems-update`
 - `open-*-in-editor`
 - `ceedump-collected`
+
+</div>
+</div>
+
+---
+
+<!-- Slide 23c: CLI Plugin Bridge -->
+
+# <carbon-plug class="inline text-[#3162ac]" /> Zowe CLI Plugin Bridge
+
+Expose any **Zowe CLI plug-in** as MCP tools via a declarative **YAML definition** — no TypeScript required.
+
+<div class="grid grid-cols-2 gap-6 mt-4">
+<div>
+
+### <carbon-document class="inline text-[#3162ac]" /> YAML-Driven Tool Definitions
+
+- Define tools, parameters, and profile types in a **single YAML file**
+- **No plugin-specific TypeScript** — all details are declarative
+- Each tool invokes `zowe ... --rfj` under the hood
+- **Description variants** — `cli`, `intent`, `optimized` for LLM tuning
+
+### <carbon-category class="inline text-[#3162ac]" /> Named Profiles
+
+- **Connection** profiles — host, port, credentials per plugin
+- **Location** profiles — per-tool context (e.g. Endevor env/stage)
+- Auto-generated management tools: `listConnections`, `setConnection`
+- **Hot-reload** — VS Code setting changes take effect immediately without restart
+
+</div>
+<div>
+
+### <carbon-flash class="inline text-[#3162ac]" /> Built-in Smarts
+
+- **Auto-discovery** — drop a `*.yaml` into `cli-bridge-plugins/`
+- **Pagination** — list (offset/limit) and content windowing built-in
+- **Response cache** — full CLI output cached, paging slices it
+- **Fatal error pattern** — LLM stops on config errors, no retries
+
+### <carbon-connect class="inline text-[#3162ac]" /> Vendor Extension Directory
+
+```bash
+vendor/<vendorName>/cli-bridge-plugins/*.yaml
+```
+
+Vendor-specific plugins live outside the core repo, auto-discovered at startup alongside built-in plugins.
+
+### First Plugin: Endevor (Broadcom)
+
+10 command tools (list environments, stages, systems, elements; retrieve, print) + 4 profile management tools
 
 </div>
 </div>

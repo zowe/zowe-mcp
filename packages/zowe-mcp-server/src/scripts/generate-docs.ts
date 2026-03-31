@@ -935,7 +935,9 @@ async function main(): Promise<void> {
 
       const pluginsDir = resolve(__dirname, '..', 'tools', 'cli-bridge', 'plugins');
       if (existsSync(pluginsDir)) {
-        for (const yamlFile of readdirSync(pluginsDir).filter((f: string) => f.endsWith('.yaml'))) {
+        for (const yamlFile of readdirSync(pluginsDir).filter((f: string) =>
+          f.endsWith('.yaml')
+        )) {
           pluginYamlEntries.push({
             yamlFile,
             yamlPath: resolve(pluginsDir, yamlFile),

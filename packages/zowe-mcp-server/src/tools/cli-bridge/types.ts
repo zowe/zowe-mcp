@@ -184,6 +184,169 @@ export interface CliPluginPasswordResolver {
 }
 
 // ---------------------------------------------------------------------------
+// Pagination and line windowing configuration
+// ---------------------------------------------------------------------------
+
+/**
+ * Plugin-level defaults for list pagination tools.
+ *
+ * Values set here are inherited by every tool that opts in (explicitly or via
+ * auto-detection). Per-tool `pagination:` overrides only the fields it specifies.
+ */
+export interface PluginListPaginationConfig {
+  /** Default page size returned when the caller omits `limit` (default: 200). */
+  defaultLimit?: number;
+  /**
+   * Hard upper bound on `limit` values from callers (default: 1000).
+   * Values above this are clamped.
+   */
+  maxLimit?: number;
+  /**
+   * When set and the full CLI result exceeds this count, the tool uses MCP
+   * elicitation (when the client supports it) or returns an informational
+   * error asking the user to narrow the query.
+   */
+  maxResults?: number;
+  /**
+   * How long (in seconds) to keep cached CLI results (default: 300).
+   */
+  cacheTtlSeconds?: number;
+  /**
+   * Glob pattern(s) matched against tool names to automatically apply list
+   * pagination without a per-tool `pagination:` block.
+   *
+   * Supports `*` as a wildcard (e.g. `"*List*"` matches `endevorListElements`).
+   * Matching is case-insensitive.
+   *
+   * Examples:
+   *   applyToPattern: "*List*"
+   *   applyToPattern: ["*List*", "*Search*"]
+   */
+  applyToPattern?: string | string[];
+}
+
+/**
+ * Plugin-level defaults for content windowing tools.
+ *
+ * Values set here are inherited by every tool that opts in (explicitly or via
+ * auto-detection). Per-tool `pagination:` overrides only the fields it specifies.
+ */
+export interface PluginContentPaginationConfig {
+  /** Default lines per window when the caller omits `lineCount` (default: 1000). */
+  defaultLineCount?: number;
+  /**
+   * How long (in seconds) to keep cached CLI results (default: 300).
+   */
+  cacheTtlSeconds?: number;
+  /**
+   * When true (the default), content pagination is automatically applied to
+   * every tool whose `outputPath` is `"stdout"`.
+   * Set to `false` to require explicit per-tool `pagination: content`.
+   */
+  applyToStdout?: boolean;
+  /**
+   * Additional glob pattern(s) matched against tool names to automatically
+   * apply content pagination (in addition to the `applyToStdout` rule).
+   *
+   * Supports `*` as a wildcard. Matching is case-insensitive.
+   */
+  applyToPattern?: string | string[];
+}
+
+/**
+ * Plugin-level pagination configuration block.
+ *
+ * Placed at the root of a plugin YAML (next to `plugin:`, `profiles:`, `tools:`).
+ * Provides default values and auto-application rules for all tools in the plugin.
+ *
+ * Example:
+ * ```yaml
+ * pagination:
+ *   list:
+ *     defaultLimit: 200
+ *     maxLimit: 1000
+ *     maxResults: 5000
+ *     applyToPattern: "*List*"
+ *   content:
+ *     defaultLineCount: 1000
+ *     # applyToStdout: true (default)
+ * ```
+ */
+export interface PluginPaginationConfig {
+  list?: PluginListPaginationConfig;
+  content?: PluginContentPaginationConfig;
+}
+
+/**
+ * Resolved per-tool pagination definition — the final effective config after
+ * merging plugin defaults and per-tool overrides.
+ *
+ * Created by `resolveToolPagination()` in `cli-tool-loader.ts`; stored on the
+ * resolved tool rather than the raw `PluginToolDef`.
+ */
+export interface PaginationDef {
+  /**
+   * Pagination mode:
+   *   - 'list'    — adds `offset`/`limit` input params; wraps output array in
+   *                 `ToolResponseEnvelope` with `ListResultMeta`.
+   *   - 'content' — adds `startLine`/`lineCount` input params; wraps text
+   *                 output in `ToolResponseEnvelope` with `ReadResultMeta`.
+   */
+  type: 'list' | 'content';
+
+  // ---- 'list' options -------------------------------------------------------
+
+  /** Default page size returned when the caller omits `limit` (default: 200). */
+  defaultLimit?: number;
+
+  /**
+   * Hard upper bound on `limit` values from callers (default: 1000).
+   * Values above this are clamped.
+   */
+  maxLimit?: number;
+
+  /**
+   * When set and the full CLI result exceeds this count, the tool uses MCP
+   * elicitation (when the client supports it) or returns an informational
+   * error to ask the user to narrow their query before fetching everything.
+   *
+   * The elicitation / error response uses `isError: false` so the LLM can
+   * retry with more specific filter parameters.
+   */
+  maxResults?: number;
+
+  // ---- 'content' options ----------------------------------------------------
+
+  /**
+   * Default number of lines returned per window when the caller omits
+   * `lineCount` (default: 1000).
+   */
+  defaultLineCount?: number;
+
+  // ---- Cache options --------------------------------------------------------
+
+  /**
+   * How long (in seconds) to keep cached CLI results before re-invoking.
+   * Default: 300 (5 minutes).
+   */
+  cacheTtlSeconds?: number;
+}
+
+/**
+ * Per-tool pagination override declaration.
+ *
+ * In the plugin YAML a tool can use any of these forms on the `pagination:` key:
+ *
+ * - `pagination: list`    — inherit plugin `pagination.list` defaults (type: list)
+ * - `pagination: content` — inherit plugin `pagination.content` defaults (type: content)
+ * - `pagination: false`   — explicitly opt out (suppress auto-detection)
+ * - `pagination: { type: list, maxResults: 10000 }` — full or partial override;
+ *                            unset fields are filled from plugin defaults
+ * - omit `pagination:`    — auto-detect from plugin patterns and `outputPath`
+ */
+export type ToolPaginationSpec = PaginationDef | 'list' | 'content' | false;
+
+// ---------------------------------------------------------------------------
 // YAML-driven tool definition
 // ---------------------------------------------------------------------------
 
@@ -253,6 +416,23 @@ export interface PluginToolDef {
    * Use "." for the entire response body.
    */
   outputPath?: string;
+  /**
+   * Pagination / line-windowing configuration for this tool.
+   *
+   * Shorthand values:
+   *   - `'list'`    — inherit plugin-level `pagination.list` defaults
+   *   - `'content'` — inherit plugin-level `pagination.content` defaults
+   *   - `false`     — explicitly opt out of auto-detection
+   *
+   * Object form: full or partial `PaginationDef`; missing fields filled from
+   * the matching plugin-level defaults (`pagination.list` or `pagination.content`).
+   *
+   * When omitted, auto-detection fires:
+   *   - Tools with `outputPath: stdout` → content (when plugin.pagination.content is defined)
+   *   - Tools matching `plugin.pagination.list.applyToPattern` → list
+   *   - Tools matching `plugin.pagination.content.applyToPattern` → content
+   */
+  pagination?: ToolPaginationSpec;
 }
 
 // ---------------------------------------------------------------------------
@@ -273,6 +453,14 @@ export interface CliPluginConfig {
    * Can be overridden at runtime by ZOWE_MCP_CLI_DESC_VARIANT env var.
    */
   activeDescription?: string;
+  /**
+   * Plugin-level pagination defaults and auto-application rules.
+   *
+   * When set, tools can inherit these values with a simple `pagination: list` or
+   * `pagination: content` shorthand, or be auto-detected based on `outputPath`
+   * and name patterns — without repeating numeric limits on every tool.
+   */
+  pagination?: PluginPaginationConfig;
   /**
    * Named profile type definitions. Keys are arbitrary type identifiers
    * (e.g. "connection", "location"); values describe the type's fields and behaviour.
@@ -333,4 +521,9 @@ export interface CliPluginState {
     severity: 'info' | 'warning' | 'error',
     settingsKey?: string
   ) => void;
+  /**
+   * Lazily initialised cache shared across all paginated/windowed tools for
+   * this plugin instance.  Created on first use by `registerPluginTool()`.
+   */
+  _cliResultCache?: import('../../zos/response-cache.js').ResponseCache;
 }

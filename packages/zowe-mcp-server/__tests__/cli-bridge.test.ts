@@ -40,6 +40,7 @@ import {
   resolveDescription,
   resolveFieldDescription,
   resolveJsonRef,
+  resolveToolPagination,
 } from '../src/tools/cli-bridge/cli-tool-loader.js';
 import type {
   CliNamedProfile,
@@ -60,7 +61,15 @@ const VENDOR_YAML = join(
   'cli-bridge-plugins',
   'endevor-tools.yaml'
 );
-const SRC_YAML = join(__dirname, '..', 'src', 'tools', 'cli-bridge', 'plugins', 'endevor-tools.yaml');
+const SRC_YAML = join(
+  __dirname,
+  '..',
+  'src',
+  'tools',
+  'cli-bridge',
+  'plugins',
+  'endevor-tools.yaml'
+);
 const YAML_PATH = existsSync(VENDOR_YAML) ? VENDOR_YAML : SRC_YAML;
 const YAML_AVAILABLE = existsSync(YAML_PATH);
 
@@ -623,6 +632,162 @@ describe.skipIf(!YAML_AVAILABLE)('buildCliArgs', () => {
     expect(args).toContain('true');
     expect(args).toContain('--dat');
     expect(args).toContain('ALL');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// resolveToolPagination — plugin-level defaults, shorthand, and auto-detection
+// ---------------------------------------------------------------------------
+
+describe('resolveToolPagination', () => {
+  const pluginPag = {
+    list: { defaultLimit: 200, maxLimit: 1000, maxResults: 5000, applyToPattern: '*List*' },
+    content: { defaultLineCount: 1000 },
+  };
+
+  it('returns undefined when no pagination and no plugin config', () => {
+    const tool = {
+      toolName: 'endevorDoSomething',
+      zoweCommand: 'endevor do something',
+      descriptions: {},
+    };
+    expect(resolveToolPagination(tool, undefined)).toBeUndefined();
+  });
+
+  it('explicit false opts out even when plugin pattern would match', () => {
+    const tool = {
+      toolName: 'endevorListElements',
+      zoweCommand: 'endevor list elements',
+      descriptions: {},
+      pagination: false as const,
+    };
+    expect(resolveToolPagination(tool, pluginPag)).toBeUndefined();
+  });
+
+  it('shorthand "list" inherits plugin list defaults', () => {
+    const tool = {
+      toolName: 'myTool',
+      zoweCommand: 'x',
+      descriptions: {},
+      pagination: 'list' as const,
+    };
+    const pg = resolveToolPagination(tool, pluginPag);
+    expect(pg?.type).toBe('list');
+    expect(pg?.defaultLimit).toBe(200);
+    expect(pg?.maxResults).toBe(5000);
+  });
+
+  it('shorthand "content" inherits plugin content defaults', () => {
+    const tool = {
+      toolName: 'myTool',
+      zoweCommand: 'x',
+      descriptions: {},
+      pagination: 'content' as const,
+    };
+    const pg = resolveToolPagination(tool, pluginPag);
+    expect(pg?.type).toBe('content');
+    expect(pg?.defaultLineCount).toBe(1000);
+  });
+
+  it('object form merges per-tool override with plugin defaults', () => {
+    const tool = {
+      toolName: 'myTool',
+      zoweCommand: 'x',
+      descriptions: {},
+      pagination: { type: 'list' as const, maxResults: 10000 },
+    };
+    const pg = resolveToolPagination(tool, pluginPag);
+    expect(pg?.type).toBe('list');
+    expect(pg?.maxResults).toBe(10000); // per-tool override
+    expect(pg?.defaultLimit).toBe(200); // from plugin defaults
+    expect(pg?.maxLimit).toBe(1000); // from plugin defaults
+  });
+
+  it('auto-detects list via applyToPattern matching tool name (case-insensitive)', () => {
+    const tool = {
+      toolName: 'endevorListElements',
+      zoweCommand: 'endevor list elements',
+      descriptions: {},
+    };
+    const pg = resolveToolPagination(tool, pluginPag);
+    expect(pg?.type).toBe('list');
+    expect(pg?.defaultLimit).toBe(200);
+  });
+
+  it('auto-detects content via outputPath: stdout', () => {
+    const tool = {
+      toolName: 'endevorPrintElement',
+      zoweCommand: 'endevor print element',
+      descriptions: {},
+      outputPath: 'stdout',
+    };
+    const pg = resolveToolPagination(tool, pluginPag);
+    expect(pg?.type).toBe('content');
+    expect(pg?.defaultLineCount).toBe(1000);
+  });
+
+  it('does NOT auto-detect content for stdout when applyToStdout: false', () => {
+    const noAutoStdout = { ...pluginPag, content: { ...pluginPag.content, applyToStdout: false } };
+    const tool = {
+      toolName: 'endevorPrintElement',
+      zoweCommand: 'endevor print element',
+      descriptions: {},
+      outputPath: 'stdout',
+    };
+    expect(resolveToolPagination(tool, noAutoStdout)).toBeUndefined();
+  });
+
+  it('mutation tool (no match) returns undefined', () => {
+    const tool = {
+      toolName: 'endevorAddElement',
+      zoweCommand: 'endevor add element',
+      descriptions: {},
+    };
+    expect(resolveToolPagination(tool, pluginPag)).toBeUndefined();
+  });
+
+  it('auto-detects list via multi-pattern applyToPattern', () => {
+    const pag = { list: { defaultLimit: 100, applyToPattern: ['*List*', '*QueryComponents*'] } };
+    const tool = {
+      toolName: 'endevorQueryComponents',
+      zoweCommand: 'endevor query components',
+      descriptions: {},
+    };
+    const pg = resolveToolPagination(tool, pag);
+    expect(pg?.type).toBe('list');
+    expect(pg?.defaultLimit).toBe(100);
+  });
+
+  it('endevor YAML has plugin-level pagination applied to endevorListElements via auto-detect', () => {
+    if (!YAML_AVAILABLE) return;
+    const config = loadPluginYaml(YAML_PATH);
+    const listTool = config.tools.find(t => t.toolName === 'endevorListElements');
+    expect(listTool).toBeDefined();
+    // endevorListElements has no explicit pagination in YAML — auto-detected from *List* pattern
+    expect(listTool?.pagination).toBeUndefined();
+    const pg = resolveToolPagination(listTool!, config.pagination);
+    expect(pg?.type).toBe('list');
+    expect(pg?.defaultLimit).toBe(200);
+    expect(pg?.maxResults).toBe(5000);
+  });
+
+  it('endevor YAML has plugin-level pagination applied to endevorPrintElement via stdout auto-detect', () => {
+    if (!YAML_AVAILABLE) return;
+    const config = loadPluginYaml(YAML_PATH);
+    const printTool = config.tools.find(t => t.toolName === 'endevorPrintElement');
+    expect(printTool).toBeDefined();
+    const pg = resolveToolPagination(printTool!, config.pagination);
+    expect(pg?.type).toBe('content');
+    expect(pg?.defaultLineCount).toBe(1000);
+  });
+
+  it('endevor YAML mutation tool endevorAddElement has no pagination', () => {
+    if (!YAML_AVAILABLE) return;
+    const config = loadPluginYaml(YAML_PATH);
+    const addTool = config.tools.find(t => t.toolName === 'endevorAddElement');
+    if (!addTool) return; // tool may not exist in YAML
+    const pg = resolveToolPagination(addTool, config.pagination);
+    expect(pg).toBeUndefined();
   });
 });
 

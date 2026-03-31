@@ -33,11 +33,32 @@ import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { z } from 'zod';
 import type { Logger } from '../../log.js';
+import {
+  buildCacheKey,
+  createResponseCache,
+  type ResponseCache,
+} from '../../zos/response-cache.js';
+import {
+  buildContext,
+  getListMessages,
+  getReadMessages,
+  MAX_LIST_LIMIT,
+  paginateList,
+  PAGINATION_NOTE_LINES,
+  PAGINATION_NOTE_LIST,
+  sanitizeTextForDisplay,
+  windowContent,
+  withPaginationNote,
+  wrapResponse,
+} from '../response.js';
 import { buildProfileArgs, invokeZoweCli } from './cli-invoker.js';
 import type {
   CliNamedProfile,
   CliPluginConfig,
   CliPluginState,
+  PaginationDef,
+  PluginContentPaginationConfig,
+  PluginListPaginationConfig,
   PluginParam,
   PluginToolDef,
   ProfileFieldDef,
@@ -279,6 +300,125 @@ function buildParamSchema(param: PluginParam, variant?: string): z.ZodTypeAny {
   return schema;
 }
 
+// ---------------------------------------------------------------------------
+// Pagination resolution
+// ---------------------------------------------------------------------------
+
+/**
+ * Returns true when `name` matches at least one of the given glob patterns.
+ *
+ * Only `*` (match zero or more characters) is supported.  Matching is
+ * case-insensitive to align with z/OS conventions.
+ */
+function matchesGlobPattern(name: string, patterns: string | string[]): boolean {
+  const list = Array.isArray(patterns) ? patterns : [patterns];
+  return list.some(p => {
+    const escaped = p.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*');
+    return new RegExp(`^${escaped}$`, 'i').test(name);
+  });
+}
+
+/**
+ * Resolves the effective `PaginationDef` for a tool by combining:
+ *   1. Explicit per-tool `pagination:` value (object, 'list', 'content', false)
+ *   2. Plugin-level `pagination.list` / `pagination.content` defaults
+ *   3. Auto-detection rules (outputPath === 'stdout', name patterns)
+ *
+ * Returns `undefined` when pagination should not be applied to the tool.
+ */
+export function resolveToolPagination(
+  toolDef: PluginToolDef,
+  pluginPagination: CliPluginConfig['pagination']
+): PaginationDef | undefined {
+  const spec = toolDef.pagination!;
+  const pluginList = pluginPagination?.list;
+  const pluginContent = pluginPagination?.content;
+
+  // Explicit opt-out
+  if (spec === false) return undefined;
+
+  // Explicit shorthand
+  if (spec === 'list') return buildListPaginationDef(pluginList);
+  if (spec === 'content') return buildContentPaginationDef(pluginContent);
+
+  // Explicit full or partial PaginationDef object
+  if (spec !== undefined && typeof spec === 'object') {
+    if (spec.type === 'list') return mergeListPaginationDef(spec, pluginList);
+    if (spec.type === 'content') return mergeContentPaginationDef(spec, pluginContent);
+  }
+
+  // Auto-detection: outputPath: 'stdout' → content
+  if (
+    toolDef.outputPath === 'stdout' &&
+    pluginContent !== undefined &&
+    pluginContent.applyToStdout !== false
+  ) {
+    return buildContentPaginationDef(pluginContent);
+  }
+
+  // Auto-detection: list name pattern
+  if (pluginList?.applyToPattern !== undefined) {
+    if (matchesGlobPattern(toolDef.toolName, pluginList.applyToPattern)) {
+      return buildListPaginationDef(pluginList);
+    }
+  }
+
+  // Auto-detection: content name pattern (beyond applyToStdout)
+  if (pluginContent?.applyToPattern !== undefined) {
+    if (matchesGlobPattern(toolDef.toolName, pluginContent.applyToPattern)) {
+      return buildContentPaginationDef(pluginContent);
+    }
+  }
+
+  return undefined;
+}
+
+function buildListPaginationDef(
+  pluginList: PluginListPaginationConfig | undefined
+): PaginationDef {
+  return {
+    type: 'list',
+    defaultLimit: pluginList?.defaultLimit,
+    maxLimit: pluginList?.maxLimit,
+    maxResults: pluginList?.maxResults,
+    cacheTtlSeconds: pluginList?.cacheTtlSeconds,
+  };
+}
+
+function buildContentPaginationDef(
+  pluginContent: PluginContentPaginationConfig | undefined
+): PaginationDef {
+  return {
+    type: 'content',
+    defaultLineCount: pluginContent?.defaultLineCount,
+    cacheTtlSeconds: pluginContent?.cacheTtlSeconds,
+  };
+}
+
+function mergeListPaginationDef(
+  toolSpec: PaginationDef,
+  pluginList: PluginListPaginationConfig | undefined
+): PaginationDef {
+  return {
+    type: 'list',
+    defaultLimit: toolSpec.defaultLimit ?? pluginList?.defaultLimit,
+    maxLimit: toolSpec.maxLimit ?? pluginList?.maxLimit,
+    maxResults: toolSpec.maxResults ?? pluginList?.maxResults,
+    cacheTtlSeconds: toolSpec.cacheTtlSeconds ?? pluginList?.cacheTtlSeconds,
+  };
+}
+
+function mergeContentPaginationDef(
+  toolSpec: PaginationDef,
+  pluginContent: PluginContentPaginationConfig | undefined
+): PaginationDef {
+  return {
+    type: 'content',
+    defaultLineCount: toolSpec.defaultLineCount ?? pluginContent?.defaultLineCount,
+    cacheTtlSeconds: toolSpec.cacheTtlSeconds ?? pluginContent?.cacheTtlSeconds,
+  };
+}
+
 /**
  * Builds the full Zod input schema for a tool, merging:
  *   1. Optional `<typeKey>Id` for each profile type (all types).
@@ -291,7 +431,8 @@ function buildParamSchema(param: PluginParam, variant?: string): z.ZodTypeAny {
 export function buildToolInputSchema(
   tool: PluginToolDef,
   profileDefs?: Record<string, ProfileTypeDef>,
-  variant?: string
+  variant?: string,
+  resolvedPagination?: PaginationDef
 ): Record<string, z.ZodTypeAny> {
   const shape: Record<string, z.ZodTypeAny> = {};
 
@@ -316,6 +457,42 @@ export function buildToolInputSchema(
   // Tool-specific extra params
   for (const param of tool.params ?? []) {
     shape[param.name] = buildParamSchema(param, variant);
+  }
+
+  // Pagination params injected last so they appear at the end of the schema
+  const pg = resolvedPagination ?? (tool.pagination as PaginationDef | undefined);
+  if (pg?.type === 'list') {
+    const defaultLimit = pg.defaultLimit ?? 200;
+    const maxLimit = pg.maxLimit ?? MAX_LIST_LIMIT;
+    shape.offset = z
+      .number()
+      .int()
+      .min(0)
+      .default(0)
+      .describe('Zero-based index of the first item to return. Use 0 for the first page.');
+    shape.limit = z
+      .number()
+      .int()
+      .min(1)
+      .max(maxLimit)
+      .default(defaultLimit)
+      .describe(`Maximum items to return per page (max ${maxLimit.toString()}).`);
+  } else if (pg?.type === 'content') {
+    const defaultLineCount = pg.defaultLineCount ?? 1000;
+    shape.startLine = z
+      .number()
+      .int()
+      .min(1)
+      .optional()
+      .describe('First line to return (1-based). Omit to start from line 1.');
+    shape.lineCount = z
+      .number()
+      .int()
+      .min(1)
+      .optional()
+      .describe(
+        `Number of lines per window (default ${defaultLineCount.toString()}). Used with startLine for windowed reads.`
+      );
   }
 
   return shape;
@@ -653,6 +830,335 @@ function buildRemediationHint(state: CliPluginState, pluginName?: string): strin
 }
 
 // ---------------------------------------------------------------------------
+// Paginated list handler
+// ---------------------------------------------------------------------------
+
+/**
+ * Handles the list-pagination path for CLI bridge tools that declare
+ * `pagination: { type: 'list' }`.
+ *
+ * Strategy:
+ *   1. Build a stable cache key (tool + args, excluding offset/limit).
+ *   2. On cache miss: invoke CLI, extract items array, enforce maxResults guard.
+ *   3. Store full items in cache; serve the requested page with paginateList().
+ *   4. Wrap in ToolResponseEnvelope (same shape as listDatasets/listMembers).
+ */
+async function handleListPagination(
+  toolDef: PluginToolDef,
+  args: Record<string, unknown>,
+  command: string[],
+  extraArgs: string[],
+  allProfileArgs: string[],
+  pg: PaginationDef,
+  cache: ResponseCache,
+  contextSystem: string,
+  connectionSummary: string | undefined,
+  server: McpServer,
+  config: CliPluginConfig,
+  state: CliPluginState,
+  toolLog: Logger
+): Promise<{
+  content: { type: 'text'; text: string }[];
+  structuredContent?: Record<string, unknown>;
+  isError?: boolean;
+}> {
+  const offset = (args.offset as number | undefined) ?? 0;
+  const defaultLimit = pg.defaultLimit ?? 200;
+  const maxLimit = pg.maxLimit ?? MAX_LIST_LIMIT;
+  const limit = Math.min((args.limit as number | undefined) ?? defaultLimit, maxLimit);
+
+  // Build a stable cache key from args, excluding pagination params
+  const keyParams: Record<string, string | undefined> = {};
+  for (const [k, v] of Object.entries(args)) {
+    if (k !== 'offset' && k !== 'limit') {
+      keyParams[k] =
+        v === undefined
+          ? undefined
+          : v !== null && typeof v === 'object'
+            ? JSON.stringify(v)
+            : String(v as string | number | boolean | bigint);
+    }
+  }
+  const cacheKey = buildCacheKey(`cli:list:${toolDef.toolName}`, keyParams);
+
+  // Track errors that need special handling outside getOrFetch
+  let cliErrorMsg: string | undefined;
+  let maxResultsInfo: { total: number; max: number } | undefined;
+
+  let cached: { items: unknown[] };
+  try {
+    cached = await cache.getOrFetch(cacheKey, async (): Promise<{ items: unknown[] }> => {
+      const result = invokeZoweCli(command, extraArgs, allProfileArgs);
+      if (!result.ok) {
+        cliErrorMsg = result.errorMessage ?? 'CLI invocation failed';
+        throw new Error(cliErrorMsg);
+      }
+
+      const outputPath = toolDef.outputPath ?? 'data';
+      let rawOutput: unknown;
+      if (outputPath === 'stdout') {
+        rawOutput = result.stdout;
+      } else if (outputPath === '.') {
+        rawOutput = result.data;
+      } else {
+        rawOutput = extractOutputPath(result.data, outputPath);
+        if (rawOutput === undefined) rawOutput = result.data;
+      }
+
+      const items = Array.isArray(rawOutput) ? rawOutput : [];
+      toolLog.debug('CLI list result fetched', { total: items.length, cacheKey });
+
+      // maxResults guard — runs only on cache miss (fresh fetch)
+      if (pg.maxResults !== undefined && items.length > pg.maxResults) {
+        const tooMany = items.length;
+        const maxR = pg.maxResults;
+        let elicitAccepted = false;
+        try {
+          const elicitResult = await (
+            server as unknown as {
+              server: {
+                elicitInput: (
+                  params: unknown
+                ) => Promise<{ action: string; content?: Record<string, unknown> }>;
+              };
+            }
+          ).server.elicitInput({
+            mode: 'form',
+            message: `The query returned ${tooMany.toString()} results, which exceeds the limit of ${maxR.toString()}. Do you want to retrieve all ${tooMany.toString()} results?`,
+            requestedSchema: {
+              type: 'object',
+              properties: {
+                confirm: {
+                  type: 'boolean',
+                  title: 'Retrieve all results',
+                  description: `Return all ${tooMany.toString()} items. To reduce the count, add more specific filter parameters (element name, type, subsystem, etc.).`,
+                },
+              },
+              required: ['confirm'],
+            },
+          });
+          elicitAccepted =
+            elicitResult.action === 'accept' && elicitResult.content?.confirm === true;
+        } catch {
+          // Elicitation not supported by this client — fall through to error below
+        }
+
+        if (!elicitAccepted) {
+          // Signal "too many results" without caching anything
+          maxResultsInfo = { total: tooMany, max: maxR };
+          throw new Error('maxResults exceeded');
+        }
+      }
+
+      return { items };
+    });
+  } catch {
+    if (maxResultsInfo) {
+      const { total: tooMany, max: maxR } = maxResultsInfo;
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: JSON.stringify({
+              message: `Result set too large (${tooMany.toString()} items, limit ${maxR.toString()}). Narrow your query or confirm to retrieve all results.`,
+              suggestion: `Add more specific filter parameters (element name, type, subsystem, environment, etc.) to reduce the result count. If you need all results, the user can increase the limit in the plugin configuration.`,
+              totalAvailable: tooMany,
+              maxResults: maxR,
+            }),
+          },
+        ],
+        isError: false,
+      };
+    }
+    return buildCliErrorResponse(
+      cliErrorMsg ?? 'CLI invocation failed',
+      connectionSummary,
+      config,
+      state,
+      command,
+      toolLog
+    );
+  }
+
+  // Paginate from cached items
+  const { data: page, meta } = paginateList(cached.items, offset, limit);
+  const ctx = buildContext(contextSystem, {});
+  const messages = getListMessages(meta);
+  toolLog.debug('List pagination served', {
+    offset,
+    limit,
+    count: page.length,
+    hasMore: meta.hasMore,
+  });
+
+  return wrapResponse(ctx, meta, page, messages) as {
+    content: { type: 'text'; text: string }[];
+    structuredContent: Record<string, unknown>;
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Content windowing handler
+// ---------------------------------------------------------------------------
+
+/**
+ * Handles the content-windowing path for CLI bridge tools that declare
+ * `pagination: { type: 'content' }`.
+ *
+ * Strategy:
+ *   1. Build a stable cache key (tool + args, excluding startLine/lineCount).
+ *   2. Use ResponseCache.getOrFetch — cache miss invokes CLI, splits into lines;
+ *      TTL handles freshness (no force-refresh needed, consistent with readDataset).
+ *   3. Apply windowContent(); sanitize the text.
+ *   4. Wrap in ToolResponseEnvelope (same shape as readDataset).
+ */
+async function handleContentWindowing(
+  toolDef: PluginToolDef,
+  args: Record<string, unknown>,
+  command: string[],
+  extraArgs: string[],
+  allProfileArgs: string[],
+  pg: PaginationDef,
+  cache: ResponseCache,
+  contextSystem: string,
+  connectionSummary: string | undefined,
+  config: CliPluginConfig,
+  state: CliPluginState,
+  toolLog: Logger
+): Promise<{
+  content: { type: 'text'; text: string }[];
+  structuredContent?: Record<string, unknown>;
+  isError?: boolean;
+}> {
+  const startLine = (args.startLine as number | undefined) ?? 1;
+  const defaultLineCount = pg.defaultLineCount ?? 1000;
+  const lineCount = (args.lineCount as number | undefined) ?? defaultLineCount;
+
+  // Build a stable cache key from args, excluding windowing params
+  const keyParams: Record<string, string | undefined> = {};
+  for (const [k, v] of Object.entries(args)) {
+    if (k !== 'startLine' && k !== 'lineCount') {
+      keyParams[k] =
+        v === undefined
+          ? undefined
+          : v !== null && typeof v === 'object'
+            ? JSON.stringify(v)
+            : String(v as string | number | boolean | bigint);
+    }
+  }
+  const cacheKey = buildCacheKey(`cli:content:${toolDef.toolName}`, keyParams);
+
+  let cliErrorMsg: string | undefined;
+  let cached: { lines: string[] };
+  try {
+    cached = await cache.getOrFetch(cacheKey, (): Promise<{ lines: string[] }> => {
+      const result = invokeZoweCli(command, extraArgs, allProfileArgs);
+      if (!result.ok) {
+        cliErrorMsg = result.errorMessage ?? 'CLI invocation failed';
+        throw new Error(cliErrorMsg);
+      }
+
+      const outputPath = toolDef.outputPath ?? 'data';
+      let rawText: string;
+      if (outputPath === 'stdout') {
+        rawText = result.stdout;
+      } else {
+        const raw =
+          outputPath === '.'
+            ? result.data
+            : (extractOutputPath(result.data, outputPath) ?? result.data);
+        rawText = typeof raw === 'string' ? raw : JSON.stringify(raw, null, 2);
+      }
+
+      const lines = rawText === '' ? [] : rawText.split(/\r?\n/);
+      // Trim trailing empty line produced by final newline
+      if (lines.length > 0 && lines[lines.length - 1] === '') {
+        lines.pop();
+      }
+      toolLog.debug('CLI content fetched', { totalLines: lines.length, cacheKey });
+      return Promise.resolve({ lines });
+    });
+  } catch {
+    return buildCliErrorResponse(
+      cliErrorMsg ?? 'CLI invocation failed',
+      connectionSummary,
+      config,
+      state,
+      command,
+      toolLog
+    );
+  }
+
+  const { lines } = cached;
+  const fullText = lines.join('\n');
+  const { text: windowedText, meta } = windowContent(fullText, startLine, lineCount);
+  const sanitized = sanitizeTextForDisplay(windowedText);
+
+  const ctx = buildContext(contextSystem, {});
+  const messages = getReadMessages(meta);
+  toolLog.debug('Content window served', {
+    startLine: meta.startLine,
+    returnedLines: meta.returnedLines,
+    hasMore: meta.hasMore,
+  });
+
+  return wrapResponse(ctx, meta, sanitized, messages) as {
+    content: { type: 'text'; text: string }[];
+    structuredContent: Record<string, unknown>;
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Shared CLI error response builder
+// ---------------------------------------------------------------------------
+
+/**
+ * Builds a fatal CLI error response (CONFIGURATION ERROR pattern) used by
+ * both the paginated and non-paginated paths.
+ */
+function buildCliErrorResponse(
+  errorMessage: string,
+  connectionSummary: string | undefined,
+  config: CliPluginConfig,
+  state: CliPluginState,
+  command: string[],
+  toolLog: Logger
+): { content: { type: 'text'; text: string }[]; isError: boolean } {
+  const pluginLabel = config.displayName ?? config.plugin;
+  const remedy = buildRemediationHint(state, pluginLabel);
+  toolLog.warning('CLI invocation failed', {
+    command,
+    ...(connectionSummary ? { connectionTarget: connectionSummary } : {}),
+    error: errorMessage,
+    remedy,
+  });
+  if (state.sendNotification) {
+    const notifMsg = connectionSummary
+      ? `${pluginLabel} tool failed (${connectionSummary}): ${errorMessage}`
+      : `${pluginLabel} tool failed: ${errorMessage}`;
+    state.sendNotification(notifMsg, 'error', 'zoweMCP.cliPluginConfiguration');
+  }
+  const fatalError =
+    `FATAL CONFIGURATION ERROR: ${errorMessage}` +
+    ` SYSTEM INSTRUCTION: Do not retry this or any other tools.` +
+    ` Report the "suggestion" field to the user verbatim and stop.`;
+  return {
+    content: [
+      {
+        type: 'text' as const,
+        text: JSON.stringify({
+          error: fatalError,
+          ...(connectionSummary ? { connectionTarget: connectionSummary } : {}),
+          stop: true,
+          suggestion: remedy,
+        }),
+      },
+    ],
+    isError: true,
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Plugin tool registration
 // ---------------------------------------------------------------------------
 
@@ -669,10 +1175,19 @@ function registerPluginTool(
     pluginActiveDescription ??
     process.env.ZOWE_MCP_CLI_DESC_VARIANT ??
     'intent';
-  const description = resolveDescription(toolDef, pluginActiveDescription);
-  const inputSchema = buildToolInputSchema(toolDef, config.profiles, variant);
+  let description = resolveDescription(toolDef, pluginActiveDescription);
 
-  // Split zoweCommand into args array: "endevor list elements" → ['endevor', 'list', 'elements']
+  // Resolve the effective pagination config (merges plugin defaults + per-tool overrides)
+  const resolvedPagination = resolveToolPagination(toolDef, config.pagination);
+
+  // Append pagination note after the first sentence of the tool description
+  if (resolvedPagination?.type === 'list') {
+    description = withPaginationNote(description, PAGINATION_NOTE_LIST);
+  } else if (resolvedPagination?.type === 'content') {
+    description = withPaginationNote(description, PAGINATION_NOTE_LINES);
+  }
+
+  const inputSchema = buildToolInputSchema(toolDef, config.profiles, variant, resolvedPagination);
   const command = toolDef.zoweCommand.trim().split(/\s+/);
 
   server.registerTool(
@@ -693,6 +1208,8 @@ function registerPluginTool(
       const allProfileArgs: string[] = [];
       // URL of the first required connection profile — used in error messages (no password).
       let connectionSummary: string | undefined;
+      // Host of the first required connection profile — used as _context.system.
+      let connectionHost: string | undefined;
 
       for (const [typeKey, typeDef] of Object.entries(config.profiles ?? {})) {
         if (!typeDef.required) continue;
@@ -734,6 +1251,13 @@ function registerPluginTool(
 
         // Capture connection URL for error diagnostics (first required profile only)
         connectionSummary ??= buildConnectionSummary(profile, typeDef.fields);
+        // Extract bare host for use as _context.system in paginated responses
+        if (connectionHost === undefined) {
+          const hostField = typeDef.fields.find(f => f.name === 'host');
+          if (hostField && profile[hostField.name]) {
+            connectionHost = String(profile[hostField.name]);
+          }
+        }
 
         // Get password if needed
         let password: string | undefined;
@@ -796,44 +1320,67 @@ function registerPluginTool(
         profileArgCount: allProfileArgs.length,
       });
 
-      // --- 4. Invoke CLI ---
+      // Use the connection host as the _context.system identifier for paginated
+      // responses; fall back to the plugin name when no required profile exists.
+      const contextSystem = connectionHost ?? config.plugin;
+
+      // --- 4. Pagination / windowing path (when pagination is configured for this tool) ---
+      const pg = resolvedPagination;
+      if (pg !== undefined) {
+        // Lazily initialise the per-plugin result cache (uses ResponseCache so it
+        // shares the same lru-cache backend, TTL, and size-bounding as the z/OS cache)
+        if (!state._cliResultCache) {
+          const ttlMs = pg.cacheTtlSeconds !== undefined ? pg.cacheTtlSeconds * 1000 : undefined;
+          state._cliResultCache = createResponseCache(ttlMs !== undefined ? { ttlMs } : undefined);
+        }
+        const cache = state._cliResultCache;
+
+        if (pg.type === 'list') {
+          return await handleListPagination(
+            toolDef,
+            args,
+            command,
+            extraArgs,
+            allProfileArgs,
+            pg,
+            cache,
+            contextSystem,
+            connectionSummary,
+            server,
+            config,
+            state,
+            toolLog
+          );
+        } else {
+          return await handleContentWindowing(
+            toolDef,
+            args,
+            command,
+            extraArgs,
+            allProfileArgs,
+            pg,
+            cache,
+            contextSystem,
+            connectionSummary,
+            config,
+            state,
+            toolLog
+          );
+        }
+      }
+
+      // --- 4 (non-paginated). Invoke CLI ---
       const result = invokeZoweCli(command, extraArgs, allProfileArgs);
 
       if (!result.ok) {
-        const pluginLabel = config.displayName ?? config.plugin;
-        const remedy = buildRemediationHint(state, pluginLabel);
-        toolLog.warning('CLI invocation failed', {
+        return buildCliErrorResponse(
+          result.errorMessage ?? 'CLI invocation failed',
+          connectionSummary,
+          config,
+          state,
           command,
-          ...(connectionSummary ? { connectionTarget: connectionSummary } : {}),
-          error: result.errorMessage,
-          remedy,
-        });
-        // In VS Code mode, also show a native error dialog so the user sees
-        // the problem immediately — even if the agent chat stays open.
-        if (state.sendNotification) {
-          const notifMsg = connectionSummary
-            ? `${pluginLabel} tool failed (${connectionSummary}): ${result.errorMessage}`
-            : `${pluginLabel} tool failed: ${result.errorMessage}`;
-          state.sendNotification(notifMsg, 'error', 'zoweMCP.cliPluginConfiguration');
-        }
-        const fatalError =
-          `FATAL CONFIGURATION ERROR: ${result.errorMessage}` +
-          ` SYSTEM INSTRUCTION: Do not retry this or any other tools.` +
-          ` Report the "suggestion" field to the user verbatim and stop.`;
-        return {
-          content: [
-            {
-              type: 'text' as const,
-              text: JSON.stringify({
-                error: fatalError,
-                ...(connectionSummary ? { connectionTarget: connectionSummary } : {}),
-                stop: true,
-                suggestion: remedy,
-              }),
-            },
-          ],
-          isError: true,
-        };
+          toolLog
+        );
       }
 
       // --- 5. Determine output ---

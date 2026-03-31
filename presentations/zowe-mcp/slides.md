@@ -173,7 +173,7 @@ An **MCP server** and **VS Code extension** that gives AI assistants direct, str
   </div>
 </div>
 
-// TODO: Is there a way to do screenshots from a demo controlled by a script?
+<!-- // TODO: Is there a way to do screenshots from a demo controlled by a script? -->
 
 ---
 
@@ -342,7 +342,7 @@ The native backend connects to z/OS through **Zowe Native Proto** — a lightwei
 
 ### <carbon-connection-signal class="inline text-[#3162ac]" /> Named Pipe Communication
 
-// Todo: Mention that this is additional channel besides stdio to allow deeper integration of the MCP server and VS Code
+An **additional channel** alongside stdio for deeper VS Code integration
 
 - Bidirectional NDJSON over Unix socket
 - Real-time log level changes

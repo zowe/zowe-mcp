@@ -138,6 +138,11 @@ describe('resolveJsonRef', () => {
       list: {
         environments: { description: 'Lists environments in Endevor' },
         elements: { description: 'Lists elements in Endevor' },
+        // Option entry as produced by generate-cli-bridge-yaml.mjs
+        options: {
+          instance: { description: 'Specifies Endevor instance', type: 'string', aliases: ['i'] },
+          noDescription: { type: 'string', aliases: [] },
+        },
       },
     },
   };
@@ -152,8 +157,16 @@ describe('resolveJsonRef', () => {
     expect(resolveJsonRef('endevor.list.stages.description', data)).toBeUndefined();
   });
 
-  it('returns undefined when path resolves to a non-string', () => {
-    expect(resolveJsonRef('endevor.list.elements', data)).toBeUndefined();
+  it('returns description string when path resolves to an object with description (richer YAML format)', () => {
+    // $.path refs that point at an option/positional entry auto-extract .description
+    expect(resolveJsonRef('endevor.list.elements', data)).toBe('Lists elements in Endevor');
+    expect(resolveJsonRef('endevor.list.options.instance', data)).toBe(
+      'Specifies Endevor instance'
+    );
+  });
+
+  it('returns undefined when path resolves to an object without description', () => {
+    expect(resolveJsonRef('endevor.list.options.noDescription', data)).toBeUndefined();
   });
 
   it('returns undefined for an empty path on non-string root', () => {

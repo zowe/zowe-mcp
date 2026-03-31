@@ -16,6 +16,7 @@
     "eval-compare": "npm run build -w @zowe/mcp-server && npm run build -w packages/zowe-mcp-evals && node packages/zowe-mcp-evals/dist/eval-compare.js",
     "evals": "npm run build -w @zowe/mcp-server && npm run build -w packages/zowe-mcp-evals && npm run evals -w packages/zowe-mcp-evals -- \"$@\"",
     "format": "prettier --write \"**/*.{ts,js,mjs,json,jsonc}\"",
+    "generate-cli-bridge-yaml": "node scripts/generate-cli-bridge-yaml.mjs",
     "generate-docs": "npm run build -w packages/zowe-mcp-common && npm run build -w @zowe/mcp-server && node packages/zowe-mcp-server/dist/index.js generate-docs",
     "inspector:mock": "npx @modelcontextprotocol/inspector node packages/zowe-mcp-server/dist/index.js --stdio --mock ./zowe-mcp-mock-data",
     "inspector:native": "dotenv -e .env -- npx @modelcontextprotocol/inspector node packages/zowe-mcp-server/dist/index.js -- --stdio --native --config native-config.json",

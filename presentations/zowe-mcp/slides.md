@@ -1,5 +1,3 @@
-<!-- Last reviewed commit: e5e21de (2026-03-31) — Added CLI Plugin Bridge slide; updated Option 3 on Extensibility slide to "Available Now"; added last-updated date to title slide -->
-
 ---
 theme: default
 title: 'Zowe MCP: AI-Powered z/OS Access'
@@ -14,6 +12,7 @@ drawings:
 transition: slide-left
 mdc: true
 ---
+<!-- Last reviewed commit: e5e21de (2026-03-31) — Added CLI Plugin Bridge slide; updated Option 3 on Extensibility slide to "Available Now"; added last-updated date to title slide -->
 
 <!-- Slide 1: Title -->
 
@@ -959,7 +958,7 @@ Expose any **Zowe CLI plug-in** as MCP tools via a declarative **YAML definition
 - **Connection** profiles — host, port, credentials per plugin
 - **Location** profiles — per-tool context (e.g. Endevor env/stage)
 - Auto-generated management tools: `listConnections`, `setConnection`
-- **Hot-reload** — VS Code setting changes take effect immediately without restart
+- **Hot-reload** — VS Code settings immediately take effect
 
 </div>
 <div>
@@ -978,10 +977,6 @@ vendor/<vendorName>/cli-bridge-plugins/*.yaml
 ```
 
 Vendor-specific plugins live outside the core repo, auto-discovered at startup alongside built-in plugins.
-
-### First Plugin: Endevor (Broadcom)
-
-10 command tools (list environments, stages, systems, elements; retrieve, print) + 4 profile management tools
 
 </div>
 </div>

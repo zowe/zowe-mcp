@@ -1,4 +1,7 @@
+<!-- Last reviewed commit: e5e21de (2026-03-31) — Added CLI Plugin Bridge slide; updated Option 3 on Extensibility slide to "Available Now"; added last-updated date to title slide -->
+
 ---
+
 theme: default
 title: 'Zowe MCP: AI-Powered z/OS Access'
 info: |
@@ -958,7 +961,7 @@ Expose any **Zowe CLI plug-in** as MCP tools via a declarative **YAML definition
 - **Connection** profiles — host, port, credentials per plugin
 - **Location** profiles — per-tool context (e.g. Endevor env/stage)
 - Auto-generated management tools: `listConnections`, `setConnection`
-- **Hot-reload** — VS Code settings immediately take effect
+- **Hot-reload** — VS Code setting changes take effect immediately without restart
 
 </div>
 <div>

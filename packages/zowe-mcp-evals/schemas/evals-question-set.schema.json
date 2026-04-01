@@ -121,7 +121,10 @@
                 "type": "string",
                 "description": "Hostname (default for endevor: 'localhost')."
               },
-              "port": { "type": "integer", "description": "Port number." },
+              "port": {
+                "anyOf": [{ "type": "integer" }, { "type": "string" }],
+                "description": "Port number. Accepts an integer or an env-var placeholder string (e.g. \"${DB2_PORT}\") which is resolved at load time."
+              },
               "user": {
                 "type": "string",
                 "description": "Username (default for endevor: 'USER')."
@@ -138,9 +141,13 @@
                 "type": "string",
                 "description": "API base path (default for endevor: 'EndevorService/api/v2')."
               },
+              "database": {
+                "type": "string",
+                "description": "Database name / Db2 location name (e.g. D13APTIB). Passed as-is to the connection profile."
+              },
               "pluginParams": {
                 "type": "object",
-                "description": "Plugin-specific params (default for endevor: { instance: 'ENDEVOR' }).",
+                "description": "Plugin-specific params passed to the connection profile. All entries are added in addition to the standard fields (use for fields not in the standard interface, e.g. subsystem, region). Default for endevor: { instance: 'ENDEVOR' }.",
                 "additionalProperties": { "type": "string" }
               }
             }
@@ -152,7 +159,7 @@
         },
         "cliPluginDescVariant": {
           "type": "string",
-          "description": "Description variant for CLI bridge tools (--cli-plugin-desc-variant). Values: cli | intent | optimized or any custom name."
+          "description": "Description variant for CLI bridge tools (--cli-plugin-desc-variant). Values: cli | optimized or any custom name."
         },
         "mcpServerScript": {
           "type": "string",

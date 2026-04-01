@@ -95,7 +95,7 @@ interface ParsedArgs {
    * Each entry activates one plugin YAML. When connectionFile is present its JSON is read as CliPluginProfilesFile.
    */
   cliPlugins: CliPluginEntry[];
-  /** Description variant applied to all CLI plugins (cli | intent | optimized). Sets ZOWE_MCP_CLI_DESC_VARIANT. */
+  /** Description variant applied to all CLI plugins (cli | optimized). Sets ZOWE_MCP_CLI_DESC_VARIANT. */
   cliPluginDescVariant?: string;
   /**
    * Directory to scan for plugin YAML files. Defaults to `<server-dist>/tools/cli-bridge/plugins/`.
@@ -109,7 +109,7 @@ interface ParsedArgs {
   enabledCliPlugins: string[];
   /**
    * Map of plugin name to connection JSON file path for auto-discovered plugins.
-   * Populated from repeatable --cli-plugin-connection name=file flags.
+   * Populated from repeatable --cli-plugin-configuration name=file flags.
    */
   cliPluginConfiguration: Record<string, string>;
 }
@@ -370,7 +370,7 @@ function parseArgs(): ParsedArgs {
       'cli-plugin-desc-variant': {
         type: 'string',
         describe:
-          'Description variant for CLI plugin tools: cli, intent, or optimized (default: intent). Sets ZOWE_MCP_CLI_DESC_VARIANT.',
+          'Description variant for CLI plugin tools: cli or optimized (default: optimized). Sets ZOWE_MCP_CLI_DESC_VARIANT.',
       },
       'cli-plugins-dir': {
         type: 'string',
@@ -384,11 +384,11 @@ function parseArgs(): ParsedArgs {
         describe:
           'Plugin name(s) to enable from the plugins directory (repeatable). Default: all plugins in the dir.',
       },
-      'cli-plugin-connection': {
+      'cli-plugin-configuration': {
         type: 'array',
         string: true,
         describe:
-          'Connection file for an auto-discovered plugin: name=connfile (repeatable, e.g. endevor=/path/to/conn.json).',
+          'Connection file for an auto-discovered plugin: name=connfile (repeatable, e.g. db2=/path/to/conn.json).',
       },
     })
     .alias('h', 'help')
@@ -450,7 +450,7 @@ function parseArgs(): ParsedArgs {
       )
     : [];
 
-  const cliPluginConnectionArg = argv['cli-plugin-connection'];
+  const cliPluginConnectionArg = argv['cli-plugin-configuration'];
   const cliPluginConfiguration: Record<string, string> = {};
   if (Array.isArray(cliPluginConnectionArg)) {
     for (const entry of cliPluginConnectionArg as string[]) {
@@ -1211,12 +1211,12 @@ async function main(): Promise<void> {
       logger.info('CLI plugin bridge tools registered (explicit)', {
         yamlPath: entry.yamlPath,
         connectionFile: entry.connectionFile,
-        descVariant: process.env.ZOWE_MCP_CLI_DESC_VARIANT ?? 'intent',
+        descVariant: process.env.ZOWE_MCP_CLI_DESC_VARIANT ?? 'optimized',
       });
     }
 
     // Collect plugin YAML files from built-in dir and vendor dirs
-    const yamlEntries: Array<{ fileName: string; yamlPath: string; source: string }> = [];
+    const yamlEntries: { fileName: string; yamlPath: string; source: string }[] = [];
 
     const pluginsDir =
       parsed.cliPluginsDir ?? resolve(__dirname, 'tools', 'cli-bridge', 'plugins');
@@ -1225,19 +1225,24 @@ async function main(): Promise<void> {
         logger.warning('CLI plugins directory not found', { pluginsDir });
       }
     } else {
-      for (const f of readdirSync(pluginsDir).filter((f: string) => f.endsWith('.yaml'))) {
+      for (const f of readdirSync(pluginsDir).filter(
+        (f: string) => f.endsWith('.yaml') && !f.endsWith('-commands.yaml')
+      )) {
         yamlEntries.push({ fileName: f, yamlPath: resolve(pluginsDir, f), source: 'built-in' });
       }
     }
 
     // Vendor scan: <repo-root>/vendor/*/cli-bridge-plugins/*.yaml
+    // Companion files (*-commands.yaml) are loaded by the tools YAML loader via $.path refs — skip here.
     const vendorDir = resolve(__dirname, '..', '..', '..', 'vendor');
     if (existsSync(vendorDir)) {
       for (const entry of readdirSync(vendorDir, { withFileTypes: true })) {
         if (!entry.isDirectory()) continue;
         const vPluginsDir = resolve(vendorDir, entry.name, 'cli-bridge-plugins');
         if (!existsSync(vPluginsDir)) continue;
-        for (const f of readdirSync(vPluginsDir).filter((f: string) => f.endsWith('.yaml'))) {
+        for (const f of readdirSync(vPluginsDir).filter(
+          (f: string) => f.endsWith('.yaml') && !f.endsWith('-commands.yaml')
+        )) {
           yamlEntries.push({
             fileName: f,
             yamlPath: resolve(vPluginsDir, f),
@@ -1264,7 +1269,7 @@ async function main(): Promise<void> {
         });
         continue;
       }
-      // Build state from profiles file (--cli-plugin-connection map)
+      // Build state from profiles file (--cli-plugin-configuration map)
       let profilesFile: CliPluginProfilesFile = {};
       const connFile = parsed.cliPluginConfiguration[heuristicName];
       if (connFile) {
@@ -1281,7 +1286,7 @@ async function main(): Promise<void> {
         yamlPath,
         source,
         connectionFile: connFile,
-        descVariant: process.env.ZOWE_MCP_CLI_DESC_VARIANT ?? 'intent',
+        descVariant: process.env.ZOWE_MCP_CLI_DESC_VARIANT ?? 'optimized',
       });
     }
   }

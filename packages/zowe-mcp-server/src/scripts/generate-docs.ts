@@ -32,6 +32,7 @@ import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { spawnSync } from 'node:child_process';
 import {
   existsSync,
+  mkdirSync,
   mkdtempSync,
   readdirSync,
   readFileSync,
@@ -931,12 +932,12 @@ async function main(): Promise<void> {
       }
 
       // Collect plugin YAML entries from built-in dir and vendor dirs
-      const pluginYamlEntries: Array<{ yamlFile: string; yamlPath: string; source: string }> = [];
+      const pluginYamlEntries: { yamlFile: string; yamlPath: string; source: string }[] = [];
 
       const pluginsDir = resolve(__dirname, '..', 'tools', 'cli-bridge', 'plugins');
       if (existsSync(pluginsDir)) {
-        for (const yamlFile of readdirSync(pluginsDir).filter((f: string) =>
-          f.endsWith('.yaml')
+        for (const yamlFile of readdirSync(pluginsDir).filter(
+          (f: string) => f.endsWith('.yaml') && !f.endsWith('-commands.yaml')
         )) {
           pluginYamlEntries.push({
             yamlFile,
@@ -952,14 +953,15 @@ async function main(): Promise<void> {
       }
 
       // Vendor scan: <repo-root>/vendor/*/cli-bridge-plugins/*.yaml
+      // Companion files (*-commands.yaml) are loaded by the tools YAML loader via $.path refs — skip here.
       const vendorDir = resolve(__dirname, '..', '..', '..', '..', 'vendor');
       if (existsSync(vendorDir)) {
         for (const entry of readdirSync(vendorDir, { withFileTypes: true })) {
           if (!entry.isDirectory()) continue;
           const vPluginsDir = resolve(vendorDir, entry.name, 'cli-bridge-plugins');
           if (!existsSync(vPluginsDir)) continue;
-          for (const yamlFile of readdirSync(vPluginsDir).filter((f: string) =>
-            f.endsWith('.yaml')
+          for (const yamlFile of readdirSync(vPluginsDir).filter(
+            (f: string) => f.endsWith('.yaml') && !f.endsWith('-commands.yaml')
           )) {
             pluginYamlEntries.push({
               yamlFile,
@@ -969,6 +971,9 @@ async function main(): Promise<void> {
           }
         }
       }
+
+      // Track vendor plugin groups separately so we can write per-vendor docs.
+      const vendorGroupsByVendor = new Map<string, ToolGroup[]>();
 
       for (const { yamlFile, yamlPath, source } of pluginYamlEntries) {
         // Docs generation never calls tools, so an empty state is sufficient here.
@@ -982,19 +987,28 @@ async function main(): Promise<void> {
         ]);
         const pluginTools = allTools.filter(t => !knownToolNames.has(t.name));
         if (pluginTools.length > 0) {
-          toolGroups.push({
+          const group: ToolGroup = {
             label: `${pluginConfig.plugin} CLI Plugin Tools`,
             description:
               `Registered from \`${source}\`. ` +
               'Configure a connection via `zoweMCP.cliPluginConfiguration` (VS Code) or ' +
-              `\`--cli-plugin-connection ${pluginConfig.plugin}=<connfile>\` (standalone).`,
+              `\`--cli-plugin-configuration ${pluginConfig.plugin}=<connfile>\` (standalone).`,
             tools: pluginTools,
-          });
+          };
+          toolGroups.push(group);
           log.info('Registered CLI bridge plugin tools', {
             plugin: pluginConfig.plugin,
             yamlFile,
             count: pluginTools.length,
           });
+          // Track per-vendor groups for vendor-only reference docs.
+          const vendorMatch = /^vendor\/([^/]+)\//.exec(source);
+          if (vendorMatch) {
+            const vendorName = vendorMatch[1];
+            const existing = vendorGroupsByVendor.get(vendorName) ?? [];
+            existing.push(group);
+            vendorGroupsByVendor.set(vendorName, existing);
+          }
         }
       }
 
@@ -1157,6 +1171,31 @@ async function main(): Promise<void> {
       writeFileSync(output, markdown, 'utf-8');
       log.info(`Documentation written to ${output}`);
       process.stdout.write(`Documentation written to ${output}\n`);
+
+      // Write per-vendor reference docs containing only that vendor's CLI plugin tools.
+      for (const [vendorName, vGroups] of vendorGroupsByVendor) {
+        const vendorDocDir = resolve(vendorDir, vendorName, 'docs');
+        if (!existsSync(vendorDocDir)) {
+          mkdirSync(vendorDocDir, { recursive: true });
+        }
+        const vendorDocPath = resolve(vendorDocDir, 'mcp-reference-vendor.md');
+        const vSections: string[] = [];
+        vSections.push(
+          '<!-- markdownlint-disable MD004 MD009 MD012 MD024 MD031 MD032 MD034 MD036 MD037 MD060 -->\n'
+        );
+        const vName = vendorName.charAt(0).toUpperCase() + vendorName.slice(1);
+        vSections.push(`# ${vName} CLI Plugin Tools Reference\n`);
+        vSections.push(
+          `> Auto-generated from the Zowe MCP server (v${SERVER_VERSION}${commitInfo}). ` +
+            `Do not edit manually — run \`npx @zowe/mcp-server generate-docs\` to regenerate.\n` +
+            `\n> For core Zowe MCP tools, see [docs/mcp-reference.md](../../../docs/mcp-reference.md).\n`
+        );
+        vSections.push(generateToolsSection(vGroups, examples));
+        const vendorMarkdown = formatMarkdownTables(vSections.join('\n'));
+        writeFileSync(vendorDocPath, vendorMarkdown, 'utf-8');
+        log.info(`Vendor documentation written to ${vendorDocPath}`);
+        process.stdout.write(`Vendor documentation written to ${vendorDocPath}\n`);
+      }
     } finally {
       await client.close();
       await server.close();

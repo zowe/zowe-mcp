@@ -2,9 +2,9 @@
 
 # Zowe MCP Server Reference
 
-> Auto-generated from the MCP server (v0.8.0-dev, commit e37440f). Do not edit manually — run `npx @zowe/mcp-server generate-docs` to regenerate.
+> Auto-generated from the MCP server (v0.8.0-dev, commit a82cbae). Do not edit manually — run `npx @zowe/mcp-server generate-docs` to regenerate.
 
-This document describes all [Context](#context), [Data Sets](#data-sets), [USS](#uss), [TSO](#tso), [Jobs](#jobs), [Local Files](#local-files), [Endevor CLI Plugin Tools](#endevor-cli-plugin-tools), [Tool Reference](#tool-reference), [Prompts](#prompts), [Resource Templates](#resource-templates) provided by the Zowe MCP Server.
+This document describes all [Context](#context), [Data Sets](#data-sets), [USS](#uss), [TSO](#tso), [Jobs](#jobs), [Local Files](#local-files), [db2 CLI Plugin Tools](#db2-cli-plugin-tools), [Tool Reference](#tool-reference), [Prompts](#prompts), [Resource Templates](#resource-templates) provided by the Zowe MCP Server.
 
 ## Context
 
@@ -115,25 +115,19 @@ Transfer files between z/OS (data sets and USS paths) and the local workspace.
 | 4 | [`uploadFileToUssFile`](#uploadfiletoussfile)     | Upload a UTF-8 workspace file to a z/OS USS path                                             |
 | 5 | [`downloadJobFileToFile`](#downloadjobfiletofile) | Download one job spool file from z/OS to a local workspace file as UTF-8 text                |
 
-## Endevor CLI Plugin Tools
+## db2 CLI Plugin Tools
 
-The server provides **11** tools.
+The server provides **5** tools.
 
-Registered from `plugins/endevor-tools.yaml`. These tools require the [Zowe CLI Endevor plug-in](https://www.npmjs.com/package/@broadcom/endevor-for-zowe-cli) to be installed. Configure a connection via `zoweMCP.cliPluginConfiguration` (VS Code) or `--cli-plugin-connection endevor=<connfile>` (standalone).
+Registered from `vendor/zowe/cli-bridge-plugins/db2-tools.yaml`. Configure a connection via `zoweMCP.cliPluginConfiguration` (VS Code) or `--cli-plugin-configuration db2=<connfile>` (standalone).
 
-| #  | Tool                                                        | Description                                                                                                                         |
-|----|-------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------|
-| 1  | [`endevorSetContext`](#endevorsetcontext)                   | Sets the default Endevor location context (environment, stageNumber, system, subsystem, type) for all subsequent Endevor tool calls |
-| 2  | [`endevorListEnvironments`](#endevorlistenvironments)       | Lists all available Endevor environments                                                                                            |
-| 3  | [`endevorListStages`](#endevorliststages)                   | Lists the stages (1, 2) configured for the given environment                                                                        |
-| 4  | [`endevorListSystems`](#endevorlistsystems)                 | Lists all systems within the given environment and stage                                                                            |
-| 5  | [`endevorListSubsystems`](#endevorlistsubsystems)           | Lists all subsystems within the given environment, stage, and system                                                                |
-| 6  | [`endevorListTypes`](#endevorlisttypes)                     | Lists element types (e.g. COBPGM, COPYBOOK, JCL) within the given location                                                          |
-| 7  | [`endevorListElements`](#endevorlistelements)               | Lists elements in the Endevor inventory matching the given location (environment, stageNumber, system, subsystem, type)             |
-| 8  | [`endevorPrintElement`](#endevorprintelement)               | Retrieves and returns the source code content of an Endevor element                                                                 |
-| 9  | [`endevorListProcessorGroups`](#endevorlistprocessorgroups) | Lists processor groups defined for the given element type in Endevor                                                                |
-| 10 | [`endevorQueryComponents`](#endevorquerycomponents)         | Queries the components (dependencies) used by a specific element in Endevor                                                         |
-| 11 | [`endevorListPackages`](#endevorlistpackages)               | Lists Endevor packages (change bundles used to promote elements through environments)                                               |
+| # | Tool                                        | Description                                                                                                                                                                              |
+|---|---------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| 1 | [`db2ListConnections`](#db2listconnections) | Lists all configured Db2 connection profiles                                                                                                                                             |
+| 2 | [`db2SetConnection`](#db2setconnection)     | Sets the active Db2 connection                                                                                                                                                           |
+| 3 | [`db2ExecuteSql`](#db2executesql)           | Executes one or more SQL statements against a Db2 for z/OS subsystem to query, modify, or define database objects, including built-in catalog queries, and returns paginated result rows |
+| 4 | [`db2CallProcedure`](#db2callprocedure)     | Calls a Db2 stored procedure, returning its output parameters and result sets                                                                                                            |
+| 5 | [`db2ExportTable`](#db2exporttable)         | Exports a Db2 table as SQL INSERT statements, returning its full content in SQL format for backup, migration, or inspection                                                              |
 
 ## Tool Reference
 
@@ -2159,13 +2153,13 @@ Output:
     "totalLines": 1,
     "startLine": 1,
     "returnedLines": 1,
-    "contentLength": 75,
+    "contentLength": 74,
     "mimeType": "text/plain",
     "hasMore": false
   },
   "data": {
     "lines": [
-      "TIME-09:59:11 PM. CPU-00:00:00 SERVICE-26895 SESSION-00:01:53 MARCH 25,2026"
+      "TIME-10:28:15 PM. CPU-00:00:00 SERVICE-26895 SESSION-00:01:53 APRIL 1,2026"
     ],
     "mimeType": "text/plain"
   }
@@ -2799,201 +2793,79 @@ Download one job spool file from z/OS to a local workspace file as UTF-8 text. U
 
 ---
 
-### `endevorSetContext`
-
-
-Sets the default Endevor location context (environment, stageNumber, system, subsystem, type) for all subsequent Endevor tool calls. Call this once before working with elements to avoid repeating location parameters on every invocation.
-
-#### Parameters
-
-| Parameter     | Type     | Required | Description                                                                                   |
-|---------------|----------|----------|-----------------------------------------------------------------------------------------------|
-| `environment` | `string` | No       | Name of the Endevor environment (e.g. DEV, PRD). Wildcards (*,%) are supported.               |
-| `stageNumber` | `string` | No       | The Endevor stage number (1 or 2).                                                            |
-| `system`      | `string` | No       | Name of the Endevor system (e.g. SYS1). Wildcards (*,%) are supported.                        |
-| `subsystem`   | `string` | No       | Name of the Endevor subsystem (e.g. SUB1). Wildcards (*,%) are supported.                     |
-| `type`        | `string` | No       | Name of the Endevor element type (e.g. COBPGM, COPYBOOK, JCL). Wildcards (*,%) are supported. |
-
----
-
-### `endevorListEnvironments`
+### `db2ListConnections`
 
 > Read-only
 
-Lists all available Endevor environments. Use this to discover the environments configured in the Endevor instance (e.g. DEV, PRD) before working with elements.
+Lists all configured Db2 connection profiles.
 
 #### Parameters
 
-| Parameter     | Type     | Required | Description                                                     |
-|---------------|----------|----------|-----------------------------------------------------------------|
-| `environment` | `string` | No       | Name of the Endevor environment. Wildcards (*,%) are supported. |
-| `instance`    | `string` | No       | Name of the Endevor Web Services instance.                      |
+*No parameter.*
 
 ---
 
-### `endevorListStages`
+### `db2SetConnection`
 
-> Read-only
 
-Lists the stages (1, 2) configured for the given environment. Use this to discover which stage numbers are valid before listing elements.
+Sets the active Db2 connection. Call once before using tools; auto-selected when only one profile is configured.
 
 #### Parameters
 
-| Parameter     | Type     | Required | Description                                                                     |
-|---------------|----------|----------|---------------------------------------------------------------------------------|
-| `environment` | `string` | No       | Name of the Endevor environment (e.g. DEV, PRD). Wildcards (*,%) are supported. |
-| `stage`       | `string` | No       | Stage number filter (1 or 2). Use * for all stages.                             |
-| `instance`    | `string` | No       | Name of the Endevor Web Services instance.                                      |
+| Parameter      | Type     | Required | Description                                       |
+|----------------|----------|----------|---------------------------------------------------|
+| `connectionId` | `string` | Yes      | The ID of the Db2 connection profile to activate. |
 
 ---
 
-### `endevorListSystems`
+### `db2ExecuteSql`
 
-> Read-only
+> Destructive
 
-Lists all systems within the given environment and stage. Use this to discover system names (e.g. SYS1, ACME) before listing elements.
+Executes one or more SQL statements against a Db2 for z/OS subsystem to query, modify, or define database objects, including built-in catalog queries, and returns paginated result rows. Results are paginated (default 500, max 1000 per page); follow the pagination instructions in the server instructions.
 
 #### Parameters
 
-| Parameter     | Type     | Required | Description                                                                     |
-|---------------|----------|----------|---------------------------------------------------------------------------------|
-| `environment` | `string` | No       | Name of the Endevor environment (e.g. DEV, PRD). Wildcards (*,%) are supported. |
-| `stageNumber` | `string` | No       | The Endevor stage number (1 or 2).                                              |
-| `system`      | `string` | No       | Name of the Endevor system. Wildcards (*,%) are supported.                      |
-| `instance`    | `string` | No       | Name of the Endevor Web Services instance.                                      |
+| Parameter      | Type      | Required | Description                                                                                                                                                                                                      |
+|----------------|-----------|----------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `connectionId` | `string`  | No       | Override the active Db2 connection for this single call without changing the global default.                                                                                                                     |
+| `query`        | `string`  | Yes      | The SQL statement to execute. Enclose in double quotes. Separate multiple statements with semicolons. To list all tables for a schema use: "SELECT NAME, TYPE FROM SYSIBM.SYSTABLES WHERE CREATOR = 'MYSCHEMA'". |
+| `offset`       | `integer` | No       | Zero-based index of the first item to return. Use 0 for the first page. (default: `0`)                                                                                                                           |
+| `limit`        | `integer` | No       | Maximum items to return per page (max 1000). (default: `200`)                                                                                                                                                    |
 
 ---
 
-### `endevorListSubsystems`
+### `db2CallProcedure`
 
-> Read-only
+> Destructive
 
-Lists all subsystems within the given environment, stage, and system. Use this to discover subsystem names (e.g. SUB1, CORE) before listing elements.
+Calls a Db2 stored procedure, returning its output parameters and result sets. Specify the fully qualified procedure name and provide input or output parameters using (?, ?) markers with values supplied via the parameters option.
 
 #### Parameters
 
-| Parameter     | Type     | Required | Description                                                                     |
-|---------------|----------|----------|---------------------------------------------------------------------------------|
-| `environment` | `string` | No       | Name of the Endevor environment (e.g. DEV, PRD). Wildcards (*,%) are supported. |
-| `stageNumber` | `string` | No       | The Endevor stage number (1 or 2).                                              |
-| `system`      | `string` | No       | Name of the Endevor system (e.g. SYS1). Wildcards (*,%) are supported.          |
-| `subsystem`   | `string` | No       | Name of the Endevor subsystem. Wildcards (*,%) are supported.                   |
-| `instance`    | `string` | No       | Name of the Endevor Web Services instance.                                      |
+| Parameter      | Type     | Required | Description                                                                                                                                                                                                        |
+|----------------|----------|----------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `connectionId` | `string` | No       | Override the active Db2 connection for this single call without changing the global default.                                                                                                                       |
+| `routine`      | `string` | Yes      | The fully qualified stored procedure name with optional parameter markers, e.g. "SCHEMA.PROC_NAME" or "SCHEMA.PROC_NAME(?, ?)".                                                                                    |
+| `parameters`   | `string` | No       | Space-separated values to bind to the stored procedure parameter markers (?). For output parameters, pass a placeholder string whose length equals the expected output length, e.g. "00" for a 2-character output. |
 
 ---
 
-### `endevorListTypes`
+### `db2ExportTable`
 
 > Read-only
 
-Lists element types (e.g. COBPGM, COPYBOOK, JCL) within the given location. Use this to discover what types exist before listing or retrieving elements.
+Exports a Db2 table as SQL INSERT statements, returning its full content in SQL format for backup, migration, or inspection. Results may be line-windowed; follow the pagination instructions in the server instructions.
 
 #### Parameters
 
-| Parameter     | Type     | Required | Description                                                                                   |
-|---------------|----------|----------|-----------------------------------------------------------------------------------------------|
-| `environment` | `string` | No       | Name of the Endevor environment (e.g. DEV, PRD). Wildcards (*,%) are supported.               |
-| `stageNumber` | `string` | No       | The Endevor stage number (1 or 2).                                                            |
-| `system`      | `string` | No       | Name of the Endevor system (e.g. SYS1). Wildcards (*,%) are supported.                        |
-| `type`        | `string` | No       | Name of the Endevor element type. Wildcards (*,%) are supported (e.g. COBPGM, COPYBOOK, JCL). |
-| `instance`    | `string` | No       | Name of the Endevor Web Services instance.                                                    |
-
----
-
-### `endevorListElements`
-
-> Read-only
-
-Lists elements in the Endevor inventory matching the given location (environment, stageNumber, system, subsystem, type). All location parameters default to the active context set by endevorSetContext. Use wildcard * to match all values for a location level (e.g. system=* lists across all systems).
-
-#### Parameters
-
-| Parameter     | Type     | Required | Description                                                                                                                                                                           |
-|---------------|----------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `environment` | `string` | No       | Name of the Endevor environment (e.g. DEV, PRD). Wildcards (*,%) are supported.                                                                                                       |
-| `stageNumber` | `string` | No       | The Endevor stage number (1 or 2).                                                                                                                                                    |
-| `system`      | `string` | No       | Name of the Endevor system (e.g. SYS1). Wildcards (*,%) are supported.                                                                                                                |
-| `subsystem`   | `string` | No       | Name of the Endevor subsystem (e.g. SUB1). Wildcards (*,%) are supported.                                                                                                             |
-| `type`        | `string` | No       | Name of the Endevor element type (e.g. COBPGM, COPYBOOK, JCL). Wildcards (*,%) are supported.                                                                                         |
-| `element`     | `string` | No       | Element name filter. Supports wildcards: * matches any characters. Omit or use * to list all elements in the location.                                                                |
-| `instance`    | `string` | No       | Name of the Endevor Web Services instance.                                                                                                                                            |
-| `search`      | `string` | No       | When true, searches through the Endevor map to include elements from preceding stages (map traversal / search up the map).                                                            |
-| `data`        | `string` | No       | Controls the level of metadata returned per element. BAS (default) = basic fields only; ELE = adds last-action info; ALL = all fields including package, processor, and signout data. |
-
----
-
-### `endevorPrintElement`
-
-> Read-only
-
-Retrieves and returns the source code content of an Endevor element. Use this to read the content of a COBOL program, copybook, JCL, or any other element type stored in Endevor.
-
-#### Parameters
-
-| Parameter     | Type     | Required | Description                                                                                   |
-|---------------|----------|----------|-----------------------------------------------------------------------------------------------|
-| `environment` | `string` | No       | Name of the Endevor environment (e.g. DEV, PRD). Wildcards (*,%) are supported.               |
-| `stageNumber` | `string` | No       | The Endevor stage number (1 or 2).                                                            |
-| `system`      | `string` | No       | Name of the Endevor system (e.g. SYS1). Wildcards (*,%) are supported.                        |
-| `subsystem`   | `string` | No       | Name of the Endevor subsystem (e.g. SUB1). Wildcards (*,%) are supported.                     |
-| `type`        | `string` | No       | Name of the Endevor element type (e.g. COBPGM, COPYBOOK, JCL). Wildcards (*,%) are supported. |
-| `element`     | `string` | Yes      | Name of the element whose source code to retrieve (e.g. PROG01, CPYBK01).                     |
-| `instance`    | `string` | No       | Name of the Endevor Web Services instance.                                                    |
-| `search`      | `string` | No       | When true, searches up the Endevor map to find the element in preceding stages.               |
-
----
-
-### `endevorListProcessorGroups`
-
-> Read-only
-
-Lists processor groups defined for the given element type in Endevor. Processor groups define how elements are generated, compiled, and deployed.
-
-#### Parameters
-
-| Parameter     | Type     | Required | Description                                                                                   |
-|---------------|----------|----------|-----------------------------------------------------------------------------------------------|
-| `environment` | `string` | No       | Name of the Endevor environment (e.g. DEV, PRD). Wildcards (*,%) are supported.               |
-| `stageNumber` | `string` | No       | The Endevor stage number (1 or 2).                                                            |
-| `system`      | `string` | No       | Name of the Endevor system (e.g. SYS1). Wildcards (*,%) are supported.                        |
-| `subsystem`   | `string` | No       | Name of the Endevor subsystem (e.g. SUB1). Wildcards (*,%) are supported.                     |
-| `type`        | `string` | No       | Name of the Endevor element type (e.g. COBPGM, COPYBOOK, JCL). Wildcards (*,%) are supported. |
-| `instance`    | `string` | No       | Name of the Endevor Web Services instance.                                                    |
-
----
-
-### `endevorQueryComponents`
-
-> Read-only
-
-Queries the components (dependencies) used by a specific element in Endevor. Use this to find what COBOL copybooks, subprograms, or JCL procedures an element depends on, enabling impact analysis and change management.
-
-#### Parameters
-
-| Parameter     | Type     | Required | Description                                                                                   |
-|---------------|----------|----------|-----------------------------------------------------------------------------------------------|
-| `environment` | `string` | No       | Name of the Endevor environment (e.g. DEV, PRD). Wildcards (*,%) are supported.               |
-| `stageNumber` | `string` | No       | The Endevor stage number (1 or 2).                                                            |
-| `system`      | `string` | No       | Name of the Endevor system (e.g. SYS1). Wildcards (*,%) are supported.                        |
-| `subsystem`   | `string` | No       | Name of the Endevor subsystem (e.g. SUB1). Wildcards (*,%) are supported.                     |
-| `type`        | `string` | No       | Name of the Endevor element type (e.g. COBPGM, COPYBOOK, JCL). Wildcards (*,%) are supported. |
-| `element`     | `string` | Yes      | Name of the element to query for component dependencies (e.g. PROG01).                        |
-| `instance`    | `string` | No       | Name of the Endevor Web Services instance.                                                    |
-
----
-
-### `endevorListPackages`
-
-> Read-only
-
-Lists Endevor packages (change bundles used to promote elements through environments). Use this to discover packages, their status, and associated elements for release management and promotion tracking.
-
-#### Parameters
-
-| Parameter  | Type     | Required | Description                                                                    |
-|------------|----------|----------|--------------------------------------------------------------------------------|
-| `instance` | `string` | No       | Name of the Endevor Web Services instance.                                     |
-| `status`   | `string` | No       | Status of the Endevor package (e.g. INENDEVOR, APPROVED, EXECUTED, COMMITTED). |
+| Parameter      | Type      | Required | Description                                                                                  |
+|----------------|-----------|----------|----------------------------------------------------------------------------------------------|
+| `connectionId` | `string`  | No       | Override the active Db2 connection for this single call without changing the global default. |
+| `table`        | `string`  | Yes      | The fully qualified table name to export, e.g. "SCHEMA.TABLE_NAME".                          |
+| `separator`    | `string`  | No       | Specify whether to add a separator between statements when exporting a table                 |
+| `startLine`    | `integer` | No       | First line to return (1-based). Omit to start from line 1.                                   |
+| `lineCount`    | `integer` | No       | Number of lines per window (default 1000). Used with startLine for windowed reads.           |
 
 ---
 

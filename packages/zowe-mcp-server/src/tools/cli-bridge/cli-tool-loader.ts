@@ -256,19 +256,19 @@ export function loadPluginYaml(yamlPath: string): CliPluginConfig {
  * or PluginToolDef).
  *
  * Priority:
- *   descriptions[variant] → descriptions.intent → descriptions.cli
+ *   descriptions[variant] → descriptions.optimized → descriptions.cli
  *   → first non-empty descriptions value → description (plain) → ''
  */
 export function resolveFieldDescription(
   item: { description?: string; descriptions?: Record<string, string | undefined> },
   variant?: string
 ): string {
-  const v = variant ?? process.env.ZOWE_MCP_CLI_DESC_VARIANT ?? 'intent';
+  const v = variant ?? process.env.ZOWE_MCP_CLI_DESC_VARIANT ?? 'optimized';
   const descs = item.descriptions;
   if (descs) {
     const text =
       descs[v] ??
-      descs.intent ??
+      descs.optimized ??
       descs.cli ??
       Object.values(descs).find(val => val != null && val !== '');
     if (text) return text;
@@ -280,14 +280,14 @@ export function resolveFieldDescription(
  * Returns the active description text for a tool.
  *
  * Priority:
- *   tool.activeDescription > pluginActiveDescription > ZOWE_MCP_CLI_DESC_VARIANT env > 'intent' > 'cli' > first available
+ *   tool.activeDescription > pluginActiveDescription > ZOWE_MCP_CLI_DESC_VARIANT env > 'optimized' > 'cli' > first available
  */
 export function resolveDescription(tool: PluginToolDef, pluginActiveDescription?: string): string {
   const variant =
     tool.activeDescription ??
     pluginActiveDescription ??
     process.env.ZOWE_MCP_CLI_DESC_VARIANT ??
-    'intent';
+    'optimized';
   return resolveFieldDescription(tool, variant) || tool.toolName;
 }
 
@@ -645,7 +645,7 @@ function registerProfileTools(
 ): void {
   if (!config.profiles) return;
 
-  const variant = activeDescription ?? process.env.ZOWE_MCP_CLI_DESC_VARIANT ?? 'intent';
+  const variant = activeDescription ?? process.env.ZOWE_MCP_CLI_DESC_VARIANT ?? 'optimized';
 
   for (const [typeKey, typeDef] of Object.entries(config.profiles)) {
     // ---- List tool -------------------------------------------------------
@@ -881,7 +881,7 @@ function buildRemediationHint(state: CliPluginState, pluginName?: string): strin
   return (
     `This is a configuration error — do NOT retry this or other ${plugin}tools. ` +
     `Check the ${plugin}connection configuration file ` +
-    `(passed via --cli-plugin-connection or configured in mcp.json). ` +
+    `(passed via --cli-plugin-configuration or configured in mcp.json). ` +
     `Verify that the host, port, and protocol are correct and that the server is reachable.`
   );
 }
@@ -1033,7 +1033,8 @@ async function handleListPagination(
       config,
       state,
       command,
-      toolLog
+      toolLog,
+      toolDef.fatalOnCliError !== false
     );
   }
 
@@ -1142,7 +1143,8 @@ async function handleContentWindowing(
       config,
       state,
       command,
-      toolLog
+      toolLog,
+      toolDef.fatalOnCliError !== false
     );
   }
 
@@ -1170,8 +1172,13 @@ async function handleContentWindowing(
 // ---------------------------------------------------------------------------
 
 /**
- * Builds a fatal CLI error response (CONFIGURATION ERROR pattern) used by
- * both the paginated and non-paginated paths.
+ * Builds a CLI error response used by both the paginated and non-paginated paths.
+ *
+ * When `fatalOnCliError` is `false` (set on the tool def), the failure is returned
+ * as an ordinary tool execution error (`isError: true`, no `stop`) so the LLM can
+ * retry with corrected input (e.g. a fixed SQL statement).  When `true` (default),
+ * the full FATAL CONFIGURATION ERROR pattern is used to prevent infinite retry loops
+ * on misconfigured connections.
  */
 function buildCliErrorResponse(
   errorMessage: string,
@@ -1179,16 +1186,35 @@ function buildCliErrorResponse(
   config: CliPluginConfig,
   state: CliPluginState,
   command: string[],
-  toolLog: Logger
+  toolLog: Logger,
+  fatalOnCliError = true
 ): { content: { type: 'text'; text: string }[]; isError: boolean } {
   const pluginLabel = config.displayName ?? config.plugin;
-  const remedy = buildRemediationHint(state, pluginLabel);
   toolLog.warning('CLI invocation failed', {
     command,
     ...(connectionSummary ? { connectionTarget: connectionSummary } : {}),
     error: errorMessage,
-    remedy,
+    fatalOnCliError,
   });
+
+  if (!fatalOnCliError) {
+    // Non-fatal: return as a regular tool execution error so the LLM can retry.
+    return {
+      content: [
+        {
+          type: 'text' as const,
+          text: JSON.stringify({
+            error: errorMessage,
+            ...(connectionSummary ? { connectionTarget: connectionSummary } : {}),
+          }),
+        },
+      ],
+      isError: true,
+    };
+  }
+
+  const remedy = buildRemediationHint(state, pluginLabel);
+  toolLog.warning('Fatal configuration error', { remedy });
   if (state.sendNotification) {
     const notifMsg = connectionSummary
       ? `${pluginLabel} tool failed (${connectionSummary}): ${errorMessage}`
@@ -1231,7 +1257,7 @@ function registerPluginTool(
     toolDef.activeDescription ??
     pluginActiveDescription ??
     process.env.ZOWE_MCP_CLI_DESC_VARIANT ??
-    'intent';
+    'optimized';
   let description = resolveDescription(toolDef, pluginActiveDescription);
 
   // Resolve the effective pagination config (merges plugin defaults + per-tool overrides)
@@ -1436,7 +1462,8 @@ function registerPluginTool(
           config,
           state,
           command,
-          toolLog
+          toolLog,
+          toolDef.fatalOnCliError !== false
         );
       }
 

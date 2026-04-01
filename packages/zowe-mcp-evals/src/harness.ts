@@ -188,18 +188,25 @@ function resolveCliPluginConnection(
   // Build CliPluginProfilesFile format
   const connectionProfile: Record<string, unknown> = { id: 'default' };
   if (merged.host !== undefined) connectionProfile.host = merged.host;
-  if (merged.port !== undefined) connectionProfile.port = merged.port;
+  if (merged.port !== undefined) connectionProfile.port = Number(merged.port);
   if (merged.user !== undefined) connectionProfile.user = merged.user;
   if (merged.protocol !== undefined) connectionProfile.protocol = merged.protocol;
   if (merged.basePath !== undefined) connectionProfile.basePath = merged.basePath;
+  if (merged.database !== undefined) connectionProfile.database = merged.database;
   if ((merged as { rejectUnauthorized?: boolean }).rejectUnauthorized !== undefined) {
     connectionProfile.rejectUnauthorized = (
       merged as { rejectUnauthorized?: boolean }
     ).rejectUnauthorized;
   }
   // instance from pluginParams (legacy) or top-level instance field
-  const instance = (merged as { instance?: string }).instance ?? merged.pluginParams?.instance;
+  const instance = merged.instance ?? merged.pluginParams?.instance;
   if (instance !== undefined) connectionProfile.instance = instance;
+  // All pluginParams entries are copied to the profile (generic extension point)
+  if (merged.pluginParams) {
+    for (const [k, v] of Object.entries(merged.pluginParams)) {
+      if (k !== 'instance') connectionProfile[k] = v;
+    }
+  }
 
   const profilesFile: Record<string, unknown> = {
     connection: { profiles: [connectionProfile], default: 'default' },
@@ -264,7 +271,7 @@ export class McpEvalHarness {
             resolveCliPluginConnection(pluginName, conn);
           const connFile = join(tmpdir(), `cli-plugin-conn-${pluginName}-${Date.now()}.json`);
           writeFileSync(connFile, JSON.stringify(profilesFile));
-          args.push('--cli-plugin-connection', `${pluginName}=${connFile}`);
+          args.push('--cli-plugin-configuration', `${pluginName}=${connFile}`);
           // Merge plugin password env vars into the process env for the server
           Object.assign(passwordEnvVarsForServer, pluginPasswordEnvVars);
         }

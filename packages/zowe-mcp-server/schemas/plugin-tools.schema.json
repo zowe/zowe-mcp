@@ -17,7 +17,7 @@
     },
     "activeDescription": {
       "type": "string",
-      "description": "Default description variant for all tools that do not specify their own activeDescription. Can be overridden at runtime by the ZOWE_MCP_CLI_DESC_VARIANT env var or --cli-plugin-desc-variant flag. Common values: 'cli', 'intent', 'optimized'."
+      "description": "Default description variant for all tools that do not specify their own activeDescription. Can be overridden at runtime by the ZOWE_MCP_CLI_DESC_VARIANT env var or --cli-plugin-desc-variant flag. Common values: 'cli', 'optimized'."
     },
     "pagination": {
       "$ref": "#/definitions/pluginPaginationConfig"
@@ -41,15 +41,11 @@
   "definitions": {
     "descriptionVariants": {
       "type": "object",
-      "description": "Per-variant description strings. Any variant name is valid (e.g. 'cli', 'intent', 'optimized', 'code4z-gen-ai'). Any value may use a '$.dotted.path' JSON reference that is resolved against the companion *-commands.yaml file at load time.",
+      "description": "Per-variant description strings. Any variant name is valid (e.g. 'cli', 'optimized'). Any value may use a '$.dotted.path' JSON reference that is resolved against the companion *-commands.yaml file at load time.",
       "properties": {
         "cli": {
           "type": "string",
           "description": "Original wording from the Zowe CLI --help text. May be a '$.dotted.path' reference into the companion *-commands.yaml (e.g. '$.endevor.list.environments.description')."
-        },
-        "intent": {
-          "type": "string",
-          "description": "Intent-centric rewrite designed for AI agents. Should start with a verb and explain what the tool accomplishes, not just what it does."
         },
         "optimized": {
           "type": "string",
@@ -355,7 +351,7 @@
         },
         "activeDescription": {
           "type": "string",
-          "description": "Description variant to use for this specific tool. Overrides plugin-level activeDescription and ZOWE_MCP_CLI_DESC_VARIANT. Common values: 'cli', 'intent', 'optimized'."
+          "description": "Description variant to use for this specific tool. Overrides plugin-level activeDescription and ZOWE_MCP_CLI_DESC_VARIANT. Common values: 'cli', 'optimized'."
         },
         "descriptions": {
           "$ref": "#/definitions/descriptionVariants",
@@ -405,6 +401,10 @@
         },
         "pagination": {
           "$ref": "#/definitions/toolPaginationSpec"
+        },
+        "fatalOnCliError": {
+          "type": "boolean",
+          "description": "When false, CLI invocation failures are returned as ordinary tool execution errors (isError: true) rather than fatal configuration errors (stop: true). Use for tools where the LLM may send invalid input that it can correct and retry (e.g. db2ExecuteSql where a bad SQL statement should be retryable). Defaults to true."
         }
       }
     }

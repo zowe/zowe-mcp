@@ -115,8 +115,8 @@ export interface MockServerDef {
 export interface CliPluginConnection {
   /** Hostname (default for endevor: 'localhost'). */
   host?: string;
-  /** Port number. */
-  port?: number;
+  /** Port number. Accepts an integer or a string (env-var placeholder resolved at load time). */
+  port?: number | string;
   /** Username (default for endevor: 'USER'). */
   user?: string;
   /** Password (default for endevor: 'PASSWORD'). Passed as ZOWE_MCP_PASSWORD_USER_HOST env var, not stored in the profiles file. */
@@ -127,7 +127,13 @@ export interface CliPluginConnection {
   basePath?: string;
   /** Endevor Web Services instance name (default for endevor: 'ENDEVOR'). */
   instance?: string;
-  /** Plugin-specific parameters (legacy, mapped to instance for endevor). */
+  /** Db2 location name / database name (e.g. D13APTIB). Passed as-is to the connection profile. */
+  database?: string;
+  /**
+   * Plugin-specific parameters passed directly to the connection profile.
+   * All key-value pairs are added to the profile in addition to the standard fields above.
+   * Use for plugin-specific fields not covered by the standard interface (e.g. subsystem, region).
+   */
   pluginParams?: Record<string, string>;
 }
 
@@ -149,7 +155,7 @@ export interface SetConfig {
   mockServers?: MockServerDef[];
   /**
    * Connection config per CLI plugin name. The harness writes each entry as a temp
-   * JSON connection file and passes `--cli-plugin-connection <name>=<file>` to the server.
+   * JSON connection file and passes `--cli-plugin-configuration <name>=<file>` to the server.
    * Known plugin defaults are applied automatically (e.g. for `endevor` the host, user,
    * password, protocol, basePath, and pluginParams are pre-filled).
    */
@@ -161,7 +167,7 @@ export interface SetConfig {
   cliPluginsDir?: string;
   /**
    * Description variant for CLI bridge tools (--cli-plugin-desc-variant).
-   * Values: 'cli' | 'intent' | 'optimized' or any custom variant name.
+   * Values: 'cli' | 'optimized' or any custom variant name.
    */
   cliPluginDescVariant?: string;
   /**

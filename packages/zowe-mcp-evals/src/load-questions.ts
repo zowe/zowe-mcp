@@ -239,16 +239,29 @@ function parseSetConfig(raw: unknown): SetConfig {
     for (const [name, val] of Object.entries(raw)) {
       if (val && typeof val === 'object') {
         const c = val as Record<string, unknown>;
+        const rawPort = c.port;
+        const resolvedPort =
+          typeof rawPort === 'number'
+            ? rawPort
+            : typeof rawPort === 'string'
+              ? parseInt(interpolateEnvVars(rawPort), 10) || undefined
+              : undefined;
         connections[name] = {
-          host: typeof c.host === 'string' ? c.host : undefined,
-          port: typeof c.port === 'number' ? c.port : undefined,
-          user: typeof c.user === 'string' ? c.user : undefined,
-          password: typeof c.password === 'string' ? c.password : undefined,
-          protocol: typeof c.protocol === 'string' ? c.protocol : undefined,
-          basePath: typeof c.basePath === 'string' ? c.basePath : undefined,
+          host: typeof c.host === 'string' ? interpolateEnvVars(c.host) : undefined,
+          port: resolvedPort,
+          user: typeof c.user === 'string' ? interpolateEnvVars(c.user) : undefined,
+          password: typeof c.password === 'string' ? interpolateEnvVars(c.password) : undefined,
+          protocol: typeof c.protocol === 'string' ? interpolateEnvVars(c.protocol) : undefined,
+          basePath: typeof c.basePath === 'string' ? interpolateEnvVars(c.basePath) : undefined,
+          database: typeof c.database === 'string' ? interpolateEnvVars(c.database) : undefined,
           pluginParams:
             c.pluginParams && typeof c.pluginParams === 'object'
-              ? (c.pluginParams as Record<string, string>)
+              ? Object.fromEntries(
+                  Object.entries(c.pluginParams as Record<string, string>).map(([k, v]) => [
+                    k,
+                    interpolateEnvVars(v),
+                  ])
+                )
               : undefined,
         };
       }
@@ -278,7 +291,15 @@ function parseSetConfig(raw: unknown): SetConfig {
  * left unchanged so callers can detect missing configuration.
  */
 function interpolateEnvVars(s: string): string {
-  return s.replace(/\$\{([^}]+)\}/g, (match, name: string) => process.env[name] ?? match);
+  return s.replace(/\$\{([^}]+)\}/g, (match, expr: string) => {
+    const colonDashIdx = expr.indexOf(':-');
+    if (colonDashIdx !== -1) {
+      const name = expr.slice(0, colonDashIdx);
+      const defaultVal = expr.slice(colonDashIdx + 2);
+      return process.env[name] ?? defaultVal;
+    }
+    return process.env[expr] ?? match;
+  });
 }
 
 export function loadSetYaml(path: string): QuestionSet {

@@ -373,7 +373,7 @@ export async function buildServerConfig(
       fs.mkdirSync(storageDir, { recursive: true });
       const connFile = path.join(storageDir, `cli-plugin-conn-${name}.json`);
       fs.writeFileSync(connFile, JSON.stringify(profilesObj));
-      args.push('--cli-plugin-connection', `${name}=${connFile}`);
+      args.push('--cli-plugin-configuration', `${name}=${connFile}`);
     }
   }
   if (enabledCliPlugins.length > 0 || Object.keys(cliPluginConfiguration).length > 0) {

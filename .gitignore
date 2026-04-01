@@ -92,3 +92,6 @@ presentations/zowe-mcp/slides-export.pdf
 
 # MCP Registry tokens
 packages/zowe-mcp-server/.mcpregistry_*
+
+# Db2 CLI trace file
+db2cli.trc

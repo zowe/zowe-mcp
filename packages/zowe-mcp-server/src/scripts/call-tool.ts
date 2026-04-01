@@ -87,10 +87,12 @@ function parseArgs(): {
   toolName: string | undefined;
   /** Everything after the tool name (key=value args). */
   argsRest: string[];
-  /** Path to a CliPluginProfilesFile JSON for the Endevor plugin. */
-  endevorConnectionFile?: string;
-  endevorYamlPath?: string;
-  endevorDescVariant?: string;
+  /** Generic CLI plugin connections: map of plugin name → connection file path. */
+  cliPluginConnections: Map<string, string>;
+  /** Optional explicit YAML paths per plugin name (--cli-plugin-yaml name=path). */
+  cliPluginYamls: Map<string, string>;
+  /** Optional description variant override. */
+  cliPluginDescVariant?: string;
 } {
   const args = process.argv.slice(2);
   let i = 0;
@@ -98,9 +100,9 @@ function parseArgs(): {
   let native = false;
   let configPath: string | undefined;
   const systemSpecs: string[] = [];
-  let endevorConnectionFile: string | undefined;
-  let endevorYamlPath: string | undefined;
-  let endevorDescVariant: string | undefined;
+  const cliPluginConnections = new Map<string, string>();
+  const cliPluginYamls = new Map<string, string>();
+  let cliPluginDescVariant: string | undefined;
 
   while (i < args.length) {
     const arg = args[i];
@@ -128,15 +130,41 @@ function parseArgs(): {
     } else if (arg === '--system' && i + 1 < args.length) {
       systemSpecs.push(args[i + 1]);
       i += 2;
-    } else if (arg === '--endevor-connection' && i + 1 < args.length) {
-      endevorConnectionFile = args[i + 1];
+    } else if (arg === '--cli-plugin-configuration' && i + 1 < args.length) {
+      // --cli-plugin-configuration name=file
+      const val = args[i + 1];
+      const eq = val.indexOf('=');
+      if (eq === -1)
+        throw new Error(`--cli-plugin-configuration requires name=file format, got: ${val}`);
+      cliPluginConnections.set(val.slice(0, eq), val.slice(eq + 1));
       i += 2;
-    } else if (arg === '--endevor-yaml' && i + 1 < args.length) {
-      endevorYamlPath = args[i + 1];
+    } else if (arg.startsWith('--cli-plugin-configuration=')) {
+      // --cli-plugin-configuration=name=file
+      const val = arg.slice('--cli-plugin-configuration='.length);
+      const eq = val.indexOf('=');
+      if (eq === -1)
+        throw new Error(`--cli-plugin-configuration requires name=file format, got: ${val}`);
+      cliPluginConnections.set(val.slice(0, eq), val.slice(eq + 1));
+      i += 1;
+    } else if (arg === '--cli-plugin-yaml' && i + 1 < args.length) {
+      // --cli-plugin-yaml name=path
+      const val = args[i + 1];
+      const eq = val.indexOf('=');
+      if (eq === -1) throw new Error(`--cli-plugin-yaml requires name=path format, got: ${val}`);
+      cliPluginYamls.set(val.slice(0, eq), val.slice(eq + 1));
       i += 2;
-    } else if (arg === '--endevor-desc-variant' && i + 1 < args.length) {
-      endevorDescVariant = args[i + 1];
+    } else if (arg.startsWith('--cli-plugin-yaml=')) {
+      const val = arg.slice('--cli-plugin-yaml='.length);
+      const eq = val.indexOf('=');
+      if (eq === -1) throw new Error(`--cli-plugin-yaml requires name=path format, got: ${val}`);
+      cliPluginYamls.set(val.slice(0, eq), val.slice(eq + 1));
+      i += 1;
+    } else if (arg === '--cli-plugin-desc-variant' && i + 1 < args.length) {
+      cliPluginDescVariant = args[i + 1];
       i += 2;
+    } else if (arg.startsWith('--cli-plugin-desc-variant=')) {
+      cliPluginDescVariant = arg.slice('--cli-plugin-desc-variant='.length);
+      i += 1;
     } else {
       break;
     }
@@ -155,9 +183,9 @@ function parseArgs(): {
     systemSpecs,
     toolName,
     argsRest,
-    endevorConnectionFile,
-    endevorYamlPath,
-    endevorDescVariant,
+    cliPluginConnections,
+    cliPluginYamls,
+    cliPluginDescVariant,
   };
 }
 
@@ -201,9 +229,9 @@ async function main(): Promise<void> {
     systemSpecs,
     toolName,
     argsRest,
-    endevorConnectionFile,
-    endevorYamlPath,
-    endevorDescVariant,
+    cliPluginConnections,
+    cliPluginYamls,
+    cliPluginDescVariant,
   } = parseArgs();
   log.info('Parsed args', { mockDir, native, configPath, systemSpecs, toolName, argsRest });
 
@@ -259,39 +287,74 @@ async function main(): Promise<void> {
     : createServer();
   const server = getServer(created);
 
-  // Register Endevor CLI bridge tools if --endevor-connection was provided
-  if (endevorConnectionFile) {
-    if (endevorDescVariant) {
-      process.env.ZOWE_MCP_CLI_DESC_VARIANT = endevorDescVariant;
-    }
-    const { readFileSync: rf } = await import('node:fs');
-    const raw = rf(endevorConnectionFile, 'utf-8');
-    const profilesFile = JSON.parse(raw) as CliPluginProfilesFile;
+  // Register CLI bridge plugins for each --cli-plugin-connection name=file entry.
+  // Also handles legacy --endevor-connection for backward compatibility.
+  if (cliPluginDescVariant) {
+    process.env.ZOWE_MCP_CLI_DESC_VARIANT = cliPluginDescVariant;
+  }
 
-    const endevorState = createEmptyPluginState();
-    for (const [typeKey, typeData] of Object.entries(profilesFile)) {
-      endevorState.profilesByType.set(typeKey, typeData.profiles ?? []);
-      if (typeData.default) {
-        endevorState.activeProfileId.set(typeKey, typeData.default);
+  if (cliPluginConnections.size > 0) {
+    const { existsSync, readdirSync, readFileSync: rf } = await import('node:fs');
+
+    // Build candidate YAML search paths: built-in plugins dir + vendor dirs
+    const vendorDir = resolve(__dirname, '..', '..', '..', '..', 'vendor');
+    const builtinPluginsDir = resolve(__dirname, '..', 'tools', 'cli-bridge', 'plugins');
+
+    for (const [pluginName, connFile] of cliPluginConnections.entries()) {
+      const raw = rf(connFile, 'utf-8');
+      const profilesFile = JSON.parse(raw) as CliPluginProfilesFile;
+
+      const pluginState = createEmptyPluginState();
+      for (const [typeKey, typeData] of Object.entries(profilesFile)) {
+        pluginState.profilesByType.set(typeKey, typeData.profiles ?? []);
+        if (typeData.default) {
+          pluginState.activeProfileId.set(typeKey, typeData.default);
+        }
       }
-    }
-    // Standalone password resolver via env vars
-    endevorState.passwordResolver = {
-      getPassword(user: string, host: string): Promise<string> {
-        const userPart = user.toUpperCase().replace(/[^A-Z0-9]/g, '_');
-        const hostPart = host.toUpperCase().replace(/[^A-Z0-9_]/g, '_');
-        const envVar = `ZOWE_MCP_PASSWORD_${userPart}_${hostPart}`;
-        const pw = process.env[envVar];
-        if (pw !== undefined && pw !== '') return Promise.resolve(pw);
-        return Promise.reject(new Error(`No password for ${user}@${host}. Set ${envVar}.`));
-      },
-    };
+      // Standalone password resolver via env vars
+      pluginState.passwordResolver = {
+        getPassword(user: string, host: string): Promise<string> {
+          const userPart = user.toUpperCase().replace(/[^A-Z0-9]/g, '_');
+          const hostPart = host.toUpperCase().replace(/[^A-Z0-9_]/g, '_');
+          const envVar = `ZOWE_MCP_PASSWORD_${userPart}_${hostPart}`;
+          const pw = process.env[envVar];
+          if (pw !== undefined && pw !== '') return Promise.resolve(pw);
+          return Promise.reject(new Error(`No password for ${user}@${host}. Set ${envVar}.`));
+        },
+      };
 
-    const yamlPath =
-      endevorYamlPath ??
-      resolve(__dirname, '..', 'tools', 'cli-bridge', 'plugins', 'endevor-tools.yaml');
-    loadAndRegisterPluginYaml(server, yamlPath, endevorState, log);
-    log.info('Endevor CLI bridge tools registered', { yamlPath });
+      // Resolve YAML path: explicit override → built-in → vendor
+      let yamlPath = cliPluginYamls.get(pluginName);
+      if (!yamlPath) {
+        const builtinCandidate = resolve(builtinPluginsDir, `${pluginName}-tools.yaml`);
+        if (existsSync(builtinCandidate)) {
+          yamlPath = builtinCandidate;
+        } else if (existsSync(vendorDir)) {
+          for (const entry of readdirSync(vendorDir, { withFileTypes: true })) {
+            if (!entry.isDirectory()) continue;
+            const candidate = resolve(
+              vendorDir,
+              entry.name,
+              'cli-bridge-plugins',
+              `${pluginName}-tools.yaml`
+            );
+            if (existsSync(candidate)) {
+              yamlPath = candidate;
+              break;
+            }
+          }
+        }
+      }
+
+      if (!yamlPath) {
+        throw new Error(
+          `Could not find ${pluginName}-tools.yaml. Provide an explicit path with --cli-plugin-yaml ${pluginName}=<path>.`
+        );
+      }
+
+      loadAndRegisterPluginYaml(server, yamlPath, pluginState, log);
+      log.info('CLI bridge plugin tools registered', { plugin: pluginName, yamlPath });
+    }
   }
 
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();

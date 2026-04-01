@@ -234,8 +234,8 @@ describe.skipIf(!YAML_AVAILABLE)('loadPluginYaml', () => {
     const config = loadPluginYaml(YAML_PATH);
     for (const tool of config.tools) {
       expect(tool.zoweCommand, `${tool.toolName} missing zoweCommand`).toBeTruthy();
-      const hasDesc = Boolean(tool.descriptions.cli ?? tool.descriptions.intent);
-      expect(hasDesc, `${tool.toolName} missing cli or intent description`).toBe(true);
+      const hasDesc = Boolean(tool.descriptions.cli ?? tool.descriptions.optimized);
+      expect(hasDesc, `${tool.toolName} missing cli or optimized description`).toBe(true);
     }
   });
 
@@ -307,19 +307,19 @@ describe('resolveDescription', () => {
       activeDescription: active,
     }) as PluginToolDef;
 
-  it('returns intent variant by default', () => {
-    const tool = makeTool({ cli: 'CLI desc', intent: 'Intent desc' });
+  it('returns optimized variant by default', () => {
+    const tool = makeTool({ cli: 'CLI desc', optimized: 'Optimized desc' });
     delete process.env.ZOWE_MCP_CLI_DESC_VARIANT;
-    expect(resolveDescription(tool)).toBe('Intent desc');
+    expect(resolveDescription(tool)).toBe('Optimized desc');
   });
 
   it('respects tool-level activeDescription', () => {
-    const tool = makeTool({ cli: 'CLI desc', intent: 'Intent desc' }, 'cli');
+    const tool = makeTool({ cli: 'CLI desc', optimized: 'Optimized desc' }, 'cli');
     expect(resolveDescription(tool)).toBe('CLI desc');
   });
 
   it('respects plugin-level activeDescription', () => {
-    const tool = makeTool({ cli: 'CLI desc', intent: 'Intent desc' });
+    const tool = makeTool({ cli: 'CLI desc', optimized: 'Optimized desc' });
     expect(resolveDescription(tool, 'cli')).toBe('CLI desc');
   });
 
@@ -327,7 +327,7 @@ describe('resolveDescription', () => {
     const original = process.env.ZOWE_MCP_CLI_DESC_VARIANT;
     process.env.ZOWE_MCP_CLI_DESC_VARIANT = 'cli';
     try {
-      const tool = makeTool({ cli: 'CLI desc', intent: 'Intent desc' });
+      const tool = makeTool({ cli: 'CLI desc', optimized: 'Optimized desc' });
       expect(resolveDescription(tool)).toBe('CLI desc');
     } finally {
       if (original === undefined) {
@@ -338,7 +338,7 @@ describe('resolveDescription', () => {
     }
   });
 
-  it('falls back to cli if intent is missing', () => {
+  it('falls back to cli if optimized is missing', () => {
     delete process.env.ZOWE_MCP_CLI_DESC_VARIANT;
     const tool = makeTool({ cli: 'CLI desc' });
     expect(resolveDescription(tool)).toBe('CLI desc');
@@ -366,14 +366,11 @@ describe('resolveFieldDescription', () => {
     ).toBe('CLI text');
   });
 
-  it('falls back to intent then cli when variant not found', () => {
-    expect(
-      resolveFieldDescription(
-        { descriptions: { cli: 'CLI text', intent: 'Intent text' } },
-        'optimized'
-      )
-    ).toBe('Intent text');
+  it('falls back to cli when variant not found', () => {
     expect(resolveFieldDescription({ descriptions: { cli: 'CLI text' } }, 'optimized')).toBe(
+      'CLI text'
+    );
+    expect(resolveFieldDescription({ descriptions: { cli: 'CLI text' } }, 'nonexistent')).toBe(
       'CLI text'
     );
   });
@@ -385,7 +382,7 @@ describe('resolveFieldDescription', () => {
   it('prefers descriptions over plain description', () => {
     expect(
       resolveFieldDescription({
-        descriptions: { intent: 'Variant text' },
+        descriptions: { optimized: 'Variant text' },
         description: 'Plain text',
       })
     ).toBe('Variant text');
@@ -404,7 +401,7 @@ describe('resolveFieldDescription', () => {
   it('picks up ZOWE_MCP_CLI_DESC_VARIANT env var', () => {
     process.env.ZOWE_MCP_CLI_DESC_VARIANT = 'cli';
     expect(
-      resolveFieldDescription({ descriptions: { cli: 'CLI text', intent: 'Intent text' } })
+      resolveFieldDescription({ descriptions: { cli: 'CLI text', optimized: 'Optimized text' } })
     ).toBe('CLI text');
   });
 });
@@ -526,7 +523,7 @@ describe.skipIf(!YAML_AVAILABLE)('buildToolInputSchema — param description res
     expect(schema.locationId).toBeDefined();
   });
 
-  it('uses descriptions.intent over description when variants are defined on a param', () => {
+  it('uses descriptions[variant] over description when variants are defined on a param', () => {
     const tool: PluginToolDef = {
       toolName: 'testTool',
       zoweCommand: 'test cmd',
@@ -535,13 +532,13 @@ describe.skipIf(!YAML_AVAILABLE)('buildToolInputSchema — param description res
         {
           name: 'myParam',
           cliOption: 'my',
-          descriptions: { cli: 'CLI param text', intent: 'Intent param text' },
+          descriptions: { cli: 'CLI param text', optimized: 'Optimized param text' },
         },
       ],
     };
     delete process.env.ZOWE_MCP_CLI_DESC_VARIANT;
-    const schema = buildToolInputSchema(tool, undefined, 'intent');
-    expect(zodDesc(schema.myParam)).toBe('Intent param text');
+    const schema = buildToolInputSchema(tool, undefined, 'optimized');
+    expect(zodDesc(schema.myParam)).toBe('Optimized param text');
   });
 
   it('plain description on param acts as fallback', () => {

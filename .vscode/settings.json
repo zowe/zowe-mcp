@@ -31,6 +31,10 @@
     "waitable"
   ],
   "yaml.schemas": {
-    "packages/zowe-mcp-evals/schemas/evals-question-set.schema.json": "packages/zowe-mcp-evals/questions/*.yaml"
+    "packages/zowe-mcp-evals/schemas/evals-question-set.schema.json": "packages/zowe-mcp-evals/questions/*.yaml",
+    "packages/zowe-mcp-server/schemas/plugin-tools.schema.json": [
+      "packages/zowe-mcp-server/src/tools/cli-bridge/plugins/*-tools.yaml",
+      "vendor/*/cli-bridge-plugins/*-tools.yaml"
+    ]
   }
 }

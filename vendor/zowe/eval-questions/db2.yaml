@@ -1,0 +1,150 @@
+# Db2 for z/OS — standard eval question set
+# Uses real Db2 subsystem (no mock server available for Db2)
+# Requires:
+#   DB2_HOST, DB2_PORT, DB2_USER, DB2_DATABASE  (set in .env)
+#   ZOWE_MCP_PASSWORD_<USER>_<HOST>             (set in .env)
+#   Authentication=SERVER in ibm_db clidriver/cfg/db2dsdriver.cfg (see vendor/zowe/AGENTS.md)
+#   intel (x86_64) Node.js session for ibm_db native binary
+config:
+  name: db2
+  skip: "Requires x86_64 Node.js (intel alias), Authentication=SERVER in db2dsdriver.cfg, and DB2_HOST/DB2_PORT/DB2_USER/DB2_DATABASE in .env — run manually with: intel && source .env && npm run evals -- --set zowe/db2"
+  repetitions: 5
+  minSuccessRate: 0.7
+  cliPluginConfiguration:
+    db2:
+      host: "${DB2_HOST}"
+      port: "${DB2_PORT}"
+      user: "${DB2_USER}"
+      database: "${DB2_DATABASE}"
+
+questions:
+  # Catalog discovery
+  - id: list-tables
+    prompt: List 5 tables from the SYSIBM schema on Db2. Use FETCH FIRST 5 ROWS ONLY.
+    assertions:
+      - toolCall:
+          tool: db2ExecuteSql
+          args:
+            query:
+              anyOf:
+                - SYSIBM
+                - SYSTABLES
+      - answerContains:
+          pattern: "TYPE|NAME|T$|\\bT\\b"
+
+  - id: list-columns
+    prompt: Show me the column names of the SYSIBM.SYSTABLES table. Use SYSIBM.SYSCOLUMNS.
+    assertions:
+      - toolCall:
+          tool: db2ExecuteSql
+          args:
+            query: SYSCOLUMNS
+      - answerContains:
+          pattern: "(?i)NAME|COLNO|TBNAME|CREATOR"
+
+  - id: current-date-time
+    prompt: What is the current date and time on the Db2 system?
+    assertions:
+      - toolCall:
+          tool: db2ExecuteSql
+          args:
+            query:
+              anyOf:
+                - CURRENT DATE
+                - CURRENT TIME
+                - CURRENT TIMESTAMP
+                - CURRENT_TIMESTAMP
+                - CURRENT_DATE
+                - CURRENT_TIME
+                - SYSDUMMY1
+                - VALUES CURRENT
+      - answerContains:
+          pattern: "\\d{4}-\\d{2}-\\d{2}|\\d{2}:\\d{2}|202[0-9]"
+
+  - id: count-tables
+    prompt: How many tables exist in the SYSIBM schema?
+    assertions:
+      - toolCall:
+          tool: db2ExecuteSql
+          args:
+            query:
+              anyOf:
+                - COUNT
+                - SYSTABLES
+      - answerContains:
+          pattern: "\\b[0-9]+\\b"
+
+  - id: db2-version
+    prompt: What version of Db2 is running? Query the Db2 catalog to find out.
+    assertions:
+      - toolCall:
+          tool: db2ExecuteSql
+      - answerContains:
+          pattern: "V1[0-9]|DSN[0-9]+|[0-9]+R[0-9]+|DB2|Db2|version|Version|D[0-9][0-9]A|subsystem"
+
+  # Schema exploration — bounded with FETCH FIRST
+  - id: list-routines
+    prompt: Show me the first 5 stored procedures in SYSIBM.SYSROUTINES. Use FETCH FIRST 5 ROWS ONLY.
+    assertions:
+      - toolCall:
+          tool: db2ExecuteSql
+          args:
+            query:
+              anyOf:
+                - SYSROUTINES
+                - SYSPROCEDURES
+
+  - id: list-views
+    prompt: Show me 5 view names from the SYSIBM schema. Use SYSIBM.SYSVIEWS or SYSIBM.SYSTABLES. FETCH FIRST 5 ROWS ONLY.
+    assertions:
+      - toolCall:
+          tool: db2ExecuteSql
+          args:
+            query:
+              anyOf:
+                - SYSVIEWS
+                - SYSTABLES
+      - answerContains:
+          pattern: "(?i)SYSIBM|view|VIEW|NAME"
+
+  # Multi-step workflow
+  - id: explore-then-query
+    prompt: >
+      First list 3 tables from the SYSIBM schema (FETCH FIRST 3 ROWS ONLY), then show me the
+      first 5 rows from SYSIBM.SYSTABLES.
+    assertions:
+      - toolCallOrder:
+          - tool: db2ExecuteSql
+            args:
+              query:
+                anyOf:
+                  - SYSTABLES
+                  - SYSIBM
+          - tool: db2ExecuteSql
+            args:
+              query: SYSTABLES
+
+  # DML (safe catalog read)
+  - id: analytics-query
+    prompt: >
+      How many tables exist per creator/schema in Db2? Show the top 10 by count.
+      Use COUNT(*) and GROUP BY on CREATOR or TBCREATOR from SYSIBM.SYSTABLES.
+    assertions:
+      - toolCall:
+          tool: db2ExecuteSql
+          args:
+            query:
+              anyOf:
+                - COUNT
+                - GROUP BY
+                - CREATOR
+                - TBCREATOR
+
+  # Connection management
+  - id: list-connections
+    prompt: Show me the available Db2 connections.
+    assertions:
+      - toolCall:
+          tool: db2ListConnections
+      - answerContains:
+          pattern: "host|port|user|connection|profile|default"

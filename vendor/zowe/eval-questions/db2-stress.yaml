@@ -1,0 +1,99 @@
+# Db2 for z/OS — stress eval question set (ambiguous prompts, multi-step, domain vocabulary)
+config:
+  name: db2-stress
+  repetitions: 5
+  minSuccessRate: 0.5
+  skip: "Requires x86_64 Node.js (intel alias) and Authentication=SERVER in db2dsdriver.cfg — run manually with: intel && source .env && npm run evals -- --set zowe/db2-stress"
+  cliPluginConfiguration:
+    db2:
+      host: "${DB2_HOST}"
+      port: "${DB2_PORT}"
+      user: "${DB2_USER}"
+      database: "${DB2_DATABASE}"
+
+questions:
+  # Ambiguous domain vocabulary
+  - id: ambiguous-catalog
+    prompt: Show me the Db2 catalog.
+    assertions:
+      - toolCall:
+          tool: db2ExecuteSql
+          args:
+            query:
+              pattern: "(?i)SYSIBM|SYSCAT|CATALOG"
+
+  - id: find-sproc
+    prompt: How do I find what stored procedures are available in Db2?
+    assertions:
+      - toolCall:
+          tool: db2ExecuteSql
+          args:
+            query:
+              pattern: "(?i)SYSROUTINES|SYSPROCEDURES|PROCEDURE"
+
+  - id: table-count-schema
+    prompt: How many user tables exist in the system (not SYSIBM)?
+    assertions:
+      - toolCall:
+          tool: db2ExecuteSql
+          args:
+            query:
+              pattern: "(?i)SYSTABLES|COUNT"
+
+  - id: sql-select-sysibm
+    prompt: Run a SQL query to find all tables where the creator starts with SYS.
+    assertions:
+      - toolCall:
+          tool: db2ExecuteSql
+          args:
+            query:
+              pattern: "(?i)CREATOR.*SYS|TBCREATOR.*SYS|LIKE.*SYS"
+
+  - id: set-connection-then-query
+    prompt: >
+      Set the Db2 connection to the default profile, then find all tables in the SYSIBM schema
+      that have more than 10 columns.
+    assertions:
+      - toolCallOrder:
+          - tool: db2SetConnection
+          - tool: db2ExecuteSql
+
+  - id: describe-table
+    prompt: Describe the structure of the SYSIBM.SYSTABLES table.
+    assertions:
+      - toolCall:
+          tool: db2ExecuteSql
+          args:
+            query:
+              pattern: "(?i)SYSCOLUMNS.*SYSTABLES|TBNAME.*SYSTABLES"
+      - answerContains:
+          pattern: "(?i)NAME|TYPE|LENGTH|COLNO"
+
+  - id: call-proc-ambiguous
+    prompt: I want to call a Db2 stored procedure named SYSPROC.ADMIN_INFO_SYSPARM.
+    assertions:
+      - toolCall:
+          tool: db2CallProcedure
+          args:
+            routine:
+              pattern: "(?i)SYSPROC|ADMIN_INFO"
+
+  # Pagination awareness
+  - id: large-result
+    prompt: Select all rows from SYSIBM.SYSTABLES (there could be thousands).
+    assertions:
+      - toolCall:
+          tool: db2ExecuteSql
+          args:
+            query:
+              pattern: "(?i)SYSTABLES"
+
+  # Export
+  - id: export-small-table
+    prompt: Export the SYSIBM.SYSDUMMY1 table as SQL.
+    assertions:
+      - toolCall:
+          tool: db2ExportTable
+          args:
+            table:
+              pattern: "(?i)SYSDUMMY1"

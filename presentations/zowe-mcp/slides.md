@@ -1,11 +1,10 @@
 ---
-
 theme: default
 title: 'Zowe MCP: AI-Powered z/OS Access'
 info: |
   Zowe MCP — Model Context Protocol server and VS Code extension
   that gives AI assistants direct access to z/OS systems.
-  Last updated: March 2026
+  Last updated: April 2026
 class: text-center
 colorSchema: light
 drawings:
@@ -13,7 +12,7 @@ drawings:
 transition: slide-left
 mdc: true
 ---
-<!-- Last reviewed commit: e5e21de (2026-03-31) — Added CLI Plugin Bridge slide; updated Option 3 on Extensibility slide to "Available Now"; added last-updated date to title slide -->
+<!-- Last reviewed: 2026-04 — Extended CLI Bridge slides (workflow, two YAML types, config/quality); see docs/how-to-add-cli-plugin.md -->
 
 <!-- Slide 1: Title -->
 
@@ -21,7 +20,7 @@ mdc: true
   <img src="/zowe-logo.svg" class="w-48 mb-6 drop-shadow-lg" alt="Zowe" />
   <h1 class="!text-5xl !font-extrabold !text-white !border-none !mb-4">Zowe MCP</h1>
   <p class="text-2xl !text-white/90 font-light">AI-Powered z/OS Access via Model Context Protocol</p>
-  <p class="text-sm !text-white/50 mt-6">Last updated: March 2026</p>
+  <p class="text-sm !text-white/50 mt-6">Last updated: April 2026</p>
 </div>
 
 <style>
@@ -32,7 +31,7 @@ mdc: true
 
 ---
 
-<!-- markdownlint-disable MD001 MD024 MD025 -->
+<!-- markdownlint-disable MD001 MD024 MD025 MD060 -->
 
 <!-- Slide 2: What is MCP? -->
 
@@ -980,6 +979,128 @@ vendor/<vendorName>/cli-bridge-plugins/*.yaml
 Vendor-specific plugins live outside the core repo, auto-discovered at startup alongside built-in plugins.
 
 </div>
+</div>
+
+<div class="mt-4 p-3 bg-[#eef2f8] rounded-lg border border-[#c5d4eb] text-sm">
+  <strong class="text-[#1b375f]">Guide in the Zowe MCP repo:</strong>
+  <a href="https://github.com/zowe/zowe-mcp/blob/main/docs/how-to-add-cli-plugin.md" target="_blank"><code>docs/how-to-add-cli-plugin.md</code></a>
+  — written as the <strong>end-to-end playbook</strong> for integrating a CLI plugin (install, generate metadata, author YAML, evals, vendor docs). It doubles as a <strong>rule / checklist for AI coding assistants</strong> (e.g. attach it in Cursor or follow it step-by-step with a human reviewer).
+</div>
+
+---
+
+<!-- Slide 23d: CLI Bridge — integration workflow -->
+
+# <carbon-flow class="inline text-[#3162ac]" /> CLI Bridge — From Zowe CLI Plugin to MCP Tools
+
+Adapt an **existing** Zowe CLI plugin without new TypeScript: one **metadata pipeline** and one **hand-authored** tools file per plugin.
+
+<div class="text-sm text-[#6d7176] mt-2 mb-3 space-y-1">
+
+<p><a href="https://github.com/zowe/zowe-mcp/blob/main/docs/how-to-add-cli-plugin.md" target="_blank"><code>docs/how-to-add-cli-plugin.md</code></a> (in the Zowe MCP repo) describes the whole bridge lifecycle: bridge vs native backend; auto-generated <strong>commands YAML</strong> and hand-authored <strong>MCP tools YAML</strong> (profiles, tool defs, <code>zowe … --rfj</code>, pagination, fatal vs retryable errors); then smoke-testing, LLM-tuned descriptions, evals, E2E tests, and vendor documentation — framed as a step-by-step guide for <strong>AI coding assistants</strong> and reviewers.</p>
+
+<p class="text-xs"><span class="text-[#16825d] font-semibold">AI</span> assistant &nbsp;·&nbsp; <span class="text-[#a85f00] font-semibold">You</span> input &nbsp;·&nbsp; <span class="text-[#3162ac] font-semibold">Together</span> draft + review</p>
+
+</div>
+
+<div class="grid grid-cols-2 gap-6 text-sm">
+
+<div>
+
+| # | Step | Role |
+| :---: | --- | :---: |
+| 1 | Install the plugin | <span class="text-[#16825d] font-semibold">AI</span> |
+| 2 | Generate CLI commands YAML | <span class="text-[#16825d] font-semibold">AI</span> |
+| 3 | Review the metadata | <span class="text-[#16825d] font-semibold">AI</span> |
+| 4 | Gather environment specifics | <span class="text-[#a85f00] font-semibold">You</span> |
+| 5 | Define use cases and eval drafts | <span class="text-[#3162ac] font-semibold">Together</span> |
+
+</div>
+<div>
+
+| # | Step | Role |
+| :---: | --- | :---: |
+| 6 | Author MCP tools YAML | <span class="text-[#3162ac] font-semibold">Together</span> |
+| 7 | Smoke-test | <span class="text-[#3162ac] font-semibold">Together</span> |
+| 8 | Optimize descriptions | <span class="text-[#16825d] font-semibold">AI</span> |
+| 9 | Run evals | <span class="text-[#3162ac] font-semibold">Together</span> |
+| 10 | Harden and ship | <span class="text-[#3162ac] font-semibold">Together</span> |
+
+</div>
+</div>
+
+---
+
+<!-- Slide 23e: Two YAML artifacts -->
+
+# <carbon-document class="inline text-[#3162ac]" /> Two Files: Commands YAML vs MCP Tools YAML
+
+| Aspect | **CLI commands YAML** (`*-commands.yaml`) | **MCP tools YAML** (`*-tools.yaml`) |
+| --- | --- | --- |
+| **Who creates it** | Generator — `npm run generate-cli-bridge-yaml` | You (with optional AI assist) |
+| **Edit by hand?** | **No** — regenerate when the plugin changes | **Yes** — defines MCP surface area |
+| **Contains** | Every group, command, positional, option, alias, CLI description | `plugin`, `profiles`, `tools[]`, `zoweCommand`, pagination, error behavior |
+| **Used for** | `$.endevor.list.elements.description` style **JSON references** | Runtime: bridge builds `zowe … --rfj` and wraps JSON |
+
+<div class="mt-4 grid grid-cols-2 gap-4 text-sm">
+<div class="p-3 bg-[#f3f4f4] rounded-lg border-l-4 border-[#3162ac]">
+
+<div class="font-bold text-[#1b375f] mb-1">Bridge vs native ZosBackend</div>
+
+- CLI already wraps the API you need → **CLI Bridge**
+- Need huge throughput or no `--rfj` → **native path** (or extend CLI first)
+
+</div>
+<div class="p-3 bg-[#f3f4f4] rounded-lg border-l-4 border-[#16825d]">
+
+<div class="font-bold text-[#1b375f] mb-1">Profiles in tools YAML</div>
+
+- **Connection** — reach the service (host, port, protocol, …)
+- **Location** — domain context (e.g. env/stage or Db2 `database`); often `perToolOverride: true`
+- Auto tools: `listConnections` / `setConnection`, `listLocations` / `setLocation`
+
+</div>
+</div>
+
+---
+
+<!-- Slide 23f: CLI Bridge — behavior and configuration -->
+
+# <carbon-settings class="inline text-[#3162ac]" /> Wiring, Safety, and LLM-Friendly Defaults
+
+<div class="grid grid-cols-2 gap-6 text-sm">
+<div>
+
+### <carbon-connect class="inline text-[#3162ac]" /> Enable and configure
+
+- **VS Code** — `zoweMCP.enabledCliPlugins`, `zoweMCP.cliPluginConfiguration` (profiles; hot-reload)
+- **Standalone** — `--cli-plugin-enable`, `--cli-plugin-configuration name=file.json`, `--cli-plugins-dir`
+- Passwords — env vars only; never commit secrets into YAML
+
+### <carbon-chart-line class="inline text-[#3162ac]" /> Pagination and cache
+
+- Opt in per tool: `pagination: list` or `content` (same envelope as core z/OS tools)
+- Full CLI JSON/text cached; MCP params slice the result
+
+</div>
+<div>
+
+### <carbon-warning-alt class="inline text-[#e0182d]" /> Errors the LLM should not “retry away”
+
+- Default: CLI failure → **fatal configuration** message with `stop: true`
+- **Execution errors** (bad SQL, wrong element name) — set `fatalOnCliError: false` or plugin-level `retryableErrorPatterns` / `connectionErrorPatterns`
+
+### <carbon-search class="inline text-[#3162ac]" /> Quality loop
+
+- Eval question sets (`packages/zowe-mcp-evals`) assert tool choice and args
+- **Start small** — discovery + one read path, then add search/mutations
+
+</div>
+</div>
+
+<div class="mt-3 p-3 bg-[#eef2f8] rounded-lg text-xs text-[#6d7176]">
+  Same conventions as core tools: <strong>camelCase</strong> tool names, <code>readOnlyHint</code> where appropriate,
+  description variants <code>cli</code> / <code>optimized</code>, and optional <code>displayName</code> for user-facing errors.
 </div>
 
 ---

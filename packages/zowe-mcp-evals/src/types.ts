@@ -127,7 +127,7 @@ export interface CliPluginConnection {
   basePath?: string;
   /** Endevor Web Services instance name (default for endevor: 'ENDEVOR'). */
   instance?: string;
-  /** Db2 location name / database name (e.g. D13APTIB). Passed as-is to the connection profile. */
+  /** Db2 location name / database name (DDF location). Passed as-is to the connection profile. */
   database?: string;
   /**
    * Plugin-specific parameters passed directly to the connection profile.

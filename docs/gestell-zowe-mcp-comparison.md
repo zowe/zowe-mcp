@@ -15,7 +15,7 @@ This document compares [Gestell-AI/zowe-mcp](https://github.com/Gestell-AI/zowe-
 | **z/OS connectivity** | **Zowe CLI** → z/OSMF or API ML gateway | **Zowe Native Proto SDK** over **SSH** (no z/OSMF required) |
 | **Flow** | User ↔ AI ↔ MCP ↔ Server ↔ **Zowe CLI** ↔ z/OS | User ↔ AI ↔ MCP ↔ Server ↔ **ZNP over SSH** ↔ z/OS |
 | **CLI integration** | Architecture **is** Zowe CLI; all 19 tools are thin wrappers around `zowe` subcommands | **Primary**: Zowe Native Proto over SSH. **Additionally**: generic YAML-driven CLI bridge (`src/tools/cli-bridge/`) turns any Zowe CLI plugin into MCP tools without TypeScript changes; vendor-supplied plugins extend the server via `vendor/<name>/cli-bridge-plugins/*.yaml` |
-| **Setup** | `zowe config init` or `zowe config auto-init`, profiles, optional APIML login | Native: `user@host` (and optional port); config file or VS Code `zoweMCP.nativeConnections`; CLI bridge: profile/connection per plugin via `zoweMCP.cliPluginConfiguration` or `--cli-plugin-connection` |
+| **Setup** | `zowe config init` or `zowe config auto-init`, profiles, optional APIML login | Native: `user@host` (and optional port); config file or VS Code `zoweMCP.nativeConnections`; CLI bridge: profile/connection per plugin via `zoweMCP.cliPluginConfiguration` or `--cli-plugin-configuration` |
 | **Runtime** | Node + **bun** (install/build) | Node.js 22+, **npm** workspaces |
 
 **Summary:** Gestell wraps the existing Zowe CLI (zosmf/APIML); this repo uses Zowe Native Proto over SSH as the primary backend, and adds a generic CLI bridge that can expose any Zowe CLI plugin as MCP tools on top.

@@ -38,7 +38,11 @@ questions:
           tool: db2ExecuteSql
           args:
             query:
-              pattern: "(?i)SYSTABLES|COUNT"
+              anyOf:
+                - SYSTABLES
+                - COUNT
+                - CREATOR
+                - TYPE
 
   - id: sql-select-sysibm
     prompt: Run a SQL query to find all tables where the creator starts with SYS.
@@ -86,7 +90,11 @@ questions:
           tool: db2ExecuteSql
           args:
             query:
-              pattern: "(?i)SYSTABLES"
+              anyOf:
+                - SYSTABLES
+                - FETCH FIRST
+                - OFFSET
+                - LIMIT
 
   # Export
   - id: export-small-table

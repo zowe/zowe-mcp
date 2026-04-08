@@ -33,7 +33,7 @@ profiles:
       - name: database
         cliOption: database
         required: true
-        description: The Db2 location name (DDF location) for the target subsystem, e.g. D13APTIB or AD06PTIB. This is the name shown in SYSIBM.LOCATIONS and used by DDF for remote connections.
+        description: The Db2 location name (DDF location) for the target subsystem, e.g. MYLOCNAME. This is the name shown in SYSIBM.LOCATIONS and used by DDF for remote connections.
       - name: sslFile
         cliOption: sslFile
         description: $.db2.execute.sql.options.sslFile

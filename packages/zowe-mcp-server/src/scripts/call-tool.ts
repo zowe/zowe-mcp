@@ -287,8 +287,7 @@ async function main(): Promise<void> {
     : createServer();
   const server = getServer(created);
 
-  // Register CLI bridge plugins for each --cli-plugin-connection name=file entry.
-  // Also handles legacy --endevor-connection for backward compatibility.
+  // Register CLI bridge plugins for each --cli-plugin-configuration name=file entry.
   if (cliPluginDescVariant) {
     process.env.ZOWE_MCP_CLI_DESC_VARIANT = cliPluginDescVariant;
   }

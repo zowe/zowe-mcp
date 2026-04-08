@@ -111,7 +111,7 @@
         },
         "cliPluginConfiguration": {
           "type": "object",
-          "description": "Connection config per CLI plugin name. The harness writes each entry as a temp JSON file and passes --cli-plugin-connection <name>=<file> to the server. For the 'endevor' plugin, host/user/password/protocol/basePath/pluginParams are pre-filled; only 'port' is usually needed.",
+          "description": "Connection config per CLI plugin name. The harness writes each entry as a temp JSON file and passes --cli-plugin-configuration <name>=<file> to the server. For the 'endevor' plugin, host/user/password/protocol/basePath/pluginParams are pre-filled; only 'port' is usually needed.",
           "additionalProperties": {
             "type": "object",
             "description": "Connection config for one CLI plugin. All fields optional; plugin-specific defaults are applied by the harness.",
@@ -143,7 +143,7 @@
               },
               "database": {
                 "type": "string",
-                "description": "Database name / Db2 location name (e.g. D13APTIB). Passed as-is to the connection profile."
+                "description": "Database name / Db2 DDF location name (e.g. MYDBLOC). Passed as-is to the connection profile."
               },
               "pluginParams": {
                 "type": "object",

@@ -1034,7 +1034,7 @@ async function handleListPagination(
       state,
       command,
       toolLog,
-      toolDef.fatalOnCliError !== false
+      toolDef
     );
   }
 
@@ -1144,7 +1144,7 @@ async function handleContentWindowing(
       state,
       command,
       toolLog,
-      toolDef.fatalOnCliError !== false
+      toolDef
     );
   }
 
@@ -1172,13 +1172,40 @@ async function handleContentWindowing(
 // ---------------------------------------------------------------------------
 
 /**
+ * Determines whether a CLI error is fatal or retryable using the following
+ * precedence (highest first):
+ *
+ * 1. `connectionErrorPatterns` (plugin) matches → fatal (deny-override)
+ * 2. `retryableErrorPatterns` (plugin) matches → retryable
+ * 3. `fatalOnCliError` (tool) if defined → use that boolean
+ * 4. `defaultCliErrorFatal` (plugin, default `true`) → use that boolean
+ */
+export function classifyCliError(
+  errorMessage: string,
+  toolDef: PluginToolDef,
+  config: CliPluginConfig
+): 'fatal' | 'retryable' {
+  const connPatterns: string[] | undefined = config.connectionErrorPatterns;
+  const retryPatterns: string[] | undefined = config.retryableErrorPatterns;
+  if (connPatterns?.some((p) => new RegExp(p).test(errorMessage))) {
+    return 'fatal';
+  }
+  if (retryPatterns?.some((p) => new RegExp(p).test(errorMessage))) {
+    return 'retryable';
+  }
+  if (toolDef.fatalOnCliError !== undefined) {
+    return toolDef.fatalOnCliError ? 'fatal' : 'retryable';
+  }
+  return (config.defaultCliErrorFatal ?? true) ? 'fatal' : 'retryable';
+}
+
+/**
  * Builds a CLI error response used by both the paginated and non-paginated paths.
  *
- * When `fatalOnCliError` is `false` (set on the tool def), the failure is returned
- * as an ordinary tool execution error (`isError: true`, no `stop`) so the LLM can
- * retry with corrected input (e.g. a fixed SQL statement).  When `true` (default),
- * the full FATAL CONFIGURATION ERROR pattern is used to prevent infinite retry loops
- * on misconfigured connections.
+ * Fatality is determined by `classifyCliError` (pattern matching > tool flag >
+ * plugin default).  Fatal errors use the FATAL CONFIGURATION ERROR + `stop: true`
+ * pattern to prevent the LLM from retrying misconfigured connections.  Retryable
+ * errors return a plain `isError: true` so the LLM can correct its input and retry.
  */
 function buildCliErrorResponse(
   errorMessage: string,
@@ -1187,17 +1214,18 @@ function buildCliErrorResponse(
   state: CliPluginState,
   command: string[],
   toolLog: Logger,
-  fatalOnCliError = true
+  toolDef: PluginToolDef
 ): { content: { type: 'text'; text: string }[]; isError: boolean } {
   const pluginLabel = config.displayName ?? config.plugin;
+  const classification = classifyCliError(errorMessage, toolDef, config);
   toolLog.warning('CLI invocation failed', {
     command,
     ...(connectionSummary ? { connectionTarget: connectionSummary } : {}),
     error: errorMessage,
-    fatalOnCliError,
+    classification,
   });
 
-  if (!fatalOnCliError) {
+  if (classification === 'retryable') {
     // Non-fatal: return as a regular tool execution error so the LLM can retry.
     return {
       content: [
@@ -1463,7 +1491,7 @@ function registerPluginTool(
           state,
           command,
           toolLog,
-          toolDef.fatalOnCliError !== false
+          toolDef
         );
       }
 

@@ -22,6 +22,22 @@
     "pagination": {
       "$ref": "#/definitions/pluginPaginationConfig"
     },
+    "connectionErrorPatterns": {
+      "type": "array",
+      "description": "JavaScript regex patterns matched against CLI error messages that are always treated as fatal configuration errors (stop: true), overriding retryableErrorPatterns and fatalOnCliError. Use for connection/network/driver-level errors the LLM cannot recover from (e.g. 'SQL30081N' for Db2 network failure, 'SQL1042C' for driver initialisation failure).",
+      "items": { "type": "string" },
+      "examples": [["SQL30081N", "SQL1042C"]]
+    },
+    "retryableErrorPatterns": {
+      "type": "array",
+      "description": "JavaScript regex patterns matched against CLI error messages that produce a retryable tool execution error (isError: true, no stop). Applied only when no connectionErrorPatterns entry matches. Use when an error message reliably indicates the CLI reached the back-end service and the LLM can correct the input and retry (e.g. '\\\\[IBM\\\\]\\\\[CLI Driver\\\\]\\\\[DB2\\\\]' to identify Db2 SQL execution errors that reached the engine).",
+      "items": { "type": "string" },
+      "examples": [["\\[IBM\\]\\[CLI Driver\\]\\[DB2\\]"]]
+    },
+    "defaultCliErrorFatal": {
+      "type": "boolean",
+      "description": "Default error treatment when neither connectionErrorPatterns nor retryableErrorPatterns match, and the tool has no fatalOnCliError set. true (default) = fatal (stop: true). false = retryable. Keeping the default as true preserves backward compatibility for plugins that do not declare any patterns."
+    },
     "profiles": {
       "type": "object",
       "description": "Named profile type definitions. Keys are arbitrary type identifiers (e.g. 'connection', 'location'). The key becomes the prefix for the auto-generated list/set tool parameters (e.g. 'connectionId', 'locationId').",

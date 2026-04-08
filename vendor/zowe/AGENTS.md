@@ -28,8 +28,8 @@ and is hosted here for evaluation purposes.
 | --- | --- | --- |
 | `db2ListConnections` | Profile management | Lists configured Db2 connection profiles |
 | `db2SetConnection` | Profile management | Sets active Db2 connection |
-| `db2ExecuteSql` | Operation (paginated) | Main tool — executes SQL and returns rows; `fatalOnCliError: false`, `destructiveHint: true` |
-| `db2CallProcedure` | Operation | Calls a stored procedure; `fatalOnCliError: false`, `destructiveHint: true` |
+| `db2ExecuteSql` | Operation (paginated) | Main tool — executes SQL and returns rows; `destructiveHint: true` |
+| `db2CallProcedure` | Operation | Calls a stored procedure; `destructiveHint: true` |
 | `db2ExportTable` | Operation (content) | Exports table as SQL INSERT statements |
 
 **Regenerating the CLI commands YAML:**
@@ -135,13 +135,20 @@ it survives shell sessions and reboots. No Db2 Connect license file (`db2consv.l
 db2cli writecfg add -parameter Authentication=SERVER
 ```
 
-## fatalOnCliError: false for SQL Execution Tools
+## Error Classification via retryableErrorPatterns
 
-`db2ExecuteSql` and `db2CallProcedure` have `fatalOnCliError: false` in `db2-tools.yaml`.
-This means SQL execution errors (table not found, syntax errors, etc.) return `isError: true`
-without `stop: true`, so the LLM can retry with corrected SQL instead of stopping.
-Compare with connection errors on misconfigured subsystems (SQL30081N) which are correctly
-treated as fatal.
+`db2-tools.yaml` sets `retryableErrorPatterns: ["\\[IBM\\]\\[CLI Driver\\]\\[DB2\\]"]` at the
+plugin level. Any CLI error whose message contains `[IBM][CLI Driver][DB2]` (meaning Db2 itself
+rejected the statement — syntax error, undefined table, etc.) is returned as a retryable
+`isError: true` without `stop: true`, so the LLM can correct the SQL and retry.
+
+Errors that do NOT match the pattern (driver-level failures without `[DB2]` in the message —
+`SQL30081N` network error, `SQL1042C` driver init failure, `Failed to spawn 'zowe'`, etc.) fall
+through to `defaultCliErrorFatal: true` (the default) and trigger the full fatal
+`stop: true` pattern.
+
+This replaces the former per-tool `fatalOnCliError: false` approach. All three operation tools
+(`db2ExecuteSql`, `db2CallProcedure`, `db2ExportTable`) now benefit automatically.
 
 ## Quick Tool Testing via `call-tool`
 

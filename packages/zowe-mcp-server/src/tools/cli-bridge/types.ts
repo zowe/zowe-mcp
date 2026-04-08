@@ -490,6 +490,36 @@ export interface CliPluginConfig {
    * (e.g. "connection", "location"); values describe the type's fields and behaviour.
    */
   profiles?: Record<string, ProfileTypeDef>;
+  /**
+   * JavaScript regex patterns matched against CLI error messages that always
+   * produce a fatal configuration error (`stop: true`), overriding
+   * `retryableErrorPatterns` and `fatalOnCliError`.
+   *
+   * Use for known connection / network / driver-level errors that the LLM
+   * cannot recover from (e.g. `"SQL30081N"` for Db2 network failure).
+   */
+  connectionErrorPatterns?: string[];
+  /**
+   * JavaScript regex patterns matched against CLI error messages that produce
+   * a retryable tool execution error (`isError: true`, no `stop`).  Only
+   * applied when no `connectionErrorPatterns` entry matches.
+   *
+   * Use when an error message reliably indicates that the CLI reached the
+   * back-end service and the LLM can correct the input and retry
+   * (e.g. `"\\[IBM\\]\\[CLI Driver\\]\\[DB2\\]"` for Db2 SQL execution errors).
+   */
+  retryableErrorPatterns?: string[];
+  /**
+   * Default error treatment when neither `connectionErrorPatterns` nor
+   * `retryableErrorPatterns` match, and no per-tool `fatalOnCliError` is set.
+   *
+   * `true` (default) — unrecognised errors are fatal (`stop: true`).
+   * `false` — unrecognised errors are retryable.
+   *
+   * Keeping the default as `true` preserves backward compatibility for plugins
+   * that do not declare any patterns.
+   */
+  defaultCliErrorFatal?: boolean;
   /** Tool definitions. */
   tools: PluginToolDef[];
 }

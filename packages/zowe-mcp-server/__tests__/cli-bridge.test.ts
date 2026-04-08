@@ -34,6 +34,7 @@ import { buildProfileArgs, invokeZoweCli } from '../src/tools/cli-bridge/cli-inv
 import {
   buildCliArgs,
   buildToolInputSchema,
+  classifyCliError,
   createEmptyPluginState,
   loadAndRegisterPluginYaml,
   loadPluginYaml,
@@ -44,6 +45,7 @@ import {
 } from '../src/tools/cli-bridge/cli-tool-loader.js';
 import type {
   CliNamedProfile,
+  CliPluginConfig,
   CliPluginState,
   PluginToolDef,
   ProfileFieldDef,
@@ -222,12 +224,12 @@ describe.skipIf(!YAML_AVAILABLE)('loadPluginYaml', () => {
 
   it('does not have a context block (replaced by profiles)', () => {
     const config = loadPluginYaml(YAML_PATH);
-    expect((config as Record<string, unknown>).context).toBeUndefined();
+    expect((config as unknown as Record<string, unknown>).context).toBeUndefined();
   });
 
   it('does not have a connection.flags block (replaced by profiles)', () => {
     const config = loadPluginYaml(YAML_PATH);
-    expect((config as Record<string, unknown>).connection).toBeUndefined();
+    expect((config as unknown as Record<string, unknown>).connection).toBeUndefined();
   });
 
   it('all tools have a zoweCommand and at least one description', () => {
@@ -243,12 +245,10 @@ describe.skipIf(!YAML_AVAILABLE)('loadPluginYaml', () => {
     const config = loadPluginYaml(YAML_PATH);
     for (const tool of config.tools) {
       const cli = tool.descriptions.cli;
-      if (cli) {
-        expect(
-          cli.startsWith('$.'),
-          `${tool.toolName} cli description was not resolved (still has $.path): ${cli}`
-        ).toBe(false);
-      }
+      expect(
+        !cli?.startsWith('$.'),
+        `${tool.toolName} cli description was not resolved (still has $.path): ${cli ?? ''}`
+      ).toBe(true);
     }
   });
 
@@ -1232,5 +1232,147 @@ describe.skipIf(!YAML_AVAILABLE)('connectionId per-tool override', () => {
     expect(schema?.properties?.connectionId).toBeDefined();
     expect(schema?.properties?.locationId).toBeDefined();
     await cl.close();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// classifyCliError — error classification precedence
+// ---------------------------------------------------------------------------
+
+describe('classifyCliError', () => {
+  /** Minimal PluginToolDef with no flags set (default behaviour). */
+  const noFlagsTool: PluginToolDef = {
+    toolName: 'myTool',
+    zoweCommand: 'my command',
+    descriptions: { cli: 'desc' },
+  };
+
+  /** Minimal CliPluginConfig with no patterns (backward-compat default). */
+  function makeConfig(overrides: Partial<CliPluginConfig> = {}): CliPluginConfig {
+    return {
+      plugin: 'test',
+      tools: [],
+      ...overrides,
+    };
+  }
+
+  // ── Backward compatibility ────────────────────────────────────────────────
+
+  it('defaults to fatal when no patterns and no tool flag are set', () => {
+    expect(classifyCliError('some error', noFlagsTool, makeConfig())).toBe('fatal');
+  });
+
+  it('respects tool-level fatalOnCliError: false when no patterns are set', () => {
+    const tool: PluginToolDef = { ...noFlagsTool, fatalOnCliError: false };
+    expect(classifyCliError('some error', tool, makeConfig())).toBe('retryable');
+  });
+
+  it('respects tool-level fatalOnCliError: true explicitly', () => {
+    const tool: PluginToolDef = { ...noFlagsTool, fatalOnCliError: true };
+    expect(classifyCliError('some error', tool, makeConfig())).toBe('fatal');
+  });
+
+  // ── defaultCliErrorFatal ──────────────────────────────────────────────────
+
+  it('defaultCliErrorFatal: false makes unmatched errors retryable', () => {
+    const config = makeConfig({ defaultCliErrorFatal: false });
+    expect(classifyCliError('weird unknown error', noFlagsTool, config)).toBe('retryable');
+  });
+
+  it('defaultCliErrorFatal: true is the explicit default', () => {
+    const config = makeConfig({ defaultCliErrorFatal: true });
+    expect(classifyCliError('weird unknown error', noFlagsTool, config)).toBe('fatal');
+  });
+
+  // ── retryableErrorPatterns ────────────────────────────────────────────────
+
+  it('retryableErrorPatterns match makes error retryable', () => {
+    const config = makeConfig({
+      retryableErrorPatterns: ['\\[IBM\\]\\[CLI Driver\\]\\[DB2\\]'],
+    });
+    const msg =
+      '[IBM][CLI Driver][DB2] SQL0204N "SCHEMA.TABLE" is an undefined name. SQLSTATE=42704';
+    expect(classifyCliError(msg, noFlagsTool, config)).toBe('retryable');
+  });
+
+  it('retryableErrorPatterns non-match falls through to defaultCliErrorFatal', () => {
+    const config = makeConfig({
+      retryableErrorPatterns: ['\\[IBM\\]\\[CLI Driver\\]\\[DB2\\]'],
+      // defaultCliErrorFatal omitted → defaults to true
+    });
+    const msg = '[IBM][CLI Driver] SQL30081N  A communication error has been detected.';
+    expect(classifyCliError(msg, noFlagsTool, config)).toBe('fatal');
+  });
+
+  // ── connectionErrorPatterns ───────────────────────────────────────────────
+
+  it('connectionErrorPatterns match makes error fatal', () => {
+    const config = makeConfig({
+      connectionErrorPatterns: ['SQL30081N', 'SQL1042C'],
+      defaultCliErrorFatal: false,
+    });
+    expect(
+      classifyCliError('[IBM][CLI Driver] SQL30081N communication error', noFlagsTool, config)
+    ).toBe('fatal');
+    expect(
+      classifyCliError('[IBM][CLI Driver] SQL1042C unexpected system error', noFlagsTool, config)
+    ).toBe('fatal');
+  });
+
+  it('connectionErrorPatterns non-match falls through to defaultCliErrorFatal: false', () => {
+    const config = makeConfig({
+      connectionErrorPatterns: ['SQL30081N'],
+      defaultCliErrorFatal: false,
+    });
+    const msg = 'some unknown error';
+    expect(classifyCliError(msg, noFlagsTool, config)).toBe('retryable');
+  });
+
+  // ── Precedence: connectionErrorPatterns > retryableErrorPatterns ──────────
+
+  it('connectionErrorPatterns wins over retryableErrorPatterns when both match (deny override)', () => {
+    // Contrived: both patterns match the same message
+    const config = makeConfig({
+      connectionErrorPatterns: ['SQL30081N'],
+      retryableErrorPatterns: ['SQL30081N'], // same pattern — connection wins
+    });
+    const msg = '[IBM][CLI Driver] SQL30081N communication error';
+    expect(classifyCliError(msg, noFlagsTool, config)).toBe('fatal');
+  });
+
+  // ── Db2 real-world scenario ───────────────────────────────────────────────
+
+  it('Db2 scenario: SQL execution error is retryable', () => {
+    const config = makeConfig({
+      retryableErrorPatterns: ['\\[IBM\\]\\[CLI Driver\\]\\[DB2\\]'],
+    });
+    const sqlError =
+      '[IBM][CLI Driver][DB2] SQL0204N "PLAPE03.NONEXISTENT_TABLE" is an undefined name. SQLSTATE=42704';
+    expect(classifyCliError(sqlError, noFlagsTool, config)).toBe('retryable');
+  });
+
+  it('Db2 scenario: network error is fatal (no [DB2] segment)', () => {
+    const config = makeConfig({
+      retryableErrorPatterns: ['\\[IBM\\]\\[CLI Driver\\]\\[DB2\\]'],
+    });
+    const netError =
+      '[IBM][CLI Driver] SQL30081N  A communication error has been detected. Communication protocol: "TCP/IP". SQLSTATE=08001';
+    expect(classifyCliError(netError, noFlagsTool, config)).toBe('fatal');
+  });
+
+  it('Db2 scenario: driver init error is fatal (no [DB2] segment)', () => {
+    const config = makeConfig({
+      retryableErrorPatterns: ['\\[IBM\\]\\[CLI Driver\\]\\[DB2\\]'],
+    });
+    const driverError =
+      '[IBM][CLI Driver] SQL1042C  An unexpected system error occurred.  SQLSTATE=58004';
+    expect(classifyCliError(driverError, noFlagsTool, config)).toBe('fatal');
+  });
+
+  it('Db2 scenario: spawn failure is fatal (no IBM prefix at all)', () => {
+    const config = makeConfig({
+      retryableErrorPatterns: ['\\[IBM\\]\\[CLI Driver\\]\\[DB2\\]'],
+    });
+    expect(classifyCliError("Failed to spawn 'zowe': ENOENT", noFlagsTool, config)).toBe('fatal');
   });
 });

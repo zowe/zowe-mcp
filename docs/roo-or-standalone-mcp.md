@@ -66,13 +66,57 @@ If `zowe-mcp-server` is not on `PATH`, set `"command"` to the **absolute path** 
 
 ## Passwords (standalone)
 
-Without the VS Code extension, passwords are not collected via the extension pipe. Set environment variables:
+Without the VS Code extension, passwords are not collected via the extension pipe. Use one or both of the following.
+
+### Per-connection env vars: `ZOWE_MCP_PASSWORD_<USER>_<HOST>`
 
 **Format:** `ZOWE_MCP_PASSWORD_<USER>_<HOST>`
 
-- User: uppercased; host: dots replaced with underscores (see `[connection-spec.ts](../packages/zowe-mcp-server/src/zos/native/connection-spec.ts)` — `toPasswordEnvVarName`).
+- User: uppercased; host: dots replaced with underscores (see [`connection-spec.ts`](../packages/zowe-mcp-server/src/zos/native/connection-spec.ts) — `toPasswordEnvVarName`).
 
 Example: `USERID@zos.example.com` → `ZOWE_MCP_PASSWORD_USERID_ZOS_EXAMPLE_COM`.
+
+### Alternative: `ZOWE_MCP_CREDENTIALS` (JSON)
+
+Set a **single** env var to a JSON object whose keys are connection specs (`user@host` or `user@host:port`) and whose values are passwords:
+
+```json
+{
+  "userid@zos.example.com": "your-password",
+  "otheruser@other.host.example.com:2222": "other-password"
+}
+```
+
+In `.roo/mcp.json`, pass the JSON as a **string** value (escape quotes as required by JSON):
+
+```json
+{
+  "mcpServers": {
+    "zowe": {
+      "command": "zowe-mcp-server",
+      "args": ["--stdio", "--native", "--system", "USERID@zos.example.com"],
+      "env": {
+        "ZOWE_MCP_CREDENTIALS": "{\"userid@zos.example.com\":\"replace-with-secret\"}"
+      },
+      "timeout": 120
+    }
+  }
+}
+```
+
+**Precedence:** If both are set for the same connection, `ZOWE_MCP_PASSWORD_<USER>_<HOST>` wins; otherwise the server looks up the connection in `ZOWE_MCP_CREDENTIALS`. Implementation: `getStandalonePasswordFromEnv()` in [`connection-spec.ts`](../packages/zowe-mcp-server/src/zos/native/connection-spec.ts).
+
+### Why `ZOWE_MCP_CREDENTIALS` matters for MCP registries
+
+[MCP registry](https://github.com/modelcontextprotocol/registry) entries (`server.json`) list **fixed** environment variable names so IDEs and installers can show “required secrets” and prompt users. The per-connection pattern `ZOWE_MCP_PASSWORD_*` **cannot be fully enumerated** in that metadata: the suffix depends on each site’s `user@host`, which the registry does not know at publish time.
+
+`ZOWE_MCP_CREDENTIALS` is a **single, stable name** that:
+
+- Fits registry schemas and “one secret field” UIs (VS Code gallery, Copilot, Claude Desktop, etc.).
+- Maps cleanly to enterprise secret stores (inject one variable from Vault, Kubernetes `Secret`, CI, etc.).
+- Covers **multiple** connections in one value when you use `--config` with several systems.
+
+The shipped [`server.json`](../packages/zowe-mcp-server/server.json) documents `ZOWE_MCP_CREDENTIALS` for that reason. More background: [`mcp-registry-research.md`](mcp-registry-research.md).
 
 Prefer injecting secrets from the OS or a vault; do not commit real passwords into `.roo/mcp.json`.
 

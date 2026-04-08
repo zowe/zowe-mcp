@@ -180,8 +180,14 @@ Full schema: `github.com/modelcontextprotocol/registry/blob/main/docs/reference/
     ],
     "environmentVariables": [
       {
+        "name": "ZOWE_MCP_CREDENTIALS",
+        "description": "JSON object mapping user@host (or user@host:port) to SSH passwords. Example: {\"jsmith@mainframe.example.com\":\"s3cret\"}. Used with --native. Per-connection ZOWE_MCP_PASSWORD_<USER>_<HOST> overrides entries here when both are set.",
+        "isSecret": true,
+        "isRequired": false
+      },
+      {
         "name": "ZOWE_MCP_PASSWORD_USER_HOST",
-        "description": "Password for a z/OS connection. Variable name follows the pattern ZOWE_MCP_PASSWORD_<USER>_<HOST> (uppercase, dots replaced with underscores). Example: ZOWE_MCP_PASSWORD_JSMITH_MAINFRAME_EXAMPLE_COM",
+        "description": "Alternative: one env var per connection. Pattern ZOWE_MCP_PASSWORD_<USER>_<HOST> (uppercase, dots replaced with underscores). Example: ZOWE_MCP_PASSWORD_JSMITH_MAINFRAME_EXAMPLE_COM. Cannot be fully enumerated in server.json for every site.",
         "isSecret": true,
         "isRequired": false
       }
@@ -233,20 +239,30 @@ The registry `environmentVariables` array expects a **static, fixed list** of na
 **Option A — Document the pattern (current approach)**
 Declare one representative `environmentVariables` entry with a `description` that explains the naming convention. MCP clients will prompt for that value by name; the user must also set any additional `ZOWE_MCP_PASSWORD_*` vars manually.
 
-**Option B — Single consolidated credentials env var (registry-friendly)**
-Add support for a single env var (e.g. `ZOWE_MCP_CONNECTIONS`) containing all credentials as a compact JSON string:
+**Option B — Single consolidated credentials env var (registry-friendly) — implemented as `ZOWE_MCP_CREDENTIALS`**
+The server reads a single env var containing all SSH passwords as a compact JSON object:
 
 ```json
 { "jsmith@mainframe.example.com": "s3cret", "jsmith@dev.example.com": "dev123" }
 ```
 
-This is a fixed, statically-declared env var name that works naturally with the registry schema and with MCP client secret prompting. The server would parse it on startup. This is the approach other multi-connection MCP servers use.
+This is a fixed, statically-declared env var name that works naturally with the registry schema and with MCP client secret prompting. The server parses it when resolving passwords. This is the approach other multi-connection MCP servers use.
 
 The registry strongly prefers Option B because:
 
 - MCP client UIs (VS Code input prompts, Claude Desktop, etc.) can present a single secret field
 - Enterprise secret managers (Vault, Doppler) map cleanly to fixed env var names
 - `isSecret: true` on a single var triggers consistent masking in all compliant clients
+
+### Implementation in this repository (shipped)
+
+Option B is **implemented** as the env var **`ZOWE_MCP_CREDENTIALS`**:
+
+- **Code:** `getStandalonePasswordFromEnv()`, `parseZoweMcpCredentialsEnv()`, and `toConnectionsEnvLookupKey()` in `packages/zowe-mcp-server/src/zos/native/connection-spec.ts`. Resolution order: per-connection `ZOWE_MCP_PASSWORD_<USER>_<HOST>` first, then `ZOWE_MCP_CREDENTIALS` JSON.
+- **Consumers:** `NativeCredentialProvider` (standalone native SSH), CLI bridge `passwordResolver` in `packages/zowe-mcp-server/src/index.ts` and `src/scripts/call-tool.ts`.
+- **Registry metadata:** `packages/zowe-mcp-server/server.json` lists `ZOWE_MCP_CREDENTIALS` (and `ZOWE_MCP_MOCK_DIR` for `--mock`) under `packages[].environmentVariables`.
+
+Option A (documenting the `ZOWE_MCP_PASSWORD_*` pattern in prose) remains valid for clients that set many dynamic env vars outside a single JSON blob.
 
 ---
 
@@ -347,7 +363,7 @@ To publish to the official registry, `@zowe/mcp-server` must also be published t
          ],
          "environmentVariables": [
            {
-             "name": "ZOWE_MCP_CONNECTIONS",
+             "name": "ZOWE_MCP_CREDENTIALS",
              "description": "JSON object mapping connection specs (user@host) to passwords. Example: {\"jsmith@mainframe.example.com\":\"s3cret\"}",
              "isSecret": true,
              "isRequired": false
@@ -875,11 +891,11 @@ spec:
           ports:
             - containerPort: 7542
           env:
-            - name: ZOWE_MCP_CONNECTIONS
+            - name: ZOWE_MCP_CREDENTIALS
               valueFrom:
                 secretKeyRef:
                   name: zowe-mcp-credentials
-                  key: connections-json
+                  key: credentials-json
 ```
 
 ### Authentication options for the HTTP endpoint

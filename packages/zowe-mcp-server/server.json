@@ -31,7 +31,7 @@
         {
           "value": "--native",
           "isRequired": false,
-          "description": "Use native z/OS backend over SSH. Requires ZOWE_MCP_CONNECTIONS or ZOWE_MCP_PASSWORD_<USER>_<HOST> credentials."
+          "description": "Use native z/OS backend over SSH. Requires ZOWE_MCP_CREDENTIALS or ZOWE_MCP_PASSWORD_<USER>_<HOST> credentials."
         }
       ],
       "environmentVariables": [
@@ -41,7 +41,7 @@
           "isRequired": false
         },
         {
-          "name": "ZOWE_MCP_CONNECTIONS",
+          "name": "ZOWE_MCP_CREDENTIALS",
           "description": "JSON object mapping connection specs (user@host) to passwords. Example: {\"jsmith@mainframe.example.com\":\"s3cret\"}. Used with --native.",
           "isSecret": true,
           "isRequired": false

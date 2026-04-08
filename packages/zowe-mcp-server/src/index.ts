@@ -60,6 +60,11 @@ import {
   type EncodingOptions,
 } from './zos/encoding.js';
 import { createJobCardStore, type JobCardStore } from './zos/job-cards.js';
+import {
+  getStandalonePasswordFromEnv,
+  parseConnectionSpec,
+  toPasswordEnvVarName,
+} from './zos/native/connection-spec.js';
 import type { NativeOptions } from './zos/native/ssh-client-cache.js';
 
 /** Response cache config from CLI or env (undefined = use server defaults). */
@@ -1095,7 +1100,7 @@ async function main(): Promise<void> {
    * Populates profilesByType and activeProfileId from the file.
    * When the VS Code extension is connected, the password resolver sends a
    * request-password event and waits for the response via cliPluginPasswordStore.
-   * In standalone mode it falls back to ZOWE_MCP_PASSWORD_<USER>_<HOST> env vars.
+   * In standalone mode it falls back to ZOWE_MCP_PASSWORD_<USER>_<HOST> or ZOWE_MCP_CREDENTIALS.
    */
   function buildPluginState(
     profilesFile: CliPluginProfilesFile,
@@ -1151,15 +1156,13 @@ async function main(): Promise<void> {
           if (pw !== undefined) return pw;
         }
 
-        // Standalone mode (or VS Code fallback): read from env var
-        // Format: ZOWE_MCP_PASSWORD_<USER>_<HOST> (uppercase, dots/special chars → _)
-        const userPart = user.toUpperCase().replace(/[^A-Z0-9]/g, '_');
-        const hostPart = host.toUpperCase().replace(/[^A-Z0-9_]/g, '_');
-        const envVar = `ZOWE_MCP_PASSWORD_${userPart}_${hostPart}`;
-        const envPw = process.env[envVar];
-        if (envPw !== undefined && envPw !== '') return envPw;
+        // Standalone mode (or VS Code fallback): ZOWE_MCP_PASSWORD_* then ZOWE_MCP_CREDENTIALS
+        const spec = parseConnectionSpec(`${user}@${host}`);
+        const envPw = getStandalonePasswordFromEnv(spec);
+        if (envPw !== undefined) return envPw;
+        const envVar = toPasswordEnvVarName(spec.user, spec.host);
         throw new Error(
-          `No password available for ${user}@${host}. Set ${envVar} environment variable.`
+          `No password available for ${user}@${host}. Set ${envVar} or ZOWE_MCP_CREDENTIALS (JSON map of user@host to password).`
         );
       },
     };

@@ -23,7 +23,7 @@
  *   --system <spec>  Connection spec user@host or user@host:port (repeatable, used with --native).
  *
  * Tool arguments are key=value pairs. Values are strings unless they look like numbers or booleans (true/false).
- * Passwords for native mode: set ZOWE_MCP_PASSWORD_<USER>_<HOST> (e.g. ZOWE_MCP_PASSWORD_MYUSER_MYHOST).
+ * Passwords for native mode: ZOWE_MCP_PASSWORD_<USER>_<HOST> and/or ZOWE_MCP_CREDENTIALS (JSON map).
  *
  * Examples:
  *   # List tools (no backend)
@@ -64,6 +64,11 @@ import {
 } from '../tools/cli-bridge/cli-tool-loader.js';
 import type { CliPluginProfilesFile } from '../tools/cli-bridge/types.js';
 import { loadMock } from '../zos/mock/load-mock.js';
+import {
+  getStandalonePasswordFromEnv,
+  parseConnectionSpec,
+  toPasswordEnvVarName,
+} from '../zos/native/connection-spec.js';
 import { loadNative } from '../zos/native/load-native.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -313,12 +318,15 @@ async function main(): Promise<void> {
       // Standalone password resolver via env vars
       pluginState.passwordResolver = {
         getPassword(user: string, host: string): Promise<string> {
-          const userPart = user.toUpperCase().replace(/[^A-Z0-9]/g, '_');
-          const hostPart = host.toUpperCase().replace(/[^A-Z0-9_]/g, '_');
-          const envVar = `ZOWE_MCP_PASSWORD_${userPart}_${hostPart}`;
-          const pw = process.env[envVar];
-          if (pw !== undefined && pw !== '') return Promise.resolve(pw);
-          return Promise.reject(new Error(`No password for ${user}@${host}. Set ${envVar}.`));
+          const spec = parseConnectionSpec(`${user}@${host}`);
+          const pw = getStandalonePasswordFromEnv(spec);
+          if (pw !== undefined) return Promise.resolve(pw);
+          const envVar = toPasswordEnvVarName(spec.user, spec.host);
+          return Promise.reject(
+            new Error(
+              `No password for ${user}@${host}. Set ${envVar} or ZOWE_MCP_CREDENTIALS (JSON map of user@host to password).`
+            )
+          );
         },
       };
 

@@ -15,6 +15,7 @@
 
 import { describe, expect, it } from 'vitest';
 import type { ParsedConnectionSpec } from '../src/zos/native/connection-spec.js';
+import { toPasswordEnvVarName } from '../src/zos/native/connection-spec.js';
 import { NativeCredentialProvider } from '../src/zos/native/native-credential-provider.js';
 import { WaitablePasswordStore } from '../src/zos/native/password-store.js';
 import { cacheKey } from '../src/zos/native/ssh-client-cache.js';
@@ -26,6 +27,33 @@ const SPEC: ParsedConnectionSpec = {
 };
 
 describe('NativeCredentialProvider', () => {
+  describe('useEnvForPassword and ZOWE_MCP_CREDENTIALS', () => {
+    it('uses password from ZOWE_MCP_CREDENTIALS when per-connection env var is unset', async () => {
+      const envVar = toPasswordEnvVarName(SPEC.user, SPEC.host);
+      const prevVar = process.env[envVar];
+      const prevCred = process.env.ZOWE_MCP_CREDENTIALS;
+      delete process.env[envVar];
+      process.env.ZOWE_MCP_CREDENTIALS = JSON.stringify({
+        'user@host.example.com': 'json-password',
+      });
+      try {
+        const provider = new NativeCredentialProvider({
+          connectionSpecs: [SPEC],
+          useEnvForPassword: true,
+        });
+        await expect(provider.getCredentials(SPEC.host)).resolves.toEqual({
+          user: SPEC.user,
+          password: 'json-password',
+        });
+      } finally {
+        if (prevVar === undefined) delete process.env[envVar];
+        else process.env[envVar] = prevVar;
+        if (prevCred === undefined) delete process.env.ZOWE_MCP_CREDENTIALS;
+        else process.env.ZOWE_MCP_CREDENTIALS = prevCred;
+      }
+    });
+  });
+
   describe('requestPasswordViaElicitation and onElicitedPasswordUsed', () => {
     it('uses elicited password and calls onElicitedPasswordUsed', async () => {
       const used: { user: string; host: string; port: number | undefined; password: string }[] =

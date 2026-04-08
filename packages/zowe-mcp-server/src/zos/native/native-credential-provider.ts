@@ -12,7 +12,7 @@
 /**
  * Credential provider for the Zowe Native (SSH) backend.
  *
- * Standalone mode: reads passwords from env vars ZOWE_MCP_PASSWORD_<USER>_<HOST>.
+ * Standalone mode: reads passwords from ZOWE_MCP_PASSWORD_<USER>_<HOST> or ZOWE_MCP_CREDENTIALS (JSON map).
  * Invalid credentials are blacklisted for the process lifetime.
  *
  * VS Code mode: credentials are supplied via pipe events (see load-native and event handlers).
@@ -22,7 +22,7 @@ import { getLogger } from '../../server.js';
 import type { CredentialProvider, Credentials, GetCredentialsOptions } from '../credentials.js';
 import type { SystemId } from '../system.js';
 import type { ParsedConnectionSpec } from './connection-spec.js';
-import { toPasswordEnvVarName } from './connection-spec.js';
+import { getStandalonePasswordFromEnv, toPasswordEnvVarName } from './connection-spec.js';
 import { passwordHash } from './password-hash.js';
 import { cacheKey } from './ssh-client-cache.js';
 
@@ -241,7 +241,7 @@ export class NativeCredentialProvider implements CredentialProvider {
 
     if (this.options.useEnvForPassword) {
       const envVar = toPasswordEnvVarName(spec.user, spec.host);
-      password = process.env[envVar];
+      password = getStandalonePasswordFromEnv(spec);
       if (password === undefined || password === '') {
         log.info('Missing password from environment', {
           key,
@@ -251,7 +251,7 @@ export class NativeCredentialProvider implements CredentialProvider {
           envVar,
         });
         throw new Error(
-          `Missing password for ${spec.user}@${spec.host}. Set environment variable ${envVar}.`
+          `Missing password for ${spec.user}@${spec.host}. Set environment variable ${envVar} or ZOWE_MCP_CREDENTIALS (JSON map of user@host to password).`
         );
       }
       log.debug('Credentials obtained from environment', {

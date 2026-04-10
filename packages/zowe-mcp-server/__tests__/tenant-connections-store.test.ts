@@ -15,7 +15,10 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
   appendTenantSystem,
+  loadTenantConnectionsFile,
+  loadTenantJobCards,
   loadTenantSystems,
+  mergeTenantJobCard,
   removeTenantSystem,
   saveTenantSystems,
   tenantFileBaseFromSub,
@@ -73,5 +76,27 @@ describe('tenant-connections-store', () => {
     };
     expect(raw.systems).toEqual(['x@y']);
     expect(raw.updatedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+  });
+
+  it('mergeTenantJobCard preserves systems and merges jobCards', () => {
+    dir = mkdtempSync(join(tmpdir(), 'zowe-mcp-tenant-'));
+    const sub = 'sub-jc';
+    saveTenantSystems(dir, sub, ['u@h.example.com']);
+    mergeTenantJobCard(dir, sub, 'u@h.example.com:2222', '//MYJOB JOB\n');
+    const file = loadTenantConnectionsFile(dir, sub);
+    expect(file?.systems).toEqual(['u@h.example.com']);
+    expect(file?.jobCards?.['u@h.example.com:2222']).toBe('//MYJOB JOB');
+    const loaded = loadTenantJobCards(dir, sub);
+    expect(loaded?.['u@h.example.com:2222']).toBe('//MYJOB JOB');
+  });
+
+  it('saveTenantSystems preserves existing jobCards', () => {
+    dir = mkdtempSync(join(tmpdir(), 'zowe-mcp-tenant-'));
+    const sub = 'sub-preserve';
+    mergeTenantJobCard(dir, sub, 'a@b', '//J1');
+    saveTenantSystems(dir, sub, ['a@b', 'c@d']);
+    const file = loadTenantConnectionsFile(dir, sub);
+    expect(file?.systems).toEqual(['a@b', 'c@d']);
+    expect(file?.jobCards?.['a@b']).toBe('//J1');
   });
 });

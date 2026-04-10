@@ -20,6 +20,7 @@
  * - `password-invalid` → delete secret for that user@host
  * - `store-password` → store password in SecretStorage (e.g. after successful use of elicited password)
  * - `store-cli-plugin-profiles` → merge CLI plugin profiles into `zoweMCP.cliPluginConfiguration` and mirror JSON to globalStorage
+ * - `request-job-card` → input box, persist to `zoweMCP.jobCards`, send `job-card`
  */
 
 import type {
@@ -38,6 +39,54 @@ import {
   getZosmfProfilesFromZoweCli,
   resolveProfileFromSystem,
 } from './zowe-profile';
+
+/** Matches server job-card key: `user@host` when port is 22, else `user@host:port`. */
+export function jobCardConnectionSpec(user: string, host: string, port?: number): string {
+  const portNum = port ?? 22;
+  return portNum === 22 ? `${user}@${host}` : `${user}@${host}:${portNum}`;
+}
+
+/**
+ * Turns pasted or typed job card text into newline-separated lines. Splits on whitespace
+ * (space, tab, newline) before a JCL line start (`//` or `/*`) so one-line or multi-line paste works.
+ */
+function normalizeJobCardInput(raw: string): string {
+  const t = raw.trim();
+  if (t === '') {
+    return '';
+  }
+  return t
+    .split(/\s+(?=\/\/|\/\*)/)
+    .map(s => s.trim())
+    .filter(s => s.length > 0)
+    .join('\n');
+}
+
+async function persistJobCardToSettings(connectionSpec: string, jobCard: string): Promise<void> {
+  const config = vscode.workspace.getConfiguration('zoweMCP');
+  const current = config.get<Record<string, string | string[]>>('jobCards', {}) ?? {};
+  await config.update(
+    'jobCards',
+    { ...current, [connectionSpec]: jobCard },
+    vscode.ConfigurationTarget.Global
+  );
+}
+
+function emitJobCardEvent(
+  send: (event: ExtensionToServerEvent) => void,
+  user: string,
+  host: string,
+  port: number | undefined,
+  jobCard: string,
+  log: vscode.LogOutputChannel
+): void {
+  send({
+    type: 'job-card',
+    data: { user, host, port: port === 22 || port === undefined ? undefined : port, jobCard },
+    timestamp: Date.now(),
+  });
+  log.info(`Sent job card for ${user}@${host} to MCP server`);
+}
 
 /** Session cache: profile name per system key (empty string = default). Cleared when extension deactivates. */
 const sessionProfileBySystem = new Map<string, string>();
@@ -338,8 +387,7 @@ async function handleStorePassword(
 }
 
 /**
- * Handles request-job-card: prompt for multi-line job card, then send job-card event.
- * User can paste JCL with newlines; showInputBox is single-line so we use a placeholder that accepts \n.
+ * Handles request-job-card: input box, persist to `zoweMCP.jobCards`, then send `job-card`.
  */
 async function handleRequestJobCard(
   log: vscode.LogOutputChannel,
@@ -348,23 +396,29 @@ async function handleRequestJobCard(
 ): Promise<void> {
   if (event.type !== 'request-job-card') return;
   const { user, host, port } = event.data;
+
+  const connectionSpec = jobCardConnectionSpec(user, host, port);
+
   const jobCard = await vscode.window.showInputBox({
     title: `Zowe MCP: Job card for ${user}@${host}`,
-    prompt: 'Paste the JOB statement (and continuations). Use \\n for newlines.',
-    placeHolder: "//JOBNAME  JOB (ACCT),'NAME',CLASS=A,MSGCLASS=H",
+    prompt:
+      'Paste or type the job card. Put whitespace between lines (e.g. spaces or newlines before each // line).',
+    placeHolder: '//MYJOB  JOB ...',
     ignoreFocusOut: true,
   });
   if (jobCard == null || jobCard.trim() === '') {
     log.warn(`User cancelled job card input for ${user}@${host}`);
     return;
   }
-  const normalized = jobCard.replace(/\\n/g, '\n').trim();
-  options.sendEventToServers({
-    type: 'job-card',
-    data: { user, host, port, jobCard: normalized },
-    timestamp: Date.now(),
-  });
-  log.info(`Sent job card for ${user}@${host} to MCP server`);
+  const normalized = normalizeJobCardInput(jobCard);
+  try {
+    await persistJobCardToSettings(connectionSpec, normalized);
+  } catch (e) {
+    log.warn(
+      `Failed to persist job card to settings: ${e instanceof Error ? e.message : String(e)}`
+    );
+  }
+  emitJobCardEvent(options.sendEventToServers, user, host, port, normalized, log);
 }
 
 /**

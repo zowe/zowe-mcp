@@ -100,51 +100,63 @@ export function activate(context: vscode.ExtensionContext): void {
     )
   );
 
-  // Watch for setting changes and forward to connected MCP servers
+  // Watch for setting changes and forward to connected MCP servers.
+  // Capture affectsConfiguration() synchronously; read settings and send events on the next
+  // microtask so values from settings.json are committed (avoids stale reads on save).
   context.subscriptions.push(
     vscode.workspace.onDidChangeConfiguration(e => {
-      if (e.affectsConfiguration('zoweMCP.logLevel')) {
-        // Read after VS Code has applied the change (avoids reading stale value)
-        void Promise.resolve().then(() => {
+      if (!e.affectsConfiguration('zoweMCP')) {
+        return;
+      }
+
+      const logLevelChanged = e.affectsConfiguration('zoweMCP.logLevel');
+      const connectionsChanged =
+        e.affectsConfiguration('zoweMCP.nativeConnections') ||
+        e.affectsConfiguration('zoweMCP.nativeSystems');
+      const nativeOptionsChanged =
+        e.affectsConfiguration('zoweMCP.installZoweNativeServerAutomatically') ||
+        e.affectsConfiguration('zoweMCP.zoweNativeServerPath') ||
+        e.affectsConfiguration('zoweMCP.nativeResponseTimeout');
+      const encodingChanged =
+        e.affectsConfiguration('zoweMCP.defaultMainframeMvsEncoding') ||
+        e.affectsConfiguration('zoweMCP.defaultMainframeUssEncoding');
+      const jobCardsChanged = e.affectsConfiguration('zoweMCP.jobCards');
+      const cliPluginChanged = e.affectsConfiguration('zoweMCP.cliPluginConfiguration');
+      const backendChanged = e.affectsConfiguration('zoweMCP.backend');
+      const mockDataDirectoryChanged = e.affectsConfiguration('zoweMCP.mockDataDirectory');
+      const enabledCliPluginsChanged = e.affectsConfiguration('zoweMCP.enabledCliPlugins');
+
+      void Promise.resolve().then(() => {
+        if (logLevelChanged) {
           const config = vscode.workspace.getConfiguration('zoweMCP');
           const level = config.get<string>('logLevel', 'info');
           log.info(`Log level setting changed to "${level}", forwarding to MCP servers`);
           sendLogLevelEvent(level);
-        });
-      }
-      if (e.affectsConfiguration('zoweMCP.nativeConnections')) {
-        log.info('Native connections setting changed, forwarding to MCP servers');
-        sendConnectionsUpdateEvent();
-      }
-      if (
-        e.affectsConfiguration('zoweMCP.installZoweNativeServerAutomatically') ||
-        e.affectsConfiguration('zoweMCP.zoweNativeServerPath') ||
-        e.affectsConfiguration('zoweMCP.nativeResponseTimeout')
-      ) {
-        log.info('Native options setting changed, forwarding to MCP servers');
-        sendNativeOptionsUpdateEvent();
-      }
-      if (
-        e.affectsConfiguration('zoweMCP.defaultMainframeMvsEncoding') ||
-        e.affectsConfiguration('zoweMCP.defaultMainframeUssEncoding')
-      ) {
-        log.info('Encoding options setting changed, forwarding to MCP servers');
-        sendEncodingOptionsUpdateEvent();
-      }
-      if (e.affectsConfiguration('zoweMCP.jobCards')) {
-        log.info('Job cards setting changed, forwarding to MCP servers');
-        sendJobCardsUpdateEvent();
-      }
-      if (e.affectsConfiguration('zoweMCP.cliPluginConfiguration')) {
-        log.info('CLI plugin configuration setting changed, forwarding to MCP servers');
-        sendCliPluginConfigurationUpdateEvent();
-      }
-      if (e.affectsConfiguration('zoweMCP.backend')) {
-        void Promise.resolve().then(() => {
+        }
+        if (connectionsChanged) {
+          log.info('Native connections setting changed, forwarding to MCP servers');
+          sendConnectionsUpdateEvent();
+        }
+        if (nativeOptionsChanged) {
+          log.info('Native options setting changed, forwarding to MCP servers');
+          sendNativeOptionsUpdateEvent();
+        }
+        if (encodingChanged) {
+          log.info('Encoding options setting changed, forwarding to MCP servers');
+          sendEncodingOptionsUpdateEvent();
+        }
+        if (jobCardsChanged) {
+          log.info('Job cards setting changed, forwarding to MCP servers');
+          sendJobCardsUpdateEvent();
+        }
+        if (cliPluginChanged) {
+          log.info('CLI plugin configuration setting changed, forwarding to MCP servers');
+          sendCliPluginConfigurationUpdateEvent();
+        }
+        if (backendChanged) {
           const config = vscode.workspace.getConfiguration('zoweMCP');
           const backend = config.get<string>('backend', 'native');
           log.info(`Backend setting changed to "${backend}"`);
-          // Clear stale active connection so the status bar starts fresh after reload
           updateZoweMcpStatusBar(null, context);
           if (backend === 'mock') {
             const mockDir = config.get<string>('mockDataDirectory', '').trim();
@@ -163,27 +175,24 @@ export function activate(context: vscode.ExtensionContext): void {
                 void vscode.commands.executeCommand('workbench.action.reloadWindow');
               }
             });
-        });
-      }
-      // When running in Cursor, update Cursor's stored MCP config so the next server start uses current settings
-      const affectsServerStartup =
-        e.affectsConfiguration('zoweMCP.backend') ||
-        e.affectsConfiguration('zoweMCP.mockDataDirectory') ||
-        e.affectsConfiguration('zoweMCP.nativeConnections') ||
-        e.affectsConfiguration('zoweMCP.installZoweNativeServerAutomatically') ||
-        e.affectsConfiguration('zoweMCP.zoweNativeServerPath') ||
-        e.affectsConfiguration('zoweMCP.nativeResponseTimeout') ||
-        e.affectsConfiguration('zoweMCP.defaultMainframeMvsEncoding') ||
-        e.affectsConfiguration('zoweMCP.defaultMainframeUssEncoding') ||
-        e.affectsConfiguration('zoweMCP.jobCards') ||
-        e.affectsConfiguration('zoweMCP.enabledCliPlugins');
-      if (
-        affectsServerStartup &&
-        cursorMcpRegistered &&
-        typeof vscode.cursor?.mcp?.registerServer === 'function'
-      ) {
-        void updateCursorRegistration(context, serverModule, discoveryDir, workspaceId, log);
-      }
+        }
+
+        const affectsServerStartup =
+          backendChanged ||
+          mockDataDirectoryChanged ||
+          connectionsChanged ||
+          nativeOptionsChanged ||
+          encodingChanged ||
+          jobCardsChanged ||
+          enabledCliPluginsChanged;
+        if (
+          affectsServerStartup &&
+          cursorMcpRegistered &&
+          typeof vscode.cursor?.mcp?.registerServer === 'function'
+        ) {
+          void updateCursorRegistration(context, serverModule, discoveryDir, workspaceId, log);
+        }
+      });
     })
   );
 

@@ -71,6 +71,11 @@ export interface NativeSetup {
    * Used for connections-update (VS Code), tenant file merges, and addZosConnection.
    */
   updateSystems: (systems: string[]) => void;
+  /**
+   * Connection spec string for job card lookup (`user@host` or `user@host:port` when port ≠ 22).
+   * Falls back to `userId@systemId` when no matching spec exists.
+   */
+  resolveJobCardConnectionSpec: (systemId: string, userId: string) => string;
 }
 
 /**
@@ -174,5 +179,19 @@ export function loadNative(options: LoadNativeOptions): NativeSetup {
     registerSystemsFromSpecs(newSpecs);
   }
 
-  return { backend, credentialProvider, systemRegistry, updateSystems };
+  function resolveJobCardConnectionSpec(systemId: string, userId: string): string {
+    const spec = getSpec(systemId, userId);
+    if (spec) {
+      return formatConnectionSpec(spec);
+    }
+    return `${userId}@${systemId}`;
+  }
+
+  return {
+    backend,
+    credentialProvider,
+    systemRegistry,
+    updateSystems,
+    resolveJobCardConnectionSpec,
+  };
 }

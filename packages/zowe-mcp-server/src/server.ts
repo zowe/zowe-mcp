@@ -96,6 +96,8 @@ z/OS Terminology
 - EBCDIC: The character encoding used on z/OS mainframes (e.g. IBM-037 for data sets, IBM-1047 for USS).
 - HLQ (High-Level Qualifier): The first qualifier in a data set name, typically the user ID or project name.
 
+Job card templates (submitJob): When the configured job card text contains placeholders, the server substitutes them before prepending JCL: literal substrings {jobname} (case-insensitive) and {programmer} in the stored template become the job name (default user ID plus A, max 8 characters) and programmer field (max 19 characters). Elicited or pasted full JOB statements are used as literal text without placeholder substitution.
+
 CRITICAL — Non-retryable errors
 
 When ANY tool response contains "stop": true, a fatal configuration error has occurred.
@@ -205,6 +207,23 @@ export interface CreateServerOptions {
    * spec from the tenant file (not from server `--config`/`--system` bootstrap list).
    */
   removeTenantNativeConnection?: (spec: string) => Promise<void>;
+  /**
+   * Native SSH: formats `user@host` or `user@host:port` for job card keys (matches config / VS Code).
+   */
+  resolveJobCardConnectionSpec?: (systemId: string, userId: string) => string;
+  /**
+   * When set, called to obtain a job card if none is configured (e.g. extension prompt or MCP elicitation).
+   */
+  elicitJobCard?: (params: {
+    connectionSpec: string;
+    user: string;
+    host: string;
+    port: number;
+  }) => Promise<string | undefined>;
+  /**
+   * After a successful elicitation, persist the card (e.g. tenant file or `--config` JSON).
+   */
+  persistJobCard?: (connectionSpec: string, jobCard: string) => void;
 }
 
 /** Callbacks required to register Zowe Explorer open-in-editor tools (e.g. for late registration). */
@@ -408,6 +427,10 @@ export function createServer(options?: CreateServerOptions): CreateServerResult 
         sessionState,
         credentialProvider,
         jobCardStore,
+        resolveJobCardConnectionSpec: options.resolveJobCardConnectionSpec,
+        elicitJobCard: options.elicitJobCard,
+        persistJobCard: options.persistJobCard,
+        mcpServer: server,
       },
       logger
     );

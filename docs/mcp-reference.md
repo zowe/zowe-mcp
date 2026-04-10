@@ -2,9 +2,9 @@
 
 # Zowe MCP Server Reference
 
-> Auto-generated from the MCP server (v0.8.0-dev, commit 7dafbbe). Do not edit manually — run `npx @zowe/mcp-server generate-docs` to regenerate.
+> Auto-generated from the MCP server (v0.8.0-dev, commit 795b866). Do not edit manually — run `npx @zowe/mcp-server generate-docs` to regenerate.
 
-This document describes all [Context](#context), [Data Sets](#data-sets), [USS](#uss), [TSO](#tso), [Jobs](#jobs), [Local Files](#local-files), [db2 CLI Plugin Tools](#db2-cli-plugin-tools), [Tool Reference](#tool-reference), [Prompts](#prompts), [Resource Templates](#resource-templates) provided by the Zowe MCP Server.
+This document describes all [Context](#context), [Data Sets](#data-sets), [USS](#uss), [TSO](#tso), [Jobs](#jobs), [Local Files](#local-files), [Other](#other), [db2 CLI Plugin Tools](#db2-cli-plugin-tools), [Tool Reference](#tool-reference), [Prompts](#prompts), [Resource Templates](#resource-templates) provided by the Zowe MCP Server.
 
 ## Context
 
@@ -116,6 +116,14 @@ Transfer files between z/OS (data sets and USS paths) and the local workspace.
 | 4 | [`uploadFileToUssFile`](#uploadfiletoussfile)     | Upload a UTF-8 workspace file to a z/OS USS path                                             |
 | 5 | [`downloadJobFileToFile`](#downloadjobfiletofile) | Download one job spool file from z/OS to a local workspace file as UTF-8 text                |
 
+## Other
+
+The server provides **1** tool.
+
+| # | Tool                                          | Description                                                                                             |
+|---|-----------------------------------------------|---------------------------------------------------------------------------------------------------------|
+| 1 | [`removeZosConnection`](#removezosconnection) | Remove a z/OS SSH connection (user@host or user@host:port) from your per-user saved list (OIDC subject) |
+
 ## db2 CLI Plugin Tools
 
 The server provides **5** tools.
@@ -190,6 +198,7 @@ Return the Zowe MCP server info (version, backend, components) and the current s
     "components": [
       "context",
       "addZosConnection",
+      "removeZosConnection",
       "datasets",
       "uss",
       "tso",
@@ -323,7 +332,7 @@ Output:
 ### `addZosConnection`
 
 
-Add a z/OS SSH connection (user@host or user@host:port) for the current signed-in user only. Each OIDC subject has a separate persisted list (no cross-user sharing). Prefer this over baking connection lists into server startup for remote HTTP. After adding, use setSystem with the new host or connection spec. SSH passwords: MCP elicitation when supported, else ZOWE_MCP_PASSWORD_* / ZOWE_MCP_CREDENTIALS.
+Add a z/OS SSH connection (user@host or user@host:port) for the current signed-in user only. Each OIDC subject has a separate persisted list (no cross-user sharing). Prefer this over baking connection lists into server startup for remote HTTP. After adding, use setSystem with the new host or connection spec. Passwords for this user@host (SSH, Db2, etc.): MCP elicitation when supported, else ZOWE_MCP_PASSWORD_* / ZOWE_MCP_CREDENTIALS.
 
 #### Parameters
 
@@ -356,7 +365,7 @@ Output:
 ```json
 {
   "messages": [
-    "Connection added for your user only. Use setSystem with this host or connection spec. SSH password: elicitation when the client supports it, else set ZOWE_MCP_PASSWORD_* or ZOWE_MCP_CREDENTIALS."
+    "Connection added for your user only. Use setSystem with this host or connection spec. Password (SSH, Db2, etc.): elicitation when the client supports it, else set ZOWE_MCP_PASSWORD_* or ZOWE_MCP_CREDENTIALS."
   ],
   "connectionSpec": "USER@mainframe-dev.example.com",
   "persisted": true
@@ -2200,13 +2209,13 @@ Output:
     "totalLines": 1,
     "startLine": 1,
     "returnedLines": 1,
-    "contentLength": 74,
+    "contentLength": 75,
     "mimeType": "text/plain",
     "hasMore": false
   },
   "data": {
     "lines": [
-      "TIME-10:27:16 PM. CPU-00:00:00 SERVICE-26895 SESSION-00:01:53 APRIL 8,2026"
+      "TIME-12:09:47 AM. CPU-00:00:00 SERVICE-26895 SESSION-00:01:53 APRIL 11,2026"
     ],
     "mimeType": "text/plain"
   }
@@ -2238,18 +2247,18 @@ Output:
 
 > Destructive
 
-Submit JCL to the current (or specified) z/OS system. A job card is added from config when JCL has none; include a job card only when your JCL already has a full JOB statement. To wait for the job to complete, set wait: true (and optionally timeoutSeconds); the tool will then return status and optional output info. Submitting runs work on z/OS—use with care.
+Submit JCL to the current (or specified) z/OS system. When JCL has no JOB statement, the server uses a configured template or prompts for a card. Stored templates may include literal substrings {jobname} (case-insensitive) and {programmer}, replaced from jobName and programmer before prepending; a full JOB line entered at prompt is used as literal text without substitution. To wait for the job to complete, set wait: true (and optionally timeoutSeconds); the tool will then return status and optional output info. Submitting runs work on z/OS—use with care.
 
 #### Parameters
 
-| Parameter        | Type       | Required | Description                                                                                                                                                                    |
-|------------------|------------|----------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `lines`          | `string`[] | Yes      | JCL to submit as array of lines. Omit the job card to use the one configured for this connection; include it only when your JCL already has a full JOB statement.              |
-| `system`         | `string`   | No       | Optional z/OS system (hostname). If omitted, the active system from setSystem is used.                                                                                         |
-| `jobName`        | `string`   | No       | Job name for the JOB statement when using a template (max 8 chars). Default: user ID + "A". Ignored if JCL already contains a job card.                                        |
-| `programmer`     | `string`   | No       | Programmer field in the JOB statement when using a template (max 19 chars). Typically describes what the job does. Default: empty. Ignored if JCL already contains a job card. |
-| `wait`           | `boolean`  | No       | When true, wait for the job to reach OUTPUT (or timeout) and return status, timedOut, and optionally failedStepJobFiles.                                                       |
-| `timeoutSeconds` | `integer`  | No       | When wait is true, how long to wait for OUTPUT (seconds). Default 300. The job keeps running on z/OS after timeout.                                                            |
+| Parameter        | Type       | Required | Description                                                                                                                                                                         |
+|------------------|------------|----------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `lines`          | `string`[] | Yes      | JCL to submit as array of lines. Omit the job card to use the one configured for this connection; include it only when your JCL already has a full JOB statement.                   |
+| `system`         | `string`   | No       | Optional z/OS system (hostname). If omitted, the active system from setSystem is used.                                                                                              |
+| `jobName`        | `string`   | No       | Replaces the {jobname} placeholder in a stored job card template (max 8 chars). Default: user ID + "A". Ignored if JCL already contains a job card or the card has no placeholders. |
+| `programmer`     | `string`   | No       | Replaces the {programmer} placeholder in a stored template (max 19 chars). Default: empty. Ignored if JCL already contains a job card or the card has no placeholders.              |
+| `wait`           | `boolean`  | No       | When true, wait for the job to reach OUTPUT (or timeout) and return status, timedOut, and optionally failedStepJobFiles.                                                            |
+| `timeoutSeconds` | `integer`  | No       | When wait is true, how long to wait for OUTPUT (seconds). Default 300. The job keeps running on z/OS after timeout.                                                                 |
 
 <a id="submitjob-output-schema"></a>
 
@@ -2837,6 +2846,30 @@ Download one job spool file from z/OS to a local workspace file as UTF-8 text. U
 | &ensp;├─ `etag`         | `string`  | No       | z/OS ETag after read or write when applicable.                                                                     |
 | &ensp;├─ `jobId`        | `string`  | Yes      |                                                                                                                    |
 | &ensp;└─ `jobFileId`    | `integer` | Yes      |                                                                                                                    |
+
+---
+
+### `removeZosConnection`
+
+> Destructive
+
+Remove a z/OS SSH connection (user@host or user@host:port) from your per-user saved list (OIDC subject). Only connections previously added with addZosConnection or stored in the tenant file can be removed here. Connections supplied only via server startup (--config/--system) must be changed in server configuration. After removal, pick another system with setSystem if needed.
+
+#### Parameters
+
+| Parameter        | Type     | Required | Description                                                                                 |
+|------------------|----------|----------|---------------------------------------------------------------------------------------------|
+| `connectionSpec` | `string` | Yes      | Connection string to remove: user@host or user@host:port (same format as addZosConnection). |
+
+<a id="removezosconnection-output-schema"></a>
+
+#### Output Schema
+
+| Field            | Type       | Required | Description                                                                             |
+|------------------|------------|----------|-----------------------------------------------------------------------------------------|
+| `messages`       | `string`[] | No       |                                                                                         |
+| `connectionSpec` | `string`   | Yes      | Normalized connection spec that was removed (user@host or user@host:port).              |
+| `persisted`      | `boolean`  | Yes      | True when updated in the tenant store on disk (HTTP + JWT + ZOWE_MCP_TENANT_STORE_DIR). |
 
 ---
 

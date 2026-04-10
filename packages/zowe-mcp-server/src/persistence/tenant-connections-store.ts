@@ -27,6 +27,8 @@ import { decryptTenantFileToUtf8, encryptTenantJsonUtf8 } from './tenant-store-c
 export interface TenantConnectionsFile {
   /** Connection specs (same format as native config `systems`). */
   systems: string[];
+  /** Optional per-connection job card text (same keys as native `jobCards`). */
+  jobCards?: Record<string, string>;
   /** ISO timestamp when last written. */
   updatedAt?: string;
 }
@@ -47,36 +49,104 @@ function tenantFilePath(storeDir: string, sub: string): string {
   return join(storeDir, `${tenantFileBaseFromSub(sub)}.json`);
 }
 
-export function loadTenantSystems(storeDir: string, sub: string): string[] {
+/**
+ * Loads the full tenant JSON (systems + optional jobCards). Returns null if missing or invalid.
+ */
+export function loadTenantConnectionsFile(
+  storeDir: string,
+  sub: string
+): TenantConnectionsFile | null {
   const path = tenantFilePath(storeDir, sub);
   if (!existsSync(path)) {
-    return [];
+    return null;
   }
   try {
     const buf = readFileSync(path);
     const raw = decryptTenantFileToUtf8(buf);
     const data = JSON.parse(raw) as TenantConnectionsFile;
     if (!data || !Array.isArray(data.systems)) {
-      return [];
+      return null;
     }
-    return data.systems.filter((s): s is string => typeof s === 'string' && s.trim().length > 0);
+    return data;
   } catch {
-    return [];
+    return null;
   }
 }
 
-export function saveTenantSystems(storeDir: string, sub: string, systems: string[]): void {
+function writeTenantConnectionsFile(
+  storeDir: string,
+  sub: string,
+  payload: TenantConnectionsFile
+): void {
   mkdirSync(storeDir, { recursive: true });
   const path = tenantFilePath(storeDir, sub);
-  const payload: TenantConnectionsFile = {
-    systems: [...new Set(systems.map(s => s.trim()).filter(Boolean))],
+  const outPayload: TenantConnectionsFile = {
+    ...payload,
+    systems: [...new Set(payload.systems.map(s => s.trim()).filter(Boolean))],
     updatedAt: new Date().toISOString(),
   };
   const tmp = `${path}.${process.pid}.${Date.now()}.tmp`;
-  const body = `${JSON.stringify(payload, null, 2)}\n`;
+  const body = `${JSON.stringify(outPayload, null, 2)}\n`;
   const out = encryptTenantJsonUtf8(body);
   writeFileSync(tmp, out);
   renameSync(tmp, path);
+}
+
+export function loadTenantSystems(storeDir: string, sub: string): string[] {
+  const data = loadTenantConnectionsFile(storeDir, sub);
+  if (!data) {
+    return [];
+  }
+  return data.systems.filter((s): s is string => typeof s === 'string' && s.trim().length > 0);
+}
+
+/** Returns persisted job cards for a tenant, or undefined if none. */
+export function loadTenantJobCards(
+  storeDir: string,
+  sub: string
+): Record<string, string> | undefined {
+  const data = loadTenantConnectionsFile(storeDir, sub);
+  const jc = data?.jobCards;
+  if (!jc || typeof jc !== 'object') {
+    return undefined;
+  }
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(jc)) {
+    if (k.trim().length > 0 && typeof v === 'string' && v.trim().length > 0) {
+      out[k.trim()] = v.trim();
+    }
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
+export function saveTenantSystems(storeDir: string, sub: string, systems: string[]): void {
+  const existing = loadTenantConnectionsFile(storeDir, sub);
+  writeTenantConnectionsFile(storeDir, sub, {
+    systems,
+    jobCards: existing?.jobCards,
+  });
+}
+
+/**
+ * Merges one job card into the tenant file and persists (preserves systems and other jobCards keys).
+ */
+export function mergeTenantJobCard(
+  storeDir: string,
+  sub: string,
+  connectionSpec: string,
+  jobCard: string
+): void {
+  const spec = connectionSpec.trim();
+  const card = jobCard.trim();
+  if (!spec || !card) {
+    return;
+  }
+  const existing = loadTenantConnectionsFile(storeDir, sub);
+  const systems = existing?.systems?.length
+    ? existing.systems.filter((s): s is string => typeof s === 'string' && s.trim().length > 0)
+    : [];
+  const jobCards = { ...(existing?.jobCards ?? {}), [spec]: card };
+  writeTenantConnectionsFile(storeDir, sub, { systems, jobCards });
 }
 
 /** Append one connection spec if not already present, then save. */

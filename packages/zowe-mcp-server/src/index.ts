@@ -52,7 +52,9 @@ import type {
 import { connectExtensionClient, type ExtensionClient } from './extension-client.js';
 import {
   appendTenantSystem,
+  loadTenantJobCards,
   loadTenantSystems,
+  mergeTenantJobCard,
   removeTenantSystem,
   tenantStoreDirFromEnv,
 } from './persistence/tenant-connections-store.js';
@@ -76,7 +78,12 @@ import {
   DEFAULT_MAINFRAME_USS_ENCODING,
   type EncodingOptions,
 } from './zos/encoding.js';
-import { createJobCardStore, type JobCardStore } from './zos/job-cards.js';
+import {
+  createJobCardStore,
+  createWaitableJobCardStore,
+  type JobCardStore,
+  type JobCardStoreWithWait,
+} from './zos/job-cards.js';
 import {
   formatNormalizedConnectionSpec,
   parseConnectionSpec,
@@ -551,6 +558,110 @@ function loadNativeConfig(configPath: string): NativeConfig {
   return config;
 }
 
+/** Best-effort merge of a job card into `--config` JSON (same shape as native config). */
+function mergeJobCardIntoNativeConfigFile(
+  configPath: string,
+  connectionSpec: string,
+  jobCard: string
+): void {
+  const raw = readFileSync(configPath, 'utf-8');
+  const config = JSON.parse(raw) as NativeConfig;
+  if (!Array.isArray(config.systems)) {
+    throw new Error(`Config file ${configPath} must have a "systems" array`);
+  }
+  if (!config.jobCards || typeof config.jobCards !== 'object') {
+    config.jobCards = {};
+  }
+  config.jobCards[connectionSpec] = jobCard;
+  const tmp = `${configPath}.${process.pid}.${Date.now()}.tmp`;
+  try {
+    writeFileSync(tmp, `${JSON.stringify(config, null, 2)}\n`, 'utf-8');
+    renameSync(tmp, configPath);
+  } catch (e) {
+    try {
+      unlinkSync(tmp);
+    } catch {
+      /* ignore */
+    }
+    throw e;
+  }
+}
+
+const DEFAULT_JOB_CARD_ELICIT_TIMEOUT_MS = 120_000;
+
+function jobCardElicitTimeoutMs(): number {
+  const raw = process.env.ZOWE_MCP_JOB_CARD_ELICIT_TIMEOUT_MS?.trim();
+  if (!raw) {
+    return DEFAULT_JOB_CARD_ELICIT_TIMEOUT_MS;
+  }
+  const n = Number(raw);
+  return Number.isFinite(n) && n > 0 ? n : DEFAULT_JOB_CARD_ELICIT_TIMEOUT_MS;
+}
+
+function createElicitJobCard(
+  jobCardStore: JobCardStore,
+  extensionClient: ExtensionClient | undefined,
+  serverRef: { current: CreateServerResult | null } | undefined,
+  log: ReturnType<typeof getLogger>
+): NonNullable<CreateServerOptions['elicitJobCard']> {
+  const waitMs = jobCardElicitTimeoutMs();
+  return async (params: { connectionSpec: string; user: string; host: string; port: number }) => {
+    if (extensionClient?.connected) {
+      extensionClient.sendEvent({
+        type: 'request-job-card',
+        data: {
+          user: params.user,
+          host: params.host,
+          port: params.port === 22 ? undefined : params.port,
+        },
+        timestamp: Date.now(),
+      });
+      const w = jobCardStore as JobCardStoreWithWait;
+      if (typeof w.waitForJobCard === 'function') {
+        const card = await w.waitForJobCard(params.connectionSpec, waitMs);
+        if (card !== undefined) {
+          return card;
+        }
+      }
+    }
+    const sr = serverRef?.current;
+    if (!sr) {
+      return undefined;
+    }
+    const mcpServer = getServer(sr);
+    const caps = mcpServer.server.getClientCapabilities();
+    if (!caps?.elicitation) {
+      return undefined;
+    }
+    try {
+      const result = await mcpServer.server.elicitInput({
+        mode: 'form',
+        message: `Enter the JCL job card for connection ${params.connectionSpec} (// JOB statement; multiple lines in one field).`,
+        requestedSchema: {
+          type: 'object',
+          properties: {
+            jobCard: {
+              type: 'string',
+              title: 'Job card',
+              description: 'JOB statement and optional continuations (newline-separated).',
+            },
+          },
+          required: ['jobCard'],
+        },
+      });
+      if (result.action === 'accept' && result.content?.jobCard !== undefined) {
+        const jc = result.content.jobCard;
+        return typeof jc === 'string' ? jc : String(jc);
+      }
+    } catch (err) {
+      log.debug('Job card MCP elicitation failed', {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+    return undefined;
+  };
+}
+
 /**
  * Build the loadNative callback options that forward events to the VS Code extension pipe.
  * Only called when the extension client is connected.
@@ -940,6 +1051,10 @@ async function main(): Promise<void> {
 
   // Load mock backend if --mock is specified
   let serverOptions: CreateServerOptions | undefined;
+  /** Set in native mode: jobCards from `--config` for per-tenant HTTP merge. */
+  let bootstrapJobCardsForHttp: NativeConfig['jobCards'] | undefined;
+  /** Set in native mode: used for HTTP JWT job card connection keys when tenant setup is unavailable. */
+  let sharedNativeResolveJobCard: ((systemId: string, userId: string) => string) | undefined;
   let encodingOptionsRef: { current: EncodingOptions } | undefined;
   /** Set in native mode; used to pass server to elicitation callback after createServer (stdio only). */
   let serverRef: { current: CreateServerResult | null } | undefined;
@@ -985,12 +1100,13 @@ async function main(): Promise<void> {
     });
   } else if (native) {
     let systems: string[] = [...systemSpecs];
-    const jobCardStore = createJobCardStore();
+    const jobCardStore = createWaitableJobCardStore();
     if (configPath) {
       try {
         const fromConfig = loadNativeConfig(configPath);
         systems = [...(fromConfig.systems ?? []), ...systemSpecs];
         if (fromConfig.jobCards) {
+          bootstrapJobCardsForHttp = fromConfig.jobCards;
           jobCardStore.mergeFromObject(fromConfig.jobCards);
           logger.info('Loaded job cards from config', {
             path: configPath,
@@ -1068,6 +1184,21 @@ async function main(): Promise<void> {
       nativeServerPath: parsed.nativeServerPath,
       responseTimeout: parsed.nativeResponseTimeout ?? defaultResponseTimeout,
     });
+    sharedNativeResolveJobCard = nativeSetup.resolveJobCardConnectionSpec;
+
+    const persistJobCardToConfig: CreateServerOptions['persistJobCard'] = configPath
+      ? (connectionSpec: string, jobCard: string) => {
+          try {
+            mergeJobCardIntoNativeConfigFile(configPath, connectionSpec, jobCard);
+          } catch (e) {
+            logger.warning('Failed to persist job card to --config file', {
+              path: configPath,
+              error: e instanceof Error ? e.message : String(e),
+            });
+          }
+        }
+      : undefined;
+
     encodingOptionsRef = {
       current: {
         defaultMainframeMvsEncoding: parsed.defaultMvsEncoding ?? DEFAULT_MAINFRAME_MVS_ENCODING,
@@ -1080,6 +1211,9 @@ async function main(): Promise<void> {
       credentialProvider: nativeSetup.credentialProvider,
       encodingOptions: encodingOptionsRef,
       jobCardStore,
+      resolveJobCardConnectionSpec: nativeSetup.resolveJobCardConnectionSpec,
+      elicitJobCard: createElicitJobCard(jobCardStore, extensionClient, serverRef, logger),
+      persistJobCard: persistJobCardToConfig,
     };
     nativeEventHandlerOpts = {
       nativePasswordStore,
@@ -1572,6 +1706,47 @@ async function main(): Promise<void> {
         if (opts && tenant) {
           opts.tenantSub = tenant.sub;
           opts.tenantEmail = tenant.email;
+        }
+        if (opts && tenant && sharedNativeResolveJobCard) {
+          const tenantJobStore = createWaitableJobCardStore();
+          if (bootstrapJobCardsForHttp) {
+            tenantJobStore.mergeFromObject(bootstrapJobCardsForHttp);
+          }
+          if (tenantPersistenceDir) {
+            const tenantCards = loadTenantJobCards(tenantPersistenceDir, tenant.sub);
+            if (tenantCards) {
+              tenantJobStore.mergeFromObject(tenantCards);
+            }
+          }
+          opts.jobCardStore = tenantJobStore;
+          opts.resolveJobCardConnectionSpec = (systemId: string, userId: string) => {
+            if (getOrCreateTenantNativeSetup) {
+              return getOrCreateTenantNativeSetup(tenant.sub).resolveJobCardConnectionSpec(
+                systemId,
+                userId
+              );
+            }
+            return sharedNativeResolveJobCard(systemId, userId);
+          };
+          opts.elicitJobCard = createElicitJobCard(
+            tenantJobStore,
+            extensionClient,
+            serverRef,
+            logger
+          );
+          const basePersist = serverOptions?.persistJobCard;
+          opts.persistJobCard = (spec: string, card: string) => {
+            basePersist?.(spec, card);
+            if (tenantPersistenceDir) {
+              try {
+                mergeTenantJobCard(tenantPersistenceDir, tenant.sub, spec, card);
+              } catch (e) {
+                logger.warning('Failed to persist job card to tenant store', {
+                  error: e instanceof Error ? e.message : String(e),
+                });
+              }
+            }
+          };
         }
         if (
           opts &&

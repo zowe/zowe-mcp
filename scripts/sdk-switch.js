@@ -13,7 +13,7 @@
  * Switch the zowe-native-proto-sdk dependency between multiple sources.
  *
  * All modes download/copy the SDK tarball into resources/ with a versioned
- * filename (e.g. resources/zowe-native-proto-sdk-0.3.0.tgz) and set the
+ * filename (e.g. resources/zowe-native-proto-sdk-0.4.0.tgz) and set the
  * server's package.json dependency to file:../../resources/<filename>.
  *
  * Usage:
@@ -47,7 +47,7 @@ const serverPkgPath = path.join(repoRoot, 'packages', 'zowe-mcp-server', 'packag
 const resourcesDir = path.join(repoRoot, 'resources');
 const ZNP_REPO = 'zowe/zowe-native-proto';
 const PKG_NAME = 'zowe-native-proto-sdk';
-const DEFAULT_VERSION = '0.3.0';
+const DEFAULT_VERSION = '0.4.0';
 const ARTIFACTORY_NPM = 'https://zowe.jfrog.io/artifactory/api/npm/npm-release/';
 const ARTIFACTORY_SNAPSHOT_BASE =
   'https://zowe.jfrog.io/artifactory/libs-snapshot-local/org/zowe/zowe-native-proto/SDK/Nightly';

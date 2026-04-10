@@ -1,6 +1,22 @@
+<!-- markdownlint-disable MD024 -->
+
 # Change Log
 
 All notable changes to the Zowe MCP extension will be documented in this file.
+
+## `0.8.0`
+
+### New features and enhancements
+
+- **Backend setting**: New `zoweMCP.backend` setting selects **`native`** (SSH / Zowe Native) or **`mock`** (local mock data). Mock mode no longer depends only on an empty native connection list; the mock data directory applies when the backend is **mock**. If you previously relied on “mock when native list is empty,” the extension can **auto-migrate** to `backend: mock` when a mock directory is set and native connections are empty. Changing the backend prompts you to **reload the window**; the status bar resets appropriately.
+- **Zowe CLI plugin bridge**: Bundled Zowe CLI plugins can expose **additional MCP tools** (e.g. Endevor). Use **`zoweMCP.enabledCliPlugins`** to restrict which plugins load (empty = all bundled plugins) and **`zoweMCP.cliPluginConfiguration`** for named connection/location profiles. Passwords are not stored in settings; use `ZOWE_MCP_PASSWORD_<USER>_<HOST>` env vars as documented. The legacy **`zoweMCP.cliPlugins`** setting was removed—use the new settings instead.
+- **CLI plugin runtime UX**: Updates to **`zoweMCP.cliPluginConfiguration`** are sent to the running MCP server so new profiles can take effect **without** a full restart for that path; the **status bar** can show active CLI plugin connection/location profiles. **Fatal** CLI bridge errors open a notification with **Open Settings** targeted at **`zoweMCP.cliPluginConfiguration`** (no “Generate Mock Data” on those errors). Tools that add or remove named profiles can **persist** back into user settings and globalStorage via server → extension sync.
+- **Bundled server package name**: The embedded server is **`@zowe/mcp-server`** (formerly `zowe-mcp-server`). The VSIX bundles it with **production-style dependencies** suitable for **airgapped/offline** installs where supported.
+- **Server spawn reliability**: The MCP server is started with **`process.execPath`** so the correct **Node/Electron** runtime is used inside VS Code.
+
+### Other
+
+- **Vendor CLI plugins**: Builds from a vendor branch can **bundle extra CLI plugin YAML** inside the VSIX alongside built-in plugins.
 
 ## `0.7.0`
 

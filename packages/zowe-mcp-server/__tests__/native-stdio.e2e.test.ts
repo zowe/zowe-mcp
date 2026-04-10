@@ -22,9 +22,12 @@
  * skipIf(true) to skipIf(false) when the backend supports the feature.
  * deleteDatasetsUnderPrefix (prefix.**) runs with retries for intermittent ZNP.
  *
- * Skipped when config file (native-config.json) or
- * password (ZOWE_MCP_PASSWORD_<USER>_<HOST> or ZOS_PASSWORD) is missing in
- * the current directory / environment.
+ * Skipped unless explicitly enabled: set **ZOWE_MCP_RUN_NATIVE_STDIO_E2E=1** (or `true`)
+ * in addition to having a config file (native-config.json) and a password
+ * (ZOWE_MCP_PASSWORD_<USER>_<HOST> or ZOS_PASSWORD). This keeps `npm test`
+ * green without a live z/OS that supports every mutation scenario.
+ *
+ * Run the suite: `ZOWE_MCP_RUN_NATIVE_STDIO_E2E=1 npm test` (or `npm run test:native-stdio-e2e` in this package).
  *
  * USS: read-only tests (getUssHome, listUssFiles, readUssFile, runSafeUssCommand);
  * no write/delete/temp on real z/OS.
@@ -169,6 +172,13 @@ const password =
 const firstSystemId = firstSpec?.host;
 const canRunNativeE2E = Boolean(configPath && password && firstSystemId);
 
+/** Opt-in so default `npm test` does not hit real z/OS (flaky permissions, ZNP version, etc.). */
+const nativeStdioE2EExplicit =
+  process.env.ZOWE_MCP_RUN_NATIVE_STDIO_E2E === '1' ||
+  process.env.ZOWE_MCP_RUN_NATIVE_STDIO_E2E === 'true';
+
+const shouldRunNativeStdioE2E = canRunNativeE2E && nativeStdioE2EExplicit;
+
 /** Job card for the first connection spec (from config jobCards section). Jobs tests are skipped when missing. */
 const nativeConfig = configPath ? loadNativeConfigForTest(configPath) : undefined;
 const firstConnectionSpec = configSystems[0];
@@ -176,7 +186,7 @@ const jobCardForFirstSpec =
   firstConnectionSpec && nativeConfig?.jobCards
     ? nativeConfig.jobCards[firstConnectionSpec]
     : undefined;
-const canRunJobsE2E = Boolean(canRunNativeE2E && jobCardForFirstSpec);
+const canRunJobsE2E = Boolean(shouldRunNativeStdioE2E && jobCardForFirstSpec);
 
 /** Normalize job card (string or array of lines) to a single string; substitute {jobname} and {programmer} for E2E. */
 function normalizeJobCardForTest(
@@ -191,14 +201,16 @@ function normalizeJobCardForTest(
     .trim();
 }
 
-/** Reason shown when the suite is skipped (missing config or password). */
+/** Reason shown when the suite is skipped (missing config, password, or opt-in). */
 const skipReason = !canRunNativeE2E
   ? !configPath
     ? 'Missing config file (zowe-native.config or native-config.json in cwd)'
     : !password
       ? `Missing password (set ${passwordEnvVar} or ZOS_PASSWORD)`
       : 'No system in config'
-  : '';
+  : !nativeStdioE2EExplicit
+    ? 'Set ZOWE_MCP_RUN_NATIVE_STDIO_E2E=1 to run native stdio E2E (requires config + password)'
+    : '';
 
 // Build env for the child: always pass through process.env; if we're using ZOS_PASSWORD
 // as fallback, set the server's expected env var so it sees the password.
@@ -210,7 +222,7 @@ function getChildEnv(): Record<string, string> {
   return env as Record<string, string>;
 }
 
-describe.skipIf(!canRunNativeE2E)(
+describe.skipIf(!shouldRunNativeStdioE2E)(
   `Zowe MCP Server (native stdio E2E)${skipReason ? ` [skipped: ${skipReason}]` : ''}`,
   () => {
     let client: Client;

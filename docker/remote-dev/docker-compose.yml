@@ -1,0 +1,55 @@
+# Keycloak (OIDC) for local JWT development + optional Zowe MCP HTTP container.
+#
+# Keycloak only:
+#   docker compose -f docker/remote-dev/docker-compose.yml up -d
+#
+# One-command HTTPS MCP + native Keycloak TLS + native z/OS: npm run start:remote-https-dev-native-zos (see docker/remote-https-dev/README.md)
+#
+# Docs: docs/remote-dev-keycloak.md
+#
+# Default host port is 18080 (maps to Keycloak container port 8080). Override: KEYCLOAK_HOST_PORT=8080
+# or any free port. Keycloak still listens on 8080 inside the container.
+
+services:
+  keycloak:
+    image: quay.io/keycloak/keycloak:latest
+    command: start-dev
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      # Optional: verbose Keycloak logs (default: INFO). See https://www.keycloak.org/server/logging
+      # KC_LOG_LEVEL: debug
+    ports:
+      - "${KEYCLOAK_HOST_PORT:-18080}:8080"
+
+  keycloak-init:
+    build:
+      context: .
+      dockerfile: Dockerfile.keycloak-init
+    depends_on:
+      - keycloak
+    environment:
+      KC_URL: http://keycloak:8080
+      KEYCLOAK_HOST_PORT: ${KEYCLOAK_HOST_PORT:-18080}
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+    volumes:
+      - ./init-keycloak.sh:/init-keycloak.sh:ro
+    command: ["/bin/sh", "/init-keycloak.sh"]
+
+  zowe-mcp:
+    profiles:
+      - mcp-image
+    build:
+      context: ../..
+      dockerfile: docker/remote-dev/Dockerfile
+    depends_on:
+      keycloak-init:
+        condition: service_completed_successfully
+    ports:
+      - "7542:7542"
+    environment:
+      ZOWE_MCP_JWT_ISSUER: http://localhost:${KEYCLOAK_HOST_PORT:-18080}/realms/demo
+      ZOWE_MCP_JWKS_URI: http://keycloak:8080/realms/demo/protocol/openid-connect/certs
+      # Optional: MCP server debug logs on stderr and via MCP logging (default: info). See AGENTS.md — Logging
+      # ZOWE_MCP_LOG_LEVEL: debug

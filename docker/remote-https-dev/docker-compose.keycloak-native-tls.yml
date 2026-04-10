@@ -1,0 +1,38 @@
+# Merge with: docker compose -f docker/remote-dev/docker-compose.yml -f docker/remote-https-dev/docker-compose.keycloak-native-tls.yml
+# Keycloak native HTTPS (PEM); HTTP 8080 remains for admin API + keycloak-init. Do not add a second nginx in front of Keycloak for this profile.
+#
+# Required env (set by scripts/start-remote-https-dev-native-zos.sh): KC_HOSTNAME, ZOWE_MCP_TLS_CERT_DIR, KEYCLOAK_HOST_PORT
+#
+# List BOTH HTTP and HTTPS port mappings here. Some Compose versions merge `ports` by replacing the
+# array from the last file; if this file only listed :8443, the merged service could lose :8080→:18080.
+#
+# The image runs as uid 1000 (user keycloak). Bind-mounted PEMs must be readable inside the container
+# (e.g. chmod a+r key.pem cert.pem for local dev). See docker/remote-https-dev/README.md.
+
+services:
+  keycloak:
+    # Browser OIDC Dynamic Client Registration (VS Code) needs CORS on /realms/*/clients-registrations/*.
+    # Keycloak added that in 26.5 (https://github.com/keycloak/keycloak/issues/8863). The base compose uses
+    # :latest — a stale local cache may predate 26.5; this override pins a 26.5+ image. Nginx stack (remote-https-dev)
+    # injects CORS instead; native HTTPS has no nginx in front of Keycloak.
+    image: quay.io/keycloak/keycloak:26.5.0
+    # Explicit HTTPS flags so the dev listener is always configured (env alone can be ignored in some versions).
+    command:
+      - start-dev
+      - --http-enabled=true
+      - --https-port=8443
+      - --https-certificate-file=/opt/keycloak/conf/mkcert.pem
+      - --https-certificate-key-file=/opt/keycloak/conf/mkcert-key.pem
+    environment:
+      KC_HTTP_ENABLED: "true"
+      KC_HTTPS_PORT: "8443"
+      KC_HTTPS_CERTIFICATE_FILE: /opt/keycloak/conf/mkcert.pem
+      KC_HTTPS_CERTIFICATE_KEY_FILE: /opt/keycloak/conf/mkcert-key.pem
+      KC_HOSTNAME: ${KC_HOSTNAME:?Set KC_HOSTNAME to the public Keycloak HTTPS base URL}
+      KC_HOSTNAME_STRICT: "false"
+    ports:
+      - "${KEYCLOAK_HOST_PORT:-18080}:8080"
+      - "${ZOWE_MCP_KEYCLOAK_HTTPS_BIND_PORT:-18443}:8443"
+    volumes:
+      - "${ZOWE_MCP_TLS_CERT_DIR}/cert.pem:/opt/keycloak/conf/mkcert.pem:ro"
+      - "${ZOWE_MCP_TLS_CERT_DIR}/key.pem:/opt/keycloak/conf/mkcert-key.pem:ro"

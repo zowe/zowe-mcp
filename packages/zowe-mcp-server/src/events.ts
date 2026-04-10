@@ -317,6 +317,23 @@ export type CliPluginActiveProfilesChangedEvent = McpEvent<
   CliPluginActiveProfilesChangedEventData
 >;
 
+/** Payload for `store-cli-plugin-profiles` (server → extension). */
+export interface StoreCliPluginProfilesEventData {
+  /** Plugin id from YAML `plugin:` (e.g. `db2`). */
+  pluginName: string;
+  /**
+   * Full profiles document to merge into `zoweMCP.cliPluginConfiguration[pluginName]`.
+   * Same shape as the JSON file used with `--cli-plugin-configuration`.
+   */
+  profilesFile: Record<string, unknown>;
+}
+
+/** Persists CLI plugin named profiles into workspace/global settings (mirrors connection file). */
+export type StoreCliPluginProfilesEvent = McpEvent<
+  'store-cli-plugin-profiles',
+  StoreCliPluginProfilesEventData
+>;
+
 /** Payload for an `active-connection-changed` event (server → extension). */
 export interface ActiveConnectionChangedEventData {
   /** Connection spec (e.g. user@host) or null when no active system. */
@@ -347,6 +364,7 @@ export type ServerToExtensionEvent =
   | OpenJobInEditorEvent
   | CeedumpCollectedEvent
   | CliPluginActiveProfilesChangedEvent
+  | StoreCliPluginProfilesEvent
   | ActiveConnectionChangedEvent;
 
 /** Events that flow from the VS Code extension to the MCP server. */

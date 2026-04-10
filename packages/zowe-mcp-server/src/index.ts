@@ -29,11 +29,20 @@
  */
 
 import { spawnSync } from 'node:child_process';
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import {
+  existsSync,
+  readdirSync,
+  readFileSync,
+  renameSync,
+  unlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
+import { loadJwtAuthConfigFromEnv, type TenantJwtClaims } from './auth/bearer-jwt.js';
+import { getOrCreateTenantCliPluginStates, tenantKeyFromSub } from './auth/tenant-resources.js';
 import type {
   CeedumpCollectedEventData,
   OpenDatasetInEditorEventData,
@@ -41,11 +50,19 @@ import type {
   OpenUssFileInEditorEventData,
 } from './events.js';
 import { connectExtensionClient, type ExtensionClient } from './extension-client.js';
+import {
+  appendTenantSystem,
+  loadTenantSystems,
+  removeTenantSystem,
+  tenantStoreDirFromEnv,
+} from './persistence/tenant-connections-store.js';
 import type { CreateServerOptions, CreateServerResult, ZoweExplorerCallbacks } from './server.js';
 import { createServer, getLogger, getServer, SERVER_VERSION } from './server.js';
 import {
   createEmptyPluginState,
-  loadAndRegisterPluginYaml,
+  loadCliBridgeTools,
+  loadPluginYaml,
+  serializeCliPluginStateToProfilesFile,
 } from './tools/cli-bridge/cli-tool-loader.js';
 import type {
   CliNamedProfile,
@@ -61,11 +78,36 @@ import {
 } from './zos/encoding.js';
 import { createJobCardStore, type JobCardStore } from './zos/job-cards.js';
 import {
-  getStandalonePasswordFromEnv,
+  formatNormalizedConnectionSpec,
   parseConnectionSpec,
+  resolveStandalonePassword,
   toPasswordEnvVarName,
 } from './zos/native/connection-spec.js';
+import type { NativeSetup } from './zos/native/load-native.js';
+import type { WaitablePasswordStoreLike } from './zos/native/native-credential-provider.js';
 import type { NativeOptions } from './zos/native/ssh-client-cache.js';
+
+/** Merge startup connection strings with tenant file entries (dedupe, preserve order). */
+function mergeConnectionStrings(base: string[], extra: string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const s of [...base, ...extra]) {
+    const t = s.trim();
+    if (!t || seen.has(t)) {
+      continue;
+    }
+    seen.add(t);
+    out.push(t);
+  }
+  return out;
+}
+
+/** True when both JWT issuer and JWKS URI are set (HTTP JWT auth will be enabled). */
+function hasJwtAuthConfigured(): boolean {
+  const i = process.env.ZOWE_MCP_JWT_ISSUER?.trim();
+  const j = process.env.ZOWE_MCP_JWKS_URI?.trim();
+  return !!i && !!j;
+}
 
 /** Response cache config from CLI or env (undefined = use server defaults). */
 interface ResponseCacheConfig {
@@ -557,8 +599,8 @@ function buildNativeExtensionCallbacks(
       const portNum = port ?? 22;
       const message =
         portNum === 22
-          ? `Enter SSH password for ${user}@${host}`
-          : `Enter SSH password for ${user}@${host}:${portNum}`;
+          ? `Enter password for connection ${user}@${host}`
+          : `Enter password for connection ${user}@${host}:${portNum}`;
       try {
         const result = await server.server.elicitInput({
           mode: 'form',
@@ -569,7 +611,7 @@ function buildNativeExtensionCallbacks(
               password: {
                 type: 'string',
                 title: 'Password',
-                description: `SSH password for ${user}@${host})`,
+                description: `Password for ${user}@${host} (z/OS SSH, Db2, or other tools using this user@host)`,
               },
             },
             required: ['password'],
@@ -842,6 +884,10 @@ async function main(): Promise<void> {
 
   const parsed = parseArgs();
 
+  if (parsed.transport === 'http') {
+    process.env.ZOWE_MCP_TRANSPORT = 'http';
+  }
+
   const {
     transport,
     port,
@@ -852,6 +898,16 @@ async function main(): Promise<void> {
     responseCache: responseCacheConfig,
   } = parsed;
   const logger = getLogger();
+  const tenantPersistenceDir = tenantStoreDirFromEnv();
+  const tenantNativeCache = new Map<string, NativeSetup>();
+  const baseSystemsRef: { current: string[] } = { current: [] };
+  let getOrCreateTenantNativeSetup: ((sub: string) => NativeSetup) | undefined;
+  let addTenantNativeConnectionHandler:
+    | ((tenantSub: string, spec: string) => Promise<void>)
+    | undefined;
+  let removeTenantNativeConnectionHandler:
+    | ((tenantSub: string, spec: string) => Promise<void>)
+    | undefined;
 
   if (mockDir && native) {
     logger.error('Cannot use both --mock and --native. Choose one.');
@@ -887,6 +943,8 @@ async function main(): Promise<void> {
   let encodingOptionsRef: { current: EncodingOptions } | undefined;
   /** Set in native mode; used to pass server to elicitation callback after createServer (stdio only). */
   let serverRef: { current: CreateServerResult | null } | undefined;
+  /** Public base URL for MCP URL-mode password elicitation (HTTP); updated after listen. */
+  const httpPublicBaseUrlRef = { current: process.env.ZOWE_MCP_PUBLIC_BASE_URL?.trim() ?? '' };
   /** Current Zowe Explorer callbacks; set at startup or on zowe-explorer-update. Used by HTTP factory and late registration. */
   const zoweExplorerCallbacksRef: { current: ZoweExplorerCallbacks | null } = {
     current: null,
@@ -945,18 +1003,33 @@ async function main(): Promise<void> {
       }
     }
     const extensionConnected = extensionClient?.connected === true;
-    if (systems.length === 0 && !extensionConnected) {
+    const allowEmptyBaseNative =
+      !extensionConnected &&
+      transport === 'http' &&
+      hasJwtAuthConfigured() &&
+      !!tenantPersistenceDir &&
+      systems.length === 0;
+    if (systems.length === 0 && !extensionConnected && !allowEmptyBaseNative) {
       logger.error(
-        'Native mode requires at least one system when run standalone. Use --config <path> (JSON with "systems" array) or --system user@host (repeatable).'
+        'Native mode requires at least one system when run standalone. Use --config <path> (JSON with "systems" array) or --system user@host (repeatable). For HTTP with JWT and ZOWE_MCP_TENANT_STORE_DIR, you may start with no base systems and use tenant store files or addZosConnection.'
       );
       process.exit(1);
     }
-    const { WaitablePasswordStore } = await import('./zos/native/password-store.js');
+    const { WaitablePasswordStore, TtlPasswordStore } =
+      await import('./zos/native/password-store.js');
+    const { createStandalonePasswordElicitation } =
+      await import('./zos/native/password-elicitation.js');
     const { loadNative } = await import('./zos/native/load-native.js');
     const { cacheKey } = await import('./zos/native/ssh-client-cache.js');
     const { passwordHash } = await import('./zos/native/password-hash.js');
     const nativePasswordLog = logger.child('native.password');
-    const nativePasswordStore = extensionConnected ? new WaitablePasswordStore() : undefined;
+    let nativePasswordStore: WaitablePasswordStoreLike | undefined;
+    if (extensionConnected) {
+      const ttlRaw = process.env.ZOWE_MCP_PASSWORD_CACHE_TTL_MS?.trim();
+      const ttl = ttlRaw ? Number(ttlRaw) : Number.NaN;
+      nativePasswordStore =
+        Number.isFinite(ttl) && ttl > 0 ? new TtlPasswordStore(ttl) : new WaitablePasswordStore();
+    }
     serverRef = { current: null };
     const defaultNativeServerPath = '~/.zowe-server';
     const defaultResponseTimeout = 60;
@@ -976,11 +1049,21 @@ async function main(): Promise<void> {
             nativeOptionsRef
           )
         : {};
+    const standalonePasswordElicitation = !extensionConnected
+      ? {
+          requestPasswordViaElicitation: createStandalonePasswordElicitation({
+            serverRef,
+            getPublicBaseUrl: () => httpPublicBaseUrlRef.current,
+            log: nativePasswordLog,
+          }),
+        }
+      : {};
     const nativeSetup = loadNative({
       systems,
       useEnvForPassword: !extensionConnected,
       passwordStore: nativePasswordStore,
       ...extensionCallbacks,
+      ...standalonePasswordElicitation,
       autoInstallZnp: parsed.nativeServerAutoInstall ?? true,
       nativeServerPath: parsed.nativeServerPath,
       responseTimeout: parsed.nativeResponseTimeout ?? defaultResponseTimeout,
@@ -1007,9 +1090,114 @@ async function main(): Promise<void> {
       nativeOptionsRef,
       updateSystems: nativeSetup.updateSystems,
     };
+    baseSystemsRef.current = systems;
+    if (native && tenantPersistenceDir && transport === 'http' && hasJwtAuthConfigured()) {
+      const nativeLoadBase = {
+        useEnvForPassword: !extensionConnected,
+        passwordStore: nativePasswordStore,
+        ...extensionCallbacks,
+        ...standalonePasswordElicitation,
+        autoInstallZnp: parsed.nativeServerAutoInstall ?? true,
+        nativeServerPath: parsed.nativeServerPath,
+        responseTimeout: parsed.nativeResponseTimeout ?? defaultResponseTimeout,
+      };
+      getOrCreateTenantNativeSetup = (sub: string): NativeSetup => {
+        const key = tenantKeyFromSub(sub);
+        const hit = tenantNativeCache.get(key);
+        if (hit) {
+          return hit;
+        }
+        const fromFile = loadTenantSystems(tenantPersistenceDir, sub);
+        const merged = mergeConnectionStrings(baseSystemsRef.current, fromFile);
+        const setup = loadNative({
+          ...nativeLoadBase,
+          systems: merged,
+        });
+        tenantNativeCache.set(key, setup);
+        return setup;
+      };
+      addTenantNativeConnectionHandler = (tenantSub: string, spec: string): Promise<void> => {
+        parseConnectionSpec(spec);
+        appendTenantSystem(tenantPersistenceDir, tenantSub, spec);
+        const merged = mergeConnectionStrings(
+          baseSystemsRef.current,
+          loadTenantSystems(tenantPersistenceDir, tenantSub)
+        );
+        const key = tenantKeyFromSub(tenantSub);
+        const existing = tenantNativeCache.get(key);
+        if (existing) {
+          existing.updateSystems(merged);
+        } else {
+          tenantNativeCache.set(
+            key,
+            loadNative({
+              ...nativeLoadBase,
+              systems: merged,
+            })
+          );
+        }
+        return Promise.resolve();
+      };
+      removeTenantNativeConnectionHandler = (tenantSub: string, spec: string): Promise<void> => {
+        parseConnectionSpec(spec);
+        const removed = removeTenantSystem(tenantPersistenceDir, tenantSub, spec);
+        if (!removed) {
+          const norm = formatNormalizedConnectionSpec(spec);
+          const inBase = baseSystemsRef.current.some(s => {
+            try {
+              return formatNormalizedConnectionSpec(s) === norm;
+            } catch {
+              return false;
+            }
+          });
+          if (inBase) {
+            throw new Error(
+              'This connection is defined only in server startup (--config/--system). Remove it from the server configuration; it is not stored in your per-user saved list.'
+            );
+          }
+          throw new Error(
+            'Connection not found in your saved list. It may have already been removed.'
+          );
+        }
+        const merged = mergeConnectionStrings(
+          baseSystemsRef.current,
+          loadTenantSystems(tenantPersistenceDir, tenantSub)
+        );
+        const key = tenantKeyFromSub(tenantSub);
+        const existing = tenantNativeCache.get(key);
+        if (existing) {
+          existing.updateSystems(merged);
+        } else {
+          tenantNativeCache.set(
+            key,
+            loadNative({
+              ...nativeLoadBase,
+              systems: merged,
+            })
+          );
+        }
+        return Promise.resolve();
+      };
+    }
     logger.info('Native (SSH) mode enabled', {
       systems: nativeSetup.systemRegistry.list(),
     });
+  }
+
+  if (transport === 'http' && hasJwtAuthConfigured()) {
+    if (!native) {
+      logger.notice(
+        'addZosConnection is not registered: HTTP JWT + --mock has no z/OS SSH connections to add. Use --native and ZOWE_MCP_TENANT_STORE_DIR to enable addZosConnection.'
+      );
+    } else if (!tenantPersistenceDir) {
+      logger.notice(
+        'addZosConnection is not registered: set ZOWE_MCP_TENANT_STORE_DIR so per-user connections can be persisted (HTTP + JWT + native).'
+      );
+    } else if (addTenantNativeConnectionHandler && removeTenantNativeConnectionHandler) {
+      logger.info(
+        'addZosConnection and removeZosConnection tools enabled (HTTP + JWT + native + tenant store).'
+      );
+    }
   }
 
   if (serverOptions && responseCacheConfig !== undefined) {
@@ -1156,17 +1344,68 @@ async function main(): Promise<void> {
           if (pw !== undefined) return pw;
         }
 
-        // Standalone mode (or VS Code fallback): ZOWE_MCP_PASSWORD_* then ZOWE_MCP_CREDENTIALS
+        // Standalone mode (or VS Code fallback): env, ZOWE_MCP_CREDENTIALS, optional Vault KV
         const spec = parseConnectionSpec(`${user}@${host}`);
-        const envPw = getStandalonePasswordFromEnv(spec);
+        const envPw = await resolveStandalonePassword(spec);
         if (envPw !== undefined) return envPw;
         const envVar = toPasswordEnvVarName(spec.user, spec.host);
         throw new Error(
-          `No password available for ${user}@${host}. Set ${envVar} or ZOWE_MCP_CREDENTIALS (JSON map of user@host to password).`
+          `No password available for ${user}@${host}. Set ${envVar}, ZOWE_MCP_CREDENTIALS, or Vault KV (see AGENTS.md).`
         );
       },
     };
     return state;
+  }
+
+  function atomicWriteJsonFile(filePath: string, data: unknown): void {
+    const tmp = `${filePath}.${process.pid}.${Date.now()}.tmp`;
+    try {
+      writeFileSync(tmp, `${JSON.stringify(data, null, 2)}\n`, 'utf-8');
+      renameSync(tmp, filePath);
+    } catch (e) {
+      try {
+        unlinkSync(tmp);
+      } catch {
+        /* ignore */
+      }
+      throw e;
+    }
+  }
+
+  /**
+   * Enables profile add/remove tools to persist to `zoweMCP.cliPluginConfiguration` (pipe event)
+   * and/or the `--cli-plugin-configuration` JSON file.
+   */
+  function wireCliPluginPersistence(
+    state: CliPluginState,
+    pluginKey: string,
+    connFile: string | undefined
+  ): void {
+    state.pluginKey = pluginKey;
+    state.persistConnectionFilePath = connFile;
+    state.persistProfiles = (): Promise<void> => {
+      const profilesFile = serializeCliPluginStateToProfilesFile(state);
+      if (extensionClient?.connected) {
+        extensionClient.sendEvent({
+          type: 'store-cli-plugin-profiles',
+          data: {
+            pluginName: pluginKey,
+            profilesFile: profilesFile as Record<string, unknown>,
+          },
+          timestamp: Date.now(),
+        });
+      }
+      if (connFile) {
+        atomicWriteJsonFile(connFile, profilesFile);
+      } else if (!extensionClient?.connected) {
+        return Promise.reject(
+          new Error(
+            'Cannot persist CLI plugin profiles: use --cli-plugin-configuration <plugin>=<file> or the Zowe MCP VS Code extension with zoweMCP.cliPluginConfiguration.'
+          )
+        );
+      }
+      return Promise.resolve();
+    };
   }
 
   /** Register all CLI plugin bridge tools on an already-created server. */
@@ -1207,7 +1446,9 @@ async function main(): Promise<void> {
         profilesFile = JSON.parse(raw) as CliPluginProfilesFile;
       }
       const state = buildPluginState(profilesFile, vsCodePasswordStore);
-      const pluginConfig = loadAndRegisterPluginYaml(server, entry.yamlPath, state, logger);
+      const pluginConfig = loadPluginYaml(entry.yamlPath);
+      wireCliPluginPersistence(state, pluginConfig.plugin, entry.connectionFile);
+      loadCliBridgeTools(server, pluginConfig, state, logger);
       statesByPlugin?.set(pluginConfig.plugin, state);
       state.onActiveProfilesChanged = () => sendActiveProfilesEvent(pluginConfig.plugin, state);
       sendActiveProfilesEvent(pluginConfig.plugin, state);
@@ -1280,7 +1521,9 @@ async function main(): Promise<void> {
         profilesFile = JSON.parse(raw) as CliPluginProfilesFile;
       }
       const state = buildPluginState(profilesFile, vsCodePasswordStore);
-      const pluginConfig = loadAndRegisterPluginYaml(server, yamlPath, state, logger);
+      const pluginConfig = loadPluginYaml(yamlPath);
+      wireCliPluginPersistence(state, pluginConfig.plugin, connFile);
+      loadCliBridgeTools(server, pluginConfig, state, logger);
       statesByPlugin?.set(pluginConfig.plugin, state);
       state.onActiveProfilesChanged = () => sendActiveProfilesEvent(pluginConfig.plugin, state);
       sendActiveProfilesEvent(pluginConfig.plugin, state);
@@ -1306,8 +1549,18 @@ async function main(): Promise<void> {
     registerCliPlugins(server, undefined, cliPluginStatesByPlugin);
     await startStdio(server, logger);
   } else {
-    await startHttp(
-      () => {
+    let httpJwtAuth: ReturnType<typeof loadJwtAuthConfigFromEnv>;
+    try {
+      httpJwtAuth = loadJwtAuthConfigFromEnv();
+    } catch (e) {
+      logger.error(
+        'Invalid HTTP JWT auth environment (ZOWE_MCP_JWT_ISSUER / ZOWE_MCP_JWKS_URI)',
+        e
+      );
+      process.exit(1);
+    }
+    const httpHandle = await startHttp(
+      (tenant?: TenantJwtClaims) => {
         const opts: CreateServerOptions | undefined = serverOptions
           ? { ...serverOptions }
           : undefined;
@@ -1316,14 +1569,46 @@ async function main(): Promise<void> {
           opts.openUssFileInZoweEditor = zoweExplorerCallbacksRef.current.openUssFileInZoweEditor;
           opts.openJobInZoweEditor = zoweExplorerCallbacksRef.current.openJobInZoweEditor;
         }
+        if (opts && tenant) {
+          opts.tenantSub = tenant.sub;
+          opts.tenantEmail = tenant.email;
+        }
+        if (
+          opts &&
+          tenant &&
+          tenantPersistenceDir &&
+          httpJwtAuth &&
+          getOrCreateTenantNativeSetup &&
+          addTenantNativeConnectionHandler &&
+          removeTenantNativeConnectionHandler
+        ) {
+          const setup = getOrCreateTenantNativeSetup(tenant.sub);
+          opts.backend = setup.backend;
+          opts.systemRegistry = setup.systemRegistry;
+          opts.credentialProvider = setup.credentialProvider;
+          opts.addTenantNativeConnection = async (spec: string) => {
+            await addTenantNativeConnectionHandler(tenant.sub, spec);
+          };
+          opts.removeTenantNativeConnection = async (spec: string) => {
+            await removeTenantNativeConnectionHandler(tenant.sub, spec);
+          };
+        }
         const result = createServer(opts);
         const server = getServer(result);
-        registerCliPlugins(server, undefined, cliPluginStatesByPlugin);
+        const pluginMap =
+          httpJwtAuth && tenant
+            ? getOrCreateTenantCliPluginStates(tenantKeyFromSub(tenant.sub))
+            : cliPluginStatesByPlugin;
+        registerCliPlugins(server, undefined, pluginMap);
         return server;
       },
       port,
-      logger
+      logger,
+      httpJwtAuth ? { jwtAuth: httpJwtAuth } : undefined
     );
+    if (!httpPublicBaseUrlRef.current) {
+      httpPublicBaseUrlRef.current = `http://127.0.0.1:${httpHandle.port}`;
+    }
   }
 
   // Notify the VS Code extension if no backend is configured

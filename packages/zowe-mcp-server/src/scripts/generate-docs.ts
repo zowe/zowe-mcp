@@ -730,6 +730,7 @@ function generateDefaultInputs(tools: ToolInfo[]): Record<string, Record<string,
     info: {},
     listSystems: {},
     getContext: {},
+    addZosConnection: { connectionSpec: 'USER@mainframe-dev.example.com' },
     listDatasets: { dsnPattern: 'USER.*' },
     listMembers: { dsn: 'USER.SRC.COBOL' },
     readDataset: { dsn: 'USER.SRC.COBOL(CUSTFILE)' },
@@ -780,6 +781,13 @@ async function main(): Promise<void> {
       backend: mock.backend,
       systemRegistry: mock.systemRegistry,
       credentialProvider: mock.credentialProvider,
+      // No-op: registers addZosConnection/removeZosConnection for docs (HTTP+JWT uses real handlers).
+      addTenantNativeConnection: async () => {
+        /* docs generation only */
+      },
+      removeTenantNativeConnection: async () => {
+        /* docs generation only */
+      },
     });
     const server = getServer(created);
 
@@ -817,7 +825,7 @@ async function main(): Promise<void> {
           label: 'Context',
           description:
             'Server information and session management — set the active z/OS system and query the current session state (systems, active connection, active user).',
-          toolNames: ['getContext', 'listSystems', 'setSystem'],
+          toolNames: ['getContext', 'listSystems', 'setSystem', 'addZosConnection'],
         },
         {
           label: 'Data Sets',

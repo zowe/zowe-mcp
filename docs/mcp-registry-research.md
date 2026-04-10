@@ -17,7 +17,7 @@
 9. [Private and Self-Hosted Registries](#9-private-and-self-hosted-registries)
 10. [AI Assistants That Support a Private Registry URL](#10-ai-assistants-that-support-a-private-registry-url)
 11. [Enterprise Governance: Limiting Which Servers Can Be Used](#11-enterprise-governance-limiting-which-servers-can-be-used)
-12. [Deploying the Zowe MCP Server as an HTTP Streamable Service](#12-deploying-the-zowe-mcp-server-as-an-http-streamable-service)
+12. [HTTP deployment and authentication](#12-http-deployment-and-authentication-pointer)
 13. [Using github.com/mcp Servers Internally Under a Registry-Only Policy](#13-using-githubcommcp-servers-internally-under-a-registry-only-policy)
 
 ---
@@ -227,42 +227,7 @@ The registry entry declares **what credentials are needed**, not the credentials
 
 There is **no enforcement mechanism** in the registry itself — it is metadata only.
 
-### The per-host password env var pattern
-
-The Zowe MCP server uses a dynamic env var naming convention:
-`ZOWE_MCP_PASSWORD_<USER>_<HOST>` (uppercased, dots/colons/dashes replaced with underscores).
-
-**This pattern cannot be fully enumerated in `server.json`** because the variable name depends on which z/OS systems the user has configured — that information is not known at publish time.
-
-The registry `environmentVariables` array expects a **static, fixed list** of names. Two practical options for the registry metadata:
-
-**Option A — Document the pattern (current approach)**
-Declare one representative `environmentVariables` entry with a `description` that explains the naming convention. MCP clients will prompt for that value by name; the user must also set any additional `ZOWE_MCP_PASSWORD_*` vars manually.
-
-**Option B — Single consolidated credentials env var (registry-friendly) — implemented as `ZOWE_MCP_CREDENTIALS`**
-The server reads a single env var containing all SSH passwords as a compact JSON object:
-
-```json
-{ "jsmith@mainframe.example.com": "s3cret", "jsmith@dev.example.com": "dev123" }
-```
-
-This is a fixed, statically-declared env var name that works naturally with the registry schema and with MCP client secret prompting. The server parses it when resolving passwords. This is the approach other multi-connection MCP servers use.
-
-The registry strongly prefers Option B because:
-
-- MCP client UIs (VS Code input prompts, Claude Desktop, etc.) can present a single secret field
-- Enterprise secret managers (Vault, Doppler) map cleanly to fixed env var names
-- `isSecret: true` on a single var triggers consistent masking in all compliant clients
-
-### Implementation in this repository (shipped)
-
-Option B is **implemented** as the env var **`ZOWE_MCP_CREDENTIALS`**:
-
-- **Code:** `getStandalonePasswordFromEnv()`, `parseZoweMcpCredentialsEnv()`, and `toConnectionsEnvLookupKey()` in `packages/zowe-mcp-server/src/zos/native/connection-spec.ts`. Resolution order: per-connection `ZOWE_MCP_PASSWORD_<USER>_<HOST>` first, then `ZOWE_MCP_CREDENTIALS` JSON.
-- **Consumers:** `NativeCredentialProvider` (standalone native SSH), CLI bridge `passwordResolver` in `packages/zowe-mcp-server/src/index.ts` and `src/scripts/call-tool.ts`.
-- **Registry metadata:** `packages/zowe-mcp-server/server.json` lists `ZOWE_MCP_CREDENTIALS` (and `ZOWE_MCP_MOCK_DIR` for `--mock`) under `packages[].environmentVariables`.
-
-Option A (documenting the `ZOWE_MCP_PASSWORD_*` pattern in prose) remains valid for clients that set many dynamic env vars outside a single JSON blob.
+**Zowe MCP-specific credential patterns** (stdio env vars such as `ZOWE_MCP_CREDENTIALS`, dynamic `ZOWE_MCP_PASSWORD_*`, HTTP Bearer vs z/OS SSH secrets, and how they relate to registry metadata) are documented in **`docs/mcp-authentication-oauth.md`** so this file stays focused on registry mechanics.
 
 ---
 
@@ -296,7 +261,7 @@ Versions are **immutable** once published. Rules:
 | Transport types | `stdio` | `streamable-http` or `sse` |
 | Artifact location | npm / PyPI / Docker / MCPB binary | Publicly accessible HTTPS URL |
 | Developer prerequisite | Node.js / Python / Docker on their machine | Nothing — connects over HTTP |
-| Authentication | env vars (`isSecret: true`) | OAuth 2.1 or HTTP header API key |
+| Authentication | env vars (`isSecret: true`) | OAuth 2.1 / Bearer JWT or HTTP header API key (see **`docs/mcp-authentication-oauth.md`**) |
 | Multi-tenant | One instance per machine | URL template variables `{tenant_id}` for different endpoints |
 | Enterprise governance | Allowlist enforced by server name/ID | Same allowlist; additionally OAuth at HTTP layer |
 | Data privacy | Process runs locally on developer machine | All requests reach the remote server |
@@ -674,77 +639,7 @@ Positioned for enterprises that want the governance of a private registry withou
 
 ## 10. AI Assistants That Support a Private Registry URL
 
-Only **GitHub Copilot** (across multiple IDEs) natively supports pointing to a custom/private MCP registry URL as a discoverable catalog. All other major clients lack this feature today.
-
-### GitHub Copilot — Full support
-
-**VS Code** (minimum version **1.101**, released May/June 2025):
-
-| Setting / Policy | Purpose | Where to set |
-| --- | --- | --- |
-| `chat.mcp.gallery.serviceUrl` / policy `McpGalleryServiceUrl` | Points VS Code at your private registry; replaces the GitHub gallery in the `@mcp` Extensions search | Direct edit of `settings.json` JSON file (individual), or enterprise policy (IT admin) |
-| `chat.mcp.access` / policy `ChatMCP` | Values: `allowed` (default), `registryOnly`, `off` | VS Code user settings, or enterprise policy |
-
-**Confirmed working (verified March 2026):** Add `"chat.mcp.gallery.serviceUrl": "http://localhost:8085"` **directly to the `settings.json` JSON file** (`Cmd+Shift+P` → "Preferences: Open User Settings (JSON)"). VS Code reads the setting immediately — no window reload required. The Copilot Chat gallery then calls `GET <url>/v0.1/servers` to populate the server list.
-
-> **Note — greyed out in Settings UI**: `chat.mcp.gallery.serviceUrl` is intentionally **disabled in the graphical Settings editor** on all VS Code editions (stable and Insiders). It does not appear as a user-editable field because Microsoft reserves the UI pathway for enterprise policy (`McpGalleryServiceUrl` via MDM/GPO/plist). Individual developers still get the runtime behaviour by editing `settings.json` as JSON directly — VS Code respects the key even though it does not render an input field for it. This applies to regular GitHub Copilot (no plan) as well as paid plans.
-
-### `chat.mcp.access` modes and what they block
-
-The three access values have meaningfully different effects depending on how a server is configured:
-
-| Server type | `allowed` (default) | `registryOnly` |
-| --- | --- | --- |
-| Installed from registry — stdio (npm package) | Allowed | Allowed |
-| Installed from registry — remote HTTP | Allowed | Allowed |
-| Direct `mcp.json` entry — remote HTTP | Allowed | Blocked |
-| Direct `mcp.json` entry — localhost HTTP (sidecar) | Allowed | Blocked |
-| Direct `mcp.json` entry — stdio | Allowed | Blocked |
-
-**Localhost URLs cannot be published to a registry `remotes` entry.** The `mcp-publisher` CLI validates that `remotes[].url` is a real network endpoint and rejects `http://localhost:*` addresses with: `invalid remote URL: http://localhost:…`. This is by design — a localhost URL is meaningless to any machine other than the developer's. It means a locally running HTTP Streamable sidecar server (e.g. a VS Code extension that starts an HTTP server on `http://localhost:62124/mcp`) **cannot be listed in any MCP registry**; it can only be used via a direct `mcp.json` entry, which requires `access: "allowed"`.
-
-This creates two distinct enterprise postures:
-
-#### Permissive posture — developer tooling allowed
-
-`chat.mcp.access: "allowed"` + custom `chat.mcp.gallery.serviceUrl`
-
-Developers browse and install curated servers from the private gallery **and** may use localhost sidecar servers (VS Code extension sidecars, locally running tools). The gallery constrains what is visible and easy to install; it does not block manual `mcp.json` entries. Appropriate when developer tooling is trusted and the primary governance goal is discoverability rather than hard enforcement.
-
-#### Strict posture — only approved servers
-
-`chat.mcp.access: "registryOnly"` + `McpGalleryServiceUrl` deployed via MDM
-
-Only servers in the approved registry can run. Localhost sidecars and any direct `mcp.json` entry are blocked at runtime. For a server to work in this environment it must be one of:
-
-- **stdio**: npm package published to a registry accessible from the developer's machine (public npmjs.com or a proxied internal mirror), with a `packages` entry in the MCP registry; VS Code fetches and runs the package locally as a subprocess.
-- **remote HTTP**: deployed at a real network URL (internal corporate domain or cloud endpoint), with a `remotes` entry in the MCP registry pointing to that URL.
-
-**Implication for MCP server developers**: if your users include enterprises with a strict posture, a localhost-only HTTP Streamable sidecar is invisible to those environments. You must support stdio (published npm package) or a deployable HTTP endpoint to be usable there.
-
-Enterprise policy deployment (overrides user settings, enforced via MDM):
-
-- **Windows** — ADMX/ADML group policy deployed via Intune or Active Directory (`vscode.admx` ships with VS Code since v1.69)
-- **macOS** — `.mobileconfig` profile deployed via Intune or Apple Business Manager (since v1.99)
-- **Linux** — `/etc/vscode/policy.json` (since v1.106)
-
-Example `policy.json` for Linux:
-
-```json
-{
-  "McpGalleryServiceUrl": "https://mcp-registry.internal.example.com",
-  "ChatMCP": "registryOnly"
-}
-```
-
-**JetBrains IDEs** (GitHub Copilot, nightly build):
-Copilot Chat → MCP icon → settings → "MCP Registry URL" field
-
-**Eclipse** (GitHub Copilot, pre-release):
-Copilot Chat → MCP icon → "Configure Registry URL"
-
-**Xcode** (GitHub Copilot, pre-release):
-Copilot Chat settings → Tools tab → "MCP Registry URL (Optional)"
+Only **GitHub Copilot** (across multiple IDEs) natively supports pointing to a custom/private MCP registry URL as a discoverable catalog (`GET /v0.1/servers`). **`chat.mcp.gallery.serviceUrl`**, **`chat.mcp.access`** (`allowed` / `registryOnly` / `off`), enterprise policy, **remote HTTP `Authorization: Bearer`** prompts when installing from the gallery, and the **localhost sidecar vs registry** distinction are covered in **`docs/mcp-authentication-oauth.md`** (authentication and client behavior), not here.
 
 ### Claude Desktop — Limited, enterprise only
 
@@ -777,32 +672,9 @@ Manual `~/.codeium/windsurf/mcp_config.json` configuration only. No governance c
 
 ## 11. Enterprise Governance: Limiting Which Servers Can Be Used
 
-### GitHub Copilot Enterprise / Business (admin-level)
+**GitHub org / Copilot admin:** private registry URL and **registry-only** mode are set under **Settings → AI controls → MCP**; **`chat.mcp.access`** and **`McpGalleryServiceUrl`** for VS Code are summarized in **`docs/mcp-authentication-oauth.md`**. Enforcement nuances and HTTP Bearer usage when adding remote servers from the gallery belong there.
 
-1. Admin creates a private registry (Options A–E above)
-2. Admin adds approved server entries to the registry
-3. Admin sets the registry URL in GitHub org settings: **Settings → AI controls → MCP → MCP Registry URL**
-4. Admin sets enforcement policy: **Registry only**
-5. Developers see only approved servers in the `@mcp` gallery; others are blocked at runtime
-
-**Current limitation:** Enforcement is name/ID-matching only — a developer can bypass it by manually editing `.vscode/mcp.json` with a raw server config. Stricter enforcement (verifying command path, args, env vars) is planned for October 2026.
-
-For the highest security today: disable MCP entirely (`chat.mcp.access: "off"`) until strict enforcement ships.
-
-### VS Code enterprise policies (IT admin via MDM)
-
-Two policies together constitute a locked-down setup:
-
-```json
-{
-  "McpGalleryServiceUrl": "https://mcp-registry.internal.example.com",
-  "ChatMCP": "registryOnly"
-}
-```
-
-Deployed via Intune/Active Directory/MDM to all developer machines. Does not require each developer to have Copilot Enterprise — the VS Code policy layer is independent.
-
-**Which servers work under `registryOnly`:** only servers whose `name` resolves in the registry — either as a `packages` (stdio) entry installed locally, or as a `remotes` (HTTP) entry pointing to a real network URL. Localhost HTTP sidecars are blocked. See section 10 for the full access-mode matrix and posture discussion.
+**Current limitation:** Enforcement is largely name/ID-matching; see GitHub Docs on MCP allowlists for the latest behavior.
 
 ### Cursor (via Stacklok)
 
@@ -824,123 +696,14 @@ Stacklok installs a [Cursor Hook](https://github.com/StacklokLabs/cursor-hooks) 
 
 ---
 
-## 12. Deploying the Zowe MCP Server as an HTTP Streamable Service
+## 12. HTTP deployment and authentication (pointer)
 
-The Zowe MCP server already has an HTTP Streamable transport (`startHttp` in `src/transports/`). Companies can deploy it as a shared internal service so developers do not need to run it locally.
+The Zowe MCP server supports **HTTP Streamable** transport (`startHttp` in `src/transports/`) for shared deployments. Material that used to live in this research doc under “HTTP Streamable service” has moved:
 
-### Advantages of HTTP Streamable vs local stdio
+- **`docs/mcp-authentication-oauth.md`** — OAuth 2.1 / OIDC at the MCP layer (resource server), **GitHub Copilot / VS Code** client behavior (Bearer headers, gallery), **z/OS SSH credentials** vs JWT identity, multi-tenant overview, Dockerfile/Kubernetes sketches, private-registry `remotes` shape
+- **`docs/remote-http-mcp-registry.md`** — enterprise topology diagram, **`mcp.json`** examples, reverse-proxy notes, API ML direction
 
-- Developers need no local Node.js or Zowe configuration — they connect to a URL
-- Credentials (z/OS passwords) are managed centrally on the server, not on developer laptops
-- A single deployment serves the whole team; updates are transparent
-- Works naturally with remote development environments (GitHub Codespaces, DevContainers)
-- Can be registered in a private MCP registry as a `remotes` entry with a fixed internal URL
-
-### Deployment architecture
-
-```text
-Developer's VS Code (HTTP MCP client)
-        │  HTTPS POST /mcp
-        ▼
-  Reverse proxy (nginx / API Gateway)
-  TLS termination · Auth middleware · Rate limiting
-        │
-        ▼
-  Zowe MCP Server container (HTTP Streamable, port 7542)
-  Sessions tracked per client via mcp-session-id header
-        │
-        ▼
-  z/OS system (SSH via ZNP)
-```
-
-### Dockerfile example
-
-```dockerfile
-FROM node:20-slim
-WORKDIR /app
-COPY . .
-RUN npm ci --omit=dev
-EXPOSE 7542
-CMD ["node", "dist/index.js", "--http", "--port", "7542", "--native", \
-     "--system", "jsmith@mainframe.example.com"]
-```
-
-Or using the published npm package (once on npmjs.com):
-
-```dockerfile
-FROM node:20-slim
-RUN npm install -g @zowe/mcp-server
-EXPOSE 7542
-CMD ["zowe-mcp-server", "--http", "--port", "7542", "--native"]
-```
-
-### Kubernetes deployment sketch
-
-```yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: zowe-mcp-server
-spec:
-  replicas: 2
-  template:
-    spec:
-      containers:
-        - name: zowe-mcp-server
-          image: ghcr.io/yourorg/zowe-mcp-server:1.0.0
-          ports:
-            - containerPort: 7542
-          env:
-            - name: ZOWE_MCP_CREDENTIALS
-              valueFrom:
-                secretKeyRef:
-                  name: zowe-mcp-credentials
-                  key: credentials-json
-```
-
-### Authentication options for the HTTP endpoint
-
-| Method | How | Notes |
-| --- | --- | --- |
-| **OAuth 2.1** | API Gateway / Istio handles OIDC; passes user identity to server | Best practice per MCP spec; supports per-user z/OS credentials |
-| **API key (per-team)** | Clients send `Authorization: Bearer <token>` header | Simplest; token declared in `server.json` `headers[].isSecret` |
-| **mTLS** | Client certificates issued by company CA | Network-layer, no MCP-level credential needed |
-| **VPN / network boundary** | Internal URL only reachable inside corporate network | No auth in MCP layer; rely on network access control |
-
-### Registering in a private MCP registry
-
-Once deployed, add the server to your private registry's `server.json` store:
-
-```json
-{
-  "name": "com.example/zowe-mcp-server",
-  "title": "Zowe MCP Server",
-  "description": "Internal z/OS MCP server — data sets, jobs, USS.",
-  "version": "1.0.0",
-  "remotes": [
-    {
-      "type": "streamable-http",
-      "url": "https://zowe-mcp.tools.example.com/mcp",
-      "headers": [
-        {
-          "name": "Authorization",
-          "description": "Bearer token from the internal identity provider",
-          "isSecret": true,
-          "isRequired": true
-        }
-      ]
-    }
-  ]
-}
-```
-
-Developers who configure `chat.mcp.gallery.serviceUrl` to point at the company registry will see "Zowe MCP Server" in the `@mcp` gallery and can install it with one click. VS Code will prompt them for the `Authorization` header value the first time and store it securely.
-
-### Multi-system / multi-tenant considerations
-
-The Zowe MCP server currently tracks the "active system" as session state, scoped per MCP client session (via `mcp-session-id`). In a shared HTTP deployment, each developer connects with their own session and can use `setSystem` / `listSystems` to switch between configured z/OS connections, independently of other users' sessions.
-
-z/OS passwords in the shared deployment are managed as a central secret (Kubernetes Secret, Vault, AWS Secrets Manager) rather than per-developer env vars.
+This file remains the **registry ecosystem** research (catalogs, `server.json`, publishing, governance at the catalog layer).
 
 ---
 
@@ -1002,7 +765,7 @@ Some companies prefer that **no MCP servers run locally** at all. Instead, all a
 
 1. Playwright MCP → deployed as a container on internal Kubernetes, accessible at `https://playwright-mcp.tools.example.com/mcp`
 2. GitHub MCP server → deployed with a GitHub App token for the enterprise GitHub instance
-3. Zowe MCP server → deployed as described in section 12
+3. Zowe MCP server → deployed as described in **`docs/mcp-authentication-oauth.md`** / **`docs/remote-http-mcp-registry.md`**
 4. All listed in the private registry as `remotes` entries
 5. `registryOnly` policy ensures only these pre-deployed endpoints are used
 
@@ -1040,3 +803,5 @@ This approach eliminates local npm package downloads entirely and gives the secu
 | Self-hosting blog post | <https://www.domstamand.com/self-hosting-a-mcp-registry-for-discovery-using-modelcontextprotocol-io-registry/> |
 | Docker MCP Catalog | <https://docs.docker.com/ai/mcp-catalog-and-toolkit/> |
 | Azure API Center MCP | <https://learn.microsoft.com/azure/api-center/register-discover-mcp-server> |
+| Local OIDC for HTTP JWT dev | `docs/dev-oidc-tinyauth.md` (this repo) |
+| Zowe MCP: OAuth, Copilot clients, z/OS SSH | `docs/mcp-authentication-oauth.md` (this repo) |

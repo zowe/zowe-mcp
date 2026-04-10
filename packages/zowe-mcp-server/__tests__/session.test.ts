@@ -13,7 +13,7 @@
  * Unit tests for SessionState and resolveSystemForTool.
  */
 
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { resolveSystemForTool, SessionState } from '../src/zos/session.js';
 import { SystemRegistry } from '../src/zos/system.js';
 
@@ -119,6 +119,10 @@ describe('SessionState', () => {
 });
 
 describe('resolveSystemForTool', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   it('should return active system when system param is omitted', () => {
     const registry = new SystemRegistry();
     registry.register({ host: 'sys1.example.com', port: 443 });
@@ -163,6 +167,37 @@ describe('resolveSystemForTool', () => {
     const state = new SessionState();
     expect(() => resolveSystemForTool(registry, state, 'unknown')).toThrow(
       "System 'unknown' not found"
+    );
+  });
+
+  it('should throw a helpful message when the registry is empty (standalone stdio)', () => {
+    vi.stubEnv('ZOWE_MCP_TRANSPORT', '');
+    vi.stubEnv('MCP_DISCOVERY_DIR', '');
+    vi.stubEnv('WORKSPACE_ID', '');
+    const registry = new SystemRegistry();
+    const state = new SessionState();
+    expect(() => resolveSystemForTool(registry, state, 'ca32.lvn.broadcom.net')).toThrow(
+      /--config/
+    );
+  });
+
+  it('should mention VS Code settings when the registry is empty and extension env is set', () => {
+    vi.stubEnv('ZOWE_MCP_TRANSPORT', '');
+    vi.stubEnv('MCP_DISCOVERY_DIR', '/tmp');
+    vi.stubEnv('WORKSPACE_ID', 'ws1');
+    const registry = new SystemRegistry();
+    const state = new SessionState();
+    expect(() => resolveSystemForTool(registry, state, 'host.example.com')).toThrow(
+      /zoweMCP\.nativeConnections/
+    );
+  });
+
+  it('should mention addZosConnection when the registry is empty and HTTP mode is set', () => {
+    vi.stubEnv('ZOWE_MCP_TRANSPORT', 'http');
+    const registry = new SystemRegistry();
+    const state = new SessionState();
+    expect(() => resolveSystemForTool(registry, state, 'host.example.com')).toThrow(
+      /addZosConnection/
     );
   });
 

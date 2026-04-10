@@ -126,6 +126,14 @@
           "type": "string",
           "description": "MCP tool name for the auto-generated set-profile tool (camelCase, e.g. 'endevorSetConnection'). Activates a profile or sets the virtual context."
         },
+        "toolAddProfileName": {
+          "type": "string",
+          "description": "Optional MCP tool name for adding a named profile and persisting to zoweMCP.cliPluginConfiguration / --cli-plugin-configuration file (requires server wiring)."
+        },
+        "toolRemoveProfileName": {
+          "type": "string",
+          "description": "Optional MCP tool name for removing a named profile by id and persisting."
+        },
         "required": {
           "type": "boolean",
           "description": "When true, a profile of this type must be active (or passed as <typeKey>Id) before any tool can be invoked. Auto-selects when exactly one profile is configured."

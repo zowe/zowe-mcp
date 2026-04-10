@@ -1,0 +1,14 @@
+.git
+.github
+.vscode
+.cursor
+node_modules
+**/node_modules
+**/dist
+**/out
+**/.vscode-test
+evals-report
+.evals-cache
+*.vsix
+vendor
+docs

@@ -20,6 +20,7 @@ import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { __resetTenantResourcesForTests } from '../src/auth/tenant-resources.js';
 import { createServer, getServer } from '../src/server.js';
 import type {
   BackendProgressCallback,
@@ -733,6 +734,83 @@ describe('Response cache', () => {
       } finally {
         await client.close();
         await server.close();
+      }
+    });
+  });
+
+  describe('tenantSub shared cache (HTTP JWT tenancy)', () => {
+    it('reuses tenant response cache across two server instances with the same tenantSub', async () => {
+      __resetTenantResourcesForTests();
+      const innerBackend = new FilesystemMockBackend(mockDir);
+      const countingBackend = new CountingBackend(innerBackend);
+      const credentialProvider: CredentialProvider = new MockCredentialProvider(mockConfig);
+      const systemRegistry = new SystemRegistry();
+      for (const sys of mockConfig.systems) {
+        systemRegistry.register({
+          host: sys.host,
+          port: sys.port,
+          description: sys.description,
+        });
+      }
+      const tenantSub = 'oidc|tenant-cache-test';
+
+      const server1 = getServer(
+        createServer({
+          backend: countingBackend,
+          systemRegistry,
+          credentialProvider,
+          tenantSub,
+          logToolCalls: true,
+        })
+      );
+      const [c1t, s1t] = InMemoryTransport.createLinkedPair();
+      const client1 = new Client({ name: 'tenant-test-1', version: '1.0.0' });
+      await Promise.all([client1.connect(c1t), server1.connect(s1t)]);
+      await new Promise(resolve => setTimeout(resolve, 50));
+
+      try {
+        await client1.callTool({
+          name: 'setSystem',
+          arguments: { system: SYSTEM_HOST },
+        });
+        await client1.callTool({
+          name: 'listDatasets',
+          arguments: { dsnPattern: `${DEFAULT_USER}.*`, offset: 0, limit: 5 },
+        });
+        expect(countingBackend.listDatasetsCallCount).toBe(1);
+      } finally {
+        await client1.close();
+        await server1.close();
+      }
+
+      const server2 = getServer(
+        createServer({
+          backend: countingBackend,
+          systemRegistry,
+          credentialProvider,
+          tenantSub,
+          logToolCalls: true,
+        })
+      );
+      const [c2t, s2t] = InMemoryTransport.createLinkedPair();
+      const client2 = new Client({ name: 'tenant-test-2', version: '1.0.0' });
+      await Promise.all([client2.connect(c2t), server2.connect(s2t)]);
+      await new Promise(resolve => setTimeout(resolve, 50));
+
+      try {
+        await client2.callTool({
+          name: 'setSystem',
+          arguments: { system: SYSTEM_HOST },
+        });
+        await client2.callTool({
+          name: 'listDatasets',
+          arguments: { dsnPattern: `${DEFAULT_USER}.*`, offset: 0, limit: 5 },
+        });
+        expect(countingBackend.listDatasetsCallCount).toBe(1);
+      } finally {
+        await client2.close();
+        await server2.close();
+        __resetTenantResourcesForTests();
       }
     });
   });

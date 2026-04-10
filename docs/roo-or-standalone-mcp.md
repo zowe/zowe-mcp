@@ -4,6 +4,8 @@ Some AI clients (for example [Roo Code](https://docs.roocode.com/features/mcp/us
 
 Use the `**@zowe/mcp-server`** npm package in **stdio** mode: `command` + `args` (+ optional `env`), the same as any MCP client that spawns a process.
 
+For **Streamable HTTP** (Bearer JWT, local Keycloak, or any remote URL), Roo supports **`type`: `streamable-http`** with **`url`** and optional **`headers`** — see **`docs/remote-dev-keycloak.md`** (Copilot / Cursor / Roo examples).
+
 ## Package identity
 
 | Item                 | Value                                                                |
@@ -116,7 +118,7 @@ In `.roo/mcp.json`, pass the JSON as a **string** value (escape quotes as requir
 - Maps cleanly to enterprise secret stores (inject one variable from Vault, Kubernetes `Secret`, CI, etc.).
 - Covers **multiple** connections in one value when you use `--config` with several systems.
 
-The shipped [`server.json`](../packages/zowe-mcp-server/server.json) documents `ZOWE_MCP_CREDENTIALS` for that reason. More background: [`mcp-registry-research.md`](mcp-registry-research.md).
+The shipped [`server.json`](../packages/zowe-mcp-server/server.json) documents `ZOWE_MCP_CREDENTIALS` for that reason. More background: [`mcp-authentication-oauth.md`](mcp-authentication-oauth.md) (credentials and HTTP auth), [`mcp-registry-research.md`](mcp-registry-research.md) (registry metadata).
 
 Prefer injecting secrets from the OS or a vault; do not commit real passwords into `.roo/mcp.json`.
 

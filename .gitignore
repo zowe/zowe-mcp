@@ -51,6 +51,9 @@ zowe-ceedump*
 # Local native systems (copy from native-config.example.json)
 native-config.json
 
+# mkcert TLS files for docker/remote-https-dev (see docker/remote-https-dev/certs/README.md)
+docker/remote-https-dev/certs/*.pem
+
 # Coverage
 coverage/
 *.lcov
@@ -77,6 +80,7 @@ deps/
 
 # Mock data
 zowe-mcp-mock-data/
+.zowe-mcp-tenant-store/
 
 # Evals (gitignored config, cache, and report output)
 evals.config.json

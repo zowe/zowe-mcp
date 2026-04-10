@@ -80,3 +80,40 @@ export class WaitablePasswordStore {
     });
   }
 }
+
+/** Optional in-memory TTL for cached passwords (extension or elicitation). */
+export class TtlPasswordStore {
+  private readonly inner = new WaitablePasswordStore();
+  private readonly expiry = new Map<string, number>();
+
+  constructor(private readonly ttlMs: number) {}
+
+  get(key: string): string | undefined {
+    const exp = this.expiry.get(key);
+    if (exp !== undefined && Date.now() > exp) {
+      this.inner.delete(key);
+      this.expiry.delete(key);
+      return undefined;
+    }
+    return this.inner.get(key);
+  }
+
+  set(key: string, value: string): void {
+    this.inner.set(key, value);
+    this.expiry.set(key, Date.now() + this.ttlMs);
+  }
+
+  delete(key: string): void {
+    this.inner.delete(key);
+    this.expiry.delete(key);
+  }
+
+  waitFor(key: string, timeoutMs: number): Promise<string | undefined> {
+    return this.inner.waitFor(key, timeoutMs).then(v => {
+      if (v !== undefined) {
+        this.expiry.set(key, Date.now() + this.ttlMs);
+      }
+      return v;
+    });
+  }
+}

@@ -13,6 +13,9 @@ setSystem:
 
 getContext:
 
+addZosConnection:
+  connectionSpec: "USER@mainframe-dev.example.com"
+
 listDatasets:
   dsnPattern: "USER.*"
 

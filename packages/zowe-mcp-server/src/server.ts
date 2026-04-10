@@ -18,12 +18,14 @@
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { createRequire } from 'node:module';
+import { getOrCreateTenantResponseCache, tenantKeyFromSub } from './auth/tenant-resources.js';
 import type {
   OpenDatasetInEditorEventData,
   OpenJobInEditorEventData,
   OpenUssFileInEditorEventData,
 } from './events.js';
 import { Logger } from './log.js';
+import { installMcpServerInvocationContext } from './mcp-tool-context.js';
 import { registerDatasetPrompts } from './prompts/dataset-prompts.js';
 import { registerImprovementPrompts } from './prompts/improvement-prompts.js';
 import { registerDatasetResources } from './resources/dataset-resources.js';
@@ -186,6 +188,23 @@ export interface CreateServerOptions {
    * From ZOWE_MCP_WORKSPACE_DIR, ZOWE_MCP_LOCAL_FILES_ROOT, and --local-files-root.
    */
   localFilesFallbackDirectories?: string[];
+  /**
+   * OIDC subject when HTTP is protected with Bearer JWT — enables shared per-user response cache
+   * and CLI plugin state across MCP sessions for that user.
+   */
+  tenantSub?: string;
+  /** Optional email claim when using JWT-backed HTTP. */
+  tenantEmail?: string;
+  /**
+   * When set (HTTP + JWT + `ZOWE_MCP_TENANT_STORE_DIR`), registers `addZosConnection` to append
+   * a `user@host` spec to the tenant file and refresh the in-memory connection list.
+   */
+  addTenantNativeConnection?: (spec: string) => Promise<void>;
+  /**
+   * When set together with `addTenantNativeConnection`, registers `removeZosConnection` to remove a
+   * spec from the tenant file (not from server `--config`/`--system` bootstrap list).
+   */
+  removeTenantNativeConnection?: (spec: string) => Promise<void>;
 }
 
 /** Callbacks required to register Zowe Explorer open-in-editor tools (e.g. for late registration). */
@@ -260,6 +279,7 @@ export function createServer(options?: CreateServerOptions): CreateServerResult 
   );
 
   logger.attach(server);
+  installMcpServerInvocationContext(server);
 
   // Log when a client completes initialization
   server.server.oninitialized = () => {
@@ -307,6 +327,13 @@ export function createServer(options?: CreateServerOptions): CreateServerResult 
           ? encodingOpt.current
           : encodingOpt;
     const responseCacheOpt = options.responseCache;
+    const cacheOpts: ResponseCacheOptions | undefined =
+      typeof responseCacheOpt === 'object' &&
+      responseCacheOpt !== null &&
+      !('getOrFetch' in responseCacheOpt)
+        ? responseCacheOpt
+        : undefined;
+    const tenantSub = options.tenantSub?.trim();
     const responseCache: ResponseCache | undefined =
       responseCacheOpt === false
         ? undefined
@@ -314,9 +341,9 @@ export function createServer(options?: CreateServerOptions): CreateServerResult 
             responseCacheOpt !== null &&
             'getOrFetch' in responseCacheOpt
           ? responseCacheOpt
-          : createResponseCache(
-              typeof responseCacheOpt === 'object' ? responseCacheOpt : undefined
-            );
+          : tenantSub
+            ? getOrCreateTenantResponseCache(tenantKeyFromSub(tenantSub), cacheOpts)
+            : createResponseCache(cacheOpts);
 
     const jobCardStore = options.jobCardStore ?? createJobCardStore();
 
@@ -331,6 +358,8 @@ export function createServer(options?: CreateServerOptions): CreateServerResult 
         jobCardStore,
         onActiveConnectionChanged: options.onActiveConnectionChanged,
         encodingOptions,
+        addTenantNativeConnection: options.addTenantNativeConnection,
+        removeTenantNativeConnection: options.removeTenantNativeConnection,
       },
       logger
     );

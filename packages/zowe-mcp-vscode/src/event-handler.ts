@@ -19,6 +19,7 @@
  * - `request-password` → get from SecretStorage or prompt, send password event
  * - `password-invalid` → delete secret for that user@host
  * - `store-password` → store password in SecretStorage (e.g. after successful use of elicited password)
+ * - `store-cli-plugin-profiles` → merge CLI plugin profiles into `zoweMCP.cliPluginConfiguration` and mirror JSON to globalStorage
  */
 
 import type {
@@ -26,6 +27,8 @@ import type {
   ServerToExtensionEvent,
 } from '@zowe/mcp-server/dist/events.js';
 import * as crypto from 'crypto';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { getNativePasswordKey } from './secrets';
 import { updateCliPluginActiveProfiles, updateZoweMcpStatusBar } from './status-bar';
@@ -381,6 +384,32 @@ async function handleStoreJobCard(
   log.info(`Stored job card for ${connectionSpec} in settings`);
 }
 
+/**
+ * Persists CLI plugin profiles from the MCP server into zoweMCP.cliPluginConfiguration
+ * and mirrors the same JSON to globalStorage (same path buildServerConfig uses on startup).
+ */
+async function handleStoreCliPluginProfiles(
+  log: vscode.LogOutputChannel,
+  event: ServerToExtensionEvent,
+  options: NativeSecretsOptions
+): Promise<void> {
+  if (event.type !== 'store-cli-plugin-profiles') return;
+  const { pluginName, profilesFile } = event.data as {
+    pluginName: string;
+    profilesFile: Record<string, unknown>;
+  };
+  const config = vscode.workspace.getConfiguration('zoweMCP');
+  const current = config.get<Record<string, unknown>>('cliPluginConfiguration', {}) ?? {};
+  const updated = { ...current, [pluginName]: profilesFile };
+  await config.update('cliPluginConfiguration', updated, vscode.ConfigurationTarget.Global);
+
+  const storageDir = options.context.globalStorageUri.fsPath;
+  fs.mkdirSync(storageDir, { recursive: true });
+  const connFile = path.join(storageDir, `cli-plugin-conn-${pluginName}.json`);
+  fs.writeFileSync(connFile, `${JSON.stringify(profilesFile, null, 2)}\n`, 'utf-8');
+  log.info(`Stored CLI plugin profiles for "${pluginName}" in settings and ${connFile}`);
+}
+
 const ZOWE_EDITOR_REQUIRED_MSG =
   'Zowe Explorer is required to open this resource. Install the Zowe Explorer extension.';
 
@@ -518,6 +547,9 @@ export function handleServerEvent(
       break;
     case 'store-job-card':
       if (options) void handleStoreJobCard(log, event, options);
+      break;
+    case 'store-cli-plugin-profiles':
+      if (options) void handleStoreCliPluginProfiles(log, event, options);
       break;
     case 'open-dataset-in-editor':
       void handleOpenDatasetInEditor(log, event);

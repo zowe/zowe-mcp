@@ -102,6 +102,15 @@ export function parseConnectionSpec(spec: string): ParsedConnectionSpec {
 }
 
 /**
+ * Returns a canonical connection string for the given spec (same rules as addZosConnection):
+ * `user@host` when port is 22, otherwise `user@host:port`.
+ */
+export function formatNormalizedConnectionSpec(spec: string): string {
+  const p = parseConnectionSpec(spec);
+  return p.port === DEFAULT_SSH_PORT ? `${p.user}@${p.host}` : `${p.user}@${p.host}:${p.port}`;
+}
+
+/**
  * Parses an array of connection spec strings.
  * Duplicates (same user@host:port) are preserved in order; callers can dedupe if needed.
  *
@@ -184,4 +193,18 @@ export function getStandalonePasswordFromEnv(spec: ParsedConnectionSpec): string
     return fromMap;
   }
   return undefined;
+}
+
+/**
+ * Standalone password resolution: env first, then optional Vault KV (see `vault-kv-credentials.ts`).
+ */
+export async function resolveStandalonePassword(
+  spec: ParsedConnectionSpec
+): Promise<string | undefined> {
+  const fromEnv = getStandalonePasswordFromEnv(spec);
+  if (fromEnv !== undefined && fromEnv !== '') {
+    return fromEnv;
+  }
+  const { getStandalonePasswordFromVault } = await import('./vault-kv-credentials.js');
+  return getStandalonePasswordFromVault(spec);
 }

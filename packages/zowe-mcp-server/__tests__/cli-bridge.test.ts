@@ -42,6 +42,7 @@ import {
   resolveFieldDescription,
   resolveJsonRef,
   resolveToolPagination,
+  serializeCliPluginStateToProfilesFile,
 } from '../src/tools/cli-bridge/cli-tool-loader.js';
 import type {
   CliNamedProfile,
@@ -129,6 +130,24 @@ const noop = (): void => {};
 const stubLogger = {
   child: () => ({ debug: noop, info: noop, warning: noop }),
 } as unknown as Parameters<typeof loadAndRegisterPluginYaml>[3];
+
+// ---------------------------------------------------------------------------
+// serializeCliPluginStateToProfilesFile
+// ---------------------------------------------------------------------------
+
+describe('serializeCliPluginStateToProfilesFile', () => {
+  it('serializes profiles and default active ids', () => {
+    const state = createEmptyPluginState();
+    state.profilesByType.set('connection', [
+      { id: 'p1', host: 'h.example.com', port: '447', user: 'u1' },
+    ]);
+    state.activeProfileId.set('connection', 'p1');
+    const file = serializeCliPluginStateToProfilesFile(state);
+    expect(file.connection?.profiles).toHaveLength(1);
+    expect(file.connection?.profiles?.[0]?.id).toBe('p1');
+    expect(file.connection?.default).toBe('p1');
+  });
+});
 
 // ---------------------------------------------------------------------------
 // resolveJsonRef

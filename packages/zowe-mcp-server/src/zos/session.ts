@@ -21,8 +21,37 @@
  * per-system context map.
  */
 
+import { getMcpDeploymentMode } from '../mcp-deployment-mode.js';
 import { parseConnectionSpec } from './native/connection-spec.js';
 import type { SystemId, SystemRegistry } from './system.js';
+
+/**
+ * User-facing hint when resolveSystemForTool fails: empty registry vs listed hosts.
+ */
+function systemNotFoundHint(systemRegistry: SystemRegistry): string {
+  const hosts = systemRegistry.list();
+  if (hosts.length > 0) {
+    return `Available systems (hosts): ${hosts.join(', ')}. Use listSystems for connection specs.`;
+  }
+  switch (getMcpDeploymentMode()) {
+    case 'http':
+      return (
+        'No z/OS systems are configured. For this HTTP server, use addZosConnection with a user@host spec (JWT tenant store), ' +
+        'or start the process with --config <file> or --system user@host for a base list. Use listSystems to verify.'
+      );
+    case 'stdio-vscode':
+      return (
+        'No z/OS systems are configured. In VS Code Settings, set zoweMCP.nativeConnections (native) or zoweMCP.mockDataDirectory (mock), ' +
+        'then reload the window if needed so the MCP server restarts. Use listSystems to verify.'
+      );
+    case 'stdio-standalone':
+    default:
+      return (
+        'No z/OS systems are configured. Start with --config <file> or --system user@host, ' +
+        'or set ZOWE_MCP_CREDENTIALS / ZOWE_MCP_PASSWORD_* for SSH. Use listSystems to verify.'
+      );
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Resolve system parameter (host or connection spec)
@@ -77,9 +106,8 @@ export function resolveSystemForTool(
     }
     const sysInfo = systemRegistry.getOrResolve(parsed.host);
     if (!sysInfo) {
-      const available = systemRegistry.list().join(', ');
       throw new Error(
-        `System for connection '${system}' not found. Available systems (hosts): ${available}. Use listSystems to see all configured systems and their connections.`
+        `System for connection '${system}' not found. ${systemNotFoundHint(systemRegistry)}`
       );
     }
     const connectionSpecs = sysInfo.connectionSpecs;
@@ -103,10 +131,7 @@ export function resolveSystemForTool(
   // Host only
   const sysInfo = systemRegistry.getOrResolve(trimmed);
   if (!sysInfo) {
-    const available = systemRegistry.list().join(', ');
-    throw new Error(
-      `System '${trimmed}' not found. Available systems (hosts): ${available}. Use listSystems to see all configured systems and their connections.`
-    );
+    throw new Error(`System '${trimmed}' not found. ${systemNotFoundHint(systemRegistry)}`);
   }
   const connectionSpecs = sysInfo.connectionSpecs;
   if (!connectionSpecs || connectionSpecs.length === 0) {

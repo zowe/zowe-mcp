@@ -52,6 +52,63 @@ describe('NativeCredentialProvider', () => {
         else process.env.ZOWE_MCP_CREDENTIALS = prevCred;
       }
     });
+
+    it('uses MCP elicitation when env password is unset and elicitation is configured', async () => {
+      const envVar = toPasswordEnvVarName(SPEC.user, SPEC.host);
+      const prevVar = process.env[envVar];
+      const prevCred = process.env.ZOWE_MCP_CREDENTIALS;
+      delete process.env[envVar];
+      delete process.env.ZOWE_MCP_CREDENTIALS;
+      try {
+        const provider = new NativeCredentialProvider({
+          connectionSpecs: [SPEC],
+          useEnvForPassword: true,
+          requestPasswordViaElicitation: () => Promise.resolve('elicited-standalone'),
+        });
+        await expect(provider.getCredentials(SPEC.host)).resolves.toEqual({
+          user: SPEC.user,
+          password: 'elicited-standalone',
+        });
+      } finally {
+        if (prevVar === undefined) delete process.env[envVar];
+        else process.env[envVar] = prevVar;
+        if (prevCred === undefined) delete process.env.ZOWE_MCP_CREDENTIALS;
+        else process.env.ZOWE_MCP_CREDENTIALS = prevCred;
+      }
+    });
+
+    it('reuses elicited password for the process without calling elicitation again', async () => {
+      const envVar = toPasswordEnvVarName(SPEC.user, SPEC.host);
+      const prevVar = process.env[envVar];
+      const prevCred = process.env.ZOWE_MCP_CREDENTIALS;
+      delete process.env[envVar];
+      delete process.env.ZOWE_MCP_CREDENTIALS;
+      let elicitCalls = 0;
+      try {
+        const provider = new NativeCredentialProvider({
+          connectionSpecs: [SPEC],
+          useEnvForPassword: true,
+          requestPasswordViaElicitation: () => {
+            elicitCalls += 1;
+            return Promise.resolve('elicited-once');
+          },
+        });
+        await expect(provider.getCredentials(SPEC.host)).resolves.toEqual({
+          user: SPEC.user,
+          password: 'elicited-once',
+        });
+        await expect(provider.getCredentials(SPEC.host)).resolves.toEqual({
+          user: SPEC.user,
+          password: 'elicited-once',
+        });
+        expect(elicitCalls).toBe(1);
+      } finally {
+        if (prevVar === undefined) delete process.env[envVar];
+        else process.env[envVar] = prevVar;
+        if (prevCred === undefined) delete process.env.ZOWE_MCP_CREDENTIALS;
+        else process.env.ZOWE_MCP_CREDENTIALS = prevCred;
+      }
+    });
   });
 
   describe('requestPasswordViaElicitation and onElicitedPasswordUsed', () => {
@@ -86,6 +143,32 @@ describe('NativeCredentialProvider', () => {
         password: 'elicited-secret',
       });
       expect(store.get(cacheKey(SPEC))).toBe('elicited-secret');
+    });
+
+    it('does not call requestPasswordViaElicitation when requestPasswordCallback is set (pipe only)', async () => {
+      let elicitationCalled = false;
+      const waitableStore = new WaitablePasswordStore();
+      const provider = new NativeCredentialProvider({
+        connectionSpecs: [SPEC],
+        useEnvForPassword: false,
+        passwordStore: waitableStore,
+        requestPasswordCallback: () => {
+          setTimeout(() => {
+            waitableStore.set(cacheKey(SPEC), 'pipe-only-password');
+          }, 0);
+        },
+        requestPasswordViaElicitation: async () => {
+          await Promise.resolve();
+          elicitationCalled = true;
+          return 'elicited-should-not-be-used';
+        },
+      });
+
+      await expect(provider.getCredentials(SPEC.host)).resolves.toEqual({
+        user: SPEC.user,
+        password: 'pipe-only-password',
+      });
+      expect(elicitationCalled).toBe(false);
     });
 
     it('falls back to pipe when requestPasswordViaElicitation returns undefined', async () => {

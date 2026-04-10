@@ -52,6 +52,38 @@ export const listSystemsOutputSchema = z
 // setSystem
 // ---------------------------------------------------------------------------
 
+export const addZosConnectionOutputSchema = z
+  .object({
+    connectionSpec: z
+      .string()
+      .describe('Normalized connection spec that was added (user@host or user@host:port).'),
+    persisted: z
+      .boolean()
+      .describe(
+        'True when written to the tenant store on disk (HTTP + JWT + ZOWE_MCP_TENANT_STORE_DIR).'
+      ),
+    messages: z.array(z.string()).optional(),
+  })
+  .describe(
+    'Result of adding a z/OS SSH connection for the current tenant (isolated per OIDC subject).'
+  );
+
+export const removeZosConnectionOutputSchema = z
+  .object({
+    connectionSpec: z
+      .string()
+      .describe('Normalized connection spec that was removed (user@host or user@host:port).'),
+    persisted: z
+      .boolean()
+      .describe(
+        'True when updated in the tenant store on disk (HTTP + JWT + ZOWE_MCP_TENANT_STORE_DIR).'
+      ),
+    messages: z.array(z.string()).optional(),
+  })
+  .describe(
+    'Result of removing a z/OS SSH connection from the current tenant saved list (not from server bootstrap --config/--system).'
+  );
+
 export const setSystemOutputSchema = z
   .object({
     activeSystem: z.string().describe('Resolved hostname of the active z/OS system.'),

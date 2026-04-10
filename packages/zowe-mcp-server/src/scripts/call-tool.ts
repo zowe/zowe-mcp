@@ -65,8 +65,8 @@ import {
 import type { CliPluginProfilesFile } from '../tools/cli-bridge/types.js';
 import { loadMock } from '../zos/mock/load-mock.js';
 import {
-  getStandalonePasswordFromEnv,
   parseConnectionSpec,
+  resolveStandalonePassword,
   toPasswordEnvVarName,
 } from '../zos/native/connection-spec.js';
 import { loadNative } from '../zos/native/load-native.js';
@@ -317,15 +317,13 @@ async function main(): Promise<void> {
       }
       // Standalone password resolver via env vars
       pluginState.passwordResolver = {
-        getPassword(user: string, host: string): Promise<string> {
+        async getPassword(user: string, host: string): Promise<string> {
           const spec = parseConnectionSpec(`${user}@${host}`);
-          const pw = getStandalonePasswordFromEnv(spec);
-          if (pw !== undefined) return Promise.resolve(pw);
+          const pw = await resolveStandalonePassword(spec);
+          if (pw !== undefined) return pw;
           const envVar = toPasswordEnvVarName(spec.user, spec.host);
-          return Promise.reject(
-            new Error(
-              `No password for ${user}@${host}. Set ${envVar} or ZOWE_MCP_CREDENTIALS (JSON map of user@host to password).`
-            )
+          throw new Error(
+            `No password for ${user}@${host}. Set ${envVar}, ZOWE_MCP_CREDENTIALS, or Vault KV (see AGENTS.md).`
           );
         },
       };

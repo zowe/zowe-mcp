@@ -403,6 +403,26 @@ describe('NativeBackend', () => {
       expect(options.credentialProvider.markInvalid).toHaveBeenCalledWith(SPEC);
     });
 
+    it('classifies z/OS SSH handshake timeout as connection error (evicts, does not markInvalid)', async () => {
+      const handshakeError = new Error('Timed out while waiting for handshake');
+      const options = createOptions({
+        clientCache: {
+          getOrCreate: vi.fn().mockRejectedValue(handshakeError),
+          evict: vi.fn(),
+          hasKey: vi.fn().mockReturnValue(true),
+        },
+      });
+      const backend = new NativeBackend(options);
+
+      await expect(backend.listDatasets(SYSTEM_ID, 'USER.*')).rejects.toThrow(
+        'Timed out while waiting for handshake'
+      );
+
+      expect(options.credentialProvider.markInvalid).not.toHaveBeenCalled();
+      expect(options.onPasswordInvalid).not.toHaveBeenCalled();
+      expect(options.clientCache.evict).toHaveBeenCalledWith(SPEC);
+    });
+
     it('on non-auth error does not call evict or markInvalid', async () => {
       // Use an error that is not classified as connection or auth (e.g. "timeout" triggers evict)
       const otherError = new Error('Disk full');

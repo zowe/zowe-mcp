@@ -126,6 +126,17 @@ export interface ProfileTypeDef {
   setDescription?: string;
   /** Variant descriptions for the set tool. */
   setDescriptions?: DescriptionVariants;
+  /**
+   * When set, registers an MCP tool that adds a named profile of this type, validates
+   * fields, and persists (VS Code `zoweMCP.cliPluginConfiguration` and/or the
+   * `--cli-plugin-configuration` file). Omit when profile lists are static.
+   */
+  toolAddProfileName?: string;
+  /**
+   * When set, registers an MCP tool that removes a named profile by id and persists.
+   * If the removed profile was active, the first remaining profile becomes active (if any).
+   */
+  toolRemoveProfileName?: string;
   /** Profile fields (non-sensitive; password is managed via the password store). */
   fields: ProfileFieldDef[];
 }
@@ -580,4 +591,14 @@ export interface CliPluginState {
    * this plugin instance.  Created on first use by `registerPluginTool()`.
    */
   _cliResultCache?: import('../../zos/response-cache.js').ResponseCache;
+  /**
+   * Persists the current {@link profilesByType} / {@link activeProfileId} to
+   * `zoweMCP.cliPluginConfiguration` (when the VS Code extension is connected) and/or
+   * the file passed with `--cli-plugin-configuration`. Set by the server entry point.
+   */
+  persistProfiles?: () => Promise<void>;
+  /** Value of YAML `plugin:` — used as the key for VS Code `cliPluginConfiguration`. */
+  pluginKey?: string;
+  /** Absolute path from the CLI `--cli-plugin-configuration` file for this plugin. */
+  persistConnectionFilePath?: string;
 }

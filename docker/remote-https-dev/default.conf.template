@@ -1,0 +1,26 @@
+# MCP HTTPS only (Keycloak uses native TLS — see docker-compose.keycloak-native-tls.yml).
+# envsubst fills ${...} from container env.
+
+server {
+    listen ${ZOWE_MCP_MCP_TLS_PORT} ssl;
+    server_name ${ZOWE_MCP_HTTPS_HOST};
+
+    ssl_certificate /etc/nginx/certs/cert.pem;
+    ssl_certificate_key /etc/nginx/certs/key.pem;
+
+    proxy_read_timeout 3600s;
+    proxy_send_timeout 3600s;
+    proxy_connect_timeout 60s;
+    client_max_body_size 50m;
+
+    location / {
+        proxy_pass http://host.docker.internal:${ZOWE_MCP_HTTP_BACKEND_PORT};
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Port ${ZOWE_MCP_MCP_TLS_PORT};
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_buffering off;
+    }
+}

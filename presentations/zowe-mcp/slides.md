@@ -12,7 +12,7 @@ drawings:
 transition: slide-left
 mdc: true
 ---
-<!-- Last reviewed: 2026-04 — Extended CLI Bridge slides (workflow, two YAML types, config/quality); see docs/how-to-add-cli-plugin.md -->
+<!-- Last reviewed: 2026-04 — End-of-deck slides: shared HTTP OAuth topology, MCP registries; docs/remote-http-mcp-registry.md. CLI Bridge: docs/how-to-add-cli-plugin.md -->
 
 <!-- Slide 1: Title -->
 
@@ -108,9 +108,9 @@ An **MCP server** and **VS Code extension** that gives AI assistants direct, str
     <div class="font-bold text-[#1b375f] mb-1"><mdi-microsoft-visual-studio-code class="inline text-[#16825d]" /> VS Code Extension</div>
     <div class="text-[#6d7176]">Extension registers an Zowe MCP server as a <strong>local stdio server</strong> — used by Copilot Chat and Cursor automatically</div>
   </div>
-  <div class="p-3 bg-[#f3f4f4] rounded-lg border-l-4 border-[#6d7176]">
-    <div class="font-bold text-[#1b375f] mb-1"><carbon-cloud class="inline text-[#6d7176]" /> Remote HTTP Streamable</div>
-    <div class="text-[#6d7176]">Centralized server for multi-user access — <em>coming soon</em></div>
+  <div class="p-3 bg-[#f3f4f4] rounded-lg border-l-4 border-[#16825d]">
+    <div class="font-bold text-[#1b375f] mb-1"><carbon-cloud class="inline text-[#16825d]" /> Remote HTTP Streamable</div>
+    <div class="text-[#6d7176]"><strong>Shared</strong> team server — HTTPS <code>/mcp</code>, optional Bearer JWT, MCP registry <code>remotes</code>. Covered at the <strong>end of this deck</strong>.</div>
   </div>
 </div>
 
@@ -1104,10 +1104,107 @@ Adapt an **existing** Zowe CLI plugin without new TypeScript: one **metadata pip
 </div>
 
 ---
+layout: two-cols-header
+layoutClass: '!grid-rows-[auto_minmax(0,1fr)]'
+class: text-sm
+---
 
-<!-- Slide 24: Roadmap & Community -->
+<!-- Shared HTTP + OAuth: two-cols-header = full-width title, then left/right. Plain two-cols has only default + ::right:: (no ::left::). -->
 
-# <carbon-roadmap class="inline text-[#3162ac]" /> Roadmap & Community
+# <carbon-cloud class="inline text-[#3162ac]" /> Shared HTTP server and OAuth
+
+::left::
+
+<div class="text-xs leading-snug pr-2 max-h-[62vh] overflow-y-auto">
+
+<p class="mb-2 text-[#6d7176]"><strong class="text-[#1b375f]">Streamable HTTP</strong> on <code>/mcp</code> — multi-session MCP over HTTPS.<br/>
+</p>
+
+<h3 class="!text-sm !mt-0 !mb-1 !font-semibold !text-[#1b375f] flex items-center gap-1"><carbon-locked class="inline text-[#3162ac]" /> OAuth and tokens</h3>
+
+<ul class="list-disc pl-4 space-y-1 text-[#6d7176] mb-3">
+<li><strong class="text-[#1b375f]">OAuth 2.0 resource server</strong> — Zowe MCP does not host login pages or issue tokens; your OIDC IdP (Identity Provider) is the authorization server.</li>
+<li>The IdP is only for <strong class="text-[#1b375f]">tokens and JWKS</strong>.</li>
+<li>Clients obtain access tokens (browser code flow or device flow), then send <code>Authorization: Bearer</code> on every <code>POST /mcp</code> call.</li>
+<li>JWT validation via <code>ZOWE_MCP_JWT_ISSUER</code> and <code>ZOWE_MCP_JWKS_URI</code>. RFC 9728 metadata helps MCP clients discover the IdP.</li>
+</ul>
+
+<h3 class="!text-sm !mt-0 !mb-1 !font-semibold !text-[#1b375f] flex items-center gap-1"><carbon-two-person-lift class="inline text-[#3162ac]" /> Identity vs z/OS</h3>
+
+<ul class="list-disc pl-4 space-y-1 text-[#6d7176]">
+<li>Tenant data keyed by OIDC <code>sub</code>; not shared secrets alone.</li>
+<li>Mainframe SSH passwords stay separate — env, vault, or elicitation. The access token does not replace SAF or SSH credentials.</li>
+<li>TLS usually at a reverse proxy; set public base URL env vars so OAuth and password-elicit URLs match the browser.</li>
+</ul>
+
+</div>
+
+::right::
+
+```mermaid {scale: 0.38}
+flowchart TB
+  subgraph clients
+    IDE[MCP client in IDE]
+  end
+  subgraph identity
+    IdP[OIDC authorization server]
+  end
+  subgraph edge
+    LB[TLS reverse proxy or ingress]
+  end
+  subgraph app
+    MCP[Zowe MCP resource server]
+    TS[Tenant connection store per sub]
+    SEC[Secrets for z/OS SSH]
+  end
+  subgraph mainframe
+    ZOS[z/OS SSH]
+  end
+  IDE -->|user login OAuth| IdP
+  IDE -->|HTTPS POST mcp Bearer token| LB
+  LB --> MCP
+  MCP -->|JWKS issuer validation| IdP
+  MCP --> TS
+  MCP --> SEC
+  MCP --> ZOS
+```
+
+---
+
+<!-- MCP registries -->
+
+# <carbon-connect class="inline text-[#3162ac]" /> MCP registries
+
+<div class="text-xs text-[#6d7176] mb-3 leading-snug">
+
+An <strong class="text-[#1b375f]">MCP registry</strong> is a <strong class="text-[#1b375f]">catalog</strong> where <strong class="text-[#1b375f]">publishers</strong> register MCP servers and <strong class="text-[#1b375f]">clients</strong> (for example VS Code) <strong class="text-[#1b375f]">discover</strong> them — similar to a package index, but entries describe <strong class="text-[#1b375f]">how to run or connect</strong> to a server, not only source code. The registry stores <strong class="text-[#1b375f]">versioned metadata</strong> so users can <strong class="text-[#1b375f]">browse</strong>, <strong class="text-[#1b375f]">install</strong>, or <strong class="text-[#1b375f]">attach</strong> to a remote URL from the IDE gallery instead of pasting ad hoc config.
+
+</div>
+
+<div class="text-sm mt-1">
+
+- <strong class="text-[#1b375f]">What you get</strong> — Searchable listings, <strong class="text-[#1b375f]">trust boundaries</strong> (official vs private org registry), and a standard <strong class="text-[#1b375f]"><code class="text-[#1b375f]">server.json</code></strong> shape so tools know whether to spawn <strong class="text-[#1b375f]">stdio</strong> (<code>npx</code>, Docker, …) or open <strong class="text-[#1b375f]">Streamable HTTP</strong> with required <strong class="text-[#1b375f]">headers</strong> (for example OAuth).
+- <strong class="text-[#1b375f]">Where it lives</strong> — The <a href="https://registry.modelcontextprotocol.io" target="_blank" class="text-[#3162ac] underline">public MCP registry</a>, a <strong class="text-[#1b375f]">vendor</strong> catalog, or your <strong class="text-[#1b375f]">company’s</strong> private registry URL (large shops often host <strong class="text-[#1b375f]">one catalog per division</strong> with different hostnames).
+- <strong class="text-[#1b375f]"><code class="text-[#1b375f]">server.json</code> per entry</strong> — <strong class="text-[#1b375f]"><code class="text-[#1b375f]">packages</code></strong>: npm tarball, PyPI, Docker, … for <strong class="text-[#1b375f]">local</strong> MCP; <strong class="text-[#1b375f]"><code class="text-[#1b375f]">remotes</code></strong>: <strong class="text-[#1b375f]">HTTPS</strong> base URL + <strong class="text-[#1b375f]"><code class="text-[#1b375f]">type: streamable-http</code></strong> and <strong class="text-[#1b375f]"><code class="text-[#1b375f]">Authorization</code></strong> header description for <strong class="text-[#1b375f]">shared</strong> team servers.
+- <strong class="text-[#1b375f]">On premises</strong> — Each Zowe MCP deployment publishes <strong class="text-[#1b375f]">its own</strong> HTTPS endpoint; there is <strong class="text-[#1b375f]">no</strong> single global URL — metadata documents <strong class="text-[#1b375f]">headers</strong>, <strong class="text-[#1b375f]">OAuth</strong>, and path (usually <strong class="text-[#1b375f]"><code class="text-[#1b375f]">/mcp</code></strong>).
+
+<div class="mt-3 p-3 bg-[#eef2f8] rounded-lg border-l-4 border-[#3975d0] text-xs text-[#6d7176]">
+  <strong class="text-[#1b375f]">Further reading:</strong>&nbsp;
+  <a href="https://github.com/zowe/zowe-mcp/blob/main/docs/remote-http-mcp-registry.md" target="_blank" class="text-[#3162ac] underline">remote-http-mcp-registry.md</a>
+  (registry registration, stdio + remote together),
+  <a href="https://github.com/zowe/zowe-mcp/blob/main/docs/mcp-registry-research.md" target="_blank" class="text-[#3162ac] underline">mcp-registry-research.md</a>
+  (ecosystem, galleries);
+  <a href="https://github.com/zowe/zowe-mcp/blob/main/docs/mcp-authentication-oauth.md" target="_blank" class="text-[#3162ac] underline">mcp-authentication-oauth.md</a>
+  (OAuth, Copilot, z/OS credentials).
+</div>
+
+</div>
+
+---
+
+<!-- Slide: Roadmap and Community — last content slide before Thank You -->
+
+# <carbon-roadmap class="inline text-[#3162ac]" /> Roadmap &amp; Community
 
 <div class="grid grid-cols-2 gap-8">
 <div>
@@ -1115,9 +1212,9 @@ Adapt an **existing** Zowe CLI plugin without new TypeScript: one **metadata pip
 ### <carbon-calendar class="inline text-[#3162ac]" /> What's Next
 
 - **z/OSMF backend** — REST API alternative to SSH
-- **OAuth / MFA support** — enterprise authentication
+- **OAuth / MFA support** — enterprise authentication via Zowe API Mediation Layer (API ML)
 - **Console commands** — z/OS operator console (code ready, waiting for ZNP support)
-- **More prompts** — JCL generation, COBOL analysis, batch job templates
+- **More prompts or skills* — JCL generation, COBOL analysis, batch job templates
 - **Resource subscriptions** — real-time data set change notifications
 
 </div>
@@ -1126,7 +1223,7 @@ Adapt an **existing** Zowe CLI plugin without new TypeScript: one **metadata pip
 ### <carbon-collaborate class="inline text-[#3162ac]" /> Get Involved
 
 - **GitHub** — [github.com/zowe/zowe-mcp](https://github.com/zowe/zowe-mcp) - _coming soon_
-- **npm** and  **VS Code Marketplace** — not available yet
+- **npm** and **VS Code Marketplace** — not available yet
 - **Zowe Slack** — `#zowe-mcp` channel - _coming soon_
 
 ### License
@@ -1140,7 +1237,7 @@ Part of the **Zowe** project under the **Open Mainframe Project** (Linux Foundat
 
 ---
 
-<!-- Slide 26: Thank You -->
+<!-- Thank You -->
 
 <div class="flex flex-col items-center justify-center h-full">
   <img src="/zowe-logo.svg" class="w-40 mb-8 drop-shadow-lg" alt="Zowe" />

@@ -66,8 +66,11 @@ export interface NativeSetup {
   backend: ZosBackend;
   credentialProvider: CredentialProvider;
   systemRegistry: SystemRegistry;
-  /** When set (VS Code mode), updates connection list from a new list (e.g. connections-update event). */
-  updateSystems?: (systems: string[]) => void;
+  /**
+   * Replace the active connection spec list and refresh the system registry.
+   * Used for connections-update (VS Code), tenant file merges, and addZosConnection.
+   */
+  updateSystems: (systems: string[]) => void;
 }
 
 /**
@@ -161,16 +164,15 @@ export function loadNative(options: LoadNativeOptions): NativeSetup {
 
   registerSystemsFromSpecs(specs);
 
-  const updateSystems =
-    options.passwordStore != null && options.requestPasswordCallback != null
-      ? (systems: string[]) => {
-          if (systems.length === 0) return;
-          const newSpecs = parseConnectionSpecs(systems);
-          specsRef.current = newSpecs;
-          credentialProvider.updateSpecs(newSpecs);
-          registerSystemsFromSpecs(newSpecs);
-        }
-      : undefined;
+  function updateSystems(systems: string[]): void {
+    if (systems.length === 0) {
+      return;
+    }
+    const newSpecs = parseConnectionSpecs(systems);
+    specsRef.current = newSpecs;
+    credentialProvider.updateSpecs(newSpecs);
+    registerSystemsFromSpecs(newSpecs);
+  }
 
   return { backend, credentialProvider, systemRegistry, updateSystems };
 }

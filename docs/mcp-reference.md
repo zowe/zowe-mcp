@@ -2,21 +2,22 @@
 
 # Zowe MCP Server Reference
 
-> Auto-generated from the MCP server (v0.8.0-dev, commit a82cbae). Do not edit manually — run `npx @zowe/mcp-server generate-docs` to regenerate.
+> Auto-generated from the MCP server (v0.8.0-dev, commit 7dafbbe). Do not edit manually — run `npx @zowe/mcp-server generate-docs` to regenerate.
 
 This document describes all [Context](#context), [Data Sets](#data-sets), [USS](#uss), [TSO](#tso), [Jobs](#jobs), [Local Files](#local-files), [db2 CLI Plugin Tools](#db2-cli-plugin-tools), [Tool Reference](#tool-reference), [Prompts](#prompts), [Resource Templates](#resource-templates) provided by the Zowe MCP Server.
 
 ## Context
 
-The server provides **3** tools.
+The server provides **4** tools.
 
 Server information and session management — set the active z/OS system and query the current session state (systems, active connection, active user).
 
-| # | Tool                          | Description                                                                                                                                                                                                                                                                 |
-|---|-------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| 1 | [`getContext`](#getcontext)   | Return the Zowe MCP server info (version, backend, components) and the current session context: active system, active connection (user@host), user ID, all known systems (with their connections when multiple exist), and recently used systems (those with saved context) |
-| 2 | [`listSystems`](#listsystems) | List all z/OS systems you have access to                                                                                                                                                                                                                                    |
-| 3 | [`setSystem`](#setsystem)     | Set the active z/OS system                                                                                                                                                                                                                                                  |
+| # | Tool                                    | Description                                                                                                                                                                                                                                                                 |
+|---|-----------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| 1 | [`getContext`](#getcontext)             | Return the Zowe MCP server info (version, backend, components) and the current session context: active system, active connection (user@host), user ID, all known systems (with their connections when multiple exist), and recently used systems (those with saved context) |
+| 2 | [`listSystems`](#listsystems)           | List all z/OS systems you have access to                                                                                                                                                                                                                                    |
+| 3 | [`setSystem`](#setsystem)               | Set the active z/OS system                                                                                                                                                                                                                                                  |
+| 4 | [`addZosConnection`](#addzosconnection) | Add a z/OS SSH connection (user@host or user@host:port) for the current signed-in user only                                                                                                                                                                                 |
 
 ## Data Sets
 
@@ -188,6 +189,7 @@ Return the Zowe MCP server info (version, backend, components) and the current s
     "description": "MCP server providing tools for z/OS systems including data sets, jobs, and UNIX System Services",
     "components": [
       "context",
+      "addZosConnection",
       "datasets",
       "uss",
       "tso",
@@ -313,6 +315,51 @@ Output:
   "activeSystem": "mainframe-dev.example.com",
   "userId": "USER",
   "description": "Development LPAR"
+}
+```
+
+---
+
+### `addZosConnection`
+
+
+Add a z/OS SSH connection (user@host or user@host:port) for the current signed-in user only. Each OIDC subject has a separate persisted list (no cross-user sharing). Prefer this over baking connection lists into server startup for remote HTTP. After adding, use setSystem with the new host or connection spec. SSH passwords: MCP elicitation when supported, else ZOWE_MCP_PASSWORD_* / ZOWE_MCP_CREDENTIALS.
+
+#### Parameters
+
+| Parameter        | Type     | Required | Description                                                                      |
+|------------------|----------|----------|----------------------------------------------------------------------------------|
+| `connectionSpec` | `string` | Yes      | Connection string: user@host or user@host:port (same format as native --system). |
+
+<a id="addzosconnection-output-schema"></a>
+
+#### Output Schema
+
+| Field            | Type       | Required | Description                                                                             |
+|------------------|------------|----------|-----------------------------------------------------------------------------------------|
+| `messages`       | `string`[] | No       |                                                                                         |
+| `connectionSpec` | `string`   | Yes      | Normalized connection spec that was added (user@host or user@host:port).                |
+| `persisted`      | `boolean`  | Yes      | True when written to the tenant store on disk (HTTP + JWT + ZOWE_MCP_TENANT_STORE_DIR). |
+
+#### Example Output
+
+Input:
+
+```json
+{
+  "connectionSpec": "USER@mainframe-dev.example.com"
+}
+```
+
+Output:
+
+```json
+{
+  "messages": [
+    "Connection added for your user only. Use setSystem with this host or connection spec. SSH password: elicitation when the client supports it, else set ZOWE_MCP_PASSWORD_* or ZOWE_MCP_CREDENTIALS."
+  ],
+  "connectionSpec": "USER@mainframe-dev.example.com",
+  "persisted": true
 }
 ```
 
@@ -2159,7 +2206,7 @@ Output:
   },
   "data": {
     "lines": [
-      "TIME-10:28:15 PM. CPU-00:00:00 SERVICE-26895 SESSION-00:01:53 APRIL 1,2026"
+      "TIME-10:27:16 PM. CPU-00:00:00 SERVICE-26895 SESSION-00:01:53 APRIL 8,2026"
     ],
     "mimeType": "text/plain"
   }

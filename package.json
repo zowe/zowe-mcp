@@ -26,6 +26,8 @@
     "markdownlint": "markdownlint-cli2 --fix",
     "test:all": "npm run test --workspaces",
     "test:server": "npm run test -w @zowe/mcp-server",
+    "test:native-stdio-e2e": "npm run test:native-stdio-e2e -w @zowe/mcp-server",
+    "test:keycloak-jwt-e2e": "npm run test:keycloak-jwt-e2e -w @zowe/mcp-server",
     "test:vscode": "npm run test -w packages/zowe-mcp-vscode",
     "test": "npm run test -w @zowe/mcp-server",
     "validate-tool-calls": "npm run validate-tool-calls -w @zowe/mcp-server",
@@ -42,7 +44,9 @@
     "sdk:local": "node scripts/sdk-switch.js local",
     "prepare": "git config core.hooksPath .githooks",
     "vendor:extract": "remote=${VENDOR_REMOTE:?Set VENDOR_REMOTE=<git-remote>} && branch=${VENDOR_BRANCH:?Set VENDOR_BRANCH=<branch>} && git fetch \"$remote\" && git archive \"$remote/$branch\" vendor/ | tar -x && printf '*\\n' > vendor/.gitignore",
-    "vendor:clean": "rm -rf vendor/"
+    "vendor:clean": "rm -rf vendor/",
+    "start:remote-https-dev-native-zos": "bash scripts/start-remote-https-dev-native-zos.sh",
+    "keycloak:dev-fresh": "bash scripts/keycloak-dev-fresh.sh"
   },
   "devDependencies": {
     "@vitest/eslint-plugin": "^1.6.7",

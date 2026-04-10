@@ -42,7 +42,7 @@ Ideas inspired by [Gestell-AI/zowe-mcp](https://github.com/Gestell-AI/zowe-mcp) 
 ## Authentication / UX
 
 - ✅ **Re-prompt on invalid password**: When the password is invalid, prompt to enter the password again in the same way as when the password is missing in VS Code — ideally before failing the action. Standalone MCP server should keep invalid passwords blacklisted. Research MCP elicitation for obtaining a new password.
-- **Remote server with Zowe API ML and OIDC**: Support authentication in remote MCP server scenarios using Zowe API Mediation Layer and OIDC.
+- **Zowe API Mediation Layer (API ML) and OIDC**: Explore **leveraging API ML** for remote MCP deployments: the mediation layer already provides **unified OIDC / SSO**, routing to catalogued services, and enterprise-friendly TLS termination at the gateway. A future direction is to **register the MCP HTTP endpoint behind API ML** (or validate **tokens issued in an API ML–aligned IdP flow**) so shops reuse the same identity stack as other Zowe services instead of only a standalone Keycloak. Requires research against current API ML service onboarding, gateway paths, and JWT issuer/JWKS alignment with `ZOWE_MCP_JWT_*`. **Not implemented** — see notes in `docs/remote-http-mcp-registry.md` and `docs/remote-dev-keycloak.md`.
 - **Remote MCP credentials**: Research ways for a remote MCP server to request credentials without giving them to the LLM or storing them insecurely.
 
 ## Pagination, search & editing
@@ -70,7 +70,9 @@ Ideas inspired by [Gestell-AI/zowe-mcp](https://github.com/Gestell-AI/zowe-mcp) 
 
 ## HTTP Transport
 
-- **HTTP transport auth**: Add authentication/authorization for the HTTP transport (`POST /mcp`) so remote clients cannot use the server without credentials.
+- ✅ **HTTP transport auth (JWT)**: Optional Bearer JWT for `POST /mcp` via `ZOWE_MCP_JWT_ISSUER` + `ZOWE_MCP_JWKS_URI` (see `src/auth/bearer-jwt.ts`, `docs/dev-oidc-tinyauth.md`). Further hardening (gateway-only auth, mTLS) remains env-specific.
+- ✅ **Keycloak JWT E2E (opt-in)**: `npm run test:keycloak-jwt-e2e` runs `__tests__/keycloak-http-jwt.e2e.test.ts` against a local Keycloak (`ZOWE_MCP_KEYCLOAK_E2E=1`; see `docs/dev-oidc-tinyauth.md`).
+- **HTTPS and reverse proxies**: **Preferred production pattern**: terminate **TLS at a reverse proxy** (e.g. **nginx**, HAProxy, cloud load balancer) and forward to the Node process over **plain HTTP** on localhost or an internal network. The MCP server should **not** need built-in TLS for typical deployments if the proxy sets **`X-Forwarded-Proto`** / **`Host`** (OAuth discovery already considers `X-Forwarded-Proto` when building the protected-resource URL unless `ZOWE_MCP_OAUTH_RESOURCE` is set — see `src/transports/http.ts`). Operators must set **`ZOWE_MCP_PUBLIC_BASE_URL`** (and often **`ZOWE_MCP_OAUTH_RESOURCE`**) to the **public** `https://` URL clients use (password elicitation and OAuth metadata). Document any proxy header requirements per environment.
 - **HTTP session cleanup**: Consider session timeout or max-session limits so long-lived or abandoned sessions do not accumulate indefinitely.
 
 ## Documentation & Maintenance

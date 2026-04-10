@@ -358,6 +358,9 @@ function classifyNativeError(
     lowerCaseMessage.includes('econnreset') ||
     lowerCaseMessage.includes('enetunreach') ||
     lowerCaseMessage.includes('timeout') ||
+    // "Timed out …" does not contain substring "timeout"; SSH to z/OS can fail with handshake wait
+    lowerCaseMessage.includes('timed out') ||
+    lowerCaseMessage.includes('handshake') ||
     lowerCaseMessage.includes('connection') ||
     // Backend (ZNP server) abended or returned invalid response; connection is unusable
     lowerCaseMessage.includes('invalid json') ||

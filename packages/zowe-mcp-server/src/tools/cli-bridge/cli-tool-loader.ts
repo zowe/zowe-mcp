@@ -55,6 +55,7 @@ import { buildProfileArgs, invokeZoweCli } from './cli-invoker.js';
 import type {
   CliNamedProfile,
   CliPluginConfig,
+  CliPluginProfilesFile,
   CliPluginState,
   PaginationDef,
   PluginContentPaginationConfig,
@@ -619,6 +620,292 @@ export function buildCliArgs(
 // ---------------------------------------------------------------------------
 
 /**
+ * Serializes {@link CliPluginState} to the JSON shape used by
+ * `zoweMCP.cliPluginConfiguration` and `--cli-plugin-configuration` files.
+ */
+export function serializeCliPluginStateToProfilesFile(
+  state: CliPluginState
+): CliPluginProfilesFile {
+  const out: CliPluginProfilesFile = {};
+  for (const [typeKey, profiles] of state.profilesByType) {
+    const entry: { profiles: CliNamedProfile[]; default?: string } = {
+      profiles: profiles.map(p => ({ ...p })),
+    };
+    const active = state.activeProfileId.get(typeKey);
+    if (active !== undefined) {
+      entry.default = active;
+    }
+    out[typeKey] = entry;
+  }
+  return out;
+}
+
+/** Coerces MCP tool args to trimmed strings for profile fields (string, number, boolean only). */
+function profileArgToString(value: unknown): string {
+  if (value === undefined || value === null) {
+    return '';
+  }
+  if (typeof value === 'string') {
+    return value.trim();
+  }
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return String(value);
+  }
+  if (typeof value === 'boolean') {
+    return value ? 'true' : 'false';
+  }
+  return '';
+}
+
+/**
+ * Registers optional add/remove profile tools when YAML declares `toolAddProfileName` /
+ * `toolRemoveProfileName` and `CliPluginState.persistProfiles` is set.
+ */
+function registerProfileMutationTools(
+  server: McpServer,
+  config: CliPluginConfig,
+  state: CliPluginState,
+  typeKey: string,
+  typeDef: ProfileTypeDef,
+  log: Logger,
+  variant: string
+): void {
+  if (!typeDef.toolAddProfileName && !typeDef.toolRemoveProfileName) {
+    return;
+  }
+  if (!state.persistProfiles) {
+    log.warning(
+      'Profile add/remove tools are declared in YAML but persistProfiles is not configured; skipping',
+      {
+        plugin: config.plugin,
+        typeKey,
+        add: typeDef.toolAddProfileName,
+        remove: typeDef.toolRemoveProfileName,
+      }
+    );
+    return;
+  }
+  const persist = state.persistProfiles;
+
+  if (typeDef.toolAddProfileName) {
+    const addDesc = `Adds a new ${typeDef.name} profile with a unique id and persists it to VS Code settings (zoweMCP.cliPluginConfiguration) or the CLI --cli-plugin-configuration file. Sets the new profile as active. Passwords are never stored in profiles; use ZOWE_MCP_PASSWORD_* or ZOWE_MCP_CREDENTIALS.`;
+    const shape: Record<string, z.ZodTypeAny> = {
+      profileId: z.string().min(1).describe('Unique id for this profile (e.g. prod, dev).'),
+    };
+    for (const field of typeDef.fields) {
+      const desc = resolveFieldDescription(field, variant) ?? field.name;
+      shape[field.name] = field.required
+        ? z.coerce.string().min(1).describe(desc)
+        : z.coerce.string().optional().describe(desc);
+    }
+
+    server.registerTool(
+      typeDef.toolAddProfileName,
+      {
+        description: addDesc,
+        inputSchema: shape,
+        annotations: { readOnlyHint: false },
+      },
+      async (args: Record<string, unknown>) => {
+        const profileId = profileArgToString(args.profileId);
+        if (!profileId) {
+          return {
+            content: [
+              {
+                type: 'text' as const,
+                text: JSON.stringify({ error: 'profileId is required.' }),
+              },
+            ],
+            isError: true,
+          };
+        }
+        const profiles = state.profilesByType.get(typeKey) ?? [];
+        if (profiles.some(p => p.id === profileId)) {
+          return {
+            content: [
+              {
+                type: 'text' as const,
+                text: JSON.stringify({
+                  error: `A ${typeDef.name} profile with id "${profileId}" already exists.`,
+                }),
+              },
+            ],
+            isError: true,
+          };
+        }
+        const newProfile: CliNamedProfile = { id: profileId };
+        for (const field of typeDef.fields) {
+          const str = profileArgToString(args[field.name]);
+          if (str !== '') {
+            newProfile[field.name] = str;
+          } else if (field.default !== undefined) {
+            newProfile[field.name] = field.default;
+          } else if (field.required) {
+            return {
+              content: [
+                {
+                  type: 'text' as const,
+                  text: JSON.stringify({ error: `Missing required field "${field.name}".` }),
+                },
+              ],
+              isError: true,
+            };
+          }
+        }
+        for (const field of typeDef.fields) {
+          if (field.required && newProfile[field.name] === undefined) {
+            return {
+              content: [
+                {
+                  type: 'text' as const,
+                  text: JSON.stringify({ error: `Missing required field "${field.name}".` }),
+                },
+              ],
+              isError: true,
+            };
+          }
+        }
+
+        const previousProfiles = [...profiles];
+        const previousActive = state.activeProfileId.get(typeKey);
+        const nextProfiles = [...previousProfiles, newProfile];
+        state.profilesByType.set(typeKey, nextProfiles);
+        state.activeProfileId.set(typeKey, profileId);
+        try {
+          await persist();
+        } catch (e) {
+          state.profilesByType.set(typeKey, previousProfiles);
+          state.activeProfileId.set(typeKey, previousActive);
+          const msg = e instanceof Error ? e.message : String(e);
+          log.warning('Add profile persist failed', {
+            plugin: config.plugin,
+            typeKey,
+            profileId,
+            msg,
+          });
+          return {
+            content: [
+              {
+                type: 'text' as const,
+                text: JSON.stringify({ error: `Failed to persist profiles: ${msg}` }),
+              },
+            ],
+            isError: true,
+          };
+        }
+        state.onActiveProfilesChanged?.();
+        log.debug(`Added ${typeDef.name} profile`, { typeKey, profileId });
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: JSON.stringify({
+                success: true,
+                id: profileId,
+                message: 'Profile added and persisted.',
+              }),
+            },
+          ],
+        };
+      }
+    );
+  }
+
+  if (typeDef.toolRemoveProfileName) {
+    const removeDesc = `Removes a ${typeDef.name} profile by id and persists the change. If that profile was active, another profile becomes active when one remains.`;
+    server.registerTool(
+      typeDef.toolRemoveProfileName,
+      {
+        description: removeDesc,
+        inputSchema: {
+          profileId: z
+            .string()
+            .min(1)
+            .describe(`The id of the ${typeDef.name} profile to remove.`),
+        },
+        annotations: { readOnlyHint: false, destructiveHint: true },
+      },
+      async (args: Record<string, unknown>) => {
+        const profileId = profileArgToString(args.profileId);
+        if (!profileId) {
+          return {
+            content: [
+              {
+                type: 'text' as const,
+                text: JSON.stringify({ error: 'profileId is required.' }),
+              },
+            ],
+            isError: true,
+          };
+        }
+        const profiles = [...(state.profilesByType.get(typeKey) ?? [])];
+        const idx = profiles.findIndex(p => p.id === profileId);
+        if (idx === -1) {
+          const validIds = profiles.map(p => p.id).join(', ');
+          return {
+            content: [
+              {
+                type: 'text' as const,
+                text: JSON.stringify({
+                  error: `Unknown ${typeDef.name} profile "${profileId}". Valid IDs: ${validIds || 'none'}`,
+                }),
+              },
+            ],
+            isError: true,
+          };
+        }
+        const previousProfiles = [...profiles];
+        const previousActive = state.activeProfileId.get(typeKey);
+        profiles.splice(idx, 1);
+        state.profilesByType.set(typeKey, profiles);
+        let newActive = previousActive;
+        if (previousActive === profileId) {
+          newActive = profiles[0]?.id;
+          state.activeProfileId.set(typeKey, newActive);
+        }
+        try {
+          await persist();
+        } catch (e) {
+          state.profilesByType.set(typeKey, previousProfiles);
+          state.activeProfileId.set(typeKey, previousActive);
+          const msg = e instanceof Error ? e.message : String(e);
+          log.warning('Remove profile persist failed', {
+            plugin: config.plugin,
+            typeKey,
+            profileId,
+            msg,
+          });
+          return {
+            content: [
+              {
+                type: 'text' as const,
+                text: JSON.stringify({ error: `Failed to persist profiles: ${msg}` }),
+              },
+            ],
+            isError: true,
+          };
+        }
+        state.onActiveProfilesChanged?.();
+        log.debug(`Removed ${typeDef.name} profile`, { typeKey, profileId });
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: JSON.stringify({
+                success: true,
+                removedId: profileId,
+                activeId: newActive,
+                message: 'Profile removed and persisted.',
+              }),
+            },
+          ],
+        };
+      }
+    );
+  }
+}
+
+/**
  * Registers list and set management tools for each profile type defined in
  * `config.profiles`. Called once from `loadCliBridgeTools`.
  *
@@ -823,6 +1110,8 @@ function registerProfileTools(
         }
       );
     }
+
+    registerProfileMutationTools(server, config, state, typeKey, typeDef, log, variant);
   }
 }
 
@@ -1187,10 +1476,10 @@ export function classifyCliError(
 ): 'fatal' | 'retryable' {
   const connPatterns: string[] | undefined = config.connectionErrorPatterns;
   const retryPatterns: string[] | undefined = config.retryableErrorPatterns;
-  if (connPatterns?.some((p) => new RegExp(p).test(errorMessage))) {
+  if (connPatterns?.some(p => new RegExp(p).test(errorMessage))) {
     return 'fatal';
   }
-  if (retryPatterns?.some((p) => new RegExp(p).test(errorMessage))) {
+  if (retryPatterns?.some(p => new RegExp(p).test(errorMessage))) {
     return 'retryable';
   }
   if (toolDef.fatalOnCliError !== undefined) {
@@ -1554,7 +1843,11 @@ export function loadCliBridgeTools(
     registerPluginTool(server, toolDef, pluginConfig.activeDescription, state, pluginConfig, log);
   }
 
-  const profileToolCount = Object.keys(pluginConfig.profiles ?? {}).length * 2;
+  let profileToolCount = Object.keys(pluginConfig.profiles ?? {}).length * 2;
+  for (const t of Object.values(pluginConfig.profiles ?? {})) {
+    if (t.toolAddProfileName) profileToolCount++;
+    if (t.toolRemoveProfileName) profileToolCount++;
+  }
   log.info(
     `Registered ${pluginConfig.tools.length} CLI bridge tools + ${profileToolCount} profile management tools from plugin YAML`,
     {

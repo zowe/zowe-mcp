@@ -519,7 +519,11 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
       },
     },
     async ({ commandText, system, startLine, lineCount }, extra) => {
-      const progress = createToolProgress(extra, `Run USS command`);
+      const maxTitleLen = 50;
+      const cmdNorm = commandText.trim().replace(/\s+/g, ' ');
+      const cmdPreviewForProgress =
+        cmdNorm.length > maxTitleLen ? cmdNorm.slice(0, maxTitleLen) + '…' : cmdNorm;
+      const progress = createToolProgress(extra, `Run USS command: ${cmdPreviewForProgress}`);
       await progress.start();
       log.info('runSafeUssCommand called', { commandText: commandText.slice(0, 80), system });
 

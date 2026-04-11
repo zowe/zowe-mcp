@@ -61,12 +61,14 @@ To use **mock data** instead of a real system (no mainframe), use **Zowe MCP: Ge
 ## 4. Check that Copilot sees the Zowe tools
 
 1. Open **Copilot Chat** (<kbd>Ctrl+Shift+I</kbd> / <kbd>Cmd+Shift+I</kbd>).
-2. In the chat header, open the **tools** (or context) picker and ensure **Zowe** (or the Zowe MCP server) is enabled so its tools are available.
-3. Try a prompt, for example:
-   - *“Use the info tool to show the Zowe MCP server version.”*
-   - With native/mock configured: *“List the available z/OS systems.”* or *“Set the active system to &lt;your-host&gt; and list data sets matching USER.\*”*
+2. If you added **Gemini** in [§1](#1-use-gemini-api-key-in-copilot-broadcom--byok), open the **model** dropdown in the chat header and select your **Gemini** model so chat runs through Google’s API (Copilot still orchestrates the session; MCP tools are unchanged).
+3. In the chat header, open the **tools** (or context) picker and ensure **Zowe** (or the Zowe MCP server) is enabled so its tools are available.
+4. Try a prompt, for example:
+   - *“Use the getContext tool and tell me the Zowe MCP server version.”*
+   - With **mock** configured ([Manual QA 05](manual-qa/05-mock-mode-happy-path.md)): *“List my data sets”* or *“List data sets matching USER.\* on the mock system.”*
+   - With **native** configured: *“List the available z/OS systems.”* or *“Set the active system to &lt;your-host&gt; and list data sets matching USER.\*”*
 
-Tool names in Copilot are prefixed with `mcp_zowe_` (e.g. `mcp_zowe_info`, `mcp_zowe_listDatasets`, `mcp_zowe_setSystem`).
+Tool names in Copilot are prefixed with `mcp_zowe_` (e.g. `mcp_zowe_getContext`, `mcp_zowe_listDatasets`, `mcp_zowe_setSystem`). The prefix does not change when the chat model is Gemini.
 
 ## 5. Copilot and MCP tips
 
@@ -107,7 +109,7 @@ Tool names in Copilot are prefixed with `mcp_zowe_` (e.g. `mcp_zowe_info`, `mcp_
 | 1 | (Broadcom) Get OneTrust approval and Gemini API key; add Gemini in Copilot **Manage Models** and select it. |
 | 2 | Download the `.vsix` from [Releases](https://github.com/plavjanik/zowe-mcp/releases) and **Install from VSIX** in VS Code; reload. |
 | 3 | Set **Zowe MCP → Native connections** to `["user@host"]` (or use **Mock Data Directory** for mock mode; restart the server when switching to mock). |
-| 4 | In Copilot Chat, ensure Zowe tools are enabled and try *“Use the info tool to show the Zowe MCP server version.”* |
+| 4 | In Copilot Chat, select Gemini if using BYOK; ensure Zowe tools are enabled; try *“Use the getContext tool and tell me the Zowe MCP server version.”* |
 | 5 | Use **MCP: List Servers** to restart the Zowe MCP server or **Show Output**; use **Output → Zowe MCP** for extension logs. |
 
-For development, mock mode, and native (SSH) details, see the main [README](../README.md) and [Configuring VS Code Copilot](../README.md#configuring-vs-code-copilot). Step-by-step manual test procedures (profiles, tools picker, mock path) are in [Manual QA](manual-qa/README.md). For attempts to automate Copilot/MCP UI, profile checkpoints, and fallbacks, see [Automation strategy](manual-qa/09-automation-strategy.md).
+For development, mock mode, and native (SSH) details, see the main [README](../README.md) and [Configuring VS Code Copilot](../README.md#configuring-vs-code-copilot). Step-by-step manual test procedures (profiles, tools picker, mock path) are in [Manual QA](manual-qa/README.md). For **why Copilot UI is not automated in-repo**, optional **Gemini + MCP stdio smoke**, and profile checkpoints, see [09 — Why Copilot UI is manual](manual-qa/09-automation-strategy.md).

@@ -7,6 +7,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "evals": "node dist/run.js",
+    "smoke:gemini-zowe-mcp": "node dist/gemini-zowe-mcp-smoke.js",
     "test": "vitest run",
     "format": "prettier --write \"**/*.{ts,js,json}\"",
     "check-format": "prettier --check \"**/*.{ts,js,json}\""

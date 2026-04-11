@@ -119,6 +119,12 @@ export interface AgentRunResult {
   stepCount: number;
 }
 
+/** Optional overrides for {@link McpEvalHarness.runOne} (e.g. Gemini smoke forcing `listDatasets`). */
+export interface RunOneOptions {
+  toolChoice?: 'auto' | 'none' | 'required';
+  activeTools?: string[];
+}
+
 function buildModel(evalsConfig: EvalsConfig): LanguageModel {
   if (evalsConfig.provider === 'vllm') {
     const provider = createOpenAICompatible({
@@ -435,7 +441,7 @@ export class McpEvalHarness {
    * Tool call names are normalized using toolAliases (if configured) so assertions
    * can use canonical names regardless of which MCP server was used.
    */
-  async runOne(prompt: string): Promise<AgentRunResult> {
+  async runOne(prompt: string, runOptions?: RunOneOptions): Promise<AgentRunResult> {
     if (!this.client) throw new Error('Harness not started');
     const { tools: mcpTools } = await this.client.listTools();
     const toolCallRecords: ToolCallRecord[] = [];
@@ -478,6 +484,10 @@ export class McpEvalHarness {
       system: systemPrompt,
       prompt,
       tools,
+      ...(runOptions?.toolChoice != null ? { toolChoice: runOptions.toolChoice } : {}),
+      ...(runOptions?.activeTools != null && runOptions.activeTools.length > 0
+        ? { activeTools: runOptions.activeTools }
+        : {}),
       stopWhen: stepCountIs(MAX_STEPS),
       prepareStep(options) {
         log.debug('AI SDK prepareStep (before request)', prepareStepPayload(options));

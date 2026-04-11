@@ -12,12 +12,12 @@ Repeatable, human-run checks for **first-run experience**, **Copilot + MCP integ
 | 01 | [01-profiles-and-clean-machine.md](01-profiles-and-clean-machine.md) | Profiles, `VSCODE_PROFILE`, export ZIPs |
 | 02 | [02-install-zowe-mcp-vsix.md](02-install-zowe-mcp-vsix.md) | Install VSIX / `build-and-install` |
 | 03 | [03-first-run-and-trust.md](03-first-run-and-trust.md) | Trust, MCP list, two output channels |
-| 04 | [04-copilot-tools-picker.md](04-copilot-tools-picker.md) | Tools picker, `getContext` / version |
+| 04 | [04-copilot-tools-picker.md](04-copilot-tools-picker.md) | Tools picker, `getContext` / version; **Copilot + Gemini (BYOK)** |
 | 05 | [05-mock-mode-happy-path.md](05-mock-mode-happy-path.md) | Generate Mock Data, chat on mock |
 | 06 | [06-native-mode-smoke.md](06-native-mode-smoke.md) | Optional SSH smoke |
 | 07 | [07-settings-and-restart-behavior.md](07-settings-and-restart-behavior.md) | Reload vs MCP restart vs live settings |
 | 08 | [08-failure-and-recovery.md](08-failure-and-recovery.md) | Reset tools, logs, clear password |
-| 09 | [09-automation-strategy.md](09-automation-strategy.md) | Try Playwright/Electron + Copilot UI; fallback; profile checkpoints |
+| 09 | [09-automation-strategy.md](09-automation-strategy.md) | Why Copilot UI is manual; optional Gemini+MCP smoke; profiles |
 
 ## Profiles and install commands
 
@@ -42,14 +42,11 @@ Manual tests should **not** re-verify tool contracts, transports, or extension h
 | VS Code extension | [`packages/zowe-mcp-vscode/src/test/extension.test.ts`](../../packages/zowe-mcp-vscode/src/test/extension.test.ts) | Activation, output channel, `provideZoweMcpServerDefinitions` vs `buildServerConfig`, real-settings `nativeConnections` round-trip, registered commands, bundled `server/index.js`, dialog-cancel command paths, `onStartupFinished`, mocked `buildServerConfig` / no-connections notification |
 | Extension test runner | [`packages/zowe-mcp-vscode/.vscode-test.mjs`](../../packages/zowe-mcp-vscode/.vscode-test.mjs) | Launches VS Code; Mocha tests in `out/test/` |
 
-**Gap:** Nothing in this repo drives **GitHub Copilot Chat** to invoke MCP tools. That remains manual (or a future Electron/UI automation spike) unless an experimental harness succeeds—see [09-automation-strategy.md](09-automation-strategy.md).
+**Gap:** Nothing in this repo drives **GitHub Copilot Chat** to invoke MCP tools (see [09 — Why Copilot UI is manual](09-automation-strategy.md)). **`npm run smoke:gemini-zowe-mcp`** automates **Gemini + Zowe MCP** over stdio (mock)—same tool layer as chat, not the VS Code UI.
 
-## Playwright, automation, and screen capture
+## Screen capture on failures
 
-- **Playwright CLI** targets **browsers**. **Copilot Chat in desktop VS Code** runs inside **Electron**, not a normal Playwright browser context, so Playwright is **not** the default way to automate these manual steps.
-- Reasonable uses of Playwright elsewhere: web apps, or a **future** experiment using Playwright’s **Electron** support with a VS Code binary (fragile; Copilot sign-in makes it harder).
-- **Practical:** Prefer this checklist; on failures, use **screen recording** plus **Output** logs (**Zowe MCP** channel and **MCP: List Servers** → **Show Output** for the server).
-- Official references: [Testing Extensions](https://code.visualstudio.com/docs/extensions/testing-extensions), [MCP in VS Code](https://code.visualstudio.com/docs/copilot/chat/mcp-servers), [MCP developer guide](https://code.visualstudio.com/docs/copilot/guides/mcp-developer-guide).
+On manual run failures, use **screen recording** plus **Output** logs (**Zowe MCP** channel and **MCP: List Servers** → **Show Output** for the server). Official references: [Testing Extensions](https://code.visualstudio.com/docs/extensions/testing-extensions), [MCP in VS Code](https://code.visualstudio.com/docs/copilot/chat/mcp-servers), [MCP developer guide](https://code.visualstudio.com/docs/copilot/guides/mcp-developer-guide).
 
 ## Best-practice reminders
 

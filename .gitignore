@@ -99,3 +99,6 @@ packages/zowe-mcp-server/.mcpregistry_*
 
 # Db2 CLI trace file
 db2cli.trc
+
+# Manual QA: VS Code profile export ZIPs (may contain secrets)
+manual-test-workspace/profile-exports/*.zip

@@ -110,4 +110,4 @@ Tool names in Copilot are prefixed with `mcp_zowe_` (e.g. `mcp_zowe_info`, `mcp_
 | 4 | In Copilot Chat, ensure Zowe tools are enabled and try *“Use the info tool to show the Zowe MCP server version.”* |
 | 5 | Use **MCP: List Servers** to restart the Zowe MCP server or **Show Output**; use **Output → Zowe MCP** for extension logs. |
 
-For development, mock mode, and native (SSH) details, see the main [README](../README.md) and [Configuring VS Code Copilot](../README.md#configuring-vs-code-copilot).
+For development, mock mode, and native (SSH) details, see the main [README](../README.md) and [Configuring VS Code Copilot](../README.md#configuring-vs-code-copilot). Step-by-step manual test procedures (profiles, tools picker, mock path) are in [Manual QA](manual-qa/README.md). For attempts to automate Copilot/MCP UI, profile checkpoints, and fallbacks, see [Automation strategy](manual-qa/09-automation-strategy.md).

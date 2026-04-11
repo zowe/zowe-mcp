@@ -161,4 +161,4 @@ If the client does not expose MCP workspace roots, set `**ZOWE_MCP_WORKSPACE_DIR
 ## See also
 
 - [README.md](../README.md) — Standalone mode, `native-config.json`, VS Code `.vscode/mcp.json`
-- [COPILOT-SETUP.md](COPILOT-SETUP.md) — Extension-based setup with Copilot
+- [copilot-setup-guide.md](copilot-setup-guide.md) — Extension-based setup with Copilot

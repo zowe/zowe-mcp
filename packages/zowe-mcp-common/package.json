@@ -8,7 +8,8 @@
     "dist/"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.build.json"
+    "build": "tsc -p tsconfig.build.json",
+    "test": "node -e \"process.exit(0)\""
   },
   "license": "EPL-2.0"
 }

@@ -19,6 +19,8 @@
  * Enable: ZOWE_MCP_KEYCLOAK_E2E=1 (or `true`). Default `npm test` skips this file.
  */
 
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { request as httpRequest } from 'node:http';
 import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { __clearJwtJwksCacheForTests } from '../src/auth/bearer-jwt.js';

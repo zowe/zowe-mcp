@@ -246,7 +246,7 @@ wins.
 
 ## Configuring VS Code Copilot
 
-**New to Zowe MCP?** See **[Copilot setup guide](docs/COPILOT-SETUP.md)** for installing the extension from a VSIX, configuring Gemini (e.g. for Broadcom), defining `user@host`, and Copilot/MCP tips (list servers, restart, view output).
+**New to Zowe MCP?** See **[Copilot setup guide](docs/copilot-setup-guide.md)** for installing the extension from a VSIX, configuring Gemini (e.g. for Broadcom), defining `user@host`, and Copilot/MCP tips (list servers, restart, view output). For hands-on checklists (profiles, Copilot tools, mock/native), see **[Manual QA](docs/manual-qa/README.md)**.
 
 **Clients that do not use VS Code–registered MCP servers** (for example Roo Code with `.roo/mcp.json`): use the **`@zowe/mcp-server`** package in stdio mode — see **[Roo and standalone MCP](docs/roo-or-standalone-mcp.md)** (install, tarball, passwords, job cards via `--config`, example JSON).
 
@@ -443,9 +443,9 @@ Reports are written to `evals-report/report.md` and `evals-report/failures.md`.
 
 Private or enterprise content (CLI plugin definitions, eval question sets, E2E tests, documentation) can live in a `vendor/` directory at the repo root without touching the upstream codebase. The server, docs generator, and eval harness auto-discover anything placed there — no configuration required.
 
-**Directory layout**
+### Directory layout
 
-```
+```text
 vendor/<name>/
   cli-bridge-plugins/   ← *.yaml CLI plugin definitions (auto-loaded at server startup)
   eval-questions/       ← *.yaml eval question sets (referenced as "<name>/set-name")

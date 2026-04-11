@@ -54,23 +54,8 @@ export function activate(context: vscode.ExtensionContext): void {
 
   context.subscriptions.push(
     vscode.lm.registerMcpServerDefinitionProvider('zowe', {
-      provideMcpServerDefinitions: async () => {
-        const serverConfig = await buildServerConfig(
-          context,
-          serverModule,
-          discoveryDir,
-          workspaceId,
-          log
-        );
-        return [
-          new vscode.McpStdioServerDefinition(
-            'Zowe',
-            serverConfig.command,
-            serverConfig.args,
-            serverConfig.env
-          ),
-        ];
-      },
+      provideMcpServerDefinitions: () =>
+        provideZoweMcpServerDefinitions(context, serverModule, discoveryDir, workspaceId, log),
     })
   );
 
@@ -301,6 +286,34 @@ function getBackendWithMigration(
   }
 
   return 'native';
+}
+
+/**
+ * Same definitions the MCP registration uses ({@link vscode.lm.registerMcpServerDefinitionProvider}).
+ * Exported for integration tests that cannot call the provider API directly.
+ */
+export async function provideZoweMcpServerDefinitions(
+  context: vscode.ExtensionContext,
+  serverModule: string,
+  discoveryDir: string,
+  workspaceId: string,
+  log: ReturnType<typeof initLog>
+): Promise<vscode.McpStdioServerDefinition[]> {
+  const serverConfig = await buildServerConfig(
+    context,
+    serverModule,
+    discoveryDir,
+    workspaceId,
+    log
+  );
+  return [
+    new vscode.McpStdioServerDefinition(
+      'Zowe',
+      serverConfig.command,
+      serverConfig.args,
+      serverConfig.env
+    ),
+  ];
 }
 
 /**

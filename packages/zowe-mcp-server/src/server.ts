@@ -297,6 +297,29 @@ export function createServer(options?: CreateServerOptions): CreateServerResult 
     }
   );
 
+  /** Captured from each `initialize` request/result (SDK does not expose these on Server). */
+  let mcpProtocolVersionRequested: string | undefined;
+  let mcpProtocolVersion: string | undefined;
+  {
+    const inner = server.server;
+    type InitializeHandler = (request: {
+      params: {
+        protocolVersion: string;
+        capabilities?: unknown;
+        clientInfo?: unknown;
+      };
+    }) => Promise<{ protocolVersion: string }>;
+    const originalOnInitialize = (
+      inner as unknown as { _oninitialize: InitializeHandler }
+    )._oninitialize.bind(inner);
+    (inner as unknown as { _oninitialize: InitializeHandler })._oninitialize = async request => {
+      mcpProtocolVersionRequested = request.params?.protocolVersion;
+      const result = await originalOnInitialize(request);
+      mcpProtocolVersion = result.protocolVersion;
+      return result;
+    };
+  }
+
   logger.attach(server);
   installMcpServerInvocationContext(server);
 
@@ -307,6 +330,8 @@ export function createServer(options?: CreateServerOptions): CreateServerResult 
     logger.info('Client connected', {
       clientName: clientInfo?.name,
       clientVersion: clientInfo?.version,
+      mcpProtocolVersion,
+      mcpProtocolVersionRequested,
       capabilities: clientCaps ? Object.keys(clientCaps) : [],
     });
   };

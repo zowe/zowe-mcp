@@ -642,9 +642,8 @@ describe('Dataset tools with mock backend', () => {
       expect(meta.totalAvailable).toBe(allData.length);
 
       // The first item at offset=2 should be the third item from the full list
-      if (allData.length > 2) {
-        expect(envelope.data[0].dsn).toBe(allData[2].dsn);
-      }
+      expect(allData.length).toBeGreaterThan(2);
+      expect(envelope.data[0].dsn).toBe(allData[2].dsn);
     });
 
     it('should return hasMore=false when all items fit in one page', async () => {
@@ -692,7 +691,7 @@ describe('Dataset tools with mock backend', () => {
   // searchInDataset
   // -----------------------------------------------------------------------
   describe('searchInDataset', () => {
-    /* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access -- envelope from JSON.parse; shape asserted by test */
+    /* eslint-disable @typescript-eslint/no-unsafe-assignment -- envelope from JSON.parse; shape asserted by test */
     it('should return envelope with _context, _result, data (dataset, members, summary)', async () => {
       const result = await client.callTool({
         name: 'searchInDataset',

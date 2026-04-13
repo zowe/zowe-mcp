@@ -374,9 +374,8 @@ describe.skipIf(!shouldRunNativeStdioE2E)(
       };
       expect(o._context).toBeDefined();
       expect(Array.isArray(o.data)).toBe(true);
-      if (o._result) {
-        expect(o._result.totalAvailable).toBeGreaterThan(1000);
-      }
+      expect(o._result).toBeDefined();
+      expect(o._result!.totalAvailable).toBeGreaterThan(1000);
     });
 
     it('listMembers SYS1.SAMPLIB includes ADFDFLTX and APSIVP', async () => {
@@ -429,11 +428,10 @@ describe.skipIf(!shouldRunNativeStdioE2E)(
       expect(o.data.lines.length).toBeGreaterThan(0);
       expect(typeof o.data.etag).toBe('string');
       expect(typeof o.data.encoding).toBe('string');
-      if (o._result) {
-        expect(o._result.totalLines).toBeGreaterThan(0);
-        expect(o._result.startLine).toBe(1);
-        expect(o._result.returnedLines).toBeGreaterThan(0);
-      }
+      expect(o._result).toBeDefined();
+      expect(o._result!.totalLines).toBeGreaterThan(0);
+      expect(o._result!.startLine).toBe(1);
+      expect(o._result!.returnedLines).toBeGreaterThan(0);
     });
 
     it('searchInDataset SYS1.SAMPLIB(IEANTCOB) returns envelope and matches when present', async () => {
@@ -456,11 +454,10 @@ describe.skipIf(!shouldRunNativeStdioE2E)(
       expect(o.data.dataset).toBe('SYS1.SAMPLIB');
       expect(Array.isArray(o.data.members)).toBe(true);
       expect(o.data.summary.searchPattern).toBe('Name/Token Service');
-      if (o.data.members.length >= 1) {
-        const member = o.data.members.find(m => m.name === 'IEANTCOB') ?? o.data.members[0];
-        expect(member.matches.length).toBeGreaterThan(0);
-        expect(member.matches.some(m => m.content.includes('Name/Token Service'))).toBe(true);
-      }
+      expect(o.data.members.length).toBeGreaterThanOrEqual(1);
+      const member = o.data.members.find(m => m.name === 'IEANTCOB') ?? o.data.members[0];
+      expect(member.matches.length).toBeGreaterThan(0);
+      expect(member.matches.some(m => m.content.includes('Name/Token Service'))).toBe(true);
     });
 
     it('listDatasets with empty pattern returns specific error', async () => {
@@ -652,13 +649,14 @@ describe.skipIf(!shouldRunNativeStdioE2E)(
           data: { name: string; mode?: string; size?: number; mtime?: string }[];
         };
         expect(Array.isArray(o.data)).toBe(true);
-        if (o.data.length > 0) {
-          const first = o.data[0];
-          expect(first.name).toBeDefined();
-          expect(
-            first.mode !== undefined || first.size !== undefined || first.mtime !== undefined
-          ).toBe(true);
+        if (o.data.length === 0) {
+          return;
         }
+        const first = o.data[0];
+        expect(first.name).toBeDefined();
+        expect(
+          first.mode !== undefined || first.size !== undefined || first.mtime !== undefined
+        ).toBe(true);
       });
 
       it('readUssFile returns envelope when reading a file under home', async () => {
@@ -692,7 +690,7 @@ describe.skipIf(!shouldRunNativeStdioE2E)(
             }
           | { error: string };
         if ('error' in readParsed && readParsed.error) {
-          expect.fail(`readUssFile failed for path ${filePath}: ${readParsed.error}`);
+          throw new Error(`readUssFile failed for path ${filePath}: ${readParsed.error}`);
         }
         const o = readParsed as {
           _context: { system: string };
@@ -1011,11 +1009,12 @@ describe.skipIf(!shouldRunNativeStdioE2E)(
           };
           expect(o._context).toBeDefined();
           expect(Array.isArray(o.data)).toBe(true);
-          if (o.data.length > 0) {
-            expect(o.data[0].id).toBeDefined();
-            expect(o.data[0].status).toBeDefined();
-            expect(['INPUT', 'ACTIVE', 'OUTPUT']).toContain(o.data[0].status);
+          if (o.data.length === 0) {
+            return;
           }
+          expect(o.data[0].id).toBeDefined();
+          expect(o.data[0].status).toBeDefined();
+          expect(['INPUT', 'ACTIVE', 'OUTPUT']).toContain(o.data[0].status);
         });
 
         it('getJcl returns JCL for submitted job', async () => {

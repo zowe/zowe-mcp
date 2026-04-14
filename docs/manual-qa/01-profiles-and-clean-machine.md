@@ -34,7 +34,7 @@ From the **repository root** (after `npm install` if needed):
 VSCODE_PROFILE=ZoweMcpManualClean npm run build-and-install
 ```
 
-Adjust the profile name to match yours. Use `VSCODE_CLONE=cursor` if not using `code`. To install into the **default** profile instead, omit `VSCODE_PROFILE`.
+Adjust the profile name to match yours. To install into the **default** profile instead, omit `VSCODE_PROFILE`.
 
 Alternatively install from a release **.vsix** via **Extensions: Install from VSIX…** (see [02-install-zowe-mcp-vsix.md](02-install-zowe-mcp-vsix.md)).
 
@@ -49,6 +49,6 @@ After mock data exists **or** native connections are set (see later steps), expo
 
 ## Failure notes
 
-If `build-and-install` targets the wrong editor, set `VSCODE_CLONE` explicitly. If the profile name has spaces, quote the environment value in your shell.
+If the profile name has spaces, quote the environment value in your shell.
 
 If you see **`Profile '…' not found`** during install, create the profile with **Profiles: Create Profile…** (step A), or install without `VSCODE_PROFILE` and then switch profiles in the UI.

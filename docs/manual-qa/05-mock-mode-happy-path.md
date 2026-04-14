@@ -6,7 +6,7 @@ Validate the **Generate Mock Data** flow, reload/restart behavior, and a short C
 
 ## Prerequisites
 
-- [04-copilot-tools-picker.md](04-copilot-tools-picker.md) complete (including [Copilot + Gemini](../copilot-setup-guide.md#1-use-gemini-api-key-in-copilot-broadcom--byok) if you test with **Gemini** as the chat model—keep Gemini selected in the header; same Zowe tools).
+- [04-copilot-tools-picker.md](04-copilot-tools-picker.md) complete (including [BYOK / added provider](../copilot-setup-guide.md#1-use-byok-or-additional-model-providers-in-copilot) if you test with a non-default chat model—keep that model selected in the header; same Zowe tools).
 - You can use a folder under the repo (e.g. `../../zowe-mcp-mock-data` at repo root) or another path; default mock dir name is gitignored at repo root per [.gitignore](../../.gitignore).
 
 ## Steps

@@ -2,7 +2,7 @@
 
 Repeatable, human-run checks for **first-run experience**, **Copilot + MCP integration**, **mock vs native** flows, and **observability**. Use with the small workspace at [`manual-test-workspace/`](../../manual-test-workspace/).
 
-**Companion docs:** [Copilot setup guide](../copilot-setup-guide.md) (Gemini, MCP list, outputs), [README — Configuring VS Code Copilot](../../README.md#configuring-vs-code-copilot).
+**Companion docs:** [Copilot setup guide](../copilot-setup-guide.md) (BYOK, model providers, MCP list, outputs), [README — Configuring VS Code Copilot](../../README.md#configuring-vs-code-copilot).
 
 ## Procedure index
 
@@ -12,12 +12,12 @@ Repeatable, human-run checks for **first-run experience**, **Copilot + MCP integ
 | 01 | [01-profiles-and-clean-machine.md](01-profiles-and-clean-machine.md) | Profiles, `VSCODE_PROFILE`, export ZIPs |
 | 02 | [02-install-zowe-mcp-vsix.md](02-install-zowe-mcp-vsix.md) | Install VSIX / `build-and-install` |
 | 03 | [03-first-run-and-trust.md](03-first-run-and-trust.md) | Trust, MCP list, two output channels |
-| 04 | [04-copilot-tools-picker.md](04-copilot-tools-picker.md) | Tools picker, `getContext` / version; **Copilot + Gemini (BYOK)** |
+| 04 | [04-copilot-tools-picker.md](04-copilot-tools-picker.md) | Tools picker, `getContext` / version; **Copilot + BYOK / added model** |
 | 05 | [05-mock-mode-happy-path.md](05-mock-mode-happy-path.md) | Generate Mock Data, chat on mock |
 | 06 | [06-native-mode-smoke.md](06-native-mode-smoke.md) | Optional SSH smoke |
 | 07 | [07-settings-and-restart-behavior.md](07-settings-and-restart-behavior.md) | Reload vs MCP restart vs live settings |
 | 08 | [08-failure-and-recovery.md](08-failure-and-recovery.md) | Reset tools, logs, clear password |
-| 09 | [09-automation-strategy.md](09-automation-strategy.md) | Why Copilot UI is manual; optional Gemini+MCP smoke; profiles |
+| 09 | [09-automation-strategy.md](09-automation-strategy.md) | Why Copilot UI is manual; optional LLM+MCP smoke; profiles |
 
 ## Profiles and install commands
 

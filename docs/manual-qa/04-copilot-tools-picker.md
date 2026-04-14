@@ -13,7 +13,7 @@ Confirm GitHub Copilot Chat exposes **Zowe** tools and can invoke a minimal tool
 
 This is the normal Copilot Chat UI—not a separate script. If your org uses **Gemini** via **Manage Models**:
 
-1. Complete [Copilot setup §1](../copilot-setup-guide.md#1-use-gemini-api-key-in-copilot-broadcom--byok) (add Google / Gemini API key in **Manage Models**).
+1. Complete [Copilot setup §1](../copilot-setup-guide.md#1-use-byok-or-additional-model-providers-in-copilot) (add your model provider and API key in **Manage Models** per your org).
 2. Stay signed in to **GitHub** with **Copilot** entitlement; Gemini does not replace that requirement.
 3. In the Copilot Chat **header**, open the **model** dropdown and select your **Gemini** model for this session.
 4. Follow **Steps** below. MCP tool names stay `mcp_zowe_*`; only the **chat model** changes.

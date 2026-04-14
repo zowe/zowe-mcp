@@ -20,7 +20,7 @@ Automating **Copilot Chat** or driving **desktop VS Code** for MCP verification 
 
 ## Authentication: GitHub Copilot vs Gemini API key (reminder)
 
-**`GEMINI_API_KEY` alone** does **not** replace **GitHub sign-in** for **Copilot Chat**. For BYOK, add Gemini in **Manage Models**, stay signed in with Copilot, then select a Gemini model in the chat header—see [Copilot setup §1](../copilot-setup-guide.md#1-use-gemini-api-key-in-copilot-broadcom--byok).
+**A provider API key alone** does **not** replace **GitHub sign-in** for **Copilot Chat**. For BYOK, add your model provider in **Manage Models**, stay signed in with Copilot, then select that model in the chat header—see [Copilot setup §1](../copilot-setup-guide.md#1-use-byok-or-additional-model-providers-in-copilot).
 
 ## Automated Gemini + Zowe MCP (stdio smoke)
 

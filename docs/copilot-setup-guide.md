@@ -4,23 +4,22 @@ This guide helps you get the Zowe MCP extension running with GitHub Copilot in V
 
 ## Who can use Copilot with Zowe MCP
 
-- **Broadcom users**: You can use Copilot with Zowe MCP only if:
-  1. You are included in the **OneTrust approval for Zowe MCP**, and
-  2. You have a **Gemini API key** (used when your org requires “bring your own” model access).
-- **Others**: If your Copilot subscription already includes chat and MCP, you can use the extension with the default models; you may still add Gemini via “Add Models” if you prefer.
+- **Organization policy**: Some enterprises require internal approval or compliance steps before using extensions like Zowe MCP with Copilot; follow your organization’s process.
+- **Bring your own key (BYOK)**: If your org routes chat through an external model provider, add that provider in **Manage Models** / **Add Models** with the API key or credentials your organization supplies.
+- **Standard Copilot**: If your subscription already includes **GitHub Copilot Chat** and MCP-capable chat, you can use the extension with Copilot’s default models; you may still add additional model providers if you prefer.
 
-## 1. Use Gemini API key in Copilot (Broadcom / BYOK)
+## 1. Use BYOK or additional model providers in Copilot
 
-If your organization uses “Bring Your Own Key” (BYOK) and you need Gemini:
+If your organization uses “Bring Your Own Key” (BYOK) or you want to chat through a specific model provider:
 
 1. Open **GitHub Copilot Chat** (e.g. **View → Copilot Chat** or <kbd>Ctrl+Shift+I</kbd> / <kbd>Cmd+Shift+I</kbd>).
 2. Click the **model name** in the chat header (e.g. “Auto” or the current model).
 3. Choose **Manage Models…** (or **Add Models…**).
-4. Add **Google** as a provider and enter your **Gemini API key** when prompted.
-5. Enable the Gemini model(s) you want to use.
-6. In the model dropdown, select the Gemini model so Copilot uses it for chat (and thus for MCP tools like Zowe).
+4. Add the **model provider** your organization requires and enter the **API key** or credentials when prompted.
+5. Enable the model(s) you want to use.
+6. In the model dropdown, select that model so Copilot uses it for chat (and thus for MCP tools like Zowe).
 
-Your API key is stored by VS Code/Copilot and used only for your chat requests. You can get a key from your org’s GenAI champion.
+Your API key is stored by VS Code/Copilot and used only for your chat requests. Obtain keys and provider choices from your organization’s documentation or admin.
 
 ## 2. Download and install the Zowe MCP extension
 
@@ -61,14 +60,14 @@ To use **mock data** instead of a real system (no mainframe), use **Zowe MCP: Ge
 ## 4. Check that Copilot sees the Zowe tools
 
 1. Open **Copilot Chat** (<kbd>Ctrl+Shift+I</kbd> / <kbd>Cmd+Shift+I</kbd>).
-2. If you added **Gemini** in [§1](#1-use-gemini-api-key-in-copilot-broadcom--byok), open the **model** dropdown in the chat header and select your **Gemini** model so chat runs through Google’s API (Copilot still orchestrates the session; MCP tools are unchanged).
+2. If you completed [§1](#1-use-byok-or-additional-model-providers-in-copilot) (BYOK or an added provider), open the **model** dropdown in the chat header and select that model so chat runs through your chosen provider (Copilot still orchestrates the session; MCP tools are unchanged).
 3. In the chat header, open the **tools** (or context) picker and ensure **Zowe** (or the Zowe MCP server) is enabled so its tools are available.
 4. Try a prompt, for example:
    - *“Use the getContext tool and tell me the Zowe MCP server version.”*
    - With **mock** configured ([Manual QA 05](manual-qa/05-mock-mode-happy-path.md)): *“List my data sets”* or *“List data sets matching USER.\* on the mock system.”*
    - With **native** configured: *“List the available z/OS systems.”* or *“Set the active system to &lt;your-host&gt; and list data sets matching USER.\*”*
 
-Tool names in Copilot are prefixed with `mcp_zowe_` (e.g. `mcp_zowe_getContext`, `mcp_zowe_listDatasets`, `mcp_zowe_setSystem`). The prefix does not change when the chat model is Gemini.
+Tool names in Copilot are prefixed with `mcp_zowe_` (e.g. `mcp_zowe_getContext`, `mcp_zowe_listDatasets`, `mcp_zowe_setSystem`). The prefix does not change when you switch chat models.
 
 ## 5. Copilot and MCP tips
 
@@ -106,10 +105,10 @@ Tool names in Copilot are prefixed with `mcp_zowe_` (e.g. `mcp_zowe_getContext`,
 
 | Step | Action |
 | ---- | ------ |
-| 1 | (Broadcom) Get OneTrust approval and Gemini API key; add Gemini in Copilot **Manage Models** and select it. |
+| 1 | If required by your org: follow approval steps; add your model provider in Copilot **Manage Models** / **Add Models** and select it when using BYOK. |
 | 2 | Download the `.vsix` from [Releases](https://github.com/plavjanik/zowe-mcp/releases) and **Install from VSIX** in VS Code; reload. |
 | 3 | Set **Zowe MCP → Native connections** to `["user@host"]` (or use **Mock Data Directory** for mock mode; restart the server when switching to mock). |
-| 4 | In Copilot Chat, select Gemini if using BYOK; ensure Zowe tools are enabled; try *“Use the getContext tool and tell me the Zowe MCP server version.”* |
+| 4 | In Copilot Chat, select your BYOK or added model if applicable; ensure Zowe tools are enabled; try *“Use the getContext tool and tell me the Zowe MCP server version.”* |
 | 5 | Use **MCP: List Servers** to restart the Zowe MCP server or **Show Output**; use **Output → Zowe MCP** for extension logs. |
 
-For development, mock mode, and native (SSH) details, see the main [README](../README.md) and [Configuring VS Code Copilot](../README.md#configuring-vs-code-copilot). Step-by-step manual test procedures (profiles, tools picker, mock path) are in [Manual QA](manual-qa/README.md). For **why Copilot UI is not automated in-repo**, optional **Gemini + MCP stdio smoke**, and profile checkpoints, see [09 — Why Copilot UI is manual](manual-qa/09-automation-strategy.md).
+For development, mock mode, and native (SSH) details, see the main [README](../README.md) and [Configuring VS Code Copilot](../README.md#configuring-vs-code-copilot). Step-by-step manual test procedures (profiles, tools picker, mock path) are in [Manual QA](manual-qa/README.md). For **why Copilot UI is not automated in-repo**, optional **LLM + MCP stdio smoke** tests, and profile checkpoints, see [09 — Why Copilot UI is manual](manual-qa/09-automation-strategy.md).

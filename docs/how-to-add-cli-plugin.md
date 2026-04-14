@@ -1268,7 +1268,7 @@ is the `host` field in the connection profile (dots → underscores, uppercase).
 the profile uses the same hostname form as your env vars. If your `.env` has:
 
 ```bash
-ZOWE_MCP_PASSWORD_PLAPE03_CA31_LVN_BROADCOM_NET=...
+ZOWE_MCP_PASSWORD_SAMPLE01_CA31_LVN_BROADCOM_NET=...
 ```
 
 Then the connection profile must have `"host": "ca31.lvn.broadcom.net"` (not

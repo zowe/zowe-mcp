@@ -22,7 +22,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { execSync } = require('child_process');
+const { spawnSync } = require('child_process');
 
 // Find the most recently created VSIX file in the extension directory
 const extDir = path.resolve(__dirname, '..');
@@ -42,28 +42,49 @@ if (files.length === 0) {
 }
 
 const vsix = files[0];
-const profile = process.env.VSCODE_PROFILE ? `--profile ${process.env.VSCODE_PROFILE}` : '';
 const editorCommand = process.env.VSCODE_CLONE || 'code';
+
+/** @returns {string[]} */
+function profileArgs() {
+  const name = process.env.VSCODE_PROFILE;
+  return name ? ['--profile', name] : [];
+}
 
 console.log(`Found VSIX: ${vsix.name}`);
 console.log(`Editor: ${editorCommand}`);
-if (profile) {
+if (process.env.VSCODE_PROFILE) {
   console.log(`Profile: ${process.env.VSCODE_PROFILE}`);
 }
 
 // Uninstall existing extension (ignore errors if not installed)
 try {
   console.log('Uninstalling existing extension...');
-  execSync(`${editorCommand} --uninstall-extension ${vsix.path} ${profile}`, {
-    stdio: 'inherit',
-  });
+  const uninstallResult = spawnSync(
+    editorCommand,
+    ['--uninstall-extension', vsix.path, ...profileArgs()],
+    { stdio: 'inherit', shell: false, env: process.env }
+  );
+  if (uninstallResult.error) {
+    throw uninstallResult.error;
+  }
+  if (uninstallResult.status !== 0) {
+    throw new Error(`uninstall exited with code ${uninstallResult.status}`);
+  }
 } catch {
   console.log('Extension not currently installed (or uninstall failed, continuing)');
 }
 
 // Install the extension
 console.log(`Installing ${vsix.name}...`);
-execSync(`${editorCommand} --install-extension ${vsix.path} ${profile}`, {
-  stdio: 'inherit',
-});
+const installResult = spawnSync(
+  editorCommand,
+  ['--install-extension', vsix.path, ...profileArgs()],
+  { stdio: 'inherit', shell: false, env: process.env }
+);
+if (installResult.error) {
+  throw installResult.error;
+}
+if (installResult.status !== 0) {
+  process.exit(installResult.status ?? 1);
+}
 console.log('Extension installed successfully!');

@@ -55,3 +55,61 @@ export function getDisplayName(): string {
   }
   return displayName;
 }
+
+/**
+ * Maps VS Code {@link vscode.LogLevel} (Output panel filter for this channel) to
+ * `zoweMCP.logLevel` strings accepted by the MCP server.
+ */
+export function mapVscodeLogLevelToZoweMcpLogLevel(level: vscode.LogLevel): string {
+  switch (level) {
+    case vscode.LogLevel.Off:
+      return 'error';
+    case vscode.LogLevel.Trace:
+    case vscode.LogLevel.Debug:
+      return 'debug';
+    case vscode.LogLevel.Info:
+      return 'info';
+    case vscode.LogLevel.Warning:
+      return 'warning';
+    case vscode.LogLevel.Error:
+      return 'error';
+    default:
+      return 'info';
+  }
+}
+
+/**
+ * Appends a line that is still shown when the channel filter is **Off** or strict
+ * (unlike {@link vscode.LogOutputChannel.info} which is hidden by the filter).
+ * Use only for short operational notes (e.g. log level sync).
+ */
+export function appendLineVisibleWithLogFilter(log: vscode.LogOutputChannel, line: string): void {
+  log.appendLine(line);
+}
+
+/**
+ * Writes the Output channel's current log level into `zoweMCP.logLevel` so it
+ * matches the panel dropdown. Uses the same configuration target as an
+ * existing override (workspace folder → workspace → user) when possible.
+ *
+ * When the mapped value already matches settings (e.g. **Off** → `error` and
+ * `zoweMCP.logLevel` is already `error`), no `update` runs; callers should still
+ * still call `sendLogLevelEvent` from `onDidChangeLogLevel` so the MCP server
+ * receives the level.
+ */
+export function syncOutputChannelLogLevelToMcpSetting(log: vscode.LogOutputChannel): void {
+  const mapped = mapVscodeLogLevelToZoweMcpLogLevel(log.logLevel);
+  const config = vscode.workspace.getConfiguration('zoweMCP');
+  const current = config.get<string>('logLevel', 'info');
+  if (mapped === current) {
+    return;
+  }
+  const ins = config.inspect('logLevel');
+  const target =
+    ins?.workspaceFolderValue !== undefined
+      ? vscode.ConfigurationTarget.WorkspaceFolder
+      : ins?.workspaceValue !== undefined
+        ? vscode.ConfigurationTarget.Workspace
+        : vscode.ConfigurationTarget.Global;
+  void config.update('logLevel', mapped, target);
+}

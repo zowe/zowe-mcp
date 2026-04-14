@@ -219,6 +219,13 @@ function logToOutputChannel(log: vscode.LogOutputChannel, event: ServerToExtensi
   const suffix = data !== undefined ? ` ${JSON.stringify(data)}` : '';
   const formatted = `${prefix}${message}${suffix}`;
 
+  // Log level sync confirmations use info severity on the wire but must stay
+  // visible when the channel filter is Warning or Off (log.info would be hidden).
+  if (message.includes('Log level changed to') && message.includes('VS Code extension')) {
+    log.appendLine(formatted);
+    return;
+  }
+
   switch (level) {
     case 'debug':
       log.debug(formatted);

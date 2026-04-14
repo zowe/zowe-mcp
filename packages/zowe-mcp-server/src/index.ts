@@ -50,6 +50,7 @@ import type {
   OpenUssFileInEditorEventData,
 } from './events.js';
 import { connectExtensionClient, type ExtensionClient } from './extension-client.js';
+import { tryParseLogLevel } from './log.js';
 import {
   appendTenantSystem,
   loadTenantJobCards,
@@ -814,9 +815,15 @@ function setupExtensionEventHandlers(
   extensionClient.onEvent(event => {
     switch (event.type) {
       case 'log-level': {
-        const { level } = event.data;
-        logger.info(`Log level changed to "${level}" by VS Code extension`);
-        logger.setLevel(level);
+        const parsed = tryParseLogLevel(event.data.level);
+        if (parsed === undefined) {
+          logger.error(
+            `Ignoring invalid log level from VS Code extension: ${JSON.stringify(event.data.level)}`
+          );
+          break;
+        }
+        logger.setLevel(parsed);
+        logger.emitForcedInfo(`Log level changed to "${parsed}" by VS Code extension`);
         break;
       }
 

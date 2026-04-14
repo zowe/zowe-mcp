@@ -20,7 +20,14 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { plural } from 'zowe-mcp-common';
-import { getDisplayName, getLog, initLog } from './log';
+import {
+  appendLineVisibleWithLogFilter,
+  getDisplayName,
+  getLog,
+  initLog,
+  mapVscodeLogLevelToZoweMcpLogLevel,
+  syncOutputChannelLogLevelToMcpSetting,
+} from './log';
 import {
   sendCliPluginConfigurationUpdateEvent,
   sendConnectionsUpdateEvent,
@@ -40,6 +47,26 @@ let cursorMcpRegistered = false;
 
 export function activate(context: vscode.ExtensionContext): void {
   const log = initLog(context);
+
+  // Output panel: changing this channel's log level only filtered the UI unless we
+  // mirror it into zoweMCP.logLevel (which forwards to the MCP server via pipe).
+  if (typeof log.onDidChangeLogLevel === 'function') {
+    context.subscriptions.push(
+      log.onDidChangeLogLevel(() => {
+        const mapped = mapVscodeLogLevelToZoweMcpLogLevel(log.logLevel);
+        const config = vscode.workspace.getConfiguration('zoweMCP');
+        const current = config.get<string>('logLevel', 'info');
+        // If the setting doesn't change, config.update won't fire onDidChangeConfiguration.
+        // So we forward directly. If it does change, config.update fires the handler, and
+        // we avoid a duplicate by not calling sendLogLevelEvent here.
+        const willUpdate = mapped !== current;
+        syncOutputChannelLogLevelToMcpSetting(log);
+        if (!willUpdate) {
+          sendLogLevelEvent(mapped);
+        }
+      })
+    );
+  }
 
   // Fire-and-forget: startup logging is non-critical and includes async model queries
   void logStartupInfo(context);
@@ -115,7 +142,10 @@ export function activate(context: vscode.ExtensionContext): void {
         if (logLevelChanged) {
           const config = vscode.workspace.getConfiguration('zoweMCP');
           const level = config.get<string>('logLevel', 'info');
-          log.info(`Log level setting changed to "${level}", forwarding to MCP servers`);
+          appendLineVisibleWithLogFilter(
+            log,
+            `Log level setting changed to "${level}", forwarding to MCP servers`
+          );
           sendLogLevelEvent(level);
         }
         if (connectionsChanged) {

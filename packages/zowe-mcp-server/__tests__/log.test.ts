@@ -18,7 +18,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { LogLevel } from '../src/log.js';
-import { Logger } from '../src/log.js';
+import { Logger, tryParseLogLevel } from '../src/log.js';
 
 describe('Logger', () => {
   let stderrSpy: ReturnType<typeof vi.spyOn>;
@@ -300,5 +300,44 @@ describe('Logger', () => {
       logger: 'tools',
       data: 'from child',
     });
+  });
+
+  // -----------------------------------------------------------------------
+  // tryParseLogLevel / emitForcedInfo
+  // -----------------------------------------------------------------------
+
+  it('tryParseLogLevel should accept valid levels case-insensitively', () => {
+    expect(tryParseLogLevel('DEBUG')).toBe('debug');
+    expect(tryParseLogLevel('error')).toBe('error');
+    expect(tryParseLogLevel('  INFO  ')).toBe('info');
+  });
+
+  it('tryParseLogLevel should return undefined for invalid input', () => {
+    expect(tryParseLogLevel(undefined)).toBeUndefined();
+    expect(tryParseLogLevel('')).toBeUndefined();
+    expect(tryParseLogLevel('banana')).toBeUndefined();
+  });
+
+  it('emitForcedInfo should write to stderr even when configured level is error', () => {
+    const logger = new Logger({ level: 'error' });
+    logger.info('suppressed');
+    expect(stderrSpy).not.toHaveBeenCalled();
+
+    logger.emitForcedInfo('log level ack');
+    expect(stderrSpy).toHaveBeenCalledOnce();
+    const output = stderrSpy.mock.calls[0][0] as string;
+    expect(output).toContain('[INFO]');
+    expect(output).toContain('log level ack');
+  });
+
+  it('emitForcedInfo should write to stderr even after setLevel makes info normally suppressed', () => {
+    const logger = new Logger({ level: 'debug' });
+    logger.setLevel('error');
+    logger.info('suppressed');
+    expect(stderrSpy).not.toHaveBeenCalled();
+
+    logger.emitForcedInfo('confirm');
+    expect(stderrSpy).toHaveBeenCalledOnce();
+    expect((stderrSpy.mock.calls[0][0] as string).includes('confirm')).toBe(true);
   });
 });

@@ -44,6 +44,11 @@ import {
   wrapResponse,
 } from '../response.js';
 import {
+  appendCompactRetcodeForProgress,
+  formatJobStatusProgressLine,
+} from './job-progress-text.js';
+import { isZeroCompletionRetcode } from './job-retcode.js';
+import {
   cancelJobOutputSchema,
   deleteJobOutputSchema,
   getJclOutputSchema,
@@ -196,7 +201,7 @@ async function enrichSubmitResultWithWait(params: {
     jobName: status.name,
     timedOut: timedOut ? true : undefined,
   };
-  if (!timedOut && status.retcode !== undefined && status.retcode !== '0000') {
+  if (!timedOut && status.retcode !== undefined && !isZeroCompletionRetcode(status.retcode)) {
     try {
       const failedStepJobFiles = await params.backend.listJobFiles(
         params.systemId,
@@ -491,7 +496,12 @@ export function registerJobTools(server: McpServer, deps: JobToolDeps, logger: L
             await progress.complete('Timeout waiting for job (job continues on z/OS)');
           } else {
             await progress.complete(
-              `Job ${String(data.name)} (${String(data.id)}): ${String(data.status)}`
+              formatJobStatusProgressLine({
+                name: String(data.name),
+                id: String(data.id),
+                status: String(data.status),
+                retcode: typeof data.retcode === 'string' ? data.retcode : undefined,
+              })
             );
           }
         } else {
@@ -564,7 +574,7 @@ export function registerJobTools(server: McpServer, deps: JobToolDeps, logger: L
           extra._meta?.progressToken ? (msg: string) => void progress.step(msg) : undefined
         );
 
-        await progress.complete(`Job ${status.name} (${status.id}): ${status.status}`);
+        await progress.complete(formatJobStatusProgressLine(status));
         const responseCtx = buildContext(systemId, {});
         return wrapResponse(responseCtx, undefined, status, []);
       } catch (err) {
@@ -863,7 +873,7 @@ export function registerJobTools(server: McpServer, deps: JobToolDeps, logger: L
           const failedOnly =
             parsed.failedStepsOnly !== false &&
             status.retcode !== undefined &&
-            status.retcode !== '0000';
+            !isZeroCompletionRetcode(status.retcode);
           if (failedOnly && files.length > 0) {
             const sysoutOrErr = files.filter(
               f =>
@@ -909,7 +919,10 @@ export function registerJobTools(server: McpServer, deps: JobToolDeps, logger: L
         }
 
         await progress.complete(
-          `Returned ${outputEntries.length} ${plural(outputEntries.length, 'job file', 'job files')} for job ${parsed.jobId} (${meta.totalAvailable} total)`
+          appendCompactRetcodeForProgress(
+            `Returned ${outputEntries.length} ${plural(outputEntries.length, 'job file', 'job files')} for job ${parsed.jobId} (${meta.totalAvailable} total)`,
+            status.retcode
+          )
         );
         const responseCtx = buildContext(systemId, {});
         const messages = getListMessages(meta);

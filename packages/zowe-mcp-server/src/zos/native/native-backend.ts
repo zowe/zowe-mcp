@@ -18,7 +18,7 @@
 import { dump as yamlDump } from 'js-yaml';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import type { ZSshClient } from 'zowe-native-proto-sdk';
+import type { ZSshClient } from 'zowex-sdk';
 import type { CeedumpCollectedEventData } from '../../events.js';
 import { getCurrentMcpTool } from '../../mcp-tool-context.js';
 import { getLogger } from '../../server.js';
@@ -1112,7 +1112,7 @@ export class NativeBackend {
             log
           );
         }
-        return this.searchWithToolApi(client, dsn, options);
+        return this.searchWithToolApi(client, systemId, dsn, options);
       },
       progress
     );
@@ -1120,10 +1120,12 @@ export class NativeBackend {
 
   /**
    * Search using ZNP tool.search (SuperC on z/OS) + UtilsApi.tools.parseSearchOutput.
-   * Falls back to list-and-read when the member filter cannot be expressed via SuperC.
+   * Falls back to list-and-read when the member filter cannot be expressed via SuperC, or when
+   * SuperC output parses summary counts but not per-member rows (parser / format mismatch).
    */
   private async searchWithToolApi(
     client: ZSshClient,
+    systemId: SystemId,
     dsn: string,
     options: SearchInDatasetOptions
   ): Promise<SearchInDatasetResult> {
@@ -1157,7 +1159,7 @@ export class NativeBackend {
       };
     }
 
-    const sdk = (await import('zowe-native-proto-sdk')) as unknown as {
+    const sdk = (await import('zowex-sdk')) as unknown as {
       UtilsApi?: {
         tools: {
           parseSearchOutput: (output: string) => ZnpParsedSearchResult;
@@ -1166,7 +1168,7 @@ export class NativeBackend {
     };
     if (!sdk.UtilsApi?.tools?.parseSearchOutput) {
       throw new Error(
-        'SDK does not export UtilsApi.tools.parseSearchOutput. Upgrade to zowe-native-proto-sdk 0.3.0+ or set ZOWE_MCP_SEARCH_FORCE_FALLBACK=1 to use the list+read fallback.'
+        'SDK does not export UtilsApi.tools.parseSearchOutput. Upgrade to zowex-sdk 0.3.0+ or set ZOWE_MCP_SEARCH_FORCE_FALLBACK=1 to use the list+read fallback.'
       );
     }
     const parsed = sdk.UtilsApi.tools.parseSearchOutput(rawOutput);
@@ -1180,6 +1182,16 @@ export class NativeBackend {
         ...(match.afterContext?.length ? { afterContext: match.afterContext } : {}),
       })),
     }));
+
+    const summarySaysMatches =
+      parsed.summary.linesFound > 0 || parsed.summary.membersWithLines > 0;
+    if (members.length === 0 && summarySaysMatches) {
+      log.notice(
+        'ZNP tool.search SuperC output parsed summary but no member rows; using list+read search fallback',
+        { dsname: searchDsn, linesFound: parsed.summary.linesFound }
+      );
+      return runSearchWithListAndRead(this.makeSearchAdapter(client), systemId, dsn, options, log);
+    }
 
     return {
       dataset: dsn,

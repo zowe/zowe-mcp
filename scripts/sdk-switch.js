@@ -10,10 +10,10 @@
  *
  */
 /**
- * Switch the zowe-native-proto-sdk dependency between multiple sources.
+ * Switch the zowex-sdk dependency (Zowe Remote SSH SDK; formerly zowe-native-proto-sdk).
  *
  * All modes download/copy the SDK tarball into resources/ with a versioned
- * filename (e.g. resources/zowe-native-proto-sdk-0.4.0.tgz) and set the
+ * filename (e.g. resources/zowex-sdk-0.4.0.tgz) and set the
  * server's package.json dependency to file:../../resources/<filename>.
  *
  * Usage:
@@ -31,7 +31,7 @@
  *     Downloads the SDK artifact from the latest successful Build workflow run.
  *
  *   node scripts/sdk-switch.js local <path>
- *     Uses a local .tgz file or a zowe-native-proto repo directory.
+ *     Uses a local .tgz file or a zowex / zowe-native-proto repo directory.
  *     If a directory is given, looks for a pre-built .tgz in dist/.
  *
  *   node scripts/sdk-switch.js fallback
@@ -46,15 +46,16 @@ const repoRoot = path.resolve(__dirname, '..');
 const serverPkgPath = path.join(repoRoot, 'packages', 'zowe-mcp-server', 'package.json');
 const resourcesDir = path.join(repoRoot, 'resources');
 const ZNP_REPO = 'zowe/zowe-native-proto';
-const PKG_NAME = 'zowe-native-proto-sdk';
+const PKG_NAME = 'zowex-sdk';
 const DEFAULT_VERSION = '0.4.0';
 const ARTIFACTORY_NPM = 'https://zowe.jfrog.io/artifactory/api/npm/npm-release/';
+/** Nightly SDK snapshots (repo path renamed from zowe-native-proto to zowex). */
 const ARTIFACTORY_SNAPSHOT_BASE =
-  'https://zowe.jfrog.io/artifactory/libs-snapshot-local/org/zowe/zowe-native-proto/SDK/Nightly';
+  'https://zowe.jfrog.io/artifactory/libs-snapshot-local/org/zowe/zowex/SDK/Nightly';
 
 /** Canonical filename for the SDK tarball in resources/. */
 function sdkTgzFilename(version) {
-  return `zowe-native-proto-sdk-${version}.tgz`;
+  return `zowex-sdk-${version}.tgz`;
 }
 
 // ---------------------------------------------------------------------------
@@ -95,9 +96,9 @@ function removeRootOverrides() {
   }
 }
 
-/** Lockfile path prefix for deps bundled inside the file-based zowe-native-proto-sdk tarball. */
+/** Lockfile path prefix for deps bundled inside the file-based zowex-sdk tarball. */
 const NESTED_SDK_NODE_MODULES_PREFIX =
-  'packages/zowe-mcp-server/node_modules/zowe-native-proto-sdk/node_modules/';
+  'packages/zowe-mcp-server/node_modules/zowex-sdk/node_modules/';
 
 function removeSdkIntegrityFromLockfile() {
   const lockPath = path.join(repoRoot, 'package-lock.json');
@@ -239,7 +240,7 @@ function downloadAndInstallGhArtifact(artifactId, label) {
   const tgzPath = path.join(tmpDir, tgz);
   const version = readVersionFromTgz(
     tgzPath,
-    tgz.replace(/^zowe-native-proto-sdk-/, '').replace(/\.tgz$/, '')
+    tgz.replace(/^(zowex-sdk|zowe-native-proto-sdk)-/, '').replace(/\.tgz$/, '')
   );
 
   installSdkToResources(tgzPath, version, label);
@@ -276,16 +277,19 @@ function findSuccessfulBuildRun(branch, event) {
 function handleRelease(version) {
   let v = version;
   if (!v) {
-    console.log('Querying latest SDK version from Artifactory...');
+    console.log('Querying latest SDK version from Artifactory npm-release...');
     try {
       v = run(`npm view ${PKG_NAME} version --registry ${ARTIFACTORY_NPM}`);
       console.log('Latest published version: %s', v);
     } catch {
       console.error(
-        'Failed to query latest version from Artifactory. Using default: %s',
-        DEFAULT_VERSION
+        '%s is not published to npm-release yet, or the registry is unreachable.',
+        PKG_NAME
       );
-      v = DEFAULT_VERSION;
+      console.error(
+        'Use: npm run sdk:nightly   (latest snapshot under org/zowe/zowex/SDK/Nightly)'
+      );
+      process.exit(1);
     }
   }
 
@@ -318,7 +322,7 @@ function handleNightly() {
 function tryArtifactoryNightly() {
   try {
     const listJson = run(
-      `curl -sf "${ARTIFACTORY_SNAPSHOT_BASE}/" 2>/dev/null | grep -oE 'href="(zowe-native-proto-sdk-[^"]+\\.tgz)"' | sed 's/href="//;s/"//' | sort | tail -1`
+      `curl -sf "${ARTIFACTORY_SNAPSHOT_BASE}/" 2>/dev/null | grep -oE 'href="(zowex-sdk-[^"]+\\.tgz)"' | sed 's/href="//;s/"//' | sort | tail -1`
     );
 
     if (!listJson) return false;
@@ -516,7 +520,7 @@ function handleLocal(inputPath) {
     const sdkPkgDir = path.join(resolved, 'packages', 'sdk');
     if (!fs.existsSync(path.join(sdkPkgDir, 'package.json'))) {
       console.error(
-        'Directory does not appear to be a zowe-native-proto repo (no packages/sdk/package.json): %s',
+        'Directory does not appear to be a zowex SDK repo (no packages/sdk/package.json): %s',
         resolved
       );
       process.exit(1);
@@ -547,7 +551,7 @@ function handleLocal(inputPath) {
     return;
   }
 
-  console.error('Path must be a .tgz file or a zowe-native-proto repo directory: %s', resolved);
+  console.error('Path must be a .tgz file or a zowex SDK repo directory: %s', resolved);
   process.exit(1);
 }
 

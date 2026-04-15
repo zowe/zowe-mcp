@@ -434,6 +434,8 @@ describe.skipIf(!shouldRunNativeStdioE2E)(
       expect(o._result!.returnedLines).toBeGreaterThan(0);
     });
 
+    // IEANTCOB is the IBM Name/Token Service COBOL copybook; header comments include
+    // "Name/Token Service" (verify with readDataset if ZNP parse + fallback behavior changes).
     it('searchInDataset SYS1.SAMPLIB(IEANTCOB) returns envelope and matches when present', async () => {
       const { parsed } = await callToolSuccess(client, 'searchInDataset', {
         dsn: "'SYS1.SAMPLIB'",
@@ -911,7 +913,9 @@ describe.skipIf(!shouldRunNativeStdioE2E)(
           expect(o.data.id).toBeDefined();
           expect(o.data.name).toBeDefined();
           expect(o.data.status).toBeDefined();
-          expect(['INPUT', 'ACTIVE', 'OUTPUT', 'CONVERSION']).toContain(o.data.status);
+          expect(['INPUT', 'ACTIVE', 'OUTPUT', 'CONVERSION', 'AWAIT CONV']).toContain(
+            o.data.status
+          );
         });
 
         it('listJobFiles and readJobFile when job is in OUTPUT', async () => {
@@ -997,7 +1001,9 @@ describe.skipIf(!shouldRunNativeStdioE2E)(
           const timedOut = o.data.timedOut === true;
           const completed = statusData.status === 'OUTPUT';
           expect(timedOut || completed).toBe(true);
-          expect(!timedOut || ['INPUT', 'ACTIVE'].includes(statusData.status)).toBe(true);
+          expect(!timedOut || ['INPUT', 'ACTIVE', 'AWAIT CONV'].includes(statusData.status)).toBe(
+            true
+          );
         });
 
         it('listJobs returns jobs (optional owner filter)', async () => {
@@ -1014,7 +1020,9 @@ describe.skipIf(!shouldRunNativeStdioE2E)(
           }
           expect(o.data[0].id).toBeDefined();
           expect(o.data[0].status).toBeDefined();
-          expect(['INPUT', 'ACTIVE', 'OUTPUT']).toContain(o.data[0].status);
+          expect(['INPUT', 'ACTIVE', 'OUTPUT', 'AWAIT CONV', 'CONVERSION']).toContain(
+            o.data[0].status
+          );
         });
 
         it('getJcl returns JCL for submitted job', async () => {

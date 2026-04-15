@@ -62,7 +62,7 @@ coverage/
 # Output of 'npm pack' (repo root only)
 *.tgz
 # Committed SDK baseline(s) in resources/ are tracked despite *.tgz rule
-!resources/zowe-native-proto-sdk-*.tgz
+!resources/zowex-sdk-*.tgz
 !resources/znp-sdk-fallback.tgz
 
 # SDK switch temporary directories

@@ -61,7 +61,7 @@ const createMock = vi.hoisted(() => vi.fn());
 const installServerMock = vi.hoisted(() => vi.fn().mockResolvedValue(true));
 const checkIfOutdatedMock = vi.hoisted(() => vi.fn().mockResolvedValue(false));
 
-vi.mock('zowe-native-proto-sdk', () => ({
+vi.mock('zowex-sdk', () => ({
   /** Re-exported from @zowe/zos-uss-for-zowe-sdk; production constructs before ZSshClient.create. */
   SshSession: class MockSshSession {
     constructor(_opts: unknown) {

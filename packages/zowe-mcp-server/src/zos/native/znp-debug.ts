@@ -50,7 +50,7 @@ export function requireMethods(
     if (typeof obj[m] !== 'function') {
       throw new Error(
         `${objectName}.${m} is not a function. keys: ${keys.join(', ')}. ` +
-          'Check zowe-native-proto-sdk version and server capabilities.'
+          'Check zowex-sdk version and server capabilities.'
       );
     }
   }

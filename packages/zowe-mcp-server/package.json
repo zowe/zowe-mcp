@@ -19,6 +19,8 @@
     "dev": "tsc -p tsconfig.build.json --watch",
     "pretest": "npm run build",
     "test": "vitest run",
+    "test:native-stdio-e2e": "npm run build && ZOWE_MCP_RUN_NATIVE_STDIO_E2E=1 vitest run native-stdio.e2e",
+    "test:keycloak-jwt-e2e": "npm run build && ZOWE_MCP_KEYCLOAK_E2E=1 vitest run keycloak-http-jwt.e2e",
     "test:watch": "vitest",
     "format": "prettier --write \"**/*.{ts,js,mjs,json,jsonc}\"",
     "check-format": "prettier --check \"**/*.{ts,js,mjs,json,jsonc}\"",
@@ -50,7 +52,7 @@
     "yargs": "^17.7.2",
     "zod": "^4.3.6",
     "zowe-mcp-common": "0.8.0-dev",
-    "zowe-native-proto-sdk": "file:../../resources/zowe-native-proto-sdk-0.4.0.tgz"
+    "zowex-sdk": "file:../../resources/zowex-sdk-0.4.0.tgz"
   },
   "devDependencies": {
     "@types/express": "^5.0.0",

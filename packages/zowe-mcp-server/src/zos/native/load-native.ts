@@ -16,7 +16,7 @@
  * a list of user@host connection specs.
  */
 
-import { ZSshClient } from 'zowe-native-proto-sdk';
+import { ZSshClient } from 'zowex-sdk';
 import type { CeedumpCollectedEventData } from '../../events.js';
 import type { ZosBackend } from '../backend.js';
 import type { CredentialProvider } from '../credentials.js';

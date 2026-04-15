@@ -50,7 +50,7 @@ npm run build-and-install
 Step 2 fetches the latest nightly build of the
 [Zowe Native Proto](https://github.com/zowe/zowe-native-proto) SDK. Use
 `npm run sdk:release` for the latest stable release instead. See
-[Zowe Native Proto SDK](#zowe-native-proto-sdk) for all options.
+[Zowe Remote SSH SDK (zowex-sdk)](#zowe-native-proto-sdk) for all options.
 
 After step 4, reload VS Code and the Zowe MCP tools will be available in
 GitHub Copilot Chat.
@@ -148,20 +148,22 @@ ZOWE_MCP_MOCK_DIR=./zowe-mcp-mock-data npx @zowe/mcp-server --stdio
 
 ## Zowe Native Proto SDK
 
+The npm package is **`zowex-sdk`** (Zowe Remote SSH SDK). Nightly builds are under Artifactory `org/zowe/zowex/SDK/Nightly`.
+
 The server depends on the
 [Zowe Native Proto](https://github.com/zowe/zowe-native-proto) SDK for
-connecting to z/OS over SSH. The SDK is not published to the public npm
-registry; use one of the scripts below to fetch it.
+connecting to z/OS over SSH. Use the scripts below to fetch the `zowex-sdk`
+tarball (Zowe Artifactory or in-repo fallback).
 
 | Script | Source | Description |
 | --- | --- | --- |
 | `npm run sdk:release` | Artifactory npm | Latest stable release |
-| `npm run sdk:release -- <version>` | Artifactory npm | Specific release (e.g. `0.3.0`) |
+| `npm run sdk:release -- <version>` | Artifactory npm | Specific release when published (e.g. `0.4.0`) |
 | `npm run sdk:fallback` | In-repo | Fallback resource for CI and when nightly is unavailable |
 | `npm run sdk:nightly` | Artifactory / GitHub | Latest nightly build (recommended for development) |
 | `npm run sdk:pr -- <pr-number>` | GitHub Actions | Build from a specific pull request |
 | `npm run sdk:branch -- <branch>` | GitHub Actions | Latest successful build for a branch |
-| `npm run sdk:local -- <path>` | Local filesystem | A `.tgz` file or a `zowe-native-proto` repo directory |
+| `npm run sdk:local -- <path>` | Local filesystem | A `.tgz` file or a Zowe Remote SSH SDK (`zowex`) repo directory |
 
 After switching, rebuild (`npm run build`) and run tests (`npm test`) to
 verify compatibility. The SDK tarball is stored in `deps/` (gitignored).
@@ -480,7 +482,7 @@ To publish a VSIX to GitHub Releases from your machine (no GitHub Actions): run 
 
 [CI](.github/workflows/ci.yml) uploads build artifacts for every successful run: the VSIX, the MCP reference doc, and an **`npm pack`** tarball of **`@zowe/mcp-server`** (artifact name `zowe-mcp-server-npm`, file pattern `zowe-mcp-server-*.tgz`). Download from the workflow run’s **Artifacts** section. Install locally with `npm install ./zowe-mcp-server-0.x.y.tgz` (or use `npm run pack:server` to build and pack from your clone).
 
-The packed tarball **bundles all dependencies** (including workspace package `zowe-mcp-common` and file-based `zowe-native-proto-sdk`) so it can be installed standalone without requiring the monorepo or external file dependencies. The `prepack` script automatically bundles these dependencies before packing, and `bundledDependencies` in `package.json` ensures npm includes them in the tarball.
+The packed tarball **bundles all dependencies** (including workspace package `zowe-mcp-common` and file-based `zowex-sdk`) so it can be installed standalone without requiring the monorepo or external file dependencies. The `prepack` script automatically bundles these dependencies before packing, and `bundledDependencies` in `package.json` ensures npm includes them in the tarball.
 
 Test airgapped/offline installation:
 

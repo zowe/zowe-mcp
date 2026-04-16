@@ -20,7 +20,7 @@ services:
       # Optional: verbose Keycloak logs (default: INFO). See https://www.keycloak.org/server/logging
       # KC_LOG_LEVEL: debug
     ports:
-      - "${KEYCLOAK_HOST_PORT:-18080}:8080"
+      - '${KEYCLOAK_HOST_PORT:-18080}:8080'
 
   keycloak-init:
     build:
@@ -35,7 +35,7 @@ services:
       KC_BOOTSTRAP_ADMIN_PASSWORD: admin
     volumes:
       - ./init-keycloak.sh:/init-keycloak.sh:ro
-    command: ["/bin/sh", "/init-keycloak.sh"]
+    command: ['/bin/sh', '/init-keycloak.sh']
 
   zowe-mcp:
     profiles:
@@ -47,7 +47,7 @@ services:
       keycloak-init:
         condition: service_completed_successfully
     ports:
-      - "7542:7542"
+      - '7542:7542'
     environment:
       ZOWE_MCP_JWT_ISSUER: http://localhost:${KEYCLOAK_HOST_PORT:-18080}/realms/demo
       ZOWE_MCP_JWKS_URI: http://keycloak:8080/realms/demo/protocol/openid-connect/certs

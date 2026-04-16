@@ -16,13 +16,13 @@ questions:
       - toolCall:
           tool: createDataset
           args:
-            validDsn: "USER.TEST.VOLDATA"
+            validDsn: 'USER.TEST.VOLDATA'
             type:
-              - "PS"
-              - "SEQUENTIAL"
-            recfm: "FB"
+              - 'PS'
+              - 'SEQUENTIAL'
+            recfm: 'FB'
             lrecl: 80
-            volser: "VOL001"
+            volser: 'VOL001'
 
   - id: sms-allocate-with-dataclas
     prompt: Create a PDS called USER.TEST.SMSDATA with data class DCLAS01 and storage class SCLAS01.
@@ -30,9 +30,9 @@ questions:
       - toolCall:
           tool: createDataset
           args:
-            validDsn: "USER.TEST.SMSDATA"
-            dataClass: "DCLAS01"
-            storageClass: "SCLAS01"
+            validDsn: 'USER.TEST.SMSDATA'
+            dataClass: 'DCLAS01'
+            storageClass: 'SCLAS01'
 
   - id: sms-allocate-with-mgmtclas
     prompt: Allocate USER.TEST.MANAGED as a PDSE with management class MCLAS01.
@@ -40,25 +40,25 @@ questions:
       - toolCall:
           tool: createDataset
           args:
-            validDsn: "USER.TEST.MANAGED"
+            validDsn: 'USER.TEST.MANAGED'
             type:
-              - "PO-E"
-              - "PDSE"
-              - "LIBRARY"
-            managementClass: "MCLAS01"
+              - 'PO-E'
+              - 'PDSE'
+              - 'LIBRARY'
+            managementClass: 'MCLAS01'
 
   - id: sms-jcl-style-allocation
-    prompt: "Allocate a data set USER.TEST.FULL with these JCL-style attributes: DSORG=PS, RECFM=VB, LRECL=255, BLKSIZE=27998, VOL=SER=USR001, DATACLAS=BIGDATA, STORCLAS=FAST."
+    prompt: 'Allocate a data set USER.TEST.FULL with these JCL-style attributes: DSORG=PS, RECFM=VB, LRECL=255, BLKSIZE=27998, VOL=SER=USR001, DATACLAS=BIGDATA, STORCLAS=FAST.'
     assertions:
       - toolCall:
           tool: createDataset
           args:
-            validDsn: "USER.TEST.FULL"
+            validDsn: 'USER.TEST.FULL'
             type:
-              - "PS"
-              - "SEQUENTIAL"
-            recfm: "VB"
+              - 'PS'
+              - 'SEQUENTIAL'
+            recfm: 'VB'
             lrecl: 255
-            volser: "USR001"
-            dataClass: "BIGDATA"
-            storageClass: "FAST"
+            volser: 'USR001'
+            dataClass: 'BIGDATA'
+            storageClass: 'FAST'

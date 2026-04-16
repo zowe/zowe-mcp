@@ -57,7 +57,7 @@ echo "Waiting for OIDC discovery (${KC_REALM}) at ${KC_BASE_DIRECT}..."
 READY=0
 LAST_CODE=""
 for i in $(seq 1 60); do
-  LAST_CODE=$(curl -sS -o /dev/null -w "%{http_code}" --connect-timeout 3 "$DISCOVERY_DIRECT" 2>/dev/null || true)
+  LAST_CODE=$(curl -sS -o /dev/null -w "%{http_code}" --connect-timeout 3 "$DISCOVERY_DIRECT" 2> /dev/null || true)
   [ -n "$LAST_CODE" ] || LAST_CODE="000"
   if [ "$LAST_CODE" = "200" ]; then
     READY=1

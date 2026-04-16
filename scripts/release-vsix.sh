@@ -61,7 +61,7 @@ fi
 echo "VSIX: $VSIX"
 
 # Create and push tag if it doesn't exist
-if ! git rev-parse "$TAG" >/dev/null 2>&1; then
+if ! git rev-parse "$TAG" > /dev/null 2>&1; then
   echo "Creating tag $TAG from current HEAD..."
   git tag "$TAG"
   echo "Pushing tag $TAG..."
@@ -69,7 +69,7 @@ if ! git rev-parse "$TAG" >/dev/null 2>&1; then
 fi
 
 # Create release with VSIX or upload to existing release
-if gh release view "$TAG" >/dev/null 2>&1; then
+if gh release view "$TAG" > /dev/null 2>&1; then
   echo "Release $TAG already exists; uploading VSIX..."
   gh release upload "$TAG" "$VSIX" --clobber
 else

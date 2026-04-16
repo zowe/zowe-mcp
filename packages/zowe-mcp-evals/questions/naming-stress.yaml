@@ -18,7 +18,7 @@ questions:
       - toolCall:
           tool: listDatasets
           args:
-            validDsn: "USER.**"
+            validDsn: 'USER.**'
 
   - id: cli-view-uss-file
     prompt: View the contents of the USS file /u/USER/file.txt on the mainframe.
@@ -27,8 +27,8 @@ questions:
           tool: readUssFile
           args:
             path:
-              - "/u/USER/file.txt"
-              - "file.txt"
+              - '/u/USER/file.txt'
+              - 'file.txt'
 
   - id: cli-search-datasets
     prompt: Search for the search string DIVISION in data set USER.SRC.COBOL.
@@ -36,8 +36,8 @@ questions:
       - toolCall:
           tool: searchInDataset
           args:
-            validDsn: "USER.SRC.COBOL"
-            string: "DIVISION"
+            validDsn: 'USER.SRC.COBOL'
+            string: 'DIVISION'
 
   - id: cli-create-ds-like-zowe
     prompt: Create a new PDS named USER.TEST.DATA with record format FB, logical record length 80, and block size 27920.
@@ -45,8 +45,8 @@ questions:
       - toolCall:
           tool: createDataset
           args:
-            validDsn: "USER.TEST.DATA"
-            recfm: "FB"
+            validDsn: 'USER.TEST.DATA'
+            recfm: 'FB'
             lrecl: 80
 
   # --- z/OS jargon ---
@@ -57,11 +57,11 @@ questions:
       - toolCall:
           tool: createDataset
           args:
-            validDsn: "USER.NEW.SEQ"
+            validDsn: 'USER.NEW.SEQ'
             type:
-              - "PS"
-              - "SEQUENTIAL"
-            recfm: "VB"
+              - 'PS'
+              - 'SEQUENTIAL'
+            recfm: 'VB'
             lrecl: 133
 
   - id: zos-dsname-with-quotes
@@ -70,7 +70,7 @@ questions:
       - toolCall:
           tool: readDataset
           args:
-            validDsn: "USER.SRC.COBOL(CUSTFILE)"
+            validDsn: 'USER.SRC.COBOL(CUSTFILE)'
 
   - id: zos-catalog-search
     prompt: Show me all cataloged data sets under the high-level qualifier USER.
@@ -79,8 +79,8 @@ questions:
           tool: listDatasets
           args:
             dsnPattern:
-              - "USER.**"
-              - "USER.*"
+              - 'USER.**'
+              - 'USER.*'
               - "'USER.**'"
               - "'USER.*'"
 
@@ -90,7 +90,7 @@ questions:
       - toolCall:
           tool: listMembers
           args:
-            validDsn: "USER.SRC.COBOL"
+            validDsn: 'USER.SRC.COBOL'
 
   - id: zos-dsorg-vocabulary
     prompt: I need a new PDSE called USER.TEST.LIB. Allocate it for me.
@@ -98,13 +98,13 @@ questions:
       - toolCall:
           tool: createDataset
           args:
-            validDsn: "USER.TEST.LIB"
+            validDsn: 'USER.TEST.LIB'
             type:
-              - "PO-E"
-              - "PO"
-              - "PDS"
-              - "PDSE"
-              - "LIBRARY"
+              - 'PO-E'
+              - 'PO'
+              - 'PDS'
+              - 'PDSE'
+              - 'LIBRARY'
 
   # --- Ambiguous natural language ---
 
@@ -114,8 +114,8 @@ questions:
       - toolCall:
           tool: searchInDataset
           args:
-            validDsn: "USER.SRC.COBOL"
-            string: "PERFORM"
+            validDsn: 'USER.SRC.COBOL'
+            string: 'PERFORM'
 
   - id: ambiguous-show-files
     prompt: Show me the files in USER.SRC.COBOL.
@@ -123,7 +123,7 @@ questions:
       - toolCall:
           tool: listMembers
           args:
-            validDsn: "USER.SRC.COBOL"
+            validDsn: 'USER.SRC.COBOL'
 
   - id: ambiguous-what-datasets
     prompt: What data sets do I have?
@@ -137,7 +137,7 @@ questions:
       - toolCall:
           tool: readDataset
           args:
-            validDsn: "USER.SRC.COBOL(CUSTFILE)"
+            validDsn: 'USER.SRC.COBOL(CUSTFILE)'
 
   - id: ambiguous-grep-cobol
     prompt: Grep for WORKING-STORAGE in the COBOL library USER.SRC.COBOL.
@@ -145,8 +145,8 @@ questions:
       - toolCall:
           tool: searchInDataset
           args:
-            validDsn: "USER.SRC.COBOL"
-            string: "WORKING-STORAGE"
+            validDsn: 'USER.SRC.COBOL'
+            string: 'WORKING-STORAGE'
 
   # --- ISPF-style patterns ---
 
@@ -157,8 +157,8 @@ questions:
           tool: listDatasets
           args:
             dsnPattern:
-              - "USER.**"
-              - "USER.*"
+              - 'USER.**'
+              - 'USER.*'
               - "'USER.**'"
               - "'USER.*'"
 
@@ -170,7 +170,7 @@ questions:
       - toolCall:
           tool: listJobFiles
           args:
-            jobId: "JOB00123"
+            jobId: 'JOB00123'
 
   - id: unix-ls-style
     prompt: Do an ls of my home directory on USS.
@@ -185,5 +185,5 @@ questions:
           oneOf:
             - tool: runSafeTsoCommand
               args:
-                commandText: "WHO"
+                commandText: 'WHO'
             - tool: getContext

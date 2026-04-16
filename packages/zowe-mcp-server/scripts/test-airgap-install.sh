@@ -18,8 +18,8 @@ BUILD_AND_PACK=false
 NATIVE_SMOKE=false
 for arg in "$@"; do
   case "$arg" in
-    --build) BUILD_AND_PACK=true ;;
-    --native) NATIVE_SMOKE=true ;;
+  --build) BUILD_AND_PACK=true ;;
+  --native) NATIVE_SMOKE=true ;;
   esac
 done
 
@@ -89,10 +89,10 @@ if npm install \
   if [ ! -f "$BIN_PATH" ]; then
     echo "FAILED: Binary not found: $BIN_PATH"
     echo "  Looking for binaries in node_modules/.bin/:"
-    ls -la node_modules/.bin/ 2>/dev/null || echo "    (directory does not exist)"
+    ls -la node_modules/.bin/ 2> /dev/null || echo "    (directory does not exist)"
     exit 1
   fi
-  
+
   echo "  Running: $BIN_PATH --version"
   OUTPUT=$("$BIN_PATH" --version 2>&1) || {
     EXIT_CODE=$?
@@ -104,9 +104,9 @@ if npm install \
     echo "    Path: $BIN_PATH"
     echo "    Exists: $([ -f "$BIN_PATH" ] && echo "yes" || echo "no")"
     if [ -f "$BIN_PATH" ]; then
-      echo "    Size: $(stat -f%z "$BIN_PATH" 2>/dev/null || stat -c%s "$BIN_PATH" 2>/dev/null || echo "unknown") bytes"
-      echo "    First line: $(head -1 "$BIN_PATH" 2>/dev/null || echo "cannot read")"
-      if command -v node >/dev/null 2>&1; then
+      echo "    Size: $(stat -f%z "$BIN_PATH" 2> /dev/null || stat -c%s "$BIN_PATH" 2> /dev/null || echo "unknown") bytes"
+      echo "    First line: $(head -1 "$BIN_PATH" 2> /dev/null || echo "cannot read")"
+      if command -v node > /dev/null 2>&1; then
         echo "    Testing with node directly:"
         NODE_OUTPUT=$(node "$BIN_PATH" --version 2>&1) || NODE_EXIT=$?
         echo "$NODE_OUTPUT" | sed 's/^/      /'
@@ -163,7 +163,7 @@ FIRST_SYSTEM=$(node -e "
   if (Array.isArray(c.systems) && c.systems.length > 0) {
     console.log(c.systems[0]);
   }
-" 2>/dev/null || true)
+" 2> /dev/null || true)
 
 if [ -z "$FIRST_SYSTEM" ]; then
   echo "SKIP: No systems configured in $NATIVE_CONFIG"

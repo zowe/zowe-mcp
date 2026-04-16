@@ -17,15 +17,15 @@ questions:
           - tool: createTempDataset
             args:
               type:
-                - "PS"
-                - "SEQUENTIAL"
+                - 'PS'
+                - 'SEQUENTIAL'
           - tool: writeDataset
             args:
-              lines: ["Evals write test"]
+              lines: ['Evals write test']
           - tool: readDataset
           - tool: deleteDatasetsUnderPrefix
       - answerContains:
-          substring: "Evals write test"
+          substring: 'Evals write test'
 
   - id: create-pds-write-member-delete-member-cleanup
     prompt: First create a temporary PDS with createTempDataset, then add member EVALMEM with content "temp content" using writeDataset, then delete that member with deleteDataset, then delete all data sets under that temp prefix with deleteDatasetsUnderPrefix.
@@ -35,14 +35,14 @@ questions:
           - tool: createTempDataset
             args:
               type:
-                - "PO"
-                - "PO-E"
-                - "PDS"
-                - "PDSE"
-                - "LIBRARY"
+                - 'PO'
+                - 'PO-E'
+                - 'PDS'
+                - 'PDSE'
+                - 'LIBRARY'
           - tool: writeDataset
             args:
-              lines: ["temp content"]
+              lines: ['temp content']
           - tool: deleteDatasetsUnderPrefix
       - answerContains:
-          pattern: "success|deleted|complete|done|cleaned|removed|finished|successfully"
+          pattern: 'success|deleted|complete|done|cleaned|removed|finished|successfully'

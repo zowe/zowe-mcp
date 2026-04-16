@@ -3,13 +3,13 @@ config:
   name: db2-stress
   repetitions: 5
   minSuccessRate: 0.5
-  skip: "Requires x86_64 Node.js (intel alias) and Authentication=SERVER in db2dsdriver.cfg — run manually with: intel && source .env && npm run evals -- --set zowe/db2-stress"
+  skip: 'Requires x86_64 Node.js (intel alias) and Authentication=SERVER in db2dsdriver.cfg — run manually with: intel && source .env && npm run evals -- --set zowe/db2-stress'
   cliPluginConfiguration:
     db2:
-      host: "${DB2_HOST}"
-      port: "${DB2_PORT}"
-      user: "${DB2_USER}"
-      database: "${DB2_DATABASE}"
+      host: '${DB2_HOST}'
+      port: '${DB2_PORT}'
+      user: '${DB2_USER}'
+      database: '${DB2_DATABASE}'
 
 questions:
   # Ambiguous domain vocabulary
@@ -20,7 +20,7 @@ questions:
           tool: db2ExecuteSql
           args:
             query:
-              pattern: "(?i)SYSIBM|SYSCAT|CATALOG"
+              pattern: '(?i)SYSIBM|SYSCAT|CATALOG'
 
   - id: find-sproc
     prompt: How do I find what stored procedures are available in Db2?
@@ -29,7 +29,7 @@ questions:
           tool: db2ExecuteSql
           args:
             query:
-              pattern: "(?i)SYSROUTINES|SYSPROCEDURES|PROCEDURE"
+              pattern: '(?i)SYSROUTINES|SYSPROCEDURES|PROCEDURE'
 
   - id: table-count-schema
     prompt: How many user tables exist in the system (not SYSIBM)?
@@ -51,7 +51,7 @@ questions:
           tool: db2ExecuteSql
           args:
             query:
-              pattern: "(?i)CREATOR.*SYS|TBCREATOR.*SYS|LIKE.*SYS"
+              pattern: '(?i)CREATOR.*SYS|TBCREATOR.*SYS|LIKE.*SYS'
 
   - id: set-connection-then-query
     prompt: >
@@ -69,9 +69,9 @@ questions:
           tool: db2ExecuteSql
           args:
             query:
-              pattern: "(?i)SYSCOLUMNS.*SYSTABLES|TBNAME.*SYSTABLES"
+              pattern: '(?i)SYSCOLUMNS.*SYSTABLES|TBNAME.*SYSTABLES'
       - answerContains:
-          pattern: "(?i)NAME|TYPE|LENGTH|COLNO"
+          pattern: '(?i)NAME|TYPE|LENGTH|COLNO'
 
   - id: call-proc-ambiguous
     prompt: I want to call a Db2 stored procedure named SYSPROC.ADMIN_INFO_SYSPARM.
@@ -80,7 +80,7 @@ questions:
           tool: db2CallProcedure
           args:
             routine:
-              pattern: "(?i)SYSPROC|ADMIN_INFO"
+              pattern: '(?i)SYSPROC|ADMIN_INFO'
 
   # Pagination awareness
   - id: large-result
@@ -104,4 +104,4 @@ questions:
           tool: db2ExportTable
           args:
             table:
-              pattern: "(?i)SYSDUMMY1"
+              pattern: '(?i)SYSDUMMY1'

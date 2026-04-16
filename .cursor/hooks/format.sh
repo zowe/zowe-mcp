@@ -15,9 +15,10 @@
 # Input (JSON via stdin):
 #   { "file_path": "<absolute path>", "edits": [...] }
 #
-# - TypeScript files: license header enforced via ESLint, then formatted with Prettier
-# - JavaScript/JSON files: formatted with Prettier
-# - Markdown files: formatted with markdownlint-cli2
+# - TypeScript (.ts, .mts): ESLint --fix (license header), then Prettier
+# - Prettier: .js, .mjs, .cjs, .json, .jsonc, .yaml, .yml, .css, .html
+# - Markdown (.md): markdownlint-cli2 --fix
+# - Shell (.sh, .bash): shfmt via scripts/shfmt-write.mjs (@wasm-fmt/shfmt)
 
 # Read JSON input from stdin
 input=$(cat)
@@ -29,22 +30,25 @@ if [ -z "$file_path" ]; then
   exit 0
 fi
 
-# Format based on file type
-# TODO: What else we can check or format?
+HOOK_DIR="$(cd "$(dirname "$0")" && pwd)"
+REPO_ROOT="$(cd "$HOOK_DIR/../.." && pwd)"
+
+# Format based on file type (keep aligned with root `format` / `check-format` + `shfmt-write.mjs`)
 case "$file_path" in
-  *.ts|*.mts)
-    # Enforce license header via ESLint, then format with Prettier
-    npx eslint --fix "$file_path" > /dev/null 2>&1
-    npx prettier --write "$file_path" > /dev/null 2>&1
-    ;;
-  *.js|*.mjs|*.json|*.jsonc)
-    # Run prettier on the file, suppressing output
-    npx prettier --write "$file_path" > /dev/null 2>&1
-    ;;
-  *.md)
-    # Run markdownlint with auto-fix on the file, suppressing output
-    npx markdownlint-cli2 --fix "$file_path" > /dev/null 2>&1
-    ;;
+*.ts | *.mts)
+  # Enforce license header via ESLint, then format with Prettier
+  npx eslint --fix "$file_path" > /dev/null 2>&1
+  npx prettier --write "$file_path" > /dev/null 2>&1
+  ;;
+*.js | *.mjs | *.cjs | *.json | *.jsonc | *.yaml | *.yml | *.css | *.html)
+  npx prettier --write "$file_path" > /dev/null 2>&1
+  ;;
+*.md)
+  npx markdownlint-cli2 --fix "$file_path" > /dev/null 2>&1
+  ;;
+*.sh | *.bash)
+  node "$REPO_ROOT/scripts/shfmt-write.mjs" "$file_path" > /dev/null 2>&1
+  ;;
 esac
 
 exit 0

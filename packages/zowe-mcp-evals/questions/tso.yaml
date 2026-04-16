@@ -16,11 +16,11 @@ questions:
           tool: runSafeTsoCommand
           args:
             commandText:
-              - "LISTALC"
-              - "LISTA"
-              - "LISTDS"
+              - 'LISTALC'
+              - 'LISTA'
+              - 'LISTDS'
       - answerContains:
-          pattern: "SYSIN|USER.INPUT|Allocations|allocated"
+          pattern: 'SYSIN|USER.INPUT|Allocations|allocated'
 
   - id: tso-list-dataset-attributes
     prompt: Run TSO to show the attributes of a data set (like RECFM, LRECL).
@@ -29,10 +29,10 @@ questions:
           tool: runSafeTsoCommand
           args:
             commandText:
-              - "LISTDS"
-              - "LISTD"
+              - 'LISTDS'
+              - 'LISTD'
       - answerContains:
-          pattern: "RECFM|LRECL|USER.MOCK.DATA"
+          pattern: 'RECFM|LRECL|USER.MOCK.DATA'
 
   - id: tso-who
     prompt: Who am I in TSO?
@@ -42,6 +42,6 @@ questions:
           oneOf:
             - tool: getContext
             - tool: runSafeTsoCommand
-              args: { commandText: "WHO" }
+              args: { commandText: 'WHO' }
       - answerContains:
-          pattern: "USER|mockuser"
+          pattern: 'USER|mockuser'

@@ -34,7 +34,7 @@ This is an npm workspaces monorepo with four packages:
 - **ESM for server, CJS for extension and common**: The MCP SDK requires ESM. VS Code extensions use CommonJS. The `zowe-mcp-common` package outputs CJS so both ESM (server, evals) and CJS (extension) consumers can import it. Each package has its own `tsconfig.json`.
 - **Version from package.json**: The server reads its version from `package.json` at runtime using `createRequire`. Keep the version in `package.json` as the single source of truth.
 - **Code duplication detection (jscpd)**: The `jscpd` tool (Rabin-Karp token-based copy/paste detector) is configured via `.jscpd.json` at the repo root. Run `npm run duplication` to scan all packages. A Cursor hook (`.cursor/hooks/duplication.sh`) runs jscpd on edited `.ts` files after Agent edits to warn about introduced duplication. Config: `minLines: 10`, `minTokens: 50`, `threshold: 5%`; excludes tests, themes, build artifacts, and `.d.ts` files.
-- **Code formatting via Cursor hooks**: All TypeScript, JavaScript, and JSON files are formatted with Prettier (`.prettierrc.json` + `prettier-plugin-organize-imports`). Markdown files are formatted with markdownlint-cli2. A Cursor hook (`.cursor/hooks/format.sh`) auto-formats all file types after every Agent and Tab edit.
+- **Code formatting via Cursor hooks**: TypeScript, JavaScript, JSON/JSONC, YAML, CSS, and HTML are formatted with Prettier (`.prettierrc.json` + `prettier-plugin-organize-imports`). Shell scripts (`.sh`/`.bash`) use **shfmt** via `scripts/shfmt-write.mjs` (`@wasm-fmt/shfmt`, WebAssembly build of mvdan/shfmt). Markdown files are formatted with markdownlint-cli2. A Cursor hook (`.cursor/hooks/format.sh`) auto-formats these types after every Agent and Tab edit.
 - **ESLint with type-checked rules**: ESLint is configured with `typescript-eslint`'s `recommendedTypeChecked` + `stylisticTypeChecked` rulesets, `eslint-plugin-headers` for license headers, and `eslint-plugin-vitest` for test hygiene (server tests only — VS Code extension tests use Mocha). Config is in `eslint.config.mjs`. Each package has a `tsconfig.eslint.json` that includes all lintable files (src, tests, scripts). The Cursor format hook automatically runs `eslint --fix` on `.ts` files.
 - **License header enforcement**: All `.ts` files must start with the EPL-2.0 license header. Enforced by `eslint-plugin-headers` via `eslint.config.mjs`. The Cursor format hook automatically inserts missing headers on save. Run `npm run lint` to check all files, `npm run lint:fix` to auto-fix.
 - **Structured logging (MCP server)**: The server uses a custom `Logger` class (`src/log.ts`) that writes human-readable messages to stderr and forwards them to the MCP client via `sendLoggingMessage()`. Log levels follow RFC 5424 (debug, info, notice, warning, error, critical, alert, emergency). The `logging` capability is declared in `server.ts` so the SDK allows protocol-level log notifications. No external logging library (pino, winston) is used — the MCP SDK provides the protocol transport, and stderr handles local diagnostics.
@@ -173,9 +173,9 @@ Server tests are organized into **common** (parameterized) and **transport-speci
 
 ### Code Formatting and License Headers
 
-- **Auto-formatted by Cursor hook**: `.cursor/hooks/format.sh` runs automatically after every Agent and Tab file edit. For `.ts` files it first runs ESLint `--fix` (to insert the license header if missing), then Prettier. JS/JSON files get Prettier only. Markdown files get markdownlint-cli2. No manual formatting needed during development.
+- **Auto-formatted by Cursor hook**: `.cursor/hooks/format.sh` runs automatically after every Agent and Tab file edit. For `.ts`/`.mts` it first runs ESLint `--fix` (to insert the license header if missing), then Prettier. `.js`/`.mjs`/`.cjs`/`.json`/`.jsonc`/`.yaml`/`.yml`/`.css`/`.html` get Prettier. `.sh`/`.bash` get `node scripts/shfmt-write.mjs`. Markdown files get markdownlint-cli2. No manual formatting needed during development.
 - **License header**: Every `.ts` file must begin with the EPL-2.0 block comment. ESLint (`eslint-plugin-headers`) enforces this via `eslint.config.mjs` and auto-fixes with `--fix`. You do not need to manually add the header — the hook does it for you.
-- **Manual formatting**: Run `npm run format` to format all TS/JS/JSON files, `npm run check-format` to verify, or `npm run markdownlint <file>` for Markdown.
+- **Manual formatting**: Run `npm run format` to format Prettier-covered types and all tracked shell scripts (`shfmt-write.mjs`), `npm run check-format` to verify, or `npm run markdownlint <file>` for Markdown.
 - **Manual linting**: Run `npm run lint` to check all ESLint rules (type-checked + license headers), `npm run lint:fix` to auto-fix.
 - **Config**: `.prettierrc.json` at the repo root. Uses `prettier-plugin-organize-imports` to auto-sort imports. `eslint.config.mjs` at the repo root for license header enforcement.
 - **Ignored files**: See `.prettierignore`. Markdown files are excluded from Prettier (handled by markdownlint instead). Build artifacts (`.vscode-test/`, `dist/`, `out/`, `server/`) are excluded from ESLint.
@@ -360,8 +360,8 @@ The project uses a data-driven approach to validate tool definition changes. Eve
 | `npm run inspector` | Launch MCP Inspector |
 | `npm run lint` | Run ESLint (type-checked rules + license headers) |
 | `npm run lint:fix` | Auto-fix ESLint issues (including missing headers) |
-| `npm run format` | Format all TS/JS/JSON files with Prettier |
-| `npm run check-format` | Check formatting without modifying files |
+| `npm run format` | Prettier on TS/MTS/JS/MJS/CJS/JSON/JSONC/YAML/CSS/HTML; shfmt on tracked `.sh`/`.bash` |
+| `npm run check-format` | Same checks without modifying files |
 | `npm run duplication` | Scan all packages for code duplication using jscpd (config: `.jscpd.json`). Exits non-zero if duplication exceeds threshold. |
 | `npm run markdownlint <file>` | Fix markdown lint issues |
 | `npx @zowe/mcp-server init-mock --output <dir>` | Generate mock data directory |

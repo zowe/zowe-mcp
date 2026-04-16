@@ -14,13 +14,13 @@ services:
       MCP_REGISTRY_GITHUB_CLIENT_SECRET: 0e8db54879b02c29adef51795586f3c510a9341d
       MCP_REGISTRY_JWT_PRIVATE_KEY: bb2c6b424005acd5df47a9e2c87f446def86dd740c888ea3efb825b23f7ef47c
       # Allow `mcp-publisher login anonymous` → publishes to io.modelcontextprotocol.anonymous/*
-      MCP_REGISTRY_ENABLE_ANONYMOUS_AUTH: "true"
+      MCP_REGISTRY_ENABLE_ANONYMOUS_AUTH: 'true'
       # Skip npm-registry existence check (@zowe/mcp-server is on Artifactory, not npmjs.com).
-      MCP_REGISTRY_ENABLE_REGISTRY_VALIDATION: "false"
+      MCP_REGISTRY_ENABLE_REGISTRY_VALIDATION: 'false'
       # Start empty — no internet seed call needed.
-      MCP_REGISTRY_SEED_FROM: ""
+      MCP_REGISTRY_SEED_FROM: ''
     ports:
-      - "8085:8080"
+      - '8085:8080'
     restart: unless-stopped
 
   postgres:
@@ -31,7 +31,7 @@ services:
       POSTGRES_USER: mcpregistry
       POSTGRES_PASSWORD: mcpregistry
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U mcpregistry -d mcp-registry"]
+      test: ['CMD-SHELL', 'pg_isready -U mcpregistry -d mcp-registry']
       interval: 1s
       retries: 30
     restart: unless-stopped

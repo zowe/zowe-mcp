@@ -174,8 +174,10 @@ specification.
 
 The project enforces code style automatically through tooling:
 
-- **Prettier** formats all TypeScript, JavaScript, and JSON files
+- **Prettier** formats TypeScript, JavaScript, JSON/JSONC, YAML, CSS, and HTML
   (`.prettierrc.json` + `prettier-plugin-organize-imports`)
+- **shfmt** (via `@wasm-fmt/shfmt` and `scripts/shfmt-write.mjs`) formats shell
+  scripts (`.sh`, `.bash`)
 - **ESLint** enforces type-checked rules (`typescript-eslint`
   `recommendedTypeChecked` + `stylisticTypeChecked`) and license headers
   (`eslint-plugin-headers`)
@@ -201,7 +203,7 @@ does it for you.
 ### Manual Commands
 
 ```bash
-npm run format        # Format all TS/JS/JSON files
+npm run format        # Prettier + shfmt (tracked shell scripts)
 npm run check-format  # Verify formatting without modifying
 npm run lint          # Check all ESLint rules
 npm run lint:fix      # Auto-fix ESLint issues

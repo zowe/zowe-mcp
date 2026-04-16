@@ -16,7 +16,7 @@ questions:
       - toolCall:
           tool: listJobs
       - answerContains:
-          pattern: "job|Job|JOB"
+          pattern: 'job|Job|JOB'
 
   - id: job-status
     prompt: What is the status of my most recent job?
@@ -24,7 +24,7 @@ questions:
       - toolCall:
           tool: listJobs
       - answerContains:
-          pattern: "status|ACTIVE|OUTPUT|CC|RC|retcode|phase"
+          pattern: 'status|ACTIVE|OUTPUT|CC|RC|retcode|phase'
 
   - id: submit-jcl-from-dataset
     prompt: Submit the JCL in data set SYS1.SAMPLIB(BPXISJCL) as a job.
@@ -32,7 +32,7 @@ questions:
       - toolCall:
           tool: submitJobFromDataset
           args:
-            validDsn: "SYS1.SAMPLIB(BPXISJCL)"
+            validDsn: 'SYS1.SAMPLIB(BPXISJCL)'
 
   - id: list-jobs-then-spool-and-read
     prompt: List my jobs, then list the spool files for the most recent job and show me the content of the first spool file.

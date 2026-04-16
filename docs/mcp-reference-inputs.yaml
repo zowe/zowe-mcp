@@ -9,43 +9,43 @@ info:
 listSystems:
 
 setSystem:
-  system: "mainframe-dev.example.com"
+  system: 'mainframe-dev.example.com'
 
 getContext:
 
 addZosConnection:
-  connectionSpec: "USER@mainframe-dev.example.com"
+  connectionSpec: 'USER@mainframe-dev.example.com'
 
 listDatasets:
-  dsnPattern: "USER.*"
+  dsnPattern: 'USER.*'
 
 listDatasets[no results]:
-  dsnPattern: "NONEXIST.*"
+  dsnPattern: 'NONEXIST.*'
 
 listMembers:
-  dsn: "USER.SRC.COBOL"
+  dsn: 'USER.SRC.COBOL'
 
 listMembers[with pattern]:
-  dsn: "USER.SRC.COBOL"
-  memberPattern: "CUST*"
+  dsn: 'USER.SRC.COBOL'
+  memberPattern: 'CUST*'
 
 searchInDataset:
-  dsn: "USER.SRC.COBOL"
-  string: "DIVISION"
+  dsn: 'USER.SRC.COBOL'
+  string: 'DIVISION'
 
 searchInDataset[single member]:
-  dsn: "USER.SRC.COBOL"
-  member: "CUSTFILE"
-  string: "WORKING-STORAGE"
+  dsn: 'USER.SRC.COBOL'
+  member: 'CUSTFILE'
+  string: 'WORKING-STORAGE'
 
 getDatasetAttributes:
-  dsn: "USER.SRC.COBOL"
+  dsn: 'USER.SRC.COBOL'
 
 readDataset:
-  dsn: "USER.SRC.COBOL(CUSTFILE)"
+  dsn: 'USER.SRC.COBOL(CUSTFILE)'
 
 readDataset[with line window]:
-  dsn: "USER.SRC.COBOL(CUSTFILE)"
+  dsn: 'USER.SRC.COBOL(CUSTFILE)'
   startLine: 1
   lineCount: 10
 
@@ -80,25 +80,25 @@ restoreDataset:
 getUssHome:
 
 changeUssDirectory:
-  path: "/u/USER"
+  path: '/u/USER'
 
 listUssFiles:
-  path: "/"
+  path: '/'
 
 listUssFiles[user home]:
-  path: "/u/USER"
+  path: '/u/USER'
 
 readUssFile:
-  path: "/u/USER/file.txt"
+  path: '/u/USER/file.txt'
 
 readUssFile[sensitive path]:
-  path: "/etc/profile"
+  path: '/etc/profile'
 
 runSafeUssCommand:
-  commandText: "pwd"
+  commandText: 'pwd'
 
 runSafeUssCommand[blocked command]:
-  commandText: "rm -rf /"
+  commandText: 'rm -rf /'
 
 writeUssFile:
   skip: true
@@ -137,10 +137,10 @@ deleteUssTempUnderDir:
   skip: true
 
 runSafeTsoCommand:
-  commandText: "TIME"
+  commandText: 'TIME'
 
 runSafeTsoCommand[blocked command]:
-  commandText: "OSHELL rm -rf /"
+  commandText: 'OSHELL rm -rf /'
 
 submitJob:
   skip: true

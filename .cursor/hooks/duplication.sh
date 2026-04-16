@@ -28,14 +28,14 @@ fi
 
 # Only check TypeScript files under packages/
 case "$file_path" in
-  */packages/*.ts)
-    ;;
-  *)
-    exit 0
-    ;;
+*/packages/*.ts)
+  ;;
+*)
+  exit 0
+  ;;
 esac
 
 # Run jscpd on the specific file — output goes to the agent as advisory info
-npx jscpd "$file_path" --silent --reporters console 2>/dev/null
+npx jscpd "$file_path" --silent --reporters console 2> /dev/null
 
 exit 0

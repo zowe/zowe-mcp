@@ -19,9 +19,9 @@ questions:
           tool: listMembers
           minCount: 1
           args:
-            validDsn: "USER.INVNTORY"
+            validDsn: 'USER.INVNTORY'
       - answerContains:
-          pattern: "2[,.]?00[01]"
+          pattern: '2[,.]?00[01]'
 
   - id: metadata-dataset-count
     prompt: List all data sets matching USER.PEOPLE.** and tell me the total count.
@@ -30,9 +30,9 @@ questions:
           tool: listDatasets
           minCount: 1
           args:
-            validDsn: "USER.PEOPLE.**"
+            validDsn: 'USER.PEOPLE.**'
       - answerContains:
-          pattern: "1[,.]?000"
+          pattern: '1[,.]?000'
 
   # --- Search option combinations ---
 
@@ -42,8 +42,8 @@ questions:
       - toolCall:
           tool: searchInDataset
           args:
-            validDsn: "USER.SRC.COBOL"
-            string: "COBOL"
+            validDsn: 'USER.SRC.COBOL'
+            string: 'COBOL'
             caseSensitive: true
 
   - id: search-ignore-sequence-numbers
@@ -52,8 +52,8 @@ questions:
       - toolCall:
           tool: searchInDataset
           args:
-            validDsn: "USER.SRC.COBOL"
-            string: "DIVISION"
+            validDsn: 'USER.SRC.COBOL'
+            string: 'DIVISION'
             ignoreSequenceNumbers: true
 
   - id: search-cobol-mode
@@ -62,8 +62,8 @@ questions:
       - toolCall:
           tool: searchInDataset
           args:
-            validDsn: "USER.SRC.COBOL"
-            string: "PERFORM"
+            validDsn: 'USER.SRC.COBOL'
+            string: 'PERFORM'
             cobol: true
 
   - id: search-with-context-lines
@@ -72,8 +72,8 @@ questions:
       - toolCall:
           tool: searchInDataset
           args:
-            validDsn: "USER.SRC.COBOL"
-            string: "PERFORM"
+            validDsn: 'USER.SRC.COBOL'
+            string: 'PERFORM'
             includeContextLines: true
 
   - id: search-combined-options
@@ -82,8 +82,8 @@ questions:
       - toolCall:
           tool: searchInDataset
           args:
-            validDsn: "USER.SRC.COBOL"
-            string: "SECTION"
+            validDsn: 'USER.SRC.COBOL'
+            string: 'SECTION'
             cobol: true
             ignoreSequenceNumbers: true
 
@@ -95,7 +95,7 @@ questions:
       - toolCall:
           tool: readDataset
           args:
-            validDsn: "USER.SRC.COBOL(CUSTFILE)"
+            validDsn: 'USER.SRC.COBOL(CUSTFILE)'
             lineCount: 10
 
   - id: read-specific-range
@@ -104,7 +104,7 @@ questions:
       - toolCall:
           tool: readDataset
           args:
-            validDsn: "USER.SRC.COBOL(CUSTFILE)"
+            validDsn: 'USER.SRC.COBOL(CUSTFILE)'
             startLine: 20
 
   # --- Search in specific member ---
@@ -115,8 +115,8 @@ questions:
       - toolCall:
           tool: searchInDataset
           args:
-            validDsn: "USER.SRC.COBOL(CUSTFILE)"
-            string: "PROCEDURE"
+            validDsn: 'USER.SRC.COBOL(CUSTFILE)'
+            string: 'PROCEDURE'
 
   # --- Dataset attributes ---
 
@@ -126,6 +126,6 @@ questions:
       - toolCall:
           tool: getDatasetAttributes
           args:
-            validDsn: "USER.SRC.COBOL"
+            validDsn: 'USER.SRC.COBOL'
       - answerContains:
-          pattern: "RECFM|recfm|FB|VB"
+          pattern: 'RECFM|recfm|FB|VB'

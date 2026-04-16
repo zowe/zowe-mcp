@@ -15,7 +15,7 @@ questions:
       - toolCall:
           tool: getContext
       - answerContains:
-          pattern: "system|user|USER|mainframe"
+          pattern: 'system|user|USER|mainframe'
 
   - id: set-system-then-context
     prompt: Switch to the first system in the list and then tell me my current system and user.
@@ -29,4 +29,4 @@ questions:
               - setSystem
               - getContext
       - answerContains:
-          pattern: "system|user|mainframe"
+          pattern: 'system|user|mainframe'

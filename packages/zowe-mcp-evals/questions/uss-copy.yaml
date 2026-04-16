@@ -16,13 +16,13 @@ questions:
           tool: copyUssFile
           args:
             sourcePath:
-              - "file.txt"
-              - "/u/USER/file.txt"
+              - 'file.txt'
+              - '/u/USER/file.txt'
             targetPath:
-              - "file-backup.txt"
-              - "/u/USER/file-backup.txt"
+              - 'file-backup.txt'
+              - '/u/USER/file-backup.txt'
       - answerContains:
-          pattern: "copied|copy|success|backup"
+          pattern: 'copied|copy|success|backup'
 
   - id: copy-uss-dir-recursive
     prompt: Copy the subdir directory in my USS home to a new directory called subdir-backup in the same location, recursively.
@@ -31,11 +31,11 @@ questions:
           tool: copyUssFile
           args:
             sourcePath:
-              - "subdir"
-              - "/u/USER/subdir"
+              - 'subdir'
+              - '/u/USER/subdir'
             recursive: true
       - answerContains:
-          pattern: "copied|copy|success|backup|recursive"
+          pattern: 'copied|copy|success|backup|recursive'
 
   - id: copy-uss-then-read
     prompt: Copy file.txt from my USS home to file-copy.txt, then read file-copy.txt and tell me its contents.
@@ -45,4 +45,4 @@ questions:
           - tool: copyUssFile
           - tool: readUssFile
       - answerContains:
-          substring: "USS mock"
+          substring: 'USS mock'

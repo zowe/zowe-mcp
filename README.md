@@ -472,8 +472,8 @@ npm run vendor:clean
 ```bash
 npm run lint          # Check all ESLint rules
 npm run lint:fix      # Auto-fix ESLint issues
-npm run format        # Format all TS/JS/JSON files with Prettier
-npm run check-format  # Check formatting without modifying files
+npm run format        # Prettier (TS/JS/JSON/YAML/CSS/HTML, etc.) + shfmt on tracked shell scripts
+npm run check-format  # Same checks without modifying files
 ```
 
 ## Scripts reference
@@ -507,7 +507,7 @@ The test simulates an airgapped system using an empty cache, invalid registry (`
 | `npm run evals` | Run AI evals (builds server + evals first). Pass options after `--`: `--set`, `--number`, `--id`, `--filter`. Requires `evals.config.json` at root. |
 | `npm run lint` | Run ESLint |
 | `npm run lint:fix` | Auto-fix ESLint issues |
-| `npm run format` | Format all files with Prettier |
+| `npm run format` | Prettier + shfmt (`scripts/shfmt-write.mjs`) |
 | `npx @zowe/mcp-server init-mock --output <dir>` | Generate mock data |
 | `npx @zowe/mcp-server call-tool [--mock=<dir>] [<tool-name> [key=value ...]]` | Call a tool from the CLI |
 | `npm run sdk:release [-- version]` | Fetch latest (or specific) SDK release from Zowe Artifactory |

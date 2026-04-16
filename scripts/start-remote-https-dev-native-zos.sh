@@ -68,11 +68,11 @@ if [ ! -f "$CERT_PEM" ] || [ ! -f "$KEY_PEM" ]; then
   exit 1
 fi
 
-if ! command -v openssl >/dev/null 2>&1; then
+if ! command -v openssl > /dev/null 2>&1; then
   echo "openssl not found; install it to verify certificate SANs, or skip by fixing cert.pem manually." >&2
   exit 1
 fi
-CERT_TEXT=$(openssl x509 -in "$CERT_PEM" -noout -text 2>/dev/null) || {
+CERT_TEXT=$(openssl x509 -in "$CERT_PEM" -noout -text 2> /dev/null) || {
   echo "Could not parse $CERT_PEM (openssl x509 failed)." >&2
   exit 1
 }
@@ -87,12 +87,12 @@ done
 # Keycloak image runs as uid 1000 (user keycloak). Bind mounts keep host ownership/mode; a mode-600
 # key.pem owned by your macOS uid is often not readable inside the container, so HTTPS never binds
 # to :8443 and curl reports "Couldn't connect to server" on the host HTTPS port.
-if command -v docker >/dev/null 2>&1; then
+if command -v docker > /dev/null 2>&1; then
   if ! docker run --rm \
     -v "${KEY_PEM}:/opt/keycloak/conf/mkcert-key.pem:ro" \
     --entrypoint cat \
     quay.io/keycloak/keycloak:latest \
-    /opt/keycloak/conf/mkcert-key.pem >/dev/null 2>&1; then
+    /opt/keycloak/conf/mkcert-key.pem > /dev/null 2>&1; then
     echo "Error: Keycloak container (uid 1000) cannot read ${KEY_PEM}." >&2
     echo "Bind mounts preserve file mode; for local dev only: chmod a+r ${KEY_PEM} ${CERT_PEM}" >&2
     echo "Then recreate Keycloak: docker compose -f docker/remote-dev/docker-compose.yml -f docker/remote-https-dev/docker-compose.keycloak-native-tls.yml up -d --force-recreate keycloak" >&2
@@ -102,15 +102,15 @@ if command -v docker >/dev/null 2>&1; then
     -v "${CERT_PEM}:/opt/keycloak/conf/mkcert.pem:ro" \
     --entrypoint cat \
     quay.io/keycloak/keycloak:latest \
-    /opt/keycloak/conf/mkcert.pem >/dev/null 2>&1; then
+    /opt/keycloak/conf/mkcert.pem > /dev/null 2>&1; then
     echo "Error: Keycloak container cannot read ${CERT_PEM}. chmod a+r ${CERT_PEM}" >&2
     exit 1
   fi
 fi
 
 MKCERT_ROOT=""
-if command -v mkcert >/dev/null 2>&1; then
-  CAROOT="$(mkcert -CAROOT 2>/dev/null || true)"
+if command -v mkcert > /dev/null 2>&1; then
+  CAROOT="$(mkcert -CAROOT 2> /dev/null || true)"
   if [ -n "${CAROOT}" ] && [ -f "${CAROOT}/rootCA.pem" ]; then
     MKCERT_ROOT="${CAROOT}/rootCA.pem"
     export NODE_EXTRA_CA_CERTS="${MKCERT_ROOT}"
@@ -129,7 +129,7 @@ export KEYCLOAK_HOST_PORT="$KC_HOST_PORT"
 KC_BASE_DIRECT="http://localhost:${KC_HOST_PORT}"
 
 cleanup_mcp_nginx() {
-  docker compose -f "$COMPOSE_MCP_NGINX" down --remove-orphans 2>/dev/null || true
+  docker compose -f "$COMPOSE_MCP_NGINX" down --remove-orphans 2> /dev/null || true
 }
 trap cleanup_mcp_nginx EXIT INT TERM
 
@@ -142,7 +142,7 @@ docker compose -f "$COMPOSE_REMOTE_DEV" -f "$COMPOSE_KC_NATIVE" up -d keycloak
 # briefly and would wrongly trigger --force-recreate even when the merged compose already mapped both ports.
 PUBLISH_HTTPS=""
 for _try in $(seq 1 30); do
-  PUBLISH_HTTPS=$(docker compose -f "$COMPOSE_REMOTE_DEV" -f "$COMPOSE_KC_NATIVE" port keycloak 8443 2>/dev/null || true)
+  PUBLISH_HTTPS=$(docker compose -f "$COMPOSE_REMOTE_DEV" -f "$COMPOSE_KC_NATIVE" port keycloak 8443 2> /dev/null || true)
   [ -n "$PUBLISH_HTTPS" ] && break
   sleep 1
 done
@@ -154,7 +154,7 @@ if [ -z "$PUBLISH_HTTPS" ]; then
   docker compose -f "$COMPOSE_REMOTE_DEV" -f "$COMPOSE_KC_NATIVE" up -d --force-recreate keycloak
   PUBLISH_HTTPS=""
   for _try in $(seq 1 30); do
-    PUBLISH_HTTPS=$(docker compose -f "$COMPOSE_REMOTE_DEV" -f "$COMPOSE_KC_NATIVE" port keycloak 8443 2>/dev/null || true)
+    PUBLISH_HTTPS=$(docker compose -f "$COMPOSE_REMOTE_DEV" -f "$COMPOSE_KC_NATIVE" port keycloak 8443 2> /dev/null || true)
     [ -n "$PUBLISH_HTTPS" ] && break
     sleep 1
   done
@@ -174,7 +174,7 @@ echo "Waiting for OIDC discovery (${KC_REALM} realm) at ${KC_BASE_DIRECT}..."
 READY=0
 LAST_CODE=""
 for i in $(seq 1 60); do
-  LAST_CODE=$(curl -sS -o /dev/null -w "%{http_code}" --connect-timeout 3 "$DISCOVERY_DIRECT" 2>/dev/null || true)
+  LAST_CODE=$(curl -sS -o /dev/null -w "%{http_code}" --connect-timeout 3 "$DISCOVERY_DIRECT" 2> /dev/null || true)
   [ -n "$LAST_CODE" ] || LAST_CODE="000"
   if [ "$LAST_CODE" = "200" ]; then
     READY=1
@@ -214,7 +214,7 @@ fi
 READY_H=0
 LAST_H=""
 for i in $(seq 1 60); do
-  LAST_H=$("${CURL_HTTPS[@]}" "$DISCOVERY_HTTPS" 2>/dev/null || true)
+  LAST_H=$("${CURL_HTTPS[@]}" "$DISCOVERY_HTTPS" 2> /dev/null || true)
   [ -n "$LAST_H" ] || LAST_H="000"
   if [ "$LAST_H" = "200" ]; then
     READY_H=1

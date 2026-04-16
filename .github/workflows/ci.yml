@@ -6,9 +6,9 @@ on:
   workflow_dispatch:
     inputs:
       sdk-mode:
-        description: "SDK source (fallback, nightly, release, pr, branch)"
+        description: 'SDK source (fallback, nightly, release, pr, branch)'
         required: false
-        default: "fallback"
+        default: 'fallback'
         type: choice
         options:
           - fallback
@@ -17,7 +17,7 @@ on:
           - pr
           - branch
       sdk-arg:
-        description: "Argument for the SDK mode (version, PR number, or branch name)"
+        description: 'Argument for the SDK mode (version, PR number, or branch name)'
         required: false
         type: string
 
@@ -37,7 +37,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version-file: ".nvmrc"
+          node-version-file: '.nvmrc'
 
       - name: Download ZNP SDK
         env:

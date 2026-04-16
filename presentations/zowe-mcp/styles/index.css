@@ -35,7 +35,12 @@ body,
 /* ── Global slide styling ── */
 
 .slidev-layout {
-  font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font-family:
+    'Inter',
+    'Segoe UI',
+    system-ui,
+    -apple-system,
+    sans-serif;
   font-size: 0.9em;
   color: var(--zowe-text);
   background: var(--zowe-bg);
@@ -45,7 +50,12 @@ body,
 
 .slidev-layout.cover,
 .slidev-layout.intro {
-  background: linear-gradient(135deg, var(--zowe-dark-blue) 0%, var(--zowe-primary) 60%, var(--zowe-accent) 100%);
+  background: linear-gradient(
+    135deg,
+    var(--zowe-dark-blue) 0%,
+    var(--zowe-primary) 60%,
+    var(--zowe-accent) 100%
+  );
   color: #ffffff;
 }
 
@@ -285,14 +295,24 @@ body,
   left: 0;
   right: 0;
   height: 4px;
-  background: linear-gradient(90deg, var(--zowe-dark-blue), var(--zowe-primary), var(--zowe-accent));
+  background: linear-gradient(
+    90deg,
+    var(--zowe-dark-blue),
+    var(--zowe-primary),
+    var(--zowe-accent)
+  );
   z-index: 100;
 }
 
 /* ── End slide ── */
 
 .slidev-layout.end {
-  background: linear-gradient(135deg, var(--zowe-dark-blue) 0%, var(--zowe-primary) 60%, var(--zowe-accent) 100%);
+  background: linear-gradient(
+    135deg,
+    var(--zowe-dark-blue) 0%,
+    var(--zowe-primary) 60%,
+    var(--zowe-accent) 100%
+  );
   color: #ffffff;
   display: flex;
   flex-direction: column;

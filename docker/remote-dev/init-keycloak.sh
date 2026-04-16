@@ -25,7 +25,7 @@ KC="${KC%/}"
 echo "Waiting for Keycloak at ${KC}..."
 i=0
 while [ "$i" -lt 120 ]; do
-  if curl -sf "${KC}/health/ready" >/dev/null 2>&1 || curl -sf "${KC}/realms/master" >/dev/null 2>&1; then
+  if curl -sf "${KC}/health/ready" > /dev/null 2>&1 || curl -sf "${KC}/realms/master" > /dev/null 2>&1; then
     break
   fi
   i=$((i + 1))
@@ -57,11 +57,11 @@ HDR="Authorization: Bearer ${ADMIN_TOKEN}"
 # Master realm: must allow HTTP for password-grant token used by host-side tools (e.g.
 # patch-keycloak-mcp-dev-redirects.mjs → http://localhost:<port>/realms/master/...).
 # Dev realm ssl alone is not enough; admin-cli uses the master realm token endpoint.
-if command -v jq >/dev/null 2>&1; then
+if command -v jq > /dev/null 2>&1; then
   echo "Ensuring master realm sslRequired=none (admin token from host)..."
   CODE=$(curl -sS "${KC}/admin/realms/master" -H "$HDR" | jq 'del(.id) | .sslRequired = "none"' | curl -sS -o /dev/null -w "%{http_code}" -X PUT "${KC}/admin/realms/master" \
     -H "$HDR" -H "Content-Type: application/json" -d @-)
-  case "$CODE" in 200|204) ;; *)
+  case "$CODE" in 200 | 204) ;; *)
     echo "Warning: could not set master sslRequired=none (HTTP ${CODE}). Host scripts may fail with HTTPS required on token endpoint." >&2
     ;;
   esac
@@ -81,11 +81,11 @@ else
 fi
 
 # Ensure HTTP works for existing realms (idempotent; Keycloak may default sslRequired to external/all)
-if command -v jq >/dev/null 2>&1; then
+if command -v jq > /dev/null 2>&1; then
   echo "Ensuring realm sslRequired=none for local HTTP dev..."
   CODE=$(curl -sS "${KC}/admin/realms/${REALM}" -H "$HDR" | jq 'del(.id) | .sslRequired = "none"' | curl -sS -o /dev/null -w "%{http_code}" -X PUT "${KC}/admin/realms/${REALM}" \
     -H "$HDR" -H "Content-Type: application/json" -d @-)
-  case "$CODE" in 200|204) ;; *)
+  case "$CODE" in 200 | 204) ;; *)
     echo "Warning: could not set sslRequired=none (HTTP ${CODE}). Keycloak Admin → Realm ${REALM} → Settings → SSL → None if the browser shows HTTPS required." >&2
     ;;
   esac
@@ -94,7 +94,7 @@ else
 fi
 
 # Ensure the openid client scope exists (avoids "Referenced client scope 'openid' doesn't exist" when policies reference it).
-if command -v jq >/dev/null 2>&1; then
+if command -v jq > /dev/null 2>&1; then
   echo "Ensuring openid client scope in realm ${REALM}..."
   HAS_OPENID=$(curl -sS "${KC}/admin/realms/${REALM}/client-scopes" -H "$HDR" | jq -r '.[] | select(.name=="openid") | .id' | head -n1)
   if [ -n "$HAS_OPENID" ] && [ "$HAS_OPENID" != "null" ]; then
@@ -126,8 +126,8 @@ if command -v jq >/dev/null 2>&1; then
       echo "Adding openid to realm default default client scopes..."
       HTTP_DEF=$(curl -sS -o /dev/null -w "%{http_code}" -X PUT "${KC}/admin/realms/${REALM}/default-default-client-scopes/${OID_ID}" -H "$HDR")
       case "$HTTP_DEF" in
-        200|204) echo "openid is a default default client scope for realm ${REALM}." ;;
-        *) echo "Warning: could not register openid as default default client scope (HTTP ${HTTP_DEF})." >&2 ;;
+      200 | 204) echo "openid is a default default client scope for realm ${REALM}." ;;
+      *) echo "Warning: could not register openid as default default client scope (HTTP ${HTTP_DEF})." >&2 ;;
       esac
     else
       echo "openid already in default default client scopes."
@@ -166,7 +166,7 @@ fi
 # (initial access tokens, stricter policies). Requires jq (Docker init installs it).
 #
 # PUT must follow GET shape; omit fields the Admin API rejects on PUT (e.g. subComponents — see ComponentRepresentation).
-if command -v jq >/dev/null 2>&1; then
+if command -v jq > /dev/null 2>&1; then
   echo "Configuring anonymous OIDC client registration (DCR) for local dev..."
   COMPONENTS=$(curl -sS "${KC}/admin/realms/${REALM}/components?type=org.keycloak.services.clientregistration.policy.ClientRegistrationPolicy" -H "$HDR")
   TH_ID=$(printf '%s' "$COMPONENTS" | jq -r '.[] | select(.providerId=="trusted-hosts" and .subType=="anonymous") | .id' | head -n1)
@@ -224,20 +224,20 @@ if command -v jq >/dev/null 2>&1; then
     fi
   fi
   case "$HTTP_CODE" in
-    200|204)
-      echo "Anonymous DCR enabled (Trusted Hosts incl. 192.168.65.1; host TCP check off; client URI check on — dev only)."
-      echo "Current Trusted Hosts policy config in Keycloak (component ${TH_ID}):"
-      if TH_VERIFY=$(curl -sS -f "${KC}/admin/realms/${REALM}/components/${TH_ID}" -H "$HDR"); then
-        printf '%s' "$TH_VERIFY" | jq '.config // {}'
-      else
-        echo "  Warning: could not re-fetch component to verify persisted config." >&2
-      fi
-      ;;
-    *)
-      echo "Error: DCR Trusted Hosts policy update failed (HTTP ${HTTP_CODE}). Response: ${BODY}" >&2
-      echo "Hint: Admin Console → Realm → Client registration → Policies, or fix JSON shape for your Keycloak version." >&2
-      exit 1
-      ;;
+  200 | 204)
+    echo "Anonymous DCR enabled (Trusted Hosts incl. 192.168.65.1; host TCP check off; client URI check on — dev only)."
+    echo "Current Trusted Hosts policy config in Keycloak (component ${TH_ID}):"
+    if TH_VERIFY=$(curl -sS -f "${KC}/admin/realms/${REALM}/components/${TH_ID}" -H "$HDR"); then
+      printf '%s' "$TH_VERIFY" | jq '.config // {}'
+    else
+      echo "  Warning: could not re-fetch component to verify persisted config." >&2
+    fi
+    ;;
+  *)
+    echo "Error: DCR Trusted Hosts policy update failed (HTTP ${HTTP_CODE}). Response: ${BODY}" >&2
+    echo "Hint: Admin Console → Realm → Client registration → Policies, or fix JSON shape for your Keycloak version." >&2
+    exit 1
+    ;;
   esac
 
   # Allowed Client Scopes (providerId allowed-client-templates): anonymous DCR sends scope "openid"; policy must whitelist it.
@@ -257,18 +257,18 @@ if command -v jq >/dev/null 2>&1; then
     ACS_BODY=$(cat "$TMPF")
     rm -f "$TMPF"
     case "$ACS_HTTP" in
-      200|204)
-        echo "Allowed Client Scopes updated (openid permitted for anonymous registration)."
-        if ACS_VERIFY=$(curl -sS -f "${KC}/admin/realms/${REALM}/components/${ACS_ID}" -H "$HDR"); then
-          echo "Current Allowed Client Scopes policy config (component ${ACS_ID}):"
-          printf '%s' "$ACS_VERIFY" | jq '.config // {}'
-        fi
-        ;;
-      *)
-        echo "Error: Allowed Client Scopes policy update failed (HTTP ${ACS_HTTP}). Response: ${ACS_BODY}" >&2
-        echo "Hint: Realm → Client registration → Policies → Allowed Client Scopes (anonymous) → add client scope openid." >&2
-        exit 1
-        ;;
+    200 | 204)
+      echo "Allowed Client Scopes updated (openid permitted for anonymous registration)."
+      if ACS_VERIFY=$(curl -sS -f "${KC}/admin/realms/${REALM}/components/${ACS_ID}" -H "$HDR"); then
+        echo "Current Allowed Client Scopes policy config (component ${ACS_ID}):"
+        printf '%s' "$ACS_VERIFY" | jq '.config // {}'
+      fi
+      ;;
+    *)
+      echo "Error: Allowed Client Scopes policy update failed (HTTP ${ACS_HTTP}). Response: ${ACS_BODY}" >&2
+      echo "Hint: Realm → Client registration → Policies → Allowed Client Scopes (anonymous) → add client scope openid." >&2
+      exit 1
+      ;;
     esac
   fi
 else
@@ -278,8 +278,8 @@ fi
 
 echo "Keycloak bootstrap finished."
 HOST_PORT="${KEYCLOAK_HOST_PORT:-18080}"
-if command -v jq >/dev/null 2>&1; then
-  DISC=$(curl -sS "${KC}/realms/${REALM}/.well-known/openid-configuration" 2>/dev/null || true)
+if command -v jq > /dev/null 2>&1; then
+  DISC=$(curl -sS "${KC}/realms/${REALM}/.well-known/openid-configuration" 2> /dev/null || true)
   REG_EP=$(printf '%s' "$DISC" | jq -r '.registration_endpoint // empty')
   if [ -n "$REG_EP" ]; then
     echo "OIDC discovery lists registration_endpoint (DCR): ${REG_EP}"

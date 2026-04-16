@@ -5,7 +5,7 @@ services:
   nginx-mcp-tls:
     image: nginx:alpine
     ports:
-      - "${ZOWE_MCP_MCP_TLS_PORT:-7542}:${ZOWE_MCP_MCP_TLS_PORT:-7542}"
+      - '${ZOWE_MCP_MCP_TLS_PORT:-7542}:${ZOWE_MCP_MCP_TLS_PORT:-7542}'
     environment:
       ZOWE_MCP_HTTPS_HOST: ${ZOWE_MCP_HTTPS_HOST:-zowe.mcp.example.com}
       ZOWE_MCP_MCP_TLS_PORT: ${ZOWE_MCP_MCP_TLS_PORT:-7542}
@@ -14,5 +14,5 @@ services:
       - ./default.conf.template:/etc/nginx/templates/default.conf.template:ro
       - ${ZOWE_MCP_TLS_CERT_DIR:-./certs}:/etc/nginx/certs:ro
     extra_hosts:
-      - "host.docker.internal:host-gateway"
+      - 'host.docker.internal:host-gateway'
     restart: unless-stopped

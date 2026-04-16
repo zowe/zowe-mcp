@@ -24,7 +24,7 @@ questions:
               - eval-out/custfile.cbl
               - custfile.cbl
       - answerContains:
-          pattern: "download|wrote|saved|bytes|done|success|complete"
+          pattern: 'download|wrote|saved|bytes|done|success|complete'
 
   - id: local-download-ps
     prompt: >-
@@ -38,7 +38,7 @@ questions:
               - eval-out/data-input.txt
               - data-input.txt
       - answerContains:
-          pattern: "download|wrote|saved|bytes|done|success|complete"
+          pattern: 'download|wrote|saved|bytes|done|success|complete'
 
   - id: local-download-uss
     prompt: >-
@@ -52,7 +52,7 @@ questions:
               - eval-out/uss-file.txt
               - uss-file.txt
       - answerContains:
-          pattern: "download|wrote|saved|bytes|done|success|complete|USS"
+          pattern: 'download|wrote|saved|bytes|done|success|complete|USS'
 
   - id: local-upload-uss
     prompt: >-
@@ -64,7 +64,7 @@ questions:
             localPath: eval-upload-source.txt
             path: /u/USER/eval-uploaded.txt
       - answerContains:
-          pattern: "upload|wrote|bytes|done|success|complete"
+          pattern: 'upload|wrote|bytes|done|success|complete'
 
   - id: local-upload-dataset
     prompt: >-
@@ -77,4 +77,4 @@ questions:
               - eval-upload-source.txt
             validDsn: USER.DATA.INPUT
       - answerContains:
-          pattern: "upload|wrote|bytes|done|success|complete"
+          pattern: 'upload|wrote|bytes|done|success|complete'

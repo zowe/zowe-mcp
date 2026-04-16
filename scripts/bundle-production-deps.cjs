@@ -93,7 +93,7 @@ function prepareFileDepsForBundle({ targetDir, targetPackageJsonPath, fileDepDir
   let changed = false;
   for (const [name, spec] of Object.entries(deps)) {
     if (typeof spec !== 'string' || !spec.endsWith('.tgz')) continue;
-    const matched = fileDepDirs.find((d) => spec.startsWith(d.prefix));
+    const matched = fileDepDirs.find(d => spec.startsWith(d.prefix));
     if (!matched) continue;
     const tgzName = path.basename(spec.replace(/^file:/, ''));
     const srcTgz = path.join(matched.absDir, tgzName);

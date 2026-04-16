@@ -32,9 +32,9 @@ questions:
           tool: listDatasets
           args:
             dsnPattern:
-              - "USER.**"
+              - 'USER.**'
               - "'USER.**'"
-              - "USER.*"
+              - 'USER.*'
               - "'USER.*'"
 
   - id: basic-recfm-lrecl

@@ -24,15 +24,15 @@ services:
       - --https-certificate-file=/opt/keycloak/conf/mkcert.pem
       - --https-certificate-key-file=/opt/keycloak/conf/mkcert-key.pem
     environment:
-      KC_HTTP_ENABLED: "true"
-      KC_HTTPS_PORT: "8443"
+      KC_HTTP_ENABLED: 'true'
+      KC_HTTPS_PORT: '8443'
       KC_HTTPS_CERTIFICATE_FILE: /opt/keycloak/conf/mkcert.pem
       KC_HTTPS_CERTIFICATE_KEY_FILE: /opt/keycloak/conf/mkcert-key.pem
       KC_HOSTNAME: ${KC_HOSTNAME:?Set KC_HOSTNAME to the public Keycloak HTTPS base URL}
-      KC_HOSTNAME_STRICT: "false"
+      KC_HOSTNAME_STRICT: 'false'
     ports:
-      - "${KEYCLOAK_HOST_PORT:-18080}:8080"
-      - "${ZOWE_MCP_KEYCLOAK_HTTPS_BIND_PORT:-18443}:8443"
+      - '${KEYCLOAK_HOST_PORT:-18080}:8080'
+      - '${ZOWE_MCP_KEYCLOAK_HTTPS_BIND_PORT:-18443}:8443'
     volumes:
-      - "${ZOWE_MCP_TLS_CERT_DIR}/cert.pem:/opt/keycloak/conf/mkcert.pem:ro"
-      - "${ZOWE_MCP_TLS_CERT_DIR}/key.pem:/opt/keycloak/conf/mkcert-key.pem:ro"
+      - '${ZOWE_MCP_TLS_CERT_DIR}/cert.pem:/opt/keycloak/conf/mkcert.pem:ro'
+      - '${ZOWE_MCP_TLS_CERT_DIR}/key.pem:/opt/keycloak/conf/mkcert-key.pem:ro'

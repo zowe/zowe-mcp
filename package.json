@@ -15,6 +15,7 @@
     "duplication": "jscpd ./packages",
     "eval-compare": "npm run build -w @zowe/mcp-server && npm run build -w packages/zowe-mcp-evals && node packages/zowe-mcp-evals/dist/eval-compare.js",
     "evals": "npm run build -w @zowe/mcp-server && npm run build -w packages/zowe-mcp-evals && npm run evals -w packages/zowe-mcp-evals -- \"$@\"",
+    "list-eval-models": "npm run build -w packages/zowe-mcp-evals && npm run list-eval-models -w packages/zowe-mcp-evals --",
     "smoke:gemini-zowe-mcp": "npm run build -w @zowe/mcp-server && npm run build -w packages/zowe-mcp-evals && npm run smoke:gemini-zowe-mcp -w packages/zowe-mcp-evals",
     "format": "prettier --write \"**/*.{ts,mts,js,mjs,cjs,json,jsonc,yaml,yml,css,html}\" && node scripts/shfmt-write.mjs",
     "generate-cli-bridge-yaml": "node scripts/generate-cli-bridge-yaml.mjs",

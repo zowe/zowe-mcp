@@ -16,11 +16,9 @@ questions:
       - toolCall:
           tool: runConsoleCommand
           args:
-            # TODO: Can we be smarter about this? Use some case insensitive pattern?
+            # Regex (default flags: i). Plain string args also match case-insensitive substring.
             commandText:
-              - 'D T'
-              - 'DISPLAY T'
-              - 'd t'
+              pattern: 'D\s+T|DISPLAY\s+T'
       - answerContains:
           pattern: "TIME|time|:\\d{2}:\\d{2}"
 
@@ -31,9 +29,6 @@ questions:
           tool: runConsoleCommand
           args:
             commandText:
-              - 'D A'
-              - 'DISPLAY A'
-              - 'D A,L'
-              - 'd a'
+              pattern: 'D\s+A|DISPLAY\s+A'
       - answerContains:
           pattern: 'ACTIVE|active|address|JOB|STC|TSU'

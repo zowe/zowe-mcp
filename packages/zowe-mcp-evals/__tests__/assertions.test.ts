@@ -533,6 +533,76 @@ describe('runAssertions', () => {
     });
   });
 
+  describe('toolCall args: pattern object (regex)', () => {
+    it('matches console-style commands with alternation (default case-insensitive)', () => {
+      const assertions: Assertion[] = [
+        {
+          type: 'toolCall',
+          tool: 'runConsoleCommand',
+          args: { commandText: { pattern: String.raw`D\s+T|DISPLAY\s+T` } },
+        },
+      ];
+      expect(
+        runAssertions(block(assertions), [tc('runConsoleCommand', { commandText: 'd t' })], '')
+      ).toEqual({ passed: true });
+      expect(
+        runAssertions(
+          block(assertions),
+          [tc('runConsoleCommand', { commandText: 'DISPLAY T' })],
+          ''
+        )
+      ).toEqual({ passed: true });
+    });
+
+    it('matches D A with suffix like D A,L', () => {
+      const assertions: Assertion[] = [
+        {
+          type: 'toolCall',
+          tool: 'runConsoleCommand',
+          args: { commandText: { pattern: String.raw`D\s+A|DISPLAY\s+A` } },
+        },
+      ];
+      expect(
+        runAssertions(block(assertions), [tc('runConsoleCommand', { commandText: 'D A,L' })], '')
+      ).toEqual({ passed: true });
+    });
+
+    it('fails when pattern does not match', () => {
+      const assertions: Assertion[] = [
+        {
+          type: 'toolCall',
+          tool: 'runConsoleCommand',
+          args: { commandText: { pattern: String.raw`D\s+T` } },
+        },
+      ];
+      const result = runAssertions(
+        block(assertions),
+        [tc('runConsoleCommand', { commandText: 'D A' })],
+        ''
+      );
+      expect(result.passed).toBe(false);
+    });
+
+    it('respects flags: empty string for case-sensitive regex', () => {
+      const assertions: Assertion[] = [
+        {
+          type: 'toolCall',
+          tool: 'runSafeTsoCommand',
+          args: { commandText: { pattern: 'WHO', flags: '' } },
+        },
+      ];
+      expect(
+        runAssertions(block(assertions), [tc('runSafeTsoCommand', { commandText: 'WHO' })], '')
+      ).toEqual({ passed: true });
+      const result = runAssertions(
+        block(assertions),
+        [tc('runSafeTsoCommand', { commandText: 'who' })],
+        ''
+      );
+      expect(result.passed).toBe(false);
+    });
+  });
+
   describe('answerContains', () => {
     it('passes when pattern matches', () => {
       const assertions: Assertion[] = [{ type: 'answerContains', pattern: 'system|user' }];

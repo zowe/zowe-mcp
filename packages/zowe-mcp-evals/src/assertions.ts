@@ -18,7 +18,10 @@ import type { Assertion, AssertionBlock, AssertionItem, ToolCallRecord } from '.
  * Check if actual value matches expected. Supports:
  * - Array: actual must match any element (anyOf semantics).
  * - Object with anyOf key (array): actual must match any element.
- * - Otherwise: direct match (string uses case-insensitive includes or exact).
+ * - Object with pattern key: `actual` must be a string matching `new RegExp(pattern, flags)`;
+ *   default `flags` is `'i'` (case-insensitive). Set `flags` to `''` for case-sensitive regex.
+ * - Two strings: case-insensitive substring match (`actual` includes `expected`, ignoring case).
+ * - Otherwise: JSON structural equality.
  */
 function valueMatches(expected: unknown, actual: unknown): boolean {
   if (Array.isArray(expected)) {
@@ -32,6 +35,18 @@ function valueMatches(expected: unknown, actual: unknown): boolean {
   ) {
     const arr = (expected as { anyOf: unknown[] }).anyOf;
     return arr.some(alt => valueMatches(alt, actual));
+  }
+  if (expected && typeof expected === 'object' && !Array.isArray(expected)) {
+    const o = expected as Record<string, unknown>;
+    if (typeof o.pattern === 'string') {
+      if (typeof actual !== 'string') return false;
+      try {
+        const flags = typeof o.flags === 'string' ? o.flags : 'i';
+        return new RegExp(o.pattern, flags).test(actual);
+      } catch {
+        return false;
+      }
+    }
   }
   if (actual === undefined) return false;
   if (typeof expected === 'string' && typeof actual === 'string') {

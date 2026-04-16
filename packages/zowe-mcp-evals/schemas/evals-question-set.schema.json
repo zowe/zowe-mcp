@@ -301,7 +301,7 @@
             },
             "args": {
               "type": "object",
-              "description": "Argument matchers (partial match). Used with tool or tools. Use the special key 'validDsn' with a canonical DSN string (e.g. 'USER.SRC.COBOL(CUSTFILE)') to match any server-equivalent form of the DSN and member."
+              "description": "Argument matchers (partial match). String values: case-insensitive substring. Values may be { pattern, flags? } for RegExp.test on string actuals (default flags 'i'). Special key 'validDsn': canonical DSN string for server-equivalent matching."
             },
             "count": {
               "type": "integer",
@@ -335,7 +335,7 @@
                 "description": "Step matches when any of these tools is called."
               },
               "args": {
-                "description": "Argument matchers (partial match). If array, step matches when actual args match any element (e.g. optional limit). Use the special key 'validDsn' with a canonical DSN string to match any server-equivalent form.",
+                "description": "Argument matchers (partial match). String values: case-insensitive substring; values may be { pattern, flags? } for regex on string actuals (default flags 'i'). If array, step matches when actual args match any element. Special key 'validDsn' for canonical DSN matching.",
                 "oneOf": [
                   { "type": "object" },
                   { "type": "array", "minItems": 1, "items": { "type": "object" } }

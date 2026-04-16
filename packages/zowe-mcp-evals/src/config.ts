@@ -69,7 +69,10 @@ function validateProvider(p: string): EvalsProvider {
   return p as EvalsProvider;
 }
 
-const LMSTUDIO_DEFAULT_BASE_URL = 'http://localhost:1234/v1';
+/** Default OpenAI-compat base URL for vLLM-style eval entries. */
+export const VLLM_DEFAULT_BASE_URL = 'http://localhost:8000/v1';
+
+export const LMSTUDIO_DEFAULT_BASE_URL = 'http://localhost:1234/v1';
 const LMSTUDIO_DEFAULT_CONTEXT_LENGTH = 32768;
 
 function entryToConfig(entry: EvalsModelEntry): EvalsConfig {
@@ -81,9 +84,12 @@ function entryToConfig(entry: EvalsModelEntry): EvalsConfig {
   if (provider === 'gemini' && !apiKey && process.env.GEMINI_API_KEY) {
     apiKey = process.env.GEMINI_API_KEY;
   }
+  if (provider === 'gemini' && !apiKey && process.env.GOOGLE_API_KEY) {
+    apiKey = process.env.GOOGLE_API_KEY;
+  }
   if (provider === 'gemini' && !apiKey) {
     throw new Error(
-      `evals.config.json: model "${entry.id}" needs apiKey or GEMINI_API_KEY env for Gemini`
+      `evals.config.json: model "${entry.id}" needs apiKey or GEMINI_API_KEY / GOOGLE_API_KEY env for Gemini`
     );
   }
   const config: EvalsConfig = {
@@ -93,7 +99,7 @@ function entryToConfig(entry: EvalsModelEntry): EvalsConfig {
     modelId: entry.id,
   };
   if (provider === 'vllm') {
-    config.baseUrl = entry.baseUrl ?? 'http://localhost:8000/v1';
+    config.baseUrl = entry.baseUrl ?? VLLM_DEFAULT_BASE_URL;
   }
   if (provider === 'lmstudio') {
     config.baseUrl = entry.baseUrl ?? LMSTUDIO_DEFAULT_BASE_URL;
@@ -199,23 +205,209 @@ export async function ensureLmStudioModel(
  * Query the OpenAI-compatible GET /v1/models endpoint to list available model ids.
  * Works with LM Studio (and any OpenAI-compat server).
  */
-export async function fetchAvailableModelIds(baseUrl: string): Promise<string[]> {
+export async function fetchAvailableModelIds(
+  baseUrl: string,
+  options?: { textLlmOnly?: boolean }
+): Promise<string[]> {
   const url = baseUrl.replace(/\/+$/, '') + '/models';
   let resp: Response;
   try {
     resp = await fetch(url);
   } catch {
     throw new Error(
-      `Could not reach LM Studio at ${baseUrl}. Is it running?\n` + `  Tried: GET ${url}`
+      `Could not reach OpenAI-compat server at ${baseUrl}. Is it running?\n` +
+        `  Tried: GET ${url}`
     );
   }
   if (!resp.ok) {
     throw new Error(
-      `LM Studio returned HTTP ${resp.status.toString()} from GET ${url}. Is the server running?`
+      `OpenAI-compat server returned HTTP ${resp.status.toString()} from GET ${url}. Is the server running?`
     );
   }
   const body = (await resp.json()) as { data?: { id?: string }[] };
-  return (body.data ?? []).map(m => m.id).filter((id): id is string => typeof id === 'string');
+  let ids = (body.data ?? []).map(m => m.id).filter((id): id is string => typeof id === 'string');
+  if (options?.textLlmOnly) {
+    ids = ids.filter(isLikelyOpenAiCompatTextLlmId);
+  }
+  return ids;
+}
+
+/** One row from Gemini `models.list` (fields used for filtering). */
+export interface GeminiModelRecord {
+  id: string;
+  displayName?: string;
+  supportedGenerationMethods?: string[];
+}
+
+/**
+ * True for models that look like text chat / completion LLMs (excludes image, TTS, video, music,
+ * embeddings, etc.) among entries that support `generateContent`. Heuristic: id + displayName
+ * substring checks — not a formal API modality field.
+ */
+export function isLikelyGeminiTextLlmChatModel(m: GeminiModelRecord): boolean {
+  if (!m.supportedGenerationMethods?.includes('generateContent')) return false;
+  const id = m.id.toLowerCase();
+  const dn = (m.displayName ?? '').toLowerCase();
+  const hay = `${id} ${dn}`;
+  const badSubstrings = [
+    'embedding',
+    'text-embedding',
+    'embed-',
+    '-embed',
+    'tts',
+    'text-to-speech',
+    'image',
+    'imagen',
+    'lyria',
+    'veo',
+    'nano-banana',
+    'native-audio',
+    'robotics-er',
+    'computer-use',
+    'flash-image',
+    'preview-tts',
+  ];
+  for (const b of badSubstrings) {
+    if (hay.includes(b)) return false;
+  }
+  return true;
+}
+
+/**
+ * Full Gemini model list (all modalities). Use {@link isLikelyGeminiTextLlmChatModel} to narrow.
+ */
+export async function fetchGeminiModelRecords(apiKey: string): Promise<GeminiModelRecord[]> {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(apiKey)}`;
+  let resp: Response;
+  try {
+    resp = await fetch(url);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    throw new Error(
+      `Could not reach Gemini API: ${msg}\n  Tried: GET ${url.split('?')[0]}?key=***`
+    );
+  }
+  if (!resp.ok) {
+    const body = await resp.text().catch(() => '');
+    throw new Error(`Gemini API returned HTTP ${resp.status.toString()}: ${body.slice(0, 500)}`);
+  }
+  const body = (await resp.json()) as {
+    models?: {
+      name?: string;
+      displayName?: string;
+      supportedGenerationMethods?: string[];
+    }[];
+  };
+  return (body.models ?? [])
+    .map(m => ({
+      id: (m.name ?? '').replace(/^models\//, ''),
+      displayName: m.displayName,
+      supportedGenerationMethods: m.supportedGenerationMethods,
+    }))
+    .filter(m => m.id.length > 0);
+}
+
+/**
+ * List Gemini model ids that support generateContent (Google AI Studio / Generative Language API).
+ * @param options.textLlmOnly — If true, drop image/TTS/video/music-style models that still list
+ *   `generateContent` (heuristic on id/displayName). Embeddings are already omitted (they use
+ *   `embedContent`, not `generateContent`).
+ */
+export async function fetchGeminiModelIds(
+  apiKey: string,
+  options?: { textLlmOnly?: boolean }
+): Promise<string[]> {
+  const records = await fetchGeminiModelRecords(apiKey);
+  const picked = options?.textLlmOnly
+    ? records.filter(isLikelyGeminiTextLlmChatModel)
+    : records.filter(m => m.supportedGenerationMethods?.includes('generateContent'));
+  return picked.map(m => m.id).sort((a, b) => a.localeCompare(b));
+}
+
+/**
+ * OpenAI-compat `id` heuristic: exclude embedding and obvious non-text models (ids only; no modality metadata).
+ */
+export function isLikelyOpenAiCompatTextLlmId(id: string): boolean {
+  const s = id.toLowerCase();
+  if (s.includes('text-embedding')) return false;
+  if (s.includes('nomic-embed') || s.includes('-embed-') || s.endsWith('-embed')) return false;
+  if (/\b(embed|embedding|whisper|tts|voice|speech)\b/.test(s)) return false;
+  return true;
+}
+
+/**
+ * Parse evals.config.json content into model entries (multi-model array or legacy single-model shape).
+ */
+export function parseEvalsConfigRaw(raw: Record<string, unknown>): EvalsModelEntry[] {
+  const modelsRaw = raw.models;
+  if (Array.isArray(modelsRaw) && modelsRaw.length > 0) {
+    const ids = new Set<string>();
+    return modelsRaw.map((m: unknown, idx: number) => {
+      const o = m as Record<string, unknown>;
+      const id = (o.id as string) ?? `model-${idx}`;
+      if (ids.has(id)) {
+        throw new Error(`evals.config.json: duplicate model id "${id}"`);
+      }
+      ids.add(id);
+      const provider = (o.provider as string) ?? 'vllm';
+      const serverModel = (o.serverModel as string) ?? '';
+      return {
+        id,
+        provider: validateProvider(provider),
+        serverModel,
+        baseUrl: o.baseUrl as string | undefined,
+        apiKey: o.apiKey as string | undefined,
+        contextLength: typeof o.contextLength === 'number' ? o.contextLength : undefined,
+      };
+    });
+  }
+  const provider = (raw.provider as string) ?? 'vllm';
+  const serverModel = (raw.serverModel as string) ?? '';
+  if (!serverModel) {
+    throw new Error('evals.config.json: serverModel is required');
+  }
+  let apiKey = raw.apiKey as string | undefined;
+  if (provider === 'gemini' && !apiKey && process.env.GEMINI_API_KEY) {
+    apiKey = process.env.GEMINI_API_KEY;
+  }
+  if (provider === 'gemini' && !apiKey && process.env.GOOGLE_API_KEY) {
+    apiKey = process.env.GOOGLE_API_KEY;
+  }
+  if (provider === 'gemini' && !apiKey) {
+    throw new Error(
+      'evals.config.json: apiKey or GEMINI_API_KEY / GOOGLE_API_KEY env is required for Gemini'
+    );
+  }
+  return [
+    {
+      id: 'default',
+      provider: validateProvider(provider),
+      serverModel,
+      baseUrl: raw.baseUrl as string | undefined,
+      apiKey,
+    },
+  ];
+}
+
+/**
+ * Read evals.config.json (or evals.config.local.json) and return all model entries without resolving a default.
+ */
+export function loadEvalsModelEntries(): EvalsModelEntry[] {
+  const configDir = findConfigDir();
+  let content: string | undefined;
+  for (const name of CONFIG_NAMES) {
+    const p = resolve(configDir, name);
+    if (existsSync(p)) {
+      content = readFileSync(p, 'utf-8');
+      break;
+    }
+  }
+  if (!content) {
+    throw new Error(
+      `Evals config not found. Create evals.config.json (or evals.config.local.json) in the repo root. See evals.config.example.json.`
+    );
+  }
+  return parseEvalsConfigRaw(JSON.parse(content) as Record<string, unknown>);
 }
 
 /**
@@ -243,54 +435,7 @@ export async function loadEvalsConfig(modelId?: string): Promise<EvalsConfig> {
     );
   }
   const raw = JSON.parse(content) as Record<string, unknown>;
-
-  const modelsRaw = raw.models;
-  let entries: EvalsModelEntry[];
-
-  if (Array.isArray(modelsRaw) && modelsRaw.length > 0) {
-    const ids = new Set<string>();
-    entries = modelsRaw.map((m: unknown, idx: number) => {
-      const o = m as Record<string, unknown>;
-      const id = (o.id as string) ?? `model-${idx}`;
-      if (ids.has(id)) {
-        throw new Error(`evals.config.json: duplicate model id "${id}"`);
-      }
-      ids.add(id);
-      const provider = (o.provider as string) ?? 'vllm';
-      const serverModel = (o.serverModel as string) ?? '';
-      return {
-        id,
-        provider: validateProvider(provider),
-        serverModel,
-        baseUrl: o.baseUrl as string | undefined,
-        apiKey: o.apiKey as string | undefined,
-        contextLength: typeof o.contextLength === 'number' ? o.contextLength : undefined,
-      };
-    });
-  } else {
-    // Legacy single-model shape
-    const provider = (raw.provider as string) ?? 'vllm';
-    const serverModel = (raw.serverModel as string) ?? '';
-    if (!serverModel) {
-      throw new Error('evals.config.json: serverModel is required');
-    }
-    let apiKey = raw.apiKey as string | undefined;
-    if (provider === 'gemini' && !apiKey && process.env.GEMINI_API_KEY) {
-      apiKey = process.env.GEMINI_API_KEY;
-    }
-    if (provider === 'gemini' && !apiKey) {
-      throw new Error('evals.config.json: apiKey or GEMINI_API_KEY env is required for Gemini');
-    }
-    entries = [
-      {
-        id: 'default',
-        provider: validateProvider(provider),
-        serverModel,
-        baseUrl: raw.baseUrl as string | undefined,
-        apiKey,
-      },
-    ];
-  }
+  const entries = parseEvalsConfigRaw(raw);
 
   const chosen = modelId !== undefined ? entries.find(e => e.id === modelId) : entries[0];
   if (!chosen) {

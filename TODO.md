@@ -110,5 +110,5 @@ Ideas inspired by [Gestell-AI/zowe-mcp](https://github.com/Gestell-AI/zowe-mcp) 
 - **Eval self-reflection step**: When an assertion fails, call the same or a stronger model to investigate why — suggest improvements to assertions, descriptions, or tools. Context: chat session, tool defs, model thinking, question, assertions, and error.
 - **Explicit tool calls for eval setup**: Add explicit tool calls for setup or data-fetching in assertions (similar to how Ansible can access results of commands), so evals can verify state before and after.
 - ✅ **Document eval-compare**: Documented in `packages/zowe-mcp-evals/README.md` — CLI options, examples, outputs (comparison report + scoreboard), typical workflow, and key findings.
-- **Case-insensitive pattern matching in eval assertions**: Support case-insensitive matching for command argument assertions (e.g. `D T` vs `d t` in console commands).
+- ✅ **Case-insensitive pattern matching in eval assertions**: String tool args use case-insensitive substring match; `{ pattern, flags? }` on an arg value uses regex (default `flags: 'i'`). See `packages/zowe-mcp-evals/README.md` and `console.yaml`.
 - ✅ **`validDsn` assertion directive**: Add a special assertion directive for validating data set names in eval assertions, so questions don't need to enumerate all valid forms.

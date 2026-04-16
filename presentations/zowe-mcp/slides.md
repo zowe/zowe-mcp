@@ -173,8 +173,6 @@ An **MCP server** and **VS Code extension** that gives AI assistants direct, str
   </div>
 </div>
 
-<!-- // TODO: Is there a way to do screenshots from a demo controlled by a script? -->
-
 ---
 
 <!-- Slide 6: Section — Architecture -->

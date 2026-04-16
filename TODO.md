@@ -81,6 +81,10 @@ Ideas inspired by [Gestell-AI/zowe-mcp](https://github.com/Gestell-AI/zowe-mcp) 
 - ✅ **Mock config hot-reload**: Resolved by the `zoweMCP.backend` dropdown setting — users switch between native and mock via a single setting with auto-migration and prompt-on-select. A window reload is still required but the UX is clear.
 - ✅ **Format tables in generated doc**: The `generate-docs` script now formats all Markdown tables consistently using `markdown-table-prettify` (via the `markdown-table-formatter` devDependency).
 
+## Presentations
+
+- **Scripted demo screenshots**: Research whether screenshots can be captured from a demo controlled by a script (e.g. for Slidev / `presentations/zowe-mcp/` decks).
+
 ## Code Quality / Refactoring
 
 - ✅ **Extract `extensionClient?` conditions**: Extracted to `buildNativeExtensionCallbacks()` (loadNative callback options) and `setupExtensionEventHandlers()` (single consolidated event dispatch) in `index.ts`.

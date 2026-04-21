@@ -2,7 +2,7 @@
 
 # Zowe CLI Plugin Tools Reference
 
-> Auto-generated from the Zowe MCP server (v0.8.0-dev, commit 795b866). Do not edit manually — run `npx @zowe/mcp-server generate-docs` to regenerate.
+> Auto-generated from the Zowe MCP server (v0.8.0, commit 16feda4). Do not edit manually — run `npx @zowe/mcp-server generate-docs` to regenerate.
 
 > For core Zowe MCP tools, see [docs/mcp-reference.md](../../../docs/mcp-reference.md).
 

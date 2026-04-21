@@ -2,7 +2,7 @@
 
 # Zowe MCP Server Reference
 
-> Auto-generated from the MCP server (v0.8.0-dev, commit 795b866). Do not edit manually — run `npx @zowe/mcp-server generate-docs` to regenerate.
+> Auto-generated from the MCP server (v0.8.0, commit 16feda4). Do not edit manually — run `npx @zowe/mcp-server generate-docs` to regenerate.
 
 This document describes all [Context](#context), [Data Sets](#data-sets), [USS](#uss), [TSO](#tso), [Jobs](#jobs), [Local Files](#local-files), [Other](#other), [db2 CLI Plugin Tools](#db2-cli-plugin-tools), [Tool Reference](#tool-reference), [Prompts](#prompts), [Resource Templates](#resource-templates) provided by the Zowe MCP Server.
 
@@ -193,7 +193,7 @@ Return the Zowe MCP server info (version, backend, components) and the current s
 {
   "server": {
     "name": "Zowe MCP Server",
-    "version": "0.8.0-dev",
+    "version": "0.8.0",
     "description": "MCP server providing tools for z/OS systems including data sets, jobs, and UNIX System Services",
     "components": [
       "context",
@@ -2215,7 +2215,7 @@ Output:
   },
   "data": {
     "lines": [
-      "TIME-12:09:47 AM. CPU-00:00:00 SERVICE-26895 SESSION-00:01:53 APRIL 11,2026"
+      "TIME-01:00:50 PM. CPU-00:00:00 SERVICE-26895 SESSION-00:01:53 APRIL 21,2026"
     ],
     "mimeType": "text/plain"
   }
@@ -2279,7 +2279,7 @@ Submit JCL to the current (or specified) z/OS system. When JCL has no JOB statem
 | &ensp;├─ `status`             | `string`   | No       | Status: INPUT, ACTIVE, or OUTPUT.                                                                           |
 | &ensp;├─ `type`               | `string`   | No       | Job type: JOB, STC, TSU.                                                                                    |
 | &ensp;├─ `class`              | `string`   | No       | Execution class.                                                                                            |
-| &ensp;├─ `retcode`            | `string`   | No       | Return code when complete (e.g. 0000).                                                                      |
+| &ensp;├─ `retcode`            | `string`   | No       | Return code when complete (e.g. CC 0000).                                                                   |
 | &ensp;├─ `subsystem`          | `string`   | No       | Subsystem.                                                                                                  |
 | &ensp;├─ `phase`              | `number`   | No       | Phase number.                                                                                               |
 | &ensp;├─ `phaseName`          | `string`   | No       | Phase name.                                                                                                 |
@@ -2322,7 +2322,7 @@ Submit a job from a data set or PDS or PDS/E member containing JCL. The data set
 | &ensp;├─ `status`             | `string`   | No       | Status: INPUT, ACTIVE, or OUTPUT.                                                                           |
 | &ensp;├─ `type`               | `string`   | No       | Job type: JOB, STC, TSU.                                                                                    |
 | &ensp;├─ `class`              | `string`   | No       | Execution class.                                                                                            |
-| &ensp;├─ `retcode`            | `string`   | No       | Return code when complete (e.g. 0000).                                                                      |
+| &ensp;├─ `retcode`            | `string`   | No       | Return code when complete (e.g. CC 0000).                                                                   |
 | &ensp;├─ `subsystem`          | `string`   | No       | Subsystem.                                                                                                  |
 | &ensp;├─ `phase`              | `number`   | No       | Phase number.                                                                                               |
 | &ensp;├─ `phaseName`          | `string`   | No       | Phase name.                                                                                                 |
@@ -2388,7 +2388,7 @@ Get the current status of a z/OS job (INPUT, ACTIVE, or OUTPUT) and its return c
 | &ensp;├─ `status`     | `string`   | Yes      | Status: INPUT, ACTIVE, or OUTPUT.                                                                           |
 | &ensp;├─ `type`       | `string`   | Yes      | Job type: JOB, STC, TSU.                                                                                    |
 | &ensp;├─ `class`      | `string`   | Yes      | Execution class.                                                                                            |
-| &ensp;├─ `retcode`    | `string`   | No       | Return code when complete (e.g. 0000).                                                                      |
+| &ensp;├─ `retcode`    | `string`   | No       | Return code when complete (e.g. CC 0000).                                                                   |
 | &ensp;├─ `subsystem`  | `string`   | No       | Subsystem.                                                                                                  |
 | &ensp;├─ `phase`      | `number`   | Yes      | Phase number.                                                                                               |
 | &ensp;├─ `phaseName`  | `string`   | Yes      | Phase name.                                                                                                 |
@@ -2493,7 +2493,7 @@ Get aggregated output from job files for a completed job. By default returns out
 | `data`             | `object`   | Yes      |                                                                                                             |
 | &ensp;├─ `jobId`   | `string`   | Yes      | Job ID.                                                                                                     |
 | &ensp;├─ `status`  | `string`   | Yes      | Job status (e.g. OUTPUT).                                                                                   |
-| &ensp;├─ `retcode` | `string`   | No       | Job return code when complete.                                                                              |
+| &ensp;├─ `retcode` | `string`   | No       | Job return code when complete (e.g. CC 0000).                                                               |
 | &ensp;└─ `files`   | `object`[] | Yes      | Output from job files in this page.                                                                         |
 
 ---

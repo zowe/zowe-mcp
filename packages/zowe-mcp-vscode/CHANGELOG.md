@@ -8,17 +8,41 @@ All notable changes to the Zowe MCP extension will be documented in this file.
 
 ### New features and enhancements
 
-- **Job card elicitation**: When `submitJob` receives JCL without a JOB statement and no configured card, the MCP server can prompt for a card. The extension uses one **input box**; paste multiple lines or separate `//` lines with whitespace. Job cards are merged into **`zoweMCP.jobCards`** when possible.
+#### MCP server (stdio, extension-embedded, and standalone)
+
+These behaviors apply whenever you run **`@zowe/mcp-server`** — including **VS Code** (bundled server), **`npx @zowe/mcp-server`**, and **shared HTTP** deployments.
+
+- **Job card elicitation**: When `submitJob` receives JCL without a JOB statement and no configured card, the server can **elicit** a job card (template placeholders and per-tenant storage where applicable). Configured cards are merged into settings-backed storage when the client supports it.
+- **Zowe CLI plugin bridge**: **Zowe CLI plugin packages are not shipped** with the MCP server or VSIX — install the plugins you need in your environment (see **`docs/how-to-add-cli-plugin.md`**). The bridge **discovers** installed plugins and exposes their commands as MCP tools. Restrict which plugins load with **`--cli-plugin-enable`** (standalone CLI) or **`zoweMCP.enabledCliPlugins`** (VS Code); **omit both** to load all **discovered** plugins. Named connection/location profiles: **`--cli-plugin-configuration plugin=file`** or **`zoweMCP.cliPluginConfiguration`**. Passwords are not stored in settings or profile files; use `ZOWE_MCP_PASSWORD_<USER>_<HOST>` env vars as documented. The legacy **`zoweMCP.cliPlugins`** setting was removed — use the new settings or CLI flags instead.
+- **CLI plugin tooling**: Metadata-driven YAML, **hot-reload** of plugin configuration, pagination and content windowing for plugin-backed tools, **`valueMap`** parameter mapping, **JSON Schema** for plugin tool definitions, optional **CLI commands YAML generator**, and **pattern-based** error classification (e.g. connection vs retryable).
+- **Package name and offline installs**: The npm package is **`@zowe/mcp-server`** (formerly **`zowe-mcp-server`**). Builds use **production-style dependencies** suitable for **airgapped/offline** `npm pack` / install where supported. The VS Code extension **embeds** this package in the VSIX.
+- **Zowe Remote SSH SDK**: Native SSH uses **`zowex-sdk` 0.4.0** (replaces the former **`zowe-native-proto-sdk`** package name). **`scripts/sdk-switch.js`** supports switching SDK sources for development.
+- **USS home**: **`getUssHome`** resolves the user’s home via **`echo $HOME`** on USS. Heuristic path probing when **`echo $HOME`** was unavailable has been **removed** in favor of the SDK’s **`uss.issueCmd`** support; if home cannot be determined, the server **fails clearly** instead of guessing a path.
+- **Local workspace files**: Tools to **upload** and **download** between the client workspace and **data sets**, **USS**, and **job spool** files, with paths constrained to **MCP `roots`** (and related env/fallbacks).
+
+#### VS Code extension only
+
+- **Job card UI**: Elicitation uses one **input box**; paste multiple lines or separate `//` lines with whitespace. Accepted cards are merged into **`zoweMCP.jobCards`** when possible.
 - **Settings → MCP server**: Editing **`zoweMCP`** in `settings.json` (or the Settings UI) forwards **job cards**, **native connections** (including legacy **`nativeSystems`**), **native SSH options**, **encodings**, **log level**, and **CLI plugin configuration** to already-connected MCP server processes on the next tick so reads are not stale.
-- **Backend setting**: New `zoweMCP.backend` setting selects **`native`** (SSH / Zowe Native) or **`mock`** (local mock data). Mock mode no longer depends only on an empty native connection list; the mock data directory applies when the backend is **mock**. If you previously relied on “mock when native list is empty,” the extension can **auto-migrate** to `backend: mock` when a mock directory is set and native connections are empty. Changing the backend prompts you to **reload the window**; the status bar resets appropriately.
-- **Zowe CLI plugin bridge**: Bundled Zowe CLI plugins can expose **additional MCP tools** (e.g. Endevor). Use **`zoweMCP.enabledCliPlugins`** to restrict which plugins load (empty = all bundled plugins) and **`zoweMCP.cliPluginConfiguration`** for named connection/location profiles. Passwords are not stored in settings; use `ZOWE_MCP_PASSWORD_<USER>_<HOST>` env vars as documented. The legacy **`zoweMCP.cliPlugins`** setting was removed—use the new settings instead.
+- **Log level**: Log levels are **validated** and **kept in sync** between the extension and the MCP server when you change **`zoweMCP.logLevel`**.
+- **Backend setting**: New **`zoweMCP.backend`** selects **`native`** (SSH / Zowe Native) or **`mock`** (local mock data). Mock mode no longer depends only on an empty native connection list; the mock data directory applies when the backend is **mock**. If you previously relied on “mock when native list is empty,” the extension can **auto-migrate** to `backend: mock` when a mock directory is set and native connections are empty. Changing the backend prompts you to **reload the window**; the status bar resets appropriately.
 - **CLI plugin runtime UX**: Updates to **`zoweMCP.cliPluginConfiguration`** are sent to the running MCP server so new profiles can take effect **without** a full restart for that path; the **status bar** can show active CLI plugin connection/location profiles. **Fatal** CLI bridge errors open a notification with **Open Settings** targeted at **`zoweMCP.cliPluginConfiguration`** (no “Generate Mock Data” on those errors). Tools that add or remove named profiles can **persist** back into user settings and globalStorage via server → extension sync.
-- **Bundled server package name**: The embedded server is **`@zowe/mcp-server`** (formerly `zowe-mcp-server`). The VSIX bundles it with **production-style dependencies** suitable for **airgapped/offline** installs where supported.
 - **Server spawn reliability**: The MCP server is started with **`process.execPath`** so the correct **Node/Electron** runtime is used inside VS Code.
+
+#### MCP server — remote HTTP and credentials
+
+Applies to **standalone** / **shared** HTTP deployments. See **`docs/mcp-authentication-oauth.md`**, **`docs/roo-or-standalone-mcp.md`**, and related guides.
+
+- **HTTP transport — OAuth and JWT**: Optional **Bearer JWT** validation for **`POST /mcp`**, **OAuth 2.0 protected-resource metadata**, URL/password elicitation for standalone HTTP, and **multi-session** behavior. Configure with environment variables such as **`ZOWE_MCP_JWT_*`**, **`ZOWE_MCP_OAUTH_*`**, **`ZOWE_MCP_PUBLIC_BASE_URL`** as documented.
+- **Credentials**: **`ZOWE_MCP_CREDENTIALS`** JSON map for standalone SSH passwords; optional **Vault KV** integration for native credentials where configured.
+
+### Bug fixes
+
+- **Jobs**: Return codes shown with a **`CC` prefix** are handled correctly in validation and progress messages.
 
 ### Other
 
-- **Vendor CLI plugins**: Builds from a vendor branch can **bundle extra CLI plugin YAML** inside the VSIX alongside built-in plugins.
+- **Vendor CLI plugin definitions**: Some builds can **ship extra plugin tool YAML** under a **`vendor/`** layout in the VSIX (tool metadata only — **not** the upstream Zowe CLI plugin npm packages). Install the corresponding **Zowe CLI plugins** separately to execute those commands.
 
 ## `0.7.0`
 

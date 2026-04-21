@@ -10,7 +10,7 @@ Defaults (remote HTTPS dev script):
 - **Dev client:** `demo` (public — **dev only**)
 - **Dev user:** `user` / `password`
 
-Requires **Docker**, **mkcert** TLS assets under **`docker/remote-https-dev/certs/`**, **`/etc/hosts`** for the dev hostnames, and **Node.js** / **npm**.
+Requires **Docker**, TLS assets under **`docker/remote-https-dev/certs/`** (see **`docker/remote-https-dev/certs/README.md`** — one leaf for MCP, Keycloak, and local registry), **`/etc/hosts`** for **`zowe.mcp.example.com`**, **`keycloak.mcp.example.com`**, and **`registry.mcp.example.com`**, and **Node.js** / **npm**.
 
 <a id="one-command-remote-https"></a>
 
@@ -33,6 +33,16 @@ After you **remove and recreate** the Keycloak container, the dev database is ne
 **Optional — one-step clean Keycloak:** **`npm run keycloak:dev-fresh`** — same **native HTTPS** compose merge as **`start:remote-https-dev-native-zos`** (defaults for **`KC_HOSTNAME`**, **`ZOWE_MCP_TLS_CERT_DIR`**, and Keycloak ports match that script). This **force-recreates** the Keycloak service and runs **`keycloak-init`**. Leaving Keycloak running across MCP restarts is still the default; use this when you want an empty realm without hand-rolling **`docker compose`** commands.
 
 Press **Ctrl+C** to stop MCP and the MCP nginx TLS stack; Keycloak may keep running until **`docker compose -f docker/remote-dev/docker-compose.yml … down`**.
+
+### 502 Bad Gateway (`nginx` → MCP URL)
+
+**Meaning:** The **nginx** container for MCP TLS is still listening on **`https://<host>:7542`**, but it cannot reach the **Node** MCP process on the host (**`ZOWE_MCP_HTTP_BACKEND_PORT`**, default **7543**). nginx proxies to **`http://host.docker.internal:7543`** (see **`docker/remote-https-dev/default.conf.template`**).
+
+**Common causes:** Stopping **`npm run start:remote-https-dev-native-zos`** (**Ctrl+C**) shuts down Node; **nginx** may keep running in Docker, so the browser or VS Code still hits HTTPS and gets **502**. Turning off the **MCP registry** or gallery in VS Code does **not** start the server — it only changes where the IDE loads server metadata.
+
+**Fix:** Start the stack again from the repo root: **`npm run start:remote-https-dev-native-zos`**. Confirm something is listening on the backend port, e.g. **`lsof -nP -iTCP:7543 -sTCP:LISTEN`** (macOS/Linux) or **`curl -sS -o /dev/null -w "%{http_code}" http://127.0.0.1:7543/`** (expect a non-connection-refused response; MCP may return **401** without JWT, which still proves Node is up).
+
+If you changed **`ZOWE_MCP_HTTP_BACKEND_PORT`**, recreate the **nginx** container so it picks up the new upstream (same env as when you ran **`docker compose`** for **`nginx-mcp-tls`**).
 
 <a id="keycloak-only-background"></a>
 

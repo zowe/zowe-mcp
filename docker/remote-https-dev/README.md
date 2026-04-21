@@ -10,7 +10,7 @@ This stack uses **TLS in nginx for MCP only** and **TLS inside the Keycloak cont
 
 ## Certificates
 
-Use **`cert.pem`** / **`key.pem`** from **`certs/`** (default **`ZOWE_MCP_TLS_CERT_DIR`** → **`docker/remote-https-dev/certs`**). The leaf must list **both** MCP and Keycloak hostnames in SANs — see **`certs/README.md`**. One mkcert run is enough if both names are included.
+Use **`cert.pem`** / **`key.pem`** from **`certs/`** (default **`ZOWE_MCP_TLS_CERT_DIR`** → **`docker/remote-https-dev/certs`**). The leaf must list MCP, Keycloak, and **local MCP registry** hostnames in SANs — see **`certs/README.md`** (mkcert filenames such as **`zowe.mcp.example.com+5.pem`** / **`*-key.pem`**, symlinked to **`cert.pem`** / **`key.pem`**).
 
 ## JWT issuer alignment
 
@@ -92,9 +92,11 @@ docker compose -f docker/remote-dev/docker-compose.yml -f docker/remote-https-de
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
+| `KC_HOSTNAME` | `https://keycloak.mcp.example.com:18443` | Public Keycloak HTTPS base (**`docker-compose.keycloak-native-tls.yml`**). Set **`https://hostname`** without **`:port`** when using host port **443**. **`npm run start:remote-https-dev-native-zos`** exports this from host/port env. |
 | `ZOWE_MCP_KEYCLOAK_HTTPS_BIND_PORT` | `18443` | Host port for Keycloak HTTPS (maps to **8443** in container) |
 | `ZOWE_MCP_KEYCLOAK_HTTPS_HOST` | `keycloak.mcp.example.com` | Hostname in issuer URL and **`KC_HOSTNAME`** |
-| `ZOWE_MCP_TLS_CERT_DIR` | `docker/remote-https-dev/certs` | **`cert.pem`** + **`key.pem`** |
+| `ZOWE_MCP_REGISTRY_HTTPS_HOST` | `registry.mcp.example.com` | Local MCP registry HTTPS front (**`infrastructure/local-registry`**) — must appear as **`DNS:`** in **`cert.pem`** SANs (same mkcert leaf as MCP + Keycloak) |
+| `ZOWE_MCP_TLS_CERT_DIR` | *(in compose)* `../remote-https-dev/certs` when unset and merged with **`docker/remote-dev/docker-compose.yml`** — resolves to **`docker/remote-https-dev/certs`** | **`cert.pem`** + **`key.pem`** (often symlinks to **`zowe.mcp.example.com+*.pem`**). Override with an absolute path if needed. |
 | `KEYCLOAK_HOST_PORT` | `18080` | Keycloak HTTP (init / admin API) |
 | `ZOWE_MCP_MCP_TLS_PORT` | `7542` | MCP HTTPS (nginx) |
 | `ZOWE_MCP_HTTP_BACKEND_PORT` | `7543` | Node MCP HTTP |

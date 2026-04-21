@@ -83,9 +83,11 @@ Only **GitHub Copilot** (across multiple IDEs) natively supports a **custom MCP 
 | **`chat.mcp.gallery.serviceUrl`** / **`McpGalleryServiceUrl`** | Base URL of a **v0.1-spec** MCP registry (`GET /v0.1/servers`). Replaces the default GitHub gallery for `@mcp` Extensions search |
 | **`chat.mcp.access`** / **`ChatMCP`** | `allowed` (default), `registryOnly`, or `off` |
 
-**VS Code** (from approximately **1.101**): add `"chat.mcp.gallery.serviceUrl": "https://your-registry.example.com"` **in `settings.json` JSON** — the graphical Settings UI often does **not** expose this field; JSON edit is supported for individuals while enterprises use policy.
+**VS Code** (from approximately **1.101**): add `"chat.mcp.gallery.serviceUrl": "https://your-registry.example.com"` **in `settings.json` JSON** — the graphical Settings UI often does **not** expose this field; enterprises also use **`McpGalleryServiceUrl`** policy.
 
-**Confirmed behavior:** VS Code calls **`GET <gallery-service-url>/v0.1/servers`** to populate the server list. No window reload is always required; behavior matches your VS Code build.
+**GitHub Copilot and licensing:** With **GitHub Copilot without an Enterprise subscription**, testers have observed **`chat.mcp.gallery.serviceUrl` greyed out in Settings and not changing Copilot’s MCP gallery behavior** (the custom catalog URL does not take effect). **Validate custom-registry gallery flows using Copilot Enterprise** (org admin: **Settings → AI controls → MCP**, or equivalent org policy for the MCP registry URL) so the IDE and Copilot both honor the private v0.1 registry.
+
+**Confirmed behavior (when the setting applies):** VS Code calls **`GET <gallery-service-url>/v0.1/servers`** to populate the server list. No window reload is always required; behavior matches your VS Code build.
 
 ### `chat.mcp.access` and what gets blocked
 

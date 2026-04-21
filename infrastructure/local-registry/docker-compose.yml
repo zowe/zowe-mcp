@@ -1,3 +1,6 @@
+# Optional HTTPS: nginx terminates TLS for registry.mcp.example.com → registry:8080 (same cert.pem/
+# key.pem as docker/remote-https-dev — see docker/remote-https-dev/certs/README.md). Plain HTTP
+# remains on host port 8085 for mcp-publisher / curl without TLS.
 services:
   registry:
     # Pre-built image published to GHCR — no Go/ko toolchain needed.
@@ -21,6 +24,21 @@ services:
       MCP_REGISTRY_SEED_FROM: ''
     ports:
       - '8085:8080'
+    restart: unless-stopped
+
+  nginx-registry-tls:
+    image: nginx:alpine
+    container_name: mcp-registry-nginx
+    depends_on:
+      - registry
+    ports:
+      - '${REGISTRY_TLS_PORT:-8445}:${REGISTRY_TLS_PORT:-8445}'
+    environment:
+      REGISTRY_HTTPS_HOST: ${REGISTRY_HTTPS_HOST:-registry.mcp.example.com}
+      REGISTRY_TLS_PORT: ${REGISTRY_TLS_PORT:-8445}
+    volumes:
+      - ./nginx-registry.conf.template:/etc/nginx/templates/default.conf.template:ro
+      - ${ZOWE_MCP_TLS_CERT_DIR:-../../docker/remote-https-dev/certs}:/etc/nginx/certs:ro
     restart: unless-stopped
 
   postgres:

@@ -48,7 +48,8 @@
     "vendor:extract": "remote=${VENDOR_REMOTE:?Set VENDOR_REMOTE=<git-remote>} && branch=${VENDOR_BRANCH:?Set VENDOR_BRANCH=<branch>} && git fetch \"$remote\" && git archive \"$remote/$branch\" vendor/ | tar -x && printf '*\\n' > vendor/.gitignore",
     "vendor:clean": "rm -rf vendor/",
     "start:remote-https-dev-native-zos": "bash scripts/start-remote-https-dev-native-zos.sh",
-    "keycloak:dev-fresh": "bash scripts/keycloak-dev-fresh.sh"
+    "keycloak:dev-fresh": "bash scripts/keycloak-dev-fresh.sh",
+    "local-registry:wipe-publish-dev": "bash scripts/local-registry-wipe-publish-dev.sh"
   },
   "devDependencies": {
     "@vitest/eslint-plugin": "^1.6.7",

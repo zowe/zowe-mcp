@@ -7,13 +7,14 @@
 # Keycloak HTTPS is served by the Keycloak JVM (merged compose), not by a second nginx in front of Keycloak.
 #
 # Prereqs:
-#   1. /etc/hosts — 127.0.0.1 zowe.mcp.example.com keycloak.mcp.example.com
-#   2. mkcert — cert SANs must include BOTH hostnames (see docker/remote-https-dev/certs/README.md)
+#   1. /etc/hosts — 127.0.0.1 zowe.mcp.example.com keycloak.mcp.example.com registry.mcp.example.com
+#   2. mkcert — one leaf for MCP + Keycloak + registry SANs (see docker/remote-https-dev/certs/README.md)
 #
 # Usage: npm run start:remote-https-dev-native-zos [-- --system USER@host]
 #
 # Env (optional): ZOWE_MCP_HTTPS_HOST, ZOWE_MCP_MCP_TLS_PORT, ZOWE_MCP_HTTP_BACKEND_PORT,
-#   ZOWE_MCP_KEYCLOAK_HTTPS_HOST, ZOWE_MCP_KEYCLOAK_HTTPS_BIND_PORT, KEYCLOAK_HOST_PORT, ZOWE_MCP_TLS_CERT_DIR
+#   ZOWE_MCP_KEYCLOAK_HTTPS_HOST, ZOWE_MCP_KEYCLOAK_HTTPS_BIND_PORT, KEYCLOAK_HOST_PORT, ZOWE_MCP_TLS_CERT_DIR,
+#   ZOWE_MCP_REGISTRY_HTTPS_HOST (default registry.mcp.example.com — must appear in cert SANs with defaults)
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -21,6 +22,7 @@ cd "$ROOT"
 
 HTTPS_HOST="${ZOWE_MCP_HTTPS_HOST:-zowe.mcp.example.com}"
 KC_HTTPS_HOST="${ZOWE_MCP_KEYCLOAK_HTTPS_HOST:-keycloak.mcp.example.com}"
+REGISTRY_HTTPS_HOST="${ZOWE_MCP_REGISTRY_HTTPS_HOST:-registry.mcp.example.com}"
 CERT_DIR="${ZOWE_MCP_TLS_CERT_DIR:-${ROOT}/docker/remote-https-dev/certs}"
 export ZOWE_MCP_TLS_CERT_DIR="$(cd "$CERT_DIR" && pwd)"
 
@@ -64,7 +66,7 @@ if [ ! -f "$CERT_PEM" ] || [ ! -f "$KEY_PEM" ]; then
   echo "Missing TLS files: expected" >&2
   echo "  $CERT_PEM" >&2
   echo "  $KEY_PEM" >&2
-  echo "Generate with mkcert (see docker/remote-https-dev/certs/README.md) — include ${HTTPS_HOST} and ${KC_HTTPS_HOST} in SANs." >&2
+  echo "Generate with mkcert (see docker/remote-https-dev/certs/README.md) — include ${HTTPS_HOST}, ${KC_HTTPS_HOST}, and ${REGISTRY_HTTPS_HOST} in SANs." >&2
   exit 1
 fi
 
@@ -76,7 +78,7 @@ CERT_TEXT=$(openssl x509 -in "$CERT_PEM" -noout -text 2> /dev/null) || {
   echo "Could not parse $CERT_PEM (openssl x509 failed)." >&2
   exit 1
 }
-for h in "$HTTPS_HOST" "$KC_HTTPS_HOST"; do
+for h in "$HTTPS_HOST" "$KC_HTTPS_HOST" "$REGISTRY_HTTPS_HOST"; do
   if ! echo "$CERT_TEXT" | grep -q "DNS:${h}"; then
     echo "TLS certificate does not list DNS:${h} in Subject Alternative Name (SAN)." >&2
     echo "See docker/remote-https-dev/certs/README.md" >&2
@@ -88,21 +90,22 @@ done
 # key.pem owned by your macOS uid is often not readable inside the container, so HTTPS never binds
 # to :8443 and curl reports "Couldn't connect to server" on the host HTTPS port.
 if command -v docker > /dev/null 2>&1; then
-  if ! docker run --rm \
-    -v "${KEY_PEM}:/opt/keycloak/conf/mkcert-key.pem:ro" \
+  # Same mount shape as docker-compose.keycloak-native-tls.yml (directory, not single files).
+  if ! docker run --rm --user 1000:1000 \
+    -v "${ZOWE_MCP_TLS_CERT_DIR}:/opt/keycloak/mkcert-tls:ro" \
     --entrypoint cat \
     quay.io/keycloak/keycloak:latest \
-    /opt/keycloak/conf/mkcert-key.pem > /dev/null 2>&1; then
+    /opt/keycloak/mkcert-tls/key.pem > /dev/null 2>&1; then
     echo "Error: Keycloak container (uid 1000) cannot read ${KEY_PEM}." >&2
     echo "Bind mounts preserve file mode; for local dev only: chmod a+r ${KEY_PEM} ${CERT_PEM}" >&2
     echo "Then recreate Keycloak: docker compose -f docker/remote-dev/docker-compose.yml -f docker/remote-https-dev/docker-compose.keycloak-native-tls.yml up -d --force-recreate keycloak" >&2
     exit 1
   fi
-  if ! docker run --rm \
-    -v "${CERT_PEM}:/opt/keycloak/conf/mkcert.pem:ro" \
+  if ! docker run --rm --user 1000:1000 \
+    -v "${ZOWE_MCP_TLS_CERT_DIR}:/opt/keycloak/mkcert-tls:ro" \
     --entrypoint cat \
     quay.io/keycloak/keycloak:latest \
-    /opt/keycloak/conf/mkcert.pem > /dev/null 2>&1; then
+    /opt/keycloak/mkcert-tls/cert.pem > /dev/null 2>&1; then
     echo "Error: Keycloak container cannot read ${CERT_PEM}. chmod a+r ${CERT_PEM}" >&2
     exit 1
   fi

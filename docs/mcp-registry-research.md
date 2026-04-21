@@ -217,6 +217,16 @@ Full schema: `github.com/modelcontextprotocol/registry/blob/main/docs/reference/
 
 Both `packages` and `remotes` can coexist in a single entry, letting clients choose their preferred installation method.
 
+### URL template variables (`remotes`)
+
+The MCP registry allows **`{placeholders}`** in `remotes[].url` and a **`variables`** object describing each placeholder (`description`, `isRequired`, optional `default`, `choices`, `isSecret`). See [Publishing Remote Servers — URL Template Variables](https://modelcontextprotocol.io/registry/remote-servers#url-template-variables).
+
+**Multi-tenant SaaS (single operator):** Patterns like `https://{tenant_id}.analytics.example.com/mcp` fit deployments where **your** DNS controls all tenants.
+
+**Unrelated on-prem FQDNs:** Each customer may use a different internal hostname. Template variables can still collect **hostname** and **optional path prefix** at install time (same structural URL), but that is **per-customer configuration** in the gallery or installer—not automatic discovery. A copy-paste **on-premises** example with `onPremHostname` and `pathPrefix` (and Bearer header metadata) lives in **`docs/remote-http-mcp-registry.md`** (URL template variables and on-premises customer deployment).
+
+**Public registry:** The resolved remote URL must still be **publicly accessible** per upstream rules; intranet-only endpoints use a **private** registry or manual `mcp.json`.
+
 ### Authentication / secrets in server.json
 
 The registry entry declares **what credentials are needed**, not the credentials themselves:
@@ -262,13 +272,15 @@ Versions are **immutable** once published. Rules:
 | Artifact location | npm / PyPI / Docker / MCPB binary | Publicly accessible HTTPS URL |
 | Developer prerequisite | Node.js / Python / Docker on their machine | Nothing — connects over HTTP |
 | Authentication | env vars (`isSecret: true`) | OAuth 2.1 / Bearer JWT or HTTP header API key (see **`docs/mcp-authentication-oauth.md`**) |
-| Multi-tenant | One instance per machine | URL template variables `{tenant_id}` for different endpoints |
+| Multi-tenant | One instance per machine | URL template variables (e.g. `{tenant_id}` under one operator domain) vs per-site on-prem FQDNs — see [§4](#4-registry-entry-format-serverjson) “URL template variables” and **`docs/remote-http-mcp-registry.md`** |
 | Enterprise governance | Allowlist enforced by server name/ID | Same allowlist; additionally OAuth at HTTP layer |
 | Data privacy | Process runs locally on developer machine | All requests reach the remote server |
 | Scalability | One user per process | Horizontally scalable; shared by many users |
 | Public registry requirement | Package must be on a **public** registry (npmjs.com, pypi.org) | Remote URL must be **publicly accessible** |
 
 **For the official MCP registry, remote servers must have a publicly reachable URL.** An intranet-only URL (`https://zowe-mcp.internal`) cannot be published to the public registry. It can, however, be published to a **private enterprise registry**.
+
+**Zowe MCP:** Prefer **`packages[]` / stdio** in the public catalog for a hostname-free listing; use **`remotes`** with a fixed URL or URL templates for **enterprise** catalogs and per-customer generated metadata. See **`docs/remote-http-mcp-registry.md`** (public registry vs `remotes`, on-premises template example).
 
 ---
 
@@ -388,10 +400,10 @@ To publish to the official registry, `@zowe/mcp-server` must also be published t
 
    ```bash
    mcp-publisher login none --registry=http://localhost:8085
-   mcp-publisher publish --registry=http://localhost:8085
+   mcp-publisher publish server.json --registry=http://localhost:8085
    ```
 
-   Note: anonymous publishing requires the `server.json` `name` to start with `io.modelcontextprotocol.anonymous/`. See [`docs/local-registry-setup.md`](local-registry-setup.md) for the full local registry runbook.
+   Note: anonymous publishing requires the `server.json` `name` to start with `io.modelcontextprotocol.anonymous/`. For a **non-default manifest** (e.g. `remote-server-example-dev.json`), put the **file path before** `--registry`: `mcp-publisher publish remote-server-example-dev.json --registry=http://localhost:8085` — otherwise the CLI publishes **`./server.json`** and ignores the filename. See [`docs/local-registry-setup.md`](local-registry-setup.md) for the full local registry runbook.
 
 6. **Automate via GitHub Actions** (on every release tag)
 
@@ -513,13 +525,14 @@ brew install mcp-publisher
 
 # "none" is the CLI method name for anonymous auth (not "anonymous")
 mcp-publisher login none --registry=http://localhost:8085
-mcp-publisher publish --registry=http://localhost:8085
+mcp-publisher publish server.json --registry=http://localhost:8085
 ```
 
 The `server.json` `name` must start with `io.modelcontextprotocol.anonymous/` when using anonymous auth, e.g. `io.modelcontextprotocol.anonymous/my-mcp-server`.
 
 **Important practical notes:**
 
+- **Manifest path before `--registry`:** `mcp-publisher publish my-server.json --registry=http://localhost:8085`. If `--registry` comes first, a trailing filename is ignored and **`./server.json`** is used.
 - Port 8080 is commonly occupied (dev servers, other tools). Use any free port via the `ports` mapping — the `--registry=` flag on `mcp-publisher` accepts any URL.
 - `MCP_REGISTRY_ENABLE_ANONYMOUS_AUTH: "true"` is already the default in the upstream `docker-compose.yml`. Omitting it defaults to `true` in dev mode.
 - `MCP_REGISTRY_ENABLE_REGISTRY_VALIDATION: "false"` skips the npm-registry check. This is what allows publishing a server whose npm package is on Artifactory (not public npmjs.com) to a local test registry.

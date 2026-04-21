@@ -1,13 +1,21 @@
 # Merge with: docker compose -f docker/remote-dev/docker-compose.yml -f docker/remote-https-dev/docker-compose.keycloak-native-tls.yml
 # Keycloak native HTTPS (PEM); HTTP 8080 remains for admin API + keycloak-init. Do not add a second nginx in front of Keycloak for this profile.
 #
-# Required env (set by scripts/start-remote-https-dev-native-zos.sh): KC_HOSTNAME, ZOWE_MCP_TLS_CERT_DIR, KEYCLOAK_HOST_PORT
+# Env: ZOWE_MCP_TLS_CERT_DIR (PEM dir — default ../remote-https-dev/certs when merged with
+# docker/remote-dev/docker-compose.yml from repo root), KEYCLOAK_HOST_PORT,
+# ZOWE_MCP_KEYCLOAK_HTTPS_BIND_PORT. KC_HOSTNAME defaults to https://keycloak.mcp.example.com:18443
+# (same as start-remote-https-dev-native-zos.sh); override if you change host/port (HTTPS on 443:
+# https://hostname with no :port).
 #
 # List BOTH HTTP and HTTPS port mappings here. Some Compose versions merge `ports` by replacing the
 # array from the last file; if this file only listed :8443, the merged service could lose :8080→:18080.
 #
 # The image runs as uid 1000 (user keycloak). Bind-mounted PEMs must be readable inside the container
 # (e.g. chmod a+r key.pem cert.pem for local dev). See docker/remote-https-dev/README.md.
+#
+# Mount the whole TLS directory (not individual cert.pem/key.pem files) so host symlinks to
+# zowe.mcp.example.com+*.pem resolve inside the container. Per-file mounts pin an inode at create
+# time — updated symlinks can leave containers serving an old leaf until recreate.
 
 services:
   keycloak:
@@ -21,18 +29,17 @@ services:
       - start-dev
       - --http-enabled=true
       - --https-port=8443
-      - --https-certificate-file=/opt/keycloak/conf/mkcert.pem
-      - --https-certificate-key-file=/opt/keycloak/conf/mkcert-key.pem
+      - --https-certificate-file=/opt/keycloak/mkcert-tls/cert.pem
+      - --https-certificate-key-file=/opt/keycloak/mkcert-tls/key.pem
     environment:
       KC_HTTP_ENABLED: 'true'
       KC_HTTPS_PORT: '8443'
-      KC_HTTPS_CERTIFICATE_FILE: /opt/keycloak/conf/mkcert.pem
-      KC_HTTPS_CERTIFICATE_KEY_FILE: /opt/keycloak/conf/mkcert-key.pem
-      KC_HOSTNAME: ${KC_HOSTNAME:?Set KC_HOSTNAME to the public Keycloak HTTPS base URL}
+      KC_HTTPS_CERTIFICATE_FILE: /opt/keycloak/mkcert-tls/cert.pem
+      KC_HTTPS_CERTIFICATE_KEY_FILE: /opt/keycloak/mkcert-tls/key.pem
+      KC_HOSTNAME: ${KC_HOSTNAME:-https://keycloak.mcp.example.com:18443}
       KC_HOSTNAME_STRICT: 'false'
     ports:
       - '${KEYCLOAK_HOST_PORT:-18080}:8080'
       - '${ZOWE_MCP_KEYCLOAK_HTTPS_BIND_PORT:-18443}:8443'
     volumes:
-      - '${ZOWE_MCP_TLS_CERT_DIR}/cert.pem:/opt/keycloak/conf/mkcert.pem:ro'
-      - '${ZOWE_MCP_TLS_CERT_DIR}/key.pem:/opt/keycloak/conf/mkcert-key.pem:ro'
+      - '${ZOWE_MCP_TLS_CERT_DIR:-../remote-https-dev/certs}:/opt/keycloak/mkcert-tls:ro'

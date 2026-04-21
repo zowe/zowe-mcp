@@ -10,7 +10,12 @@
 #
 
 #
-# Build the Zowe MCP VS Code extension and create a GitHub Release with the VSIX.
+# Build the Zowe MCP VS Code extension and create a GitHub Release with:
+#   - VSIX (zowe-mcp-vscode-<VERSION>.vsix)
+#   - npm pack of @zowe/mcp-server (zowe-mcp-server-<VERSION>.tgz; same as npm run pack:server)
+#   - docs/mcp-reference.md
+#   - presentations/zowe-mcp/zowe-mcp-slides.pdf
+#
 # Requires: npm, gh (GitHub CLI), and gh auth login.
 #
 # Usage:
@@ -18,7 +23,7 @@
 #
 # If TAG is omitted, uses v<VERSION> from packages/zowe-mcp-vscode/package.json
 # (e.g. v0.1.0). The tag is created from the current HEAD and pushed; then
-# a release is created and the VSIX is uploaded.
+# a release is created and the assets are uploaded.
 #
 # Examples:
 #   ./scripts/release-vsix.sh           # use version from package.json
@@ -60,6 +65,27 @@ fi
 
 echo "VSIX: $VSIX"
 
+# npm pack @zowe/mcp-server (prepack/postpack bundle production deps; same output as npm run pack:server)
+npm pack -w @zowe/mcp-server --pack-destination "$REPO_ROOT"
+SERVER_TGZ="$REPO_ROOT/zowe-mcp-server-${VERSION}.tgz"
+if [ ! -f "$SERVER_TGZ" ]; then
+  echo "Error: Expected server tarball not found: $SERVER_TGZ" >&2
+  exit 1
+fi
+echo "Server npm pack: $SERVER_TGZ"
+
+MCP_REFERENCE="$REPO_ROOT/docs/mcp-reference.md"
+SLIDES_PDF="$REPO_ROOT/presentations/zowe-mcp/zowe-mcp-slides.pdf"
+for f in "$MCP_REFERENCE" "$SLIDES_PDF"; do
+  if [ ! -f "$f" ]; then
+    echo "Error: Release asset missing: $f" >&2
+    echo "Regenerate docs (npm run generate-docs) and slides (presentations/zowe-mcp: npm run export) before releasing." >&2
+    exit 1
+  fi
+done
+echo "Docs: $MCP_REFERENCE"
+echo "Slides: $SLIDES_PDF"
+
 # Create and push tag if it doesn't exist
 if ! git rev-parse "$TAG" > /dev/null 2>&1; then
   echo "Creating tag $TAG from current HEAD..."
@@ -68,13 +94,14 @@ if ! git rev-parse "$TAG" > /dev/null 2>&1; then
   git push origin "$TAG"
 fi
 
-# Create release with VSIX or upload to existing release
+# Create release with all assets or upload to existing release
+RELEASE_ASSETS=("$VSIX" "$SERVER_TGZ" "$MCP_REFERENCE" "$SLIDES_PDF")
 if gh release view "$TAG" > /dev/null 2>&1; then
-  echo "Release $TAG already exists; uploading VSIX..."
-  gh release upload "$TAG" "$VSIX" --clobber
+  echo "Release $TAG already exists; uploading assets..."
+  gh release upload "$TAG" "${RELEASE_ASSETS[@]}" --clobber
 else
-  echo "Creating GitHub Release and uploading VSIX..."
-  gh release create "$TAG" "$VSIX" --generate-notes
+  echo "Creating GitHub Release and uploading assets..."
+  gh release create "$TAG" "${RELEASE_ASSETS[@]}" --generate-notes
 fi
 
 echo "Done. Release: $(gh release view "$TAG" --json url -q .url)"

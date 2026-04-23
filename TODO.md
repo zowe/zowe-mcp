@@ -1,6 +1,15 @@
 # TODO
 
-Items to address later. Not ordered by priority.
+Items to address later. Not ordered by priority **except** the subsection **MCP safety & security** below, which is **ordered** (first item intended next).
+
+## MCP safety & security
+
+From [docs/mcp-safety-security-principles.md](docs/mcp-safety-security-principles.md) — work that can be implemented **inside Zowe MCP**. **Order = current intent** (do the first next).
+
+1. **Progressive capability levels**: Add a single configuration surface (CLI flag, env var, and/or `CreateServerOptions`) for cumulative tiers (e.g. read-only with stricter confirmations → read-only auto → update → delete → execute). Each tier should either register only matching tools or reject `tools/call` with a clear policy error. Cover stdio and HTTP; document interaction with mock vs native, `readOnlyHint`/`destructiveHint`, and SAF as the real enforcement boundary. Principles doc §7.
+2. **OAuth / JWT scope → tool visibility (HTTP)**: When JWT validation is enabled, map token scopes or custom claims to allowed tool subsets; filter `tools/list` and reject out-of-scope `tools/call`. Consider incremental consent / scope challenge where clients support it. Document independence from z/OS SSH authority. Principles doc §6.
+3. **Functional scoping (in-server)**: Optional config to register only selected domains (e.g. datasets, jobs, USS, TSO, local-files, context) so one server process does not expose the full tool surface. Complements running separate server instances. Principles doc §7.
+4. **Data scope policy (in-server)**: Optional allowlists/denylists for data set HLQ or name patterns and/or USS path prefixes, enforced in tool handlers before backend calls (defense in depth alongside SAF). Principles doc §7.
 
 ## Learn from Gestell-AI/zowe-mcp
 

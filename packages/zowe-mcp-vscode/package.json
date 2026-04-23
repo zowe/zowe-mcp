@@ -124,19 +124,19 @@
         "zoweMCP.backend": {
           "type": "string",
           "enum": [
-            "native",
+            "zowex",
             "mock"
           ],
-          "default": "native",
+          "default": "zowex",
           "enumDescriptions": [
-            "Connect to z/OS via SSH (Zowe Native). Configure connections in 'Native connections'.",
+            "Connect to z/OS via SSH (Zowe Remote SSH / zowex). Configure connections under Zowe Remote SSH.",
             "Use local mock data for development and testing. A mock data directory will be configured automatically."
           ],
-          "description": "Backend to use for z/OS operations. Changes require running 'Developer: Reload Window' command.",
+          "description": "Backend to use for z/OS operations. Changes require running 'Developer: Reload Window' command. If an older settings file still has the legacy value native, it is treated as zowex and updated when the extension reads settings.",
           "markdownDescription": "Backend to use for z/OS operations. Changes require running **Developer: Reload Window** command.",
           "order": 0
         },
-        "zoweMCP.nativeConnections": {
+        "zoweMCP.zowexConnections": {
           "type": "array",
           "items": {
             "type": "string",
@@ -144,8 +144,8 @@
             "patternErrorMessage": "Must be user@host or user@host:port"
           },
           "default": [],
-          "description": "SSH connection specs (user@host or user@host:port) that define access to z/OS systems. Each entry is one connection (e.g. USERID@sys1.example.com). You can have multiple connections to the same z/OS system (e.g. different user IDs). Passwords are stored in the shared Zowe secret namespace (zowe.ssh.password.*).",
-          "markdownDescription": "SSH connection specs (`user@host` or `user@host:port`) that define access to z/OS systems. Each entry is one connection (e.g. `USERID@sys1.example.com`). You can have multiple connections to the same z/OS system (e.g. different user IDs). Passwords are stored in the shared Zowe secret namespace (`zowe.ssh.password.*`).",
+          "description": "SSH connection specs (user@host or user@host:port) for Zowe Remote SSH / zowex. Each entry is one connection. Passwords use the shared Zowe secret namespace (zowe.ssh.password.*).",
+          "markdownDescription": "SSH connection specs (`user@host` or `user@host:port`) for **Zowe Remote SSH / zowex**. Each entry is one connection. Passwords use the shared Zowe secret namespace (`zowe.ssh.password.*`).",
           "order": 1
         },
         "zoweMCP.logLevel": {
@@ -168,30 +168,58 @@
           "description": "Minimum log level for the Zowe MCP Server. Changes take effect immediately without restarting.",
           "order": 2
         },
+        "zoweMCP.zowexServerAutoInstall": {
+          "type": "boolean",
+          "default": true,
+          "description": "When true, automatically install the Zowe Remote SSH z/OS server when \"Server not found\" is detected. Changes apply to future connections.",
+          "markdownDescription": "When `true`, automatically install the Zowe Remote SSH z/OS server when \"Server not found\" is detected. Changes apply to future connections.",
+          "order": 4
+        },
         "zoweMCP.installZoweNativeServerAutomatically": {
           "type": "boolean",
           "default": true,
-          "description": "When true, automatically install the Zowe Native server on the host when \"Server not found\" is detected. Set to false to disable auto-install. Changes are sent to the server and apply to future connections.",
-          "markdownDescription": "When `true`, automatically install the Zowe Native server on the host when \"Server not found\" is detected. Set to `false` to disable auto-install. Changes are sent to the server and apply to future connections.",
-          "order": 3
+          "description": "Deprecated: use zoweMCP.zowexServerAutoInstall.",
+          "markdownDescription": "Deprecated: use `zoweMCP.zowexServerAutoInstall`.",
+          "deprecationMessage": "Renamed to zoweMCP.zowexServerAutoInstall.",
+          "order": 5
+        },
+        "zoweMCP.zowexServerPath": {
+          "type": "string",
+          "default": "~/.zowe-server",
+          "pattern": "^(/|~).*",
+          "patternErrorMessage": "Must be a Unix-style path for z/OS UNIX System Services (e.g. ~/.zowe-server or /var/zowe-server)",
+          "description": "Remote path on the z/OS host for the Zowe Remote SSH server. Must start with / or ~.",
+          "markdownDescription": "Remote path on the z/OS host for the Zowe Remote SSH server. Must start with `/` or `~`.",
+          "order": 6
         },
         "zoweMCP.zoweNativeServerPath": {
           "type": "string",
           "default": "~/.zowe-server",
           "pattern": "^(/|~).*",
           "patternErrorMessage": "Must be a Unix-style path for z/OS UNIX System Services (e.g. ~/.zowe-server or /var/zowe-server)",
-          "description": "Remote path on the z/OS host (UNIX System Services). Must start with / or ~. Changes are sent to the server and apply to future connections.",
-          "markdownDescription": "Remote path on the z/OS host (UNIX System Services). Must start with `/` or `~` (e.g. `~/.zowe-server` or `/var/zowe-server`). Changes are sent to the server and apply to future connections.",
-          "order": 4
+          "description": "Deprecated: use zoweMCP.zowexServerPath.",
+          "markdownDescription": "Deprecated: use `zoweMCP.zowexServerPath`.",
+          "deprecationMessage": "Renamed to zoweMCP.zowexServerPath.",
+          "order": 7
+        },
+        "zoweMCP.zowexResponseTimeout": {
+          "type": "number",
+          "default": 60,
+          "minimum": 1,
+          "maximum": 3600,
+          "description": "Response timeout in seconds for each Zowe Remote SSH request.",
+          "markdownDescription": "Response timeout in seconds for each Zowe Remote SSH request.",
+          "order": 8
         },
         "zoweMCP.nativeResponseTimeout": {
           "type": "number",
           "default": 60,
           "minimum": 1,
           "maximum": 3600,
-          "description": "Response timeout in seconds for each Zowe Native (ZNP) request. Increase on overloaded systems to avoid timeouts. Changes are sent to the server and apply to future connections.",
-          "markdownDescription": "Response timeout in seconds for each Zowe Native (ZNP) request (e.g. list data sets, read data set). Increase on overloaded systems to avoid timeouts. Changes are sent to the server and apply to future connections.",
-          "order": 5
+          "description": "Deprecated: use zoweMCP.zowexResponseTimeout.",
+          "markdownDescription": "Deprecated: use `zoweMCP.zowexResponseTimeout`.",
+          "deprecationMessage": "Renamed to zoweMCP.zowexResponseTimeout.",
+          "order": 9
         },
         "zoweMCP.mockDataDirectory": {
           "type": "string",

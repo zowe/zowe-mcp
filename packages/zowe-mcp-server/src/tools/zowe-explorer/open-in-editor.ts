@@ -39,7 +39,7 @@ export interface OpenInZoweEditorDeps {
   openJobInZoweEditor?: (payload: OpenJobInEditorEventData) => void;
   /** When provided, used as current system id and for connectionKind. */
   sessionState?: SessionState;
-  /** When 'native', extension prefers ssh profile when resolving by system. */
+  /** When 'zowex' (or legacy 'native'), extension prefers ssh profile when resolving by system. */
   backendKind?: string | null;
 }
 
@@ -59,7 +59,8 @@ export function registerZoweExplorerTools(
     sessionState,
     backendKind,
   } = deps;
-  const connectionKind = backendKind === 'native' ? ('native' as const) : ('zosmf' as const);
+  const preferSshProfile = backendKind === 'zowex' || backendKind === 'native';
+  const connectionKind = preferSshProfile ? ('zowex' as const) : ('zosmf' as const);
 
   if (openInZoweEditor) {
     server.registerTool(
@@ -93,8 +94,8 @@ export function registerZoweExplorerTools(
         try {
           const resolved = resolveDsn(dsn, member);
           const currentSystemId = systemArg ?? sessionState?.getActiveSystem() ?? undefined;
-          const connectionKind =
-            backendKind === 'native' ? ('native' as const) : ('zosmf' as const);
+          const preferSsh = backendKind === 'zowex' || backendKind === 'native';
+          const connectionKind = preferSsh ? ('zowex' as const) : ('zosmf' as const);
 
           openInZoweEditor({
             dsn: resolved.dsn,

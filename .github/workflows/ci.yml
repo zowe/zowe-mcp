@@ -39,7 +39,7 @@ jobs:
         with:
           node-version-file: '.nvmrc'
 
-      - name: Download ZNP SDK
+      - name: Download zowex-sdk (Zowe Remote SSH)
         env:
           GH_TOKEN: ${{ github.token }}
         run: node scripts/sdk-switch.js ${{ inputs.sdk-mode || 'fallback' }} ${{ inputs.sdk-arg }}

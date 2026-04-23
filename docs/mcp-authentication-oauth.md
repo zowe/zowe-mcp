@@ -137,7 +137,7 @@ When a user installs a **remote HTTP** server from the gallery, VS Code can **pr
 
 ## z/OS credentials (SSH / native backend)
 
-The native backend uses **Zowe Native Proto over SSH**. There is **no OAuth** on the wire to z/OS.
+The native backend uses **Zowe Remote SSH** (`zowex-sdk` over SSH). There is **no OAuth** on the wire to z/OS.
 
 **Precedence (standalone / server-side resolution)** is implemented in [`connection-spec.ts`](../packages/zowe-mcp-server/src/zos/native/connection-spec.ts): per-connection env vars, then **`ZOWE_MCP_CREDENTIALS`** JSON map, optional **HashiCorp Vault KV**, then MCP elicitation when enabled.
 

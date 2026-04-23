@@ -251,7 +251,7 @@ describe.skipIf(!shouldRunNativeStdioE2E)(
         server: { name: string; backend: string | null; components: string[] };
       };
       expect(o.server.name).toBe('Zowe MCP Server');
-      expect(o.server.backend).toBe('native');
+      expect(o.server.backend).toBe('zowex');
       expect(o.server.components).toContain('context');
       expect(o.server.components).toContain('datasets');
       expect(o.server.components).toContain('uss');
@@ -556,7 +556,11 @@ describe.skipIf(!shouldRunNativeStdioE2E)(
       });
       expect(r.isError).toBe(true);
       const text = getResultText(r);
-      expect(text).toMatch(/could not list members.*NONEXIST\.DATASET\.XYZ.*rc:\s*'-1'/i);
+      expect(text).toMatch(/NONEXIST\.DATASET\.XYZ/i);
+      // zowex-sdk / z/OS may surface FSUM/EDC messages or a generic "could not list members" + rc:-1
+      expect(text.toLowerCase()).toMatch(
+        /could not list members|edc5049i|fsum|not be located|errno\s*49/i
+      );
     });
 
     it('listDatasets with nonexistent system returns specific error', async () => {

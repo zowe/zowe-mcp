@@ -10,7 +10,7 @@
  */
 
 /**
- * Loader for the Zowe Native (SSH) backend.
+ * Loader for the Zowe Remote SSH (native SSH) backend.
  *
  * Builds SystemRegistry, NativeCredentialProvider, and NativeBackend from
  * a list of user@host connection specs.
@@ -27,9 +27,9 @@ import { NativeBackend } from './native-backend.js';
 import type { NativeCredentialProviderOptions } from './native-credential-provider.js';
 import { NativeCredentialProvider } from './native-credential-provider.js';
 import {
-  DEFAULT_NATIVE_RESPONSE_TIMEOUT_SEC,
+  DEFAULT_ZOWEX_RESPONSE_TIMEOUT_SEC,
   SshClientCache,
-  type NativeOptions,
+  type ZowexClientOptions,
 } from './ssh-client-cache.js';
 
 export interface LoadNativeOptions {
@@ -50,14 +50,14 @@ export interface LoadNativeOptions {
   onElicitedPasswordUsed?: NativeCredentialProviderOptions['onElicitedPasswordUsed'];
   /** VS Code only: callback when auth fails (sends password-invalid event). */
   onPasswordInvalid?: (user: string, host: string, port?: number) => void;
-  /** When true (default), deploy ZNP via ZSshUtils.installServer when "Server not found" is detected. */
-  autoInstallZnp?: boolean;
-  /** Remote path where the ZNP server is installed/run (default: ~/.zowe-server). */
-  nativeServerPath?: string;
-  /** Response timeout in seconds for ZNP requests (standalone only; default 60). When getNativeOptions is set, use that instead. */
+  /** When true (default), deploy the z/OS server via ZSshUtils.installServer when "Server not found" is detected. */
+  autoInstallZowex?: boolean;
+  /** Remote path where the zowex z/OS server is installed/run (default: ~/.zowe-server). */
+  zowexServerPath?: string;
+  /** Response timeout in seconds for zowex-sdk requests (standalone only; default 60). When getZowexClientOptions is set, use that instead. */
   responseTimeout?: number;
-  /** When set, native options are read at connection time (allows runtime updates from extension). */
-  getNativeOptions?: () => NativeOptions;
+  /** When set, zowex client options are read at connection time (allows runtime updates from extension). */
+  getZowexClientOptions?: () => ZowexClientOptions;
   /** VS Code mode: call when a CEEDUMP file was saved after an abend (sends ceedump-collected event). */
   onCeedumpCollected?: (data: CeedumpCollectedEventData) => void;
 }
@@ -98,21 +98,21 @@ export function loadNative(options: LoadNativeOptions): NativeSetup {
   });
 
   const clientCache = new SshClientCache(
-    options.getNativeOptions
+    options.getZowexClientOptions
       ? {
-          getOptions: (): NativeOptions => {
-            const o = options.getNativeOptions!();
+          getOptions: (): ZowexClientOptions => {
+            const o = options.getZowexClientOptions!();
             return {
-              autoInstallZnp: o.autoInstallZnp,
+              autoInstallZowex: o.autoInstallZowex,
               serverPath: o.serverPath,
-              responseTimeout: o.responseTimeout ?? DEFAULT_NATIVE_RESPONSE_TIMEOUT_SEC,
+              responseTimeout: o.responseTimeout ?? DEFAULT_ZOWEX_RESPONSE_TIMEOUT_SEC,
             };
           },
         }
       : {
-          autoInstallZnp: options.autoInstallZnp ?? true,
-          serverPath: options.nativeServerPath ?? ZSshClient.DEFAULT_SERVER_PATH,
-          responseTimeout: options.responseTimeout ?? DEFAULT_NATIVE_RESPONSE_TIMEOUT_SEC,
+          autoInstallZowex: options.autoInstallZowex ?? true,
+          serverPath: options.zowexServerPath ?? ZSshClient.DEFAULT_SERVER_PATH,
+          responseTimeout: options.responseTimeout ?? DEFAULT_ZOWEX_RESPONSE_TIMEOUT_SEC,
         }
   );
 
@@ -141,9 +141,10 @@ export function loadNative(options: LoadNativeOptions): NativeSetup {
     getSpec,
     onPasswordInvalid: options.onPasswordInvalid,
     getResponseTimeout:
-      options.getNativeOptions != null
-        ? () => options.getNativeOptions!().responseTimeout ?? DEFAULT_NATIVE_RESPONSE_TIMEOUT_SEC
-        : () => options.responseTimeout ?? DEFAULT_NATIVE_RESPONSE_TIMEOUT_SEC,
+      options.getZowexClientOptions != null
+        ? () =>
+            options.getZowexClientOptions!().responseTimeout ?? DEFAULT_ZOWEX_RESPONSE_TIMEOUT_SEC
+        : () => options.responseTimeout ?? DEFAULT_ZOWEX_RESPONSE_TIMEOUT_SEC,
     onCeedumpCollected: options.onCeedumpCollected,
   });
 

@@ -162,7 +162,7 @@ The **`zowe-mcp`** service in this compose file runs the **stock** image ([`dock
 
 ## Real z/OS (native SSH backend)
 
-Use this when the MCP server should connect to **real z/OS** through the [Zowe Native Proto](https://github.com/zowe/zowe-native-proto) SSH path (`--native`), instead of `--mock`.
+Use this when the MCP server should connect to **real z/OS** through [Zowe Remote SSH](https://github.com/zowe/zowex) (`zowex-sdk`; `--native`), instead of `--mock`.
 
 **Prerequisites:**
 

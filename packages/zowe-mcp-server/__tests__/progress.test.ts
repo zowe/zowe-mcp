@@ -57,7 +57,7 @@ describe('createToolProgress', () => {
     const progress = createToolProgress(extra, 'Read USER.DATA');
     await progress.start();
     await progress.step('Connecting to sys1 via SSH');
-    await progress.step('Running Zowe Native operation');
+    await progress.step('Running Zowe Remote SSH operation');
     await progress.complete(`range 1${EN_DASH}100, 500 records`);
     expect(sendNotification).toHaveBeenCalledTimes(4);
     interface ProgressParams {

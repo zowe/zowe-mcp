@@ -31,7 +31,7 @@
  *     Downloads the SDK artifact from the latest successful Build workflow run.
  *
  *   node scripts/sdk-switch.js local <path>
- *     Uses a local .tgz file or a zowex / zowe-native-proto repo directory.
+ *     Uses a local .tgz file or a zowex repo directory (clone of https://github.com/zowe/zowex).
  *     If a directory is given, looks for a pre-built .tgz in dist/.
  *
  *   node scripts/sdk-switch.js fallback
@@ -45,7 +45,8 @@ const { execSync } = require('child_process');
 const repoRoot = path.resolve(__dirname, '..');
 const serverPkgPath = path.join(repoRoot, 'packages', 'zowe-mcp-server', 'package.json');
 const resourcesDir = path.join(repoRoot, 'resources');
-const ZNP_REPO = 'zowe/zowe-native-proto';
+/** GitHub repo for Zowe Remote SSH (zowex); formerly zowe/zowe-native-proto. */
+const ZOWEX_REPO = 'zowe/zowex';
 const PKG_NAME = 'zowex-sdk';
 const DEFAULT_VERSION = '0.4.0';
 const ARTIFACTORY_NPM = 'https://zowe.jfrog.io/artifactory/api/npm/npm-release/';
@@ -213,7 +214,7 @@ function installSdkToResources(srcTgzPath, version, label) {
  */
 function findSdkArtifactFromRun(runId) {
   const artifactsJson = run(
-    `gh api repos/${ZNP_REPO}/actions/runs/${runId}/artifacts --jq '.artifacts[] | select(.name == "${PKG_NAME}") | .id'`
+    `gh api repos/${ZOWEX_REPO}/actions/runs/${runId}/artifacts --jq '.artifacts[] | select(.name == "${PKG_NAME}") | .id'`
   );
   if (!artifactsJson) {
     return null;
@@ -231,7 +232,7 @@ function downloadAndInstallGhArtifact(artifactId, label) {
 
   const zipPath = path.join(tmpDir, 'artifact.zip');
   console.log('Downloading artifact %s...', artifactId);
-  run(`gh api repos/${ZNP_REPO}/actions/artifacts/${artifactId}/zip > "${zipPath}"`);
+  run(`gh api repos/${ZOWEX_REPO}/actions/artifacts/${artifactId}/zip > "${zipPath}"`);
 
   run(`unzip -o "${zipPath}" -d "${tmpDir}"`);
   fs.unlinkSync(zipPath);
@@ -262,7 +263,7 @@ function findTgzInDir(dir) {
  */
 function findSuccessfulBuildRun(branch, event) {
   const json = run(
-    `gh api "repos/${ZNP_REPO}/actions/workflows/build.yml/runs?branch=${branch}&event=${event}&status=success&per_page=1" --jq '.workflow_runs[0] | [.id, .head_sha, .created_at] | @tsv'`
+    `gh api "repos/${ZOWEX_REPO}/actions/workflows/build.yml/runs?branch=${branch}&event=${event}&status=success&per_page=1" --jq '.workflow_runs[0] | [.id, .head_sha, .created_at] | @tsv'`
   );
   if (!json || json === 'null') return null;
   const parts = json.split('\t');
@@ -369,11 +370,11 @@ function handlePr(prNumber) {
     process.exit(1);
   }
 
-  console.log('Looking up PR #%s in %s...', prNumber, ZNP_REPO);
+  console.log('Looking up PR #%s in %s...', prNumber, ZOWEX_REPO);
 
   let artifactId;
   try {
-    const comments = run(`gh api repos/${ZNP_REPO}/issues/${prNumber}/comments --jq '.[].body'`);
+    const comments = run(`gh api repos/${ZOWEX_REPO}/issues/${prNumber}/comments --jq '.[].body'`);
     const sdkMatch = comments.match(
       /SDK:\s*https:\/\/github\.com\/[^/]+\/[^/]+\/actions\/runs\/\d+\/artifacts\/(\d+)/
     );
@@ -388,12 +389,12 @@ function handlePr(prNumber) {
   if (!artifactId) {
     console.log('No SDK link in PR comments, looking up Build workflow run...');
     const headSha = run(
-      `gh pr view ${prNumber} --repo ${ZNP_REPO} --json headRefOid --jq .headRefOid`
+      `gh pr view ${prNumber} --repo ${ZOWEX_REPO} --json headRefOid --jq .headRefOid`
     );
     console.log('PR head SHA: %s', headSha);
 
     const runsJson = run(
-      `gh api "repos/${ZNP_REPO}/actions/runs?head_sha=${headSha}&event=pull_request" --jq '.workflow_runs[] | select(.name == "Build") | .id'`
+      `gh api "repos/${ZOWEX_REPO}/actions/runs?head_sha=${headSha}&event=pull_request" --jq '.workflow_runs[] | select(.name == "Build") | .id'`
     );
     const runIds = runsJson.split('\n').filter(Boolean);
     if (runIds.length === 0) {
@@ -446,7 +447,7 @@ function handleBranch(branchName) {
 
   if (!runId) {
     throw new Error(
-      `No successful Build workflow run found for branch '${branchName}'.\nCheck: https://github.com/${ZNP_REPO}/actions/workflows/build.yml`
+      `No successful Build workflow run found for branch '${branchName}'.\nCheck: https://github.com/${ZOWEX_REPO}/actions/workflows/build.yml`
     );
   }
 
@@ -461,7 +462,7 @@ function handleBranch(branchName) {
   const artifactId = findSdkArtifactFromRun(runId);
   if (!artifactId) {
     throw new Error(
-      `No '${PKG_NAME}' artifact in workflow run ${runId}.\nCheck: https://github.com/${ZNP_REPO}/actions/runs/${runId}`
+      `No '${PKG_NAME}' artifact in workflow run ${runId}.\nCheck: https://github.com/${ZOWEX_REPO}/actions/runs/${runId}`
     );
   }
 

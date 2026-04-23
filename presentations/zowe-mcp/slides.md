@@ -216,15 +216,15 @@ flowchart TD
     Tools --> ZosBackendInterface
     ZosBackendInterface["ZosBackend Interface"]
     ZosBackendInterface --> Mock["Mock Backend<br/>(filesystem)"]
-    ZosBackendInterface --> Native["Native Backend<br/>(SSH + ZNP)"]
+    ZosBackendInterface --> ZowexBackend["Zowex backend<br/>(SSH + zowex-sdk)"]
   end
 
   classDef dottedStyle stroke-dasharray: 5 5
   class ZosBackendInterface dottedStyle
 
-  Native --> zOS1["z/OS LPAR 1"]
-  Native --> zOS2["z/OS LPAR 2"]
-  Native --> zOS3["z/OS LPAR n..."]
+  ZowexBackend --> zOS1["z/OS LPAR 1"]
+  ZowexBackend --> zOS2["z/OS LPAR 2"]
+  ZowexBackend --> zOS3["z/OS LPAR n..."]
 ```
 
 ---
@@ -286,22 +286,22 @@ flowchart TD
 
 ---
 
-<!-- Slide 8: Zowe Native Proto -->
+<!-- Slide 8: Zowe Remote SSH -->
 
-# Zowe Native Proto (ZNP)
+# Zowe Remote SSH (zowex)
 
-The native backend connects to z/OS through **Zowe Native Proto** — a lightweight z/OS server deployed over SSH.
+The **Zowex** path connects to z/OS through **Zowe Remote SSH** ([zowe/zowex](https://github.com/zowe/zowex)) — a lightweight z/OS server deployed over SSH.
 
 <div class="grid grid-cols-2 gap-6 mt-4">
 <div>
 
-### <carbon-rocket class="inline text-[#3162ac]" /> Why ZNP?
+### <carbon-rocket class="inline text-[#3162ac]" /> Why Zowe Remote SSH?
 
 - <carbon-locked class="inline text-[#6d7176]" /> **Only SSH required** — no z/OSMF, no APIML, no special middleware
-- <carbon-deploy class="inline text-[#6d7176]" /> **Auto-deploy** — the MCP server installs and updates the ZNP binary on z/OS automatically
+- <carbon-deploy class="inline text-[#6d7176]" /> **Auto-deploy** — the MCP server installs and updates the zowex z/OS server binary automatically
 - <carbon-renew class="inline text-[#6d7176]" /> **Auto-redeploy** — detects version mismatch and redeploys on the fly
 - <carbon-plug class="inline text-[#6d7176]" /> **Extensible by anyone** — open source, new operations can be added to the SDK
-- <carbon-flash class="inline text-[#6d7176]" /> **Lightweight** — small native binary, minimal z/OS footprint
+- <carbon-flash class="inline text-[#6d7176]" /> **Lightweight** — small z/OS server binary, minimal footprint
 
 </div>
 <div>
@@ -309,11 +309,11 @@ The native backend connects to z/OS through **Zowe Native Proto** — a lightwei
 ### <carbon-flow class="inline text-[#3162ac]" /> How It Works
 
 1. MCP server opens an **SSH connection** to z/OS
-2. ZNP binary is **deployed to user's USS home** (if needed)
+2. zowex z/OS server binary is **deployed to user's USS home** (if needed)
 3. Commands are sent as **structured RPC** over the SSH channel
 4. Results come back as **JSON** — parsed and cached by the MCP server
 
-### Key Operations via ZNP
+### Key operations (zowex-sdk)
 
 - Data set list, read, write, search (SuperC)
 - USS file operations and commands
@@ -559,7 +559,7 @@ When a command needs approval, the server asks the MCP client to prompt the user
 
 ### <carbon-settings class="inline text-[#3162ac]" /> Configuration
 
-- **VS Code** — `zoweMCP.nativeConnections` setting
+- **VS Code** — `zoweMCP.zowexConnections` setting
 - **Standalone** — `--config systems.json` or `--system user@host`
 - **Mock** — `systems.json` in mock data directory
 
@@ -603,7 +603,7 @@ Features that make Zowe MCP work **better with LLMs** than traditional APIs:
 
 - Real-time progress via `_meta.progressToken`
 - Human-readable titles: "List members of SYS1.MACLIB"
-- Backend subactions: "Connecting via SSH", "Deploying ZNP"
+- Backend subactions: "Connecting via SSH", "Deploying Zowe Remote SSH server"
 
 </div>
 </div>
@@ -729,7 +729,7 @@ When multiple tools request the same credential simultaneously, only one prompt 
 ### <mdi-microsoft-visual-studio-code class="inline text-[#3162ac]" /> VS Code Extension
 
 1. Install **Zowe MCP** extension
-2. Set `zoweMCP.nativeConnections`
+2. Set `zoweMCP.zowexConnections`
 3. Open Copilot Chat — done!
 
 ### <carbon-data-vis-1 class="inline text-[#3162ac]" /> Mock Mode
@@ -753,7 +753,7 @@ npx @zowe/mcp-server --stdio \
 
 ```bash
 npx @zowe/mcp-server --stdio \
-  --native --system user@host
+  --zowex --system user@host
 ```
 
 </div>
@@ -910,7 +910,7 @@ interface ZosBackend {
 Current backends:
 
 - **FilesystemMockBackend**
-- **NativeBackend** (SSH + ZNP)
+- **Zowe Remote SSH** (zowex-sdk over SSH)
 
 </div>
 <div>
@@ -995,7 +995,7 @@ Adapt an **existing** Zowe CLI plugin without new TypeScript: one **metadata pip
 
 <div class="text-sm text-[#6d7176] mt-2 mb-3 space-y-1">
 
-<p><a href="https://github.com/zowe/zowe-mcp/blob/main/docs/how-to-add-cli-plugin.md" target="_blank"><code>docs/how-to-add-cli-plugin.md</code></a> (in the Zowe MCP repo) describes the whole bridge lifecycle: bridge vs native backend; auto-generated <strong>commands YAML</strong> and hand-authored <strong>MCP tools YAML</strong> (profiles, tool defs, <code>zowe … --rfj</code>, pagination, fatal vs retryable errors); then smoke-testing, LLM-tuned descriptions, evals, E2E tests, and vendor documentation — framed as a step-by-step guide for <strong>AI coding assistants</strong> and reviewers.</p>
+<p><a href="https://github.com/zowe/zowe-mcp/blob/main/docs/how-to-add-cli-plugin.md" target="_blank"><code>docs/how-to-add-cli-plugin.md</code></a> (in the Zowe MCP repo) describes the whole bridge lifecycle: CLI bridge vs Zowe Remote SSH (zowex) backend; auto-generated <strong>commands YAML</strong> and hand-authored <strong>MCP tools YAML</strong> (profiles, tool defs, <code>zowe … --rfj</code>, pagination, fatal vs retryable errors); then smoke-testing, LLM-tuned descriptions, evals, E2E tests, and vendor documentation — framed as a step-by-step guide for <strong>AI coding assistants</strong> and reviewers.</p>
 
 <p class="text-xs"><span class="text-[#16825d] font-semibold">AI</span> assistant &nbsp;·&nbsp; <span class="text-[#a85f00] font-semibold">You</span> input &nbsp;·&nbsp; <span class="text-[#3162ac] font-semibold">Together</span> draft + review</p>
 
@@ -1043,10 +1043,10 @@ Adapt an **existing** Zowe CLI plugin without new TypeScript: one **metadata pip
 <div class="mt-4 grid grid-cols-2 gap-4 text-sm">
 <div class="p-3 bg-[#f3f4f4] rounded-lg border-l-4 border-[#3162ac]">
 
-<div class="font-bold text-[#1b375f] mb-1">Bridge vs native ZosBackend</div>
+<div class="font-bold text-[#1b375f] mb-1">Bridge vs Zowe Remote SSH (zowex)</div>
 
 - CLI already wraps the API you need → **CLI Bridge**
-- Need huge throughput or no `--rfj` → **native path** (or extend CLI first)
+- Need huge throughput or no `--rfj` → **zowex-sdk path** (or extend CLI first)
 
 </div>
 <div class="p-3 bg-[#f3f4f4] rounded-lg border-l-4 border-[#16825d]">
@@ -1211,7 +1211,7 @@ An <strong class="text-[#1b375f]">MCP registry</strong> is a <strong class="text
 
 - **z/OSMF backend** — REST API alternative to SSH
 - **OAuth / MFA support** — enterprise authentication via Zowe API Mediation Layer (API ML)
-- **Console commands** — z/OS operator console (code ready, waiting for ZNP support)
+- **Console commands** — z/OS operator console (code ready, waiting for zowex server support)
 - **More prompts or skills* — JCL generation, COBOL analysis, batch job templates
 - **Resource subscriptions** — real-time data set change notifications
 

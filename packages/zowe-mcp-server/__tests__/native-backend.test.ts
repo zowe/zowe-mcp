@@ -10,7 +10,7 @@
  */
 
 /**
- * Unit tests for NativeBackend (Zowe Native Proto SDK).
+ * Unit tests for NativeBackend (Zowe Remote SSH SDK / zowex-sdk).
  *
  * Uses mocked options and a fake SDK client; no real SSH or SDK.
  */

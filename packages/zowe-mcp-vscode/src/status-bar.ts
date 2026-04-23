@@ -17,6 +17,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
+import { getZowexConnectionsWithMigration } from './zowex-settings';
 
 const STATUS_BAR_PRIORITY = 50;
 const GLOBAL_STATE_KEY_LAST_CONNECTION = 'zoweMcpLastActiveConnection';
@@ -39,7 +40,7 @@ const cliPluginActiveProfiles = new Map<string, PluginActiveProfiles>();
  * Builds a tooltip MarkdownString that includes the backend type, system names,
  * and active CLI plugin profiles when available.
  */
-function buildTooltip(backend: 'native' | 'mock', systems: string[]): vscode.MarkdownString {
+function buildTooltip(backend: 'zowex' | 'mock', systems: string[]): vscode.MarkdownString {
   const examples =
     systems.length > 0
       ? systems.length === 1
@@ -48,8 +49,8 @@ function buildTooltip(backend: 'native' | 'mock', systems: string[]): vscode.Mar
       : '"set active system to SYS1" or "switch to USER@SYS1"';
 
   const source =
-    backend === 'native'
-      ? 'Connections are added in Settings (`zoweMCP.nativeConnections`).'
+    backend === 'zowex'
+      ? 'Connections are added in Settings under `zoweMCP.zowexConnections` (Zowe Remote SSH).'
       : 'Systems are defined in the mock data directory.';
 
   const md = new vscode.MarkdownString();
@@ -79,14 +80,13 @@ function buildTooltip(backend: 'native' | 'mock', systems: string[]): vscode.Mar
 
 /**
  * Reads system/connection names from the current configuration.
- * For native: returns connection specs from settings.
+ * For zowex: returns connection specs from settings (with migration from legacy keys).
  * For mock: reads host names from systems.json (best-effort, sync).
  */
-function getConfiguredSystems(backend: 'native' | 'mock'): string[] {
+function getConfiguredSystems(backend: 'zowex' | 'mock'): string[] {
   const config = vscode.workspace.getConfiguration('zoweMCP');
-  if (backend === 'native') {
-    const connections = config.get<string[]>('nativeConnections', []) ?? [];
-    return connections.filter((s): s is string => typeof s === 'string' && s.trim().length > 0);
+  if (backend === 'zowex') {
+    return getZowexConnectionsWithMigration(config);
   }
   const mockDir = config.get<string>('mockDataDirectory', '').trim();
   if (!mockDir) return [];
@@ -100,9 +100,11 @@ function getConfiguredSystems(backend: 'native' | 'mock'): string[] {
   }
 }
 
-function getCurrentBackend(): 'native' | 'mock' {
+function getCurrentBackend(): 'zowex' | 'mock' {
   const config = vscode.workspace.getConfiguration('zoweMCP');
-  return config.get<string>('backend', 'native') === 'mock' ? 'mock' : 'native';
+  const b = config.get<string>('backend', 'zowex');
+  if (b === 'mock') return 'mock';
+  return 'zowex';
 }
 
 /**

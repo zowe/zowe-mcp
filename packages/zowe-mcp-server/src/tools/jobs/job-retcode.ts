@@ -11,7 +11,7 @@
 
 /**
  * True when JES completion indicates condition code 0 (success).
- * Mock backends may use `0000`; Zowe Native Proto / JES often returns `CC 0000`.
+ * Mock backends may use `0000`; Zowe Remote SSH (z/OS) / JES often returns `CC 0000`.
  */
 export function isZeroCompletionRetcode(retcode: string | undefined): boolean {
   if (retcode === undefined) return false;

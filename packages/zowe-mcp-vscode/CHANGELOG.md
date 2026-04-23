@@ -25,7 +25,7 @@ These behaviors apply whenever you run **`@zowe/mcp-server`** — including **VS
 - **Job card UI**: Elicitation uses one **input box**; paste multiple lines or separate `//` lines with whitespace. Accepted cards are merged into **`zoweMCP.jobCards`** when possible.
 - **Settings → MCP server**: Editing **`zoweMCP`** in `settings.json` (or the Settings UI) forwards **job cards**, **native connections** (including legacy **`nativeSystems`**), **native SSH options**, **encodings**, **log level**, and **CLI plugin configuration** to already-connected MCP server processes on the next tick so reads are not stale.
 - **Log level**: Log levels are **validated** and **kept in sync** between the extension and the MCP server when you change **`zoweMCP.logLevel`**.
-- **Backend setting**: New **`zoweMCP.backend`** selects **`native`** (SSH / Zowe Native) or **`mock`** (local mock data). Mock mode no longer depends only on an empty native connection list; the mock data directory applies when the backend is **mock**. If you previously relied on “mock when native list is empty,” the extension can **auto-migrate** to `backend: mock` when a mock directory is set and native connections are empty. Changing the backend prompts you to **reload the window**; the status bar resets appropriately.
+- **Backend setting**: New **`zoweMCP.backend`** selects **`native`** (SSH / Zowe Remote SSH) or **`mock`** (local mock data). Mock mode no longer depends only on an empty native connection list; the mock data directory applies when the backend is **mock**. If you previously relied on “mock when native list is empty,” the extension can **auto-migrate** to `backend: mock` when a mock directory is set and native connections are empty. Changing the backend prompts you to **reload the window**; the status bar resets appropriately.
 - **CLI plugin runtime UX**: Updates to **`zoweMCP.cliPluginConfiguration`** are sent to the running MCP server so new profiles can take effect **without** a full restart for that path; the **status bar** can show active CLI plugin connection/location profiles. **Fatal** CLI bridge errors open a notification with **Open Settings** targeted at **`zoweMCP.cliPluginConfiguration`** (no “Generate Mock Data” on those errors). Tools that add or remove named profiles can **persist** back into user settings and globalStorage via server → extension sync.
 - **Server spawn reliability**: The MCP server is started with **`process.execPath`** so the correct **Node/Electron** runtime is used inside VS Code.
 
@@ -61,7 +61,7 @@ Applies to **standalone** / **shared** HTTP deployments. See **`docs/mcp-authent
 - **Restore migrated data sets**: New `restoreDataset` tool recalls migrated (HSM) data sets.
 - **Copy USS files**: New `copyUssFile` tool copies USS files or directories with options for recursive, follow symlinks, preserve attributes, and force.
 - **Search context lines**: `searchInDataset` supports `includeContextLines` option to return surrounding lines (±6) for each match, powered by SuperC LPSF.
-- **Auto-redeploy Zowe Native server**: When the remote z/OS server is outdated (checksum mismatch with the local SDK), the server automatically redeploys and reconnects.
+- **Auto-redeploy Zowe Remote SSH z/OS server**: When the remote z/OS server is outdated (checksum mismatch with the local SDK), the server automatically redeploys and reconnects.
 - **Improved tool descriptions**: Dataset creation parameters include expanded z/OS terminology (e.g. "Record Format (RECFM)", "Logical Record Length (LRECL) in bytes") to help AI models select correct parameters.
 - **MCP server instructions**: The server sends pagination protocol instructions at initialization so AI clients understand how to page through large results.
 - **Generate MCP reference docs**: New `generate-docs` command auto-generates a Markdown reference of all MCP tools, prompts, resources, and resource templates.
@@ -74,10 +74,10 @@ Applies to **standalone** / **shared** HTTP deployments. See **`docs/mcp-authent
 - **Startup notification**: When no Zowe MCP connections (native or mock) are configured, a notification is shown to help you set up.
 - **submitJob wait**: `submitJob` can wait for the job to reach OUTPUT with optional `wait: true` and `timeoutSeconds`; the former `executeJob` flow is merged into `submitJob`.
 - **DSN(MEMBER) syntax**: Data set tools accept fully qualified names in the form `USER.DSN(MEMBER)` so you can pass data set and member in a single parameter.
-- **Abend handling and CEEDUMP**: When the Zowe Native server on z/OS abends, the MCP server detects it, collects the CEEDUMP to a local file, and notifies the extension; you can open the dump from the notification.
+- **Abend handling and CEEDUMP**: When the Zowe Remote SSH z/OS server abends, the MCP server detects it, collects the CEEDUMP to a local file, and notifies the extension; you can open the dump from the notification.
 - **Improvement prompt**: New prompt for reflecting on Zowe MCP usage (e.g. in Cursor or Copilot).
 - **Reset command**: New command **Zowe MCP: Reset All Settings and State** to clear stored passwords and reset extension state.
-- **Zowe Native**: Extended SSH response timeout for initial connections to allow more time to auto-deploy the Zowe Native server when it is not yet installed.
+- **Zowe Remote SSH**: Extended SSH response timeout for initial connections to allow more time to auto-deploy the z/OS server when it is not yet installed.
 
 ## `0.4.0`
 
@@ -98,7 +98,7 @@ Applies to **standalone** / **shared** HTTP deployments. See **`docs/mcp-authent
 - **USS (UNIX System Services) tools**: List, read, write, create, and delete USS files; run safe USS commands; temp file/dir helpers; get USS home; change current directory. Paths can be absolute or relative to the current USS directory.
 - **Temporary dataset tools**: Create and delete temporary data sets (prefix, unique name, create temp PS, PDS, or PDS/E, delete under prefix) for short-lived workflows.
 - **Progress and UX**: MCP progress notifications for long-running operations; progress titles show operation context (e.g. dataset name, TSO command). Mock data presets (minimal, default, large, inventory, pagination) and streaming progress in the extension.
-- **Zowe Native options**: Configurable response timeout for the Zowe Native Protocol (CLI, env, or `zoweMCP.nativeResponseTimeout`). Connection locking and request timeouts to avoid hangs.
+- **Zowe Remote SSH options**: Configurable response timeout for the native SSH backend (CLI, env, or `zoweMCP.nativeResponseTimeout`). Connection locking and request timeouts to avoid hangs.
 - **Themes and icons**: Eight color themes — **Zowe Dark (Classic)**, **Zowe Light (Classic)**, **Zowe Dark (Official)**, **Zowe Light (Official)**, **ISPF Classic (Dark)**, **ISPF Green (Dark)**, **ISPF Modern (Dark)**, **ISPF Modern (Light)** — and three file icon themes — **Zowe Mainframe**, **ISPF**, **ISPF Modern**. File type–specific icons for common languages and formats are included.
 - **Encoding and search**: Mainframe encoding (EBCDIC) configurable (MVS and USS defaults) via settings or per-system; updates apply at runtime. `searchInDataset` tool to search for text in data sets with options (case, COBOL sequence, comments).
 - **Other**: Log level setting no longer exposes critical/alert/emergency. Improved singular/plural wording in tool messages. Standardized “data set” terminology in docs and prompts.
@@ -114,7 +114,7 @@ Applies to **standalone** / **shared** HTTP deployments. See **`docs/mcp-authent
 
 - **Connection vs system terminology**: Settings and tool outputs now distinguish **connections** (user@host — what you configure) from **z/OS systems** (hosts). You can have multiple connections to the same system. `listSystems` returns each system with an optional `connections` list; `getContext` includes `activeConnection` (user@host). The `system` parameter in tools accepts a host or a connection spec (user@host); when multiple connections exist for a host, you must pass the connection spec or the tool fails with valid values.
 - **VS Code settings renamed to `zoweMCP.*`**: All extension settings now use the `zoweMCP` prefix (e.g. `zoweMCP.nativeConnections`, `zoweMCP.mockDataDirectory`, `zoweMCP.logLevel`). Existing configurations using the old names must be updated.
-- **Zowe Native server options**: New settings to control the remote Zowe Native server — install path (`zoweMCP.zoweNativeServerPath`) and optional auto-install when the server is not found (`zoweMCP.installZoweNativeServerAutomatically`). Changes are sent to the MCP server and apply to future connections.
+- **Zowe Remote SSH server options**: New settings to control the remote z/OS server — install path (`zoweMCP.zoweNativeServerPath`) and optional auto-install when the server is not found (`zoweMCP.installZoweNativeServerAutomatically`). Changes are sent to the MCP server and apply to future connections.
 - **Default HTTP port**: When using the HTTP transport, the default port is now **7542** (Zowe 75xx range).
 - **Documentation**: Copilot setup guide added to the repo.
 

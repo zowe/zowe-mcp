@@ -101,7 +101,7 @@ async function resolveProfileForZoweEditor(
   workspaceDir: string | undefined,
   sessionKey: string,
   systemId: string | undefined,
-  connectionKind: 'native' | 'zosmf' | undefined
+  connectionKind: 'zowex' | 'zosmf' | 'native' | undefined
 ): Promise<string | null> {
   let profile: string | undefined;
 
@@ -128,7 +128,8 @@ async function resolveProfileForZoweEditor(
     }
   }
   if (!profile && (systemId ?? '').trim()) {
-    const resolved = await resolveProfileFromSystem(systemId!, connectionKind === 'native');
+    const preferSshProfile = connectionKind === 'zowex' || connectionKind === 'native';
+    const resolved = await resolveProfileFromSystem(systemId!, preferSshProfile);
     profile = resolved ?? undefined;
     if (profile) {
       sessionProfileBySystem.set(sessionKey, profile);
@@ -288,22 +289,30 @@ function showNotification(event: ServerToExtensionEvent): void {
 }
 
 /**
- * Shows a message that a CEEDUMP was collected after a ZNP abend, with reason,
- * ZNP operation, MCP tool, and an "Open Dump" button. Also logs to the Zowe MCP
+ * Shows a message that a CEEDUMP was collected after a Zowe Remote SSH (zowex) abend, with reason,
+ * operation name, MCP tool, and an "Open Dump" button. Also logs to the Zowe MCP
  * output channel with the full dump path.
  */
 function showCeedumpCollected(log: vscode.LogOutputChannel, event: ServerToExtensionEvent): void {
   if (event.type !== 'ceedump-collected') return;
 
-  const { path: filePath, reason, znpOperation, mcpTool } = event.data;
+  const raw = event.data as {
+    path: string;
+    reason?: string;
+    zowexOperation?: string;
+    znpOperation?: string;
+    mcpTool?: string;
+  };
+  const { path: filePath, reason, mcpTool } = raw;
+  const zowexOperation = raw.zowexOperation ?? raw.znpOperation;
   const reasonPart = reason ? ` ${reason.endsWith('.') ? reason.trimEnd() : reason}.` : '';
-  const znpPart = znpOperation ? ` Zowe Native operation: ${znpOperation}.` : '';
+  const opPart = zowexOperation ? ` Zowe Remote SSH operation: ${zowexOperation}.` : '';
   const mcpPart = mcpTool && mcpTool !== 'unknown' ? ` MCP tool: ${mcpTool}.` : '';
-  const notificationMessage = `Zowe MCP: CEEDUMP collected after ZNP abend.${reasonPart}${znpPart}${mcpPart} Saved to: ${filePath}`;
+  const notificationMessage = `Zowe MCP: CEEDUMP collected after Zowe Remote SSH abend.${reasonPart}${opPart}${mcpPart} Saved to: ${filePath}`;
   const openLabel = 'Open Dump';
 
   log.error(
-    `CEEDUMP collected after ZNP abend.${reasonPart}${znpPart}${mcpPart} Full path: ${filePath}`
+    `CEEDUMP collected after Zowe Remote SSH abend.${reasonPart}${opPart}${mcpPart} Full path: ${filePath}`
   );
 
   void vscode.window.showInformationMessage(notificationMessage, openLabel).then(choice => {
@@ -487,7 +496,7 @@ interface OpenInEditorSpec {
 async function handleOpenInEditor(
   log: vscode.LogOutputChannel,
   logLabel: string,
-  data: { system?: string; connectionKind?: 'native' | 'zosmf' },
+  data: { system?: string; connectionKind?: 'zowex' | 'zosmf' | 'native' },
   buildSpec: () => OpenInEditorSpec
 ): Promise<void> {
   if (!vscode.extensions.getExtension('Zowe.vscode-extension-for-zowe')) {
@@ -521,7 +530,7 @@ function handleOpenDatasetInEditor(
     dsn: string;
     member?: string;
     system?: string;
-    connectionKind?: 'native' | 'zosmf';
+    connectionKind?: 'zowex' | 'zosmf' | 'native';
   };
   return handleOpenInEditor(log, 'open-dataset-in-editor', data, () => {
     const segments = data.member ? [data.dsn, data.member] : [data.dsn];
@@ -538,7 +547,7 @@ function handleOpenUssFileInEditor(
   const data = event.data as {
     path: string;
     system?: string;
-    connectionKind?: 'native' | 'zosmf';
+    connectionKind?: 'zowex' | 'zosmf' | 'native';
   };
   return handleOpenInEditor(log, 'open-uss-file-in-editor', data, () => {
     const trimmed = data.path.trim();
@@ -566,7 +575,7 @@ function handleOpenJobInEditor(
     jobId: string;
     jobFileId?: number;
     system?: string;
-    connectionKind?: 'native' | 'zosmf';
+    connectionKind?: 'zowex' | 'zosmf' | 'native';
   };
   return handleOpenInEditor(log, 'open-job-in-editor', data, () => {
     const jobIdEnc = encodeURIComponent(data.jobId.trim());

@@ -59,7 +59,7 @@ flowchart TB
 - **Zowe MCP resource server** — The **`@zowe/mcp-server`** process in **`--http`** mode: **MCP Streamable HTTP** session handling, optional Bearer JWT verification, tools, and native SSH to z/OS. It validates tokens but does **not** issue them. Further reading: root [**`AGENTS.md`**](../AGENTS.md) (HTTP transport, JWT, component tools).
 - **Tenant connection store per sub** — On-disk JSON per **OIDC `sub`** listing **user@host** connection strings for z/OS (`ZOWE_MCP_TENANT_STORE_DIR`), isolated per signed-in user; use **`addZosConnection`** in shared deployments. Further reading: [**`AGENTS.md`**](../AGENTS.md) (tenant connection persistence, `addZosConnection`).
 - **Secrets for z/OS SSH** — Platform-supplied **passwords or key material** for SSH (for example **`ZOWE_MCP_CREDENTIALS`**, **`ZOWE_MCP_PASSWORD_*`**, Vault KV, Kubernetes secrets), **not** the OAuth access token. Further reading: [**`AGENTS.md`**](../AGENTS.md) (standalone env passwords, Vault), [Future z/OS identity and OIDC subject mapping](future-zos-identity-mapping.md) (why chat identity and SAF user are separate concerns).
-- **z/OS SSH** — The mainframe side reached by the **Zowe Native Proto** path over **SSH** from the MCP server only; **no OAuth** on the wire to z/OS. Further reading: [**`AGENTS.md`**](../AGENTS.md) (native SSH backend, ZNP).
+- **z/OS SSH** — The mainframe side reached by **Zowe Remote SSH** over **SSH** from the MCP server only; **no OAuth** on the wire to z/OS. Further reading: [**`AGENTS.md`**](../AGENTS.md) (native SSH backend, ZNP).
 
 The **IdP** is only used for **OAuth tokens and JWKS** at the MCP HTTP layer. **z/OS** is reached by **SSH from the MCP server** only; LPARs do not participate in OIDC.
 

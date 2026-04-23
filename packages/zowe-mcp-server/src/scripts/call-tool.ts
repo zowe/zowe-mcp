@@ -18,7 +18,7 @@
  * Options:
  *   --mock=<dir>  Use the mock backend with the given data directory (or set ZOWE_MCP_MOCK_DIR).
  *                 Also accepted: --mock <dir> (space-separated).
- *   --native      Use the Zowe Native (SSH) backend.
+ *   --native      Use the Zowe Remote SSH backend.
  *   --config=<path>  JSON file with { "systems": ["user@host", ...] } — connection specs (used with --native).
  *   --system <spec>  Connection spec user@host or user@host:port (repeatable, used with --native).
  *

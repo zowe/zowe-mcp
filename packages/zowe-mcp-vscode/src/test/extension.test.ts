@@ -448,7 +448,7 @@ suite('Zowe MCP VS Code Extension', () => {
   });
 
   suite('buildServerConfig with real workspace settings', () => {
-    let previousConnections: string[] | undefined;
+    let previousZowexConnections: string[] | undefined;
 
     suiteSetup(async () => {
       const zoweMcp = findZoweMcpExtension();
@@ -456,9 +456,9 @@ suite('Zowe MCP VS Code Extension', () => {
         await zoweMcp.activate();
       }
       const cfg = vscode.workspace.getConfiguration('zoweMCP');
-      previousConnections = cfg.get<string[]>('nativeConnections');
+      previousZowexConnections = cfg.get<string[]>('zowexConnections');
       await cfg.update(
-        'nativeConnections',
+        'zowexConnections',
         ['zowemcp-test-user@127.0.0.1'],
         vscode.ConfigurationTarget.Global
       );
@@ -467,13 +467,13 @@ suite('Zowe MCP VS Code Extension', () => {
     suiteTeardown(async () => {
       const cfg = vscode.workspace.getConfiguration('zoweMCP');
       await cfg.update(
-        'nativeConnections',
-        previousConnections,
+        'zowexConnections',
+        previousZowexConnections,
         vscode.ConfigurationTarget.Global
       );
     });
 
-    test('includes configured native connection in server args', async () => {
+    test('includes configured zowex connection in server args', async () => {
       const zoweMcp = findZoweMcpExtension();
       assert.ok(zoweMcp);
       const dummyContext = {
@@ -516,12 +516,15 @@ suite('Zowe MCP VS Code Extension', () => {
     });
 
     test('clearStoredPassword exits cleanly when input is cancelled', async () => {
-      const original = vscode.window.showInputBox;
+      const originalInput = vscode.window.showInputBox;
+      const originalPick = vscode.window.showQuickPick;
       vscode.window.showInputBox = () => Promise.resolve(undefined);
+      vscode.window.showQuickPick = () => Promise.resolve(undefined);
       try {
         await vscode.commands.executeCommand('zowe-mcp.clearStoredPassword');
       } finally {
-        vscode.window.showInputBox = original;
+        vscode.window.showInputBox = originalInput;
+        vscode.window.showQuickPick = originalPick;
       }
     });
   });

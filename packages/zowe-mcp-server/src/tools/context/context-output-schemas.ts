@@ -186,7 +186,7 @@ const getContextServerSchema = z.object({
   components: z
     .array(z.string())
     .describe('Registered component names (e.g. context, datasets, uss).'),
-  backend: z.string().nullable().describe('Active backend: mock, native, or null.'),
+  backend: z.string().nullable().describe('Active backend: mock, zowex, or null.'),
 });
 
 export const getContextOutputSchema = z

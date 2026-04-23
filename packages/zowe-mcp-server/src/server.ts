@@ -250,7 +250,7 @@ export function getServer(result: CreateServerResult): McpServer {
 /** Known backend kind names for the getContext tool. */
 const BACKEND_KIND_NAMES: Record<string, string> = {
   FilesystemMockBackend: 'mock',
-  NativeBackend: 'native',
+  NativeBackend: 'zowex',
 };
 
 function getBackendKind(backend: ZosBackend): string {

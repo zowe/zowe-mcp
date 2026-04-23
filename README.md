@@ -37,7 +37,7 @@ zowe-mcp/                       # npm workspaces monorepo
 # 1. Install dependencies (both packages are linked automatically)
 npm install
 
-# 2. Fetch the Zowe Native Proto SDK (required for the native backend)
+# 2. Fetch the Zowe Remote SSH SDK (required for the native backend)
 npm run sdk:nightly
 
 # 3. Build everything
@@ -48,9 +48,9 @@ npm run build-and-install
 ```
 
 Step 2 fetches the latest nightly build of the
-[Zowe Native Proto](https://github.com/zowe/zowe-native-proto) SDK. Use
+[Zowe Remote SSH](https://github.com/zowe/zowex) SDK (`zowex-sdk`). Use
 `npm run sdk:release` for the latest stable release instead. See
-[Zowe Remote SSH SDK (zowex-sdk)](#zowe-native-proto-sdk) for all options.
+[Zowe Remote SSH SDK (zowex-sdk)](#zowe-remote-ssh-sdk) for all options.
 
 After step 4, reload VS Code and the Zowe MCP tools will be available in
 GitHub Copilot Chat.
@@ -146,12 +146,12 @@ npx @zowe/mcp-server --stdio --mock ./zowe-mcp-mock-data
 ZOWE_MCP_MOCK_DIR=./zowe-mcp-mock-data npx @zowe/mcp-server --stdio
 ```
 
-## Zowe Native Proto SDK
+## Zowe Remote SSH SDK
 
 The npm package is **`zowex-sdk`** (Zowe Remote SSH SDK). Nightly builds are under Artifactory `org/zowe/zowex/SDK/Nightly`.
 
 The server depends on the
-[Zowe Native Proto](https://github.com/zowe/zowe-native-proto) SDK for
+[Zowe Remote SSH](https://github.com/zowe/zowex) SDK for
 connecting to z/OS over SSH. Use the scripts below to fetch the `zowex-sdk`
 tarball (Zowe Artifactory or in-repo fallback).
 
@@ -173,8 +173,8 @@ and `nightly` (fallback) modes.
 
 ## Native (SSH) backend
 
-The server can connect to real z/OS systems over SSH using the Zowe Native Proto
-SDK. The native backend implements the full set of z/OS operations: data set
+The server can connect to real z/OS systems over SSH using the Zowe Remote SSH
+SDK (`zowex-sdk`). The native backend implements the full set of z/OS operations: data set
 CRUD (list, read, write, create, delete, copy, rename, restore, search,
 attributes), USS file operations (list, read, write, create, delete, chmod,
 chown, chtag, copy), TSO and console commands, and job management (submit,

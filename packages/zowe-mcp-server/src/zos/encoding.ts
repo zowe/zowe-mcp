@@ -16,7 +16,7 @@
  * encoding used for conversion when reading from or writing to the mainframe.
  *
  * Encoding names are normalized so that IBM-N and IBM-NN are zero-padded to
- * IBM-NNN (e.g. IBM-37 → IBM-037) for compatibility with Zowe Native Proto (ZNP).
+ * IBM-NNN (e.g. IBM-37 → IBM-037) for compatibility with Zowe Remote SSH / zowex-sdk (ZNP).
  */
 
 /** Default mainframe encoding for MVS datasets (e.g. IBM-037 for US EBCDIC). */

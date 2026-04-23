@@ -10,50 +10,50 @@
  */
 
 /**
- * Unit tests for SshClientCache: "Server not found" detection, auto-install ZNP, and server path.
+ * Unit tests for SshClientCache: "Server not found" detection, auto-install, and server path.
  */
 
 import { describe, expect, it, vi } from 'vitest';
 import type { Credentials } from '../src/zos/credentials.js';
 import type { ParsedConnectionSpec } from '../src/zos/native/connection-spec.js';
-import { SshClientCache, isZnpServerNotFoundError } from '../src/zos/native/ssh-client-cache.js';
+import { SshClientCache, isZowexServerNotFoundError } from '../src/zos/native/ssh-client-cache.js';
 
 const SPEC: ParsedConnectionSpec = { user: 'USER', host: 'host.example.com', port: 22 };
 const CREDS: Credentials = { user: 'USER', password: 'secret' };
 
-describe('isZnpServerNotFoundError', () => {
+describe('isZowexServerNotFoundError', () => {
   it('returns true for "Server not found" message', () => {
-    expect(isZnpServerNotFoundError(new Error('Server not found'))).toBe(true);
-    expect(isZnpServerNotFoundError(new Error('x Server not found y'))).toBe(true);
+    expect(isZowexServerNotFoundError(new Error('Server not found'))).toBe(true);
+    expect(isZowexServerNotFoundError(new Error('x Server not found y'))).toBe(true);
   });
 
   it('returns true for FSUM7351 in message', () => {
-    expect(isZnpServerNotFoundError(new Error('FSUM7351 not found'))).toBe(true);
-    expect(isZnpServerNotFoundError(new Error('stderr: FSUM7351'))).toBe(true);
+    expect(isZowexServerNotFoundError(new Error('FSUM7351 not found'))).toBe(true);
+    expect(isZowexServerNotFoundError(new Error('stderr: FSUM7351'))).toBe(true);
   });
 
   it('returns true for "Error starting Zowe server" (SDK generic fallback)', () => {
     expect(
-      isZnpServerNotFoundError(
+      isZowexServerNotFoundError(
         new Error('Error starting Zowe server: ~/.zowe-server/zowex server')
       )
     ).toBe(true);
     expect(
-      isZnpServerNotFoundError(
+      isZowexServerNotFoundError(
         new Error('Error starting Zowe server: /opt/zowe/server/zowex server')
       )
     ).toBe(true);
   });
 
   it('returns false for other errors', () => {
-    expect(isZnpServerNotFoundError(new Error('ENOTFOUND'))).toBe(false);
-    expect(isZnpServerNotFoundError(new Error('Connection refused'))).toBe(false);
-    expect(isZnpServerNotFoundError(new Error('Authentication failed'))).toBe(false);
+    expect(isZowexServerNotFoundError(new Error('ENOTFOUND'))).toBe(false);
+    expect(isZowexServerNotFoundError(new Error('Connection refused'))).toBe(false);
+    expect(isZowexServerNotFoundError(new Error('Authentication failed'))).toBe(false);
   });
 
   it('returns false for non-Error values', () => {
-    expect(isZnpServerNotFoundError('Server not found')).toBe(true); // string is coerced
-    expect(isZnpServerNotFoundError(null)).toBe(false);
+    expect(isZowexServerNotFoundError('Server not found')).toBe(true); // string is coerced
+    expect(isZowexServerNotFoundError(null)).toBe(false);
   });
 });
 
@@ -89,12 +89,12 @@ describe('SshClientCache', () => {
   });
 
   describe('getOrCreate with auto-install', () => {
-    it('calls installServer and retries create when "Server not found" on first create and autoInstallZnp true', async () => {
+    it('calls installServer and retries create when "Server not found" on first create and autoInstallZowex true', async () => {
       const fakeClient = { ds: {}, dispose: vi.fn(), serverChecksums: {} };
       createMock.mockRejectedValueOnce(new Error('Server not found'));
       createMock.mockResolvedValueOnce(fakeClient);
 
-      const cache = new SshClientCache({ autoInstallZnp: true });
+      const cache = new SshClientCache({ autoInstallZowex: true });
       const client = await cache.getOrCreate(SPEC, CREDS);
 
       expect(client).toBe(fakeClient);
@@ -110,7 +110,7 @@ describe('SshClientCache', () => {
       createMock.mockResolvedValueOnce(fakeClient);
 
       const cache = new SshClientCache({
-        autoInstallZnp: true,
+        autoInstallZowex: true,
         serverPath: customPath,
       });
       await cache.getOrCreate(SPEC, CREDS);
@@ -129,7 +129,7 @@ describe('SshClientCache', () => {
       );
       createMock.mockResolvedValueOnce(fakeClient);
 
-      const cache = new SshClientCache({ autoInstallZnp: true });
+      const cache = new SshClientCache({ autoInstallZowex: true });
       const client = await cache.getOrCreate(SPEC, CREDS);
 
       expect(client).toBe(fakeClient);
@@ -137,10 +137,10 @@ describe('SshClientCache', () => {
       expect(createMock).toHaveBeenCalledTimes(2);
     });
 
-    it('does not call installServer when autoInstallZnp is false and create throws "Server not found"', async () => {
+    it('does not call installServer when autoInstallZowex is false and create throws "Server not found"', async () => {
       createMock.mockRejectedValue(new Error('Server not found'));
 
-      const cache = new SshClientCache({ autoInstallZnp: false });
+      const cache = new SshClientCache({ autoInstallZowex: false });
       await expect(cache.getOrCreate(SPEC, CREDS)).rejects.toThrow('Server not found');
 
       expect(installServerMock).not.toHaveBeenCalled();
@@ -150,7 +150,7 @@ describe('SshClientCache', () => {
     it('rethrows non-Server-not-found errors without calling installServer', async () => {
       createMock.mockRejectedValue(new Error('Authentication failed'));
 
-      const cache = new SshClientCache({ autoInstallZnp: true });
+      const cache = new SshClientCache({ autoInstallZowex: true });
       await expect(cache.getOrCreate(SPEC, CREDS)).rejects.toThrow('Authentication failed');
 
       expect(installServerMock).not.toHaveBeenCalled();
@@ -161,7 +161,7 @@ describe('SshClientCache', () => {
       createMock.mockRejectedValueOnce(new Error('Server not found'));
       installServerMock.mockRejectedValueOnce(new Error('Upload failed'));
 
-      const cache = new SshClientCache({ autoInstallZnp: true });
+      const cache = new SshClientCache({ autoInstallZowex: true });
       await expect(cache.getOrCreate(SPEC, CREDS)).rejects.toThrow('Upload failed');
 
       expect(installServerMock).toHaveBeenCalledTimes(1);
@@ -174,7 +174,7 @@ describe('SshClientCache', () => {
       });
       createMock.mockRejectedValue(sdkError);
 
-      const cache = new SshClientCache({ autoInstallZnp: true });
+      const cache = new SshClientCache({ autoInstallZowex: true });
       await expect(cache.getOrCreate(SPEC, CREDS)).rejects.toThrow(
         /Connection refused\nDetails:\nTCP connection/
       );
@@ -187,7 +187,7 @@ describe('SshClientCache', () => {
       });
       installServerMock.mockRejectedValueOnce(installError);
 
-      const cache = new SshClientCache({ autoInstallZnp: true });
+      const cache = new SshClientCache({ autoInstallZowex: true });
       await expect(cache.getOrCreate(SPEC, CREDS)).rejects.toThrow(
         /Install failed\nDetails:\nReceived exit code 1/
       );

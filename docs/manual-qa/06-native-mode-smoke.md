@@ -2,7 +2,7 @@
 
 ## Objective
 
-Smoke-test **SSH / Zowe Native** backend: connection string, password or stored secret, and one **read-only** MCP tool (e.g. list data sets).
+Smoke-test **SSH / Zowe Remote SSH** backend: connection string, password or stored secret, and one **read-only** MCP tool (e.g. list data sets).
 
 ## Prerequisites
 

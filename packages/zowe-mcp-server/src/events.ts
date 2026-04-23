@@ -128,8 +128,8 @@ export interface OpenDatasetInEditorEventData {
   member?: string;
   /** Current MCP system id (e.g. user@host) for match-by-system resolution. */
   system?: string;
-  /** When 'native', extension prefers ssh profile when matching by system. */
-  connectionKind?: 'native' | 'zosmf';
+  /** When 'zowex', extension prefers ssh profile when matching by system. */
+  connectionKind?: 'zowex' | 'zosmf';
 }
 
 /** Asks the extension to open a data set or member in Zowe Explorer's editor (zowe-ds URI). */
@@ -144,8 +144,8 @@ export interface OpenUssFileInEditorEventData {
   path: string;
   /** Current MCP system id (e.g. user@host) for match-by-system resolution. */
   system?: string;
-  /** When 'native', extension prefers ssh profile when matching by system. */
-  connectionKind?: 'native' | 'zosmf';
+  /** When 'zowex', extension prefers ssh profile when matching by system. */
+  connectionKind?: 'zowex' | 'zosmf';
 }
 
 /** Asks the extension to open a USS file in Zowe Explorer's editor (zowe-uss URI). */
@@ -162,8 +162,8 @@ export interface OpenJobInEditorEventData {
   jobFileId?: number;
   /** Current MCP system id (e.g. user@host) for match-by-system resolution. */
   system?: string;
-  /** When 'native', extension prefers ssh profile when matching by system. */
-  connectionKind?: 'native' | 'zosmf';
+  /** When 'zowex', extension prefers ssh profile when matching by system. */
+  connectionKind?: 'zowex' | 'zosmf';
 }
 
 /** Asks the extension to open a job or spool file in Zowe Explorer's editor (zowe-jobs URI). */
@@ -173,15 +173,15 @@ export type OpenJobInEditorEvent = McpEvent<'open-job-in-editor', OpenJobInEdito
 export interface CeedumpCollectedEventData {
   /** Absolute path to the saved CEEDUMP file (YAML metadata + dump content). */
   path: string;
-  /** Abend reason text (e.g. CEE3204S protection exception 0C4). Present when the dump was collected after a ZNP abend. */
+  /** Abend reason text (e.g. CEE3204S protection exception 0C4). Present when the dump was collected after a zowex-sdk abend. */
   reason?: string;
-  /** Zowe Native operation that was in progress when the abend occurred (e.g. listDatasets, readDataset). */
-  znpOperation?: string;
+  /** Zowe Remote SSH operation that was in progress when the abend occurred (e.g. listDatasets, readDataset). */
+  zowexOperation?: string;
   /** MCP tool that was in progress when the abend occurred (e.g. listDatasets, searchInDataset). */
   mcpTool?: string;
 }
 
-/** Notifies the extension that a CEEDUMP was collected after a ZNP abend; extension can show a message and offer to open the file. */
+/** Notifies the extension that a CEEDUMP was collected after a zowex-sdk abend; extension can show a message and offer to open the file. */
 export type CeedumpCollectedEvent = McpEvent<'ceedump-collected', CeedumpCollectedEventData>;
 
 // ---------------------------------------------------------------------------
@@ -216,18 +216,33 @@ export interface ConnectionsUpdateEventData {
 /** Updates the list of connection specs (user@host) for native mode. */
 export type ConnectionsUpdateEvent = McpEvent<'connections-update', ConnectionsUpdateEventData>;
 
-/** Payload for a `native-options-update` event (extension → server). */
-export interface NativeOptionsUpdateEventData {
-  installZoweNativeServerAutomatically: boolean;
-  zoweNativeServerPath?: string;
-  /** Response timeout in seconds for ZNP requests (default 60). Applied to future connections. */
+/** Payload for a `zowex-options-update` event (extension → server). */
+export interface ZowexOptionsUpdateEventData {
+  zowexServerAutoInstall: boolean;
+  zowexServerPath?: string;
+  /** Response timeout in seconds for zowex-sdk requests (default 60). Applied to future connections. */
   responseTimeout?: number;
 }
 
-/** Updates native backend options (auto-install, server path). Applied to future connections. */
-export type NativeOptionsUpdateEvent = McpEvent<
+/** Updates Zowe Remote SSH (zowex) client options (auto-install, server path). Applied to future connections. */
+export type ZowexOptionsUpdateEvent = McpEvent<
+  'zowex-options-update',
+  ZowexOptionsUpdateEventData
+>;
+
+/**
+ * Legacy payload shape from older extensions (`native-options-update`).
+ * The server maps this to {@link ZowexOptionsUpdateEventData}.
+ */
+export interface LegacyNativeOptionsUpdateEventData {
+  installZoweNativeServerAutomatically: boolean;
+  zoweNativeServerPath?: string;
+  responseTimeout?: number;
+}
+
+export type LegacyNativeOptionsUpdateEvent = McpEvent<
   'native-options-update',
-  NativeOptionsUpdateEventData
+  LegacyNativeOptionsUpdateEventData
 >;
 
 /** Payload for an `encoding-options-update` event (extension → server). */
@@ -372,7 +387,8 @@ export type ExtensionToServerEvent =
   | LogLevelEvent
   | PasswordEvent
   | ConnectionsUpdateEvent
-  | NativeOptionsUpdateEvent
+  | ZowexOptionsUpdateEvent
+  | LegacyNativeOptionsUpdateEvent
   | EncodingOptionsUpdateEvent
   | JobCardsUpdateEvent
   | JobCardEvent

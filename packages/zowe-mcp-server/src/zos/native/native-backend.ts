@@ -10,7 +10,7 @@
  */
 
 /**
- * ZosBackend implementation using the Zowe Native Proto SDK (SSH).
+ * ZosBackend implementation using the Zowe Remote SSH SDK (`zowex-sdk`) over SSH.
  *
  * Implements listDatasets, listMembers, and readDataset; other methods throw "not implemented".
  */
@@ -58,12 +58,12 @@ import {
   sanitizeAbendMessage,
   takeAbendSnippet,
 } from './stderr-abend-capture.js';
-import { logZnpResponse, requireMethods, sanitizeZnpString } from './znp-debug.js';
+import { logZowexRpcResponse, requireMethods, sanitizeZowexString } from './zowex-debug.js';
 
 const log = getLogger().child('native');
 
-/** Suggested link for reporting ZNP server abends (CEE3204S/0C4, etc.). */
-const ZNP_ISSUES_URL = 'https://github.com/zowe/zowe-native-proto/issues';
+/** Suggested link for reporting Zowe Remote SSH z/OS server abends (CEE3204S/0C4, etc.). */
+const ZOWEX_ISSUES_URL = 'https://github.com/zowe/zowex/issues';
 
 /** Per connection (user@host:port) lock so only one request uses the client at a time. */
 const connectionLocks = new Map<string, Promise<void>>();
@@ -193,7 +193,7 @@ interface NativeConsoleApi {
 }
 
 /** Shape returned by UtilsApi.tools.parseSearchOutput (SDK 0.3.0+). */
-interface ZnpParsedSearchResult {
+interface ZowexParsedSearchResult {
   dataset: string;
   header: string;
   members: {
@@ -218,7 +218,7 @@ interface ZnpParsedSearchResult {
 }
 
 /** ZNP spool item shape (listSpools response). */
-interface ZnpSpoolItem {
+interface ZowexSpoolItem {
   id?: number;
   spoolId?: number;
   ddname?: string;
@@ -248,7 +248,7 @@ interface NativeJobsApi {
     phaseName?: string;
     correlator?: string;
   }>;
-  listSpools(req: { jobId: string }): Promise<{ items?: ZnpSpoolItem[] }>;
+  listSpools(req: { jobId: string }): Promise<{ items?: ZowexSpoolItem[] }>;
   readSpool(req: {
     jobId: string;
     spoolId: number;
@@ -260,7 +260,7 @@ interface NativeJobsApi {
     prefix?: string;
     status?: string;
     maxItems?: number;
-  }): Promise<{ items?: ZnpJobItem[] }>;
+  }): Promise<{ items?: ZowexJobItem[] }>;
   getJcl(req: { jobId: string }): Promise<{ jcl?: string; data?: string }>;
   cancelJob(req: { jobId: string }): Promise<{ success?: boolean }>;
   holdJob(req: { jobId: string }): Promise<{ success?: boolean }>;
@@ -271,7 +271,7 @@ interface NativeJobsApi {
 }
 
 /** ZNP job item (listJobs response). */
-interface ZnpJobItem {
+interface ZowexJobItem {
   id?: string;
   name?: string;
   owner?: string;
@@ -459,7 +459,7 @@ export class NativeBackend {
       log.debug('Native backend: getOrCreate client', { key, systemId });
       const client = await this.options.clientCache.getOrCreate(spec, credentials, progress);
       log.debug('Native backend: got client, running operation', { key, systemId });
-      progress?.('Running Zowe Native operation');
+      progress?.('Running Zowe Remote SSH operation');
 
       let rejectAbend: (err: Error) => void;
       const abendPromise = new Promise<never>((_, reject) => {
@@ -507,7 +507,7 @@ export class NativeBackend {
         code
       );
       const abendDetected = isAbendError(fullMsg);
-      const znpOperation = operationContext?.operation ?? 'unknown';
+      const zowexOperation = operationContext?.operation ?? 'unknown';
       const mcpTool = getCurrentMcpTool() ?? 'unknown';
 
       const abendReason: string | undefined = abendDetected
@@ -528,11 +528,11 @@ export class NativeBackend {
       });
       if (abendDetected) {
         log.notice(
-          `Zowe Native server on z/OS abended during Zowe Native operation '${znpOperation}' (MCP tool: '${mcpTool}'). ${abendReason}. Connection evicted; next request will use a new connection. Set ZOWE_MCP_CEEDUMP_SAVE_DIR to collect CEEDUMPs. Please report via GitHub issues: ${ZNP_ISSUES_URL}`,
-          { systemId, host: spec.host, user: spec.user, znpOperation, mcpTool, abendReason }
+          `Zowe Remote SSH server on z/OS abended during Zowe Remote SSH operation '${zowexOperation}' (MCP tool: '${mcpTool}'). ${abendReason}. Connection evicted; next request will use a new connection. Set ZOWE_MCP_CEEDUMP_SAVE_DIR to collect CEEDUMPs. Please report via GitHub issues: ${ZOWEX_ISSUES_URL}`,
+          { systemId, host: spec.host, user: spec.user, zowexOperation, mcpTool, abendReason }
         );
         log.error(
-          `Zowe Native unexpected internal error: abend during Zowe Native call '${znpOperation}' (MCP tool: '${mcpTool}'). Details: ${abendReason}. Please report via GitHub issues: ${ZNP_ISSUES_URL}`
+          `Zowe Remote SSH unexpected internal error: abend during Zowe Remote SSH call '${zowexOperation}' (MCP tool: '${mcpTool}'). Details: ${abendReason}. Please report via GitHub issues: ${ZOWEX_ISSUES_URL}`
         );
       }
       log.debug('Native backend error detail', {
@@ -568,7 +568,7 @@ export class NativeBackend {
         }
       }
       if (abendDetected) {
-        const userMessage = `An unexpected internal error occurred in Zowe Native (z/OS). Details: ${abendReason}. Please report via GitHub issues: ${ZNP_ISSUES_URL}`;
+        const userMessage = `An unexpected internal error occurred in Zowe Remote SSH (z/OS). Details: ${abendReason}. Please report via GitHub issues: ${ZOWEX_ISSUES_URL}`;
         throw new Error(userMessage);
       }
       if (additionalDetails) {
@@ -673,7 +673,7 @@ export class NativeBackend {
       this.options.onCeedumpCollected?.({
         path: absolutePath,
         reason: errorMessage.slice(0, 500),
-        znpOperation: meta.operation,
+        zowexOperation: meta.operation,
         mcpTool: mcpTool ?? undefined,
       });
     } catch (collectErr) {
@@ -697,8 +697,8 @@ export class NativeBackend {
     pattern?: string
   ): Promise<MemberEntry[]> {
     const ds = (client as unknown as { ds: NativeDsApi }).ds;
-    const znpPattern = pattern ? pattern.replace(/%/g, '?') : undefined;
-    const response = await ds.listDsMembers({ dsname: dsn, pattern: znpPattern });
+    const memberListPattern = pattern ? pattern.replace(/%/g, '?') : undefined;
+    const response = await ds.listDsMembers({ dsname: dsn, pattern: memberListPattern });
     let members: MemberEntry[] = (response.items ?? []).map(m => ({
       name: m.name.toUpperCase(),
     }));
@@ -779,8 +779,8 @@ export class NativeBackend {
       undefined,
       async client => {
         const ds = (client as unknown as { ds: NativeDsApi }).ds;
-        const znpPattern = pattern ? pattern.replace(/%/g, '?') : undefined;
-        const response = await ds.listDsMembers({ dsname: dsn, pattern: znpPattern });
+        const memberListPattern = pattern ? pattern.replace(/%/g, '?') : undefined;
+        const response = await ds.listDsMembers({ dsname: dsn, pattern: memberListPattern });
         let members: MemberEntry[] = (response.items ?? []).map(m => ({
           name: m.name.toUpperCase(),
         }));
@@ -1162,7 +1162,7 @@ export class NativeBackend {
     const sdk = (await import('zowex-sdk')) as unknown as {
       UtilsApi?: {
         tools: {
-          parseSearchOutput: (output: string) => ZnpParsedSearchResult;
+          parseSearchOutput: (output: string) => ZowexParsedSearchResult;
         };
       };
     };
@@ -1693,7 +1693,7 @@ export class NativeBackend {
         clientKeys: typeof client === 'object' && client !== null ? Object.keys(client) : [],
       });
       throw new Error(
-        'Zowe Native Proto client does not expose jobs API (client.jobs is missing). Ensure the SDK and z/OS server support job operations.'
+        'Zowe Remote SSH (zowex-sdk) client does not expose jobs API (client.jobs is missing). Ensure the SDK and z/OS server support job operations.'
       );
     }
     const jobsRecord = jobs as unknown as Record<string, unknown>;
@@ -1714,19 +1714,19 @@ export class NativeBackend {
     return jobs;
   }
 
-  private mapZnpJobToEntry(item: ZnpJobItem, jobId: string): JobEntry {
+  private mapZowexJobToEntry(item: ZowexJobItem, jobId: string): JobEntry {
     return {
-      id: sanitizeZnpString(item.id) ?? jobId,
-      name: sanitizeZnpString(item.name) ?? '',
-      owner: sanitizeZnpString(item.owner) ?? '',
-      status: sanitizeZnpString(item.status) ?? '',
-      type: sanitizeZnpString(item.type) ?? '',
-      class: sanitizeZnpString(item.class) ?? '',
-      retcode: sanitizeZnpString(item.retcode) ?? item.retcode,
-      subsystem: sanitizeZnpString(item.subsystem) ?? item.subsystem,
+      id: sanitizeZowexString(item.id) ?? jobId,
+      name: sanitizeZowexString(item.name) ?? '',
+      owner: sanitizeZowexString(item.owner) ?? '',
+      status: sanitizeZowexString(item.status) ?? '',
+      type: sanitizeZowexString(item.type) ?? '',
+      class: sanitizeZowexString(item.class) ?? '',
+      retcode: sanitizeZowexString(item.retcode) ?? item.retcode,
+      subsystem: sanitizeZowexString(item.subsystem) ?? item.subsystem,
       phase: item.phase ?? 0,
-      phaseName: sanitizeZnpString(item.phaseName) ?? '',
-      correlator: sanitizeZnpString(item.correlator) ?? item.correlator,
+      phaseName: sanitizeZowexString(item.phaseName) ?? '',
+      correlator: sanitizeZowexString(item.correlator) ?? item.correlator,
     };
   }
 
@@ -1756,7 +1756,7 @@ export class NativeBackend {
           string,
           unknown
         >;
-        logZnpResponse(log, 'submitJcl', raw, result, {
+        logZowexRpcResponse(log, 'submitJcl', raw, result, {
           matchesExpectation:
             typeof jobId === 'string' && typeof jobName === 'string' && jobId.length > 0,
         });
@@ -1783,16 +1783,16 @@ export class NativeBackend {
         const raw = (typeof r === 'object' && r !== null ? r : {}) as Record<string, unknown>;
         const result: JobStatusResult = {
           id: r.id ?? jobIdUpper,
-          name: sanitizeZnpString(r.name) ?? r.name ?? '',
-          owner: sanitizeZnpString(r.owner) ?? r.owner ?? '',
-          status: sanitizeZnpString(r.status) ?? r.status ?? '',
-          type: sanitizeZnpString(r.type) ?? r.type ?? '',
-          class: sanitizeZnpString(r.class) ?? r.class ?? '',
-          retcode: sanitizeZnpString(r.retcode) ?? r.retcode,
-          subsystem: sanitizeZnpString(r.subsystem) ?? r.subsystem,
+          name: sanitizeZowexString(r.name) ?? r.name ?? '',
+          owner: sanitizeZowexString(r.owner) ?? r.owner ?? '',
+          status: sanitizeZowexString(r.status) ?? r.status ?? '',
+          type: sanitizeZowexString(r.type) ?? r.type ?? '',
+          class: sanitizeZowexString(r.class) ?? r.class ?? '',
+          retcode: sanitizeZowexString(r.retcode) ?? r.retcode,
+          subsystem: sanitizeZowexString(r.subsystem) ?? r.subsystem,
           phase: r.phase ?? 0,
-          phaseName: sanitizeZnpString(r.phaseName) ?? r.phaseName ?? '',
-          correlator: sanitizeZnpString(r.correlator) ?? r.correlator,
+          phaseName: sanitizeZowexString(r.phaseName) ?? r.phaseName ?? '',
+          correlator: sanitizeZowexString(r.correlator) ?? r.correlator,
         };
         const expectedKeys = [
           'id',
@@ -1807,7 +1807,7 @@ export class NativeBackend {
           'phaseName',
           'correlator',
         ];
-        logZnpResponse(log, 'getStatus', raw, result, {
+        logZowexRpcResponse(log, 'getStatus', raw, result, {
           expectedKeys,
           matchesExpectation: typeof result.id === 'string' && typeof result.status === 'string',
         });
@@ -1830,16 +1830,16 @@ export class NativeBackend {
         const jobs = this.getJobs(client);
         const jobIdUpper = jobId.toUpperCase();
         const response = await jobs.listSpools({ jobId: jobIdUpper });
-        const items: ZnpSpoolItem[] = response.items ?? [];
+        const items: ZowexSpoolItem[] = response.items ?? [];
         const result: JobFileEntry[] = [];
         for (const item of items) {
           const id = item.id ?? item.spoolId ?? 0;
           result.push({
             id: typeof id === 'number' ? id : parseInt(String(id), 10) || 0,
-            ddname: sanitizeZnpString(item.ddname) ?? item.ddname,
-            stepname: sanitizeZnpString(item.stepname) ?? item.stepname,
-            dsname: sanitizeZnpString(item.dsname) ?? item.dsname,
-            procstep: sanitizeZnpString(item.procstep) ?? item.procstep,
+            ddname: sanitizeZowexString(item.ddname) ?? item.ddname,
+            stepname: sanitizeZowexString(item.stepname) ?? item.stepname,
+            dsname: sanitizeZowexString(item.dsname) ?? item.dsname,
+            procstep: sanitizeZowexString(item.procstep) ?? item.procstep,
           });
         }
         log.debug('listJobFiles', { jobId: jobIdUpper, count: result.length });
@@ -1899,11 +1899,11 @@ export class NativeBackend {
           status: options?.status,
           maxItems: options?.maxItems,
         });
-        const items: ZnpJobItem[] = response.items ?? [];
+        const items: ZowexJobItem[] = response.items ?? [];
         const result: JobEntry[] = [];
         for (const item of items) {
-          const id = sanitizeZnpString(item.id) ?? '';
-          result.push(this.mapZnpJobToEntry(item, id));
+          const id = sanitizeZowexString(item.id) ?? '';
+          result.push(this.mapZowexJobToEntry(item, id));
         }
         log.debug('listJobs', { systemId, count: result.length });
         return result;

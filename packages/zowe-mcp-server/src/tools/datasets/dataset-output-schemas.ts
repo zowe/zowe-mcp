@@ -254,13 +254,13 @@ const searchMatchSchema = z.object({
     .array(z.string())
     .optional()
     .describe(
-      'Lines before the match (up to 6). Present only when includeContextLines is true and the native ZNP backend is used with LPSF.'
+      'Lines before the match (up to 6). Present only when includeContextLines is true and the Zowe Remote SSH (zowex) backend is used with LPSF.'
     ),
   afterContext: z
     .array(z.string())
     .optional()
     .describe(
-      'Lines after the match (up to 6). Present only when includeContextLines is true and the native ZNP backend is used with LPSF.'
+      'Lines after the match (up to 6). Present only when includeContextLines is true and the Zowe Remote SSH (zowex) backend is used with LPSF.'
     ),
 });
 

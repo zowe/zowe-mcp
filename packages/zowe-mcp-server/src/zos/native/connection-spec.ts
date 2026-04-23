@@ -10,7 +10,7 @@
  */
 
 /**
- * Connection spec parsing for Zowe Native (SSH) backend.
+ * Connection spec parsing for the Zowe Remote SSH (native SSH) backend.
  *
  * Parses user@host and user@host:port strings, and provides helpers
  * for env var names (standalone) and secret storage keys (shared Zowe OSS convention).

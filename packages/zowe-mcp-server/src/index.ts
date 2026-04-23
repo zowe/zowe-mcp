@@ -19,7 +19,7 @@
  *   --http    Start with HTTP Streamable transport
  *   --port N  Port for HTTP transport (default: 7542, Zowe MCP)
  *   --mock <dir>  Start in mock mode with the given data directory
- *   --native  Start with Zowe Native (SSH) backend
+ *   --native  Start with Zowe Remote SSH backend
  *   --config <path>  JSON file with { "systems": ["user@host", ...] } (used with --native)
  *   --system <spec>  Connection spec user@host or user@host:port (repeatable, used with --native)
  *
@@ -93,7 +93,7 @@ import {
 } from './zos/native/connection-spec.js';
 import type { NativeSetup } from './zos/native/load-native.js';
 import type { WaitablePasswordStoreLike } from './zos/native/native-credential-provider.js';
-import type { NativeOptions } from './zos/native/ssh-client-cache.js';
+import type { ZowexClientOptions } from './zos/native/ssh-client-cache.js';
 
 /** Merge startup connection strings with tenant file entries (dedupe, preserve order). */
 function mergeConnectionStrings(base: string[], extra: string[]): string[] {
@@ -127,18 +127,19 @@ interface ParsedArgs {
   transport: 'stdio' | 'http';
   port: number;
   mockDir?: string;
-  native?: boolean;
+  /** Zowe Remote SSH (zowex-sdk) backend; set by `--native` or `--zowex`. */
+  zowex?: boolean;
   configPath?: string;
   systemSpecs: string[];
   subcommand?: string;
   /** Response cache: false = disabled, object = custom options, undefined = server defaults. */
   responseCache?: ResponseCacheConfig | false;
-  /** When false, do not auto-install ZNP on "Server not found" (native mode). Default true = auto-install enabled. */
-  nativeServerAutoInstall?: boolean;
-  /** Override remote path for ZNP server install/run (native mode). Default ~/.zowe-server. */
-  nativeServerPath?: string;
-  /** Response timeout in seconds for ZNP requests (native mode). Default 60. */
-  nativeResponseTimeout?: number;
+  /** When false, do not auto-install the z/OS server on "Server not found". Default true. */
+  zowexServerAutoInstall?: boolean;
+  /** Override remote path for the zowex z/OS server. Default ~/.zowe-server. */
+  zowexServerPath?: string;
+  /** Response timeout in seconds for zowex-sdk requests. Default 60. */
+  zowexResponseTimeout?: number;
   /** Default mainframe encoding for MVS data sets (e.g. IBM-037). */
   defaultMvsEncoding?: string;
   /** Default mainframe encoding for USS files (e.g. IBM-1047). */
@@ -230,18 +231,24 @@ function applyEnvOverrides(parsed: ParsedArgs): void {
   ) {
     parsed.responseCache = false;
   }
-  const envAutoInstall = process.env.ZOWE_MCP_NATIVE_SERVER_AUTO_INSTALL?.toLowerCase();
+  const envAutoInstall =
+    process.env.ZOWE_MCP_ZOWEX_SERVER_AUTO_INSTALL?.toLowerCase() ??
+    process.env.ZOWE_MCP_NATIVE_SERVER_AUTO_INSTALL?.toLowerCase();
   if (envAutoInstall === 'false' || envAutoInstall === '0') {
-    parsed.nativeServerAutoInstall = false;
+    parsed.zowexServerAutoInstall = false;
   }
-  if (process.env.ZOWE_MCP_NATIVE_SERVER_PATH?.trim()) {
-    parsed.nativeServerPath = process.env.ZOWE_MCP_NATIVE_SERVER_PATH.trim();
+  const zowexPath =
+    process.env.ZOWE_MCP_ZOWEX_SERVER_PATH?.trim() ??
+    process.env.ZOWE_MCP_NATIVE_SERVER_PATH?.trim();
+  if (zowexPath) {
+    parsed.zowexServerPath = zowexPath;
   }
-  const envResponseTimeout = process.env.ZOWE_MCP_NATIVE_RESPONSE_TIMEOUT;
+  const envResponseTimeout =
+    process.env.ZOWE_MCP_ZOWEX_RESPONSE_TIMEOUT ?? process.env.ZOWE_MCP_NATIVE_RESPONSE_TIMEOUT;
   if (envResponseTimeout !== undefined) {
     const sec = parseInt(envResponseTimeout, 10);
     if (!isNaN(sec) && sec > 0) {
-      parsed.nativeResponseTimeout = sec;
+      parsed.zowexResponseTimeout = sec;
     }
   }
   if (process.env.ZOWE_MCP_DEFAULT_MVS_ENCODING?.trim()) {
@@ -353,7 +360,8 @@ function parseArgs(): ParsedArgs {
       native: {
         type: 'boolean',
         default: false,
-        describe: 'Zowe Native (SSH) backend',
+        alias: 'zowex',
+        describe: 'Zowe Remote SSH backend (SSH to z/OS; zowex-sdk). Same as --zowex.',
       },
       config: {
         type: 'string',
@@ -365,21 +373,25 @@ function parseArgs(): ParsedArgs {
         string: true,
         describe: 'Connection spec user@host or user@host:port (repeatable, used with --native)',
       },
-      'native-server-auto-install': {
+      'zowex-server-auto-install': {
         type: 'boolean',
         default: true,
-        describe: 'Auto-install ZNP when "Server not found" (default: true)',
-      },
-      'native-server-path': {
-        type: 'string',
+        alias: 'native-server-auto-install',
         describe:
-          'Remote path for ZNP server (default: ~/.zowe-server; or ZOWE_MCP_NATIVE_SERVER_PATH)',
+          'Auto-install Zowe Remote SSH z/OS server when "Server not found" (default: true; env: ZOWE_MCP_ZOWEX_SERVER_AUTO_INSTALL or legacy ZOWE_MCP_NATIVE_SERVER_AUTO_INSTALL)',
       },
-      'native-response-timeout': {
+      'zowex-server-path': {
+        type: 'string',
+        alias: 'native-server-path',
+        describe:
+          'Remote path for Zowe Remote SSH z/OS server (default: ~/.zowe-server; env: ZOWE_MCP_ZOWEX_SERVER_PATH or legacy ZOWE_MCP_NATIVE_SERVER_PATH)',
+      },
+      'zowex-response-timeout': {
         type: 'number',
         default: 60,
+        alias: 'native-response-timeout',
         describe:
-          'Response timeout in seconds for ZNP requests (default 60; or ZOWE_MCP_NATIVE_RESPONSE_TIMEOUT)',
+          'Response timeout in seconds for Zowe Remote SSH requests (default 60; env: ZOWE_MCP_ZOWEX_RESPONSE_TIMEOUT or legacy ZOWE_MCP_NATIVE_RESPONSE_TIMEOUT)',
       },
       'response-cache-disable': {
         type: 'boolean',
@@ -524,13 +536,13 @@ function parseArgs(): ParsedArgs {
     transport: argv.http ? 'http' : 'stdio',
     port: (argv.port as number) ?? 7542,
     mockDir: argv.mock as string | undefined,
-    native: (argv.native as boolean) ?? false,
+    zowex: Boolean((argv.native as boolean) || (argv.zowex as boolean)),
     configPath: argv.config as string | undefined,
     systemSpecs,
     responseCache,
-    nativeServerAutoInstall: (argv['native-server-auto-install'] as boolean) ?? true,
-    nativeServerPath: argv['native-server-path'] as string | undefined,
-    nativeResponseTimeout: (argv['native-response-timeout'] as number) ?? 60,
+    zowexServerAutoInstall: (argv['zowex-server-auto-install'] as boolean) ?? true,
+    zowexServerPath: argv['zowex-server-path'] as string | undefined,
+    zowexResponseTimeout: (argv['zowex-response-timeout'] as number) ?? 60,
     defaultMvsEncoding: argv['default-mvs-encoding'] as string | undefined,
     defaultUssEncoding: argv['default-uss-encoding'] as string | undefined,
     localFilesRoots,
@@ -667,11 +679,11 @@ function createElicitJobCard(
  * Build the loadNative callback options that forward events to the VS Code extension pipe.
  * Only called when the extension client is connected.
  */
-function buildNativeExtensionCallbacks(
+function buildZowexExtensionCallbacks(
   extensionClient: ExtensionClient,
   nativePasswordLog: ReturnType<typeof getLogger>,
   serverRef: { current: CreateServerResult | null },
-  nativeOptionsRef: { current: NativeOptions }
+  zowexOptionsRef: { current: ZowexClientOptions }
 ): {
   requestPasswordCallback: (user: string, host: string, port?: number) => void;
   requestPasswordViaElicitation: (
@@ -687,7 +699,7 @@ function buildNativeExtensionCallbacks(
   ) => void;
   onPasswordInvalid: (user: string, host: string, port?: number) => void;
   onCeedumpCollected: (data: CeedumpCollectedEventData) => void;
-  getNativeOptions: () => NativeOptions;
+  getZowexClientOptions: () => ZowexClientOptions;
 } {
   return {
     requestPasswordCallback: (user, host, port) => {
@@ -767,13 +779,13 @@ function buildNativeExtensionCallbacks(
         data: {
           path: data.path,
           reason: data.reason,
-          znpOperation: data.znpOperation,
+          zowexOperation: data.zowexOperation,
           mcpTool: data.mcpTool,
         },
         timestamp: Date.now(),
       });
     },
-    getNativeOptions: () => nativeOptionsRef.current,
+    getZowexClientOptions: () => zowexOptionsRef.current,
   };
 }
 
@@ -788,7 +800,7 @@ interface ExtensionEventHandlerOptions {
   passwordHash?: (password: string) => string;
   nativePasswordLog?: ReturnType<typeof getLogger>;
   jobCardStore?: JobCardStore;
-  nativeOptionsRef?: { current: NativeOptions };
+  zowexOptionsRef?: { current: ZowexClientOptions };
   encodingOptionsRef?: { current: EncodingOptions };
   updateSystems?: (systems: string[]) => void;
   pendingSystemsUpdate?: string[];
@@ -913,16 +925,33 @@ function setupExtensionEventHandlers(
         break;
       }
 
+      case 'zowex-options-update': {
+        if (opts.zowexOptionsRef) {
+          const { zowexServerAutoInstall, zowexServerPath, responseTimeout } = event.data;
+          opts.zowexOptionsRef.current = {
+            autoInstallZowex: zowexServerAutoInstall,
+            serverPath: zowexServerPath ?? opts.zowexOptionsRef.current.serverPath,
+            responseTimeout: responseTimeout ?? opts.zowexOptionsRef.current.responseTimeout,
+          };
+          logger.info('Applied zowex-options-update from VS Code extension', {
+            zowexServerAutoInstall,
+            zowexServerPath: zowexServerPath ?? '(unchanged)',
+            responseTimeout: responseTimeout ?? '(unchanged)',
+          });
+        }
+        break;
+      }
+
       case 'native-options-update': {
-        if (opts.nativeOptionsRef) {
+        if (opts.zowexOptionsRef) {
           const { installZoweNativeServerAutomatically, zoweNativeServerPath, responseTimeout } =
             event.data;
-          opts.nativeOptionsRef.current = {
-            autoInstallZnp: installZoweNativeServerAutomatically,
-            serverPath: zoweNativeServerPath ?? opts.nativeOptionsRef.current.serverPath,
-            responseTimeout: responseTimeout ?? opts.nativeOptionsRef.current.responseTimeout,
+          opts.zowexOptionsRef.current = {
+            autoInstallZowex: installZoweNativeServerAutomatically,
+            serverPath: zoweNativeServerPath ?? opts.zowexOptionsRef.current.serverPath,
+            responseTimeout: responseTimeout ?? opts.zowexOptionsRef.current.responseTimeout,
           };
-          logger.info('Applied native-options-update from VS Code extension', {
+          logger.info('Applied legacy native-options-update from VS Code extension', {
             installZoweNativeServerAutomatically,
             zoweNativeServerPath: zoweNativeServerPath ?? '(unchanged)',
             responseTimeout: responseTimeout ?? '(unchanged)',
@@ -1010,7 +1039,7 @@ async function main(): Promise<void> {
     transport,
     port,
     mockDir,
-    native,
+    zowex,
     configPath,
     systemSpecs,
     responseCache: responseCacheConfig,
@@ -1027,8 +1056,8 @@ async function main(): Promise<void> {
     | ((tenantSub: string, spec: string) => Promise<void>)
     | undefined;
 
-  if (mockDir && native) {
-    logger.error('Cannot use both --mock and --native. Choose one.');
+  if (mockDir && zowex) {
+    logger.error('Cannot use both --mock and --native/--zowex. Choose one.');
     process.exit(1);
   }
 
@@ -1051,7 +1080,7 @@ async function main(): Promise<void> {
     transport,
     ...(transport === 'http' ? { port } : {}),
     ...(mockDir ? { mockDir } : {}),
-    ...(native ? { native: true } : {}),
+    ...(zowex ? { zowex: true } : {}),
     cwd: process.cwd(),
     argv: process.argv,
   });
@@ -1074,14 +1103,14 @@ async function main(): Promise<void> {
   /** True after we've registered Zowe Explorer tools on the stdio server (avoids double registration). */
   const zoweExplorerToolsRegisteredRef = { current: false };
   /** Native-specific options for setupExtensionEventHandlers; populated in the native branch. */
-  let nativeEventHandlerOpts:
+  let zowexEventHandlerOpts:
     | {
         nativePasswordStore?: { set: (key: string, password: string) => void };
         cacheKey: (spec: { user: string; host: string; port: number }) => string;
         passwordHash: (password: string) => string;
         nativePasswordLog: ReturnType<typeof getLogger>;
         jobCardStore: JobCardStore;
-        nativeOptionsRef: { current: NativeOptions };
+        zowexOptionsRef: { current: ZowexClientOptions };
         updateSystems?: (systems: string[]) => void;
       }
     | undefined;
@@ -1105,7 +1134,7 @@ async function main(): Promise<void> {
       mockDir,
       systems: mock.systemRegistry.list(),
     });
-  } else if (native) {
+  } else if (zowex) {
     let systems: string[] = [...systemSpecs];
     const jobCardStore = createWaitableJobCardStore();
     if (configPath) {
@@ -1156,20 +1185,20 @@ async function main(): Promise<void> {
     serverRef = { current: null };
     const defaultNativeServerPath = '~/.zowe-server';
     const defaultResponseTimeout = 60;
-    const nativeOptionsRef = {
+    const zowexOptionsRef = {
       current: {
-        autoInstallZnp: parsed.nativeServerAutoInstall ?? true,
-        serverPath: parsed.nativeServerPath ?? defaultNativeServerPath,
-        responseTimeout: parsed.nativeResponseTimeout ?? defaultResponseTimeout,
+        autoInstallZowex: parsed.zowexServerAutoInstall ?? true,
+        serverPath: parsed.zowexServerPath ?? defaultNativeServerPath,
+        responseTimeout: parsed.zowexResponseTimeout ?? defaultResponseTimeout,
       },
     };
     const extensionCallbacks =
       extensionConnected && extensionClient
-        ? buildNativeExtensionCallbacks(
+        ? buildZowexExtensionCallbacks(
             extensionClient,
             nativePasswordLog,
             serverRef,
-            nativeOptionsRef
+            zowexOptionsRef
           )
         : {};
     const standalonePasswordElicitation = !extensionConnected
@@ -1187,9 +1216,9 @@ async function main(): Promise<void> {
       passwordStore: nativePasswordStore,
       ...extensionCallbacks,
       ...standalonePasswordElicitation,
-      autoInstallZnp: parsed.nativeServerAutoInstall ?? true,
-      nativeServerPath: parsed.nativeServerPath,
-      responseTimeout: parsed.nativeResponseTimeout ?? defaultResponseTimeout,
+      autoInstallZowex: parsed.zowexServerAutoInstall ?? true,
+      zowexServerPath: parsed.zowexServerPath,
+      responseTimeout: parsed.zowexResponseTimeout ?? defaultResponseTimeout,
     });
     sharedNativeResolveJobCard = nativeSetup.resolveJobCardConnectionSpec;
 
@@ -1222,25 +1251,25 @@ async function main(): Promise<void> {
       elicitJobCard: createElicitJobCard(jobCardStore, extensionClient, serverRef, logger),
       persistJobCard: persistJobCardToConfig,
     };
-    nativeEventHandlerOpts = {
+    zowexEventHandlerOpts = {
       nativePasswordStore,
       cacheKey,
       passwordHash,
       nativePasswordLog,
       jobCardStore,
-      nativeOptionsRef,
+      zowexOptionsRef,
       updateSystems: nativeSetup.updateSystems,
     };
     baseSystemsRef.current = systems;
-    if (native && tenantPersistenceDir && transport === 'http' && hasJwtAuthConfigured()) {
+    if (zowex && tenantPersistenceDir && transport === 'http' && hasJwtAuthConfigured()) {
       const nativeLoadBase = {
         useEnvForPassword: !extensionConnected,
         passwordStore: nativePasswordStore,
         ...extensionCallbacks,
         ...standalonePasswordElicitation,
-        autoInstallZnp: parsed.nativeServerAutoInstall ?? true,
-        nativeServerPath: parsed.nativeServerPath,
-        responseTimeout: parsed.nativeResponseTimeout ?? defaultResponseTimeout,
+        autoInstallZowex: parsed.zowexServerAutoInstall ?? true,
+        zowexServerPath: parsed.zowexServerPath,
+        responseTimeout: parsed.zowexResponseTimeout ?? defaultResponseTimeout,
       };
       getOrCreateTenantNativeSetup = (sub: string): NativeSetup => {
         const key = tenantKeyFromSub(sub);
@@ -1326,9 +1355,9 @@ async function main(): Promise<void> {
   }
 
   if (transport === 'http' && hasJwtAuthConfigured()) {
-    if (!native) {
+    if (!zowex) {
       logger.notice(
-        'addZosConnection is not registered: HTTP JWT + --mock has no z/OS SSH connections to add. Use --native and ZOWE_MCP_TENANT_STORE_DIR to enable addZosConnection.'
+        'addZosConnection is not registered: HTTP JWT + --mock has no z/OS SSH connections to add. Use --native/--zowex and ZOWE_MCP_TENANT_STORE_DIR to enable addZosConnection.'
       );
     } else if (!tenantPersistenceDir) {
       logger.notice(
@@ -1385,7 +1414,7 @@ async function main(): Promise<void> {
     setupExtensionEventHandlers(extensionClient, {
       logger,
       transport,
-      ...nativeEventHandlerOpts,
+      ...zowexEventHandlerOpts,
       encodingOptionsRef,
       pendingSystemsUpdate,
       zoweExplorerCallbacksRef,

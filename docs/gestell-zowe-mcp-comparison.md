@@ -2,7 +2,7 @@
 
 <!-- markdownlint-disable MD060 -->
 
-This document compares [Gestell-AI/zowe-mcp](https://github.com/Gestell-AI/zowe-mcp) (a Zowe CLI–based MCP server) with the Zowe MCP server in this repository (Zowe Native Proto over SSH), and summarizes what this repo can learn from Gestell.
+This document compares [Gestell-AI/zowe-mcp](https://github.com/Gestell-AI/zowe-mcp) (a Zowe CLI–based MCP server) with the Zowe MCP server in this repository (Zowe Remote SSH / `zowex-sdk`), and summarizes what this repo can learn from Gestell.
 
 ---
 
@@ -12,13 +12,13 @@ This document compares [Gestell-AI/zowe-mcp](https://github.com/Gestell-AI/zowe-
 
 | Aspect | Gestell-AI/zowe-mcp | This repository |
 |--------|---------------------|------------------|
-| **z/OS connectivity** | **Zowe CLI** → z/OSMF or API ML gateway | **Zowe Native Proto SDK** over **SSH** (no z/OSMF required) |
+| **z/OS connectivity** | **Zowe CLI** → z/OSMF or API ML gateway | **Zowe Remote SSH SDK** (`zowex-sdk`) over **SSH** (no z/OSMF required) |
 | **Flow** | User ↔ AI ↔ MCP ↔ Server ↔ **Zowe CLI** ↔ z/OS | User ↔ AI ↔ MCP ↔ Server ↔ **ZNP over SSH** ↔ z/OS |
-| **CLI integration** | Architecture **is** Zowe CLI; all 19 tools are thin wrappers around `zowe` subcommands | **Primary**: Zowe Native Proto over SSH. **Additionally**: generic YAML-driven CLI bridge (`src/tools/cli-bridge/`) turns any Zowe CLI plugin into MCP tools without TypeScript changes; vendor-supplied plugins extend the server via `vendor/<name>/cli-bridge-plugins/*.yaml` |
+| **CLI integration** | Architecture **is** Zowe CLI; all 19 tools are thin wrappers around `zowe` subcommands | **Primary**: Zowe Remote SSH (`zowex-sdk`). **Additionally**: generic YAML-driven CLI bridge (`src/tools/cli-bridge/`) turns any Zowe CLI plugin into MCP tools without TypeScript changes; vendor-supplied plugins extend the server via `vendor/<name>/cli-bridge-plugins/*.yaml` |
 | **Setup** | `zowe config init` or `zowe config auto-init`, profiles, optional APIML login | Native: `user@host` (and optional port); config file or VS Code `zoweMCP.nativeConnections`; CLI bridge: profile/connection per plugin via `zoweMCP.cliPluginConfiguration` or `--cli-plugin-configuration` |
 | **Runtime** | Node + **bun** (install/build) | Node.js 22+, **npm** workspaces |
 
-**Summary:** Gestell wraps the existing Zowe CLI (zosmf/APIML); this repo uses Zowe Native Proto over SSH as the primary backend, and adds a generic CLI bridge that can expose any Zowe CLI plugin as MCP tools on top.
+**Summary:** Gestell wraps the existing Zowe CLI (zosmf/APIML); this repo uses Zowe Remote SSH as the primary backend, and adds a generic CLI bridge that can expose any Zowe CLI plugin as MCP tools on top.
 
 ### Scope and Packaging
 
@@ -190,6 +190,6 @@ The **skill file** approach is best for shop-specific knowledge because the MCP 
 ## Summary
 
 - **Gestell-AI/zowe-mcp**: Zowe **CLI**–based; good when you already use z/OSMF/APIML and Zowe CLI profiles. Offers 19 tools, error lookup, async tasks, 5 prompts, 5 reference resources, and clear guardrails. Single package, no VS Code extension.
-- **This repo**: **Zowe Native Proto** over SSH; no z/OSMF required. Larger surface: **55 core tools** (datasets, jobs, USS, context, local-file upload/download), plus a **generic CLI plugin bridge** that exposes any Zowe CLI plugin as MCP tools via YAML. VS Code extension with Cursor support, backend selector (`zoweMCP.backend`), pagination, output schemas, mock with presets, and an eval suite. Fewer prompts/resources and no dedicated "explain error" or async-task tools. Bulk **directory ↔ PDS** (Gestell/Zowe CLI style) remains a gap; single-member and USS/job spool file transfers are covered.
+- **This repo**: **Zowe Remote SSH**; no z/OSMF required. Larger surface: **55 core tools** (datasets, jobs, USS, context, local-file upload/download), plus a **generic CLI plugin bridge** that exposes any Zowe CLI plugin as MCP tools via YAML. VS Code extension with Cursor support, backend selector (`zoweMCP.backend`), pagination, output schemas, mock with presets, and an eval suite. Fewer prompts/resources and no dedicated "explain error" or async-task tools. Bulk **directory ↔ PDS** (Gestell/Zowe CLI style) remains a gap; single-member and USS/job spool file transfers are covered.
 
 The highest-impact ideas to adopt from Gestell are **error explanation tools** and **reference resources**, since they directly improve how the AI explains failures and mainframe concepts. The CLI plugin bridge partially closes the Gestell/native gap by making any Zowe CLI plugin accessible as MCP tools. See Part 3 for a structured comparison of how to deliver domain context to LLMs. See also [TODO.md](../TODO.md) for tracked follow-ups.

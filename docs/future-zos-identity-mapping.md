@@ -10,7 +10,7 @@ That is **platform-level identity federation** at the gateway. **Zowe MCP today*
 
 ### API ML propagation and ZNP (SSH)
 
-**API ML OIDC / identity propagation does not substitute for SSH authentication to Zowe Native Proto (ZNP)**. Propagation applies to **HTTP** requests routed through the Gateway (token validation, distributed identity → SAF mapping, mainframe-appropriate credentials for downstream **APIs**). ZNP is reached over **SSH** from the MCP server process; the z/OS side authenticates that **SSH session** (password, key, or other SSH mechanisms)—not the MCP HTTP Bearer token.
+**API ML OIDC / identity propagation does not substitute for SSH authentication to Zowe Remote SSH (ZNP)**. Propagation applies to **HTTP** requests routed through the Gateway (token validation, distributed identity → SAF mapping, mainframe-appropriate credentials for downstream **APIs**). ZNP is reached over **SSH** from the MCP server process; the z/OS side authenticates that **SSH session** (password, key, or other SSH mechanisms)—not the MCP HTTP Bearer token.
 
 Using API ML and ZNP together therefore requires a **separate design** if you want IdP identity, Gateway mapping, and SSH/ZNP to line up—for example explicit mapping of tenant or `sub` to connection specs and secrets, or future product bridges. Nothing in API ML alone turns an OIDC access token into an SSH login for ZNP.
 

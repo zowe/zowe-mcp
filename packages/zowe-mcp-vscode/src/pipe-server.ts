@@ -30,6 +30,12 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import { handleServerEvent } from './event-handler';
 import { getLog } from './log';
+import {
+  getZowexConnectionsWithMigration,
+  getZowexResponseTimeout,
+  getZowexServerAutoInstall,
+  getZowexServerPath,
+} from './zowex-settings';
 
 /** Information returned to the caller so env vars can be set on the MCP server. */
 export interface PipeServerInfo {
@@ -98,7 +104,7 @@ export function startPipeServer(context: vscode.ExtensionContext): PipeServerInf
 
     sendInitialLogLevel();
     sendInitialConnections();
-    sendInitialNativeOptions();
+    sendInitialZowexOptions();
     sendInitialEncodingOptions();
     sendInitialJobCards();
     sendInitialCliPluginConfiguration();
@@ -217,20 +223,12 @@ function sendInitialLogLevel(): void {
 }
 
 /**
- * Sends the current native connections setting to all connected servers.
- * Called when a new server connects. Uses nativeConnections with migration from nativeSystems.
+ * Sends the current Zowe Remote SSH connection list to all connected servers.
+ * Called when a new server connects. Uses `zowexConnections` with migration from legacy keys.
  */
 function sendInitialConnections(): void {
   const config = vscode.workspace.getConfiguration('zoweMCP');
-  let connections = config.get<string[]>('nativeConnections', []) ?? [];
-  if (connections.length === 0) {
-    const legacy = config.get<string[]>('nativeSystems', []) ?? [];
-    connections = legacy.filter((s): s is string => typeof s === 'string' && s.trim().length > 0);
-  } else {
-    connections = connections.filter(
-      (s): s is string => typeof s === 'string' && s.trim().length > 0
-    );
-  }
+  const connections = getZowexConnectionsWithMigration(config);
   if (connections.length > 0) {
     sendEventToServers({
       type: 'connections-update',
@@ -241,22 +239,19 @@ function sendInitialConnections(): void {
 }
 
 /**
- * Reads the current native options from VS Code settings and sends a
- * native-options-update event to all connected servers. Called when a new server connects.
+ * Reads the current Zowe Remote SSH (zowex) options from VS Code settings and sends a
+ * `zowex-options-update` event to all connected servers. Called when a new server connects.
  */
-function sendInitialNativeOptions(): void {
+function sendInitialZowexOptions(): void {
   const config = vscode.workspace.getConfiguration('zoweMCP');
-  const installZoweNativeServerAutomatically = config.get<boolean>(
-    'installZoweNativeServerAutomatically',
-    true
-  );
-  const zoweNativeServerPath = config.get<string>('zoweNativeServerPath', '~/.zowe-server');
-  const responseTimeout = config.get<number>('nativeResponseTimeout', 60);
+  const zowexServerAutoInstall = getZowexServerAutoInstall(config);
+  const zowexServerPath = getZowexServerPath(config);
+  const responseTimeout = getZowexResponseTimeout(config);
   sendEventToServers({
-    type: 'native-options-update',
+    type: 'zowex-options-update',
     data: {
-      installZoweNativeServerAutomatically,
-      zoweNativeServerPath: zoweNativeServerPath?.trim() || undefined,
+      zowexServerAutoInstall,
+      zowexServerPath: zowexServerPath?.trim() || undefined,
       responseTimeout: responseTimeout > 0 ? responseTimeout : undefined,
     },
     timestamp: Date.now(),
@@ -286,18 +281,18 @@ function sendInitialEncodingOptions(): void {
 
 /**
  * Sends a connections-update event to all connected MCP server instances.
- * Call when zoweMCP.nativeConnections configuration changes.
+ * Call when zoweMCP.zowexConnections (or legacy nativeConnections) configuration changes.
  */
 export function sendConnectionsUpdateEvent(): void {
   sendInitialConnections();
 }
 
 /**
- * Sends the current native options to all connected MCP server instances.
- * Call when zoweMCP.installZoweNativeServerAutomatically or zoweMCP.zoweNativeServerPath changes.
+ * Sends the current zowex client options to all connected MCP server instances.
+ * Call when zowex or legacy native server path / auto-install / response timeout settings change.
  */
-export function sendNativeOptionsUpdateEvent(): void {
-  sendInitialNativeOptions();
+export function sendZowexOptionsUpdateEvent(): void {
+  sendInitialZowexOptions();
 }
 
 /**

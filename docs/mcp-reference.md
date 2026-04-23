@@ -2,7 +2,7 @@
 
 # Zowe MCP Server Reference
 
-> Auto-generated from the MCP server (v0.8.0, commit 16feda4). Do not edit manually — run `npx @zowe/mcp-server generate-docs` to regenerate.
+> Auto-generated from the MCP server (v0.9.0-dev, commit 08e8bc4). Do not edit manually — run `npx @zowe/mcp-server generate-docs` to regenerate.
 
 This document describes all [Context](#context), [Data Sets](#data-sets), [USS](#uss), [TSO](#tso), [Jobs](#jobs), [Local Files](#local-files), [Other](#other), [db2 CLI Plugin Tools](#db2-cli-plugin-tools), [Tool Reference](#tool-reference), [Prompts](#prompts), [Resource Templates](#resource-templates) provided by the Zowe MCP Server.
 
@@ -164,7 +164,7 @@ Return the Zowe MCP server info (version, backend, components) and the current s
 | &ensp;├─ `version`              | `string`           | Yes      | Semantic version.                                                                                                    |
 | &ensp;├─ `description`          | `string`           | Yes      | Short server description.                                                                                            |
 | &ensp;├─ `components`           | `string`[]         | Yes      | Registered component names (e.g. context, datasets, uss).                                                            |
-| &ensp;└─ `backend`              | `string` \| `null` | Yes      | Active backend: mock, native, or null.                                                                               |
+| &ensp;└─ `backend`              | `string` \| `null` | Yes      | Active backend: mock, zowex, or null.                                                                                |
 | `activeSystem`                  | `object` \| `null` | Yes      | Currently selected system and user; null if no system has been set yet.                                              |
 | &ensp;├─ `system`               | `string`           | Yes      | Hostname of the active z/OS system.                                                                                  |
 | &ensp;├─ `userId`               | `string`           | Yes      | User ID on that system.                                                                                              |
@@ -193,7 +193,7 @@ Return the Zowe MCP server info (version, backend, components) and the current s
 {
   "server": {
     "name": "Zowe MCP Server",
-    "version": "0.8.0",
+    "version": "0.9.0-dev",
     "description": "MCP server providing tools for z/OS systems including data sets, jobs, and UNIX System Services",
     "components": [
       "context",
@@ -336,9 +336,9 @@ Add a z/OS SSH connection (user@host or user@host:port) for the current signed-i
 
 #### Parameters
 
-| Parameter        | Type     | Required | Description                                                                      |
-|------------------|----------|----------|----------------------------------------------------------------------------------|
-| `connectionSpec` | `string` | Yes      | Connection string: user@host or user@host:port (same format as native --system). |
+| Parameter        | Type     | Required | Description                                                                                  |
+|------------------|----------|----------|----------------------------------------------------------------------------------------------|
+| `connectionSpec` | `string` | Yes      | Connection string: user@host or user@host:port (same format as standalone --zowex --system). |
 
 <a id="addzosconnection-output-schema"></a>
 
@@ -685,20 +685,20 @@ Search for a string in a sequential data set, PDS, or PDS/E (all members or one 
 
 #### Parameters
 
-| Parameter               | Type       | Required | Description                                                                                                                                                                                           |
-|-------------------------|------------|----------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `dsn`                   | `string`   | Yes      | Fully qualified data set name (e.g. USER.SRC.COBOL or SYS1.SAMPLIB).                                                                                                                                  |
-| `string`                | `string`   | Yes      | Search string (literal) to find in the data set or members.                                                                                                                                           |
-| `system`                | `string`   | No       | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system.                                                                                   |
-| `encoding`              | `string`   | No       | Mainframe encoding (EBCDIC) for reading data set content. Overrides system and server default when set.                                                                                               |
-| `member`                | `string`   | No       | For PDS or PDS/E only, limit search to this member (e.g. IEANTCOB). Omit to search all members or a sequential data set.                                                                              |
-| `offset`                | `integer`  | No       | 0-based offset into the member list. Default: 0.                                                                                                                                                      |
-| `limit`                 | `integer`  | No       | Number of members to return per page. Default: 500. Max: 1000.                                                                                                                                        |
-| `caseSensitive`         | `boolean`  | No       | When true, match exact case. Default false (case-insensitive).                                                                                                                                        |
-| `cobol`                 | `boolean`  | No       | When true, restrict search to columns 7–72 only (the COBOL program text area, skipping the line-number area in columns 1–6). Also called COBOL mode. Default: false.                                  |
-| `ignoreSequenceNumbers` | `boolean`  | No       | When true (default), exclude columns 73–80 from search. Columns 73–80 are the traditional card sequence-number field in fixed-length records. When false, search includes those columns as data.      |
-| `doNotProcessComments`  | `string`[] | No       | Comment types to exclude from search: asterisk, cobolComment, fortran, cpp, pli, pascal, pcAssembly, ada (case-insensitive).                                                                          |
-| `includeContextLines`   | `boolean`  | No       | When true, include ±6 lines of context (beforeContext/afterContext) around each match via SuperC LPSF. Only effective with the native ZNP backend; ignored by the fallback grep path. Default: false. |
+| Parameter               | Type       | Required | Description                                                                                                                                                                                                        |
+|-------------------------|------------|----------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `dsn`                   | `string`   | Yes      | Fully qualified data set name (e.g. USER.SRC.COBOL or SYS1.SAMPLIB).                                                                                                                                               |
+| `string`                | `string`   | Yes      | Search string (literal) to find in the data set or members.                                                                                                                                                        |
+| `system`                | `string`   | No       | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system.                                                                                                |
+| `encoding`              | `string`   | No       | Mainframe encoding (EBCDIC) for reading data set content. Overrides system and server default when set.                                                                                                            |
+| `member`                | `string`   | No       | For PDS or PDS/E only, limit search to this member (e.g. IEANTCOB). Omit to search all members or a sequential data set.                                                                                           |
+| `offset`                | `integer`  | No       | 0-based offset into the member list. Default: 0.                                                                                                                                                                   |
+| `limit`                 | `integer`  | No       | Number of members to return per page. Default: 500. Max: 1000.                                                                                                                                                     |
+| `caseSensitive`         | `boolean`  | No       | When true, match exact case. Default false (case-insensitive).                                                                                                                                                     |
+| `cobol`                 | `boolean`  | No       | When true, restrict search to columns 7–72 only (the COBOL program text area, skipping the line-number area in columns 1–6). Also called COBOL mode. Default: false.                                               |
+| `ignoreSequenceNumbers` | `boolean`  | No       | When true (default), exclude columns 73–80 from search. Columns 73–80 are the traditional card sequence-number field in fixed-length records. When false, search includes those columns as data.                   |
+| `doNotProcessComments`  | `string`[] | No       | Comment types to exclude from search: asterisk, cobolComment, fortran, cpp, pli, pascal, pcAssembly, ada (case-insensitive).                                                                                       |
+| `includeContextLines`   | `boolean`  | No       | When true, include ±6 lines of context (beforeContext/afterContext) around each match via SuperC LPSF. Only effective with the Zowe Remote SSH (zowex) backend; ignored by the fallback grep path. Default: false. |
 
 <a id="searchindataset-output-schema"></a>
 
@@ -2215,7 +2215,7 @@ Output:
   },
   "data": {
     "lines": [
-      "TIME-01:00:50 PM. CPU-00:00:00 SERVICE-26895 SESSION-00:01:53 APRIL 21,2026"
+      "TIME-05:24:58 PM. CPU-00:00:00 SERVICE-26895 SESSION-00:01:53 APRIL 23,2026"
     ],
     "mimeType": "text/plain"
   }

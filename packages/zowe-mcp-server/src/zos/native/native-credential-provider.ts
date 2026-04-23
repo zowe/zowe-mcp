@@ -10,7 +10,7 @@
  */
 
 /**
- * Credential provider for the Zowe Native (SSH) backend.
+ * Credential provider for the Zowe Remote SSH (native SSH) backend.
  *
  * Standalone mode: reads passwords from ZOWE_MCP_PASSWORD_<USER>_<HOST>, ZOWE_MCP_CREDENTIALS (JSON map),
  * then optional Vault KV (see `vault-kv-credentials.ts`). If still unset and

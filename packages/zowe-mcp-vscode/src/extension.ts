@@ -34,13 +34,20 @@ import {
   sendEncodingOptionsUpdateEvent,
   sendJobCardsUpdateEvent,
   sendLogLevelEvent,
-  sendNativeOptionsUpdateEvent,
   sendZoweExplorerUpdateEvent,
+  sendZowexOptionsUpdateEvent,
   startPipeServer,
 } from './pipe-server';
 import { getNativePasswordKey } from './secrets';
 import { logLanguageModels, logStartupInfo } from './startup-log';
 import { initZoweMcpStatusBar, updateZoweMcpStatusBar } from './status-bar';
+import {
+  getZowexBackendWithMigration,
+  getZowexConnectionsWithMigration,
+  getZowexResponseTimeout,
+  getZowexServerAutoInstall,
+  getZowexServerPath,
+} from './zowex-settings';
 
 /** Set when we register the Zowe MCP server with Cursor's API; used for config updates and deactivate. */
 let cursorMcpRegistered = false;
@@ -123,9 +130,13 @@ export function activate(context: vscode.ExtensionContext): void {
 
       const logLevelChanged = e.affectsConfiguration('zoweMCP.logLevel');
       const connectionsChanged =
+        e.affectsConfiguration('zoweMCP.zowexConnections') ||
         e.affectsConfiguration('zoweMCP.nativeConnections') ||
         e.affectsConfiguration('zoweMCP.nativeSystems');
-      const nativeOptionsChanged =
+      const zowexOptionsChanged =
+        e.affectsConfiguration('zoweMCP.zowexServerAutoInstall') ||
+        e.affectsConfiguration('zoweMCP.zowexServerPath') ||
+        e.affectsConfiguration('zoweMCP.zowexResponseTimeout') ||
         e.affectsConfiguration('zoweMCP.installZoweNativeServerAutomatically') ||
         e.affectsConfiguration('zoweMCP.zoweNativeServerPath') ||
         e.affectsConfiguration('zoweMCP.nativeResponseTimeout');
@@ -149,12 +160,12 @@ export function activate(context: vscode.ExtensionContext): void {
           sendLogLevelEvent(level);
         }
         if (connectionsChanged) {
-          log.info('Native connections setting changed, forwarding to MCP servers');
+          log.info('SSH connection settings changed, forwarding to MCP servers');
           sendConnectionsUpdateEvent();
         }
-        if (nativeOptionsChanged) {
-          log.info('Native options setting changed, forwarding to MCP servers');
-          sendNativeOptionsUpdateEvent();
+        if (zowexOptionsChanged) {
+          log.info('Zowe Remote SSH (zowex) options changed, forwarding to MCP servers');
+          sendZowexOptionsUpdateEvent();
         }
         if (encodingChanged) {
           log.info('Encoding options setting changed, forwarding to MCP servers');
@@ -170,7 +181,7 @@ export function activate(context: vscode.ExtensionContext): void {
         }
         if (backendChanged) {
           const config = vscode.workspace.getConfiguration('zoweMCP');
-          const backend = config.get<string>('backend', 'native');
+          const backend = config.get<string>('backend', 'zowex');
           log.info(`Backend setting changed to "${backend}"`);
           updateZoweMcpStatusBar(null, context);
           if (backend === 'mock') {
@@ -196,7 +207,7 @@ export function activate(context: vscode.ExtensionContext): void {
           backendChanged ||
           mockDataDirectoryChanged ||
           connectionsChanged ||
-          nativeOptionsChanged ||
+          zowexOptionsChanged ||
           encodingChanged ||
           jobCardsChanged ||
           enabledCliPluginsChanged;
@@ -240,12 +251,12 @@ export function activate(context: vscode.ExtensionContext): void {
  */
 export function showNoConnectionsNotificationIfNeeded(): void {
   const config = vscode.workspace.getConfiguration('zoweMCP');
-  const backend = config.get<string>('backend', 'native');
+  const zowexConnections = getZowexConnectionsWithMigration(config);
+  const backend = getZowexBackendWithMigration(config, zowexConnections);
   if (backend === 'mock') {
     return;
   }
-  const nativeConnections = getNativeConnectionsWithMigration(config);
-  if (nativeConnections.length > 0) {
+  if (zowexConnections.length > 0) {
     return;
   }
   const openSettings = 'Open Settings';
@@ -283,39 +294,6 @@ async function refreshLanguageModels(): Promise<void> {
  */
 function resolveServerPath(context: vscode.ExtensionContext): string {
   return path.join(context.extensionPath, 'server', 'index.js');
-}
-
-/**
- * Returns the effective backend setting, applying auto-migration from the
- * legacy implicit logic: if `backend` has never been set by the user AND
- * `mockDataDirectory` is non-empty AND `nativeConnections` is empty, migrate
- * to `"mock"` and persist the choice.
- */
-function getBackendWithMigration(
-  config: vscode.WorkspaceConfiguration,
-  nativeConnections: string[],
-  log: ReturnType<typeof initLog>
-): 'native' | 'mock' {
-  const inspection = config.inspect<string>('backend');
-  const hasUserValue =
-    inspection?.globalValue !== undefined ||
-    inspection?.workspaceValue !== undefined ||
-    inspection?.workspaceFolderValue !== undefined;
-
-  if (hasUserValue) {
-    return config.get<string>('backend', 'native') as 'native' | 'mock';
-  }
-
-  const mockDataDirectory = config.get<string>('mockDataDirectory', '').trim();
-  if (mockDataDirectory && nativeConnections.length === 0) {
-    log.info(
-      'Auto-migrating backend setting to "mock" (mockDataDirectory is set, no native connections)'
-    );
-    void config.update('backend', 'mock', vscode.ConfigurationTarget.Global);
-    return 'mock';
-  }
-
-  return 'native';
 }
 
 /**
@@ -360,14 +338,11 @@ export async function buildServerConfig(
 ): Promise<{ command: string; args: string[]; env: Record<string, string> }> {
   const args = [serverModule, '--stdio'];
   const config = vscode.workspace.getConfiguration('zoweMCP');
-  const nativeConnections = getNativeConnectionsWithMigration(config);
-  const backend = getBackendWithMigration(config, nativeConnections, log);
-  const installZoweNativeServerAutomatically = config.get<boolean>(
-    'installZoweNativeServerAutomatically',
-    true
-  );
-  const zoweNativeServerPath = config.get<string>('zoweNativeServerPath', '~/.zowe-server');
-  const nativeResponseTimeout = config.get<number>('nativeResponseTimeout', 60);
+  const zowexConnections = getZowexConnectionsWithMigration(config);
+  const backend = getZowexBackendWithMigration(config, zowexConnections, log);
+  const zowexServerAutoInstall = getZowexServerAutoInstall(config);
+  const zowexServerPath = getZowexServerPath(config);
+  const zowexResponseTimeout = getZowexResponseTimeout(config);
   const defaultMainframeMvsEncoding = config.get<string>('defaultMainframeMvsEncoding', 'IBM-037');
   const defaultMainframeUssEncoding = config.get<string>(
     'defaultMainframeUssEncoding',
@@ -384,22 +359,22 @@ export async function buildServerConfig(
     }
   } else {
     args.push('--native');
-    for (const spec of nativeConnections) {
+    for (const spec of zowexConnections) {
       if (typeof spec === 'string' && spec.trim()) {
         args.push('--system', spec.trim());
       }
     }
-    if (!installZoweNativeServerAutomatically) {
-      args.push('--native-server-auto-install=false');
+    if (!zowexServerAutoInstall) {
+      args.push('--zowex-server-auto-install=false');
     }
-    if (zoweNativeServerPath?.trim()) {
-      args.push('--native-server-path', zoweNativeServerPath.trim());
+    if (zowexServerPath?.trim()) {
+      args.push('--zowex-server-path', zowexServerPath.trim());
     }
-    if (nativeResponseTimeout > 0 && nativeResponseTimeout !== 60) {
-      args.push('--native-response-timeout', String(nativeResponseTimeout));
+    if (zowexResponseTimeout > 0 && zowexResponseTimeout !== 60) {
+      args.push('--zowex-response-timeout', String(zowexResponseTimeout));
     }
     log.info(
-      `Native (SSH) mode enabled: ${nativeConnections.length} ${plural(nativeConnections.length, 'connection', 'connections')}`
+      `Zowe Remote SSH (zowex) mode enabled: ${zowexConnections.length} ${plural(zowexConnections.length, 'connection', 'connections')}`
     );
   }
   if (defaultMainframeMvsEncoding?.trim()) {
@@ -707,24 +682,6 @@ async function promptForMockDataDirectory(): Promise<void> {
 }
 
 /**
- * Returns the list of native connection specs, migrating from the old
- * nativeSystems setting to nativeConnections on first read if needed.
- */
-function getNativeConnectionsWithMigration(config: vscode.WorkspaceConfiguration): string[] {
-  const connections = config.get<string[]>('nativeConnections', []) ?? [];
-  if (connections.length > 0) {
-    return connections.filter((s): s is string => typeof s === 'string' && s.trim().length > 0);
-  }
-  const legacy = config.get<string[]>('nativeSystems', []) ?? [];
-  const valid = legacy.filter((s): s is string => typeof s === 'string' && s.trim().length > 0);
-  if (valid.length > 0) {
-    void config.update('nativeConnections', valid, vscode.ConfigurationTarget.Global);
-    return valid;
-  }
-  return [];
-}
-
-/**
  * Parses a connection spec (user@host or user@host:port) into user and host.
  */
 function parseConnectionSpec(spec: string): { user: string; host: string } | undefined {
@@ -745,11 +702,11 @@ function parseConnectionSpec(spec: string): { user: string; host: string } | und
 async function clearStoredPassword(context: vscode.ExtensionContext): Promise<void> {
   const log = getLog();
   const config = vscode.workspace.getConfiguration('zoweMCP');
-  const nativeConnections = getNativeConnectionsWithMigration(config);
+  const zowexConnections = getZowexConnectionsWithMigration(config);
 
   let spec: string;
-  if (nativeConnections.length > 0) {
-    const chosen = await vscode.window.showQuickPick(nativeConnections, {
+  if (zowexConnections.length > 0) {
+    const chosen = await vscode.window.showQuickPick(zowexConnections, {
       title: 'Zowe MCP: Clear Stored Password',
       placeHolder: 'Select connection (user@host) to clear stored password',
       matchOnDescription: false,
@@ -791,8 +748,11 @@ async function clearStoredPassword(context: vscode.ExtensionContext): Promise<vo
 /** zoweMCP configuration keys to reset (without the "zoweMCP." prefix). */
 const ZOWE_MCP_CONFIG_KEYS = [
   'backend',
-  'nativeConnections',
+  'zowexConnections',
   'logLevel',
+  'zowexServerAutoInstall',
+  'zowexServerPath',
+  'zowexResponseTimeout',
   'installZoweNativeServerAutomatically',
   'zoweNativeServerPath',
   'nativeResponseTimeout',
@@ -813,10 +773,10 @@ const ZOWE_MCP_CONFIG_KEYS = [
 async function clearAllZoweMcpSettingsAndState(context: vscode.ExtensionContext): Promise<void> {
   const log = getLog();
   const config = vscode.workspace.getConfiguration('zoweMCP');
-  const nativeConnections = getNativeConnectionsWithMigration(config);
+  const zowexConnections = getZowexConnectionsWithMigration(config);
 
   // Clear stored passwords for all currently configured connections
-  for (const spec of nativeConnections) {
+  for (const spec of zowexConnections) {
     const parsed = parseConnectionSpec(spec);
     if (parsed) {
       const key = getNativePasswordKey(parsed.user, parsed.host);
@@ -841,7 +801,7 @@ async function clearAllZoweMcpSettingsAndState(context: vscode.ExtensionContext)
   log.info('Zowe MCP: reset all settings and state');
   const reload = 'Reload Window';
   const chosen = await vscode.window.showInformationMessage(
-    'Zowe MCP settings and state have been reset (backend, connections, mock path, encodings, job cards, stored passwords, last connection). Reload the window so the MCP server restarts with a clean slate.',
+    'Zowe MCP settings and state have been reset (backend, zowexConnections, mock path, encodings, job cards, stored passwords, last connection). Reload the window so the MCP server restarts with a clean slate.',
     reload
   );
   if (chosen === reload) {

@@ -1,14 +1,34 @@
 # TODO
 
-Items to address later. Not ordered by priority.
+Items to address later. Not ordered by priority **except** the subsection **MCP safety & security** below, which is **ordered** (first item intended next).
 
-## Zowe Native / SDK
+## MCP safety & security
+
+From [docs/mcp-safety-security-principles.md](docs/mcp-safety-security-principles.md) — work that can be implemented **inside Zowe MCP**. **Order = current intent** (do the first next).
+
+1. **Progressive capability levels**: Add a single configuration surface (CLI flag, env var, and/or `CreateServerOptions`) for cumulative tiers (e.g. read-only with stricter confirmations → read-only auto → update → delete → execute). Each tier should either register only matching tools or reject `tools/call` with a clear policy error. Cover stdio and HTTP; document interaction with mock vs native, `readOnlyHint`/`destructiveHint`, and SAF as the real enforcement boundary. Principles doc §7.
+2. **OAuth / JWT scope → tool visibility (HTTP)**: When JWT validation is enabled, map token scopes or custom claims to allowed tool subsets; filter `tools/list` and reject out-of-scope `tools/call`. Consider incremental consent / scope challenge where clients support it. Document independence from z/OS SSH authority. Principles doc §6.
+3. **Functional scoping (in-server)**: Optional config to register only selected domains (e.g. datasets, jobs, USS, TSO, local-files, context) so one server process does not expose the full tool surface. Complements running separate server instances. Principles doc §7.
+4. **Data scope policy (in-server)**: Optional allowlists/denylists for data set HLQ or name patterns and/or USS path prefixes, enforced in tool handlers before backend calls (defense in depth alongside SAF). Principles doc §7.
+
+## Learn from Gestell-AI/zowe-mcp
+
+Ideas inspired by [Gestell-AI/zowe-mcp](https://github.com/Gestell-AI/zowe-mcp) (Zowe CLI–based MCP server):
+
+- **Error explanation tools**: Add tool(s) to look up and explain z/OS error codes (ABEND, return codes, condition codes). Gestell has `zowe_explain_error` and `zowe_list_error_codes`; we have job failure diagnostics in use-cases but no dedicated “explain this code” tool — the LLM could call it after seeing an ABEND in job output.
+- **Reference resources**: Expose read-only reference content (JCL basics, COBOL structure, ABEND codes, data set types) as MCP resources so the LLM can fetch them when needed. Gestell has 5 resources (`zos://reference/...`); we have 2 resource templates (data set/member content) and a glossary in SERVER_INSTRUCTIONS — adding static reference docs would reduce hallucination and improve explanations.
+- **Workflow prompts**: Consider prompts similar to Gestell’s — e.g. “diagnose-job-failure” (analyze failed job, suggest fixes), “explore-codebase” (map COBOL structure/data flows), “code-review” (review COBOL for issues), “daily-ops-check” (health report). We have reviewJcl, explainDataset, compareMembers, reflectZoweMcp; more task-oriented prompts could improve guided workflows.
+- **Explicit safety labels**: Document or expose a clear SAFE / CAUTIOUS / BLOCKED (or similar) classification for commands/tools so users and agents understand risk at a glance. We use pattern-based blocking and `readOnlyHint`/`destructiveHint`; a short classification in getContext or in docs could align with Gestell’s approach.
+- **Upload from local**: This repo now has **single-path** workspace tools (data set, USS, job spool) with MCP roots validation — see Features/Components below (`packages/zowe-mcp-server/src/tools/local-files/`). Gestell’s **`zowe_upload_directory_to_pds`** (directory → PDS, Zowe CLI) is **not** implemented here; research for CLI vs z/OS `cp` is in [pds-uss-directory-upload-download-zowe-and-cp.md](docs/pds-uss-directory-upload-download-zowe-and-cp.md).
+- **Async/polling**: Do **not** add Zowe-MCP–specific async task tools (wait/get/list with ad hoc task IDs) like Gestell’s. Long-running work should use **MCP Tasks** ([spec 2025-11-25 — experimental](https://modelcontextprotocol.io/specification/2025-11-25/basic/utilities/tasks)): task-augmented `tools/call`, `tasks/get`, `tasks/result`, `tasks/list`, `tasks/cancel`. Adopt that when the MCP SDK and clients (e.g. VS Code) support it, instead of inventing a parallel polling API. Until then, keep **blocking** tool handlers (e.g. `submitJob` with `wait: true`) and **`progressToken`** where appropriate.
+
+## Zowe Remote SSH / SDK
 
 - ✅ **Deploy ZNP via ZSshUtils**: Implemented in `ssh-client-cache.ts` — auto-redeploy via `ZSshUtils.installServer` when remote checksums mismatch.
 - ✅ **listDatasets member-name pattern**: Implemented client-side in `native-backend.ts` using `memberPatternToRegExp()` after the RPC; also passes `pattern` to ZNP `listDsMembers` for server-side filtering.
 - **listDatasets error messages**: Confirm whether listDatasets returns useful error messages (e.g. invalid data set name or invalid pattern). Good error messages help the AI agent or human fix parameters. Can be done in the MCP server, but native-level support is the desired choice for everyone.
-- ✅ **listDatasets attributes**: Follow up with Dan: attributes are not returned by Zowe Native listDatasets. Exposing them would help the AI agent reason about data sets (e.g. type, format)
-- List the first segments (names of catalogs).
+- ✅ **listDatasets attributes**: Follow up with Dan: attributes are not returned by Zowe Remote SSH `listDatasets`. Exposing them would help the AI agent reason about data sets (e.g. type, format)
+- **List HLQs (catalog aliases)**: Add a `listHighLevelQualifiers` (or similar) tool that returns all HLQ aliases from the master catalog, so agents can quickly see the top-level data set structure without listing all data sets. **Research findings** (verified on ca32): `listDatasets('*')` works via ZNP but returns individual data sets (capped at ~1000), not HLQs; ISPF DSLEVEL with `*` alone gives "Invalid Dsname Level" (first qualifier must be literal); LISTCAT `LEVEL(*)`, `LEVEL(%)`, `LEVEL(1)` all fail (LEVEL requires a literal qualifier); `LISTCAT LEVEL(ICF.MASTER) ALL` works and shows user catalogs with their ALIAS entries (the HLQs), but output is verbose, requires text parsing, and the master catalog HLQ prefix is installation-specific; direct master catalog access via `CAT(mastercat)` is blocked by security. No single z/OS command returns a clean list of all HLQs. **Decision**: Request a new ZNP SDK API (e.g. `ds.listCatalogAliases` or `catalog.listAliases`) that uses the Catalog Search Interface (CSI / IGGCSI00) natively on z/OS — the IBM-recommended programmatic API for catalog queries that can enumerate all aliases in the master catalog efficiently and portably, avoiding fragile LISTCAT output parsing and installation-specific assumptions.
 
 ## Security / Infrastructure
 
@@ -17,8 +37,8 @@ Items to address later. Not ordered by priority.
 ## Testing
 
 - **Copilot resources and prompts**: Test how the current resources and prompts work in GitHub Copilot.
-- **Windows**: Test on Windows — mainly the named pipe behavior.
-- **Other AI assistants**: Test with Cline (VS Code) and with Claude Desktop / Claude Code.
+- **Windows**: Test on Windows — mainly the named pipe behavior. Test on Linux and headless Linux.
+- **Other AI assistants**: Test with Cline/Roo (VS Code) and with Claude Desktop / Claude Code.
 - ✅ **Password error messages**: Validate that the password error messages match what really happens when errors occur.
 - ✅ **Tool description quality**: Evaluate tool descriptions; see how Code4z Assistant does it for reference.
 - ✅ **z/OS integration tests**: Add or run z/OS integration tests. (Native stdio E2E tests)
@@ -31,7 +51,7 @@ Items to address later. Not ordered by priority.
 ## Authentication / UX
 
 - ✅ **Re-prompt on invalid password**: When the password is invalid, prompt to enter the password again in the same way as when the password is missing in VS Code — ideally before failing the action. Standalone MCP server should keep invalid passwords blacklisted. Research MCP elicitation for obtaining a new password.
-- **Remote server with Zowe API ML and OIDC**: Support authentication in remote MCP server scenarios using Zowe API Mediation Layer and OIDC.
+- **Zowe API Mediation Layer (API ML) and OIDC**: Explore **leveraging API ML** for remote MCP deployments: the mediation layer already provides **unified OIDC / SSO**, routing to catalogued services, and enterprise-friendly TLS termination at the gateway. A future direction is to **register the MCP HTTP endpoint behind API ML** (or validate **tokens issued in an API ML–aligned IdP flow**) so shops reuse the same identity stack as other Zowe services instead of only a standalone Keycloak. Requires research against current API ML service onboarding, gateway paths, and JWT issuer/JWKS alignment with `ZOWE_MCP_JWT_*`. **Not implemented** — see notes in `docs/remote-http-mcp-registry.md` and `docs/remote-dev-keycloak.md`.
 - **Remote MCP credentials**: Research ways for a remote MCP server to request credentials without giving them to the LLM or storing them insecurely.
 
 ## Pagination, search & editing
@@ -52,20 +72,27 @@ Items to address later. Not ordered by priority.
 - **Job step results (CC per step)**: Check if there is a way to get condition codes (CC) for each job step to help focus on failed steps.
 - ✅ **USS component**: Implement `uss` (UNIX System Services) tool component for file/path operations on z/OS; register in server when backend supports it.
 - ✅ **Native backend — full ZosBackend**: Implement remaining `ZosBackend` methods in `NativeBackend`: `readDataset`, `writeDataset`, `createDataset`, `deleteDataset`, `getAttributes`, `copyDataset`, `renameDataset`. Currently only `listDatasets` and `listMembers` are implemented; others throw "Not implemented".
-- **Upload from local filesystem**: Add tool(s) to upload files and data sets from the local filesystem to z/OS — e.g. upload a local file to a USS path, upload a local file or directory to a PDS or PDS/E (multiple members), upload a local file to a sequential data set. Enables "copy from my machine to mainframe" workflows for single files, directories, and multi-member datasets.
+- ✅ **Upload/download local workspace (MCP roots)**: Implemented in `packages/zowe-mcp-server/src/tools/local-files/`: `downloadDatasetToFile`, `uploadFileToDataset`, `downloadUssFileToFile`, `uploadFileToUssFile`, `downloadJobFileToFile`. Local paths are constrained to MCP **`roots/list`** or fallback dirs (`ZOWE_MCP_LOCAL_FILES_ROOT`, `--local-files-root`, `ZOWE_MCP_WORKSPACE_DIR`).
+- **Bulk directory ↔ PDS**: Not implemented — e.g. upload an entire local folder as PDS members (Zowe CLI `upload dir-to-pds`) or download all members to a tree in one step (`download all-members`). For patterns and IBM `cp` behavior, see [pds-uss-directory-upload-download-zowe-and-cp.md](docs/pds-uss-directory-upload-download-zowe-and-cp.md).
 - **z/OSMF backend**: Add a `ZosBackend` implementation using z/OSMF REST APIs (e.g. Data Set and File REST) for environments where SSH/native is not desired.
 - **Credential providers**: Implement `ZoweTeamConfigProvider` and/or `OAuthTokenProvider` (see `src/zos/credentials.ts`); currently only mock and native credential providers exist.
 
 ## HTTP Transport
 
-- **HTTP transport auth**: Add authentication/authorization for the HTTP transport (`POST /mcp`) so remote clients cannot use the server without credentials.
+- ✅ **HTTP transport auth (JWT)**: Optional Bearer JWT for `POST /mcp` via `ZOWE_MCP_JWT_ISSUER` + `ZOWE_MCP_JWKS_URI` (see `src/auth/bearer-jwt.ts`, `docs/dev-oidc-tinyauth.md`). Further hardening (gateway-only auth, mTLS) remains env-specific.
+- ✅ **Keycloak JWT E2E (opt-in)**: `npm run test:keycloak-jwt-e2e` runs `__tests__/keycloak-http-jwt.e2e.test.ts` against a local Keycloak (`ZOWE_MCP_KEYCLOAK_E2E=1`; see `docs/dev-oidc-tinyauth.md`).
+- **HTTPS and reverse proxies**: **Preferred production pattern**: terminate **TLS at a reverse proxy** (e.g. **nginx**, HAProxy, cloud load balancer) and forward to the Node process over **plain HTTP** on localhost or an internal network. The MCP server should **not** need built-in TLS for typical deployments if the proxy sets **`X-Forwarded-Proto`** / **`Host`** (OAuth discovery already considers `X-Forwarded-Proto` when building the protected-resource URL unless `ZOWE_MCP_OAUTH_RESOURCE` is set — see `src/transports/http.ts`). Operators must set **`ZOWE_MCP_PUBLIC_BASE_URL`** (and often **`ZOWE_MCP_OAUTH_RESOURCE`**) to the **public** `https://` URL clients use (password elicitation and OAuth metadata). Document any proxy header requirements per environment.
 - **HTTP session cleanup**: Consider session timeout or max-session limits so long-lived or abandoned sessions do not accumulate indefinitely.
 
 ## Documentation & Maintenance
 
 - **MCP SDK v2**: MCP SDK v1.x is stable and SDK `main` is v2 pre-alpha. When v2 is stable, evaluate migration and update dependencies.
-- **Mock config hot-reload**: Currently changing `zoweMCP.mockDataDirectory` requires restarting the MCP server; consider supporting config/systems change without full restart if feasible.
+- ✅ **Mock config hot-reload**: Resolved by the `zoweMCP.backend` dropdown setting — users switch between native and mock via a single setting with auto-migration and prompt-on-select. A window reload is still required but the UX is clear.
 - ✅ **Format tables in generated doc**: The `generate-docs` script now formats all Markdown tables consistently using `markdown-table-prettify` (via the `markdown-table-formatter` devDependency).
+
+## Presentations
+
+- **Scripted demo screenshots**: Research whether screenshots can be captured from a demo controlled by a script (e.g. for Slidev / `presentations/zowe-mcp/` decks).
 
 ## Code Quality / Refactoring
 
@@ -92,5 +119,5 @@ Items to address later. Not ordered by priority.
 - **Eval self-reflection step**: When an assertion fails, call the same or a stronger model to investigate why — suggest improvements to assertions, descriptions, or tools. Context: chat session, tool defs, model thinking, question, assertions, and error.
 - **Explicit tool calls for eval setup**: Add explicit tool calls for setup or data-fetching in assertions (similar to how Ansible can access results of commands), so evals can verify state before and after.
 - ✅ **Document eval-compare**: Documented in `packages/zowe-mcp-evals/README.md` — CLI options, examples, outputs (comparison report + scoreboard), typical workflow, and key findings.
-- **Case-insensitive pattern matching in eval assertions**: Support case-insensitive matching for command argument assertions (e.g. `D T` vs `d t` in console commands).
-- **`validDsn` assertion directive**: Add a special assertion directive for validating data set names in eval assertions, so questions don't need to enumerate all valid forms.
+- ✅ **Case-insensitive pattern matching in eval assertions**: String tool args use case-insensitive substring match; `{ pattern, flags? }` on an arg value uses regex (default `flags: 'i'`). See `packages/zowe-mcp-evals/README.md` and `console.yaml`.
+- ✅ **`validDsn` assertion directive**: Add a special assertion directive for validating data set names in eval assertions, so questions don't need to enumerate all valid forms.

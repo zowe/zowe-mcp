@@ -86,51 +86,6 @@ function errorResult(message: string): {
   };
 }
 
-/** Typical USS base paths to probe when echo $HOME is unavailable (e.g. ZNP unixCommand not implemented). */
-const USS_HOME_PROBE_BASES = ['/u', '/a', '/z', '/u/users', '/u/users/group/product'] as const;
-
-/**
- * When getUssHome and echo $HOME are unavailable (e.g. ZNP unixCommand not implemented),
- * probe typical USS base paths for a directory matching the user ID (case-insensitive).
- * Returns the first existing path or '' if none found.
- */
-async function probeUssHomeFromBases(
-  backend: ZosBackend,
-  systemId: string,
-  userId: string,
-  log: Logger
-): Promise<string> {
-  const lower = userId.toLowerCase();
-  for (const base of USS_HOME_PROBE_BASES) {
-    try {
-      const entries = await backend.listUssFiles(systemId, base, { includeHidden: true }, userId);
-      const entry = entries.find(
-        e => (e.name === userId || e.name === lower) && e.isDirectory !== false
-      );
-      if (entry) {
-        const path = `${base}/${entry.name}`;
-        log.info('getUssHome resolved USS home via directory check', {
-          systemId,
-          path,
-        });
-        return path;
-      }
-      const fallback = entries.find(e => e.name === userId || e.name === lower);
-      if (fallback) {
-        const path = `${base}/${fallback.name}`;
-        log.info('getUssHome resolved USS home via directory check', {
-          systemId,
-          path,
-        });
-        return path;
-      }
-    } catch {
-      // Base path may not exist or be listable; skip
-    }
-  }
-  return '';
-}
-
 export interface UssToolDeps {
   backend: ZosBackend;
   systemRegistry: SystemRegistry;
@@ -184,50 +139,8 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
         }
 
         const userId = ctx?.userId;
-        let home: string;
-        try {
-          log.debug('getUssHome calling backend.getUssHome', { systemId, userId });
-          home = await deps.backend.getUssHome(systemId, userId);
-          log.debug('getUssHome backend.getUssHome returned', { systemId, path: home });
-        } catch (backendErr) {
-          log.info('getUssHome backend.getUssHome failed, falling back to echo $HOME', {
-            systemId,
-            error: (backendErr as Error).message,
-          });
-          try {
-            const out = await deps.backend.runUnixCommand(
-              systemId,
-              'echo $HOME',
-              userId,
-              extra._meta?.progressToken ? (msg: string) => void progress.step(msg) : undefined
-            );
-            home = (out ?? '').trim().split('\n')[0]?.trim() ?? '';
-            log.debug('getUssHome echo $HOME result', {
-              systemId,
-              rawLength: (out ?? '').length,
-              home,
-            });
-          } catch (echoErr) {
-            log.info('getUssHome echo $HOME failed, probing typical home bases', {
-              systemId,
-              error: (echoErr as Error).message,
-            });
-            if (userId) {
-              const probed = await probeUssHomeFromBases(deps.backend, systemId, userId, log);
-              if (probed) {
-                home = probed;
-              } else {
-                home = `/u/${userId.toLowerCase()}`;
-                log.warning(
-                  'getUssHome no home directory found under typical bases; defaulting to /u/<userid>',
-                  { systemId, path: home }
-                );
-              }
-            } else {
-              throw echoErr;
-            }
-          }
-        }
+        log.debug('getUssHome calling backend.getUssHome', { systemId, userId });
+        const home = await deps.backend.getUssHome(systemId, userId);
         if (home && ctx) {
           ctx.ussHome = home;
           log.debug('getUssHome cached ussHome in session context', { systemId, path: home });
@@ -606,7 +519,11 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
       },
     },
     async ({ commandText, system, startLine, lineCount }, extra) => {
-      const progress = createToolProgress(extra, `Run USS command`);
+      const maxTitleLen = 50;
+      const cmdNorm = commandText.trim().replace(/\s+/g, ' ');
+      const cmdPreviewForProgress =
+        cmdNorm.length > maxTitleLen ? cmdNorm.slice(0, maxTitleLen) + '…' : cmdNorm;
+      const progress = createToolProgress(extra, `Run USS command: ${cmdPreviewForProgress}`);
       await progress.start();
       log.info('runSafeUssCommand called', { commandText: commandText.slice(0, 80), system });
 
@@ -630,17 +547,30 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
             );
           }
           try {
+            let systemLabel: string;
+            try {
+              const { systemId } = resolveSystemForTool(
+                deps.systemRegistry,
+                deps.sessionState,
+                system
+              );
+              systemLabel = systemId;
+            } catch {
+              systemLabel = system != null ? String(system) : 'active system';
+            }
+            const cmdDisplay = commandText.trim();
+            const cmdPreview =
+              cmdDisplay.length > 120 ? `${cmdDisplay.slice(0, 120)}…` : cmdDisplay;
             const result = await deps.mcpServer.server.elicitInput({
               mode: 'form',
-              message:
-                'Command requires user confirmation (unknown command). Do you want to run this USS command?',
+              message: `Command requires user confirmation (unknown command): "${cmdPreview}" on system "${systemLabel}". Do you want to run this USS command?`,
               requestedSchema: {
                 type: 'object',
                 properties: {
                   confirm: {
                     type: 'boolean',
                     title: 'Run command',
-                    description: commandText.trim(),
+                    description: cmdDisplay,
                   },
                 },
                 required: ['confirm'],

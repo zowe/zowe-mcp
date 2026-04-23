@@ -1,12 +1,14 @@
 {
   "name": "zowe-mcp-evals",
-  "version": "0.8.0-dev",
+  "version": "0.9.0-dev",
   "description": "AI evaluations for Zowe MCP data set/member tools",
   "type": "module",
   "main": "dist/run.js",
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "evals": "node dist/run.js",
+    "list-eval-models": "node dist/list-eval-models.js",
+    "smoke:gemini-zowe-mcp": "node dist/gemini-zowe-mcp-smoke.js",
     "test": "vitest run",
     "format": "prettier --write \"**/*.{ts,js,json}\"",
     "check-format": "prettier --check \"**/*.{ts,js,json}\""

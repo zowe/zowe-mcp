@@ -16,10 +16,10 @@ questions:
           - toolCall:
               tool: listDatasets
               args:
-                validDsn: "SYS1.PARMLIB"
+                validDsn: 'SYS1.PARMLIB'
           - toolCall:
               tool: getDatasetAttributes
               args:
-                validDsn: "SYS1.PARMLIB"
+                validDsn: 'SYS1.PARMLIB'
       - answerContains:
-          pattern: "migrated|not migrated|recall|restore|available"
+          pattern: 'migrated|not migrated|recall|restore|available'

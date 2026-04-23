@@ -1,10 +1,13 @@
 {
-  "name": "zowe-mcp-server",
-  "version": "0.8.0-dev",
+  "name": "@zowe/mcp-server",
+  "version": "0.9.0-dev",
   "description": "Zowe MCP Server - Model Context Protocol server providing tools for z/OS",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "publishConfig": {
+    "access": "public"
+  },
   "bin": {
     "zowe-mcp-server": "dist/index.js"
   },
@@ -16,9 +19,16 @@
     "dev": "tsc -p tsconfig.build.json --watch",
     "pretest": "npm run build",
     "test": "vitest run",
+    "test:native-stdio-e2e": "npm run build && ZOWE_MCP_RUN_NATIVE_STDIO_E2E=1 vitest run native-stdio.e2e",
+    "test:keycloak-jwt-e2e": "npm run build && ZOWE_MCP_KEYCLOAK_E2E=1 vitest run keycloak-http-jwt.e2e",
     "test:watch": "vitest",
     "format": "prettier --write \"**/*.{ts,js,mjs,json,jsonc}\"",
-    "check-format": "prettier --check \"**/*.{ts,js,mjs,json,jsonc}\""
+    "check-format": "prettier --check \"**/*.{ts,js,mjs,json,jsonc}\"",
+    "test:airgap": "bash scripts/test-airgap-install.sh",
+    "test:airgap:build": "bash scripts/test-airgap-install.sh --build",
+    "test:airgap:build:native": "bash scripts/test-airgap-install.sh --build --native",
+    "prepack": "node scripts/bundle-for-pack.cjs",
+    "postpack": "node scripts/restore-after-pack.cjs"
   },
   "keywords": [
     "zowe",
@@ -29,18 +39,20 @@
   ],
   "license": "EPL-2.0",
   "dependencies": {
-    "zowe-mcp-common": "*",
     "@faker-js/faker": "^9.0.0",
-    "js-yaml": "^4.1.0",
     "@modelcontextprotocol/sdk": "^1.27.1",
     "@zowe/imperative": "^8.30.1",
-    "@zowe/zos-uss-for-zowe-sdk": "^8.30.1",
+    "@zowe/zos-uss-for-zowe-sdk": "^8.11.0",
     "express": "^5.1.0",
     "hardstop-patterns": "^1.0.0",
+    "js-yaml": "^4.1.0",
     "lru-cache": "^11.2.6",
+    "node-ssh": "^13.2.0",
+    "path-to-regexp": "8.4.0",
     "yargs": "^17.7.2",
-    "zod": "^3.25.0",
-    "zowe-native-proto-sdk": "file:../../sdk-pr/zowe-native-proto-sdk-0.3.0.tgz"
+    "zod": "^4.3.6",
+    "zowe-mcp-common": "*",
+    "zowex-sdk": "file:../../resources/zowex-sdk-0.4.0.tgz"
   },
   "devDependencies": {
     "@types/express": "^5.0.0",

@@ -17,9 +17,14 @@
  */
 
 import * as assert from 'assert';
+import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { buildServerConfig, showNoConnectionsNotificationIfNeeded } from '../extension';
+import {
+  buildServerConfig,
+  provideZoweMcpServerDefinitions,
+  showNoConnectionsNotificationIfNeeded,
+} from '../extension';
 import { getDisplayName, getLog } from '../log';
 
 /**
@@ -102,9 +107,10 @@ suite('Zowe MCP VS Code Extension', () => {
       ).showInformationMessage = originalShowInformationMessage;
     });
 
-    test('Shows notification when no connections are configured', async () => {
+    test('Shows notification when native backend with no connections', async () => {
       const mockConfig: vscode.WorkspaceConfiguration = {
         get: (key: string, defaultValue?: unknown) => {
+          if (key === 'backend') return 'native';
           if (key === 'nativeConnections') return [];
           if (key === 'nativeSystems') return [];
           if (key === 'mockDataDirectory') return '';
@@ -188,9 +194,10 @@ suite('Zowe MCP VS Code Extension', () => {
       assert.strictEqual(showCalls, 0, 'Should not show notification when connections are set');
     });
 
-    test('Does not show notification when mock data directory is set', () => {
+    test('Does not show notification when backend is mock', () => {
       const mockConfig: vscode.WorkspaceConfiguration = {
         get: (key: string, defaultValue?: unknown) => {
+          if (key === 'backend') return 'mock';
           if (key === 'nativeConnections') return [];
           if (key === 'nativeSystems') return [];
           if (key === 'mockDataDirectory') return '/path/to/mock';
@@ -221,11 +228,7 @@ suite('Zowe MCP VS Code Extension', () => {
 
       showNoConnectionsNotificationIfNeeded();
 
-      assert.strictEqual(
-        showCalls,
-        0,
-        'Should not show notification when mock data directory is set'
-      );
+      assert.strictEqual(showCalls, 0, 'Should not show notification when backend is mock');
     });
   });
 
@@ -245,9 +248,10 @@ suite('Zowe MCP VS Code Extension', () => {
       ).getConfiguration = originalGetConfiguration;
     });
 
-    test('With fresh config (no connections, no mock dir), server gets native backend and zero systems', async () => {
+    test('With fresh config (backend=native default, no connections), server gets native backend and zero systems', async () => {
       const mockConfig: vscode.WorkspaceConfiguration = {
         get: (key: string, defaultValue?: unknown) => {
+          if (key === 'backend') return 'native';
           if (key === 'nativeConnections') return [];
           if (key === 'nativeSystems') return [];
           if (key === 'mockDataDirectory') return '';
@@ -291,6 +295,248 @@ suite('Zowe MCP VS Code Extension', () => {
         systemFlagCount,
         0,
         'Fresh config should pass zero systems (no --system args)'
+      );
+    });
+
+    test('With backend=mock and mock dir set, server gets mock backend', async () => {
+      const mockConfig: vscode.WorkspaceConfiguration = {
+        get: (key: string, defaultValue?: unknown) => {
+          if (key === 'backend') return 'mock';
+          if (key === 'nativeConnections') return [];
+          if (key === 'nativeSystems') return [];
+          if (key === 'mockDataDirectory') return '/tmp/mock-data';
+          return defaultValue;
+        },
+        has: () => false,
+        inspect: <T>(key: string) => {
+          if (key === 'backend') {
+            return {
+              key: 'zoweMCP.backend',
+              globalValue: 'mock' as unknown as T,
+            };
+          }
+          return undefined;
+        },
+        update: () => Promise.resolve(),
+      };
+      (
+        vscode.workspace as {
+          getConfiguration: (section: string) => vscode.WorkspaceConfiguration;
+        }
+      ).getConfiguration = (section: string) => {
+        assert.strictEqual(section, 'zoweMCP');
+        return mockConfig;
+      };
+
+      const zoweMcp = findZoweMcpExtension();
+      assert.ok(zoweMcp, 'Extension should be present');
+      const dummyContext = {
+        extensionPath: zoweMcp.extensionPath,
+      } as vscode.ExtensionContext;
+      const serverModule = path.join(dummyContext.extensionPath, 'server', 'index.js');
+      const log = getLog();
+      assert.ok(log, 'Log should be initialized after activation');
+
+      const serverConfig = await buildServerConfig(
+        dummyContext,
+        serverModule,
+        '/tmp/discovery',
+        'test-workspace-id',
+        log
+      );
+
+      const args = serverConfig.args;
+      assert.ok(args.includes('--mock'), 'Backend=mock should use mock mode');
+      assert.ok(!args.includes('--native'), 'Backend=mock should not use native mode');
+      const mockIdx = args.indexOf('--mock');
+      assert.strictEqual(
+        args[mockIdx + 1],
+        '/tmp/mock-data',
+        'Mock dir should be passed after --mock'
+      );
+    });
+  });
+
+  suite('Registered commands', () => {
+    suiteSetup(async () => {
+      const zoweMcp = findZoweMcpExtension();
+      if (zoweMcp && !zoweMcp.isActive) {
+        await zoweMcp.activate();
+      }
+    });
+
+    test('Exposes Zowe MCP palette commands', async () => {
+      const all = await vscode.commands.getCommands(true);
+      for (const id of [
+        'zowe-mcp.initMockData',
+        'zowe-mcp.clearStoredPassword',
+        'zowe-mcp.resetAllSettingsAndState',
+      ]) {
+        assert.ok(all.includes(id), `Command ${id} should be registered after activation`);
+      }
+    });
+  });
+
+  suite('Bundled MCP server', () => {
+    test('server/index.js exists under extension path', () => {
+      const zoweMcp = findZoweMcpExtension();
+      assert.ok(zoweMcp, 'Zowe MCP extension should be installed');
+      const indexJs = path.join(zoweMcp.extensionPath, 'server', 'index.js');
+      assert.ok(fs.existsSync(indexJs), `Bundled server entry missing: ${indexJs}`);
+    });
+  });
+
+  suite('Zowe MCP settings', () => {
+    test('zoweMCP configuration section is readable', () => {
+      const cfg = vscode.workspace.getConfiguration('zoweMCP');
+      const logLevel = cfg.get<string>('logLevel');
+      assert.ok(
+        logLevel !== undefined && logLevel !== null,
+        'logLevel should have a default from package.json contribution'
+      );
+    });
+  });
+
+  suite('MCP server definitions (provider parity)', () => {
+    suiteSetup(async () => {
+      const zoweMcp = findZoweMcpExtension();
+      if (zoweMcp && !zoweMcp.isActive) {
+        await zoweMcp.activate();
+      }
+    });
+
+    test('provideZoweMcpServerDefinitions matches single Zowe stdio definition', async () => {
+      const zoweMcp = findZoweMcpExtension();
+      assert.ok(zoweMcp, 'Zowe MCP extension should be installed');
+      const dummyContext = {
+        extensionPath: zoweMcp.extensionPath,
+        globalStorageUri: vscode.Uri.file(path.join(zoweMcp.extensionPath, '.vscode-test-global')),
+      } as vscode.ExtensionContext;
+      const serverModule = path.join(zoweMcp.extensionPath, 'server', 'index.js');
+      const log = getLog();
+      assert.ok(log);
+      const defs = await provideZoweMcpServerDefinitions(
+        dummyContext,
+        serverModule,
+        '/tmp/discovery',
+        'test-workspace-id',
+        log
+      );
+      assert.strictEqual(defs.length, 1, 'Exactly one MCP server definition');
+      const d = defs[0] as {
+        command: string;
+        args: string[];
+        env: Record<string, string>;
+      };
+      const direct = await buildServerConfig(
+        dummyContext,
+        serverModule,
+        '/tmp/discovery',
+        'test-workspace-id',
+        log
+      );
+      assert.deepStrictEqual(
+        { command: d.command, args: d.args, env: d.env },
+        {
+          command: direct.command,
+          args: direct.args,
+          env: direct.env,
+        },
+        'MCP definition should match buildServerConfig output'
+      );
+    });
+  });
+
+  suite('buildServerConfig with real workspace settings', () => {
+    let previousZowexConnections: string[] | undefined;
+
+    suiteSetup(async () => {
+      const zoweMcp = findZoweMcpExtension();
+      if (zoweMcp && !zoweMcp.isActive) {
+        await zoweMcp.activate();
+      }
+      const cfg = vscode.workspace.getConfiguration('zoweMCP');
+      previousZowexConnections = cfg.get<string[]>('zowexConnections');
+      await cfg.update(
+        'zowexConnections',
+        ['zowemcp-test-user@127.0.0.1'],
+        vscode.ConfigurationTarget.Global
+      );
+    });
+
+    suiteTeardown(async () => {
+      const cfg = vscode.workspace.getConfiguration('zoweMCP');
+      await cfg.update(
+        'zowexConnections',
+        previousZowexConnections,
+        vscode.ConfigurationTarget.Global
+      );
+    });
+
+    test('includes configured zowex connection in server args', async () => {
+      const zoweMcp = findZoweMcpExtension();
+      assert.ok(zoweMcp);
+      const dummyContext = {
+        extensionPath: zoweMcp.extensionPath,
+        globalStorageUri: vscode.Uri.file(path.join(zoweMcp.extensionPath, '.vscode-test-global')),
+      } as vscode.ExtensionContext;
+      const serverModule = path.join(zoweMcp.extensionPath, 'server', 'index.js');
+      const log = getLog();
+      assert.ok(log);
+      const serverConfig = await buildServerConfig(
+        dummyContext,
+        serverModule,
+        '/tmp/discovery',
+        'test-workspace-id',
+        log
+      );
+      assert.ok(
+        serverConfig.args.includes('zowemcp-test-user@127.0.0.1'),
+        'args should include --system value from real settings'
+      );
+    });
+  });
+
+  suite('Command execution (cancel paths, no dialogs)', () => {
+    suiteSetup(async () => {
+      const zoweMcp = findZoweMcpExtension();
+      if (zoweMcp && !zoweMcp.isActive) {
+        await zoweMcp.activate();
+      }
+    });
+
+    test('initMockData exits cleanly when folder dialog is cancelled', async () => {
+      const original = vscode.window.showOpenDialog;
+      vscode.window.showOpenDialog = () => Promise.resolve(undefined);
+      try {
+        await vscode.commands.executeCommand('zowe-mcp.initMockData');
+      } finally {
+        vscode.window.showOpenDialog = original;
+      }
+    });
+
+    test('clearStoredPassword exits cleanly when input is cancelled', async () => {
+      const originalInput = vscode.window.showInputBox;
+      const originalPick = vscode.window.showQuickPick;
+      vscode.window.showInputBox = () => Promise.resolve(undefined);
+      vscode.window.showQuickPick = () => Promise.resolve(undefined);
+      try {
+        await vscode.commands.executeCommand('zowe-mcp.clearStoredPassword');
+      } finally {
+        vscode.window.showInputBox = originalInput;
+        vscode.window.showQuickPick = originalPick;
+      }
+    });
+  });
+
+  suite('Extension manifest', () => {
+    test('declares onStartupFinished activation', () => {
+      const ext = vscode.extensions.getExtension('Zowe.zowe-mcp-vscode');
+      assert.ok(ext, 'Extension Zowe.zowe-mcp-vscode should be resolvable');
+      const pkg = ext.packageJSON as { activationEvents?: string[] };
+      assert.ok(
+        pkg.activationEvents?.includes('onStartupFinished'),
+        'Should activate on startup finished'
       );
     });
   });

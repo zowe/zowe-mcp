@@ -16,7 +16,7 @@
 import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { FilesystemMockBackend } from '../src/zos/mock/filesystem-mock-backend.js';
 import type { SystemId } from '../src/zos/system.js';
 
@@ -40,7 +40,6 @@ describe('Mock USS backend', () => {
     });
   });
 
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-call -- Vitest afterAll type may be unresolved in ESLint context
   afterAll(async () => {
     if (mockDir) {
       await fs.rm(mockDir, { recursive: true, force: true }).catch(() => undefined);

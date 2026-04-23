@@ -69,6 +69,51 @@ export function writeReport(
     questionRows.push(`|[${escapeMd(qid)}](#${anchor})|${passed}/${total} (${rate})|${status}|`);
   }
 
+  const metricsRows: string[] = [];
+  const hasAnyMetrics = results.some(
+    r => r.durationMs != null || r.tokenUsage != null || r.stepCount != null
+  );
+  if (hasAnyMetrics) {
+    metricsRows.push(
+      '|Question ID|Runs w/ metrics|Avg duration (s)|Avg input tokens|Avg output tokens|Avg steps|'
+    );
+    metricsRows.push('|---|---|---|---|---|---|');
+    for (const [qid, runs] of byQuestion) {
+      const measured = runs.filter(r => r.durationMs != null);
+      const count = measured.length;
+      if (count === 0) {
+        metricsRows.push(`|${escapeMd(qid)}|0|—|—|—|—|`);
+        continue;
+      }
+      const avgDuration = (
+        measured.reduce((s, r) => s + (r.durationMs ?? 0), 0) /
+        count /
+        1000
+      ).toFixed(1);
+      const withTokens = measured.filter(r => r.tokenUsage != null);
+      const avgIn =
+        withTokens.length > 0
+          ? Math.round(
+              withTokens.reduce((s, r) => s + (r.tokenUsage?.input ?? 0), 0) / withTokens.length
+            ).toString()
+          : '—';
+      const avgOut =
+        withTokens.length > 0
+          ? Math.round(
+              withTokens.reduce((s, r) => s + (r.tokenUsage?.output ?? 0), 0) / withTokens.length
+            ).toString()
+          : '—';
+      const withSteps = measured.filter(r => r.stepCount != null);
+      const avgSteps =
+        withSteps.length > 0
+          ? (withSteps.reduce((s, r) => s + (r.stepCount ?? 0), 0) / withSteps.length).toFixed(1)
+          : '—';
+      metricsRows.push(
+        `|${escapeMd(qid)}|${count}|${avgDuration}|${avgIn}|${avgOut}|${avgSteps}|`
+      );
+    }
+  }
+
   const toolCounts = new Map<string, number>();
   const toolParams = new Map<string, Map<string, Set<string>>>();
   for (const tc of allToolCalls) {
@@ -198,6 +243,7 @@ export function writeReport(
     '',
     ...questionRows,
     '',
+    ...(hasAnyMetrics ? ['## Metrics per question', '', ...metricsRows, ''] : []),
     '## Questions and answers',
     '',
     ...qaSection,

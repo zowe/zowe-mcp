@@ -110,6 +110,12 @@ export interface ResponseContext {
   currentDirectory?: string;
   /** USS directory that was listed (listUssFiles; display form). */
   listedDirectory?: string;
+  /** Absolute local path for upload/download tools. */
+  resolvedLocalPath?: string;
+  /** file:// URI of the workspace root that contained the local path. */
+  rootUri?: string;
+  /** Whether local paths came from MCP roots/list or env/CLI fallback. */
+  rootsSource?: 'mcp' | 'fallback';
 }
 
 /** Result summary for list operations. */

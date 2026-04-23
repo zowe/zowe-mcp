@@ -1,0 +1,7 @@
+# Realm bootstrap helper for docker-compose keycloak-init (curl + jq; no runtime apk).
+# Build: docker compose -f docker/remote-dev/docker-compose.yml build keycloak-init
+FROM debian:bookworm-slim
+
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends curl jq ca-certificates \
+  && rm -rf /var/lib/apt/lists/*

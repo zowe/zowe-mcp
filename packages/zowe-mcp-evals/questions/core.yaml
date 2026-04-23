@@ -16,4 +16,4 @@ questions:
           tool: getContext
           count: 1
       - answerContains:
-          pattern: "mock|Zowe|MCP|backend"
+          pattern: 'mock|Zowe|MCP|backend'

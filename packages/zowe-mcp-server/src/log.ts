@@ -58,6 +58,18 @@ const LOG_LEVEL_SEVERITY: Record<LogLevel, number> = {
 const VALID_LEVELS = new Set<string>(Object.keys(LOG_LEVEL_SEVERITY));
 
 /**
+ * Parses a log level string from external input (e.g. VS Code settings or env).
+ * Returns `undefined` if the value is missing or not a known level.
+ */
+export function tryParseLogLevel(input: string | undefined): LogLevel | undefined {
+  const normalized = typeof input === 'string' ? input.trim().toLowerCase() : '';
+  if (normalized && VALID_LEVELS.has(normalized)) {
+    return normalized as LogLevel;
+  }
+  return undefined;
+}
+
+/**
  * Returns the log level from the `ZOWE_MCP_LOG_LEVEL` environment variable,
  * falling back to the provided default if the variable is unset or invalid.
  */
@@ -127,6 +139,38 @@ export class Logger {
    */
   setLevel(level: LogLevel): void {
     this._level = level;
+  }
+
+  /**
+   * Emit one informational line to stderr, MCP, and the extension pipe without
+   * applying the current minimum level filter. Used for operational messages that
+   * must be visible even when the previous or new threshold would suppress a
+   * normal {@link Logger.info} call (for example confirming a log level change).
+   */
+  emitForcedInfo(message: string, data?: unknown): void {
+    const level: LogLevel = 'info';
+    const timestamp = new Date().toISOString();
+    const tag = level.toUpperCase();
+    const nameTag = this._name ? ` [${this._name}]` : '';
+    const suffix = data !== undefined ? ` ${JSON.stringify(data)}` : '';
+    process.stderr.write(`${timestamp} [${tag}]${nameTag} ${message}${suffix}\n`);
+
+    if (this._server?.isConnected()) {
+      void this._server.sendLoggingMessage({
+        level,
+        logger: this._name,
+        data: data !== undefined ? data : message,
+      });
+    }
+
+    if (this._extensionClient?.connected) {
+      const logEvent: LogEvent = {
+        type: 'log',
+        data: { level, logger: this._name, message, data },
+        timestamp: Date.now(),
+      };
+      this._extensionClient.sendEvent(logEvent);
+    }
   }
 
   /**

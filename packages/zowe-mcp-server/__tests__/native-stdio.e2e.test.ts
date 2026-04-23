@@ -22,9 +22,12 @@
  * skipIf(true) to skipIf(false) when the backend supports the feature.
  * deleteDatasetsUnderPrefix (prefix.**) runs with retries for intermittent ZNP.
  *
- * Skipped when config file (native-config.json) or
- * password (ZOWE_MCP_PASSWORD_<USER>_<HOST> or ZOS_PASSWORD) is missing in
- * the current directory / environment.
+ * Skipped unless explicitly enabled: set **ZOWE_MCP_RUN_NATIVE_STDIO_E2E=1** (or `true`)
+ * in addition to having a config file (native-config.json) and a password
+ * (ZOWE_MCP_PASSWORD_<USER>_<HOST> or ZOS_PASSWORD). This keeps `npm test`
+ * green without a live z/OS that supports every mutation scenario.
+ *
+ * Run the suite: `ZOWE_MCP_RUN_NATIVE_STDIO_E2E=1 npm test` (or `npm run test:native-stdio-e2e` in this package).
  *
  * USS: read-only tests (getUssHome, listUssFiles, readUssFile, runSafeUssCommand);
  * no write/delete/temp on real z/OS.
@@ -169,6 +172,13 @@ const password =
 const firstSystemId = firstSpec?.host;
 const canRunNativeE2E = Boolean(configPath && password && firstSystemId);
 
+/** Opt-in so default `npm test` does not hit real z/OS (flaky permissions, ZNP version, etc.). */
+const nativeStdioE2EExplicit =
+  process.env.ZOWE_MCP_RUN_NATIVE_STDIO_E2E === '1' ||
+  process.env.ZOWE_MCP_RUN_NATIVE_STDIO_E2E === 'true';
+
+const shouldRunNativeStdioE2E = canRunNativeE2E && nativeStdioE2EExplicit;
+
 /** Job card for the first connection spec (from config jobCards section). Jobs tests are skipped when missing. */
 const nativeConfig = configPath ? loadNativeConfigForTest(configPath) : undefined;
 const firstConnectionSpec = configSystems[0];
@@ -176,7 +186,7 @@ const jobCardForFirstSpec =
   firstConnectionSpec && nativeConfig?.jobCards
     ? nativeConfig.jobCards[firstConnectionSpec]
     : undefined;
-const canRunJobsE2E = Boolean(canRunNativeE2E && jobCardForFirstSpec);
+const canRunJobsE2E = Boolean(shouldRunNativeStdioE2E && jobCardForFirstSpec);
 
 /** Normalize job card (string or array of lines) to a single string; substitute {jobname} and {programmer} for E2E. */
 function normalizeJobCardForTest(
@@ -191,14 +201,16 @@ function normalizeJobCardForTest(
     .trim();
 }
 
-/** Reason shown when the suite is skipped (missing config or password). */
+/** Reason shown when the suite is skipped (missing config, password, or opt-in). */
 const skipReason = !canRunNativeE2E
   ? !configPath
     ? 'Missing config file (zowe-native.config or native-config.json in cwd)'
     : !password
       ? `Missing password (set ${passwordEnvVar} or ZOS_PASSWORD)`
       : 'No system in config'
-  : '';
+  : !nativeStdioE2EExplicit
+    ? 'Set ZOWE_MCP_RUN_NATIVE_STDIO_E2E=1 to run native stdio E2E (requires config + password)'
+    : '';
 
 // Build env for the child: always pass through process.env; if we're using ZOS_PASSWORD
 // as fallback, set the server's expected env var so it sees the password.
@@ -210,7 +222,7 @@ function getChildEnv(): Record<string, string> {
   return env as Record<string, string>;
 }
 
-describe.skipIf(!canRunNativeE2E)(
+describe.skipIf(!shouldRunNativeStdioE2E)(
   `Zowe MCP Server (native stdio E2E)${skipReason ? ` [skipped: ${skipReason}]` : ''}`,
   () => {
     let client: Client;
@@ -239,7 +251,7 @@ describe.skipIf(!canRunNativeE2E)(
         server: { name: string; backend: string | null; components: string[] };
       };
       expect(o.server.name).toBe('Zowe MCP Server');
-      expect(o.server.backend).toBe('native');
+      expect(o.server.backend).toBe('zowex');
       expect(o.server.components).toContain('context');
       expect(o.server.components).toContain('datasets');
       expect(o.server.components).toContain('uss');
@@ -362,9 +374,8 @@ describe.skipIf(!canRunNativeE2E)(
       };
       expect(o._context).toBeDefined();
       expect(Array.isArray(o.data)).toBe(true);
-      if (o._result) {
-        expect(o._result.totalAvailable).toBeGreaterThan(1000);
-      }
+      expect(o._result).toBeDefined();
+      expect(o._result!.totalAvailable).toBeGreaterThan(1000);
     });
 
     it('listMembers SYS1.SAMPLIB includes ADFDFLTX and APSIVP', async () => {
@@ -417,13 +428,14 @@ describe.skipIf(!canRunNativeE2E)(
       expect(o.data.lines.length).toBeGreaterThan(0);
       expect(typeof o.data.etag).toBe('string');
       expect(typeof o.data.encoding).toBe('string');
-      if (o._result) {
-        expect(o._result.totalLines).toBeGreaterThan(0);
-        expect(o._result.startLine).toBe(1);
-        expect(o._result.returnedLines).toBeGreaterThan(0);
-      }
+      expect(o._result).toBeDefined();
+      expect(o._result!.totalLines).toBeGreaterThan(0);
+      expect(o._result!.startLine).toBe(1);
+      expect(o._result!.returnedLines).toBeGreaterThan(0);
     });
 
+    // IEANTCOB is the IBM Name/Token Service COBOL copybook; header comments include
+    // "Name/Token Service" (verify with readDataset if ZNP parse + fallback behavior changes).
     it('searchInDataset SYS1.SAMPLIB(IEANTCOB) returns envelope and matches when present', async () => {
       const { parsed } = await callToolSuccess(client, 'searchInDataset', {
         dsn: "'SYS1.SAMPLIB'",
@@ -444,11 +456,10 @@ describe.skipIf(!canRunNativeE2E)(
       expect(o.data.dataset).toBe('SYS1.SAMPLIB');
       expect(Array.isArray(o.data.members)).toBe(true);
       expect(o.data.summary.searchPattern).toBe('Name/Token Service');
-      if (o.data.members.length >= 1) {
-        const member = o.data.members.find(m => m.name === 'IEANTCOB') ?? o.data.members[0];
-        expect(member.matches.length).toBeGreaterThan(0);
-        expect(member.matches.some(m => m.content.includes('Name/Token Service'))).toBe(true);
-      }
+      expect(o.data.members.length).toBeGreaterThanOrEqual(1);
+      const member = o.data.members.find(m => m.name === 'IEANTCOB') ?? o.data.members[0];
+      expect(member.matches.length).toBeGreaterThan(0);
+      expect(member.matches.some(m => m.content.includes('Name/Token Service'))).toBe(true);
     });
 
     it('listDatasets with empty pattern returns specific error', async () => {
@@ -545,7 +556,11 @@ describe.skipIf(!canRunNativeE2E)(
       });
       expect(r.isError).toBe(true);
       const text = getResultText(r);
-      expect(text).toMatch(/could not list members.*NONEXIST\.DATASET\.XYZ.*rc:\s*'-1'/i);
+      expect(text).toMatch(/NONEXIST\.DATASET\.XYZ/i);
+      // zowex-sdk / z/OS may surface FSUM/EDC messages or a generic "could not list members" + rc:-1
+      expect(text.toLowerCase()).toMatch(
+        /could not list members|edc5049i|fsum|not be located|errno\s*49/i
+      );
     });
 
     it('listDatasets with nonexistent system returns specific error', async () => {
@@ -640,13 +655,14 @@ describe.skipIf(!canRunNativeE2E)(
           data: { name: string; mode?: string; size?: number; mtime?: string }[];
         };
         expect(Array.isArray(o.data)).toBe(true);
-        if (o.data.length > 0) {
-          const first = o.data[0];
-          expect(first.name).toBeDefined();
-          expect(
-            first.mode !== undefined || first.size !== undefined || first.mtime !== undefined
-          ).toBe(true);
+        if (o.data.length === 0) {
+          return;
         }
+        const first = o.data[0];
+        expect(first.name).toBeDefined();
+        expect(
+          first.mode !== undefined || first.size !== undefined || first.mtime !== undefined
+        ).toBe(true);
       });
 
       it('readUssFile returns envelope when reading a file under home', async () => {
@@ -680,7 +696,7 @@ describe.skipIf(!canRunNativeE2E)(
             }
           | { error: string };
         if ('error' in readParsed && readParsed.error) {
-          expect.fail(`readUssFile failed for path ${filePath}: ${readParsed.error}`);
+          throw new Error(`readUssFile failed for path ${filePath}: ${readParsed.error}`);
         }
         const o = readParsed as {
           _context: { system: string };
@@ -901,7 +917,9 @@ describe.skipIf(!canRunNativeE2E)(
           expect(o.data.id).toBeDefined();
           expect(o.data.name).toBeDefined();
           expect(o.data.status).toBeDefined();
-          expect(['INPUT', 'ACTIVE', 'OUTPUT', 'CONVERSION']).toContain(o.data.status);
+          expect(['INPUT', 'ACTIVE', 'OUTPUT', 'CONVERSION', 'AWAIT CONV']).toContain(
+            o.data.status
+          );
         });
 
         it('listJobFiles and readJobFile when job is in OUTPUT', async () => {
@@ -987,7 +1005,9 @@ describe.skipIf(!canRunNativeE2E)(
           const timedOut = o.data.timedOut === true;
           const completed = statusData.status === 'OUTPUT';
           expect(timedOut || completed).toBe(true);
-          expect(!timedOut || ['INPUT', 'ACTIVE'].includes(statusData.status)).toBe(true);
+          expect(!timedOut || ['INPUT', 'ACTIVE', 'AWAIT CONV'].includes(statusData.status)).toBe(
+            true
+          );
         });
 
         it('listJobs returns jobs (optional owner filter)', async () => {
@@ -999,11 +1019,14 @@ describe.skipIf(!canRunNativeE2E)(
           };
           expect(o._context).toBeDefined();
           expect(Array.isArray(o.data)).toBe(true);
-          if (o.data.length > 0) {
-            expect(o.data[0].id).toBeDefined();
-            expect(o.data[0].status).toBeDefined();
-            expect(['INPUT', 'ACTIVE', 'OUTPUT']).toContain(o.data[0].status);
+          if (o.data.length === 0) {
+            return;
           }
+          expect(o.data[0].id).toBeDefined();
+          expect(o.data[0].status).toBeDefined();
+          expect(['INPUT', 'ACTIVE', 'OUTPUT', 'AWAIT CONV', 'CONVERSION']).toContain(
+            o.data[0].status
+          );
         });
 
         it('getJcl returns JCL for submitted job', async () => {

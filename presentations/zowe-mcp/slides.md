@@ -4,6 +4,7 @@ title: 'Zowe MCP: AI-Powered z/OS Access'
 info: |
   Zowe MCP — Model Context Protocol server and VS Code extension
   that gives AI assistants direct access to z/OS systems.
+  Last updated: April 2026
 class: text-center
 colorSchema: light
 drawings:
@@ -11,6 +12,7 @@ drawings:
 transition: slide-left
 mdc: true
 ---
+<!-- Last reviewed: 2026-04 — End-of-deck slides: shared HTTP OAuth topology, MCP registries; docs/remote-http-mcp-registry.md. CLI Bridge: docs/how-to-add-cli-plugin.md -->
 
 <!-- Slide 1: Title -->
 
@@ -18,6 +20,7 @@ mdc: true
   <img src="/zowe-logo.svg" class="w-48 mb-6 drop-shadow-lg" alt="Zowe" />
   <h1 class="!text-5xl !font-extrabold !text-white !border-none !mb-4">Zowe MCP</h1>
   <p class="text-2xl !text-white/90 font-light">AI-Powered z/OS Access via Model Context Protocol</p>
+  <p class="text-sm !text-white/50 mt-6">Last updated: April 2026</p>
 </div>
 
 <style>
@@ -28,7 +31,7 @@ mdc: true
 
 ---
 
-<!-- markdownlint-disable MD001 MD024 MD025 -->
+<!-- markdownlint-disable MD001 MD024 MD025 MD060 -->
 
 <!-- Slide 2: What is MCP? -->
 
@@ -69,17 +72,19 @@ mdc: true
 
 An **MCP server** and **VS Code extension** that gives AI assistants direct, structured access to z/OS systems and mainframe resources, such as data sets, jobs, and USS files, and do actions with them.
 
-// TODO: Mention that Zowe MCP has been developed in Cursor with Anthropic models without a single line written manually guided and reviewed by architect with experience of developing of MCP servers and AI applications at Broadcom
+<div class="mt-3 p-3 bg-[#eef2f8] rounded-lg border-l-4 border-[#3975d0] text-sm">
+  <carbon-machine-learning class="inline text-[#3162ac]" /> <strong class="text-[#1b375f]">Built with AI:</strong> Not a single line of Zowe MCP was written manually — every line was coded with <strong>frontier AI models in VS Code</strong>, guided and reviewed by architects at Broadcom with experience building MCP servers and AI applications and strong mainframe background.
+</div>
 
 <div class="grid grid-cols-4 gap-4 mt-8">
   <div class="text-center p-4 bg-[#f3f4f4] rounded-lg border-t-4 border-[#3162ac]">
     <carbon-assembly-cluster class="text-2xl text-[#3162ac] mb-1" />
-    <div class="text-4xl font-extrabold text-[#3162ac]">6</div>
+    <div class="text-4xl font-extrabold text-[#3162ac]">7</div>
     <div class="text-sm text-[#6d7176] mt-1">Components</div>
   </div>
   <div class="text-center p-4 bg-[#f3f4f4] rounded-lg border-t-4 border-[#3162ac]">
     <carbon-tool-box class="text-2xl text-[#3162ac] mb-1" />
-    <div class="text-4xl font-extrabold text-[#3162ac]">50</div>
+    <div class="text-4xl font-extrabold text-[#3162ac]">59</div>
     <div class="text-sm text-[#6d7176] mt-1">Tools</div>
   </div>
   <div class="text-center p-4 bg-[#f3f4f4] rounded-lg border-t-4 border-[#3162ac]">
@@ -97,15 +102,15 @@ An **MCP server** and **VS Code extension** that gives AI assistants direct, str
 <div class="mt-8 grid grid-cols-3 gap-4 text-sm">
   <div class="p-3 bg-[#f3f4f4] rounded-lg border-l-4 border-[#16825d]">
     <div class="font-bold text-[#1b375f] mb-1"><carbon-terminal class="inline text-[#16825d]" /> Standalone Server</div>
-    <div class="text-[#6d7176]"><code>npx zowe-mcp-server --stdio</code> — works with any MCP client</div>
+    <div class="text-[#6d7176]"><code>npx @zowe/mcp-server --stdio</code> — works with any MCP client</div>
   </div>
   <div class="p-3 bg-[#f3f4f4] rounded-lg border-l-4 border-[#16825d]">
     <div class="font-bold text-[#1b375f] mb-1"><mdi-microsoft-visual-studio-code class="inline text-[#16825d]" /> VS Code Extension</div>
     <div class="text-[#6d7176]">Extension registers an Zowe MCP server as a <strong>local stdio server</strong> — used by Copilot Chat and Cursor automatically</div>
   </div>
-  <div class="p-3 bg-[#f3f4f4] rounded-lg border-l-4 border-[#6d7176]">
-    <div class="font-bold text-[#1b375f] mb-1"><carbon-cloud class="inline text-[#6d7176]" /> Remote HTTP Streamable</div>
-    <div class="text-[#6d7176]">Centralized server for multi-user access — <em>coming soon</em></div>
+  <div class="p-3 bg-[#f3f4f4] rounded-lg border-l-4 border-[#16825d]">
+    <div class="font-bold text-[#1b375f] mb-1"><carbon-cloud class="inline text-[#16825d]" /> Remote HTTP Streamable</div>
+    <div class="text-[#6d7176]"><strong>Shared</strong> team server — HTTPS <code>/mcp</code>, optional Bearer JWT, MCP registry <code>remotes</code>. Covered at the <strong>end of this deck</strong>.</div>
   </div>
 </div>
 
@@ -168,8 +173,6 @@ An **MCP server** and **VS Code extension** that gives AI assistants direct, str
   </div>
 </div>
 
-// TODO: Is there a way to do screenshots from a demo controlled by a script?
-
 ---
 
 <!-- Slide 6: Section — Architecture -->
@@ -208,20 +211,20 @@ flowchart TD
 
   subgraph Server ["Zowe MCP Server"]
     direction LR
-    Tools["50 Tools divided into 6&nbsp;Components"]
+    Tools["59 Tools divided into 7&nbsp;Components"]
     Cache["Response Cache"]
     Tools --> ZosBackendInterface
     ZosBackendInterface["ZosBackend Interface"]
     ZosBackendInterface --> Mock["Mock Backend<br/>(filesystem)"]
-    ZosBackendInterface --> Native["Native Backend<br/>(SSH + ZNP)"]
+    ZosBackendInterface --> ZowexBackend["Zowex backend<br/>(SSH + zowex-sdk)"]
   end
 
   classDef dottedStyle stroke-dasharray: 5 5
   class ZosBackendInterface dottedStyle
 
-  Native --> zOS1["z/OS LPAR 1"]
-  Native --> zOS2["z/OS LPAR 2"]
-  Native --> zOS3["z/OS LPAR n..."]
+  ZowexBackend --> zOS1["z/OS LPAR 1"]
+  ZowexBackend --> zOS2["z/OS LPAR 2"]
+  ZowexBackend --> zOS3["z/OS LPAR n..."]
 ```
 
 ---
@@ -232,7 +235,7 @@ flowchart TD
 
 <div class="grid grid-cols-4 gap-3 mt-4">
   <div class="col-span-4 text-center p-3 bg-[#1b375f] text-white rounded-lg font-bold text-lg">
-    Zowe MCP Server — 50 tools
+    Zowe MCP Server — 59 tools
   </div>
   <div class="p-3 bg-[#f3f4f4] rounded-lg border-t-3 border-[#3162ac] text-center">
     <carbon-data-base class="text-xl text-[#3162ac]" />
@@ -273,26 +276,32 @@ flowchart TD
     <div class="text-xl font-extrabold text-[#3975d0]">1</div>
     <div class="text-xs text-[#6d7176]">runSafeTsoCommand</div>
   </div>
+  <div class="p-3 bg-[#f3f4f4] rounded-lg border-t-3 border-[#3975d0] text-center">
+    <carbon-document-export class="text-xl text-[#3975d0]" />
+    <div class="font-bold text-[#1b375f]">local-files</div>
+    <div class="text-xl font-extrabold text-[#3975d0]">5</div>
+    <div class="text-xs text-[#6d7176]">download · upload · dataset · USS · job</div>
+  </div>
 </div>
 
 ---
 
-<!-- Slide 8: Zowe Native Proto -->
+<!-- Slide 8: Zowe Remote SSH -->
 
-# Zowe Native Proto (ZNP)
+# Zowe Remote SSH (zowex)
 
-The native backend connects to z/OS through **Zowe Native Proto** — a lightweight z/OS server deployed over SSH.
+The **Zowex** path connects to z/OS through **Zowe Remote SSH** ([zowe/zowex](https://github.com/zowe/zowex)) — a lightweight z/OS server deployed over SSH.
 
 <div class="grid grid-cols-2 gap-6 mt-4">
 <div>
 
-### <carbon-rocket class="inline text-[#3162ac]" /> Why ZNP?
+### <carbon-rocket class="inline text-[#3162ac]" /> Why Zowe Remote SSH?
 
 - <carbon-locked class="inline text-[#6d7176]" /> **Only SSH required** — no z/OSMF, no APIML, no special middleware
-- <carbon-deploy class="inline text-[#6d7176]" /> **Auto-deploy** — the MCP server installs and updates the ZNP binary on z/OS automatically
+- <carbon-deploy class="inline text-[#6d7176]" /> **Auto-deploy** — the MCP server installs and updates the zowex z/OS server binary automatically
 - <carbon-renew class="inline text-[#6d7176]" /> **Auto-redeploy** — detects version mismatch and redeploys on the fly
 - <carbon-plug class="inline text-[#6d7176]" /> **Extensible by anyone** — open source, new operations can be added to the SDK
-- <carbon-flash class="inline text-[#6d7176]" /> **Lightweight** — small native binary, minimal z/OS footprint
+- <carbon-flash class="inline text-[#6d7176]" /> **Lightweight** — small z/OS server binary, minimal footprint
 
 </div>
 <div>
@@ -300,11 +309,11 @@ The native backend connects to z/OS through **Zowe Native Proto** — a lightwei
 ### <carbon-flow class="inline text-[#3162ac]" /> How It Works
 
 1. MCP server opens an **SSH connection** to z/OS
-2. ZNP binary is **deployed to user's USS home** (if needed)
+2. zowex z/OS server binary is **deployed to user's USS home** (if needed)
 3. Commands are sent as **structured RPC** over the SSH channel
 4. Results come back as **JSON** — parsed and cached by the MCP server
 
-### Key Operations via ZNP
+### Key operations (zowex-sdk)
 
 - Data set list, read, write, search (SuperC)
 - USS file operations and commands
@@ -331,7 +340,7 @@ The native backend connects to z/OS through **Zowe Native Proto** — a lightwei
 
 ### <carbon-connection-signal class="inline text-[#3162ac]" /> Named Pipe Communication
 
-// Todo: Mention that this is additional channel besides stdio to allow deeper integration of the MCP server and VS Code
+An **additional channel** alongside stdio for deeper VS Code integration
 
 - Bidirectional NDJSON over Unix socket
 - Real-time log level changes
@@ -550,7 +559,7 @@ When a command needs approval, the server asks the MCP client to prompt the user
 
 ### <carbon-settings class="inline text-[#3162ac]" /> Configuration
 
-- **VS Code** — `zoweMCP.nativeConnections` setting
+- **VS Code** — `zoweMCP.zowexConnections` setting
 - **Standalone** — `--config systems.json` or `--system user@host`
 - **Mock** — `systems.json` in mock data directory
 
@@ -594,7 +603,7 @@ Features that make Zowe MCP work **better with LLMs** than traditional APIs:
 
 - Real-time progress via `_meta.progressToken`
 - Human-readable titles: "List members of SYS1.MACLIB"
-- Backend subactions: "Connecting via SSH", "Deploying ZNP"
+- Backend subactions: "Connecting via SSH", "Deploying Zowe Remote SSH server"
 
 </div>
 </div>
@@ -720,7 +729,7 @@ When multiple tools request the same credential simultaneously, only one prompt 
 ### <mdi-microsoft-visual-studio-code class="inline text-[#3162ac]" /> VS Code Extension
 
 1. Install **Zowe MCP** extension
-2. Set `zoweMCP.nativeConnections`
+2. Set `zoweMCP.zowexConnections`
 3. Open Copilot Chat — done!
 
 ### <carbon-data-vis-1 class="inline text-[#3162ac]" /> Mock Mode
@@ -735,16 +744,16 @@ When multiple tools request the same credential simultaneously, only one prompt 
 ### <carbon-terminal class="inline text-[#3162ac]" /> Standalone Server
 
 ```bash
-npx zowe-mcp-server init-mock \
+npx @zowe/mcp-server init-mock \
   --output ./mock-data
 
-npx zowe-mcp-server --stdio \
+npx @zowe/mcp-server --stdio \
   --mock ./mock-data
 ```
 
 ```bash
-npx zowe-mcp-server --stdio \
-  --native --system user@host
+npx @zowe/mcp-server --stdio \
+  --zowex --system user@host
 ```
 
 </div>
@@ -753,7 +762,7 @@ npx zowe-mcp-server --stdio \
 ### <carbon-play class="inline text-[#3162ac]" /> Quick Tool Testing
 
 ```bash
-npx zowe-mcp-server call-tool \
+npx @zowe/mcp-server call-tool \
   --mock=./mock-data \
   listDatasets \
   dsnPattern="USER.*"
@@ -843,11 +852,11 @@ The MCP ecosystem is already extensible — anyone can build and register an MCP
       A <strong>plug-in model</strong> for the Zowe MCP server itself — similar to the CLI. Third parties register additional tools, prompts, and resources directly into the server.
     </div>
   </div>
-  <div class="p-4 bg-[#f3f4f4] rounded-lg border-t-4 border-[#3162ac]">
-    <div class="text-xs font-bold text-[#3162ac] mb-2">OPTION 3</div>
-    <div class="font-bold text-[#1b375f] mb-2"><carbon-connect class="inline text-[#3162ac]" /> CLI Plug-ins → MCP Tools</div>
+  <div class="p-4 bg-[#f3f4f4] rounded-lg border-t-4 border-[#16825d]">
+    <div class="text-xs font-bold text-[#16825d] mb-2">AVAILABLE NOW ✓</div>
+    <div class="font-bold text-[#1b375f] mb-2"><carbon-connect class="inline text-[#16825d]" /> CLI Plug-ins → MCP Tools</div>
     <div class="text-sm text-[#6d7176]">
-      Enable existing <strong>Zowe CLI plug-ins</strong> to provide MCP tools. Not a blind 1:1 mapping of CLI commands — MCP tools are <strong>designed purposefully</strong> for AI, using existing plug-in code as the implementation.
+      The <strong>Zowe CLI Plugin Bridge</strong> is implemented — any Zowe CLI plug-in can contribute MCP tools via a declarative YAML definition. First vendor plugin: <strong>Endevor</strong> (Broadcom).
     </div>
   </div>
 </div>
@@ -901,7 +910,7 @@ interface ZosBackend {
 Current backends:
 
 - **FilesystemMockBackend**
-- **NativeBackend** (SSH + ZNP)
+- **Zowe Remote SSH** (zowex-sdk over SSH)
 
 </div>
 <div>
@@ -926,9 +935,274 @@ Event types:
 
 ---
 
-<!-- Slide 24: Roadmap & Community -->
+<!-- Slide 23c: CLI Plugin Bridge -->
 
-# <carbon-roadmap class="inline text-[#3162ac]" /> Roadmap & Community
+# <carbon-plug class="inline text-[#3162ac]" /> Zowe CLI Plugin Bridge
+
+Expose any **Zowe CLI plug-in** as MCP tools via a declarative **YAML definition** — no TypeScript required.
+
+<div class="grid grid-cols-2 gap-6 mt-4">
+<div>
+
+### <carbon-document class="inline text-[#3162ac]" /> YAML-Driven Tool Definitions
+
+- Define tools, parameters, and profile types in a **single YAML file**
+- **No plugin-specific TypeScript** — all details are declarative
+- Each tool invokes `zowe ... --rfj` under the hood
+- **Description variants** — `cli`, `intent`, `optimized` for LLM tuning
+
+### <carbon-category class="inline text-[#3162ac]" /> Named Profiles
+
+- **Connection** profiles — host, port, credentials per plugin
+- **Location** profiles — per-tool context (e.g. Endevor env/stage)
+- Auto-generated management tools: `listConnections`, `setConnection`
+- **Hot-reload** — VS Code settings immediately take effect
+
+</div>
+<div>
+
+### <carbon-flash class="inline text-[#3162ac]" /> Built-in Smarts
+
+- **Auto-discovery** — drop a `*.yaml` into `cli-bridge-plugins/`
+- **Pagination** — list (offset/limit) and content windowing built-in
+- **Response cache** — full CLI output cached, paging slices it
+- **Fatal error pattern** — LLM stops on config errors, no retries
+
+### <carbon-connect class="inline text-[#3162ac]" /> Vendor Extension Directory
+
+```bash
+vendor/<vendorName>/cli-bridge-plugins/*.yaml
+```
+
+Vendor-specific plugins live outside the core repo, auto-discovered at startup alongside built-in plugins.
+
+</div>
+</div>
+
+<div class="mt-4 p-3 bg-[#eef2f8] rounded-lg border border-[#c5d4eb] text-sm">
+  <strong class="text-[#1b375f]">Guide in the Zowe MCP repo:</strong>
+  <a href="https://github.com/zowe/zowe-mcp/blob/main/docs/how-to-add-cli-plugin.md" target="_blank"><code>docs/how-to-add-cli-plugin.md</code></a>
+  — written as the <strong>end-to-end playbook</strong> for integrating a CLI plugin (install, generate metadata, author YAML, evals, vendor docs). It doubles as a <strong>rule / checklist for AI coding assistants</strong> (e.g. attach it in Cursor or follow it step-by-step with a human reviewer).
+</div>
+
+---
+
+<!-- Slide 23d: CLI Bridge — integration workflow -->
+
+# <carbon-flow class="inline text-[#3162ac]" /> CLI Bridge — From Zowe CLI Plugin to MCP Tools
+
+Adapt an **existing** Zowe CLI plugin without new TypeScript: one **metadata pipeline** and one **hand-authored** tools file per plugin.
+
+<div class="text-sm text-[#6d7176] mt-2 mb-3 space-y-1">
+
+<p><a href="https://github.com/zowe/zowe-mcp/blob/main/docs/how-to-add-cli-plugin.md" target="_blank"><code>docs/how-to-add-cli-plugin.md</code></a> (in the Zowe MCP repo) describes the whole bridge lifecycle: CLI bridge vs Zowe Remote SSH (zowex) backend; auto-generated <strong>commands YAML</strong> and hand-authored <strong>MCP tools YAML</strong> (profiles, tool defs, <code>zowe … --rfj</code>, pagination, fatal vs retryable errors); then smoke-testing, LLM-tuned descriptions, evals, E2E tests, and vendor documentation — framed as a step-by-step guide for <strong>AI coding assistants</strong> and reviewers.</p>
+
+<p class="text-xs"><span class="text-[#16825d] font-semibold">AI</span> assistant &nbsp;·&nbsp; <span class="text-[#a85f00] font-semibold">You</span> input &nbsp;·&nbsp; <span class="text-[#3162ac] font-semibold">Together</span> draft + review</p>
+
+</div>
+
+<div class="grid grid-cols-2 gap-6 text-sm">
+
+<div>
+
+| # | Step | Role |
+| :---: | --- | :---: |
+| 1 | Install the plugin | <span class="text-[#16825d] font-semibold">AI</span> |
+| 2 | Generate CLI commands YAML | <span class="text-[#16825d] font-semibold">AI</span> |
+| 3 | Review the metadata | <span class="text-[#16825d] font-semibold">AI</span> |
+| 4 | Gather environment specifics | <span class="text-[#a85f00] font-semibold">You</span> |
+| 5 | Define use cases and eval drafts | <span class="text-[#3162ac] font-semibold">Together</span> |
+
+</div>
+<div>
+
+| # | Step | Role |
+| :---: | --- | :---: |
+| 6 | Author MCP tools YAML | <span class="text-[#3162ac] font-semibold">Together</span> |
+| 7 | Smoke-test | <span class="text-[#3162ac] font-semibold">Together</span> |
+| 8 | Optimize descriptions | <span class="text-[#16825d] font-semibold">AI</span> |
+| 9 | Run evals | <span class="text-[#3162ac] font-semibold">Together</span> |
+| 10 | Harden and ship | <span class="text-[#3162ac] font-semibold">Together</span> |
+
+</div>
+</div>
+
+---
+
+<!-- Slide 23e: Two YAML artifacts -->
+
+# <carbon-document class="inline text-[#3162ac]" /> Two Files: Commands YAML vs MCP Tools YAML
+
+| Aspect | **CLI commands YAML** (`*-commands.yaml`) | **MCP tools YAML** (`*-tools.yaml`) |
+| --- | --- | --- |
+| **Who creates it** | Generator — `npm run generate-cli-bridge-yaml` | You (with optional AI assist) |
+| **Edit by hand?** | **No** — regenerate when the plugin changes | **Yes** — defines MCP surface area |
+| **Contains** | Every group, command, positional, option, alias, CLI description | `plugin`, `profiles`, `tools[]`, `zoweCommand`, pagination, error behavior |
+| **Used for** | `$.endevor.list.elements.description` style **JSON references** | Runtime: bridge builds `zowe … --rfj` and wraps JSON |
+
+<div class="mt-4 grid grid-cols-2 gap-4 text-sm">
+<div class="p-3 bg-[#f3f4f4] rounded-lg border-l-4 border-[#3162ac]">
+
+<div class="font-bold text-[#1b375f] mb-1">Bridge vs Zowe Remote SSH (zowex)</div>
+
+- CLI already wraps the API you need → **CLI Bridge**
+- Need huge throughput or no `--rfj` → **zowex-sdk path** (or extend CLI first)
+
+</div>
+<div class="p-3 bg-[#f3f4f4] rounded-lg border-l-4 border-[#16825d]">
+
+<div class="font-bold text-[#1b375f] mb-1">Profiles in tools YAML</div>
+
+- **Connection** — reach the service (host, port, protocol, …)
+- **Location** — domain context (e.g. env/stage or Db2 `database`); often `perToolOverride: true`
+- Auto tools: `listConnections` / `setConnection`, `listLocations` / `setLocation`
+
+</div>
+</div>
+
+---
+
+<!-- Slide 23f: CLI Bridge — behavior and configuration -->
+
+# <carbon-settings class="inline text-[#3162ac]" /> Wiring, Safety, and LLM-Friendly Defaults
+
+<div class="grid grid-cols-2 gap-6 text-sm">
+<div>
+
+### <carbon-connect class="inline text-[#3162ac]" /> Enable and configure
+
+- **VS Code** — `zoweMCP.enabledCliPlugins`, `zoweMCP.cliPluginConfiguration` (profiles; hot-reload)
+- **Standalone** — `--cli-plugin-enable`, `--cli-plugin-configuration name=file.json`, `--cli-plugins-dir`
+- Passwords — env vars only; never commit secrets into YAML
+
+### <carbon-chart-line class="inline text-[#3162ac]" /> Pagination and cache
+
+- Opt in per tool: `pagination: list` or `content` (same envelope as core z/OS tools)
+- Full CLI JSON/text cached; MCP params slice the result
+
+</div>
+<div>
+
+### <carbon-warning-alt class="inline text-[#e0182d]" /> Errors the LLM should not “retry away”
+
+- Default: CLI failure → **fatal configuration** message with `stop: true`
+- **Execution errors** (bad SQL, wrong element name) — set `fatalOnCliError: false` or plugin-level `retryableErrorPatterns` / `connectionErrorPatterns`
+
+### <carbon-search class="inline text-[#3162ac]" /> Quality loop
+
+- Eval question sets (`packages/zowe-mcp-evals`) assert tool choice and args
+- **Start small** — discovery + one read path, then add search/mutations
+
+</div>
+</div>
+
+<div class="mt-3 p-3 bg-[#eef2f8] rounded-lg text-xs text-[#6d7176]">
+  Same conventions as core tools: <strong>camelCase</strong> tool names, <code>readOnlyHint</code> where appropriate,
+  description variants <code>cli</code> / <code>optimized</code>, and optional <code>displayName</code> for user-facing errors.
+</div>
+
+---
+layout: two-cols-header
+layoutClass: '!grid-rows-[auto_minmax(0,1fr)]'
+class: text-sm
+---
+
+<!-- Shared HTTP + OAuth: two-cols-header = full-width title, then left/right. Plain two-cols has only default + ::right:: (no ::left::). -->
+
+# <carbon-cloud class="inline text-[#3162ac]" /> Shared HTTP server and OAuth
+
+::left::
+
+<div class="text-xs leading-snug pr-2 max-h-[62vh] overflow-y-auto">
+
+<p class="mb-2 text-[#6d7176]"><strong class="text-[#1b375f]">Streamable HTTP</strong> on <code>/mcp</code> — multi-session MCP over HTTPS.<br/>
+</p>
+
+<h3 class="!text-sm !mt-0 !mb-1 !font-semibold !text-[#1b375f] flex items-center gap-1"><carbon-locked class="inline text-[#3162ac]" /> OAuth and tokens</h3>
+
+<ul class="list-disc pl-4 space-y-1 text-[#6d7176] mb-3">
+<li><strong class="text-[#1b375f]">OAuth 2.0 resource server</strong> — Zowe MCP does not host login pages or issue tokens; your OIDC IdP (Identity Provider) is the authorization server.</li>
+<li>The IdP is only for <strong class="text-[#1b375f]">tokens and JWKS</strong>.</li>
+<li>Clients obtain access tokens (browser code flow or device flow), then send <code>Authorization: Bearer</code> on every <code>POST /mcp</code> call.</li>
+<li>JWT validation via <code>ZOWE_MCP_JWT_ISSUER</code> and <code>ZOWE_MCP_JWKS_URI</code>. RFC 9728 metadata helps MCP clients discover the IdP.</li>
+</ul>
+
+<h3 class="!text-sm !mt-0 !mb-1 !font-semibold !text-[#1b375f] flex items-center gap-1"><carbon-two-person-lift class="inline text-[#3162ac]" /> Identity vs z/OS</h3>
+
+<ul class="list-disc pl-4 space-y-1 text-[#6d7176]">
+<li>Tenant data keyed by OIDC <code>sub</code>; not shared secrets alone.</li>
+<li>Mainframe SSH passwords stay separate — env, vault, or elicitation. The access token does not replace SAF or SSH credentials.</li>
+<li>TLS usually at a reverse proxy; set public base URL env vars so OAuth and password-elicit URLs match the browser.</li>
+</ul>
+
+</div>
+
+::right::
+
+```mermaid {scale: 0.38}
+flowchart TB
+  subgraph clients
+    IDE[MCP client in IDE]
+  end
+  subgraph identity
+    IdP[OIDC authorization server]
+  end
+  subgraph edge
+    LB[TLS reverse proxy or ingress]
+  end
+  subgraph app
+    MCP[Zowe MCP resource server]
+    TS[Tenant connection store per sub]
+    SEC[Secrets for z/OS SSH]
+  end
+  subgraph mainframe
+    ZOS[z/OS SSH]
+  end
+  IDE -->|user login OAuth| IdP
+  IDE -->|HTTPS POST mcp Bearer token| LB
+  LB --> MCP
+  MCP -->|JWKS issuer validation| IdP
+  MCP --> TS
+  MCP --> SEC
+  MCP --> ZOS
+```
+
+---
+
+<!-- MCP registries -->
+
+# <carbon-connect class="inline text-[#3162ac]" /> MCP registries
+
+<div class="text-xs text-[#6d7176] mb-3 leading-snug">
+
+An <strong class="text-[#1b375f]">MCP registry</strong> is a <strong class="text-[#1b375f]">catalog</strong> where <strong class="text-[#1b375f]">publishers</strong> register MCP servers and <strong class="text-[#1b375f]">clients</strong> (for example VS Code) <strong class="text-[#1b375f]">discover</strong> them — similar to a package index, but entries describe <strong class="text-[#1b375f]">how to run or connect</strong> to a server, not only source code. The registry stores <strong class="text-[#1b375f]">versioned metadata</strong> so users can <strong class="text-[#1b375f]">browse</strong>, <strong class="text-[#1b375f]">install</strong>, or <strong class="text-[#1b375f]">attach</strong> to a remote URL from the IDE gallery instead of pasting ad hoc config.
+
+</div>
+
+<div class="text-sm mt-1">
+
+- <strong class="text-[#1b375f]">What you get</strong> — Searchable listings, <strong class="text-[#1b375f]">trust boundaries</strong> (official vs private org registry), and a standard <strong class="text-[#1b375f]"><code class="text-[#1b375f]">server.json</code></strong> shape so tools know whether to spawn <strong class="text-[#1b375f]">stdio</strong> (<code>npx</code>, Docker, …) or open <strong class="text-[#1b375f]">Streamable HTTP</strong> with required <strong class="text-[#1b375f]">headers</strong> (for example OAuth).
+- <strong class="text-[#1b375f]">Where it lives</strong> — The <a href="https://registry.modelcontextprotocol.io" target="_blank" class="text-[#3162ac] underline">public MCP registry</a>, a <strong class="text-[#1b375f]">vendor</strong> catalog, or your <strong class="text-[#1b375f]">company’s</strong> private registry URL (large shops often host <strong class="text-[#1b375f]">one catalog per division</strong> with different hostnames).
+- <strong class="text-[#1b375f]"><code class="text-[#1b375f]">server.json</code> per entry</strong> — <strong class="text-[#1b375f]"><code class="text-[#1b375f]">packages</code></strong>: npm tarball, PyPI, Docker, … for <strong class="text-[#1b375f]">local</strong> MCP; <strong class="text-[#1b375f]"><code class="text-[#1b375f]">remotes</code></strong>: <strong class="text-[#1b375f]">HTTPS</strong> base URL + <strong class="text-[#1b375f]"><code class="text-[#1b375f]">type: streamable-http</code></strong> and <strong class="text-[#1b375f]"><code class="text-[#1b375f]">Authorization</code></strong> header description for <strong class="text-[#1b375f]">shared</strong> team servers.
+- <strong class="text-[#1b375f]">On premises</strong> — Each Zowe MCP deployment publishes <strong class="text-[#1b375f]">its own</strong> HTTPS endpoint; there is <strong class="text-[#1b375f]">no</strong> single global URL — metadata documents <strong class="text-[#1b375f]">headers</strong>, <strong class="text-[#1b375f]">OAuth</strong>, and path (usually <strong class="text-[#1b375f]"><code class="text-[#1b375f]">/mcp</code></strong>).
+
+<div class="mt-3 p-3 bg-[#eef2f8] rounded-lg border-l-4 border-[#3975d0] text-xs text-[#6d7176]">
+  <strong class="text-[#1b375f]">Further reading:</strong>&nbsp;
+  <a href="https://github.com/zowe/zowe-mcp/blob/main/docs/remote-http-mcp-registry.md" target="_blank" class="text-[#3162ac] underline">remote-http-mcp-registry.md</a>
+  (registry registration, stdio + remote together),
+  <a href="https://github.com/zowe/zowe-mcp/blob/main/docs/mcp-registry-research.md" target="_blank" class="text-[#3162ac] underline">mcp-registry-research.md</a>
+  (ecosystem, galleries);
+  <a href="https://github.com/zowe/zowe-mcp/blob/main/docs/mcp-authentication-oauth.md" target="_blank" class="text-[#3162ac] underline">mcp-authentication-oauth.md</a>
+  (OAuth, Copilot, z/OS credentials).
+</div>
+
+</div>
+
+---
+
+<!-- Slide: Roadmap and Community — last content slide before Thank You -->
+
+# <carbon-roadmap class="inline text-[#3162ac]" /> Roadmap &amp; Community
 
 <div class="grid grid-cols-2 gap-8">
 <div>
@@ -936,9 +1210,9 @@ Event types:
 ### <carbon-calendar class="inline text-[#3162ac]" /> What's Next
 
 - **z/OSMF backend** — REST API alternative to SSH
-- **OAuth / MFA support** — enterprise authentication
-- **Console commands** — z/OS operator console (code ready, waiting for ZNP support)
-- **More prompts** — JCL generation, COBOL analysis, batch job templates
+- **OAuth / MFA support** — enterprise authentication via Zowe API Mediation Layer (API ML)
+- **Console commands** — z/OS operator console (code ready, waiting for zowex server support)
+- **More prompts or skills* — JCL generation, COBOL analysis, batch job templates
 - **Resource subscriptions** — real-time data set change notifications
 
 </div>
@@ -947,7 +1221,7 @@ Event types:
 ### <carbon-collaborate class="inline text-[#3162ac]" /> Get Involved
 
 - **GitHub** — [github.com/zowe/zowe-mcp](https://github.com/zowe/zowe-mcp) - _coming soon_
-- **npm** and  **VS Code Marketplace** — not available yet
+- **npm** and **VS Code Marketplace** — not available yet
 - **Zowe Slack** — `#zowe-mcp` channel - _coming soon_
 
 ### License
@@ -961,7 +1235,7 @@ Part of the **Zowe** project under the **Open Mainframe Project** (Linux Foundat
 
 ---
 
-<!-- Slide 26: Thank You -->
+<!-- Thank You -->
 
 <div class="flex flex-col items-center justify-center h-full">
   <img src="/zowe-logo.svg" class="w-40 mb-8 drop-shadow-lg" alt="Zowe" />

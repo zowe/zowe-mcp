@@ -9,6 +9,8 @@
  *
  */
 
+import { WaitablePasswordStore } from './native/password-store.js';
+
 /**
  * In-memory store for JCL job cards per connection spec (user@host or user@host:port).
  * Used when submitting JCL that does not include a job card; the store provides the
@@ -69,6 +71,40 @@ export function createJobCardStore(): JobCardStore {
           }
         }
       }
+    },
+  };
+}
+
+/**
+ * Job card store that can wake waiters when the VS Code extension sends a `job-card`
+ * event (same pattern as {@link WaitablePasswordStore} for passwords).
+ */
+export type JobCardStoreWithWait = JobCardStore & {
+  waitForJobCard(connectionSpec: string, timeoutMs: number): Promise<string | undefined>;
+};
+
+/**
+ * Creates a {@link JobCardStore} plus {@link JobCardStoreWithWait.waitForJobCard} so the server
+ * can await a `job-card` response after sending `request-job-card`.
+ */
+export function createWaitableJobCardStore(): JobCardStoreWithWait {
+  const inner = createJobCardStore();
+  const signal = new WaitablePasswordStore();
+
+  return {
+    get(connectionSpec: string): string | undefined {
+      return inner.get(connectionSpec);
+    },
+    set(connectionSpec: string, jobCard: string): void {
+      const t = jobCard.trim();
+      inner.set(connectionSpec, t);
+      signal.set(connectionSpec, t);
+    },
+    mergeFromObject(obj: JobCardsMapInput | undefined | null): void {
+      inner.mergeFromObject(obj);
+    },
+    waitForJobCard(connectionSpec: string, timeoutMs: number): Promise<string | undefined> {
+      return signal.waitFor(connectionSpec, timeoutMs);
     },
   };
 }

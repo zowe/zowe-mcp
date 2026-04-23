@@ -5,10 +5,20 @@ on:
   pull_request:
   workflow_dispatch:
     inputs:
-      znp-pr:
-        description: "ZNP PR number for SDK artifact (default: 809)"
+      sdk-mode:
+        description: 'SDK source (fallback, nightly, release, pr, branch)'
         required: false
-        default: "809"
+        default: 'fallback'
+        type: choice
+        options:
+          - fallback
+          - nightly
+          - release
+          - pr
+          - branch
+      sdk-arg:
+        description: 'Argument for the SDK mode (version, PR number, or branch name)'
+        required: false
         type: string
 
 permissions:
@@ -27,12 +37,12 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version-file: ".nvmrc"
+          node-version-file: '.nvmrc'
 
-      - name: Download SDK from ZNP PR
+      - name: Download zowex-sdk (Zowe Remote SSH)
         env:
           GH_TOKEN: ${{ github.token }}
-        run: node scripts/sdk-switch.js pr ${{ inputs.znp-pr || '809' }}
+        run: node scripts/sdk-switch.js ${{ inputs.sdk-mode || 'fallback' }} ${{ inputs.sdk-arg }}
 
       - name: Environment info
         run: |
@@ -42,14 +52,28 @@ jobs:
           echo "OS: $(uname -srm)"
           echo "RAM: $(free -h | grep Mem | awk '{print $2}')"
 
+      - name: Download VS Code API types
+        run: npm run download-api -w packages/zowe-mcp-vscode
+
       - name: Build (common + server)
         run: |
           npm run build -w packages/zowe-mcp-common
-          npm run build -w packages/zowe-mcp-server
+          npm run build -w @zowe/mcp-server
 
       - run: npm run lint
 
       - run: npm run test
+
+      - name: Pack @zowe/mcp-server (npm tarball)
+        run: npm pack -w @zowe/mcp-server --pack-destination .
+
+      - name: Upload npm package tarball
+        uses: actions/upload-artifact@v4
+        id: npm-pack-upload
+        with:
+          name: zowe-mcp-server-npm
+          path: zowe-mcp-server-*.tgz
+          if-no-files-found: error
 
       - name: Generate MCP reference docs
         run: npm run generate-docs
@@ -80,4 +104,5 @@ jobs:
           message: |
             Build artifacts:
              - VS Code Extension (VSIX): ${{ steps.vsix-upload.outputs.artifact-url }}
+             - MCP server npm package (.tgz): ${{ steps.npm-pack-upload.outputs.artifact-url }}
              - MCP Reference Docs: ${{ steps.docs-upload.outputs.artifact-url }}

@@ -76,7 +76,7 @@ const jobStatusResultSchema = z.object({
   status: z.string().describe('Status: INPUT, ACTIVE, or OUTPUT.'),
   type: z.string().describe('Job type: JOB, STC, TSU.'),
   class: z.string().describe('Execution class.'),
-  retcode: z.string().optional().describe('Return code when complete (e.g. 0000).'),
+  retcode: z.string().optional().describe('Return code when complete (e.g. CC 0000).'),
   subsystem: z.string().optional().describe('Subsystem.'),
   phase: z.number().describe('Phase number.'),
   phaseName: z.string().describe('Phase name.'),
@@ -138,7 +138,7 @@ const getJobOutputFileEntrySchema = z.object({
 const getJobOutputDataSchema = z.object({
   jobId: z.string().describe('Job ID.'),
   status: z.string().describe('Job status (e.g. OUTPUT).'),
-  retcode: z.string().optional().describe('Job return code when complete.'),
+  retcode: z.string().optional().describe('Job return code when complete (e.g. CC 0000).'),
   files: z.array(getJobOutputFileEntrySchema).describe('Output from job files in this page.'),
 });
 

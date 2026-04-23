@@ -16,4 +16,4 @@ questions:
           tool: readDataset
           minCount: 2
       - answerContains:
-          substring: "LUKE"
+          substring: 'LUKE'

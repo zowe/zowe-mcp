@@ -1,40 +1,46 @@
 /**
- * Copies src/resources into dist/resources and src/tools/tso/*.json into dist/tools/tso
- * so packaged resources are available at runtime.
- * Run from package root (packages/zowe-mcp-server) after tsc.
+ * Copies src/resources into dist/resources and non-TypeScript assets from
+ * src/tools/* into their dist counterparts so packaged resources are available
+ * at runtime. Run from package root (packages/zowe-mcp-server) after tsc.
  */
 const fs = require('node:fs');
 const path = require('node:path');
 
 const pkgRoot = path.join(__dirname, '..');
 
-const srcResources = path.join(pkgRoot, 'src', 'resources');
-const destResources = path.join(pkgRoot, 'dist', 'resources');
-if (fs.existsSync(srcResources)) {
-  fs.mkdirSync(destResources, { recursive: true });
-  fs.cpSync(srcResources, destResources, { recursive: true });
-}
-
-const srcTso = path.join(pkgRoot, 'src', 'tools', 'tso');
-const destTso = path.join(pkgRoot, 'dist', 'tools', 'tso');
-if (fs.existsSync(srcTso)) {
-  fs.mkdirSync(destTso, { recursive: true });
-  const files = fs.readdirSync(srcTso);
-  for (const f of files) {
-    if (f.endsWith('.json')) {
-      fs.copyFileSync(path.join(srcTso, f), path.join(destTso, f));
+/** Copies files matching filter from srcDir into destDir (flat, no recursion). */
+function copyDir(srcDir, destDir, filter) {
+  if (!fs.existsSync(srcDir)) return;
+  fs.mkdirSync(destDir, { recursive: true });
+  for (const f of fs.readdirSync(srcDir)) {
+    if (!filter || filter(f)) {
+      fs.copyFileSync(path.join(srcDir, f), path.join(destDir, f));
     }
   }
 }
 
-const srcConsole = path.join(pkgRoot, 'src', 'tools', 'console');
-const destConsole = path.join(pkgRoot, 'dist', 'tools', 'console');
-if (fs.existsSync(srcConsole)) {
-  fs.mkdirSync(destConsole, { recursive: true });
-  const consoleFiles = fs.readdirSync(srcConsole);
-  for (const f of consoleFiles) {
-    if (f.endsWith('.json')) {
-      fs.copyFileSync(path.join(srcConsole, f), path.join(destConsole, f));
-    }
-  }
+/** Recursively copies srcDir into destDir (for directories that need full tree copies). */
+function copyDirRecursive(srcDir, destDir) {
+  if (!fs.existsSync(srcDir)) return;
+  fs.mkdirSync(destDir, { recursive: true });
+  fs.cpSync(srcDir, destDir, { recursive: true });
 }
+
+const src = p => path.join(pkgRoot, 'src', ...p.split('/'));
+const dist = p => path.join(pkgRoot, 'dist', ...p.split('/'));
+
+copyDirRecursive(src('resources'), dist('resources'));
+copyDir(src('tools/tso'), dist('tools/tso'), f => f.endsWith('.json'));
+copyDir(src('tools/console'), dist('tools/console'), f => f.endsWith('.json'));
+copyDir(
+  src('tools/cli-bridge'),
+  dist('tools/cli-bridge'),
+  f => f.endsWith('.yaml') || f.endsWith('.json')
+);
+// Sync the built-in plugins directory: remove the dist dir first so stale files
+// (e.g. from a previous branch checkout) don't shadow vendor-supplied plugins.
+const pluginsDistDir = dist('tools/cli-bridge/plugins');
+if (fs.existsSync(pluginsDistDir)) {
+  fs.rmSync(pluginsDistDir, { recursive: true });
+}
+copyDirRecursive(src('tools/cli-bridge/plugins'), pluginsDistDir);

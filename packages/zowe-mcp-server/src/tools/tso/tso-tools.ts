@@ -136,9 +136,20 @@ export function registerTsoTools(server: McpServer, deps: TsoToolDeps, logger: L
             return errorResult(`${elicitMsg} Elicitation is not available; execution denied.`);
           }
           try {
+            let systemLabel: string;
+            try {
+              const { systemId } = resolveSystemForTool(
+                deps.systemRegistry,
+                deps.sessionState,
+                system
+              );
+              systemLabel = systemId;
+            } catch {
+              systemLabel = system != null ? String(system) : 'active system';
+            }
             const result = await deps.mcpServer.server.elicitInput({
               mode: 'form',
-              message: `${elicitMsg} Do you want to run this TSO command?`,
+              message: `${elicitMsg} Command: "${cmdPreview}" on system "${systemLabel}". Do you want to run this TSO command?`,
               requestedSchema: {
                 type: 'object',
                 properties: {

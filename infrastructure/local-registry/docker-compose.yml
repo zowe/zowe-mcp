@@ -1,0 +1,55 @@
+# Optional HTTPS: nginx terminates TLS for registry.mcp.example.com → registry:8080 (same cert.pem/
+# key.pem as docker/remote-https-dev — see docker/remote-https-dev/certs/README.md). Plain HTTP
+# remains on host port 8085 for mcp-publisher / curl without TLS.
+services:
+  registry:
+    # Pre-built image published to GHCR — no Go/ko toolchain needed.
+    # https://github.com/modelcontextprotocol/registry
+    image: ghcr.io/modelcontextprotocol/registry:latest
+    container_name: mcp-registry
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      MCP_REGISTRY_DATABASE_URL: postgres://mcpregistry:mcpregistry@postgres:5432/mcp-registry
+      # Public dev credentials from the upstream .env.example — no real privileges.
+      MCP_REGISTRY_GITHUB_CLIENT_ID: Iv23licy3GSiM9Km5jtd
+      MCP_REGISTRY_GITHUB_CLIENT_SECRET: 0e8db54879b02c29adef51795586f3c510a9341d
+      MCP_REGISTRY_JWT_PRIVATE_KEY: bb2c6b424005acd5df47a9e2c87f446def86dd740c888ea3efb825b23f7ef47c
+      # Allow `mcp-publisher login anonymous` → publishes to io.modelcontextprotocol.anonymous/*
+      MCP_REGISTRY_ENABLE_ANONYMOUS_AUTH: 'true'
+      # Skip npm-registry existence check (@zowe/mcp-server is on Artifactory, not npmjs.com).
+      MCP_REGISTRY_ENABLE_REGISTRY_VALIDATION: 'false'
+      # Start empty — no internet seed call needed.
+      MCP_REGISTRY_SEED_FROM: ''
+    ports:
+      - '8085:8080'
+    restart: unless-stopped
+
+  nginx-registry-tls:
+    image: nginx:alpine
+    container_name: mcp-registry-nginx
+    depends_on:
+      - registry
+    ports:
+      - '${REGISTRY_TLS_PORT:-8445}:${REGISTRY_TLS_PORT:-8445}'
+    environment:
+      REGISTRY_HTTPS_HOST: ${REGISTRY_HTTPS_HOST:-registry.mcp.example.com}
+      REGISTRY_TLS_PORT: ${REGISTRY_TLS_PORT:-8445}
+    volumes:
+      - ./nginx-registry.conf.template:/etc/nginx/templates/default.conf.template:ro
+      - ${ZOWE_MCP_TLS_CERT_DIR:-../../docker/remote-https-dev/certs}:/etc/nginx/certs:ro
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: mcp-registry-postgres
+    environment:
+      POSTGRES_DB: mcp-registry
+      POSTGRES_USER: mcpregistry
+      POSTGRES_PASSWORD: mcpregistry
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U mcpregistry -d mcp-registry']
+      interval: 1s
+      retries: 30
+    restart: unless-stopped

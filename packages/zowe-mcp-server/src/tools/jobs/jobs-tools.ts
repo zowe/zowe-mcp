@@ -44,6 +44,11 @@ import {
   wrapResponse,
 } from '../response.js';
 import {
+  appendCompactRetcodeForProgress,
+  formatJobStatusProgressLine,
+} from './job-progress-text.js';
+import { isZeroCompletionRetcode } from './job-retcode.js';
+import {
   cancelJobOutputSchema,
   deleteJobOutputSchema,
   getJclOutputSchema,
@@ -82,6 +87,11 @@ function hasJobCardInJcl(jcl: string): boolean {
   return JOB_CARD_REGEX.test(firstLine);
 }
 
+/** True if the stored job card uses `{jobname}` / `{programmer}` substitution. */
+export function jobCardUsesPlaceholders(template: string): boolean {
+  return /\{jobname\}/i.test(template) || template.includes('{programmer}');
+}
+
 /** Dependencies for job tool registration. */
 export interface JobToolDeps {
   backend: ZosBackend;
@@ -89,6 +99,18 @@ export interface JobToolDeps {
   sessionState: SessionState;
   credentialProvider: CredentialProvider;
   jobCardStore: JobCardStore;
+  /** Native: `user@host` or `user@host:port`; mock/omitted: `userId@systemId`. */
+  resolveJobCardConnectionSpec?: (systemId: string, userId: string) => string;
+  /** Prompt or MCP elicitation when no job card is configured. */
+  elicitJobCard?: (params: {
+    connectionSpec: string;
+    user: string;
+    host: string;
+    port: number;
+  }) => Promise<string | undefined>;
+  /** Persist elicited card (tenant file, native config). */
+  persistJobCard?: (connectionSpec: string, jobCard: string) => void;
+  mcpServer: McpServer;
 }
 
 async function ensureContext(
@@ -179,7 +201,7 @@ async function enrichSubmitResultWithWait(params: {
     jobName: status.name,
     timedOut: timedOut ? true : undefined,
   };
-  if (!timedOut && status.retcode !== undefined && status.retcode !== '0000') {
+  if (!timedOut && status.retcode !== undefined && !isZeroCompletionRetcode(status.retcode)) {
     try {
       const failedStepJobFiles = await params.backend.listJobFiles(
         params.systemId,
@@ -272,7 +294,7 @@ export function registerJobTools(server: McpServer, deps: JobToolDeps, logger: L
     {
       outputSchema: submitJobOutputSchema,
       description:
-        'Submit JCL to the current (or specified) z/OS system. A job card is added from config when JCL has none; include a job card only when your JCL already has a full JOB statement. ' +
+        'Submit JCL to the current (or specified) z/OS system. When JCL has no JOB statement, the server uses a configured template or prompts for a card. Stored templates may include literal substrings {jobname} (case-insensitive) and {programmer}, replaced from jobName and programmer before prepending; a full JOB line entered at prompt is used as literal text without substitution. ' +
         'To wait for the job to complete, set wait: true (and optionally timeoutSeconds); the tool will then return status and optional output info. Submitting runs work on z/OS—use with care.',
       annotations: { destructiveHint: true },
       inputSchema: {
@@ -291,13 +313,13 @@ export function registerJobTools(server: McpServer, deps: JobToolDeps, logger: L
           .string()
           .optional()
           .describe(
-            'Job name for the JOB statement when using a template (max 8 chars). Default: user ID + "A". Ignored if JCL already contains a job card.'
+            'Replaces the {jobname} placeholder in a stored job card template (max 8 chars). Default: user ID + "A". Ignored if JCL already contains a job card or the card has no placeholders.'
           ),
         programmer: z
           .string()
           .optional()
           .describe(
-            'Programmer field in the JOB statement when using a template (max 19 chars). Typically describes what the job does. Default: empty. Ignored if JCL already contains a job card.'
+            'Replaces the {programmer} placeholder in a stored template (max 19 chars). Default: empty. Ignored if JCL already contains a job card or the card has no placeholders.'
           ),
         wait: z
           .boolean()
@@ -338,16 +360,34 @@ export function registerJobTools(server: McpServer, deps: JobToolDeps, logger: L
         await ensureContext(deps, systemId, resolvedUserId);
         const ctx = deps.sessionState.getContext(systemId);
         const userId = ctx?.userId ?? '';
-        const connectionSpec = connectionSpecFor(systemId, userId);
+        const sysInfo = deps.systemRegistry.getOrResolve(systemId);
+        const portForConn = sysInfo?.port ?? 22;
+        const connectionSpec =
+          deps.resolveJobCardConnectionSpec?.(systemId, userId) ??
+          connectionSpecFor(systemId, userId);
 
         const messages: string[] = [];
         let jclToSubmit = linesToText(parsed.lines ?? []).trim();
         let addedJobCard: string | undefined;
         if (!hasJobCardInJcl(jclToSubmit)) {
-          const template = deps.jobCardStore.get(connectionSpec);
+          let template = deps.jobCardStore.get(connectionSpec);
+          if (!template && deps.elicitJobCard) {
+            await progress.step('Waiting for job card...');
+            const elicited = await deps.elicitJobCard({
+              connectionSpec,
+              user: userId,
+              host: systemId,
+              port: portForConn,
+            });
+            if (elicited?.trim()) {
+              template = elicited.trim();
+              deps.jobCardStore.set(connectionSpec, template);
+              deps.persistJobCard?.(connectionSpec, template);
+            }
+          }
           if (!template) {
             await progress.complete(
-              `No job card configured for ${connectionSpec}. Add a "jobCards" entry for this connection in your config file (--config) or set zoweMCP.jobCards in VS Code settings.`
+              `No job card configured for ${connectionSpec}. Add a "jobCards" entry for this connection in your config file (--config), set zoweMCP.jobCards in VS Code settings, or provide one when prompted.`
             );
             return {
               content: [
@@ -355,44 +395,67 @@ export function registerJobTools(server: McpServer, deps: JobToolDeps, logger: L
                   type: 'text' as const,
                   text: JSON.stringify({
                     isError: true,
-                    message: `No job card configured for ${connectionSpec}. Add a "jobCards" entry for this connection in your config file (--config) or set zoweMCP.jobCards in VS Code settings.`,
+                    message: `No job card configured for ${connectionSpec}. Add a "jobCards" entry for this connection in your config file (--config), set zoweMCP.jobCards in VS Code settings, or provide one when prompted.`,
                   }),
                 },
               ],
               isError: true,
             };
           }
-          const {
-            jobCard: jobCardResult,
-            programmerUsed,
-            programmerTrimmed,
-          } = applyJobCardTemplateWithLengthCheck(
-            template,
-            {
-              userId,
-              jobName: parsed.jobName,
-              programmer: parsed.programmer,
-            },
-            log
-          );
-          addedJobCard = jobCardResult;
-          const jobNameUsed = (parsed.jobName ?? userId + 'A').slice(0, JOB_NAME_MAX_LEN);
-          const jobCardLines = addedJobCard.split(/\r?\n/);
-          const firstLineLen = jobCardLines[0]?.length ?? 0;
-          log.debug('submitJob: prepending job card', {
-            connectionSpec,
-            jobName: jobNameUsed,
-            programmer: programmerUsed,
-            lineCount: jobCardLines.length,
-            firstLineLength: firstLineLen,
-            withinJclLimit: firstLineLen <= JCL_MAX_STATEMENT_LENGTH,
-            lines: jobCardLines,
-          });
-          jclToSubmit = addedJobCard + '\n' + jclToSubmit;
-          if (programmerTrimmed) {
-            messages.push(
-              `Job card first line exceeded JCL limit of ${JCL_MAX_STATEMENT_LENGTH} characters; programmer field was trimmed so the JOB statement fits.`
+
+          if (jobCardUsesPlaceholders(template)) {
+            const {
+              jobCard: jobCardResult,
+              programmerUsed,
+              programmerTrimmed,
+            } = applyJobCardTemplateWithLengthCheck(
+              template,
+              {
+                userId,
+                jobName: parsed.jobName,
+                programmer: parsed.programmer,
+              },
+              log
             );
+            addedJobCard = jobCardResult;
+            const jobNameUsed = (parsed.jobName ?? userId + 'A').slice(0, JOB_NAME_MAX_LEN);
+            const jobCardLines = addedJobCard.split(/\r?\n/);
+            const firstLineLen = jobCardLines[0]?.length ?? 0;
+            log.debug('submitJob: prepending job card (template)', {
+              connectionSpec,
+              jobName: jobNameUsed,
+              programmer: programmerUsed,
+              lineCount: jobCardLines.length,
+              firstLineLength: firstLineLen,
+              withinJclLimit: firstLineLen <= JCL_MAX_STATEMENT_LENGTH,
+              lines: jobCardLines,
+            });
+            jclToSubmit = addedJobCard + '\n' + jclToSubmit;
+            if (programmerTrimmed) {
+              messages.push(
+                `Job card first line exceeded JCL limit of ${JCL_MAX_STATEMENT_LENGTH} characters; programmer field was trimmed so the JOB statement fits.`
+              );
+            }
+          } else {
+            addedJobCard = template.trimEnd();
+            const jobCardLines = addedJobCard.split(/\r?\n/);
+            const firstLine = jobCardLines[0] ?? '';
+            if (firstLine.length > JCL_MAX_STATEMENT_LENGTH) {
+              log.warning('submitJob: job card first line exceeds JCL max length', {
+                connectionSpec,
+                firstLineLength: firstLine.length,
+                maxLength: JCL_MAX_STATEMENT_LENGTH,
+              });
+              messages.push(
+                `Job card first line exceeds ${JCL_MAX_STATEMENT_LENGTH} characters; verify JCL continuation rules on z/OS.`
+              );
+            }
+            log.debug('submitJob: prepending job card (literal)', {
+              connectionSpec,
+              lineCount: jobCardLines.length,
+              firstLineLength: firstLine.length,
+            });
+            jclToSubmit = addedJobCard + '\n' + jclToSubmit;
           }
         }
 
@@ -433,7 +496,12 @@ export function registerJobTools(server: McpServer, deps: JobToolDeps, logger: L
             await progress.complete('Timeout waiting for job (job continues on z/OS)');
           } else {
             await progress.complete(
-              `Job ${String(data.name)} (${String(data.id)}): ${String(data.status)}`
+              formatJobStatusProgressLine({
+                name: String(data.name),
+                id: String(data.id),
+                status: String(data.status),
+                retcode: typeof data.retcode === 'string' ? data.retcode : undefined,
+              })
             );
           }
         } else {
@@ -506,7 +574,7 @@ export function registerJobTools(server: McpServer, deps: JobToolDeps, logger: L
           extra._meta?.progressToken ? (msg: string) => void progress.step(msg) : undefined
         );
 
-        await progress.complete(`Job ${status.name} (${status.id}): ${status.status}`);
+        await progress.complete(formatJobStatusProgressLine(status));
         const responseCtx = buildContext(systemId, {});
         return wrapResponse(responseCtx, undefined, status, []);
       } catch (err) {
@@ -805,7 +873,7 @@ export function registerJobTools(server: McpServer, deps: JobToolDeps, logger: L
           const failedOnly =
             parsed.failedStepsOnly !== false &&
             status.retcode !== undefined &&
-            status.retcode !== '0000';
+            !isZeroCompletionRetcode(status.retcode);
           if (failedOnly && files.length > 0) {
             const sysoutOrErr = files.filter(
               f =>
@@ -851,7 +919,10 @@ export function registerJobTools(server: McpServer, deps: JobToolDeps, logger: L
         }
 
         await progress.complete(
-          `Returned ${outputEntries.length} ${plural(outputEntries.length, 'job file', 'job files')} for job ${parsed.jobId} (${meta.totalAvailable} total)`
+          appendCompactRetcodeForProgress(
+            `Returned ${outputEntries.length} ${plural(outputEntries.length, 'job file', 'job files')} for job ${parsed.jobId} (${meta.totalAvailable} total)`,
+            status.retcode
+          )
         );
         const responseCtx = buildContext(systemId, {});
         const messages = getListMessages(meta);

@@ -22,12 +22,15 @@ import type { Logger } from '../../log.js';
 import type { CredentialProvider } from '../../zos/credentials.js';
 import type { EncodingOptions } from '../../zos/encoding.js';
 import type { JobCardStore } from '../../zos/job-cards.js';
+import { parseConnectionSpec } from '../../zos/native/connection-spec.js';
 import { resolveSystemForTool, type SessionState } from '../../zos/session.js';
 import type { SystemRegistry } from '../../zos/system.js';
 import { createToolProgress } from '../progress.js';
 import {
+  addZosConnectionOutputSchema,
   getContextOutputSchema,
   listSystemsOutputSchema,
+  removeZosConnectionOutputSchema,
   setSystemOutputSchema,
 } from './context-output-schemas.js';
 
@@ -35,7 +38,7 @@ import {
 export interface ContextToolDeps {
   /** Server version string (from package.json). */
   serverVersion: string;
-  /** Backend kind when connected (e.g. "mock", "native") or null when none. */
+  /** Backend kind when connected (e.g. "mock", "zowex") or null when none. */
   backendKind: string | null;
   /** z/OS system registry. Required for listSystems/setSystem; when absent, only getContext is registered. */
   systemRegistry?: SystemRegistry;
@@ -49,6 +52,14 @@ export interface ContextToolDeps {
   onActiveConnectionChanged?: (activeConnection: string) => void;
   /** Server-level default encodings. When provided, getContext includes effective encodings for the active system. */
   encodingOptions?: EncodingOptions;
+  /**
+   * When set (HTTP + JWT + tenant store), registers addZosConnection to append a connection and persist per OIDC sub.
+   */
+  addTenantNativeConnection?: (spec: string) => Promise<void>;
+  /**
+   * When set with addTenantNativeConnection, registers removeZosConnection to remove a saved tenant connection.
+   */
+  removeTenantNativeConnection?: (spec: string) => Promise<void>;
 }
 
 /**
@@ -69,11 +80,146 @@ export function registerContextTools(
     jobCardStore,
     onActiveConnectionChanged,
     encodingOptions,
+    addTenantNativeConnection,
+    removeTenantNativeConnection,
   } = deps;
 
   const hasBackend = !!(systemRegistry && sessionState && credentialProvider);
 
-  const components = hasBackend ? ['context', 'datasets', 'uss', 'tso', 'jobs'] : ['context'];
+  const components: string[] = hasBackend
+    ? [
+        'context',
+        ...(addTenantNativeConnection && removeTenantNativeConnection
+          ? ['addZosConnection', 'removeZosConnection']
+          : []),
+        'datasets',
+        'uss',
+        'tso',
+        'jobs',
+        'local-files',
+      ]
+    : ['context'];
+
+  // -----------------------------------------------------------------------
+  // addZosConnection / removeZosConnection (HTTP + JWT + tenant store only)
+  // -----------------------------------------------------------------------
+  if (hasBackend && addTenantNativeConnection && removeTenantNativeConnection) {
+    server.registerTool(
+      'addZosConnection',
+      {
+        description:
+          'Add a z/OS SSH connection (user@host or user@host:port) for the current signed-in user only. Each OIDC subject has a separate persisted list (no cross-user sharing). Prefer this over baking connection lists into server startup for remote HTTP. After adding, use setSystem with the new host or connection spec. Passwords for this user@host (SSH, Db2, etc.): MCP elicitation when supported, else ZOWE_MCP_PASSWORD_* / ZOWE_MCP_CREDENTIALS.',
+        annotations: { readOnlyHint: false },
+        outputSchema: addZosConnectionOutputSchema,
+        inputSchema: {
+          connectionSpec: z
+            .string()
+            .describe(
+              'Connection string: user@host or user@host:port (same format as standalone --zowex --system).'
+            ),
+        },
+      },
+      async ({ connectionSpec }, extra) => {
+        const progress = createToolProgress(extra, 'Add z/OS connection');
+        await progress.start();
+        let normalized: string;
+        try {
+          const parsed = parseConnectionSpec(connectionSpec.trim());
+          normalized =
+            parsed.port === 22
+              ? `${parsed.user}@${parsed.host}`
+              : `${parsed.user}@${parsed.host}:${parsed.port}`;
+        } catch (err: unknown) {
+          const message = err instanceof Error ? err.message : String(err);
+          await progress.complete('failed');
+          return {
+            content: [{ type: 'text' as const, text: JSON.stringify({ error: message }) }],
+            isError: true,
+          };
+        }
+        try {
+          await addTenantNativeConnection(normalized);
+        } catch (err: unknown) {
+          const message = err instanceof Error ? err.message : String(err);
+          await progress.complete('failed');
+          return {
+            content: [{ type: 'text' as const, text: JSON.stringify({ error: message }) }],
+            isError: true,
+          };
+        }
+        const payload = {
+          connectionSpec: normalized,
+          persisted: true,
+          messages: [
+            'Connection added for your user only. Use setSystem with this host or connection spec. Password (SSH, Db2, etc.): elicitation when the client supports it, else set ZOWE_MCP_PASSWORD_* or ZOWE_MCP_CREDENTIALS.',
+          ],
+        };
+        await progress.complete('ok');
+        return {
+          content: [{ type: 'text' as const, text: JSON.stringify(payload, null, 2) }],
+          structuredContent: payload,
+        };
+      }
+    );
+
+    server.registerTool(
+      'removeZosConnection',
+      {
+        description:
+          'Remove a z/OS SSH connection (user@host or user@host:port) from your per-user saved list (OIDC subject). Only connections previously added with addZosConnection or stored in the tenant file can be removed here. Connections supplied only via server startup (--config/--system) must be changed in server configuration. After removal, pick another system with setSystem if needed.',
+        annotations: { readOnlyHint: false, destructiveHint: true },
+        outputSchema: removeZosConnectionOutputSchema,
+        inputSchema: {
+          connectionSpec: z
+            .string()
+            .describe(
+              'Connection string to remove: user@host or user@host:port (same format as addZosConnection).'
+            ),
+        },
+      },
+      async ({ connectionSpec }, extra) => {
+        const progress = createToolProgress(extra, 'Remove z/OS connection');
+        await progress.start();
+        let normalized: string;
+        try {
+          const parsed = parseConnectionSpec(connectionSpec.trim());
+          normalized =
+            parsed.port === 22
+              ? `${parsed.user}@${parsed.host}`
+              : `${parsed.user}@${parsed.host}:${parsed.port}`;
+        } catch (err: unknown) {
+          const message = err instanceof Error ? err.message : String(err);
+          await progress.complete('failed');
+          return {
+            content: [{ type: 'text' as const, text: JSON.stringify({ error: message }) }],
+            isError: true,
+          };
+        }
+        try {
+          await removeTenantNativeConnection(normalized);
+        } catch (err: unknown) {
+          const message = err instanceof Error ? err.message : String(err);
+          await progress.complete('failed');
+          return {
+            content: [{ type: 'text' as const, text: JSON.stringify({ error: message }) }],
+            isError: true,
+          };
+        }
+        const payload = {
+          connectionSpec: normalized,
+          persisted: true,
+          messages: [
+            'Connection removed from your saved list. If it was the active connection, call setSystem to switch to another host or connection.',
+          ],
+        };
+        await progress.complete('ok');
+        return {
+          content: [{ type: 'text' as const, text: JSON.stringify(payload, null, 2) }],
+          structuredContent: payload,
+        };
+      }
+    );
+  }
 
   // -----------------------------------------------------------------------
   // listSystems (only when z/OS backend is configured)
@@ -226,7 +372,7 @@ export function registerContextTools(
   const backendDescription = hasBackend
     ? ''
     : 'When no z/OS backend is configured, only this tool is available. ' +
-      'Configure a backend to enable z/OS tools: mock (VS Code "zoweMCP.mockDataDirectory" or standalone --mock / ZOWE_MCP_MOCK_DIR) or native SSH (VS Code "zoweMCP.nativeConnections" or standalone --native --system user@host).';
+      'Configure a backend to enable z/OS tools: mock (VS Code "zoweMCP.mockDataDirectory" or standalone --mock / ZOWE_MCP_MOCK_DIR) or Zowe Remote SSH / zowex (VS Code "zoweMCP.zowexConnections" or standalone --zowex --system user@host).';
 
   server.registerTool(
     'getContext',
@@ -258,8 +404,8 @@ export function registerContextTools(
             'To enable all z/OS tools, configure a backend:\n' +
             '  - Mock: VS Code — run "Zowe MCP: Generate Mock Data" or set "zoweMCP.mockDataDirectory"; ' +
             'Standalone — --mock <dir> or ZOWE_MCP_MOCK_DIR\n' +
-            '  - Native (SSH): VS Code — set "zoweMCP.nativeConnections" (e.g. ["user@host"]); ' +
-            'Standalone — --native --system user@host (or --config <path>)',
+            '  - Zowe Remote SSH / zowex: VS Code — set "zoweMCP.zowexConnections" (e.g. ["user@host"]); ' +
+            'Standalone — --zowex --system user@host (or --config <path>)',
         ];
         const payload: Record<string, unknown> = {
           server: serverInfo,

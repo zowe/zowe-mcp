@@ -9,7 +9,7 @@ There are two ways to run evals:
 
 ## Setup
 
-1. **Build the server**: From repo root, run `npm run build` (or `npm run build -w packages/zowe-mcp-server`).
+1. **Build the server**: From repo root, run `npm run build` (or `npm run build -w @zowe/mcp-server`).
 
 2. **Evals config** (at repo root): Copy an example and set your LLM provider (vLLM, Gemini, or LM Studio):
 
@@ -69,6 +69,31 @@ npm run evals -- --no-cache
 - **`--filter <substring>`** — Run only questions whose id or prompt contains the substring (case-insensitive).
 - **`--no-cache`** — Disable the development cache (see below). Use for CI or when you want every run to call the LLM.
 
+### List models (providers in `evals.config.json`)
+
+From repo root:
+
+```bash
+npm run list-eval-models
+npm run list-eval-models -- --all-model-types
+```
+
+This builds the evals package, reads `evals.config.json` (or `evals.config.local.json`), and prints available models for each distinct endpoint used by your entries:
+
+- **gemini** — Models that support `generateContent` from the Google Generative Language API (one block per distinct API key; keys from each entry’s `apiKey` or from `GEMINI_API_KEY` / `GOOGLE_API_KEY`).
+- **vllm** / **lmstudio** — `GET <baseUrl>/models` (OpenAI-compatible). Default base URLs match the eval harness: vLLM `http://localhost:8000/v1`, LM Studio `http://localhost:1234/v1`.
+
+**Default (text/chat LLM candidates)** — By default the list is narrowed to **text/chat LLM-style** models (heuristic, not a guaranteed modality):
+
+- **Gemini**: Still requires `generateContent` (so true embedding models, which use `embedContent`, are already out). Additionally filters out ids/displayNames that look like image, TTS, video (Veo), music (Lyria), etc. Implementation: `isLikelyGeminiTextLlmChatModel` in `src/config.ts`.
+- **OpenAI-compat**: Drops ids that look like embeddings (`text-embedding`, `nomic-embed`, `whisper`, etc.): `isLikelyOpenAiCompatTextLlmId`.
+
+**`--all-model-types`** — List everything returned by the APIs (all `generateContent` Gemini models; every model id from OpenAI-compat `/v1/models`). Use this if you need embedding or non-chat model ids, or the full unfiltered Gemini id list.
+
+The legacy flag **`--text-llm`** is accepted but redundant (same as the default).
+
+Pass **`--help`** for usage. Exit code **1** if any request fails or if there are no listable providers (e.g. only gemini entries but no API key).
+
 ### Cache (development)
 
 When cache is enabled (default), successful eval results are stored under `.evals-cache/` at the repo root. The cache key includes the system prompt, question text, tool descriptions for the tools under test, and the model id (when using multi-model config), so changing a tool description, the question, or the model invalidates the cache for that question. Only **passing** runs are cached; failed runs are never stored. Repeated evals with the same questions, tooling, and model reuse cached results and skip LLM calls. At the end of a run you see a line like: `Cache: N hits, M writes, K LLM calls (T runs)`. To run without cache (e.g. in CI or for a clean run), pass **`--no-cache`**.
@@ -97,7 +122,10 @@ Assertions use Ansible-style key-based format. Each assertion is an object with 
   - `tool` (string) — single tool name; checks the last matching call + optional `args`.
   - `tools` (string[]) — any of these tools matches (no per-tool args).
   - `oneOf` (array of `{tool, args?}`) — any of these specs matches (per-tool args).
-  - `args` (object) — partial argument match (used with `tool` or `tools`).
+  - `args` (object) — partial argument match (used with `tool` or `tools`). Per-key matching:
+    - **String** — case-insensitive substring: `actual` must include `expected` (ignoring case).
+    - **`{ pattern: string, flags?: string }`** — `actual` must match the regex; default `flags` is `i` (case-insensitive). Use `flags: ''` for case-sensitive regex. Use this for command text when you need alternation (e.g. `D T` vs `DISPLAY T`), since a single string cannot match both via substring rules.
+    - **`validDsn`** — special canonical DSN form (see tool DSN registry).
   - `count` (integer) — exact number of total tool calls expected (e.g. `count: 1` for single-tool-call assertions).
   - `minCount` (integer) — minimum call count (e.g. for pagination).
 - **toolCallOrder** — Ordered tool-call sequence. Value is directly an array of steps (no intermediate `sequence:` key). Each step has `tool` (single) or `tools` (any of) and optional `args`. Other tool calls may appear between steps.
@@ -153,6 +181,10 @@ assertions:
 ### USS (UNIX System Services)
 
 - **Set** `uss` (run with `--set uss`): getUssHome, listUssFiles, readUssFile, and a write-temp-read-cleanup flow. Mock; init-mock creates a minimal USS tree for the first system/user (`/u/<user>/file.txt`, `subdir`) when using default preset.
+
+### Local workspace upload/download
+
+- **Set** `local-files` (run with `--set local-files`): `downloadDatasetToFile`, `downloadUssFileToFile`, `uploadFileToDataset`, `uploadFileToUssFile`. Mock `--preset minimal` (USER on `mainframe-dev.example.com`, USS `file.txt`). The harness sets **`ZOWE_MCP_WORKSPACE_DIR`** to a temp directory and writes **`eval-upload-source.txt`** there so upload questions have a real source file. Does not assert on-disk results (use server Vitest for that).
 
 ### Jobs (native backend only)
 

@@ -24,7 +24,7 @@ questions:
       - toolCall:
           tool: listDatasets
           args:
-            validDsn: "USER.**"
+            validDsn: 'USER.**'
       - answerContains:
           substring: SRC.COBOL
   - id: list-members-src-cobol
@@ -33,7 +33,7 @@ questions:
       - toolCall:
           tool: listMembers
           args:
-            validDsn: "USER.SRC.COBOL"
+            validDsn: 'USER.SRC.COBOL'
       - answerContains:
           substring: CUSTFILE
 
@@ -43,7 +43,7 @@ questions:
       - toolCall:
           tool: listMembers
           args:
-            validDsn: "USER.SRC.COBOL"
+            validDsn: 'USER.SRC.COBOL'
       - answerContains:
           substring: CUSTFILE
 
@@ -53,6 +53,6 @@ questions:
       - toolCall:
           tool: readDataset
           args:
-            validDsn: "USER.SRC.COBOL(CUSTFILE)"
+            validDsn: 'USER.SRC.COBOL(CUSTFILE)'
       - answerContains:
-          pattern: "CUSTFILE|PROGRAM-ID"
+          pattern: 'CUSTFILE|PROGRAM-ID'

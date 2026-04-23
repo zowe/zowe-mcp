@@ -1,6 +1,6 @@
-# Zowe Native Proto — Feature Requests and Defects
+# Zowe Remote SSH — Feature Requests and Defects
 
-List of new functions or behaviors requested from Zowe Native Proto for use by Zowe MCP server, and defects observed that we request be fixed. Each item has a short ID (e.g. `ZNP-001-UNIX-CMD`) for reference.
+List of new functions or behaviors requested from **Zowe Remote SSH** ([zowe/zowex](https://github.com/zowe/zowex)) for use by Zowe MCP server, and defects observed that we request be fixed. Each item has a short ID (e.g. `ZNP-001-UNIX-CMD`) for reference.
 
 **Priority**: **P0** = Critical (defects that block or severely harm usage) · **P1** = High (missing features that break or limit important flows) · **P2** = Medium (improvements, efficiency) · **P3** = Lower (enhancements)
 
@@ -11,7 +11,7 @@ List of new functions or behaviors requested from Zowe Native Proto for use by Z
 - **Priority**: P0
 - **Summary**: The ZNP server on z/OS abends with a protection exception (System Completion Code 0C4) while handling requests (observed during `listDatasets`). The client then receives abend/dump output instead of JSON, logs "Invalid JSON response", and the request can hang until timeout.
 - **Request**: Fix the server-side crash so `listDatasets` (and any other operations that hit the same code path) complete successfully or return a proper error instead of abending.
-- **ZNP version**: No version reported in the ZNP log messages. Client SDK in use: zowe-native-proto-sdk 0.2.4 (from Zowe Artifactory npm-release).
+- **ZNP version**: No version reported in the ZNP log messages. Client SDK in use: `zowex-sdk` (formerly `zowe-native-proto-sdk` 0.2.4 from Zowe Artifactory npm-release).
 - **z/OS system**: Host: zos.example.com (example; use your system hostname when reporting).
 - **Observed context**: Occurred when listing data sets (e.g. patterns like `USER.**`, `SAMPLE.**`) over SSH to a z/OS system; the server had successfully connected and was running the first list operation when the abend occurred.
 - **Log details** (from MCP server stderr when the client receives the invalid response):
@@ -40,8 +40,8 @@ Error: Invalid JSON response:          +000000000000016A at address 000000003CEF
 - **Request**: Implement the `renameMember` command on the ZNP z/OS server so that PDS or PDS/E members can be renamed in place.
 - **Input**: `{ dsname: string, memberBefore: string, memberAfter: string }` (data set name, current member name, new member name).
 - **Output**: Success or error (e.g. member not found, new name already exists).
-- **Why**: The Zowe MCP server exposes a `renameDataset` tool that supports renaming a member within the same data set (dsn and newDsn equal, member and newMember specified). When the client calls this, the native backend invokes `ds.renameMember(...)`. The ZNP server on z/OS responds with **"Unrecognized command renameMember"**, so the operation is not available. Zowe zos-files (z/OSMF) provides `rename data-set-member`; the Native Proto server should offer equivalent capability for SSH-based workflows. The MCP server's native-stdio E2E test 7.2 (renameDataset member) is skipped until ZNP supports this.
-- **Observed**: SDK in use (zowe-native-proto-sdk 0.2.4); server returns "Unrecognized command renameMember" when the client sends the renameMember request.
+- **Why**: The Zowe MCP server exposes a `renameDataset` tool that supports renaming a member within the same data set (dsn and newDsn equal, member and newMember specified). When the client calls this, the native backend invokes `ds.renameMember(...)`. The ZNP server on z/OS responds with **"Unrecognized command renameMember"**, so the operation is not available. Zowe zos-files (z/OSMF) provides `rename data-set-member`; the Zowe Remote SSH z/OS server should offer equivalent capability for SSH-based workflows. The MCP server's native-stdio E2E test 7.2 (renameDataset member) is skipped until ZNP supports this.
+- **Observed**: SDK in use (`zowex-sdk` / legacy `zowe-native-proto-sdk` 0.2.4); server returns "Unrecognized command renameMember" when the client sends the renameMember request.
 
 ---
 
@@ -49,7 +49,7 @@ Error: Invalid JSON response:          +000000000000016A at address 000000003CEF
 
 - **Priority**: P1
 - **Request**: Implement the `unixCommand` (or equivalent) RPC on the ZNP z/OS server so that the client can run arbitrary Unix commands (e.g. `echo $HOME`, `whoami`, `pwd`, `ls`) and receive the command output.
-- **Where**: ZNP server command handling, e.g. [zowe-native-proto/native/zowed/commands.cpp](https://github.com/zowe/zowe-native-proto/blob/main/native/zowed/commands.cpp) (or equivalent); the SDK exposes `client.cmds.issueUnix({ commandText })` but the server must handle the request.
+- **Where**: ZNP server command handling, e.g. [native/c/commands](https://github.com/zowe/zowex/tree/main/native/c/commands) (see `uss.cpp`, `server.cpp`, and related handlers; the old monolithic `native/zowed/commands.cpp` path from the pre-rename repo layout no longer applies).
 - **Input**: `{ commandText: string }` (the command line to execute).
 - **Output**: Success + command stdout (e.g. `{ data: string }`).
 - **Why**: Without this, the Zowe MCP server cannot determine the user's USS home directory (getUssHome uses `echo $HOME`) or run safe allowlisted commands (runSafeUssCommand). The server currently responds with **"Unrecognized command unixCommand"**, getUssHome is **not** disabled: when `echo $HOME` is unavailable, the server probes typical home bases (`/u`, `/a`, `/z`, `/u/users`, `/u/users/group/product`) via `listUssFiles` for a directory matching the user ID (case-insensitive) and defaults to `/u/<lowercase-userId>` with a warning if none is found. runSafeUssCommand remains enabled but will fail until ZNP adds support. All other USS tools (listUssFiles, readUssFile, writeUssFile, createUssFile, deleteUssFile, chmod, chown, chtag, and temp tools) remain enabled and use `client.uss.*` only.
@@ -102,7 +102,7 @@ Error: Invalid JSON response:          +000000000000016A at address 000000003CEF
 - **Why**: The MCP server currently caches the full data set for pagination and applies line windowing in the tool layer. For large data sets this is inefficient and can serve stale data. We need either:
   - **Server-side range read**: Native API that accepts something like `startRecord`, `recordCount` (or line-based) and returns only that slice, so we avoid caching the whole data set; and/or
   - **Stable change token**: A version/ETag or last-modified indicator returned with list/read that we can send on a subsequent read so the backend can tell us “content changed” and we can invalidate cache or warn the user.
-- **Open question**: How does the Native Proto backend today (or in future) represent “same content” vs “changed” (e.g. generation, timestamp, ETag) so we can safely paginate without re-reading the full data set each time?
+- **Open question**: How does the Zowe Remote SSH z/OS backend today (or in future) represent “same content” vs “changed” (e.g. generation, timestamp, ETag) so we can safely paginate without re-reading the full data set each time?
 
 ---
 
@@ -119,7 +119,7 @@ Error: Invalid JSON response:          +000000000000016A at address 000000003CEF
 ## `ZNP-008-SEARCH` — Search: data set names, member names, and content
 
 - **Priority**: P3
-- **Request**: Search capabilities in the Native Proto layer:
+- **Request**: Search capabilities in the Zowe Remote SSH layer:
   - **By name**: Search data set names and/or member names by pattern (e.g. wildcard, SUPERCE-style, or regex if supported on the platform).
   - **By content**: Search inside data set or member content (e.g. SUPERC/SUPERCE or grep-like) with pattern (string or regex), optionally scoped to a DSN pattern, member pattern, or list of members.
 - **Input**: Pattern type (name vs content), pattern (string/regex), scope (HLQ, DSN pattern, member pattern), optional content search options (case-sensitive, whole record, etc.).

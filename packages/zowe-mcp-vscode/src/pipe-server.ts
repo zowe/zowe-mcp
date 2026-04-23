@@ -19,17 +19,23 @@
  * Events are framed as newline-delimited JSON (NDJSON).
  */
 
+import type {
+  ExtensionToServerEvent,
+  ServerToExtensionEvent,
+} from '@zowe/mcp-server/dist/events.js';
 import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as net from 'net';
 import * as path from 'path';
 import * as vscode from 'vscode';
-import type {
-  ExtensionToServerEvent,
-  ServerToExtensionEvent,
-} from 'zowe-mcp-server/dist/events.js';
 import { handleServerEvent } from './event-handler';
 import { getLog } from './log';
+import {
+  getZowexConnectionsWithMigration,
+  getZowexResponseTimeout,
+  getZowexServerAutoInstall,
+  getZowexServerPath,
+} from './zowex-settings';
 
 /** Information returned to the caller so env vars can be set on the MCP server. */
 export interface PipeServerInfo {
@@ -98,9 +104,10 @@ export function startPipeServer(context: vscode.ExtensionContext): PipeServerInf
 
     sendInitialLogLevel();
     sendInitialConnections();
-    sendInitialNativeOptions();
+    sendInitialZowexOptions();
     sendInitialEncodingOptions();
     sendInitialJobCards();
+    sendInitialCliPluginConfiguration();
     sendInitialZoweExplorerStatus();
 
     let buffer = '';
@@ -216,20 +223,12 @@ function sendInitialLogLevel(): void {
 }
 
 /**
- * Sends the current native connections setting to all connected servers.
- * Called when a new server connects. Uses nativeConnections with migration from nativeSystems.
+ * Sends the current Zowe Remote SSH connection list to all connected servers.
+ * Called when a new server connects. Uses `zowexConnections` with migration from legacy keys.
  */
 function sendInitialConnections(): void {
   const config = vscode.workspace.getConfiguration('zoweMCP');
-  let connections = config.get<string[]>('nativeConnections', []) ?? [];
-  if (connections.length === 0) {
-    const legacy = config.get<string[]>('nativeSystems', []) ?? [];
-    connections = legacy.filter((s): s is string => typeof s === 'string' && s.trim().length > 0);
-  } else {
-    connections = connections.filter(
-      (s): s is string => typeof s === 'string' && s.trim().length > 0
-    );
-  }
+  const connections = getZowexConnectionsWithMigration(config);
   if (connections.length > 0) {
     sendEventToServers({
       type: 'connections-update',
@@ -240,22 +239,19 @@ function sendInitialConnections(): void {
 }
 
 /**
- * Reads the current native options from VS Code settings and sends a
- * native-options-update event to all connected servers. Called when a new server connects.
+ * Reads the current Zowe Remote SSH (zowex) options from VS Code settings and sends a
+ * `zowex-options-update` event to all connected servers. Called when a new server connects.
  */
-function sendInitialNativeOptions(): void {
+function sendInitialZowexOptions(): void {
   const config = vscode.workspace.getConfiguration('zoweMCP');
-  const installZoweNativeServerAutomatically = config.get<boolean>(
-    'installZoweNativeServerAutomatically',
-    true
-  );
-  const zoweNativeServerPath = config.get<string>('zoweNativeServerPath', '~/.zowe-server');
-  const responseTimeout = config.get<number>('nativeResponseTimeout', 60);
+  const zowexServerAutoInstall = getZowexServerAutoInstall(config);
+  const zowexServerPath = getZowexServerPath(config);
+  const responseTimeout = getZowexResponseTimeout(config);
   sendEventToServers({
-    type: 'native-options-update',
+    type: 'zowex-options-update',
     data: {
-      installZoweNativeServerAutomatically,
-      zoweNativeServerPath: zoweNativeServerPath?.trim() || undefined,
+      zowexServerAutoInstall,
+      zowexServerPath: zowexServerPath?.trim() || undefined,
       responseTimeout: responseTimeout > 0 ? responseTimeout : undefined,
     },
     timestamp: Date.now(),
@@ -285,18 +281,18 @@ function sendInitialEncodingOptions(): void {
 
 /**
  * Sends a connections-update event to all connected MCP server instances.
- * Call when zoweMCP.nativeConnections configuration changes.
+ * Call when zoweMCP.zowexConnections (or legacy nativeConnections) configuration changes.
  */
 export function sendConnectionsUpdateEvent(): void {
   sendInitialConnections();
 }
 
 /**
- * Sends the current native options to all connected MCP server instances.
- * Call when zoweMCP.installZoweNativeServerAutomatically or zoweMCP.zoweNativeServerPath changes.
+ * Sends the current zowex client options to all connected MCP server instances.
+ * Call when zowex or legacy native server path / auto-install / response timeout settings change.
  */
-export function sendNativeOptionsUpdateEvent(): void {
-  sendInitialNativeOptions();
+export function sendZowexOptionsUpdateEvent(): void {
+  sendInitialZowexOptions();
 }
 
 /**
@@ -351,6 +347,35 @@ function sendInitialJobCards(): void {
  */
 export function sendJobCardsUpdateEvent(): void {
   sendInitialJobCards();
+}
+
+/**
+ * Sends the current CLI plugin configuration to all connected servers.
+ * Called when a new server connects.
+ */
+function sendInitialCliPluginConfiguration(): void {
+  const config = vscode.workspace.getConfiguration('zoweMCP');
+  const cliPluginConfiguration =
+    config.get<Record<string, unknown>>('cliPluginConfiguration', {}) ?? {};
+  const configuration: Record<string, unknown> = {};
+  for (const [name, profilesObj] of Object.entries(cliPluginConfiguration)) {
+    if (profilesObj !== null && typeof profilesObj === 'object') {
+      configuration[name] = profilesObj;
+    }
+  }
+  sendEventToServers({
+    type: 'cli-plugin-configuration-update',
+    data: { configuration },
+    timestamp: Date.now(),
+  } as unknown as ExtensionToServerEvent);
+}
+
+/**
+ * Sends the current CLI plugin configuration to all connected MCP server instances.
+ * Call when zoweMCP.cliPluginConfiguration changes.
+ */
+export function sendCliPluginConfigurationUpdateEvent(): void {
+  sendInitialCliPluginConfiguration();
 }
 
 const ZOWE_EXPLORER_EXTENSION_ID = 'Zowe.vscode-extension-for-zowe';

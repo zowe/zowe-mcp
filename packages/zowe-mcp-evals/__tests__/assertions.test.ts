@@ -396,6 +396,24 @@ describe('runAssertions', () => {
       expect(runAssertions(block(assertions), toolCalls, '')).toEqual({ passed: true });
     });
 
+    it('works with validDsn for downloadDatasetToFile (dsn + member + localPath)', () => {
+      const assertions: Assertion[] = [
+        {
+          type: 'toolCall',
+          tool: 'downloadDatasetToFile',
+          args: { validDsn: 'USER.SRC.COBOL(CUSTFILE)', localPath: 'out/x.cbl' },
+        },
+      ];
+      const toolCalls: ToolCallRecord[] = [
+        tc('downloadDatasetToFile', {
+          dsn: 'USER.SRC.COBOL',
+          member: 'CUSTFILE',
+          localPath: 'out/x.cbl',
+        }),
+      ];
+      expect(runAssertions(block(assertions), toolCalls, '')).toEqual({ passed: true });
+    });
+
     it('fails when other args do not match', () => {
       const assertions: Assertion[] = [
         {
@@ -512,6 +530,76 @@ describe('runAssertions', () => {
         tc('searchInDataset', { dsn: "'USER.INVNTORY'", string: 'name', offset: 500 }),
       ];
       expect(runAssertions(block(assertions), toolCalls, '')).toEqual({ passed: true });
+    });
+  });
+
+  describe('toolCall args: pattern object (regex)', () => {
+    it('matches console-style commands with alternation (default case-insensitive)', () => {
+      const assertions: Assertion[] = [
+        {
+          type: 'toolCall',
+          tool: 'runConsoleCommand',
+          args: { commandText: { pattern: String.raw`D\s+T|DISPLAY\s+T` } },
+        },
+      ];
+      expect(
+        runAssertions(block(assertions), [tc('runConsoleCommand', { commandText: 'd t' })], '')
+      ).toEqual({ passed: true });
+      expect(
+        runAssertions(
+          block(assertions),
+          [tc('runConsoleCommand', { commandText: 'DISPLAY T' })],
+          ''
+        )
+      ).toEqual({ passed: true });
+    });
+
+    it('matches D A with suffix like D A,L', () => {
+      const assertions: Assertion[] = [
+        {
+          type: 'toolCall',
+          tool: 'runConsoleCommand',
+          args: { commandText: { pattern: String.raw`D\s+A|DISPLAY\s+A` } },
+        },
+      ];
+      expect(
+        runAssertions(block(assertions), [tc('runConsoleCommand', { commandText: 'D A,L' })], '')
+      ).toEqual({ passed: true });
+    });
+
+    it('fails when pattern does not match', () => {
+      const assertions: Assertion[] = [
+        {
+          type: 'toolCall',
+          tool: 'runConsoleCommand',
+          args: { commandText: { pattern: String.raw`D\s+T` } },
+        },
+      ];
+      const result = runAssertions(
+        block(assertions),
+        [tc('runConsoleCommand', { commandText: 'D A' })],
+        ''
+      );
+      expect(result.passed).toBe(false);
+    });
+
+    it('respects flags: empty string for case-sensitive regex', () => {
+      const assertions: Assertion[] = [
+        {
+          type: 'toolCall',
+          tool: 'runSafeTsoCommand',
+          args: { commandText: { pattern: 'WHO', flags: '' } },
+        },
+      ];
+      expect(
+        runAssertions(block(assertions), [tc('runSafeTsoCommand', { commandText: 'WHO' })], '')
+      ).toEqual({ passed: true });
+      const result = runAssertions(
+        block(assertions),
+        [tc('runSafeTsoCommand', { commandText: 'who' })],
+        ''
+      );
+      expect(result.passed).toBe(false);
     });
   });
 

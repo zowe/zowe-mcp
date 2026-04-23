@@ -31,6 +31,8 @@ const TOOL_DSN_REGISTRY: Record<string, ToolDsnParams> = {
   listMembers: { dsnParam: 'dsn', memberParam: 'memberPattern' },
   listDatasets: { dsnParam: 'dsnPattern' },
   submitJobFromDataset: { dsnParam: 'dsn' },
+  downloadDatasetToFile: { dsnParam: 'dsn', memberParam: 'member' },
+  uploadFileToDataset: { dsnParam: 'dsn', memberParam: 'member' },
 };
 
 /**

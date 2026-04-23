@@ -18,7 +18,7 @@ questions:
       - toolCall:
           tool: searchInDataset
           args:
-            validDsn: "USER.INVNTORY"
-            string: "name"
+            validDsn: 'USER.INVNTORY'
+            string: 'name'
       - answerContains:
-          substring: "2000"
+          substring: '2000'

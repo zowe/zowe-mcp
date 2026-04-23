@@ -18,7 +18,7 @@
  * mcp-reference-inputs.yaml, and writes the output to a file.
  *
  * Usage:
- *   npx zowe-mcp-server generate-docs [--output <path>] [--inputs <path>]
+ *   npx @zowe/mcp-server generate-docs [--output <path>] [--inputs <path>]
  *
  * Default output: docs/mcp-reference.md (relative to repo root)
  * Default inputs: docs/mcp-reference-inputs.yaml (relative to repo root)
@@ -30,13 +30,25 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Logger } from '../log.js';
 import { createServer, getServer, SERVER_VERSION } from '../server.js';
+import {
+  createEmptyPluginState,
+  loadAndRegisterPluginYaml,
+} from '../tools/cli-bridge/cli-tool-loader.js';
 
 const log = new Logger({ name: 'generate-docs' });
 
@@ -130,6 +142,15 @@ interface ResourceTemplateInfo {
   title?: string;
   description?: string;
   mimeType?: string;
+}
+
+/** A named group of tools for doc generation (core tools or a CLI plugin). */
+interface ToolGroup {
+  /** Heading text used as `## <label>`. */
+  label: string;
+  /** Optional introductory paragraph shown under the heading. */
+  description?: string;
+  tools: ToolInfo[];
 }
 
 // ---------------------------------------------------------------------------
@@ -484,48 +505,55 @@ function extractFirstSentence(description: string): string {
 // Section generators
 // ---------------------------------------------------------------------------
 
-function generateToolsSection(tools: ToolInfo[], examples: Map<string, ToolExample[]>): string {
+/**
+ * Renders one tool's detail section (Parameters, Output Schema, Example Output).
+ * Heading level: `###` for the tool name, `####` for sub-sections.
+ * The `outputNestedTracker` is shared across groups so repeated nested schemas
+ * get the cross-tool "same as" shortcut only once.
+ */
+function renderToolDetail(
+  tool: ToolInfo,
+  examples: Map<string, ToolExample[]>,
+  outputNestedTracker: NestedFieldTracker
+): string[] {
   const lines: string[] = [];
-  lines.push('## Tools\n');
-  lines.push(`The server provides **${tools.length}** tools.\n`);
+  lines.push(`### \`${tool.name}\`\n`);
+  lines.push(renderAnnotations(tool.annotations));
+  if (tool.description) {
+    lines.push(tool.description + '\n');
+  }
 
-  // Table of contents — backticks inside the link text, not wrapping the link
-  lines.push('| # | Tool | Description |');
-  lines.push('| --- | --- | --- |');
-  tools.forEach((tool, i) => {
-    const desc = escapeMarkdown(extractFirstSentence(tool.description ?? ''));
-    lines.push(`| ${i + 1} | [\`${tool.name}\`](#${tool.name.toLowerCase()}) | ${desc} |`);
-  });
-  lines.push('');
+  lines.push('#### Parameters\n');
+  lines.push(renderSchemaTable(tool.inputSchema, 'Parameter'));
 
-  const outputNestedTracker: NestedFieldTracker = new Map();
+  if (tool.outputSchema) {
+    const schemaAnchor = `${tool.name.toLowerCase()}-output-schema`;
+    lines.push(`<a id="${schemaAnchor}"></a>\n`);
+    lines.push('#### Output Schema\n');
+    lines.push(renderSchemaTable(tool.outputSchema, 'Field', tool.name, outputNestedTracker));
+  }
 
-  for (const tool of tools) {
-    lines.push(`### \`${tool.name}\`\n`);
-    lines.push(renderAnnotations(tool.annotations));
-    if (tool.description) {
-      lines.push(tool.description + '\n');
-    }
-
-    // Input parameters
-    lines.push('#### Parameters\n');
-    lines.push(renderSchemaTable(tool.inputSchema, 'Parameter'));
-
-    // Output schema — deduplicate repeated nested objects across tools
-    if (tool.outputSchema) {
-      const schemaAnchor = `${tool.name.toLowerCase()}-output-schema`;
-      lines.push(`<a id="${schemaAnchor}"></a>\n`);
-      lines.push('#### Output Schema\n');
-      lines.push(renderSchemaTable(tool.outputSchema, 'Field', tool.name, outputNestedTracker));
-    }
-
-    // Live examples (may have multiple per tool)
-    const toolExamples = examples.get(tool.name);
-    if (toolExamples && toolExamples.length > 0) {
-      if (toolExamples.length === 1) {
-        const ex = toolExamples[0];
-        const heading = ex.label ? `#### Example Output — ${ex.label}` : '#### Example Output';
-        lines.push(heading + '\n');
+  const toolExamples = examples.get(tool.name);
+  if (toolExamples && toolExamples.length > 0) {
+    if (toolExamples.length === 1) {
+      const ex = toolExamples[0];
+      const heading = ex.label ? `#### Example Output — ${ex.label}` : '#### Example Output';
+      lines.push(heading + '\n');
+      if (ex.args && Object.keys(ex.args).length > 0) {
+        lines.push('Input:\n');
+        lines.push('```json');
+        lines.push(JSON.stringify(ex.args, null, 2));
+        lines.push('```\n');
+        lines.push('Output:\n');
+      }
+      lines.push('```json');
+      lines.push(truncateJson(ex.output, 60));
+      lines.push('```\n');
+    } else {
+      lines.push('#### Example Outputs\n');
+      for (const ex of toolExamples) {
+        const subtitle = ex.label ?? 'default';
+        lines.push(`##### ${subtitle}\n`);
         if (ex.args && Object.keys(ex.args).length > 0) {
           lines.push('Input:\n');
           lines.push('```json');
@@ -536,27 +564,58 @@ function generateToolsSection(tools: ToolInfo[], examples: Map<string, ToolExamp
         lines.push('```json');
         lines.push(truncateJson(ex.output, 60));
         lines.push('```\n');
-      } else {
-        lines.push('#### Example Outputs\n');
-        for (const ex of toolExamples) {
-          const subtitle = ex.label ?? 'default';
-          lines.push(`##### ${subtitle}\n`);
-          if (ex.args && Object.keys(ex.args).length > 0) {
-            lines.push('Input:\n');
-            lines.push('```json');
-            lines.push(JSON.stringify(ex.args, null, 2));
-            lines.push('```\n');
-            lines.push('Output:\n');
-          }
-          lines.push('```json');
-          lines.push(truncateJson(ex.output, 60));
-          lines.push('```\n');
-        }
       }
     }
-
-    lines.push('---\n');
   }
+
+  lines.push('---\n');
+  return lines;
+}
+
+/**
+ * Generates all tool sections.
+ *
+ * Each group becomes its own `## <label>` section with a summary table
+ * followed by individual `### \`toolName\`` detail sections.
+ * The `outputNestedTracker` spans all groups so that repeated output
+ * schemas share the "same as" cross-reference.
+ */
+function generateToolsSection(groups: ToolGroup[], examples: Map<string, ToolExample[]>): string {
+  const outputNestedTracker: NestedFieldTracker = new Map();
+  const lines: string[] = [];
+
+  // Pass 1: all summary sections (heading + count + description + table only)
+  for (const group of groups) {
+    lines.push(`## ${group.label}\n`);
+
+    const countWord = group.tools.length === 1 ? 'tool' : 'tools';
+    lines.push(`The server provides **${group.tools.length}** ${countWord}.\n`);
+
+    if (group.description) {
+      lines.push(group.description + '\n');
+    }
+
+    lines.push('| # | Tool | Description |');
+    lines.push('| --- | --- | --- |');
+    group.tools.forEach((tool, i) => {
+      const desc = escapeMarkdown(extractFirstSentence(tool.description ?? ''));
+      lines.push(`| ${i + 1} | [\`${tool.name}\`](#${tool.name.toLowerCase()}) | ${desc} |`);
+    });
+    lines.push('');
+  }
+
+  // Pass 2: all tool detail sections together, after the complete list
+  lines.push('## Tool Reference\n');
+  lines.push(
+    'Full parameter and output schema details for every tool. ' +
+      'Links in the summary tables above point to the corresponding section here.\n'
+  );
+  for (const group of groups) {
+    for (const tool of group.tools) {
+      lines.push(...renderToolDetail(tool, examples, outputNestedTracker));
+    }
+  }
+
   return lines.join('\n');
 }
 
@@ -671,6 +730,7 @@ function generateDefaultInputs(tools: ToolInfo[]): Record<string, Record<string,
     info: {},
     listSystems: {},
     getContext: {},
+    addZosConnection: { connectionSpec: 'USER@mainframe-dev.example.com' },
     listDatasets: { dsnPattern: 'USER.*' },
     listMembers: { dsn: 'USER.SRC.COBOL' },
     readDataset: { dsn: 'USER.SRC.COBOL(CUSTFILE)' },
@@ -721,6 +781,13 @@ async function main(): Promise<void> {
       backend: mock.backend,
       systemRegistry: mock.systemRegistry,
       credentialProvider: mock.credentialProvider,
+      // No-op: registers addZosConnection/removeZosConnection for docs (HTTP+JWT uses real handlers).
+      addTenantNativeConnection: async () => {
+        /* docs generation only */
+      },
+      removeTenantNativeConnection: async () => {
+        /* docs generation only */
+      },
     });
     const server = getServer(created);
 
@@ -737,13 +804,228 @@ async function main(): Promise<void> {
         client.listResourceTemplates(),
       ]);
 
-      const tools = toolsResult.tools as unknown as ToolInfo[];
+      // Core tools (z/OS components registered by createServer)
+      const coreTools = toolsResult.tools as unknown as ToolInfo[];
+      const coreToolNameSet = new Set(coreTools.map(t => t.name));
       const prompts = promptsResult.prompts as unknown as PromptInfo[];
       const resources = resourcesResult.resources as unknown as ResourceInfo[];
       const templates = templatesResult.resourceTemplates as unknown as ResourceTemplateInfo[];
 
+      // ---------------------------------------------------------------------------
+      // Component grouping for core tools.
+      // Keep in sync with the component registration in server.ts when new tools
+      // are added (unrecognised tool names fall through to an "Other" group).
+      // ---------------------------------------------------------------------------
+      const CORE_COMPONENT_GROUPS: {
+        label: string;
+        description: string;
+        toolNames: string[];
+      }[] = [
+        {
+          label: 'Context',
+          description:
+            'Server information and session management — set the active z/OS system and query the current session state (systems, active connection, active user).',
+          toolNames: ['getContext', 'listSystems', 'setSystem', 'addZosConnection'],
+        },
+        {
+          label: 'Data Sets',
+          description:
+            'z/OS data set operations — list, search, read, write, create, copy, rename, delete, and manage PDS/E members and temporary data sets.',
+          toolNames: [
+            'listDatasets',
+            'listMembers',
+            'searchInDataset',
+            'getDatasetAttributes',
+            'readDataset',
+            'writeDataset',
+            'createDataset',
+            'createTempDataset',
+            'getTempDatasetPrefix',
+            'getTempDatasetName',
+            'copyDataset',
+            'renameDataset',
+            'deleteDataset',
+            'deleteDatasetsUnderPrefix',
+            'restoreDataset',
+          ],
+        },
+        {
+          label: 'USS',
+          description:
+            'UNIX System Services — navigate directories, read/write files, manage permissions and tags, run shell commands, and work with temporary files.',
+          toolNames: [
+            'getUssHome',
+            'changeUssDirectory',
+            'listUssFiles',
+            'readUssFile',
+            'writeUssFile',
+            'createUssFile',
+            'deleteUssFile',
+            'chmodUssFile',
+            'chownUssFile',
+            'chtagUssFile',
+            'copyUssFile',
+            'runSafeUssCommand',
+            'getUssTempDir',
+            'getUssTempPath',
+            'createTempUssDir',
+            'createTempUssFile',
+            'deleteUssTempUnderDir',
+          ],
+        },
+        {
+          label: 'TSO',
+          description: 'Time Sharing Option — run TSO commands interactively on z/OS.',
+          toolNames: ['runSafeTsoCommand'],
+        },
+        {
+          label: 'Jobs',
+          description:
+            'z/OS batch job management — submit JCL, monitor job status, read spool output, search output, and manage job lifecycle (cancel, hold, release, delete).',
+          toolNames: [
+            'submitJob',
+            'submitJobFromDataset',
+            'submitJobFromUss',
+            'getJobStatus',
+            'listJobFiles',
+            'readJobFile',
+            'getJobOutput',
+            'searchJobOutput',
+            'listJobs',
+            'getJcl',
+            'cancelJob',
+            'holdJob',
+            'releaseJob',
+            'deleteJob',
+          ],
+        },
+        {
+          label: 'Local Files',
+          description:
+            'Transfer files between z/OS (data sets and USS paths) and the local workspace.',
+          toolNames: [
+            'downloadDatasetToFile',
+            'uploadFileToDataset',
+            'downloadUssFileToFile',
+            'uploadFileToUssFile',
+            'downloadJobFileToFile',
+          ],
+        },
+        {
+          label: 'Zowe Explorer',
+          description:
+            'Open z/OS resources in Zowe Explorer editor tabs. Available only when the VS Code Zowe Explorer extension is installed and active.',
+          toolNames: ['openDatasetInEditor', 'openUssFileInEditor', 'openJobInEditor'],
+        },
+      ];
+
+      // Build per-component ToolGroups; unrecognised tool names fall into "Other"
+      const coreToolsById = new Map(coreTools.map(t => [t.name, t]));
+      const assignedToolNames = new Set<string>();
+      const toolGroups: ToolGroup[] = [];
+
+      for (const { label, description, toolNames } of CORE_COMPONENT_GROUPS) {
+        const componentTools = toolNames
+          .map(name => coreToolsById.get(name))
+          .filter((t): t is ToolInfo => t !== undefined);
+        if (componentTools.length > 0) {
+          toolGroups.push({ label, description, tools: componentTools });
+          componentTools.forEach(t => assignedToolNames.add(t.name));
+        }
+      }
+
+      const unassignedCoreTools = coreTools.filter(t => !assignedToolNames.has(t.name));
+      if (unassignedCoreTools.length > 0) {
+        toolGroups.push({ label: 'Other', tools: unassignedCoreTools });
+      }
+
+      // Collect plugin YAML entries from built-in dir and vendor dirs
+      const pluginYamlEntries: { yamlFile: string; yamlPath: string; source: string }[] = [];
+
+      const pluginsDir = resolve(__dirname, '..', 'tools', 'cli-bridge', 'plugins');
+      if (existsSync(pluginsDir)) {
+        for (const yamlFile of readdirSync(pluginsDir).filter(
+          (f: string) => f.endsWith('.yaml') && !f.endsWith('-commands.yaml')
+        )) {
+          pluginYamlEntries.push({
+            yamlFile,
+            yamlPath: resolve(pluginsDir, yamlFile),
+            source: `plugins/${yamlFile}`,
+          });
+        }
+        if (pluginYamlEntries.length === 0) {
+          log.info('No plugin YAML files found in plugins directory', { pluginsDir });
+        }
+      } else {
+        log.info('CLI plugins directory not found — skipping plugin tools', { pluginsDir });
+      }
+
+      // Vendor scan: <repo-root>/vendor/*/cli-bridge-plugins/*.yaml
+      // Companion files (*-commands.yaml) are loaded by the tools YAML loader via $.path refs — skip here.
+      const vendorDir = resolve(__dirname, '..', '..', '..', '..', 'vendor');
+      if (existsSync(vendorDir)) {
+        for (const entry of readdirSync(vendorDir, { withFileTypes: true })) {
+          if (!entry.isDirectory()) continue;
+          const vPluginsDir = resolve(vendorDir, entry.name, 'cli-bridge-plugins');
+          if (!existsSync(vPluginsDir)) continue;
+          for (const yamlFile of readdirSync(vPluginsDir).filter(
+            (f: string) => f.endsWith('.yaml') && !f.endsWith('-commands.yaml')
+          )) {
+            pluginYamlEntries.push({
+              yamlFile,
+              yamlPath: resolve(vPluginsDir, yamlFile),
+              source: `vendor/${entry.name}/cli-bridge-plugins/${yamlFile}`,
+            });
+          }
+        }
+      }
+
+      // Track vendor plugin groups separately so we can write per-vendor docs.
+      const vendorGroupsByVendor = new Map<string, ToolGroup[]>();
+
+      for (const { yamlFile, yamlPath, source } of pluginYamlEntries) {
+        // Docs generation never calls tools, so an empty state is sufficient here.
+        const pluginState = createEmptyPluginState();
+        const pluginConfig = loadAndRegisterPluginYaml(server, yamlPath, pluginState, log);
+        const updatedToolsResult = await client.listTools();
+        const allTools = updatedToolsResult.tools as unknown as ToolInfo[];
+        const knownToolNames = new Set([
+          ...coreToolNameSet,
+          ...toolGroups.flatMap(g => g.tools.map(t => t.name)),
+        ]);
+        const pluginTools = allTools.filter(t => !knownToolNames.has(t.name));
+        if (pluginTools.length > 0) {
+          const group: ToolGroup = {
+            label: `${pluginConfig.plugin} CLI Plugin Tools`,
+            description:
+              `Registered from \`${source}\`. ` +
+              'Configure a connection via `zoweMCP.cliPluginConfiguration` (VS Code) or ' +
+              `\`--cli-plugin-configuration ${pluginConfig.plugin}=<connfile>\` (standalone).`,
+            tools: pluginTools,
+          };
+          toolGroups.push(group);
+          log.info('Registered CLI bridge plugin tools', {
+            plugin: pluginConfig.plugin,
+            yamlFile,
+            count: pluginTools.length,
+          });
+          // Track per-vendor groups for vendor-only reference docs.
+          const vendorMatch = /^vendor\/([^/]+)\//.exec(source);
+          if (vendorMatch) {
+            const vendorName = vendorMatch[1];
+            const existing = vendorGroupsByVendor.get(vendorName) ?? [];
+            existing.push(group);
+            vendorGroupsByVendor.set(vendorName, existing);
+          }
+        }
+      }
+
+      const tools = toolGroups.flatMap(g => g.tools);
+
       log.info('Collected MCP metadata', {
-        tools: tools.length,
+        coreTools: coreTools.length,
+        pluginGroups: toolGroups.length - 1,
+        totalTools: tools.length,
         prompts: prompts.length,
         resources: resources.length,
         resourceTemplates: templates.length,
@@ -869,10 +1151,17 @@ async function main(): Promise<void> {
       const commitInfo = commitHash ? `, commit ${commitHash}` : '';
       sections.push(
         `> Auto-generated from the MCP server (v${SERVER_VERSION}${commitInfo}). ` +
-          `Do not edit manually — run \`npx zowe-mcp-server generate-docs\` to regenerate.\n`
+          `Do not edit manually — run \`npx @zowe/mcp-server generate-docs\` to regenerate.\n`
       );
       const tocLinks: string[] = [];
-      if (tools.length > 0) tocLinks.push('[Tools](#tools)');
+      for (const g of toolGroups) {
+        const anchor = g.label
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/-+$/, '');
+        tocLinks.push(`[${g.label}](#${anchor})`);
+      }
+      tocLinks.push('[Tool Reference](#tool-reference)');
       if (prompts.length > 0) tocLinks.push('[Prompts](#prompts)');
       if (resources.length > 0) tocLinks.push('[Resources](#resources)');
       if (templates.length > 0) tocLinks.push('[Resource Templates](#resource-templates)');
@@ -881,7 +1170,7 @@ async function main(): Promise<void> {
           tocLinks.join(', ') +
           ' provided by the Zowe MCP Server.\n'
       );
-      sections.push(generateToolsSection(tools, examples));
+      sections.push(generateToolsSection(toolGroups, examples));
       sections.push(generatePromptsSection(prompts, promptMessages));
       sections.push(generateResourcesSection(resources));
       sections.push(generateResourceTemplatesSection(templates));
@@ -890,6 +1179,31 @@ async function main(): Promise<void> {
       writeFileSync(output, markdown, 'utf-8');
       log.info(`Documentation written to ${output}`);
       process.stdout.write(`Documentation written to ${output}\n`);
+
+      // Write per-vendor reference docs containing only that vendor's CLI plugin tools.
+      for (const [vendorName, vGroups] of vendorGroupsByVendor) {
+        const vendorDocDir = resolve(vendorDir, vendorName, 'docs');
+        if (!existsSync(vendorDocDir)) {
+          mkdirSync(vendorDocDir, { recursive: true });
+        }
+        const vendorDocPath = resolve(vendorDocDir, 'mcp-reference-vendor.md');
+        const vSections: string[] = [];
+        vSections.push(
+          '<!-- markdownlint-disable MD004 MD009 MD012 MD024 MD031 MD032 MD034 MD036 MD037 MD060 -->\n'
+        );
+        const vName = vendorName.charAt(0).toUpperCase() + vendorName.slice(1);
+        vSections.push(`# ${vName} CLI Plugin Tools Reference\n`);
+        vSections.push(
+          `> Auto-generated from the Zowe MCP server (v${SERVER_VERSION}${commitInfo}). ` +
+            `Do not edit manually — run \`npx @zowe/mcp-server generate-docs\` to regenerate.\n` +
+            `\n> For core Zowe MCP tools, see [docs/mcp-reference.md](../../../docs/mcp-reference.md).\n`
+        );
+        vSections.push(generateToolsSection(vGroups, examples));
+        const vendorMarkdown = formatMarkdownTables(vSections.join('\n'));
+        writeFileSync(vendorDocPath, vendorMarkdown, 'utf-8');
+        log.info(`Vendor documentation written to ${vendorDocPath}`);
+        process.stdout.write(`Vendor documentation written to ${vendorDocPath}\n`);
+      }
     } finally {
       await client.close();
       await server.close();

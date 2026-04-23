@@ -147,7 +147,7 @@ export function parseDsnAndMember(input: string): ParsedDsnAndMember {
 /**
  * Validate a resolved list pattern for listDatasets.
  * Rejects patterns with empty qualifiers (e.g. '...' or 'USER..BAR').
- * The Zowe Native backend (z/OS server) appends `.**` to patterns that do not
+ * The Zowe Remote SSH z/OS server appends `.**` to patterns that do not
  * end with a wildcard, so invalid patterns like '...' would become '....**'
  * and produce confusing errors; validating here gives a clear message.
  *

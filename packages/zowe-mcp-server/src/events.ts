@@ -56,6 +56,11 @@ export interface NotificationEventData {
   severity: NotificationSeverity;
   /** The message to display. */
   message: string;
+  /**
+   * When set, only an "Open Settings" button is shown that opens this specific
+   * settings key. When absent the extension shows its default action buttons.
+   */
+  settingsKey?: string;
 }
 
 /** Displays a notification message in the VS Code UI. */
@@ -123,8 +128,8 @@ export interface OpenDatasetInEditorEventData {
   member?: string;
   /** Current MCP system id (e.g. user@host) for match-by-system resolution. */
   system?: string;
-  /** When 'native', extension prefers ssh profile when matching by system. */
-  connectionKind?: 'native' | 'zosmf';
+  /** When 'zowex', extension prefers ssh profile when matching by system. */
+  connectionKind?: 'zowex' | 'zosmf';
 }
 
 /** Asks the extension to open a data set or member in Zowe Explorer's editor (zowe-ds URI). */
@@ -139,8 +144,8 @@ export interface OpenUssFileInEditorEventData {
   path: string;
   /** Current MCP system id (e.g. user@host) for match-by-system resolution. */
   system?: string;
-  /** When 'native', extension prefers ssh profile when matching by system. */
-  connectionKind?: 'native' | 'zosmf';
+  /** When 'zowex', extension prefers ssh profile when matching by system. */
+  connectionKind?: 'zowex' | 'zosmf';
 }
 
 /** Asks the extension to open a USS file in Zowe Explorer's editor (zowe-uss URI). */
@@ -157,8 +162,8 @@ export interface OpenJobInEditorEventData {
   jobFileId?: number;
   /** Current MCP system id (e.g. user@host) for match-by-system resolution. */
   system?: string;
-  /** When 'native', extension prefers ssh profile when matching by system. */
-  connectionKind?: 'native' | 'zosmf';
+  /** When 'zowex', extension prefers ssh profile when matching by system. */
+  connectionKind?: 'zowex' | 'zosmf';
 }
 
 /** Asks the extension to open a job or spool file in Zowe Explorer's editor (zowe-jobs URI). */
@@ -168,15 +173,15 @@ export type OpenJobInEditorEvent = McpEvent<'open-job-in-editor', OpenJobInEdito
 export interface CeedumpCollectedEventData {
   /** Absolute path to the saved CEEDUMP file (YAML metadata + dump content). */
   path: string;
-  /** Abend reason text (e.g. CEE3204S protection exception 0C4). Present when the dump was collected after a ZNP abend. */
+  /** Abend reason text (e.g. CEE3204S protection exception 0C4). Present when the dump was collected after a zowex-sdk abend. */
   reason?: string;
-  /** Zowe Native operation that was in progress when the abend occurred (e.g. listDatasets, readDataset). */
-  znpOperation?: string;
+  /** Zowe Remote SSH operation that was in progress when the abend occurred (e.g. listDatasets, readDataset). */
+  zowexOperation?: string;
   /** MCP tool that was in progress when the abend occurred (e.g. listDatasets, searchInDataset). */
   mcpTool?: string;
 }
 
-/** Notifies the extension that a CEEDUMP was collected after a ZNP abend; extension can show a message and offer to open the file. */
+/** Notifies the extension that a CEEDUMP was collected after a zowex-sdk abend; extension can show a message and offer to open the file. */
 export type CeedumpCollectedEvent = McpEvent<'ceedump-collected', CeedumpCollectedEventData>;
 
 // ---------------------------------------------------------------------------
@@ -211,18 +216,33 @@ export interface ConnectionsUpdateEventData {
 /** Updates the list of connection specs (user@host) for native mode. */
 export type ConnectionsUpdateEvent = McpEvent<'connections-update', ConnectionsUpdateEventData>;
 
-/** Payload for a `native-options-update` event (extension → server). */
-export interface NativeOptionsUpdateEventData {
-  installZoweNativeServerAutomatically: boolean;
-  zoweNativeServerPath?: string;
-  /** Response timeout in seconds for ZNP requests (default 60). Applied to future connections. */
+/** Payload for a `zowex-options-update` event (extension → server). */
+export interface ZowexOptionsUpdateEventData {
+  zowexServerAutoInstall: boolean;
+  zowexServerPath?: string;
+  /** Response timeout in seconds for zowex-sdk requests (default 60). Applied to future connections. */
   responseTimeout?: number;
 }
 
-/** Updates native backend options (auto-install, server path). Applied to future connections. */
-export type NativeOptionsUpdateEvent = McpEvent<
+/** Updates Zowe Remote SSH (zowex) client options (auto-install, server path). Applied to future connections. */
+export type ZowexOptionsUpdateEvent = McpEvent<
+  'zowex-options-update',
+  ZowexOptionsUpdateEventData
+>;
+
+/**
+ * Legacy payload shape from older extensions (`native-options-update`).
+ * The server maps this to {@link ZowexOptionsUpdateEventData}.
+ */
+export interface LegacyNativeOptionsUpdateEventData {
+  installZoweNativeServerAutomatically: boolean;
+  zoweNativeServerPath?: string;
+  responseTimeout?: number;
+}
+
+export type LegacyNativeOptionsUpdateEvent = McpEvent<
   'native-options-update',
-  NativeOptionsUpdateEventData
+  LegacyNativeOptionsUpdateEventData
 >;
 
 /** Payload for an `encoding-options-update` event (extension → server). */
@@ -246,6 +266,26 @@ export interface JobCardsUpdateEventData {
 /** Sends job cards from VS Code setting to the server. Merged with file-sourced job cards. */
 export type JobCardsUpdateEvent = McpEvent<'job-cards-update', JobCardsUpdateEventData>;
 
+/** Payload for a `cli-plugin-configuration-update` event (extension → server). */
+export interface CliPluginConfigurationUpdateEventData {
+  /**
+   * Map of plugin name → CliPluginProfilesFile inline object.
+   * Same shape as the zoweMCP.cliPluginConfiguration VS Code setting.
+   * The server updates profilesByType and activeProfileId on each named plugin state in-place.
+   */
+  configuration: Record<string, unknown>;
+}
+
+/** Updates CLI plugin profiles on the running server without restart. */
+export type CliPluginConfigurationUpdateEvent = McpEvent<
+  'cli-plugin-configuration-update',
+  CliPluginConfigurationUpdateEventData
+>;
+
+// ---------------------------------------------------------------------------
+// Extension → Server events
+// ---------------------------------------------------------------------------
+
 /** Payload for a `job-card` event (extension → server). */
 export interface JobCardEventData {
   user: string;
@@ -268,6 +308,45 @@ export interface ZoweExplorerUpdateEventData {
 export type ZoweExplorerUpdateEvent = McpEvent<
   'zowe-explorer-update',
   ZoweExplorerUpdateEventData
+>;
+
+/** Payload for a `cli-plugin-active-profiles-changed` event (server → extension). */
+export interface CliPluginActiveProfilesChangedEventData {
+  /** Plugin name (e.g. "endevor"). */
+  pluginName: string;
+  /**
+   * Active named profile ID per type key (for `required: true` types, e.g. connection).
+   * Only entries with a defined ID are included.
+   */
+  activeProfiles: Record<string, string>;
+  /**
+   * Active virtual context fields per type key (for `perToolOverride: true` types, e.g. location).
+   * Only entries with at least one defined field are included.
+   */
+  activeContext: Record<string, Record<string, string>>;
+}
+
+/** Notifies the extension when the active CLI plugin profile or location context changes. */
+export type CliPluginActiveProfilesChangedEvent = McpEvent<
+  'cli-plugin-active-profiles-changed',
+  CliPluginActiveProfilesChangedEventData
+>;
+
+/** Payload for `store-cli-plugin-profiles` (server → extension). */
+export interface StoreCliPluginProfilesEventData {
+  /** Plugin id from YAML `plugin:` (e.g. `db2`). */
+  pluginName: string;
+  /**
+   * Full profiles document to merge into `zoweMCP.cliPluginConfiguration[pluginName]`.
+   * Same shape as the JSON file used with `--cli-plugin-configuration`.
+   */
+  profilesFile: Record<string, unknown>;
+}
+
+/** Persists CLI plugin named profiles into workspace/global settings (mirrors connection file). */
+export type StoreCliPluginProfilesEvent = McpEvent<
+  'store-cli-plugin-profiles',
+  StoreCliPluginProfilesEventData
 >;
 
 /** Payload for an `active-connection-changed` event (server → extension). */
@@ -299,6 +378,8 @@ export type ServerToExtensionEvent =
   | OpenUssFileInEditorEvent
   | OpenJobInEditorEvent
   | CeedumpCollectedEvent
+  | CliPluginActiveProfilesChangedEvent
+  | StoreCliPluginProfilesEvent
   | ActiveConnectionChangedEvent;
 
 /** Events that flow from the VS Code extension to the MCP server. */
@@ -306,11 +387,13 @@ export type ExtensionToServerEvent =
   | LogLevelEvent
   | PasswordEvent
   | ConnectionsUpdateEvent
-  | NativeOptionsUpdateEvent
+  | ZowexOptionsUpdateEvent
+  | LegacyNativeOptionsUpdateEvent
   | EncodingOptionsUpdateEvent
   | JobCardsUpdateEvent
   | JobCardEvent
-  | ZoweExplorerUpdateEvent;
+  | ZoweExplorerUpdateEvent
+  | CliPluginConfigurationUpdateEvent;
 
 /** Union of all event types exchanged over the pipe. */
 export type AnyMcpEvent = ServerToExtensionEvent | ExtensionToServerEvent;

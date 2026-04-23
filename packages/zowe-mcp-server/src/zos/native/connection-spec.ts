@@ -10,7 +10,7 @@
  */
 
 /**
- * Connection spec parsing for Zowe Native (SSH) backend.
+ * Connection spec parsing for the Zowe Remote SSH (native SSH) backend.
  *
  * Parses user@host and user@host:port strings, and provides helpers
  * for env var names (standalone) and secret storage keys (shared Zowe OSS convention).
@@ -102,6 +102,15 @@ export function parseConnectionSpec(spec: string): ParsedConnectionSpec {
 }
 
 /**
+ * Returns a canonical connection string for the given spec (same rules as addZosConnection):
+ * `user@host` when port is 22, otherwise `user@host:port`.
+ */
+export function formatNormalizedConnectionSpec(spec: string): string {
+  const p = parseConnectionSpec(spec);
+  return p.port === DEFAULT_SSH_PORT ? `${p.user}@${p.host}` : `${p.user}@${p.host}:${p.port}`;
+}
+
+/**
  * Parses an array of connection spec strings.
  * Duplicates (same user@host:port) are preserved in order; callers can dedupe if needed.
  *
@@ -111,4 +120,91 @@ export function parseConnectionSpec(spec: string): ParsedConnectionSpec {
  */
 export function parseConnectionSpecs(specs: string[]): ParsedConnectionSpec[] {
   return specs.map(s => parseConnectionSpec(s));
+}
+
+/**
+ * Normalized lookup key for {@link parseZoweMcpCredentialsEnv} / {@link getStandalonePasswordFromEnv}.
+ * User and host are lowercased; port 22 is omitted from the key (same as typical `user@host` form).
+ */
+export function toConnectionsEnvLookupKey(user: string, host: string, port: number): string {
+  const u = user.trim().toLowerCase();
+  const h = host.trim().toLowerCase();
+  if (port === DEFAULT_SSH_PORT) {
+    return `${u}@${h}`;
+  }
+  return `${u}@${h}:${port}`;
+}
+
+/**
+ * Parses `ZOWE_MCP_CREDENTIALS`: a JSON object mapping `user@host` or `user@host:port` keys to password strings.
+ * Each key is normalized with {@link parseConnectionSpec} and {@link toConnectionsEnvLookupKey}.
+ *
+ * @param raw - Value of `process.env.ZOWE_MCP_CREDENTIALS`, or undefined.
+ * @returns Map from normalized key to password. Empty when `raw` is undefined or blank.
+ * @throws Error if `raw` is non-blank but not valid JSON, or not a non-array object.
+ */
+export function parseZoweMcpCredentialsEnv(raw: string | undefined): Map<string, string> {
+  const map = new Map<string, string>();
+  if (raw === undefined || raw.trim() === '') {
+    return map;
+  }
+  let obj: unknown;
+  try {
+    obj = JSON.parse(raw) as unknown;
+  } catch (e) {
+    throw new Error(
+      `ZOWE_MCP_CREDENTIALS must be valid JSON: ${e instanceof Error ? e.message : String(e)}`
+    );
+  }
+  if (obj === null || typeof obj !== 'object' || Array.isArray(obj)) {
+    throw new Error(
+      'ZOWE_MCP_CREDENTIALS must be a JSON object mapping connection specs (user@host) to password strings.'
+    );
+  }
+  for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
+    if (typeof value !== 'string' || value === '') {
+      continue;
+    }
+    try {
+      const spec = parseConnectionSpec(key);
+      map.set(toConnectionsEnvLookupKey(spec.user, spec.host, spec.port), value);
+    } catch {
+      // Ignore keys that are not valid connection specs
+    }
+  }
+  return map;
+}
+
+/**
+ * Standalone password resolution for native SSH and CLI bridge plugins.
+ *
+ * Precedence: `ZOWE_MCP_PASSWORD_<USER>_<HOST>` (existing) first, then `ZOWE_MCP_CREDENTIALS` JSON map.
+ */
+export function getStandalonePasswordFromEnv(spec: ParsedConnectionSpec): string | undefined {
+  const envVar = toPasswordEnvVarName(spec.user, spec.host);
+  const fromVar = process.env[envVar];
+  if (fromVar !== undefined && fromVar !== '') {
+    return fromVar;
+  }
+  const map = parseZoweMcpCredentialsEnv(process.env.ZOWE_MCP_CREDENTIALS);
+  const key = toConnectionsEnvLookupKey(spec.user, spec.host, spec.port);
+  const fromMap = map.get(key);
+  if (fromMap !== undefined && fromMap !== '') {
+    return fromMap;
+  }
+  return undefined;
+}
+
+/**
+ * Standalone password resolution: env first, then optional Vault KV (see `vault-kv-credentials.ts`).
+ */
+export async function resolveStandalonePassword(
+  spec: ParsedConnectionSpec
+): Promise<string | undefined> {
+  const fromEnv = getStandalonePasswordFromEnv(spec);
+  if (fromEnv !== undefined && fromEnv !== '') {
+    return fromEnv;
+  }
+  const { getStandalonePasswordFromVault } = await import('./vault-kv-credentials.js');
+  return getStandalonePasswordFromVault(spec);
 }

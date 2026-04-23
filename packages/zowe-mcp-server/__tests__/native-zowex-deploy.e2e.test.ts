@@ -10,12 +10,12 @@
  */
 
 /**
- * E2E test for ZNP auto-deploy on first connect (ZSshUtils.installServer).
+ * E2E test for zowex z/OS server auto-deploy on first connect (ZSshUtils.installServer).
  *
  * Runs only when the target system is provided via ZOWE_MCP_E2E_NATIVE_SYSTEM (e.g.
  * "user@host" or "user@host:port"). Starts the stdio server with the native backend
  * and verifies that the first tool call that needs the native backend does not end
- * with "Server not found" (i.e. either ZNP was already present or the server deployed
+ * with "Server not found" (i.e. either the z/OS server was already present or deploy
  * it via ZSshUtils.installServer and retried).
  *
  * Skip when ZOWE_MCP_E2E_NATIVE_SYSTEM is unset or password for that system is missing.
@@ -25,7 +25,7 @@
  * still runs.
  *
  * Run only this E2E from server package (build first):
- *   ZOWE_MCP_E2E_NATIVE_SYSTEM=user@host npm run build && npx vitest run native-znp-deploy.e2e
+ *   ZOWE_MCP_E2E_NATIVE_SYSTEM=user@host npm run build && npx vitest run native-zowex-deploy.e2e
  * Set ZOWE_MCP_PASSWORD_<USER>_<HOST> or ZOS_PASSWORD (e.g. from .env).
  * Optional: install sshpass (e.g. brew install sshpass) so the test can remove ~/.zowe-server before running.
  *
@@ -101,7 +101,7 @@ interface ListDatasetsEnvelope {
   data?: unknown[];
 }
 
-/** True if the result looks like a successful listDatasets response (ZNP responded). */
+/** True if the result looks like a successful listDatasets response (zowex-sdk responded). */
 function isListDatasetsSuccess(result: ToolResult): boolean {
   if (result.isError) return false;
   const text = getResultText(result);
@@ -176,17 +176,17 @@ function removeZnpServerOnTarget(spec: ParsedConnectionSpec, pwd: string): void 
     const msg = err instanceof Error ? err.message : String(err);
     if (msg.includes('sshpass') || msg.includes('command not found')) {
       console.warn(
-        'native-znp-deploy: sshpass not found; skipping cleanup of ~/.zowe-server on target. ' +
+        'native-zowex-deploy: sshpass not found; skipping cleanup of ~/.zowe-server on target. ' +
           'Install sshpass (e.g. brew install sshpass) to ensure the deploy path is exercised every run.'
       );
     } else {
-      console.warn('native-znp-deploy: failed to remove ~/.zowe-server on target:', msg);
+      console.warn('native-zowex-deploy: failed to remove ~/.zowe-server on target:', msg);
     }
   }
 }
 
 describe.skipIf(!canRunZnpDeployE2E)(
-  `ZNP deploy on first connect${skipReason ? ` [skipped: ${skipReason}]` : ''}`,
+  `Zowex z/OS server deploy on first connect${skipReason ? ` [skipped: ${skipReason}]` : ''}`,
   () => {
     let client: Client;
 
@@ -199,7 +199,7 @@ describe.skipIf(!canRunZnpDeployE2E)(
         args: [serverPath, '--stdio', '--native', '--system', systemSpec],
         env: getChildEnv(),
       });
-      client = new Client({ name: 'e2e-znp-deploy', version: '1.0.0' });
+      client = new Client({ name: 'e2e-zowex-deploy', version: '1.0.0' });
       await client.connect(transport);
     });
 
@@ -224,7 +224,7 @@ describe.skipIf(!canRunZnpDeployE2E)(
     );
 
     it(
-      'listDatasets returns a successful result (ZNP deployed or already present)',
+      'listDatasets returns a successful result (z/OS server deployed or already present)',
       {
         timeout: 120_000,
       },

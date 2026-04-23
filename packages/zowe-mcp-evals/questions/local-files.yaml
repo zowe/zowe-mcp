@@ -1,0 +1,80 @@
+# yaml-language-server: $schema=../schemas/evals-question-set.schema.json
+# Local workspace upload/download: harness sets ZOWE_MCP_WORKSPACE_DIR and seeds eval-upload-source.txt
+config:
+  name: local-files
+  description: >-
+    Agent uses downloadDatasetToFile, downloadUssFileToFile, uploadFileToDataset, uploadFileToUssFile
+    with mock data (--preset minimal; USER on mainframe-dev.example.com, USS file.txt).
+  repetitions: 2
+  minSuccessRate: 0.5
+  mock:
+    initArgs: --preset minimal
+
+questions:
+  - id: local-download-pds-member
+    prompt: >-
+      Download COBOL member CUSTFILE from data set USER.SRC.COBOL to a local file at eval-out/custfile.cbl
+      under the workspace (create parent dirs if needed). Confirm when done.
+    assertions:
+      - toolCall:
+          tool: downloadDatasetToFile
+          args:
+            validDsn: USER.SRC.COBOL(CUSTFILE)
+            localPath:
+              - eval-out/custfile.cbl
+              - custfile.cbl
+      - answerContains:
+          pattern: 'download|wrote|saved|bytes|done|success|complete'
+
+  - id: local-download-ps
+    prompt: >-
+      Download the sequential data set USER.DATA.INPUT to local file eval-out/data-input.txt under the workspace.
+    assertions:
+      - toolCall:
+          tool: downloadDatasetToFile
+          args:
+            validDsn: USER.DATA.INPUT
+            localPath:
+              - eval-out/data-input.txt
+              - data-input.txt
+      - answerContains:
+          pattern: 'download|wrote|saved|bytes|done|success|complete'
+
+  - id: local-download-uss
+    prompt: >-
+      Download the USS file /u/USER/file.txt to local path eval-out/uss-file.txt under the workspace.
+    assertions:
+      - toolCall:
+          tool: downloadUssFileToFile
+          args:
+            path: /u/USER/file.txt
+            localPath:
+              - eval-out/uss-file.txt
+              - uss-file.txt
+      - answerContains:
+          pattern: 'download|wrote|saved|bytes|done|success|complete|USS'
+
+  - id: local-upload-uss
+    prompt: >-
+      Upload the workspace file eval-upload-source.txt to USS path /u/USER/eval-uploaded.txt (overwrite if needed).
+    assertions:
+      - toolCall:
+          tool: uploadFileToUssFile
+          args:
+            localPath: eval-upload-source.txt
+            path: /u/USER/eval-uploaded.txt
+      - answerContains:
+          pattern: 'upload|wrote|bytes|done|success|complete'
+
+  - id: local-upload-dataset
+    prompt: >-
+      Upload the workspace file eval-upload-source.txt into sequential data set USER.DATA.INPUT (replace contents).
+    assertions:
+      - toolCall:
+          tool: uploadFileToDataset
+          args:
+            localPath:
+              - eval-upload-source.txt
+            validDsn: USER.DATA.INPUT
+      - answerContains:
+          pattern: 'upload|wrote|bytes|done|success|complete'

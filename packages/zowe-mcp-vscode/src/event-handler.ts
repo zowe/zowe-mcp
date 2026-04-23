@@ -19,22 +19,74 @@
  * - `request-password` → get from SecretStorage or prompt, send password event
  * - `password-invalid` → delete secret for that user@host
  * - `store-password` → store password in SecretStorage (e.g. after successful use of elicited password)
+ * - `store-cli-plugin-profiles` → merge CLI plugin profiles into `zoweMCP.cliPluginConfiguration` and mirror JSON to globalStorage
+ * - `request-job-card` → input box, persist to `zoweMCP.jobCards`, send `job-card`
  */
 
-import * as crypto from 'crypto';
-import * as vscode from 'vscode';
 import type {
   ExtensionToServerEvent,
   ServerToExtensionEvent,
-} from 'zowe-mcp-server/dist/events.js';
+} from '@zowe/mcp-server/dist/events.js';
+import * as crypto from 'crypto';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+import * as vscode from 'vscode';
 import { getNativePasswordKey } from './secrets';
-import { updateZoweMcpStatusBar } from './status-bar';
+import { updateCliPluginActiveProfiles, updateZoweMcpStatusBar } from './status-bar';
 import {
   getAllZosmfProfileNames,
   getDefaultZosmfProfileName,
   getZosmfProfilesFromZoweCli,
   resolveProfileFromSystem,
 } from './zowe-profile';
+
+/** Matches server job-card key: `user@host` when port is 22, else `user@host:port`. */
+export function jobCardConnectionSpec(user: string, host: string, port?: number): string {
+  const portNum = port ?? 22;
+  return portNum === 22 ? `${user}@${host}` : `${user}@${host}:${portNum}`;
+}
+
+/**
+ * Turns pasted or typed job card text into newline-separated lines. Splits on whitespace
+ * (space, tab, newline) before a JCL line start (`//` or `/*`) so one-line or multi-line paste works.
+ */
+function normalizeJobCardInput(raw: string): string {
+  const t = raw.trim();
+  if (t === '') {
+    return '';
+  }
+  return t
+    .split(/\s+(?=\/\/|\/\*)/)
+    .map(s => s.trim())
+    .filter(s => s.length > 0)
+    .join('\n');
+}
+
+async function persistJobCardToSettings(connectionSpec: string, jobCard: string): Promise<void> {
+  const config = vscode.workspace.getConfiguration('zoweMCP');
+  const current = config.get<Record<string, string | string[]>>('jobCards', {}) ?? {};
+  await config.update(
+    'jobCards',
+    { ...current, [connectionSpec]: jobCard },
+    vscode.ConfigurationTarget.Global
+  );
+}
+
+function emitJobCardEvent(
+  send: (event: ExtensionToServerEvent) => void,
+  user: string,
+  host: string,
+  port: number | undefined,
+  jobCard: string,
+  log: vscode.LogOutputChannel
+): void {
+  send({
+    type: 'job-card',
+    data: { user, host, port: port === 22 || port === undefined ? undefined : port, jobCard },
+    timestamp: Date.now(),
+  });
+  log.info(`Sent job card for ${user}@${host} to MCP server`);
+}
 
 /** Session cache: profile name per system key (empty string = default). Cleared when extension deactivates. */
 const sessionProfileBySystem = new Map<string, string>();
@@ -49,7 +101,7 @@ async function resolveProfileForZoweEditor(
   workspaceDir: string | undefined,
   sessionKey: string,
   systemId: string | undefined,
-  connectionKind: 'native' | 'zosmf' | undefined
+  connectionKind: 'zowex' | 'zosmf' | 'native' | undefined
 ): Promise<string | null> {
   let profile: string | undefined;
 
@@ -76,7 +128,8 @@ async function resolveProfileForZoweEditor(
     }
   }
   if (!profile && (systemId ?? '').trim()) {
-    const resolved = await resolveProfileFromSystem(systemId!, connectionKind === 'native');
+    const preferSshProfile = connectionKind === 'zowex' || connectionKind === 'native';
+    const resolved = await resolveProfileFromSystem(systemId!, preferSshProfile);
     profile = resolved ?? undefined;
     if (profile) {
       sessionProfileBySystem.set(sessionKey, profile);
@@ -167,6 +220,13 @@ function logToOutputChannel(log: vscode.LogOutputChannel, event: ServerToExtensi
   const suffix = data !== undefined ? ` ${JSON.stringify(data)}` : '';
   const formatted = `${prefix}${message}${suffix}`;
 
+  // Log level sync confirmations use info severity on the wire but must stay
+  // visible when the channel filter is Warning or Off (log.info would be hidden).
+  if (message.includes('Log level changed to') && message.includes('VS Code extension')) {
+    log.appendLine(formatted);
+    return;
+  }
+
   switch (level) {
     case 'debug':
       log.debug(formatted);
@@ -198,8 +258,7 @@ function logToOutputChannel(log: vscode.LogOutputChannel, event: ServerToExtensi
 function showNotification(event: ServerToExtensionEvent): void {
   if (event.type !== 'notification') return;
 
-  const { severity, message } = event.data;
-  const generateMock = 'Generate Mock Data';
+  const { severity, message, settingsKey } = event.data;
   const openSettings = 'Open Settings';
 
   const showFn =
@@ -209,35 +268,51 @@ function showNotification(event: ServerToExtensionEvent): void {
         ? vscode.window.showWarningMessage
         : vscode.window.showInformationMessage;
 
-  void showFn(message, generateMock, openSettings).then(choice => {
-    if (choice === generateMock) {
-      void vscode.commands.executeCommand('zowe-mcp.initMockData');
-    } else if (choice === openSettings) {
-      void vscode.commands.executeCommand(
-        'workbench.action.openSettings',
-        'zoweMCP.mockDataDirectory'
-      );
-    }
-  });
+  if (settingsKey) {
+    // Targeted notification: only offer "Open Settings" for the specified key.
+    void showFn(message, openSettings).then(choice => {
+      if (choice === openSettings) {
+        void vscode.commands.executeCommand('workbench.action.openSettings', settingsKey);
+      }
+    });
+  } else {
+    // Generic notification: offer both "Generate Mock Data" and "Open Settings".
+    const generateMock = 'Generate Mock Data';
+    void showFn(message, generateMock, openSettings).then(choice => {
+      if (choice === generateMock) {
+        void vscode.commands.executeCommand('zowe-mcp.initMockData');
+      } else if (choice === openSettings) {
+        void vscode.commands.executeCommand('workbench.action.openSettings', 'zoweMCP.backend');
+      }
+    });
+  }
 }
 
 /**
- * Shows a message that a CEEDUMP was collected after a ZNP abend, with reason,
- * ZNP operation, MCP tool, and an "Open Dump" button. Also logs to the Zowe MCP
+ * Shows a message that a CEEDUMP was collected after a Zowe Remote SSH (zowex) abend, with reason,
+ * operation name, MCP tool, and an "Open Dump" button. Also logs to the Zowe MCP
  * output channel with the full dump path.
  */
 function showCeedumpCollected(log: vscode.LogOutputChannel, event: ServerToExtensionEvent): void {
   if (event.type !== 'ceedump-collected') return;
 
-  const { path: filePath, reason, znpOperation, mcpTool } = event.data;
+  const raw = event.data as {
+    path: string;
+    reason?: string;
+    zowexOperation?: string;
+    znpOperation?: string;
+    mcpTool?: string;
+  };
+  const { path: filePath, reason, mcpTool } = raw;
+  const zowexOperation = raw.zowexOperation ?? raw.znpOperation;
   const reasonPart = reason ? ` ${reason.endsWith('.') ? reason.trimEnd() : reason}.` : '';
-  const znpPart = znpOperation ? ` Zowe Native operation: ${znpOperation}.` : '';
+  const opPart = zowexOperation ? ` Zowe Remote SSH operation: ${zowexOperation}.` : '';
   const mcpPart = mcpTool && mcpTool !== 'unknown' ? ` MCP tool: ${mcpTool}.` : '';
-  const notificationMessage = `Zowe MCP: CEEDUMP collected after ZNP abend.${reasonPart}${znpPart}${mcpPart} Saved to: ${filePath}`;
+  const notificationMessage = `Zowe MCP: CEEDUMP collected after Zowe Remote SSH abend.${reasonPart}${opPart}${mcpPart} Saved to: ${filePath}`;
   const openLabel = 'Open Dump';
 
   log.error(
-    `CEEDUMP collected after ZNP abend.${reasonPart}${znpPart}${mcpPart} Full path: ${filePath}`
+    `CEEDUMP collected after Zowe Remote SSH abend.${reasonPart}${opPart}${mcpPart} Full path: ${filePath}`
   );
 
   void vscode.window.showInformationMessage(notificationMessage, openLabel).then(choice => {
@@ -328,8 +403,7 @@ async function handleStorePassword(
 }
 
 /**
- * Handles request-job-card: prompt for multi-line job card, then send job-card event.
- * User can paste JCL with newlines; showInputBox is single-line so we use a placeholder that accepts \n.
+ * Handles request-job-card: input box, persist to `zoweMCP.jobCards`, then send `job-card`.
  */
 async function handleRequestJobCard(
   log: vscode.LogOutputChannel,
@@ -338,23 +412,29 @@ async function handleRequestJobCard(
 ): Promise<void> {
   if (event.type !== 'request-job-card') return;
   const { user, host, port } = event.data;
+
+  const connectionSpec = jobCardConnectionSpec(user, host, port);
+
   const jobCard = await vscode.window.showInputBox({
     title: `Zowe MCP: Job card for ${user}@${host}`,
-    prompt: 'Paste the JOB statement (and continuations). Use \\n for newlines.',
-    placeHolder: "//JOBNAME  JOB (ACCT),'NAME',CLASS=A,MSGCLASS=H",
+    prompt:
+      'Paste or type the job card. Put whitespace between lines (e.g. spaces or newlines before each // line).',
+    placeHolder: '//MYJOB  JOB ...',
     ignoreFocusOut: true,
   });
   if (jobCard == null || jobCard.trim() === '') {
     log.warn(`User cancelled job card input for ${user}@${host}`);
     return;
   }
-  const normalized = jobCard.replace(/\\n/g, '\n').trim();
-  options.sendEventToServers({
-    type: 'job-card',
-    data: { user, host, port, jobCard: normalized },
-    timestamp: Date.now(),
-  });
-  log.info(`Sent job card for ${user}@${host} to MCP server`);
+  const normalized = normalizeJobCardInput(jobCard);
+  try {
+    await persistJobCardToSettings(connectionSpec, normalized);
+  } catch (e) {
+    log.warn(
+      `Failed to persist job card to settings: ${e instanceof Error ? e.message : String(e)}`
+    );
+  }
+  emitJobCardEvent(options.sendEventToServers, user, host, port, normalized, log);
 }
 
 /**
@@ -374,6 +454,32 @@ async function handleStoreJobCard(
   log.info(`Stored job card for ${connectionSpec} in settings`);
 }
 
+/**
+ * Persists CLI plugin profiles from the MCP server into zoweMCP.cliPluginConfiguration
+ * and mirrors the same JSON to globalStorage (same path buildServerConfig uses on startup).
+ */
+async function handleStoreCliPluginProfiles(
+  log: vscode.LogOutputChannel,
+  event: ServerToExtensionEvent,
+  options: NativeSecretsOptions
+): Promise<void> {
+  if (event.type !== 'store-cli-plugin-profiles') return;
+  const { pluginName, profilesFile } = event.data as {
+    pluginName: string;
+    profilesFile: Record<string, unknown>;
+  };
+  const config = vscode.workspace.getConfiguration('zoweMCP');
+  const current = config.get<Record<string, unknown>>('cliPluginConfiguration', {}) ?? {};
+  const updated = { ...current, [pluginName]: profilesFile };
+  await config.update('cliPluginConfiguration', updated, vscode.ConfigurationTarget.Global);
+
+  const storageDir = options.context.globalStorageUri.fsPath;
+  fs.mkdirSync(storageDir, { recursive: true });
+  const connFile = path.join(storageDir, `cli-plugin-conn-${pluginName}.json`);
+  fs.writeFileSync(connFile, `${JSON.stringify(profilesFile, null, 2)}\n`, 'utf-8');
+  log.info(`Stored CLI plugin profiles for "${pluginName}" in settings and ${connFile}`);
+}
+
 const ZOWE_EDITOR_REQUIRED_MSG =
   'Zowe Explorer is required to open this resource. Install the Zowe Explorer extension.';
 
@@ -390,7 +496,7 @@ interface OpenInEditorSpec {
 async function handleOpenInEditor(
   log: vscode.LogOutputChannel,
   logLabel: string,
-  data: { system?: string; connectionKind?: 'native' | 'zosmf' },
+  data: { system?: string; connectionKind?: 'zowex' | 'zosmf' | 'native' },
   buildSpec: () => OpenInEditorSpec
 ): Promise<void> {
   if (!vscode.extensions.getExtension('Zowe.vscode-extension-for-zowe')) {
@@ -424,7 +530,7 @@ function handleOpenDatasetInEditor(
     dsn: string;
     member?: string;
     system?: string;
-    connectionKind?: 'native' | 'zosmf';
+    connectionKind?: 'zowex' | 'zosmf' | 'native';
   };
   return handleOpenInEditor(log, 'open-dataset-in-editor', data, () => {
     const segments = data.member ? [data.dsn, data.member] : [data.dsn];
@@ -441,7 +547,7 @@ function handleOpenUssFileInEditor(
   const data = event.data as {
     path: string;
     system?: string;
-    connectionKind?: 'native' | 'zosmf';
+    connectionKind?: 'zowex' | 'zosmf' | 'native';
   };
   return handleOpenInEditor(log, 'open-uss-file-in-editor', data, () => {
     const trimmed = data.path.trim();
@@ -469,7 +575,7 @@ function handleOpenJobInEditor(
     jobId: string;
     jobFileId?: number;
     system?: string;
-    connectionKind?: 'native' | 'zosmf';
+    connectionKind?: 'zowex' | 'zosmf' | 'native';
   };
   return handleOpenInEditor(log, 'open-job-in-editor', data, () => {
     const jobIdEnc = encodeURIComponent(data.jobId.trim());
@@ -512,6 +618,9 @@ export function handleServerEvent(
     case 'store-job-card':
       if (options) void handleStoreJobCard(log, event, options);
       break;
+    case 'store-cli-plugin-profiles':
+      if (options) void handleStoreCliPluginProfiles(log, event, options);
+      break;
     case 'open-dataset-in-editor':
       void handleOpenDatasetInEditor(log, event);
       break;
@@ -528,6 +637,13 @@ export function handleServerEvent(
       if (options?.context) {
         updateZoweMcpStatusBar(event.data.activeConnection, options.context);
       }
+      break;
+    case 'cli-plugin-active-profiles-changed':
+      updateCliPluginActiveProfiles(
+        event.data.pluginName,
+        event.data.activeProfiles,
+        event.data.activeContext
+      );
       break;
     default:
       log.warn(`Unknown event type from MCP server: ${(event as { type: string }).type}`);

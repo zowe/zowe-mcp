@@ -15,7 +15,7 @@ questions:
       - toolCall:
           tool: getUssHome
       - answerContains:
-          pattern: "/u/|home"
+          pattern: '/u/|home'
 
   - id: uss-list-home
     prompt: List the files in my USS home directory.
@@ -23,7 +23,7 @@ questions:
       - toolCall:
           tool: listUssFiles
       - answerContains:
-          pattern: "file.txt|subdir|directory|file"
+          pattern: 'file.txt|subdir|directory|file'
 
   - id: uss-read-file
     prompt: Read the contents of file.txt in my USS home directory.
@@ -32,10 +32,10 @@ questions:
           tool: readUssFile
           args:
             path:
-              - "file.txt"
-              - "/u/USER/file.txt"
+              - 'file.txt'
+              - '/u/USER/file.txt'
       - answerContains:
-          substring: "USS mock"
+          substring: 'USS mock'
 
   - id: uss-write-temp-read-cleanup
     prompt: Create a temporary file under a temp directory in my USS home, write "USS eval test" to it, read it back, then delete all temp files under that temp directory.
@@ -48,10 +48,10 @@ questions:
               - getUssTempPath
           - tool: writeUssFile
             args:
-              lines: ["USS eval test"]
+              lines: ['USS eval test']
           - tool: readUssFile
           - tools:
               - deleteUssTempUnderDir
               - deleteUssFile
       - answerContains:
-          substring: "USS eval test"
+          substring: 'USS eval test'

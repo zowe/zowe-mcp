@@ -18,12 +18,14 @@
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { createRequire } from 'node:module';
+import { getOrCreateTenantResponseCache, tenantKeyFromSub } from './auth/tenant-resources.js';
 import type {
   OpenDatasetInEditorEventData,
   OpenJobInEditorEventData,
   OpenUssFileInEditorEventData,
 } from './events.js';
 import { Logger } from './log.js';
+import { installMcpServerInvocationContext } from './mcp-tool-context.js';
 import { registerDatasetPrompts } from './prompts/dataset-prompts.js';
 import { registerImprovementPrompts } from './prompts/improvement-prompts.js';
 import { registerDatasetResources } from './resources/dataset-resources.js';
@@ -31,6 +33,7 @@ import { installToolCallLogging } from './tool-call-logging.js';
 import { registerContextTools } from './tools/context/context-tools.js';
 import { registerDatasetTools } from './tools/datasets/dataset-tools.js';
 import { registerJobTools } from './tools/jobs/jobs-tools.js';
+import { registerLocalFileTools } from './tools/local-files/local-file-tools.js';
 import { registerTsoTools } from './tools/tso/tso-tools.js';
 import { registerUssTools } from './tools/uss/uss-tools.js';
 import { registerZoweExplorerTools } from './tools/zowe-explorer/open-in-editor.js';
@@ -91,7 +94,15 @@ z/OS Terminology
 - VSAM (Virtual Storage Access Method): A high-performance file access method on z/OS. DSORG=VS.
 - HSM/DFHSM: Hierarchical Storage Manager — migrates infrequently used data sets to cheaper storage. Use restoreDataset to recall.
 - EBCDIC: The character encoding used on z/OS mainframes (e.g. IBM-037 for data sets, IBM-1047 for USS).
-- HLQ (High-Level Qualifier): The first qualifier in a data set name, typically the user ID or project name.`;
+- HLQ (High-Level Qualifier): The first qualifier in a data set name, typically the user ID or project name.
+
+Job card templates (submitJob): When the configured job card text contains placeholders, the server substitutes them before prepending JCL: literal substrings {jobname} (case-insensitive) and {programmer} in the stored template become the job name (default user ID plus A, max 8 characters) and programmer field (max 19 characters). Elicited or pasted full JOB statements are used as literal text without placeholder substitution.
+
+CRITICAL — Non-retryable errors
+
+When ANY tool response contains "stop": true, a fatal configuration error has occurred.
+MANDATORY: Do NOT call any more tools. Do NOT retry. Do NOT attempt workarounds.
+Show the exact text of the "suggestion" field to the user and wait for them to fix the configuration.`;
 
 /** Shared root logger for the MCP server process. */
 let rootLogger: Logger | undefined;
@@ -174,6 +185,45 @@ export interface CreateServerOptions {
    * Receives the connection spec (e.g. user@host) or null when there is no active system.
    */
   onActiveConnectionChanged?: (activeConnection: string | null) => void;
+  /**
+   * Directories allowed for upload/download tools when MCP roots/list is empty or unavailable.
+   * From ZOWE_MCP_WORKSPACE_DIR, ZOWE_MCP_LOCAL_FILES_ROOT, and --local-files-root.
+   */
+  localFilesFallbackDirectories?: string[];
+  /**
+   * OIDC subject when HTTP is protected with Bearer JWT — enables shared per-user response cache
+   * and CLI plugin state across MCP sessions for that user.
+   */
+  tenantSub?: string;
+  /** Optional email claim when using JWT-backed HTTP. */
+  tenantEmail?: string;
+  /**
+   * When set (HTTP + JWT + `ZOWE_MCP_TENANT_STORE_DIR`), registers `addZosConnection` to append
+   * a `user@host` spec to the tenant file and refresh the in-memory connection list.
+   */
+  addTenantNativeConnection?: (spec: string) => Promise<void>;
+  /**
+   * When set together with `addTenantNativeConnection`, registers `removeZosConnection` to remove a
+   * spec from the tenant file (not from server `--config`/`--system` bootstrap list).
+   */
+  removeTenantNativeConnection?: (spec: string) => Promise<void>;
+  /**
+   * Native SSH: formats `user@host` or `user@host:port` for job card keys (matches config / VS Code).
+   */
+  resolveJobCardConnectionSpec?: (systemId: string, userId: string) => string;
+  /**
+   * When set, called to obtain a job card if none is configured (e.g. extension prompt or MCP elicitation).
+   */
+  elicitJobCard?: (params: {
+    connectionSpec: string;
+    user: string;
+    host: string;
+    port: number;
+  }) => Promise<string | undefined>;
+  /**
+   * After a successful elicitation, persist the card (e.g. tenant file or `--config` JSON).
+   */
+  persistJobCard?: (connectionSpec: string, jobCard: string) => void;
 }
 
 /** Callbacks required to register Zowe Explorer open-in-editor tools (e.g. for late registration). */
@@ -193,14 +243,14 @@ export type CreateServerResult =
 
 /** Returns the McpServer from a CreateServerResult (for callers that only need the server). */
 export function getServer(result: CreateServerResult): McpServer {
-  const s = 'server' in result ? result.server : result;
-  return s as McpServer;
+  const s = 'registerZoweExplorerTools' in result ? result.server : result;
+  return s;
 }
 
 /** Known backend kind names for the getContext tool. */
 const BACKEND_KIND_NAMES: Record<string, string> = {
   FilesystemMockBackend: 'mock',
-  NativeBackend: 'native',
+  NativeBackend: 'zowex',
 };
 
 function getBackendKind(backend: ZosBackend): string {
@@ -247,7 +297,31 @@ export function createServer(options?: CreateServerOptions): CreateServerResult 
     }
   );
 
+  /** Captured from each `initialize` request/result (SDK does not expose these on Server). */
+  let mcpProtocolVersionRequested: string | undefined;
+  let mcpProtocolVersion: string | undefined;
+  {
+    const inner = server.server;
+    type InitializeHandler = (request: {
+      params: {
+        protocolVersion: string;
+        capabilities?: unknown;
+        clientInfo?: unknown;
+      };
+    }) => Promise<{ protocolVersion: string }>;
+    const originalOnInitialize = (
+      inner as unknown as { _oninitialize: InitializeHandler }
+    )._oninitialize.bind(inner);
+    (inner as unknown as { _oninitialize: InitializeHandler })._oninitialize = async request => {
+      mcpProtocolVersionRequested = request.params?.protocolVersion;
+      const result = await originalOnInitialize(request);
+      mcpProtocolVersion = result.protocolVersion;
+      return result;
+    };
+  }
+
   logger.attach(server);
+  installMcpServerInvocationContext(server);
 
   // Log when a client completes initialization
   server.server.oninitialized = () => {
@@ -256,6 +330,8 @@ export function createServer(options?: CreateServerOptions): CreateServerResult 
     logger.info('Client connected', {
       clientName: clientInfo?.name,
       clientVersion: clientInfo?.version,
+      mcpProtocolVersion,
+      mcpProtocolVersionRequested,
       capabilities: clientCaps ? Object.keys(clientCaps) : [],
     });
   };
@@ -295,6 +371,13 @@ export function createServer(options?: CreateServerOptions): CreateServerResult 
           ? encodingOpt.current
           : encodingOpt;
     const responseCacheOpt = options.responseCache;
+    const cacheOpts: ResponseCacheOptions | undefined =
+      typeof responseCacheOpt === 'object' &&
+      responseCacheOpt !== null &&
+      !('getOrFetch' in responseCacheOpt)
+        ? responseCacheOpt
+        : undefined;
+    const tenantSub = options.tenantSub?.trim();
     const responseCache: ResponseCache | undefined =
       responseCacheOpt === false
         ? undefined
@@ -302,9 +385,9 @@ export function createServer(options?: CreateServerOptions): CreateServerResult 
             responseCacheOpt !== null &&
             'getOrFetch' in responseCacheOpt
           ? responseCacheOpt
-          : createResponseCache(
-              typeof responseCacheOpt === 'object' ? responseCacheOpt : undefined
-            );
+          : tenantSub
+            ? getOrCreateTenantResponseCache(tenantKeyFromSub(tenantSub), cacheOpts)
+            : createResponseCache(cacheOpts);
 
     const jobCardStore = options.jobCardStore ?? createJobCardStore();
 
@@ -319,6 +402,8 @@ export function createServer(options?: CreateServerOptions): CreateServerResult 
         jobCardStore,
         onActiveConnectionChanged: options.onActiveConnectionChanged,
         encodingOptions,
+        addTenantNativeConnection: options.addTenantNativeConnection,
+        removeTenantNativeConnection: options.removeTenantNativeConnection,
       },
       logger
     );
@@ -367,6 +452,24 @@ export function createServer(options?: CreateServerOptions): CreateServerResult 
         sessionState,
         credentialProvider,
         jobCardStore,
+        resolveJobCardConnectionSpec: options.resolveJobCardConnectionSpec,
+        elicitJobCard: options.elicitJobCard,
+        persistJobCard: options.persistJobCard,
+        mcpServer: server,
+      },
+      logger
+    );
+    registerLocalFileTools(
+      server,
+      {
+        backend,
+        systemRegistry,
+        sessionState,
+        credentialProvider,
+        responseCache: responseCache ?? undefined,
+        encodingOptions,
+        mcpServer: server,
+        localFilesFallbackDirectories: options?.localFilesFallbackDirectories ?? [],
       },
       logger
     );

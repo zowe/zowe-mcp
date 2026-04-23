@@ -1,0 +1,11 @@
+{
+  "servers": {
+    "zowe-mcp-http-local": {
+      "type": "streamable-http",
+      "url": "http://localhost:7542/mcp",
+      "headers": {
+        "Authorization": "Bearer <obtain-from-keycloak-token-endpoint>"
+      }
+    }
+  }
+}

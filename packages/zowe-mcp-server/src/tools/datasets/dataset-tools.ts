@@ -576,7 +576,7 @@ export function registerDatasetTools(
           .boolean()
           .optional()
           .describe(
-            'When true, include ±6 lines of context (beforeContext/afterContext) around each match via SuperC LPSF. Only effective with the native ZNP backend; ignored by the fallback grep path. Default: false.'
+            'When true, include ±6 lines of context (beforeContext/afterContext) around each match via SuperC LPSF. Only effective with the Zowe Remote SSH (zowex) backend; ignored by the fallback grep path. Default: false.'
           ),
       },
     },

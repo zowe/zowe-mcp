@@ -10,9 +10,14 @@
  */
 
 /**
- * Credential provider for the Zowe Native (SSH) backend.
+ * Credential provider for the Zowe Remote SSH (native SSH) backend.
  *
- * Standalone mode: reads passwords from env vars ZOWE_MCP_PASSWORD_<USER>_<HOST>.
+ * Standalone mode: reads passwords from ZOWE_MCP_PASSWORD_<USER>_<HOST>, ZOWE_MCP_CREDENTIALS (JSON map),
+ * then optional Vault KV (see `vault-kv-credentials.ts`). If still unset and
+ * {@link NativeCredentialProviderOptions.requestPasswordViaElicitation} is configured (stdio/HTTP with an MCP
+ * client that supports elicitation), the server prompts via MCP elicitation and **caches** the password
+ * in memory for the **process lifetime** (cleared on {@link markInvalid}). Cross-restart persistence is not
+ * automatic — use Vault KV or env-based secrets.
  * Invalid credentials are blacklisted for the process lifetime.
  *
  * VS Code mode: credentials are supplied via pipe events (see load-native and event handlers).
@@ -22,7 +27,7 @@ import { getLogger } from '../../server.js';
 import type { CredentialProvider, Credentials, GetCredentialsOptions } from '../credentials.js';
 import type { SystemId } from '../system.js';
 import type { ParsedConnectionSpec } from './connection-spec.js';
-import { toPasswordEnvVarName } from './connection-spec.js';
+import { resolveStandalonePassword, toPasswordEnvVarName } from './connection-spec.js';
 import { passwordHash } from './password-hash.js';
 import { cacheKey } from './ssh-client-cache.js';
 
@@ -61,7 +66,7 @@ export interface NativeCredentialProviderOptions {
   /** Parsed connection specs (user@host:port). Used to resolve users per system and to read env. */
   connectionSpecs: ParsedConnectionSpec[];
   /**
-   * Standalone: read password from process.env.
+   * Standalone: prefer passwords from process.env; if unset and elicitation is configured, prompt via MCP elicitation.
    * VS Code: false; passwords come from passwordStore + requestPasswordCallback.
    */
   useEnvForPassword: boolean;
@@ -83,6 +88,12 @@ export interface NativeCredentialProviderOptions {
 export class NativeCredentialProvider implements CredentialProvider {
   private readonly specsByHost = new Map<string, ParsedConnectionSpec[]>();
   private readonly invalidKeys = new Set<string>();
+  /**
+   * Standalone (useEnvForPassword): in-memory cache of passwords obtained via MCP elicitation.
+   * Env / ZOWE_MCP_CREDENTIALS / Vault take precedence; this cache is used for the process lifetime
+   * until {@link markInvalid} or process exit. Not persisted across restarts — use Vault KV or env for that.
+   */
+  private readonly elicitedStandaloneByKey = new Map<string, string>();
   /** In-flight password requests by key so concurrent getCredentials() for the same connection wait for the first request. */
   private readonly _passwordRequestByKey = new Map<string, Promise<string>>();
 
@@ -117,6 +128,9 @@ export class NativeCredentialProvider implements CredentialProvider {
     const store = this.options.passwordStore;
     if (store && 'delete' in store && typeof store.delete === 'function') {
       store.delete(key);
+    }
+    if (this.options.useEnvForPassword) {
+      this.elicitedStandaloneByKey.delete(key);
     }
   }
 
@@ -241,7 +255,15 @@ export class NativeCredentialProvider implements CredentialProvider {
 
     if (this.options.useEnvForPassword) {
       const envVar = toPasswordEnvVarName(spec.user, spec.host);
-      password = process.env[envVar];
+      password = await resolveStandalonePassword(spec);
+      let fromElicitationCache = false;
+      if (password === undefined || password === '') {
+        const cached = this.elicitedStandaloneByKey.get(key);
+        if (cached !== undefined) {
+          password = cached;
+          fromElicitationCache = true;
+        }
+      }
       if (password === undefined || password === '') {
         log.info('Missing password from environment', {
           key,
@@ -250,17 +272,56 @@ export class NativeCredentialProvider implements CredentialProvider {
           user: spec.user,
           envVar,
         });
-        throw new Error(
-          `Missing password for ${spec.user}@${spec.host}. Set environment variable ${envVar}.`
-        );
+        if (this.options.requestPasswordViaElicitation) {
+          const inFlight = this._passwordRequestByKey.get(key);
+          if (inFlight !== undefined) {
+            options?.progress?.('Waiting for password');
+            log.debug('Waiting for in-flight password request (elicitation)', {
+              key,
+              host: spec.host,
+              user: spec.user,
+            });
+            password = await inFlight;
+          } else {
+            const requestPromise = this._requestPasswordOnce(key, spec, options?.progress);
+            this._passwordRequestByKey.set(key, requestPromise);
+            try {
+              password = await requestPromise;
+            } finally {
+              this._passwordRequestByKey.delete(key);
+            }
+          }
+        }
+        if (password === undefined || password === '') {
+          throw new Error(
+            `Missing password for ${spec.user}@${spec.host}. Set environment variable ${envVar} or ZOWE_MCP_CREDENTIALS (JSON map of user@host to password), or use an MCP client that supports password elicitation.`
+          );
+        }
+        this.elicitedStandaloneByKey.set(key, password);
+        log.debug('Credentials obtained via elicitation (standalone)', {
+          key,
+          host: spec.host,
+          port: spec.port,
+          user: spec.user,
+          passwordHash: passwordHash(password),
+        });
+      } else if (fromElicitationCache) {
+        log.debug('Credentials obtained from elicitation cache (standalone, process lifetime)', {
+          key,
+          host: spec.host,
+          port: spec.port,
+          user: spec.user,
+          passwordHash: passwordHash(password),
+        });
+      } else {
+        log.debug('Credentials obtained from environment', {
+          key,
+          host: spec.host,
+          port: spec.port,
+          user: spec.user,
+          passwordHash: passwordHash(password),
+        });
       }
-      log.debug('Credentials obtained from environment', {
-        key,
-        host: spec.host,
-        port: spec.port,
-        user: spec.user,
-        passwordHash: passwordHash(password),
-      });
     } else {
       const store = this.options.passwordStore;
       password = store?.get(key);

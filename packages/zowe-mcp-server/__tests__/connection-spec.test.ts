@@ -11,8 +11,11 @@
 
 import { describe, expect, it } from 'vitest';
 import {
+  getStandalonePasswordFromEnv,
   parseConnectionSpec,
   parseConnectionSpecs,
+  parseZoweMcpCredentialsEnv,
+  toConnectionsEnvLookupKey,
   toHostNormalized,
   toPasswordEnvVarName,
   toSecretStorageKey,
@@ -102,6 +105,80 @@ describe('connection-spec', () => {
       expect(toSecretStorageKey('USERID', 'sys1.example.com')).toBe(
         'zowe.ssh.password.USERID.sys1_example_com'
       );
+    });
+  });
+
+  describe('toConnectionsEnvLookupKey', () => {
+    it('omits port when 22', () => {
+      expect(toConnectionsEnvLookupKey('USER', 'host.example.com', 22)).toBe(
+        'user@host.example.com'
+      );
+    });
+
+    it('includes non-default port', () => {
+      expect(toConnectionsEnvLookupKey('Me', 'H', 2222)).toBe('me@h:2222');
+    });
+  });
+
+  describe('parseZoweMcpCredentialsEnv', () => {
+    it('returns empty map for undefined or blank', () => {
+      expect(parseZoweMcpCredentialsEnv(undefined).size).toBe(0);
+      expect(parseZoweMcpCredentialsEnv('  ').size).toBe(0);
+    });
+
+    it('normalizes JSON keys to lookup keys', () => {
+      const map = parseZoweMcpCredentialsEnv(
+        JSON.stringify({ 'USER@SYS1.EXAMPLE.COM': 'secret', 'u@h:2222': 'p2' })
+      );
+      expect(map.get('user@sys1.example.com')).toBe('secret');
+      expect(map.get('u@h:2222')).toBe('p2');
+    });
+
+    it('throws on invalid JSON', () => {
+      expect(() => parseZoweMcpCredentialsEnv('{')).toThrow('valid JSON');
+    });
+
+    it('throws when not an object', () => {
+      expect(() => parseZoweMcpCredentialsEnv('[]')).toThrow('JSON object');
+    });
+  });
+
+  describe('getStandalonePasswordFromEnv', () => {
+    const spec = parseConnectionSpec('USERID@sys1.example.com');
+    const envVar = toPasswordEnvVarName(spec.user, spec.host);
+
+    it('prefers ZOWE_MCP_PASSWORD_* over ZOWE_MCP_CREDENTIALS', () => {
+      const prevVar = process.env[envVar];
+      const prevCred = process.env.ZOWE_MCP_CREDENTIALS;
+      process.env[envVar] = 'from-env';
+      process.env.ZOWE_MCP_CREDENTIALS = JSON.stringify({
+        'userid@sys1.example.com': 'from-json',
+      });
+      try {
+        expect(getStandalonePasswordFromEnv(spec)).toBe('from-env');
+      } finally {
+        if (prevVar === undefined) delete process.env[envVar];
+        else process.env[envVar] = prevVar;
+        if (prevCred === undefined) delete process.env.ZOWE_MCP_CREDENTIALS;
+        else process.env.ZOWE_MCP_CREDENTIALS = prevCred;
+      }
+    });
+
+    it('reads from ZOWE_MCP_CREDENTIALS when per-var unset', () => {
+      const prevVar = process.env[envVar];
+      const prevCred = process.env.ZOWE_MCP_CREDENTIALS;
+      delete process.env[envVar];
+      process.env.ZOWE_MCP_CREDENTIALS = JSON.stringify({
+        'userid@sys1.example.com': 'from-json',
+      });
+      try {
+        expect(getStandalonePasswordFromEnv(spec)).toBe('from-json');
+      } finally {
+        if (prevVar === undefined) delete process.env[envVar];
+        else process.env[envVar] = prevVar;
+        if (prevCred === undefined) delete process.env.ZOWE_MCP_CREDENTIALS;
+        else process.env.ZOWE_MCP_CREDENTIALS = prevCred;
+      }
     });
   });
 });

@@ -9,6 +9,13 @@ out/
 packages/zowe-mcp-vscode/server/
 packages/zowe-mcp-vscode/.server-deps-cache/
 
+# Bundled dependencies for npm pack (created by prepack, cleaned by postpack)
+packages/zowe-mcp-server/.local/
+packages/zowe-mcp-server/.unpack/
+packages/zowe-mcp-server/.extract-tmp/
+packages/zowe-mcp-server/.tgz/
+packages/zowe-mcp-server/.package.json.backup
+
 # VS Code extension package
 *.vsix
 
@@ -44,13 +51,23 @@ zowe-ceedump*
 # Local native systems (copy from native-config.example.json)
 native-config.json
 
+# mkcert TLS files for docker/remote-https-dev (see docker/remote-https-dev/certs/README.md)
+docker/remote-https-dev/certs/*.pem
+
 # Coverage
 coverage/
 *.lcov
 .nyc_output/
 
-# Output of 'npm pack'
+# Output of 'npm pack' (repo root only)
 *.tgz
+# Committed SDK baseline(s) in resources/ are tracked despite *.tgz rule
+!resources/zowex-sdk-*.tgz
+!resources/znp-sdk-fallback.tgz
+
+# SDK switch temporary directories
+.sdk-download-tmp/
+.sdk-version-tmp/
 
 # Temporary files
 *.tmp
@@ -58,11 +75,12 @@ coverage/
 temp/
 tmp/
 
-# SDK PR artifacts
-sdk-pr/
+# Legacy local dependency artifacts (superseded by resources/)
+deps/
 
 # Mock data
 zowe-mcp-mock-data/
+.zowe-mcp-tenant-store/
 
 # Evals (gitignored config, cache, and report output)
 evals.config.json
@@ -75,3 +93,12 @@ evals-report/
 # Presentation build artifacts
 presentations/*/dist/
 presentations/zowe-mcp/slides-export.pdf
+
+# MCP Registry tokens
+packages/zowe-mcp-server/.mcpregistry_*
+
+# Db2 CLI trace file
+db2cli.trc
+
+# Manual QA: VS Code profile export ZIPs (may contain secrets)
+manual-test-workspace/profile-exports/*.zip

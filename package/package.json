@@ -1,0 +1,63 @@
+{
+  "name": "@zowe/mcp-server",
+  "version": "0.8.0-dev",
+  "description": "Zowe MCP Server - Model Context Protocol server providing tools for z/OS",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "publishConfig": {
+    "access": "public"
+  },
+  "bin": {
+    "zowe-mcp-server": "dist/index.js"
+  },
+  "files": [
+    "dist/",
+    ".local",
+    ".tgz"
+  ],
+  "bundledDependencies": true,
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json && node scripts/copy-resources.cjs",
+    "dev": "tsc -p tsconfig.build.json --watch",
+    "pretest": "npm run build",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "format": "prettier --write \"**/*.{ts,js,mjs,json,jsonc}\"",
+    "check-format": "prettier --check \"**/*.{ts,js,mjs,json,jsonc}\"",
+    "test:airgap": "bash scripts/test-airgap-install.sh",
+    "test:airgap:build": "bash scripts/test-airgap-install.sh --build",
+    "prepack": "node scripts/bundle-for-pack.cjs",
+    "postpack": "node scripts/restore-after-pack.cjs"
+  },
+  "keywords": [
+    "zowe",
+    "mcp",
+    "model-context-protocol",
+    "z/OS",
+    "mainframe"
+  ],
+  "license": "EPL-2.0",
+  "dependencies": {
+    "zowe-mcp-common": "0.8.0-dev",
+    "@faker-js/faker": "^9.0.0",
+    "js-yaml": "^4.1.0",
+    "@modelcontextprotocol/sdk": "^1.27.1",
+    "@zowe/imperative": "^8.30.1",
+    "@zowe/zos-uss-for-zowe-sdk": "^8.30.1",
+    "express": "^5.1.0",
+    "hardstop-patterns": "^1.0.0",
+    "lru-cache": "^11.2.6",
+    "yargs": "^17.7.2",
+    "zod": "^3.25.0",
+    "zowex-sdk": "0.4.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^22.0.0",
+    "@types/ssh2": "^1.15.5",
+    "ssh2": "^1.17.0",
+    "vitest": "^4.0.18"
+  }
+}

@@ -13,40 +13,40 @@
  * CLI helper to call MCP tools on the Zowe MCP Server.
  *
  * Usage:
- *   npx zowe-mcp-server call-tool [--mock=<dir> | --native [--config=<path>] [--system <spec> ...]] [<tool-name> [args]]
+ *   npx @zowe/mcp-server call-tool [--mock=<dir> | --native [--config=<path>] [--system <spec> ...]] [<tool-name> [args]]
  *
  * Options:
  *   --mock=<dir>  Use the mock backend with the given data directory (or set ZOWE_MCP_MOCK_DIR).
  *                 Also accepted: --mock <dir> (space-separated).
- *   --native      Use the Zowe Native (SSH) backend.
+ *   --native      Use the Zowe Remote SSH backend.
  *   --config=<path>  JSON file with { "systems": ["user@host", ...] } — connection specs (used with --native).
  *   --system <spec>  Connection spec user@host or user@host:port (repeatable, used with --native).
  *
  * Tool arguments are key=value pairs. Values are strings unless they look like numbers or booleans (true/false).
- * Passwords for native mode: set ZOWE_MCP_PASSWORD_<USER>_<HOST> (e.g. ZOWE_MCP_PASSWORD_MYUSER_MYHOST).
+ * Passwords for native mode: ZOWE_MCP_PASSWORD_<USER>_<HOST> and/or ZOWE_MCP_CREDENTIALS (JSON map).
  *
  * Examples:
  *   # List tools (no backend)
- *   npx zowe-mcp-server call-tool
+ *   npx @zowe/mcp-server call-tool
  *
  *   # List tools in mock backend
- *   npx zowe-mcp-server call-tool --mock=./zowe-mcp-mock-data listSystems
+ *   npx @zowe/mcp-server call-tool --mock=./zowe-mcp-mock-data listSystems
  *
  *   # List datasets in mock backend
- *   npx zowe-mcp-server call-tool --mock=./zowe-mcp-mock-data listDatasets "dsnPattern='USER.*'" system=mainframe-dev.example.com
+ *   npx @zowe/mcp-server call-tool --mock=./zowe-mcp-mock-data listDatasets "dsnPattern='USER.*'" system=mainframe-dev.example.com
  *
  *   # List members in mock backend
- *   npx zowe-mcp-server call-tool --mock=./zowe-mcp-mock-data listMembers dsn=SRC.COBOL  system=mainframe-dev.example.com
+ *   npx @zowe/mcp-server call-tool --mock=./zowe-mcp-mock-data listMembers dsn=SRC.COBOL  system=mainframe-dev.example.com
  *
  *   # List tools with native backend (systems from config)
  *
- *   ZOWE_MCP_PASSWORD_MYUSER_MYHOST_EXAMPLE_COM=password npx zowe-mcp-server call-tool --native --config=./native-config.json listSystems
+ *   ZOWE_MCP_PASSWORD_MYUSER_MYHOST_EXAMPLE_COM=password npx @zowe/mcp-server call-tool --native --config=./native-config.json listSystems
  *
  *   # List datasets with native backend (system on command line)
- *   ZOWE_MCP_PASSWORD_MYUSER_MYHOST_EXAMPLE_COM=password npx zowe-mcp-server call-tool --native --system myuser@myhost.example.com listDatasets "dsnPattern='SYS1.SAMPLIB'"
+ *   ZOWE_MCP_PASSWORD_MYUSER_MYHOST_EXAMPLE_COM=password npx @zowe/mcp-server call-tool --native --system myuser@myhost.example.com listDatasets "dsnPattern='SYS1.SAMPLIB'"
  *
  *   # List members with native backend (system on command line)
- *   ZOWE_MCP_PASSWORD_MYUSER_MYHOST_EXAMPLE_COM=password npx zowe-mcp-server call-tool --native --system myuser@myhost.example.com listMembers "dsn='SYS1.SAMPLIB'"
+ *   ZOWE_MCP_PASSWORD_MYUSER_MYHOST_EXAMPLE_COM=password npx @zowe/mcp-server call-tool --native --system myuser@myhost.example.com listMembers "dsn='SYS1.SAMPLIB'"
  *
  * Without arguments, lists all available tools.
  */
@@ -54,10 +54,24 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { readFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { Logger } from '../log.js';
 import { createServer, getServer, type CreateServerOptions } from '../server.js';
+import {
+  createEmptyPluginState,
+  loadAndRegisterPluginYaml,
+} from '../tools/cli-bridge/cli-tool-loader.js';
+import type { CliPluginProfilesFile } from '../tools/cli-bridge/types.js';
 import { loadMock } from '../zos/mock/load-mock.js';
+import {
+  parseConnectionSpec,
+  resolveStandalonePassword,
+  toPasswordEnvVarName,
+} from '../zos/native/connection-spec.js';
 import { loadNative } from '../zos/native/load-native.js';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const log = new Logger({ name: 'call-tool' });
 
@@ -78,6 +92,12 @@ function parseArgs(): {
   toolName: string | undefined;
   /** Everything after the tool name (key=value args). */
   argsRest: string[];
+  /** Generic CLI plugin connections: map of plugin name → connection file path. */
+  cliPluginConnections: Map<string, string>;
+  /** Optional explicit YAML paths per plugin name (--cli-plugin-yaml name=path). */
+  cliPluginYamls: Map<string, string>;
+  /** Optional description variant override. */
+  cliPluginDescVariant?: string;
 } {
   const args = process.argv.slice(2);
   let i = 0;
@@ -85,6 +105,9 @@ function parseArgs(): {
   let native = false;
   let configPath: string | undefined;
   const systemSpecs: string[] = [];
+  const cliPluginConnections = new Map<string, string>();
+  const cliPluginYamls = new Map<string, string>();
+  let cliPluginDescVariant: string | undefined;
 
   while (i < args.length) {
     const arg = args[i];
@@ -112,6 +135,41 @@ function parseArgs(): {
     } else if (arg === '--system' && i + 1 < args.length) {
       systemSpecs.push(args[i + 1]);
       i += 2;
+    } else if (arg === '--cli-plugin-configuration' && i + 1 < args.length) {
+      // --cli-plugin-configuration name=file
+      const val = args[i + 1];
+      const eq = val.indexOf('=');
+      if (eq === -1)
+        throw new Error(`--cli-plugin-configuration requires name=file format, got: ${val}`);
+      cliPluginConnections.set(val.slice(0, eq), val.slice(eq + 1));
+      i += 2;
+    } else if (arg.startsWith('--cli-plugin-configuration=')) {
+      // --cli-plugin-configuration=name=file
+      const val = arg.slice('--cli-plugin-configuration='.length);
+      const eq = val.indexOf('=');
+      if (eq === -1)
+        throw new Error(`--cli-plugin-configuration requires name=file format, got: ${val}`);
+      cliPluginConnections.set(val.slice(0, eq), val.slice(eq + 1));
+      i += 1;
+    } else if (arg === '--cli-plugin-yaml' && i + 1 < args.length) {
+      // --cli-plugin-yaml name=path
+      const val = args[i + 1];
+      const eq = val.indexOf('=');
+      if (eq === -1) throw new Error(`--cli-plugin-yaml requires name=path format, got: ${val}`);
+      cliPluginYamls.set(val.slice(0, eq), val.slice(eq + 1));
+      i += 2;
+    } else if (arg.startsWith('--cli-plugin-yaml=')) {
+      const val = arg.slice('--cli-plugin-yaml='.length);
+      const eq = val.indexOf('=');
+      if (eq === -1) throw new Error(`--cli-plugin-yaml requires name=path format, got: ${val}`);
+      cliPluginYamls.set(val.slice(0, eq), val.slice(eq + 1));
+      i += 1;
+    } else if (arg === '--cli-plugin-desc-variant' && i + 1 < args.length) {
+      cliPluginDescVariant = args[i + 1];
+      i += 2;
+    } else if (arg.startsWith('--cli-plugin-desc-variant=')) {
+      cliPluginDescVariant = arg.slice('--cli-plugin-desc-variant='.length);
+      i += 1;
     } else {
       break;
     }
@@ -120,9 +178,20 @@ function parseArgs(): {
   if (!mockDir && process.env.ZOWE_MCP_MOCK_DIR) {
     mockDir = process.env.ZOWE_MCP_MOCK_DIR;
   }
+
   const toolName = args[i];
   const argsRest = i + 1 < args.length ? args.slice(i + 1) : [];
-  return { mockDir, native, configPath, systemSpecs, toolName, argsRest };
+  return {
+    mockDir,
+    native,
+    configPath,
+    systemSpecs,
+    toolName,
+    argsRest,
+    cliPluginConnections,
+    cliPluginYamls,
+    cliPluginDescVariant,
+  };
 }
 
 /**
@@ -158,7 +227,17 @@ function coerceValue(raw: string): string | number | boolean {
 }
 
 async function main(): Promise<void> {
-  const { mockDir, native, configPath, systemSpecs, toolName, argsRest } = parseArgs();
+  const {
+    mockDir,
+    native,
+    configPath,
+    systemSpecs,
+    toolName,
+    argsRest,
+    cliPluginConnections,
+    cliPluginYamls,
+    cliPluginDescVariant,
+  } = parseArgs();
   log.info('Parsed args', { mockDir, native, configPath, systemSpecs, toolName, argsRest });
 
   if (mockDir && native) {
@@ -212,6 +291,77 @@ async function main(): Promise<void> {
       })
     : createServer();
   const server = getServer(created);
+
+  // Register CLI bridge plugins for each --cli-plugin-configuration name=file entry.
+  if (cliPluginDescVariant) {
+    process.env.ZOWE_MCP_CLI_DESC_VARIANT = cliPluginDescVariant;
+  }
+
+  if (cliPluginConnections.size > 0) {
+    const { existsSync, readdirSync, readFileSync: rf } = await import('node:fs');
+
+    // Build candidate YAML search paths: built-in plugins dir + vendor dirs
+    const vendorDir = resolve(__dirname, '..', '..', '..', '..', 'vendor');
+    const builtinPluginsDir = resolve(__dirname, '..', 'tools', 'cli-bridge', 'plugins');
+
+    for (const [pluginName, connFile] of cliPluginConnections.entries()) {
+      const raw = rf(connFile, 'utf-8');
+      const profilesFile = JSON.parse(raw) as CliPluginProfilesFile;
+
+      const pluginState = createEmptyPluginState();
+      for (const [typeKey, typeData] of Object.entries(profilesFile)) {
+        pluginState.profilesByType.set(typeKey, typeData.profiles ?? []);
+        if (typeData.default) {
+          pluginState.activeProfileId.set(typeKey, typeData.default);
+        }
+      }
+      // Standalone password resolver via env vars
+      pluginState.passwordResolver = {
+        async getPassword(user: string, host: string): Promise<string> {
+          const spec = parseConnectionSpec(`${user}@${host}`);
+          const pw = await resolveStandalonePassword(spec);
+          if (pw !== undefined) return pw;
+          const envVar = toPasswordEnvVarName(spec.user, spec.host);
+          throw new Error(
+            `No password for ${user}@${host}. Set ${envVar}, ZOWE_MCP_CREDENTIALS, or Vault KV (see AGENTS.md).`
+          );
+        },
+      };
+
+      // Resolve YAML path: explicit override → built-in → vendor
+      let yamlPath = cliPluginYamls.get(pluginName);
+      if (!yamlPath) {
+        const builtinCandidate = resolve(builtinPluginsDir, `${pluginName}-tools.yaml`);
+        if (existsSync(builtinCandidate)) {
+          yamlPath = builtinCandidate;
+        } else if (existsSync(vendorDir)) {
+          for (const entry of readdirSync(vendorDir, { withFileTypes: true })) {
+            if (!entry.isDirectory()) continue;
+            const candidate = resolve(
+              vendorDir,
+              entry.name,
+              'cli-bridge-plugins',
+              `${pluginName}-tools.yaml`
+            );
+            if (existsSync(candidate)) {
+              yamlPath = candidate;
+              break;
+            }
+          }
+        }
+      }
+
+      if (!yamlPath) {
+        throw new Error(
+          `Could not find ${pluginName}-tools.yaml. Provide an explicit path with --cli-plugin-yaml ${pluginName}=<path>.`
+        );
+      }
+
+      loadAndRegisterPluginYaml(server, yamlPath, pluginState, log);
+      log.info('CLI bridge plugin tools registered', { plugin: pluginName, yamlPath });
+    }
+  }
+
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   const client = new Client({ name: 'call-tool-cli', version: '1.0.0' });
 

@@ -1,0 +1,92 @@
+plugin: db2
+displayName: IBM Db2 for z/OS
+activeDescription: optimized
+pagination:
+  list:
+    defaultLimit: 200
+    maxLimit: 1000
+    maxResults: 5000
+    applyToPattern: []
+retryableErrorPatterns:
+  - "\\[IBM\\]\\[CLI Driver\\]\\[DB2\\]"
+profiles:
+  connection:
+    name: Db2 connection
+    toolListName: db2ListConnections
+    toolSetName: db2SetConnection
+    toolAddProfileName: db2AddConnection
+    toolRemoveProfileName: db2RemoveConnection
+    required: true
+    perToolOverride: false
+    fields:
+      - name: host
+        cliOption: host
+        required: true
+        description: $.db2.execute.sql.options.host
+      - name: port
+        cliOption: port
+        required: true
+        description: $.db2.execute.sql.options.port
+      - name: user
+        cliOption: user
+        required: true
+        isUsername: true
+        description: $.db2.execute.sql.options.user
+      - name: database
+        cliOption: database
+        required: true
+        description: The Db2 location name (DDF location) for the target subsystem, e.g. MYLOCNAME. This is the name shown in SYSIBM.LOCATIONS and used by DDF for remote connections.
+      - name: sslFile
+        cliOption: sslFile
+        description: $.db2.execute.sql.options.sslFile
+tools:
+  - toolName: db2ExecuteSql
+    zoweCommand: db2 execute sql
+    readOnlyHint: false
+    destructiveHint: true
+    pagination: list
+    descriptions:
+      cli: $.db2.execute.sql.description
+      optimized: Executes one or more SQL statements against a Db2 for z/OS subsystem to query, modify, or define database objects, including built-in catalog queries, and returns paginated result rows.
+    params:
+      - name: query
+        cliOption: query
+        required: true
+        description: >-
+          The SQL statement to execute. Enclose in double quotes. Separate multiple statements with semicolons. To list all tables for a schema use: "SELECT NAME, TYPE FROM SYSIBM.SYSTABLES WHERE
+          CREATOR = 'MYSCHEMA'".
+  - toolName: db2CallProcedure
+    zoweCommand: db2 call procedure
+    readOnlyHint: false
+    destructiveHint: true
+    descriptions:
+      cli: $.db2.call.procedure.description
+      optimized: >-
+        Calls a Db2 stored procedure, returning its output parameters and result sets. Specify the fully qualified procedure name and provide input or output parameters using (?, ?) markers with
+        values supplied via the parameters option.
+    params:
+      - name: routine
+        cliPositional: true
+        required: true
+        description: The fully qualified stored procedure name with optional parameter markers, e.g. "SCHEMA.PROC_NAME" or "SCHEMA.PROC_NAME(?, ?)".
+      - name: parameters
+        cliOption: parameters
+        description: >-
+          Space-separated values to bind to the stored procedure parameter markers (?). For output parameters, pass a placeholder string whose length equals the expected output length, e.g. "00" for a
+          2-character output.
+  - toolName: db2ExportTable
+    zoweCommand: db2 export table
+    readOnlyHint: true
+    outputPath: stdout
+    pagination: content
+    descriptions:
+      cli: $.db2.export.table.description
+      optimized: Exports a Db2 table as SQL INSERT statements, returning its full content in SQL format for backup, migration, or inspection.
+    params:
+      - name: table
+        cliPositional: true
+        required: true
+        description: The fully qualified table name to export, e.g. "SCHEMA.TABLE_NAME".
+      - name: separator
+        cliOption: separator
+        description: $.db2.export.table.options.separator

@@ -19,7 +19,7 @@
  *   --http    Start with HTTP Streamable transport
  *   --port N  Port for HTTP transport (default: 7542, Zowe MCP)
  *   --mock <dir>  Start in mock mode with the given data directory
- *   --native  Start with Zowe Native (SSH) backend
+ *   --native  Start with Zowe Remote SSH backend
  *   --config <path>  JSON file with { "systems": ["user@host", ...] } (used with --native)
  *   --system <spec>  Connection spec user@host or user@host:port (repeatable, used with --native)
  *
@@ -29,11 +29,20 @@
  */
 
 import { spawnSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import {
+  existsSync,
+  readdirSync,
+  readFileSync,
+  renameSync,
+  unlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
+import { loadJwtAuthConfigFromEnv, type TenantJwtClaims } from './auth/bearer-jwt.js';
+import { getOrCreateTenantCliPluginStates, tenantKeyFromSub } from './auth/tenant-resources.js';
 import type {
   CeedumpCollectedEventData,
   OpenDatasetInEditorEventData,
@@ -41,8 +50,28 @@ import type {
   OpenUssFileInEditorEventData,
 } from './events.js';
 import { connectExtensionClient, type ExtensionClient } from './extension-client.js';
+import { tryParseLogLevel } from './log.js';
+import {
+  appendTenantSystem,
+  loadTenantJobCards,
+  loadTenantSystems,
+  mergeTenantJobCard,
+  removeTenantSystem,
+  tenantStoreDirFromEnv,
+} from './persistence/tenant-connections-store.js';
 import type { CreateServerOptions, CreateServerResult, ZoweExplorerCallbacks } from './server.js';
 import { createServer, getLogger, getServer, SERVER_VERSION } from './server.js';
+import {
+  createEmptyPluginState,
+  loadCliBridgeTools,
+  loadPluginYaml,
+  serializeCliPluginStateToProfilesFile,
+} from './tools/cli-bridge/cli-tool-loader.js';
+import type {
+  CliNamedProfile,
+  CliPluginProfilesFile,
+  CliPluginState,
+} from './tools/cli-bridge/types.js';
 import { startHttp } from './transports/http.js';
 import { startStdio } from './transports/stdio.js';
 import {
@@ -50,8 +79,43 @@ import {
   DEFAULT_MAINFRAME_USS_ENCODING,
   type EncodingOptions,
 } from './zos/encoding.js';
-import { createJobCardStore, type JobCardStore } from './zos/job-cards.js';
-import type { NativeOptions } from './zos/native/ssh-client-cache.js';
+import {
+  createJobCardStore,
+  createWaitableJobCardStore,
+  type JobCardStore,
+  type JobCardStoreWithWait,
+} from './zos/job-cards.js';
+import {
+  formatNormalizedConnectionSpec,
+  parseConnectionSpec,
+  resolveStandalonePassword,
+  toPasswordEnvVarName,
+} from './zos/native/connection-spec.js';
+import type { NativeSetup } from './zos/native/load-native.js';
+import type { WaitablePasswordStoreLike } from './zos/native/native-credential-provider.js';
+import type { ZowexClientOptions } from './zos/native/ssh-client-cache.js';
+
+/** Merge startup connection strings with tenant file entries (dedupe, preserve order). */
+function mergeConnectionStrings(base: string[], extra: string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const s of [...base, ...extra]) {
+    const t = s.trim();
+    if (!t || seen.has(t)) {
+      continue;
+    }
+    seen.add(t);
+    out.push(t);
+  }
+  return out;
+}
+
+/** True when both JWT issuer and JWKS URI are set (HTTP JWT auth will be enabled). */
+function hasJwtAuthConfigured(): boolean {
+  const i = process.env.ZOWE_MCP_JWT_ISSUER?.trim();
+  const j = process.env.ZOWE_MCP_JWKS_URI?.trim();
+  return !!i && !!j;
+}
 
 /** Response cache config from CLI or env (undefined = use server defaults). */
 interface ResponseCacheConfig {
@@ -63,22 +127,71 @@ interface ParsedArgs {
   transport: 'stdio' | 'http';
   port: number;
   mockDir?: string;
-  native?: boolean;
+  /** Zowe Remote SSH (zowex-sdk) backend; set by `--native` or `--zowex`. */
+  zowex?: boolean;
   configPath?: string;
   systemSpecs: string[];
   subcommand?: string;
   /** Response cache: false = disabled, object = custom options, undefined = server defaults. */
   responseCache?: ResponseCacheConfig | false;
-  /** When false, do not auto-install ZNP on "Server not found" (native mode). Default true = auto-install enabled. */
-  nativeServerAutoInstall?: boolean;
-  /** Override remote path for ZNP server install/run (native mode). Default ~/.zowe-server. */
-  nativeServerPath?: string;
-  /** Response timeout in seconds for ZNP requests (native mode). Default 60. */
-  nativeResponseTimeout?: number;
+  /** When false, do not auto-install the z/OS server on "Server not found". Default true. */
+  zowexServerAutoInstall?: boolean;
+  /** Override remote path for the zowex z/OS server. Default ~/.zowe-server. */
+  zowexServerPath?: string;
+  /** Response timeout in seconds for zowex-sdk requests. Default 60. */
+  zowexResponseTimeout?: number;
   /** Default mainframe encoding for MVS data sets (e.g. IBM-037). */
   defaultMvsEncoding?: string;
   /** Default mainframe encoding for USS files (e.g. IBM-1047). */
   defaultUssEncoding?: string;
+  /** Repeatable CLI directories allowed for local upload/download when MCP roots are unavailable. */
+  localFilesRoots?: string[];
+  /**
+   * CLI plugin bridge entries loaded from repeatable --cli-plugin-yaml / --cli-plugin-connection-file flag pairs.
+   * Each entry activates one plugin YAML. When connectionFile is present its JSON is read as CliPluginProfilesFile.
+   */
+  cliPlugins: CliPluginEntry[];
+  /** Description variant applied to all CLI plugins (cli | optimized). Sets ZOWE_MCP_CLI_DESC_VARIANT. */
+  cliPluginDescVariant?: string;
+  /**
+   * Directory to scan for plugin YAML files. Defaults to `<server-dist>/tools/cli-bridge/plugins/`.
+   * Override via --cli-plugins-dir or ZOWE_MCP_CLI_PLUGINS_DIR env var.
+   */
+  cliPluginsDir?: string;
+  /**
+   * Plugin names to enable from the plugins directory. Empty = all plugins in the dir.
+   * Populated from repeatable --cli-plugin-enable flags.
+   */
+  enabledCliPlugins: string[];
+  /**
+   * Map of plugin name to connection JSON file path for auto-discovered plugins.
+   * Populated from repeatable --cli-plugin-configuration name=file flags.
+   */
+  cliPluginConfiguration: Record<string, string>;
+}
+
+/** One CLI plugin bridge entry (one --cli-plugin-yaml / --cli-plugin-connection-file pair). */
+interface CliPluginEntry {
+  /** Absolute path to the plugin YAML file. */
+  yamlPath: string;
+  /** Absolute path to a CliPluginProfilesFile JSON file. When absent, an empty profile state is used. */
+  connectionFile?: string;
+}
+
+/** Build unique absolute fallback dirs for local file tools (workspace env, CLI, ZOWE_MCP_LOCAL_FILES_ROOT). */
+function buildLocalFilesFallbackDirectories(parsed: ParsedArgs): string[] {
+  const dirs: string[] = [];
+  if (process.env.ZOWE_MCP_WORKSPACE_DIR?.trim()) {
+    dirs.push(resolve(process.env.ZOWE_MCP_WORKSPACE_DIR.trim()));
+  }
+  for (const r of parsed.localFilesRoots ?? []) {
+    dirs.push(resolve(r.trim()));
+  }
+  for (const part of (process.env.ZOWE_MCP_LOCAL_FILES_ROOT ?? '').split(',')) {
+    const t = part.trim();
+    if (t) dirs.push(resolve(t));
+  }
+  return [...new Set(dirs)];
 }
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -118,18 +231,24 @@ function applyEnvOverrides(parsed: ParsedArgs): void {
   ) {
     parsed.responseCache = false;
   }
-  const envAutoInstall = process.env.ZOWE_MCP_NATIVE_SERVER_AUTO_INSTALL?.toLowerCase();
+  const envAutoInstall =
+    process.env.ZOWE_MCP_ZOWEX_SERVER_AUTO_INSTALL?.toLowerCase() ??
+    process.env.ZOWE_MCP_NATIVE_SERVER_AUTO_INSTALL?.toLowerCase();
   if (envAutoInstall === 'false' || envAutoInstall === '0') {
-    parsed.nativeServerAutoInstall = false;
+    parsed.zowexServerAutoInstall = false;
   }
-  if (process.env.ZOWE_MCP_NATIVE_SERVER_PATH?.trim()) {
-    parsed.nativeServerPath = process.env.ZOWE_MCP_NATIVE_SERVER_PATH.trim();
+  const zowexPath =
+    process.env.ZOWE_MCP_ZOWEX_SERVER_PATH?.trim() ??
+    process.env.ZOWE_MCP_NATIVE_SERVER_PATH?.trim();
+  if (zowexPath) {
+    parsed.zowexServerPath = zowexPath;
   }
-  const envResponseTimeout = process.env.ZOWE_MCP_NATIVE_RESPONSE_TIMEOUT;
+  const envResponseTimeout =
+    process.env.ZOWE_MCP_ZOWEX_RESPONSE_TIMEOUT ?? process.env.ZOWE_MCP_NATIVE_RESPONSE_TIMEOUT;
   if (envResponseTimeout !== undefined) {
     const sec = parseInt(envResponseTimeout, 10);
     if (!isNaN(sec) && sec > 0) {
-      parsed.nativeResponseTimeout = sec;
+      parsed.zowexResponseTimeout = sec;
     }
   }
   if (process.env.ZOWE_MCP_DEFAULT_MVS_ENCODING?.trim()) {
@@ -137,6 +256,9 @@ function applyEnvOverrides(parsed: ParsedArgs): void {
   }
   if (process.env.ZOWE_MCP_DEFAULT_USS_ENCODING?.trim()) {
     parsed.defaultUssEncoding = process.env.ZOWE_MCP_DEFAULT_USS_ENCODING.trim();
+  }
+  if (!parsed.cliPluginsDir && process.env.ZOWE_MCP_CLI_PLUGINS_DIR?.trim()) {
+    parsed.cliPluginsDir = process.env.ZOWE_MCP_CLI_PLUGINS_DIR.trim();
   }
 }
 
@@ -238,7 +360,8 @@ function parseArgs(): ParsedArgs {
       native: {
         type: 'boolean',
         default: false,
-        describe: 'Zowe Native (SSH) backend',
+        alias: 'zowex',
+        describe: 'Zowe Remote SSH backend (SSH to z/OS; zowex-sdk). Same as --zowex.',
       },
       config: {
         type: 'string',
@@ -250,21 +373,25 @@ function parseArgs(): ParsedArgs {
         string: true,
         describe: 'Connection spec user@host or user@host:port (repeatable, used with --native)',
       },
-      'native-server-auto-install': {
+      'zowex-server-auto-install': {
         type: 'boolean',
         default: true,
-        describe: 'Auto-install ZNP when "Server not found" (default: true)',
-      },
-      'native-server-path': {
-        type: 'string',
+        alias: 'native-server-auto-install',
         describe:
-          'Remote path for ZNP server (default: ~/.zowe-server; or ZOWE_MCP_NATIVE_SERVER_PATH)',
+          'Auto-install Zowe Remote SSH z/OS server when "Server not found" (default: true; env: ZOWE_MCP_ZOWEX_SERVER_AUTO_INSTALL or legacy ZOWE_MCP_NATIVE_SERVER_AUTO_INSTALL)',
       },
-      'native-response-timeout': {
+      'zowex-server-path': {
+        type: 'string',
+        alias: 'native-server-path',
+        describe:
+          'Remote path for Zowe Remote SSH z/OS server (default: ~/.zowe-server; env: ZOWE_MCP_ZOWEX_SERVER_PATH or legacy ZOWE_MCP_NATIVE_SERVER_PATH)',
+      },
+      'zowex-response-timeout': {
         type: 'number',
         default: 60,
+        alias: 'native-response-timeout',
         describe:
-          'Response timeout in seconds for ZNP requests (default 60; or ZOWE_MCP_NATIVE_RESPONSE_TIMEOUT)',
+          'Response timeout in seconds for Zowe Remote SSH requests (default 60; env: ZOWE_MCP_ZOWEX_RESPONSE_TIMEOUT or legacy ZOWE_MCP_NATIVE_RESPONSE_TIMEOUT)',
       },
       'response-cache-disable': {
         type: 'boolean',
@@ -287,6 +414,48 @@ function parseArgs(): ParsedArgs {
       'default-uss-encoding': {
         type: 'string',
         describe: `Default mainframe encoding for USS files (e.g. IBM-1047; or ZOWE_MCP_DEFAULT_USS_ENCODING)`,
+      },
+      'local-files-root': {
+        type: 'array',
+        string: true,
+        describe:
+          'Directory allowed for upload/download tools when MCP roots/list is unavailable (repeatable). Also set ZOWE_MCP_LOCAL_FILES_ROOT (comma-separated) or ZOWE_MCP_WORKSPACE_DIR.',
+      },
+      'cli-plugin-yaml': {
+        type: 'array',
+        string: true,
+        describe:
+          'Path to a CLI plugin YAML file (repeatable). Each occurrence activates one plugin. ' +
+          'Pair with --cli-plugin-connection-file by index for the connection config.',
+      },
+      'cli-plugin-connection-file': {
+        type: 'array',
+        string: true,
+        describe:
+          'Path to a CliPluginProfilesFile JSON file for the corresponding --cli-plugin-yaml (repeatable, matched by index).',
+      },
+      'cli-plugin-desc-variant': {
+        type: 'string',
+        describe:
+          'Description variant for CLI plugin tools: cli or optimized (default: optimized). Sets ZOWE_MCP_CLI_DESC_VARIANT.',
+      },
+      'cli-plugins-dir': {
+        type: 'string',
+        describe:
+          'Directory to scan for plugin YAML files (default: <server-dist>/tools/cli-bridge/plugins). ' +
+          'Override with ZOWE_MCP_CLI_PLUGINS_DIR env var.',
+      },
+      'cli-plugin-enable': {
+        type: 'array',
+        string: true,
+        describe:
+          'Plugin name(s) to enable from the plugins directory (repeatable). Default: all plugins in the dir.',
+      },
+      'cli-plugin-configuration': {
+        type: 'array',
+        string: true,
+        describe:
+          'Connection file for an auto-discovered plugin: name=connfile (repeatable, e.g. db2=/path/to/conn.json).',
       },
     })
     .alias('h', 'help')
@@ -318,19 +487,70 @@ function parseArgs(): ParsedArgs {
       )
     : [];
 
+  const localFilesRootArg = argv['local-files-root'];
+  const localFilesRoots = Array.isArray(localFilesRootArg)
+    ? localFilesRootArg.filter((s): s is string => typeof s === 'string' && s.trim().length > 0)
+    : [];
+
+  // Build CLI plugin entries from repeatable --cli-plugin-yaml / --cli-plugin-connection-file pairs
+  const cliPluginYamlArg = argv['cli-plugin-yaml'];
+  const cliPluginYamlPaths = Array.isArray(cliPluginYamlArg)
+    ? (cliPluginYamlArg as string[]).filter(
+        (s): s is string => typeof s === 'string' && s.trim().length > 0
+      )
+    : [];
+  const cliPluginConnectionFileArg = argv['cli-plugin-connection-file'];
+  const cliPluginConnectionFiles = Array.isArray(cliPluginConnectionFileArg)
+    ? (cliPluginConnectionFileArg as string[]).filter(
+        (s): s is string => typeof s === 'string' && s.trim().length > 0
+      )
+    : [];
+  const cliPlugins: CliPluginEntry[] = cliPluginYamlPaths.map((yamlPath, i) => ({
+    yamlPath,
+    connectionFile: cliPluginConnectionFiles[i] ?? undefined,
+  }));
+
+  const cliPluginEnableArg = argv['cli-plugin-enable'];
+  const enabledCliPlugins = Array.isArray(cliPluginEnableArg)
+    ? (cliPluginEnableArg as string[]).filter(
+        (s): s is string => typeof s === 'string' && s.trim().length > 0
+      )
+    : [];
+
+  const cliPluginConnectionArg = argv['cli-plugin-configuration'];
+  const cliPluginConfiguration: Record<string, string> = {};
+  if (Array.isArray(cliPluginConnectionArg)) {
+    for (const entry of cliPluginConnectionArg as string[]) {
+      const eqIdx = entry.indexOf('=');
+      if (eqIdx > 0) {
+        const name = entry.slice(0, eqIdx).trim();
+        const file = entry.slice(eqIdx + 1).trim();
+        if (name && file) {
+          cliPluginConfiguration[name] = file;
+        }
+      }
+    }
+  }
+
   const parsed: ParsedArgs = {
     transport: argv.http ? 'http' : 'stdio',
     port: (argv.port as number) ?? 7542,
     mockDir: argv.mock as string | undefined,
-    native: (argv.native as boolean) ?? false,
+    zowex: Boolean((argv.native as boolean) || (argv.zowex as boolean)),
     configPath: argv.config as string | undefined,
     systemSpecs,
     responseCache,
-    nativeServerAutoInstall: (argv['native-server-auto-install'] as boolean) ?? true,
-    nativeServerPath: argv['native-server-path'] as string | undefined,
-    nativeResponseTimeout: (argv['native-response-timeout'] as number) ?? 60,
+    zowexServerAutoInstall: (argv['zowex-server-auto-install'] as boolean) ?? true,
+    zowexServerPath: argv['zowex-server-path'] as string | undefined,
+    zowexResponseTimeout: (argv['zowex-response-timeout'] as number) ?? 60,
     defaultMvsEncoding: argv['default-mvs-encoding'] as string | undefined,
     defaultUssEncoding: argv['default-uss-encoding'] as string | undefined,
+    localFilesRoots,
+    cliPlugins,
+    cliPluginDescVariant: argv['cli-plugin-desc-variant'] as string | undefined,
+    cliPluginsDir: argv['cli-plugins-dir'] as string | undefined,
+    enabledCliPlugins,
+    cliPluginConfiguration,
   };
   applyEnvOverrides(parsed);
   return parsed;
@@ -351,15 +571,119 @@ function loadNativeConfig(configPath: string): NativeConfig {
   return config;
 }
 
+/** Best-effort merge of a job card into `--config` JSON (same shape as native config). */
+function mergeJobCardIntoNativeConfigFile(
+  configPath: string,
+  connectionSpec: string,
+  jobCard: string
+): void {
+  const raw = readFileSync(configPath, 'utf-8');
+  const config = JSON.parse(raw) as NativeConfig;
+  if (!Array.isArray(config.systems)) {
+    throw new Error(`Config file ${configPath} must have a "systems" array`);
+  }
+  if (!config.jobCards || typeof config.jobCards !== 'object') {
+    config.jobCards = {};
+  }
+  config.jobCards[connectionSpec] = jobCard;
+  const tmp = `${configPath}.${process.pid}.${Date.now()}.tmp`;
+  try {
+    writeFileSync(tmp, `${JSON.stringify(config, null, 2)}\n`, 'utf-8');
+    renameSync(tmp, configPath);
+  } catch (e) {
+    try {
+      unlinkSync(tmp);
+    } catch {
+      /* ignore */
+    }
+    throw e;
+  }
+}
+
+const DEFAULT_JOB_CARD_ELICIT_TIMEOUT_MS = 120_000;
+
+function jobCardElicitTimeoutMs(): number {
+  const raw = process.env.ZOWE_MCP_JOB_CARD_ELICIT_TIMEOUT_MS?.trim();
+  if (!raw) {
+    return DEFAULT_JOB_CARD_ELICIT_TIMEOUT_MS;
+  }
+  const n = Number(raw);
+  return Number.isFinite(n) && n > 0 ? n : DEFAULT_JOB_CARD_ELICIT_TIMEOUT_MS;
+}
+
+function createElicitJobCard(
+  jobCardStore: JobCardStore,
+  extensionClient: ExtensionClient | undefined,
+  serverRef: { current: CreateServerResult | null } | undefined,
+  log: ReturnType<typeof getLogger>
+): NonNullable<CreateServerOptions['elicitJobCard']> {
+  const waitMs = jobCardElicitTimeoutMs();
+  return async (params: { connectionSpec: string; user: string; host: string; port: number }) => {
+    if (extensionClient?.connected) {
+      extensionClient.sendEvent({
+        type: 'request-job-card',
+        data: {
+          user: params.user,
+          host: params.host,
+          port: params.port === 22 ? undefined : params.port,
+        },
+        timestamp: Date.now(),
+      });
+      const w = jobCardStore as JobCardStoreWithWait;
+      if (typeof w.waitForJobCard === 'function') {
+        const card = await w.waitForJobCard(params.connectionSpec, waitMs);
+        if (card !== undefined) {
+          return card;
+        }
+      }
+    }
+    const sr = serverRef?.current;
+    if (!sr) {
+      return undefined;
+    }
+    const mcpServer = getServer(sr);
+    const caps = mcpServer.server.getClientCapabilities();
+    if (!caps?.elicitation) {
+      return undefined;
+    }
+    try {
+      const result = await mcpServer.server.elicitInput({
+        mode: 'form',
+        message: `Enter the JCL job card for connection ${params.connectionSpec} (// JOB statement; multiple lines in one field).`,
+        requestedSchema: {
+          type: 'object',
+          properties: {
+            jobCard: {
+              type: 'string',
+              title: 'Job card',
+              description: 'JOB statement and optional continuations (newline-separated).',
+            },
+          },
+          required: ['jobCard'],
+        },
+      });
+      if (result.action === 'accept' && result.content?.jobCard !== undefined) {
+        const jc = result.content.jobCard;
+        return typeof jc === 'string' ? jc : String(jc);
+      }
+    } catch (err) {
+      log.debug('Job card MCP elicitation failed', {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+    return undefined;
+  };
+}
+
 /**
  * Build the loadNative callback options that forward events to the VS Code extension pipe.
  * Only called when the extension client is connected.
  */
-function buildNativeExtensionCallbacks(
+function buildZowexExtensionCallbacks(
   extensionClient: ExtensionClient,
   nativePasswordLog: ReturnType<typeof getLogger>,
   serverRef: { current: CreateServerResult | null },
-  nativeOptionsRef: { current: NativeOptions }
+  zowexOptionsRef: { current: ZowexClientOptions }
 ): {
   requestPasswordCallback: (user: string, host: string, port?: number) => void;
   requestPasswordViaElicitation: (
@@ -375,7 +699,7 @@ function buildNativeExtensionCallbacks(
   ) => void;
   onPasswordInvalid: (user: string, host: string, port?: number) => void;
   onCeedumpCollected: (data: CeedumpCollectedEventData) => void;
-  getNativeOptions: () => NativeOptions;
+  getZowexClientOptions: () => ZowexClientOptions;
 } {
   return {
     requestPasswordCallback: (user, host, port) => {
@@ -399,8 +723,8 @@ function buildNativeExtensionCallbacks(
       const portNum = port ?? 22;
       const message =
         portNum === 22
-          ? `Enter SSH password for ${user}@${host}`
-          : `Enter SSH password for ${user}@${host}:${portNum}`;
+          ? `Enter password for connection ${user}@${host}`
+          : `Enter password for connection ${user}@${host}:${portNum}`;
       try {
         const result = await server.server.elicitInput({
           mode: 'form',
@@ -411,7 +735,7 @@ function buildNativeExtensionCallbacks(
               password: {
                 type: 'string',
                 title: 'Password',
-                description: `SSH password for ${user}@${host})`,
+                description: `Password for ${user}@${host} (z/OS SSH, Db2, or other tools using this user@host)`,
               },
             },
             required: ['password'],
@@ -455,13 +779,13 @@ function buildNativeExtensionCallbacks(
         data: {
           path: data.path,
           reason: data.reason,
-          znpOperation: data.znpOperation,
+          zowexOperation: data.zowexOperation,
           mcpTool: data.mcpTool,
         },
         timestamp: Date.now(),
       });
     },
-    getNativeOptions: () => nativeOptionsRef.current,
+    getZowexClientOptions: () => zowexOptionsRef.current,
   };
 }
 
@@ -476,7 +800,7 @@ interface ExtensionEventHandlerOptions {
   passwordHash?: (password: string) => string;
   nativePasswordLog?: ReturnType<typeof getLogger>;
   jobCardStore?: JobCardStore;
-  nativeOptionsRef?: { current: NativeOptions };
+  zowexOptionsRef?: { current: ZowexClientOptions };
   encodingOptionsRef?: { current: EncodingOptions };
   updateSystems?: (systems: string[]) => void;
   pendingSystemsUpdate?: string[];
@@ -484,6 +808,10 @@ interface ExtensionEventHandlerOptions {
   zoweExplorerToolsRegisteredRef: { current: boolean };
   serverRef?: { current: CreateServerResult | null };
   buildZoweExplorerCallbacks: () => ZoweExplorerCallbacks | null;
+  /** Map of plugin name → CliPluginState, populated by registerCliPlugins. Used to apply live profile updates. */
+  cliPluginStatesByPlugin?: Map<string, CliPluginState>;
+  /** Waitable password store for CLI plugin bridge tools (key = user@host). */
+  cliPluginPasswordStore?: { set: (key: string, password: string) => void };
 }
 
 /**
@@ -499,9 +827,15 @@ function setupExtensionEventHandlers(
   extensionClient.onEvent(event => {
     switch (event.type) {
       case 'log-level': {
-        const { level } = event.data;
-        logger.info(`Log level changed to "${level}" by VS Code extension`);
-        logger.setLevel(level);
+        const parsed = tryParseLogLevel(event.data.level);
+        if (parsed === undefined) {
+          logger.error(
+            `Ignoring invalid log level from VS Code extension: ${JSON.stringify(event.data.level)}`
+          );
+          break;
+        }
+        logger.setLevel(parsed);
+        logger.emitForcedInfo(`Log level changed to "${parsed}" by VS Code extension`);
         break;
       }
 
@@ -519,6 +853,10 @@ function setupExtensionEventHandlers(
           });
           opts.nativePasswordStore.set(key, password);
         }
+        if (opts.cliPluginPasswordStore) {
+          const { user, host, password } = event.data;
+          opts.cliPluginPasswordStore.set(`${user}@${host}`, password);
+        }
         break;
       }
 
@@ -529,6 +867,33 @@ function setupExtensionEventHandlers(
             opts.jobCardStore.mergeFromObject(jobCards);
             logger.info('Applied job-cards-update from VS Code extension', {
               count: Object.keys(jobCards).length,
+            });
+          }
+        }
+        break;
+      }
+
+      case 'cli-plugin-configuration-update': {
+        if (opts.cliPluginStatesByPlugin) {
+          const { configuration } = event.data as { configuration: Record<string, unknown> };
+          for (const [pluginName, profilesObj] of Object.entries(configuration)) {
+            const state = opts.cliPluginStatesByPlugin.get(pluginName);
+            if (!state || profilesObj === null || typeof profilesObj !== 'object') continue;
+            const profilesFile = profilesObj as Record<
+              string,
+              { profiles?: unknown[]; default?: string }
+            >;
+            for (const [typeKey, typeData] of Object.entries(profilesFile)) {
+              if (!typeData || typeof typeData !== 'object') continue;
+              const profiles = (typeData as { profiles?: unknown[] }).profiles;
+              state.profilesByType.set(typeKey, (profiles ?? []) as CliNamedProfile[]);
+              const defaultId = (typeData as { default?: string }).default;
+              if (typeof defaultId === 'string') {
+                state.activeProfileId.set(typeKey, defaultId);
+              }
+            }
+            logger.info('Applied cli-plugin-configuration-update from VS Code extension', {
+              plugin: pluginName,
             });
           }
         }
@@ -560,16 +925,33 @@ function setupExtensionEventHandlers(
         break;
       }
 
+      case 'zowex-options-update': {
+        if (opts.zowexOptionsRef) {
+          const { zowexServerAutoInstall, zowexServerPath, responseTimeout } = event.data;
+          opts.zowexOptionsRef.current = {
+            autoInstallZowex: zowexServerAutoInstall,
+            serverPath: zowexServerPath ?? opts.zowexOptionsRef.current.serverPath,
+            responseTimeout: responseTimeout ?? opts.zowexOptionsRef.current.responseTimeout,
+          };
+          logger.info('Applied zowex-options-update from VS Code extension', {
+            zowexServerAutoInstall,
+            zowexServerPath: zowexServerPath ?? '(unchanged)',
+            responseTimeout: responseTimeout ?? '(unchanged)',
+          });
+        }
+        break;
+      }
+
       case 'native-options-update': {
-        if (opts.nativeOptionsRef) {
+        if (opts.zowexOptionsRef) {
           const { installZoweNativeServerAutomatically, zoweNativeServerPath, responseTimeout } =
             event.data;
-          opts.nativeOptionsRef.current = {
-            autoInstallZnp: installZoweNativeServerAutomatically,
-            serverPath: zoweNativeServerPath ?? opts.nativeOptionsRef.current.serverPath,
-            responseTimeout: responseTimeout ?? opts.nativeOptionsRef.current.responseTimeout,
+          opts.zowexOptionsRef.current = {
+            autoInstallZowex: installZoweNativeServerAutomatically,
+            serverPath: zoweNativeServerPath ?? opts.zowexOptionsRef.current.serverPath,
+            responseTimeout: responseTimeout ?? opts.zowexOptionsRef.current.responseTimeout,
           };
-          logger.info('Applied native-options-update from VS Code extension', {
+          logger.info('Applied legacy native-options-update from VS Code extension', {
             installZoweNativeServerAutomatically,
             zoweNativeServerPath: zoweNativeServerPath ?? '(unchanged)',
             responseTimeout: responseTimeout ?? '(unchanged)',
@@ -649,19 +1031,33 @@ async function main(): Promise<void> {
 
   const parsed = parseArgs();
 
+  if (parsed.transport === 'http') {
+    process.env.ZOWE_MCP_TRANSPORT = 'http';
+  }
+
   const {
     transport,
     port,
     mockDir,
-    native,
+    zowex,
     configPath,
     systemSpecs,
     responseCache: responseCacheConfig,
   } = parsed;
   const logger = getLogger();
+  const tenantPersistenceDir = tenantStoreDirFromEnv();
+  const tenantNativeCache = new Map<string, NativeSetup>();
+  const baseSystemsRef: { current: string[] } = { current: [] };
+  let getOrCreateTenantNativeSetup: ((sub: string) => NativeSetup) | undefined;
+  let addTenantNativeConnectionHandler:
+    | ((tenantSub: string, spec: string) => Promise<void>)
+    | undefined;
+  let removeTenantNativeConnectionHandler:
+    | ((tenantSub: string, spec: string) => Promise<void>)
+    | undefined;
 
-  if (mockDir && native) {
-    logger.error('Cannot use both --mock and --native. Choose one.');
+  if (mockDir && zowex) {
+    logger.error('Cannot use both --mock and --native/--zowex. Choose one.');
     process.exit(1);
   }
 
@@ -684,16 +1080,22 @@ async function main(): Promise<void> {
     transport,
     ...(transport === 'http' ? { port } : {}),
     ...(mockDir ? { mockDir } : {}),
-    ...(native ? { native: true } : {}),
+    ...(zowex ? { zowex: true } : {}),
     cwd: process.cwd(),
     argv: process.argv,
   });
 
   // Load mock backend if --mock is specified
   let serverOptions: CreateServerOptions | undefined;
+  /** Set in native mode: jobCards from `--config` for per-tenant HTTP merge. */
+  let bootstrapJobCardsForHttp: NativeConfig['jobCards'] | undefined;
+  /** Set in native mode: used for HTTP JWT job card connection keys when tenant setup is unavailable. */
+  let sharedNativeResolveJobCard: ((systemId: string, userId: string) => string) | undefined;
   let encodingOptionsRef: { current: EncodingOptions } | undefined;
   /** Set in native mode; used to pass server to elicitation callback after createServer (stdio only). */
   let serverRef: { current: CreateServerResult | null } | undefined;
+  /** Public base URL for MCP URL-mode password elicitation (HTTP); updated after listen. */
+  const httpPublicBaseUrlRef = { current: process.env.ZOWE_MCP_PUBLIC_BASE_URL?.trim() ?? '' };
   /** Current Zowe Explorer callbacks; set at startup or on zowe-explorer-update. Used by HTTP factory and late registration. */
   const zoweExplorerCallbacksRef: { current: ZoweExplorerCallbacks | null } = {
     current: null,
@@ -701,14 +1103,14 @@ async function main(): Promise<void> {
   /** True after we've registered Zowe Explorer tools on the stdio server (avoids double registration). */
   const zoweExplorerToolsRegisteredRef = { current: false };
   /** Native-specific options for setupExtensionEventHandlers; populated in the native branch. */
-  let nativeEventHandlerOpts:
+  let zowexEventHandlerOpts:
     | {
         nativePasswordStore?: { set: (key: string, password: string) => void };
         cacheKey: (spec: { user: string; host: string; port: number }) => string;
         passwordHash: (password: string) => string;
         nativePasswordLog: ReturnType<typeof getLogger>;
         jobCardStore: JobCardStore;
-        nativeOptionsRef: { current: NativeOptions };
+        zowexOptionsRef: { current: ZowexClientOptions };
         updateSystems?: (systems: string[]) => void;
       }
     | undefined;
@@ -732,14 +1134,15 @@ async function main(): Promise<void> {
       mockDir,
       systems: mock.systemRegistry.list(),
     });
-  } else if (native) {
+  } else if (zowex) {
     let systems: string[] = [...systemSpecs];
-    const jobCardStore = createJobCardStore();
+    const jobCardStore = createWaitableJobCardStore();
     if (configPath) {
       try {
         const fromConfig = loadNativeConfig(configPath);
         systems = [...(fromConfig.systems ?? []), ...systemSpecs];
         if (fromConfig.jobCards) {
+          bootstrapJobCardsForHttp = fromConfig.jobCards;
           jobCardStore.mergeFromObject(fromConfig.jobCards);
           logger.info('Loaded job cards from config', {
             path: configPath,
@@ -752,46 +1155,86 @@ async function main(): Promise<void> {
       }
     }
     const extensionConnected = extensionClient?.connected === true;
-    if (systems.length === 0 && !extensionConnected) {
+    const allowEmptyBaseNative =
+      !extensionConnected &&
+      transport === 'http' &&
+      hasJwtAuthConfigured() &&
+      !!tenantPersistenceDir &&
+      systems.length === 0;
+    if (systems.length === 0 && !extensionConnected && !allowEmptyBaseNative) {
       logger.error(
-        'Native mode requires at least one system when run standalone. Use --config <path> (JSON with "systems" array) or --system user@host (repeatable).'
+        'Native mode requires at least one system when run standalone. Use --config <path> (JSON with "systems" array) or --system user@host (repeatable). For HTTP with JWT and ZOWE_MCP_TENANT_STORE_DIR, you may start with no base systems and use tenant store files or addZosConnection.'
       );
       process.exit(1);
     }
-    const { WaitablePasswordStore } = await import('./zos/native/password-store.js');
+    const { WaitablePasswordStore, TtlPasswordStore } =
+      await import('./zos/native/password-store.js');
+    const { createStandalonePasswordElicitation } =
+      await import('./zos/native/password-elicitation.js');
     const { loadNative } = await import('./zos/native/load-native.js');
     const { cacheKey } = await import('./zos/native/ssh-client-cache.js');
     const { passwordHash } = await import('./zos/native/password-hash.js');
     const nativePasswordLog = logger.child('native.password');
-    const nativePasswordStore = extensionConnected ? new WaitablePasswordStore() : undefined;
+    let nativePasswordStore: WaitablePasswordStoreLike | undefined;
+    if (extensionConnected) {
+      const ttlRaw = process.env.ZOWE_MCP_PASSWORD_CACHE_TTL_MS?.trim();
+      const ttl = ttlRaw ? Number(ttlRaw) : Number.NaN;
+      nativePasswordStore =
+        Number.isFinite(ttl) && ttl > 0 ? new TtlPasswordStore(ttl) : new WaitablePasswordStore();
+    }
     serverRef = { current: null };
     const defaultNativeServerPath = '~/.zowe-server';
     const defaultResponseTimeout = 60;
-    const nativeOptionsRef = {
+    const zowexOptionsRef = {
       current: {
-        autoInstallZnp: parsed.nativeServerAutoInstall ?? true,
-        serverPath: parsed.nativeServerPath ?? defaultNativeServerPath,
-        responseTimeout: parsed.nativeResponseTimeout ?? defaultResponseTimeout,
+        autoInstallZowex: parsed.zowexServerAutoInstall ?? true,
+        serverPath: parsed.zowexServerPath ?? defaultNativeServerPath,
+        responseTimeout: parsed.zowexResponseTimeout ?? defaultResponseTimeout,
       },
     };
     const extensionCallbacks =
       extensionConnected && extensionClient
-        ? buildNativeExtensionCallbacks(
+        ? buildZowexExtensionCallbacks(
             extensionClient,
             nativePasswordLog,
             serverRef,
-            nativeOptionsRef
+            zowexOptionsRef
           )
         : {};
+    const standalonePasswordElicitation = !extensionConnected
+      ? {
+          requestPasswordViaElicitation: createStandalonePasswordElicitation({
+            serverRef,
+            getPublicBaseUrl: () => httpPublicBaseUrlRef.current,
+            log: nativePasswordLog,
+          }),
+        }
+      : {};
     const nativeSetup = loadNative({
       systems,
       useEnvForPassword: !extensionConnected,
       passwordStore: nativePasswordStore,
       ...extensionCallbacks,
-      autoInstallZnp: parsed.nativeServerAutoInstall ?? true,
-      nativeServerPath: parsed.nativeServerPath,
-      responseTimeout: parsed.nativeResponseTimeout ?? defaultResponseTimeout,
+      ...standalonePasswordElicitation,
+      autoInstallZowex: parsed.zowexServerAutoInstall ?? true,
+      zowexServerPath: parsed.zowexServerPath,
+      responseTimeout: parsed.zowexResponseTimeout ?? defaultResponseTimeout,
     });
+    sharedNativeResolveJobCard = nativeSetup.resolveJobCardConnectionSpec;
+
+    const persistJobCardToConfig: CreateServerOptions['persistJobCard'] = configPath
+      ? (connectionSpec: string, jobCard: string) => {
+          try {
+            mergeJobCardIntoNativeConfigFile(configPath, connectionSpec, jobCard);
+          } catch (e) {
+            logger.warning('Failed to persist job card to --config file', {
+              path: configPath,
+              error: e instanceof Error ? e.message : String(e),
+            });
+          }
+        }
+      : undefined;
+
     encodingOptionsRef = {
       current: {
         defaultMainframeMvsEncoding: parsed.defaultMvsEncoding ?? DEFAULT_MAINFRAME_MVS_ENCODING,
@@ -804,23 +1247,135 @@ async function main(): Promise<void> {
       credentialProvider: nativeSetup.credentialProvider,
       encodingOptions: encodingOptionsRef,
       jobCardStore,
+      resolveJobCardConnectionSpec: nativeSetup.resolveJobCardConnectionSpec,
+      elicitJobCard: createElicitJobCard(jobCardStore, extensionClient, serverRef, logger),
+      persistJobCard: persistJobCardToConfig,
     };
-    nativeEventHandlerOpts = {
+    zowexEventHandlerOpts = {
       nativePasswordStore,
       cacheKey,
       passwordHash,
       nativePasswordLog,
       jobCardStore,
-      nativeOptionsRef,
+      zowexOptionsRef,
       updateSystems: nativeSetup.updateSystems,
     };
+    baseSystemsRef.current = systems;
+    if (zowex && tenantPersistenceDir && transport === 'http' && hasJwtAuthConfigured()) {
+      const nativeLoadBase = {
+        useEnvForPassword: !extensionConnected,
+        passwordStore: nativePasswordStore,
+        ...extensionCallbacks,
+        ...standalonePasswordElicitation,
+        autoInstallZowex: parsed.zowexServerAutoInstall ?? true,
+        zowexServerPath: parsed.zowexServerPath,
+        responseTimeout: parsed.zowexResponseTimeout ?? defaultResponseTimeout,
+      };
+      getOrCreateTenantNativeSetup = (sub: string): NativeSetup => {
+        const key = tenantKeyFromSub(sub);
+        const hit = tenantNativeCache.get(key);
+        if (hit) {
+          return hit;
+        }
+        const fromFile = loadTenantSystems(tenantPersistenceDir, sub);
+        const merged = mergeConnectionStrings(baseSystemsRef.current, fromFile);
+        const setup = loadNative({
+          ...nativeLoadBase,
+          systems: merged,
+        });
+        tenantNativeCache.set(key, setup);
+        return setup;
+      };
+      addTenantNativeConnectionHandler = (tenantSub: string, spec: string): Promise<void> => {
+        parseConnectionSpec(spec);
+        appendTenantSystem(tenantPersistenceDir, tenantSub, spec);
+        const merged = mergeConnectionStrings(
+          baseSystemsRef.current,
+          loadTenantSystems(tenantPersistenceDir, tenantSub)
+        );
+        const key = tenantKeyFromSub(tenantSub);
+        const existing = tenantNativeCache.get(key);
+        if (existing) {
+          existing.updateSystems(merged);
+        } else {
+          tenantNativeCache.set(
+            key,
+            loadNative({
+              ...nativeLoadBase,
+              systems: merged,
+            })
+          );
+        }
+        return Promise.resolve();
+      };
+      removeTenantNativeConnectionHandler = (tenantSub: string, spec: string): Promise<void> => {
+        parseConnectionSpec(spec);
+        const removed = removeTenantSystem(tenantPersistenceDir, tenantSub, spec);
+        if (!removed) {
+          const norm = formatNormalizedConnectionSpec(spec);
+          const inBase = baseSystemsRef.current.some(s => {
+            try {
+              return formatNormalizedConnectionSpec(s) === norm;
+            } catch {
+              return false;
+            }
+          });
+          if (inBase) {
+            throw new Error(
+              'This connection is defined only in server startup (--config/--system). Remove it from the server configuration; it is not stored in your per-user saved list.'
+            );
+          }
+          throw new Error(
+            'Connection not found in your saved list. It may have already been removed.'
+          );
+        }
+        const merged = mergeConnectionStrings(
+          baseSystemsRef.current,
+          loadTenantSystems(tenantPersistenceDir, tenantSub)
+        );
+        const key = tenantKeyFromSub(tenantSub);
+        const existing = tenantNativeCache.get(key);
+        if (existing) {
+          existing.updateSystems(merged);
+        } else {
+          tenantNativeCache.set(
+            key,
+            loadNative({
+              ...nativeLoadBase,
+              systems: merged,
+            })
+          );
+        }
+        return Promise.resolve();
+      };
+    }
     logger.info('Native (SSH) mode enabled', {
       systems: nativeSetup.systemRegistry.list(),
     });
   }
 
+  if (transport === 'http' && hasJwtAuthConfigured()) {
+    if (!zowex) {
+      logger.notice(
+        'addZosConnection is not registered: HTTP JWT + --mock has no z/OS SSH connections to add. Use --native/--zowex and ZOWE_MCP_TENANT_STORE_DIR to enable addZosConnection.'
+      );
+    } else if (!tenantPersistenceDir) {
+      logger.notice(
+        'addZosConnection is not registered: set ZOWE_MCP_TENANT_STORE_DIR so per-user connections can be persisted (HTTP + JWT + native).'
+      );
+    } else if (addTenantNativeConnectionHandler && removeTenantNativeConnectionHandler) {
+      logger.info(
+        'addZosConnection and removeZosConnection tools enabled (HTTP + JWT + native + tenant store).'
+      );
+    }
+  }
+
   if (serverOptions && responseCacheConfig !== undefined) {
     serverOptions.responseCache = responseCacheConfig;
+  }
+
+  if (serverOptions) {
+    serverOptions.localFilesFallbackDirectories = buildLocalFilesFallbackDirectories(parsed);
   }
 
   const buildZoweExplorerCallbacks = (): ZoweExplorerCallbacks | null => {
@@ -851,17 +1406,23 @@ async function main(): Promise<void> {
   };
 
   // Register all extension event handlers in one consolidated dispatch
+  const cliPluginStatesByPlugin = new Map<string, CliPluginState>();
+  const cliPluginPasswordStore = extensionClient?.connected
+    ? new (await import('./zos/native/password-store.js')).WaitablePasswordStore()
+    : undefined;
   if (extensionClient?.connected) {
     setupExtensionEventHandlers(extensionClient, {
       logger,
       transport,
-      ...nativeEventHandlerOpts,
+      ...zowexEventHandlerOpts,
       encodingOptionsRef,
       pendingSystemsUpdate,
       zoweExplorerCallbacksRef,
       zoweExplorerToolsRegisteredRef,
       serverRef,
       buildZoweExplorerCallbacks,
+      cliPluginStatesByPlugin,
+      cliPluginPasswordStore,
     });
   }
 
@@ -887,6 +1448,265 @@ async function main(): Promise<void> {
     };
   }
 
+  // Apply description variant env var before registering CLI plugin tools
+  if (parsed.cliPluginDescVariant) {
+    process.env.ZOWE_MCP_CLI_DESC_VARIANT = parsed.cliPluginDescVariant;
+  }
+
+  /**
+   * Builds a CliPluginState from a CliPluginProfilesFile.
+   * Populates profilesByType and activeProfileId from the file.
+   * When the VS Code extension is connected, the password resolver sends a
+   * request-password event and waits for the response via cliPluginPasswordStore.
+   * In standalone mode it falls back to ZOWE_MCP_PASSWORD_<USER>_<HOST> or ZOWE_MCP_CREDENTIALS.
+   */
+  function buildPluginState(
+    profilesFile: CliPluginProfilesFile,
+    vsCodePasswordStore?: {
+      get(key: string): string | undefined;
+      waitFor(key: string, timeoutMs: number): Promise<string | undefined>;
+    }
+  ): CliPluginState {
+    const state = createEmptyPluginState();
+    state.configSource = extensionClient?.connected ? 'vscode' : 'cli';
+    for (const [typeKey, typeData] of Object.entries(profilesFile)) {
+      state.profilesByType.set(typeKey, typeData.profiles ?? []);
+      if (typeData.default) {
+        state.activeProfileId.set(typeKey, typeData.default);
+      }
+    }
+
+    // Wire VS Code notification callback (no-op in standalone mode)
+    if (extensionClient?.connected) {
+      state.sendNotification = (message, severity, settingsKey) => {
+        extensionClient.sendEvent({
+          type: 'notification',
+          data: { severity, message, settingsKey },
+          timestamp: Date.now(),
+        });
+      };
+    }
+
+    // Wire password resolver
+    state.passwordResolver = {
+      async getPassword(user: string, host: string): Promise<string> {
+        const key = `${user}@${host}`;
+
+        // VS Code mode: send request-password event; wait for the password event response
+        if (extensionClient?.connected && cliPluginPasswordStore) {
+          const cached = cliPluginPasswordStore.get(key);
+          if (cached !== undefined) return cached;
+          extensionClient.sendEvent({
+            type: 'request-password',
+            data: { user, host },
+            timestamp: Date.now(),
+          });
+          const pw = await cliPluginPasswordStore.waitFor(key, 120_000);
+          if (pw !== undefined) return pw;
+          throw new Error(`Password request for ${user}@${host} timed out or was cancelled.`);
+        }
+
+        // Legacy/parameter-based VS Code store (kept for external callers)
+        if (vsCodePasswordStore) {
+          const cached = vsCodePasswordStore.get(key);
+          if (cached !== undefined) return cached;
+          const pw = await vsCodePasswordStore.waitFor(key, 120_000);
+          if (pw !== undefined) return pw;
+        }
+
+        // Standalone mode (or VS Code fallback): env, ZOWE_MCP_CREDENTIALS, optional Vault KV
+        const spec = parseConnectionSpec(`${user}@${host}`);
+        const envPw = await resolveStandalonePassword(spec);
+        if (envPw !== undefined) return envPw;
+        const envVar = toPasswordEnvVarName(spec.user, spec.host);
+        throw new Error(
+          `No password available for ${user}@${host}. Set ${envVar}, ZOWE_MCP_CREDENTIALS, or Vault KV (see AGENTS.md).`
+        );
+      },
+    };
+    return state;
+  }
+
+  function atomicWriteJsonFile(filePath: string, data: unknown): void {
+    const tmp = `${filePath}.${process.pid}.${Date.now()}.tmp`;
+    try {
+      writeFileSync(tmp, `${JSON.stringify(data, null, 2)}\n`, 'utf-8');
+      renameSync(tmp, filePath);
+    } catch (e) {
+      try {
+        unlinkSync(tmp);
+      } catch {
+        /* ignore */
+      }
+      throw e;
+    }
+  }
+
+  /**
+   * Enables profile add/remove tools to persist to `zoweMCP.cliPluginConfiguration` (pipe event)
+   * and/or the `--cli-plugin-configuration` JSON file.
+   */
+  function wireCliPluginPersistence(
+    state: CliPluginState,
+    pluginKey: string,
+    connFile: string | undefined
+  ): void {
+    state.pluginKey = pluginKey;
+    state.persistConnectionFilePath = connFile;
+    state.persistProfiles = (): Promise<void> => {
+      const profilesFile = serializeCliPluginStateToProfilesFile(state);
+      if (extensionClient?.connected) {
+        extensionClient.sendEvent({
+          type: 'store-cli-plugin-profiles',
+          data: {
+            pluginName: pluginKey,
+            profilesFile: profilesFile as Record<string, unknown>,
+          },
+          timestamp: Date.now(),
+        });
+      }
+      if (connFile) {
+        atomicWriteJsonFile(connFile, profilesFile);
+      } else if (!extensionClient?.connected) {
+        return Promise.reject(
+          new Error(
+            'Cannot persist CLI plugin profiles: use --cli-plugin-configuration <plugin>=<file> or the Zowe MCP VS Code extension with zoweMCP.cliPluginConfiguration.'
+          )
+        );
+      }
+      return Promise.resolve();
+    };
+  }
+
+  /** Register all CLI plugin bridge tools on an already-created server. */
+  function registerCliPlugins(
+    server: ReturnType<typeof getServer>,
+    vsCodePasswordStore?: {
+      get(key: string): string | undefined;
+      waitFor(key: string, timeoutMs: number): Promise<string | undefined>;
+    },
+    statesByPlugin?: Map<string, CliPluginState>
+  ): void {
+    /** Sends a cli-plugin-active-profiles-changed event for the given plugin/state pair. */
+    function sendActiveProfilesEvent(pluginName: string, state: CliPluginState): void {
+      if (!extensionClient?.connected) return;
+      const activeProfiles: Record<string, string> = {};
+      for (const [typeKey, id] of state.activeProfileId) {
+        if (id !== undefined) activeProfiles[typeKey] = id;
+      }
+      const activeContext: Record<string, Record<string, string>> = {};
+      for (const [typeKey, ctx] of state.virtualContextByType) {
+        const defined = Object.fromEntries(
+          Object.entries(ctx).filter((e): e is [string, string] => e[1] !== undefined)
+        );
+        if (Object.keys(defined).length > 0) activeContext[typeKey] = defined;
+      }
+      extensionClient.sendEvent({
+        type: 'cli-plugin-active-profiles-changed',
+        data: { pluginName, activeProfiles, activeContext },
+        timestamp: Date.now(),
+      });
+    }
+
+    // Explicit entries (--cli-plugin-yaml / --cli-plugin-connection-file pairs)
+    for (const entry of parsed.cliPlugins) {
+      let profilesFile: CliPluginProfilesFile = {};
+      if (entry.connectionFile) {
+        const raw = readFileSync(entry.connectionFile, 'utf-8');
+        profilesFile = JSON.parse(raw) as CliPluginProfilesFile;
+      }
+      const state = buildPluginState(profilesFile, vsCodePasswordStore);
+      const pluginConfig = loadPluginYaml(entry.yamlPath);
+      wireCliPluginPersistence(state, pluginConfig.plugin, entry.connectionFile);
+      loadCliBridgeTools(server, pluginConfig, state, logger);
+      statesByPlugin?.set(pluginConfig.plugin, state);
+      state.onActiveProfilesChanged = () => sendActiveProfilesEvent(pluginConfig.plugin, state);
+      sendActiveProfilesEvent(pluginConfig.plugin, state);
+      logger.info('CLI plugin bridge tools registered (explicit)', {
+        yamlPath: entry.yamlPath,
+        connectionFile: entry.connectionFile,
+        descVariant: process.env.ZOWE_MCP_CLI_DESC_VARIANT ?? 'optimized',
+      });
+    }
+
+    // Collect plugin YAML files from built-in dir and vendor dirs
+    const yamlEntries: { fileName: string; yamlPath: string; source: string }[] = [];
+
+    const pluginsDir =
+      parsed.cliPluginsDir ?? resolve(__dirname, 'tools', 'cli-bridge', 'plugins');
+    if (!existsSync(pluginsDir)) {
+      if (parsed.cliPluginsDir) {
+        logger.warning('CLI plugins directory not found', { pluginsDir });
+      }
+    } else {
+      for (const f of readdirSync(pluginsDir).filter(
+        (f: string) => f.endsWith('.yaml') && !f.endsWith('-commands.yaml')
+      )) {
+        yamlEntries.push({ fileName: f, yamlPath: resolve(pluginsDir, f), source: 'built-in' });
+      }
+    }
+
+    // Vendor scan: <repo-root>/vendor/*/cli-bridge-plugins/*.yaml
+    // Companion files (*-commands.yaml) are loaded by the tools YAML loader via $.path refs — skip here.
+    const vendorDir = resolve(__dirname, '..', '..', '..', 'vendor');
+    if (existsSync(vendorDir)) {
+      for (const entry of readdirSync(vendorDir, { withFileTypes: true })) {
+        if (!entry.isDirectory()) continue;
+        const vPluginsDir = resolve(vendorDir, entry.name, 'cli-bridge-plugins');
+        if (!existsSync(vPluginsDir)) continue;
+        for (const f of readdirSync(vPluginsDir).filter(
+          (f: string) => f.endsWith('.yaml') && !f.endsWith('-commands.yaml')
+        )) {
+          yamlEntries.push({
+            fileName: f,
+            yamlPath: resolve(vPluginsDir, f),
+            source: `vendor/${entry.name}`,
+          });
+        }
+      }
+    }
+
+    if (yamlEntries.length === 0) return;
+
+    for (const { fileName, yamlPath, source } of yamlEntries) {
+      // Filter by enabled plugin names (based on the plugin: field in the YAML)
+      // We do a quick name check by stripping -tools.yaml suffix as a heuristic,
+      // but we validate against the actual plugin name after loading.
+      const heuristicName = fileName.replace(/-tools\.yaml$/, '').replace(/\.yaml$/, '');
+      if (
+        parsed.enabledCliPlugins.length > 0 &&
+        !parsed.enabledCliPlugins.includes(heuristicName)
+      ) {
+        logger.info('CLI plugin skipped (not in --cli-plugin-enable list)', {
+          plugin: heuristicName,
+          yamlPath,
+        });
+        continue;
+      }
+      // Build state from profiles file (--cli-plugin-configuration map)
+      let profilesFile: CliPluginProfilesFile = {};
+      const connFile = parsed.cliPluginConfiguration[heuristicName];
+      if (connFile) {
+        const raw = readFileSync(connFile, 'utf-8');
+        profilesFile = JSON.parse(raw) as CliPluginProfilesFile;
+      }
+      const state = buildPluginState(profilesFile, vsCodePasswordStore);
+      const pluginConfig = loadPluginYaml(yamlPath);
+      wireCliPluginPersistence(state, pluginConfig.plugin, connFile);
+      loadCliBridgeTools(server, pluginConfig, state, logger);
+      statesByPlugin?.set(pluginConfig.plugin, state);
+      state.onActiveProfilesChanged = () => sendActiveProfilesEvent(pluginConfig.plugin, state);
+      sendActiveProfilesEvent(pluginConfig.plugin, state);
+      logger.info('CLI plugin bridge tools registered (auto-discovered)', {
+        plugin: pluginConfig.plugin,
+        yamlPath,
+        source,
+        connectionFile: connFile,
+        descVariant: process.env.ZOWE_MCP_CLI_DESC_VARIANT ?? 'optimized',
+      });
+    }
+  }
+
   if (transport === 'stdio') {
     const created = createServer(serverOptions);
     const server = getServer(created);
@@ -896,10 +1716,21 @@ async function main(): Promise<void> {
     if (zoweExplorerCallbacksRef.current && 'registerZoweExplorerTools' in created) {
       zoweExplorerToolsRegisteredRef.current = true;
     }
+    registerCliPlugins(server, undefined, cliPluginStatesByPlugin);
     await startStdio(server, logger);
   } else {
-    await startHttp(
-      () => {
+    let httpJwtAuth: ReturnType<typeof loadJwtAuthConfigFromEnv>;
+    try {
+      httpJwtAuth = loadJwtAuthConfigFromEnv();
+    } catch (e) {
+      logger.error(
+        'Invalid HTTP JWT auth environment (ZOWE_MCP_JWT_ISSUER / ZOWE_MCP_JWKS_URI)',
+        e
+      );
+      process.exit(1);
+    }
+    const httpHandle = await startHttp(
+      (tenant?: TenantJwtClaims) => {
         const opts: CreateServerOptions | undefined = serverOptions
           ? { ...serverOptions }
           : undefined;
@@ -908,12 +1739,87 @@ async function main(): Promise<void> {
           opts.openUssFileInZoweEditor = zoweExplorerCallbacksRef.current.openUssFileInZoweEditor;
           opts.openJobInZoweEditor = zoweExplorerCallbacksRef.current.openJobInZoweEditor;
         }
+        if (opts && tenant) {
+          opts.tenantSub = tenant.sub;
+          opts.tenantEmail = tenant.email;
+        }
+        if (opts && tenant && sharedNativeResolveJobCard) {
+          const tenantJobStore = createWaitableJobCardStore();
+          if (bootstrapJobCardsForHttp) {
+            tenantJobStore.mergeFromObject(bootstrapJobCardsForHttp);
+          }
+          if (tenantPersistenceDir) {
+            const tenantCards = loadTenantJobCards(tenantPersistenceDir, tenant.sub);
+            if (tenantCards) {
+              tenantJobStore.mergeFromObject(tenantCards);
+            }
+          }
+          opts.jobCardStore = tenantJobStore;
+          opts.resolveJobCardConnectionSpec = (systemId: string, userId: string) => {
+            if (getOrCreateTenantNativeSetup) {
+              return getOrCreateTenantNativeSetup(tenant.sub).resolveJobCardConnectionSpec(
+                systemId,
+                userId
+              );
+            }
+            return sharedNativeResolveJobCard(systemId, userId);
+          };
+          opts.elicitJobCard = createElicitJobCard(
+            tenantJobStore,
+            extensionClient,
+            serverRef,
+            logger
+          );
+          const basePersist = serverOptions?.persistJobCard;
+          opts.persistJobCard = (spec: string, card: string) => {
+            basePersist?.(spec, card);
+            if (tenantPersistenceDir) {
+              try {
+                mergeTenantJobCard(tenantPersistenceDir, tenant.sub, spec, card);
+              } catch (e) {
+                logger.warning('Failed to persist job card to tenant store', {
+                  error: e instanceof Error ? e.message : String(e),
+                });
+              }
+            }
+          };
+        }
+        if (
+          opts &&
+          tenant &&
+          tenantPersistenceDir &&
+          httpJwtAuth &&
+          getOrCreateTenantNativeSetup &&
+          addTenantNativeConnectionHandler &&
+          removeTenantNativeConnectionHandler
+        ) {
+          const setup = getOrCreateTenantNativeSetup(tenant.sub);
+          opts.backend = setup.backend;
+          opts.systemRegistry = setup.systemRegistry;
+          opts.credentialProvider = setup.credentialProvider;
+          opts.addTenantNativeConnection = async (spec: string) => {
+            await addTenantNativeConnectionHandler(tenant.sub, spec);
+          };
+          opts.removeTenantNativeConnection = async (spec: string) => {
+            await removeTenantNativeConnectionHandler(tenant.sub, spec);
+          };
+        }
         const result = createServer(opts);
-        return getServer(result);
+        const server = getServer(result);
+        const pluginMap =
+          httpJwtAuth && tenant
+            ? getOrCreateTenantCliPluginStates(tenantKeyFromSub(tenant.sub))
+            : cliPluginStatesByPlugin;
+        registerCliPlugins(server, undefined, pluginMap);
+        return server;
       },
       port,
-      logger
+      logger,
+      httpJwtAuth ? { jwtAuth: httpJwtAuth } : undefined
     );
+    if (!httpPublicBaseUrlRef.current) {
+      httpPublicBaseUrlRef.current = `http://127.0.0.1:${httpHandle.port}`;
+    }
   }
 
   // Notify the VS Code extension if no backend is configured

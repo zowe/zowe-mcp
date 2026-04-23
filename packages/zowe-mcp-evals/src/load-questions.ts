@@ -27,6 +27,8 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const QUESTIONS_DIR = resolve(__dirname, '..', 'questions');
 const SCHEMA_PATH = resolve(__dirname, '..', 'schemas', 'evals-question-set.schema.json');
+// Vendor extension: <repo-root>/vendor/*/eval-questions/
+const VENDOR_DIR = resolve(__dirname, '..', '..', '..', 'vendor');
 
 let cachedValidator: ValidateFunction | undefined;
 
@@ -212,11 +214,92 @@ function parseSetConfig(raw: unknown): SetConfig {
     const n = o.native as Record<string, unknown>;
     if (typeof n.serverArgs === 'string') config.native = { serverArgs: n.serverArgs };
   }
+  if (Array.isArray(o.mockServers) && o.mockServers.length > 0) {
+    config.mockServers = (o.mockServers as unknown[])
+      .filter((s): s is Record<string, unknown> => !!s && typeof s === 'object')
+      .map(s => ({
+        name: typeof s.name === 'string' ? s.name : 'unnamed',
+        cliScript: typeof s.cliScript === 'string' ? interpolateEnvVars(s.cliScript) : '',
+        initArgs: typeof s.initArgs === 'string' ? s.initArgs : undefined,
+        configTemplate:
+          s.configTemplate && typeof s.configTemplate === 'object'
+            ? (s.configTemplate as Record<string, unknown>)
+            : undefined,
+        configOutputName: typeof s.configOutputName === 'string' ? s.configOutputName : undefined,
+        configFlag: typeof s.configFlag === 'string' ? s.configFlag : undefined,
+        serveArgs: typeof s.serveArgs === 'string' ? s.serveArgs : undefined,
+        startArgs: typeof s.startArgs === 'string' ? s.startArgs : undefined,
+        port: typeof s.port === 'number' ? s.port : undefined,
+        pluginName: typeof s.pluginName === 'string' ? s.pluginName : undefined,
+      }));
+  }
+  if (o.cliPluginConfiguration && typeof o.cliPluginConfiguration === 'object') {
+    const raw = o.cliPluginConfiguration as Record<string, unknown>;
+    const connections: Record<string, import('./types.js').CliPluginConnection> = {};
+    for (const [name, val] of Object.entries(raw)) {
+      if (val && typeof val === 'object') {
+        const c = val as Record<string, unknown>;
+        const rawPort = c.port;
+        const resolvedPort =
+          typeof rawPort === 'number'
+            ? rawPort
+            : typeof rawPort === 'string'
+              ? parseInt(interpolateEnvVars(rawPort), 10) || undefined
+              : undefined;
+        connections[name] = {
+          host: typeof c.host === 'string' ? interpolateEnvVars(c.host) : undefined,
+          port: resolvedPort,
+          user: typeof c.user === 'string' ? interpolateEnvVars(c.user) : undefined,
+          password: typeof c.password === 'string' ? interpolateEnvVars(c.password) : undefined,
+          protocol: typeof c.protocol === 'string' ? interpolateEnvVars(c.protocol) : undefined,
+          basePath: typeof c.basePath === 'string' ? interpolateEnvVars(c.basePath) : undefined,
+          database: typeof c.database === 'string' ? interpolateEnvVars(c.database) : undefined,
+          pluginParams:
+            c.pluginParams && typeof c.pluginParams === 'object'
+              ? Object.fromEntries(
+                  Object.entries(c.pluginParams as Record<string, string>).map(([k, v]) => [
+                    k,
+                    interpolateEnvVars(v),
+                  ])
+                )
+              : undefined,
+        };
+      }
+    }
+    config.cliPluginConfiguration = connections;
+  }
+  if (typeof o.cliPluginsDir === 'string')
+    config.cliPluginsDir = interpolateEnvVars(o.cliPluginsDir);
+  if (typeof o.cliPluginDescVariant === 'string')
+    config.cliPluginDescVariant = o.cliPluginDescVariant;
+  if (typeof o.mcpServerScript === 'string')
+    config.mcpServerScript = interpolateEnvVars(o.mcpServerScript);
+  if (typeof o.mcpServerArgs === 'string') config.mcpServerArgs = o.mcpServerArgs;
+  if (o.toolAliases && typeof o.toolAliases === 'object')
+    config.toolAliases = o.toolAliases as Record<string, string>;
   if (typeof o.systemPrompt === 'string') config.systemPrompt = o.systemPrompt;
   if (typeof o.systemPromptAddition === 'string')
     config.systemPromptAddition = o.systemPromptAddition;
   if (typeof o.skip === 'string') config.skip = o.skip;
+  if (typeof o.questionsFrom === 'string') config.questionsFrom = o.questionsFrom;
   return config;
+}
+
+/**
+ * Replaces `${VAR_NAME}` placeholders in a string with the corresponding
+ * `process.env` value. When the variable is not set the placeholder is
+ * left unchanged so callers can detect missing configuration.
+ */
+function interpolateEnvVars(s: string): string {
+  return s.replace(/\$\{([^}]+)\}/g, (match, expr: string) => {
+    const colonDashIdx = expr.indexOf(':-');
+    if (colonDashIdx !== -1) {
+      const name = expr.slice(0, colonDashIdx);
+      const defaultVal = expr.slice(colonDashIdx + 2);
+      return process.env[name] ?? defaultVal;
+    }
+    return process.env[expr] ?? match;
+  });
 }
 
 export function loadSetYaml(path: string): QuestionSet {
@@ -231,20 +314,56 @@ export function loadSetYaml(path: string): QuestionSet {
 
   const config = parseSetConfig(data.config ?? data);
   const questionsRaw = data.questions;
-  if (!Array.isArray(questionsRaw))
-    throw new Error(`${path}: missing or invalid "questions" array`);
-  const questions = questionsRaw.map(parseQuestion);
+  if (!Array.isArray(questionsRaw) && !config.questionsFrom)
+    throw new Error(`${path}: missing or invalid "questions" array (or set config.questionsFrom)`);
+
+  let questions: Question[];
+  if (config.questionsFrom) {
+    questions = loadSet(config.questionsFrom).questions;
+  } else {
+    if (!Array.isArray(questionsRaw))
+      throw new Error(`${path}: missing or invalid "questions" array`);
+    questions = (questionsRaw as unknown[]).map(parseQuestion);
+  }
   return { config, questions };
 }
 
 export function listSetNames(): string[] {
-  if (!existsSync(QUESTIONS_DIR)) return [];
-  return readdirSync(QUESTIONS_DIR)
-    .filter(f => f.endsWith('.yaml') || f.endsWith('.yml'))
-    .map(f => f.replace(/\.(yaml|yml)$/, ''));
+  const names: string[] = [];
+  if (existsSync(QUESTIONS_DIR)) {
+    names.push(
+      ...readdirSync(QUESTIONS_DIR)
+        .filter(f => f.endsWith('.yaml') || f.endsWith('.yml'))
+        .map(f => f.replace(/\.(yaml|yml)$/, ''))
+    );
+  }
+  // Vendor eval-questions: vendor/<name>/eval-questions/*.yaml → "<name>/setName"
+  if (existsSync(VENDOR_DIR)) {
+    for (const entry of readdirSync(VENDOR_DIR, { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue;
+      const vendorQDir = resolve(VENDOR_DIR, entry.name, 'eval-questions');
+      if (!existsSync(vendorQDir)) continue;
+      for (const f of readdirSync(vendorQDir)) {
+        if (!f.endsWith('.yaml') && !f.endsWith('.yml')) continue;
+        names.push(`${entry.name}/${f.replace(/\.(yaml|yml)$/, '')}`);
+      }
+    }
+  }
+  return names;
 }
 
 export function getSetPath(setName: string): string {
+  if (setName.includes('/')) {
+    // Vendor-namespaced set: "<vendorName>/<name>" → vendor/<vendorName>/eval-questions/<name>.yaml
+    const slashIdx = setName.indexOf('/');
+    const vendorName = setName.slice(0, slashIdx);
+    const name = setName.slice(slashIdx + 1);
+    const yamlPath = resolve(VENDOR_DIR, vendorName, 'eval-questions', `${name}.yaml`);
+    const ymlPath = resolve(VENDOR_DIR, vendorName, 'eval-questions', `${name}.yml`);
+    if (existsSync(yamlPath)) return yamlPath;
+    if (existsSync(ymlPath)) return ymlPath;
+    throw new Error(`Vendor question set "${setName}" not found in ${VENDOR_DIR}`);
+  }
   const yamlPath = resolve(QUESTIONS_DIR, `${setName}.yaml`);
   const ymlPath = resolve(QUESTIONS_DIR, `${setName}.yml`);
   if (existsSync(yamlPath)) return yamlPath;

@@ -15,6 +15,6 @@ questions:
       - toolCall:
           tool: getDatasetAttributes
           args:
-            validDsn: "USER.SRC.COBOL"
+            validDsn: 'USER.SRC.COBOL'
       - answerContains:
-          pattern: "PO|FB|RECFM|dsorg|record|organization"
+          pattern: 'PO|FB|RECFM|dsorg|record|organization'

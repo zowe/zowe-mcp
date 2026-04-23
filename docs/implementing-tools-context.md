@@ -64,7 +64,7 @@ Types: `DatasetEntry`, `MemberEntry`, `ReadDatasetResult`, `WriteDatasetResult`,
 ### 1. Backend
 
 - **Mock**: Implement (or extend) the method in `packages/zowe-mcp-server/src/zos/mock/filesystem-mock-backend.ts`.
-- **Native**: Implement (or stub with a clear throw) in `packages/zowe-mcp-server/src/zos/native/native-backend.ts`. Native uses Zowe Native Proto SDK; see `listDatasets` there for pattern (get spec, credentials, client from cache, call SDK, map result to `DatasetEntry` etc.).
+- **Native**: Implement (or stub with a clear throw) in `packages/zowe-mcp-server/src/zos/native/native-backend.ts`. Native uses the Zowe Remote SSH SDK (`zowex-sdk`); see `listDatasets` there for pattern (get spec, credentials, client from cache, call SDK, map result to `DatasetEntry` etc.).
 
 ### 2. Tool layer
 
@@ -143,27 +143,25 @@ TSO tools are in `src/tools/tso/`. The backend interface (`ZosBackend`) defines 
 
 ---
 
-## Zowe Native SDK
+## Zowe Remote SSH SDK
 
-The **Zowe Native Proto SDK** is used by the native (SSH) backend. We use only the SDK; it is **not published to npm**. The package is consumed as a file dependency (tgz in this repo).
+The **Zowe Remote SSH** SDK npm package is **`zowex-sdk`** (used by the native SSH backend). It is distributed as a tarball (Zowe Artifactory and GitHub Actions artifacts); this repo pins it via `file:` in `packages/zowe-mcp-server/package.json` under `resources/zowex-sdk-<version>.tgz`.
 
 ### Paths
 
 | What                           | Path                                                                                                                                                                                           |
 | ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **SDK source (reference)**     | `zowe-native-proto` repo: `<workspace>/zowe-native-proto`. SDK code lives in `**packages/sdk`** (e.g. `src/ZSshClient.ts`, `src/doc/rpc/ds.ts` for data set RPCs). |
-| **SDK source (Artifactory)**   | Zowe Artifactory: `https://zowe.jfrog.io/artifactory/npm-release/zowe-native-proto-sdk/` (version 0.2.4). Project uses registry in `.npmrc`. |
-| **Server dependency**          | `packages/zowe-mcp-server/package.json`: `"zowe-native-proto-sdk": "0.2.4"`                                                                                                                     |
-| **After `npm install`**        | `packages/zowe-mcp-server/node_modules/zowe-native-proto-sdk` (or `packages/zowe-mcp-vscode/server/node_modules/zowe-native-proto-sdk` in bundled extension)                                   |
+| **SDK source (reference)**     | [`zowe/zowex`](https://github.com/zowe/zowex) repo: `<workspace>/zowex`. SDK code lives in **`packages/sdk`** (e.g. `src/ZSshClient.ts`, `src/doc/rpc/ds.ts` for data set RPCs). |
+| **SDK source (Artifactory)**   | Zowe Artifactory npm-release publishes **`zowex-sdk`** when released; older docs may reference the legacy package name `zowe-native-proto-sdk`. Project registry: `.npmrc`. |
+| **Server dependency**          | `packages/zowe-mcp-server/package.json`: `"zowex-sdk": "file:../../resources/zowex-sdk-<version>.tgz"` (see `npm run sdk:*` scripts). |
+| **After `npm install`**        | `packages/zowe-mcp-server/node_modules/zowex-sdk` (or `packages/zowe-mcp-vscode/server/node_modules/zowex-sdk` in bundled extension) |
 | **Our code that uses the SDK** | `packages/zowe-mcp-server/src/zos/native/` — `ssh-client-cache.ts`, `native-backend.ts`                                                                                                        |
 
 ### Minimal example: list data sets
 
-In the **zowe-native-proto** repo, see:
+In the **zowex** repo, see **`examples/deploy.ts`** and the **`examples/jsonrpc-ssh/`** sample (SSH + JSON-RPC). Pattern:
 
-`<workspace>/zowe-native-proto/example/index.ts`
-
-- Uses `SshSession` from `@zowe/zos-uss-for-zowe-sdk` and `ZSshClient` from `zowe-native-proto-sdk`.
+- Uses `SshSession` from `@zowe/zos-uss-for-zowe-sdk` and `ZSshClient` from **`zowex-sdk`**.
 - `using client = await ZSshClient.create(session);`
 - `const response = await client.ds.listDatasets({ pattern });` → `response.items` (array of data set items).
 
@@ -171,9 +169,9 @@ Use this as the reference for calling data set APIs from the SDK.
 
 ### SSH client cache reference
 
-The **zowe-native-proto** VS Code extension uses a cache that is a good reference for our native backend cache:
+The **zowex** VS Code extension (`packages/vsce`) uses a cache that is a good reference for our native backend cache:
 
-`<workspace>/zowe-native-proto/packages/vsce/src/SshClientCache.ts`
+`<workspace>/zowex/packages/vsce/src/SshClientCache.ts`
 
 - Singleton cache keyed by client id (e.g. profile name + type).
 - `connect(profile, restart?)` → get or create `ZSshClient`; uses mutex per client id; supports restart and server deploy/checksums.
@@ -184,16 +182,16 @@ Our cache in `packages/zowe-mcp-server/src/zos/native/ssh-client-cache.ts` follo
 
 ### Finding SDK sources on GitHub
 
-The SDK is not on npm; the canonical source is the **zowe-native-proto** repo. Use these to find the right APIs without cloning:
+The canonical source is the **[zowe/zowex](https://github.com/zowe/zowex)** repo. Use these to find the right APIs without cloning:
 
-- **Repo**: [https://github.com/zowe/zowe-native-proto](https://github.com/zowe/zowe-native-proto) (branch `main`).
+- **Repo**: [https://github.com/zowe/zowex](https://github.com/zowe/zowex) (branch `main`).
 - **Client API surface** (what methods exist on `client.ds`): `packages/sdk/src/RpcClientApi.ts`
-Raw: [https://raw.githubusercontent.com/zowe/zowe-native-proto/main/packages/sdk/src/RpcClientApi.ts](https://raw.githubusercontent.com/zowe/zowe-native-proto/main/packages/sdk/src/RpcClientApi.ts)
+Raw: [https://raw.githubusercontent.com/zowe/zowex/main/packages/sdk/src/RpcClientApi.ts](https://raw.githubusercontent.com/zowe/zowex/main/packages/sdk/src/RpcClientApi.ts)
 - **Dataset RPC definitions** (request/response types): `packages/sdk/src/doc/rpc/ds.ts`
-Raw: [https://raw.githubusercontent.com/zowe/zowe-native-proto/main/packages/sdk/src/doc/rpc/ds.ts](https://raw.githubusercontent.com/zowe/zowe-native-proto/main/packages/sdk/src/doc/rpc/ds.ts)
+Raw: [https://raw.githubusercontent.com/zowe/zowex/main/packages/sdk/src/doc/rpc/ds.ts](https://raw.githubusercontent.com/zowe/zowex/main/packages/sdk/src/doc/rpc/ds.ts)
 - **Common types** (e.g. `DsMember`, `Dataset`, `ListOptions`): `packages/sdk/src/doc/rpc/common.ts`
-Raw: [https://raw.githubusercontent.com/zowe/zowe-native-proto/main/packages/sdk/src/doc/rpc/common.ts](https://raw.githubusercontent.com/zowe/zowe-native-proto/main/packages/sdk/src/doc/rpc/common.ts)
-- **Example usage**: repo root `example/index.ts` (listDatasets only; no listMembers example in tree).
+Raw: [https://raw.githubusercontent.com/zowe/zowex/main/packages/sdk/src/doc/rpc/common.ts](https://raw.githubusercontent.com/zowe/zowex/main/packages/sdk/src/doc/rpc/common.ts)
+- **Examples**: repo `examples/` (e.g. `deploy.ts`, `jsonrpc-ssh/`).
 
 **How to discover "list members"**: In `RpcClientApi.ts`, the `ds` object lists all data set commands (`listDatasets`, `listDsMembers`, `readDataset`, etc.). The method name is `**listDsMembers`** (not `listMembers`). Then open `ds.ts` for `ListDsMembersRequest` / `ListDsMembersResponse` and `common.ts` for `DsMember`.
 
@@ -207,8 +205,8 @@ Raw: [https://raw.githubusercontent.com/zowe/zowe-native-proto/main/packages/sdk
 ### Implementing more native-backend methods
 
 1. Follow the pattern in `native-backend.ts` `listDatasets`: get spec, credentials, client via cache, call SDK API, map to `DatasetEntry` / `MemberEntry` / etc.
-2. Use the **example** above for the exact SDK calls (e.g. `client.ds.listDatasets({ pattern })`, `client.ds.listDsMembers({ dsname })`).
-3. SDK types and APIs are in the installed package under `node_modules/zowe-native-proto-sdk`; for source and RPC definitions see `zowe-native-proto/packages/sdk/src/`.
+2. Use the **examples** above for the exact SDK calls (e.g. `client.ds.listDatasets({ pattern })`, `client.ds.listDsMembers({ dsname })`).
+3. SDK types and APIs are in the installed package under `node_modules/zowex-sdk`; for source and RPC definitions see `zowex/packages/sdk/src/` (when you have the repo cloned).
 4. **getDatasetAttributes**: The SDK has no dedicated `getAttributes` RPC. The native backend implements it by calling `listDatasets` with the DSN as pattern and `attributes: true`, then selecting the entry with an exact DSN match; if none, it throws "Dataset not found".
 
 ---

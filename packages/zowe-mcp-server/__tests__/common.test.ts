@@ -78,6 +78,7 @@ for (const createProvider of allProviders) {
           description: string;
           components: string[];
           backend: string | null;
+          maxEffectLevel?: string;
         };
         activeSystem: null;
         allSystems: unknown[];
@@ -89,6 +90,7 @@ for (const createProvider of allProviders) {
       expect(ctx.server.description).toContain('z/OS');
       expect(ctx.server.components).toContain('context');
       expect(ctx.server.backend).toBeNull();
+      expect(ctx.server.maxEffectLevel).toMatch(/^(none|read|update|delete|execute)$/);
       expect(ctx.activeSystem).toBeNull();
       expect(ctx.allSystems).toEqual([]);
       expect(ctx.messages).toBeDefined();
@@ -99,6 +101,7 @@ for (const createProvider of allProviders) {
       expect(structuredServer.name).toBe('Zowe MCP Server');
       expect(structuredServer.version).toBe(packageJson.version);
       expect(structuredServer.backend).toBeNull();
+      expect(structuredServer.maxEffectLevel).toMatch(/^(none|read|update|delete|execute)$/);
     });
 
     it('should return version matching package.json', async () => {

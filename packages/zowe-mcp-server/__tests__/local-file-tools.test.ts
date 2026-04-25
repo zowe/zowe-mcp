@@ -109,6 +109,7 @@ async function createClientWithMock(
       credentialProvider,
       logToolCalls: false,
       localFilesFallbackDirectories: [workspace],
+      capabilityTier: 'full',
     })
   );
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();

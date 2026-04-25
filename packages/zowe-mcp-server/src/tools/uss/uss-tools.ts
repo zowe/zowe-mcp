@@ -18,6 +18,7 @@
 
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
+import { ResourceEffect } from '../../capability-level.js';
 import type { Logger } from '../../log.js';
 import type { ZosBackend } from '../../zos/backend.js';
 import type { CredentialProvider } from '../../zos/credentials.js';
@@ -108,7 +109,7 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
     {
       description:
         "Return the current user's USS home directory for the active (or specified) system. ",
-      annotations: { readOnlyHint: true },
+      _meta: { resourceEffectLevel: ResourceEffect.READ },
       outputSchema: getUssHomeOutputSchema,
       inputSchema: {
         system: z.string().optional().describe(SYSTEM_PARAM_DESCRIPTION),
@@ -165,7 +166,7 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
         'Set the USS current working directory for the active (or specified) system. ' +
         'Path can be absolute (starts with /) or relative to the current working directory. ' +
         'The new cwd is used to resolve relative paths in other USS tools and is shown in getContext as ussCwd.',
-      annotations: { readOnlyHint: true },
+      _meta: { resourceEffectLevel: ResourceEffect.READ },
       outputSchema: changeUssDirectoryOutputSchema,
       inputSchema: {
         path: z
@@ -232,7 +233,7 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
         'List files and directories in a USS path',
         PAGINATION_NOTE_LIST
       ),
-      annotations: { readOnlyHint: true },
+      _meta: { resourceEffectLevel: ResourceEffect.READ },
       inputSchema: {
         path: z
           .string()
@@ -339,7 +340,7 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
     {
       outputSchema: readUssFileOutputSchema,
       description: withPaginationNote('Read the content of a USS file', PAGINATION_NOTE_LINES),
-      annotations: { readOnlyHint: true },
+      _meta: { resourceEffectLevel: ResourceEffect.READ },
       inputSchema: {
         path: z
           .string()
@@ -498,7 +499,7 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
           'unknown commands require user confirmation via elicitation',
         PAGINATION_NOTE_LINES
       ),
-      annotations: { readOnlyHint: true },
+      _meta: { resourceEffectLevel: ResourceEffect.EXECUTE },
       inputSchema: {
         commandText: z
           .string()
@@ -635,6 +636,7 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
     'writeUssFile',
     {
       description: 'Write or overwrite a USS file. Creates the file if it does not exist.',
+      _meta: { resourceEffectLevel: ResourceEffect.UPDATE },
       outputSchema: writeUssFileOutputSchema,
       inputSchema: {
         path: z
@@ -703,6 +705,7 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
     'createUssFile',
     {
       description: 'Create a USS file or directory.',
+      _meta: { resourceEffectLevel: ResourceEffect.UPDATE },
       outputSchema: createUssFileOutputSchema,
       inputSchema: {
         path: z
@@ -759,7 +762,7 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
     'deleteUssFile',
     {
       description: 'Delete a USS file or directory. Use recursive for directories.',
-      annotations: { destructiveHint: true },
+      _meta: { resourceEffectLevel: ResourceEffect.DELETE },
       outputSchema: deleteUssFileOutputSchema,
       inputSchema: {
         path: z
@@ -811,6 +814,7 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
     'chmodUssFile',
     {
       description: 'Change permissions of a USS file or directory.',
+      _meta: { resourceEffectLevel: ResourceEffect.UPDATE },
       outputSchema: chmodUssFileOutputSchema,
       inputSchema: {
         path: z
@@ -859,6 +863,7 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
     'chownUssFile',
     {
       description: 'Change owner of a USS file or directory.',
+      _meta: { resourceEffectLevel: ResourceEffect.UPDATE },
       outputSchema: chownUssFileOutputSchema,
       inputSchema: {
         path: z
@@ -907,6 +912,7 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
     'chtagUssFile',
     {
       description: 'Set the z/OS file tag (encoding/type) for a USS file or directory.',
+      _meta: { resourceEffectLevel: ResourceEffect.UPDATE },
       outputSchema: chtagUssFileOutputSchema,
       inputSchema: {
         path: z
@@ -961,6 +967,7 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
   server.registerTool(
     'copyUssFile',
     {
+      _meta: { resourceEffectLevel: ResourceEffect.UPDATE },
       description:
         'Copy a USS file or directory within the same z/OS system. ' +
         'For directories, set recursive to true. ' +
@@ -1056,7 +1063,7 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
       description:
         'Generate a unique USS temporary directory path as a subdirectory of the given base path (e.g. /tmp or the user home). ' +
         'The path is verified not to exist on the system. Use createTempUssDir to create it, or createUssFile with isDirectory true.',
-      annotations: { readOnlyHint: true },
+      _meta: { resourceEffectLevel: ResourceEffect.READ },
       outputSchema: getUssTempDirOutputSchema,
       inputSchema: {
         basePath: z
@@ -1104,7 +1111,7 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
       description:
         'Return a unique USS temporary file path under the given directory. ' +
         'The path is verified not to exist; use writeUssFile or createUssFile to create the file.',
-      annotations: { readOnlyHint: true },
+      _meta: { resourceEffectLevel: ResourceEffect.READ },
       outputSchema: getUssTempPathOutputSchema,
       inputSchema: {
         dirPath: z
@@ -1150,6 +1157,7 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
   server.registerTool(
     'createTempUssDir',
     {
+      _meta: { resourceEffectLevel: ResourceEffect.UPDATE },
       description:
         'Create a temporary USS directory. Typically use a path from getUssTempDir. ' +
         'Creates the directory and any missing parents.',
@@ -1204,6 +1212,7 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
   server.registerTool(
     'createTempUssFile',
     {
+      _meta: { resourceEffectLevel: ResourceEffect.UPDATE },
       description:
         'Create an empty temporary USS file at the given path, creating parent directories if needed.',
       outputSchema: createTempUssFileOutputSchema,
@@ -1254,7 +1263,7 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
       description:
         'Delete all files and directories under the given USS path (the path itself is removed). ' +
         'Safety: path must contain the segment "tmp" (or "TMP") and have at least 3 path segments (e.g. /u/myuser/tmp/xyz).',
-      annotations: { destructiveHint: true },
+      _meta: { resourceEffectLevel: ResourceEffect.DELETE },
       outputSchema: deleteUssTempUnderDirOutputSchema,
       inputSchema: {
         path: z

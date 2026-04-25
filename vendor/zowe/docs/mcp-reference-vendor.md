@@ -2,7 +2,7 @@
 
 # Zowe CLI Plugin Tools Reference
 
-> Auto-generated from the Zowe MCP server (v0.9.0-dev, commit 08e8bc4). Do not edit manually — run `npx @zowe/mcp-server generate-docs` to regenerate.
+> Auto-generated from the Zowe MCP server (v0.9.0-dev, commit b5c0a15). Do not edit manually — run `npx @zowe/mcp-server generate-docs` to regenerate.
 
 > For core Zowe MCP tools, see [docs/mcp-reference.md](../../../docs/mcp-reference.md).
 
@@ -38,6 +38,7 @@ Lists all configured Db2 connection profiles.
 
 ### `db2SetConnection`
 
+> Read-only
 
 Sets the active Db2 connection. Call once before using tools; auto-selected when only one profile is configured.
 

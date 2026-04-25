@@ -21,6 +21,7 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { plural } from 'zowe-mcp-common';
+import { ResourceEffect } from '../../capability-level.js';
 import type { Logger } from '../../log.js';
 import type { JobFileEntry, JobStatusResult, ZosBackend } from '../../zos/backend.js';
 import type { CredentialProvider } from '../../zos/credentials.js';
@@ -296,7 +297,7 @@ export function registerJobTools(server: McpServer, deps: JobToolDeps, logger: L
       description:
         'Submit JCL to the current (or specified) z/OS system. When JCL has no JOB statement, the server uses a configured template or prompts for a card. Stored templates may include literal substrings {jobname} (case-insensitive) and {programmer}, replaced from jobName and programmer before prepending; a full JOB line entered at prompt is used as literal text without substitution. ' +
         'To wait for the job to complete, set wait: true (and optionally timeoutSeconds); the tool will then return status and optional output info. Submitting runs work on z/OS—use with care.',
-      annotations: { destructiveHint: true },
+      _meta: { resourceEffectLevel: ResourceEffect.EXECUTE },
       inputSchema: {
         lines: z
           .array(z.string())
@@ -539,7 +540,7 @@ export function registerJobTools(server: McpServer, deps: JobToolDeps, logger: L
       outputSchema: getJobStatusOutputSchema,
       description:
         'Get the current status of a z/OS job (INPUT, ACTIVE, or OUTPUT) and its return code when complete.',
-      annotations: { readOnlyHint: true },
+      _meta: { resourceEffectLevel: ResourceEffect.READ },
       inputSchema: {
         jobId: z.string().describe('Job ID (e.g. JOB00123 or J0nnnnnn).'),
         system: z
@@ -603,7 +604,7 @@ export function registerJobTools(server: McpServer, deps: JobToolDeps, logger: L
       outputSchema: listJobFilesOutputSchema,
       description:
         'List output files (spools) for a z/OS job. The job must be in OUTPUT status. Use getJobStatus to check status first.',
-      annotations: { readOnlyHint: true },
+      _meta: { resourceEffectLevel: ResourceEffect.READ },
       inputSchema: {
         jobId: z.string().describe('Job ID (e.g. JOB00123 or J0nnnnnn).'),
         system: z
@@ -693,7 +694,7 @@ export function registerJobTools(server: McpServer, deps: JobToolDeps, logger: L
         'Read the content of one job output file (spool); use listJobFiles to get job file IDs',
         PAGINATION_NOTE_LINES
       ),
-      annotations: { readOnlyHint: true },
+      _meta: { resourceEffectLevel: ResourceEffect.READ },
       inputSchema: {
         jobId: z.string().describe('Job ID (e.g. JOB00123 or J0nnnnnn).'),
         jobFileId: z.number().int().describe('Job file (spool) ID from listJobFiles.'),
@@ -793,7 +794,7 @@ export function registerJobTools(server: McpServer, deps: JobToolDeps, logger: L
       outputSchema: getJobOutputOutputSchema,
       description:
         'Get aggregated output from job files for a completed job. By default returns output from failed steps only when the job has a non-zero return code. Optional jobFileIds to limit to specific files.',
-      annotations: { readOnlyHint: true },
+      _meta: { resourceEffectLevel: ResourceEffect.READ },
       inputSchema: {
         jobId: z.string().describe('Job ID (e.g. JOB00123 or J0nnnnnn).'),
         system: z
@@ -959,7 +960,7 @@ export function registerJobTools(server: McpServer, deps: JobToolDeps, logger: L
       outputSchema: searchJobOutputOutputSchema,
       description:
         "Search for a substring in a job's output files (all files or one by jobFileId). Returns matching lines with location and text. Use offset/limit to page results.",
-      annotations: { readOnlyHint: true },
+      _meta: { resourceEffectLevel: ResourceEffect.READ },
       inputSchema: {
         jobId: z.string().describe('Job ID (e.g. JOB00123 or J0nnnnnn).'),
         searchString: z.string().min(1).describe('Substring to search for (literal, not regex).'),
@@ -1108,7 +1109,7 @@ export function registerJobTools(server: McpServer, deps: JobToolDeps, logger: L
       outputSchema: listJobsOutputSchema,
       description:
         'List jobs on the z/OS system with optional filters (owner, prefix, status). Use offset/limit to page results.',
-      annotations: { readOnlyHint: true },
+      _meta: { resourceEffectLevel: ResourceEffect.READ },
       inputSchema: {
         system: z
           .string()
@@ -1196,7 +1197,7 @@ export function registerJobTools(server: McpServer, deps: JobToolDeps, logger: L
     {
       outputSchema: getJclOutputSchema,
       description: 'Get the JCL for a job.',
-      annotations: { readOnlyHint: true },
+      _meta: { resourceEffectLevel: ResourceEffect.READ },
       inputSchema: {
         jobId: z.string().describe('Job ID (e.g. JOB00123 or J0nnnnnn).'),
         system: z
@@ -1241,7 +1242,7 @@ export function registerJobTools(server: McpServer, deps: JobToolDeps, logger: L
   function registerJobControlTool(
     name: string,
     description: string,
-    destructive: boolean,
+    level: (typeof ResourceEffect)[keyof typeof ResourceEffect],
     backendMethod: (
       systemId: string,
       jobId: string,
@@ -1254,7 +1255,7 @@ export function registerJobTools(server: McpServer, deps: JobToolDeps, logger: L
       {
         outputSchema,
         description,
-        annotations: destructive ? { destructiveHint: true } : {},
+        _meta: { resourceEffectLevel: level },
         inputSchema: {
           jobId: z.string().describe('Job ID (e.g. JOB00123 or J0nnnnnn).'),
           system: z
@@ -1307,28 +1308,28 @@ export function registerJobTools(server: McpServer, deps: JobToolDeps, logger: L
   registerJobControlTool(
     'cancelJob',
     'Cancel a job on the z/OS system.',
-    true,
+    ResourceEffect.DELETE,
     (systemId, jobId, progress) => deps.backend.cancelJob(systemId, jobId, progress),
     cancelJobOutputSchema
   );
   registerJobControlTool(
     'holdJob',
     'Hold a job on the z/OS system.',
-    true,
+    ResourceEffect.UPDATE,
     (systemId, jobId, progress) => deps.backend.holdJob(systemId, jobId, progress),
     holdJobOutputSchema
   );
   registerJobControlTool(
     'releaseJob',
     'Release a held job on the z/OS system.',
-    false,
+    ResourceEffect.UPDATE,
     (systemId, jobId, progress) => deps.backend.releaseJob(systemId, jobId, progress),
     releaseJobOutputSchema
   );
   registerJobControlTool(
     'deleteJob',
     'Delete a job from the output queue.',
-    true,
+    ResourceEffect.DELETE,
     (systemId, jobId, progress) => deps.backend.deleteJob(systemId, jobId, progress),
     deleteJobOutputSchema
   );
@@ -1339,7 +1340,7 @@ export function registerJobTools(server: McpServer, deps: JobToolDeps, logger: L
       outputSchema: submitJobFromDatasetOutputSchema,
       description:
         'Submit a job from a data set or PDS or PDS/E member containing JCL. The data set must contain valid JCL including a job card. Set wait: true to wait for the job to reach OUTPUT.',
-      annotations: { destructiveHint: true },
+      _meta: { resourceEffectLevel: ResourceEffect.EXECUTE },
       inputSchema: {
         dsn: z
           .string()
@@ -1450,7 +1451,7 @@ export function registerJobTools(server: McpServer, deps: JobToolDeps, logger: L
       outputSchema: submitJobFromUssOutputSchema,
       description:
         'Submit a job from a USS file path. The file must contain valid JCL including a job card. Set wait: true to wait for the job to reach OUTPUT and return status.',
-      annotations: { destructiveHint: true },
+      _meta: { resourceEffectLevel: ResourceEffect.EXECUTE },
       inputSchema: {
         path: z.string().describe('USS path to the JCL file (e.g. /u/myuser/job.jcl).'),
         system: z

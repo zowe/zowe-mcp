@@ -63,10 +63,35 @@ When the server needs a password, the extension will prompt you. Passwords are s
 
 **Note:** If both Mock Data Dir and SSH connections are set, **Backend** `zowex` (SSH) is used when connections are non-empty; use **Backend** `mock` to force mock mode.
 
+## Safety and security
+
+AI agents can make mistakes. When an agent has tools that modify or delete mainframe resources, an incorrect action can cause real damage. Zowe MCP provides multiple layers of protection.
+
+**Follow the principle of least privilege:** grant only the capability tier needed for the task, and raise it only when required. A narrower tier limits the blast radius of any mistake.
+
+| Capability Tier | What the agent can do |
+| --- | --- |
+| **read-strict** (default) | Read only, with client confirmation prompts (safest) |
+| **read** | Read only, auto-approved |
+| **update** | Read + create/write/modify |
+| **delete** | Read + update + delete/cancel |
+| **full** | Everything including job submit and command execution |
+
+Set the tier under **Zowe MCP > Capability Tier** in Settings. Start with `read-strict` and widen only as needed.
+
+Additional recommendations:
+
+- **Use a dedicated z/OS SSH user** with the minimum SAF / RACF authority needed. z/OS access controls are the ultimate enforcement boundary.
+- **Use mock mode** for exploration and testing — no real resources are at risk.
+- **Safety is not security** — confirmation dialogs and command gates reduce accidents; only z/OS security rules enforce real boundaries.
+
+For the full security model see [Safety & Security principles](https://github.com/zowe/zowe-mcp/blob/main/docs/mcp-safety-security-principles.md).
+
 ## Settings
 
 | Setting | Description |
 | --- | --- |
+| **Capability Tier** (`zoweMCP.capabilityTier`) | Controls which tools the AI assistant can use. Follow the principle of least privilege — grant only the tier needed. Default `read-strict` (safest). Changes require reloading the window. See [Safety and security](#safety-and-security). |
 | **Zowe Remote SSH: Zowex Connections** (`zoweMCP.zowexConnections`) | SSH connection specs: `user@host` or `user@host:port` (e.g. `USERID@sys1.example.com`). Each entry defines access to a z/OS system; you can have multiple connections to the same host. With default **Backend** `zowex`, add entries here to connect. Passwords are stored in VS Code Secret Storage (Zowe namespace). Changes require reloading the window. |
 | **Log Level** | Minimum log level (e.g. `info`, `debug`). Takes effect immediately without restart. |
 | **Install Zowe Remote SSH z/OS server automatically** | When enabled (default), the extension automatically installs the Zowe Remote SSH z/OS server on the host when "Server not found" is detected. Disable to use a pre-installed server only. Changes are sent to the server and apply to future connections. |
@@ -87,6 +112,7 @@ All options that affect the MCP server are documented below. The extension uses 
 
 | Setting ID | Type | Default | Description |
 | --- | --- | --- | --- |
+| `zoweMCP.capabilityTier` | string | `"read-strict"` | Which tools the AI can use: `read-strict`, `read`, `update`, `delete`, `full`. Follow the principle of least privilege. Changes require reloading the window. |
 | `zoweMCP.zowexConnections` | array of string | `[]` | SSH connection specs for Zowe Remote SSH / zowex: `user@host` or `user@host:port`. Each entry is one connection. Format is validated in Settings UI. Legacy `zoweMCP.nativeConnections` / `nativeSystems` in JSON are migrated into this key when read. |
 | `zoweMCP.logLevel` | string | `"info"` | Log level: `debug`, `info`, `notice`, `warning`, `error`, `critical`, `alert`, `emergency`. |
 | `zoweMCP.installZoweNativeServerAutomatically` | boolean | `true` | Auto-install Zowe Remote SSH z/OS server on host when "Server not found". |
@@ -102,6 +128,7 @@ All options that affect the MCP server are documented below. The extension uses 
 When running `npx @zowe/mcp-server` (or the bundled server) outside VS Code:
 
 - **Transport:** `--stdio` (default), `--http`, `--port <N>` (default 7542 for HTTP)
+- **Safety:** `--capability-tier <tier>` (`read-strict`, `read`, `update`, `delete`, `full`; default: `read-strict`)
 - **Backend:** `--mock <dir>`, `--native`, `--config <path>`, `--system <spec>` (repeatable). Config file may include `jobCards` per connection.
 - **Native:** `--native-server-auto-install=true|false` (default: true), `--native-server-path <path>`, `--native-response-timeout <seconds>` (default 60)
 - **Encoding:** `--default-mvs-encoding <name>` (e.g. IBM-037), `--default-uss-encoding <name>` (e.g. IBM-1047)
@@ -111,6 +138,7 @@ When running `npx @zowe/mcp-server` (or the bundled server) outside VS Code:
 
 ### Environment variables (standalone)
 
+- `ZOWE_MCP_CAPABILITY_TIER` — Capability tier (`read-strict`, `read`, `update`, `delete`, `full`; default: `read-strict`)
 - `ZOWE_MCP_MOCK_DIR` — Mock data directory (same as `--mock <dir>`)
 - `ZOWE_MCP_LOG_LEVEL` — Log level (e.g. `info`, `debug`)
 - `ZOWE_MCP_NATIVE_SERVER_AUTO_INSTALL` — `false` or `0` to disable auto-install

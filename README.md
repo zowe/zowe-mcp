@@ -14,6 +14,53 @@ The AI can combine multiple tools and reason over results to:
 
 See [Use cases](docs/use-cases.md) for the full list and more detail.
 
+## Safety and security
+
+AI agents can make mistakes. When an agent has tools that modify or delete
+mainframe resources, an incorrect action can cause real damage. Zowe MCP
+provides multiple layers of protection — use them together.
+
+**Read the full guide:** [Safety & Security principles](docs/mcp-safety-security-principles.md)
+
+### Key recommendations
+
+1. **Principle of least privilege** — Grant only the capability tier needed for
+   the task. Start with `read-strict` (the default) and raise it only when
+   required. A narrower tier limits the blast radius of any mistake.
+
+2. **Progressive capability tiers** — Each tool declares a *resource effect
+   level* (none → read → update → delete → execute). The operator-configured
+   *capability tier* controls which tools register and how MCP clients treat
+   them:
+
+   | Tier | What the agent can do |
+   | --- | --- |
+   | `read-strict` (default) | Read only, with client confirmation prompts |
+   | `read` | Read only, auto-approved |
+   | `update` | Read + create/write/modify |
+   | `delete` | Read + update + delete/cancel |
+   | `full` | Everything including job submit and command execution |
+
+   Configure via `--capability-tier <tier>`, env `ZOWE_MCP_CAPABILITY_TIER`,
+   or VS Code setting `zoweMCP.capabilityTier`.
+
+3. **Dedicated z/OS credentials** — Use a dedicated SSH user with the minimum
+   SAF / RACF authority needed. The z/OS security system is the ultimate
+   enforcement boundary — even if the MCP layer or the AI model fails, SAF
+   ensures the agent cannot exceed its authority.
+
+4. **Command safety gates** — TSO and USS command tools use pattern-based
+   evaluation (block / elicit / allow) to catch dangerous commands before
+   execution.
+
+5. **Mock mode for learning** — Use the mock backend for exploration and
+   CI — no real z/OS resources are at risk.
+
+6. **Safety is not security** — Client hints, confirmation dialogs, and
+   command gates reduce *accidents*. Only z/OS access controls (SAF, USS
+   ACLs, scheduler exits) and credential management *enforce* real
+   boundaries.
+
 ## Repository layout
 
 ```text

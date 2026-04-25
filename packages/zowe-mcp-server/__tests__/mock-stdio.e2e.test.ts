@@ -86,7 +86,7 @@ describe('Zowe MCP Server (mock stdio E2E)', () => {
   it('should run supported tools against default mock in one session', async () => {
     const transport = new StdioClientTransport({
       command: 'node',
-      args: [serverPath, '--stdio', '--mock', tmpdirPath],
+      args: [serverPath, '--stdio', '--mock', tmpdirPath, '--capability-tier', 'full'],
     });
     client = new Client({ name: 'e2e-mock-test', version: '1.0.0' });
     await client.connect(transport);
@@ -120,13 +120,19 @@ describe('Zowe MCP Server (mock stdio E2E)', () => {
         arguments: {},
         assertResult(parsed) {
           const o = parsed as {
-            server: { name: string; backend: string | null; components: string[] };
+            server: {
+              name: string;
+              backend: string | null;
+              components: string[];
+              maxEffectLevel?: string;
+            };
             activeSystem: { system: string; userId: string } | null;
           };
           expect(o.server.name).toBe('Zowe MCP Server');
           expect(o.server.backend).toBe('mock');
           expect(o.server.components).toContain('context');
           expect(o.server.components).toContain('datasets');
+          expect(o.server.maxEffectLevel).toBe('execute');
           expect(o.activeSystem).not.toBeNull();
           expect(o.activeSystem!.system).toBe(FIRST_SYSTEM);
           expect(o.activeSystem!.userId).toBe('USER');
@@ -218,7 +224,7 @@ describe('listMembers pagination (inventory 2000)', () => {
   it('should page through 2000 inventory members', async () => {
     const transport = new StdioClientTransport({
       command: 'node',
-      args: [serverPath, '--stdio', '--mock', tmpdirPath],
+      args: [serverPath, '--stdio', '--mock', tmpdirPath, '--capability-tier', 'full'],
     });
     client = new Client({ name: 'e2e-mock-inv-test', version: '1.0.0' });
     await client.connect(transport);
@@ -309,7 +315,7 @@ describe('readDataset pagination (pagination preset)', () => {
   it('should page through USER.LARGE.SEQ with hasMore and messages', async () => {
     const transport = new StdioClientTransport({
       command: 'node',
-      args: [serverPath, '--stdio', '--mock', tmpdirPath],
+      args: [serverPath, '--stdio', '--mock', tmpdirPath, '--capability-tier', 'full'],
     });
     client = new Client({ name: 'e2e-read-pagination-test', version: '1.0.0' });
     await client.connect(transport);
@@ -378,7 +384,7 @@ describe('readDataset pagination (pagination preset)', () => {
   it('should page through USER.INVNTORY(LARGE) member', async () => {
     const transport = new StdioClientTransport({
       command: 'node',
-      args: [serverPath, '--stdio', '--mock', tmpdirPath],
+      args: [serverPath, '--stdio', '--mock', tmpdirPath, '--capability-tier', 'full'],
     });
     client = new Client({ name: 'e2e-read-member-test', version: '1.0.0' });
     await client.connect(transport);

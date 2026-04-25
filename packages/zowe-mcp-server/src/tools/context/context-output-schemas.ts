@@ -187,6 +187,12 @@ const getContextServerSchema = z.object({
     .array(z.string())
     .describe('Registered component names (e.g. context, datasets, uss).'),
   backend: z.string().nullable().describe('Active backend: mock, zowex, or null.'),
+  maxEffectLevel: z
+    .string()
+    .optional()
+    .describe(
+      'Maximum resource effect level allowed by the active capability tier (none, read, update, delete, or execute). Determines which tools are registered.'
+    ),
 });
 
 export const getContextOutputSchema = z

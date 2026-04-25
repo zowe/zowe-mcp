@@ -18,6 +18,12 @@
 
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
+import {
+  type CapabilityTier,
+  EFFECT_LEVEL_NAME,
+  ResourceEffect,
+  TIER_TO_MAX_EFFECT,
+} from '../../capability-level.js';
 import type { Logger } from '../../log.js';
 import type { CredentialProvider } from '../../zos/credentials.js';
 import type { EncodingOptions } from '../../zos/encoding.js';
@@ -52,6 +58,8 @@ export interface ContextToolDeps {
   onActiveConnectionChanged?: (activeConnection: string) => void;
   /** Server-level default encodings. When provided, getContext includes effective encodings for the active system. */
   encodingOptions?: EncodingOptions;
+  /** Active capability tier. When provided, getContext includes it in server info. */
+  capabilityTier?: CapabilityTier;
   /**
    * When set (HTTP + JWT + tenant store), registers addZosConnection to append a connection and persist per OIDC sub.
    */
@@ -80,6 +88,7 @@ export function registerContextTools(
     jobCardStore,
     onActiveConnectionChanged,
     encodingOptions,
+    capabilityTier,
     addTenantNativeConnection,
     removeTenantNativeConnection,
   } = deps;
@@ -109,7 +118,7 @@ export function registerContextTools(
       {
         description:
           'Add a z/OS SSH connection (user@host or user@host:port) for the current signed-in user only. Each OIDC subject has a separate persisted list (no cross-user sharing). Prefer this over baking connection lists into server startup for remote HTTP. After adding, use setSystem with the new host or connection spec. Passwords for this user@host (SSH, Db2, etc.): MCP elicitation when supported, else ZOWE_MCP_PASSWORD_* / ZOWE_MCP_CREDENTIALS.',
-        annotations: { readOnlyHint: false },
+        _meta: { resourceEffectLevel: ResourceEffect.NONE },
         outputSchema: addZosConnectionOutputSchema,
         inputSchema: {
           connectionSpec: z
@@ -167,7 +176,7 @@ export function registerContextTools(
       {
         description:
           'Remove a z/OS SSH connection (user@host or user@host:port) from your per-user saved list (OIDC subject). Only connections previously added with addZosConnection or stored in the tenant file can be removed here. Connections supplied only via server startup (--config/--system) must be changed in server configuration. After removal, pick another system with setSystem if needed.',
-        annotations: { readOnlyHint: false, destructiveHint: true },
+        _meta: { resourceEffectLevel: ResourceEffect.NONE },
         outputSchema: removeZosConnectionOutputSchema,
         inputSchema: {
           connectionSpec: z
@@ -231,7 +240,7 @@ export function registerContextTools(
         description:
           'List all z/OS systems you have access to. Each system is a host; multiple configured connections (user@host) to the same host appear as one system with a connections list. ' +
           'Use setSystem to select which system (and optionally which connection) to use.',
-        annotations: { readOnlyHint: true },
+        _meta: { resourceEffectLevel: ResourceEffect.NONE },
         outputSchema: listSystemsOutputSchema,
       },
       async extra => {
@@ -271,6 +280,7 @@ export function registerContextTools(
           'Set the active z/OS system. The system parameter can be a host (e.g. zos.example.com) when only one connection exists for that host, or a connection spec (e.g. USER@zos.example.com) when multiple connections exist for the same host. ' +
           'If you pass only a host and multiple connections exist, the tool fails and lists valid connection values. ' +
           'Optionally set mainframe encodings for this system (data set and USS); omit to leave existing overrides unchanged, or pass null to use MCP server default.',
+        _meta: { resourceEffectLevel: ResourceEffect.NONE },
         outputSchema: setSystemOutputSchema,
         inputSchema: {
           system: z
@@ -381,7 +391,7 @@ export function registerContextTools(
         'Return the Zowe MCP server info (version, backend, components) and the current session context: active system, active connection (user@host), user ID, ' +
         'all known systems (with their connections when multiple exist), and recently used systems (those with saved context). ' +
         backendDescription,
-      annotations: { readOnlyHint: true },
+      _meta: { resourceEffectLevel: ResourceEffect.NONE },
       outputSchema: getContextOutputSchema,
     },
     async extra => {
@@ -396,6 +406,9 @@ export function registerContextTools(
           'MCP server providing tools for z/OS systems including data sets, jobs, and UNIX System Services',
         components,
         backend: backendKind,
+        ...(capabilityTier
+          ? { maxEffectLevel: EFFECT_LEVEL_NAME[TIER_TO_MAX_EFFECT[capabilityTier]] }
+          : {}),
       };
 
       if (!hasBackend) {

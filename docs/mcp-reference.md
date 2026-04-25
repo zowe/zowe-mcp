@@ -2,9 +2,9 @@
 
 # Zowe MCP Server Reference
 
-> Auto-generated from the MCP server (v0.9.0-dev, commit 08e8bc4). Do not edit manually — run `npx @zowe/mcp-server generate-docs` to regenerate.
+> Auto-generated from the MCP server (v0.9.0-dev, commit b5c0a15). Do not edit manually — run `npx @zowe/mcp-server generate-docs` to regenerate.
 
-This document describes all [Context](#context), [Data Sets](#data-sets), [USS](#uss), [TSO](#tso), [Jobs](#jobs), [Local Files](#local-files), [Other](#other), [db2 CLI Plugin Tools](#db2-cli-plugin-tools), [Tool Reference](#tool-reference), [Prompts](#prompts), [Resource Templates](#resource-templates) provided by the Zowe MCP Server.
+This document describes all [Context](#context), [Data Sets](#data-sets), [USS](#uss), [TSO](#tso), [Jobs](#jobs), [Local Files](#local-files), [Other](#other), [db2 CLI Plugin Tools](#db2-cli-plugin-tools), [Tool Reference](#tool-reference), [Capability Tiers](#capability-tiers), [Prompts](#prompts), [Resource Templates](#resource-templates) provided by the Zowe MCP Server.
 
 ## Context
 
@@ -283,6 +283,7 @@ List all z/OS systems you have access to. Each system is a host; multiple config
 
 ### `setSystem`
 
+> Read-only
 
 Set the active z/OS system. The system parameter can be a host (e.g. zos.example.com) when only one connection exists for that host, or a connection spec (e.g. USER@zos.example.com) when multiple connections exist for the same host. If you pass only a host and multiple connections exist, the tool fails and lists valid connection values. Optionally set mainframe encodings for this system (data set and USS); omit to leave existing overrides unchanged, or pass null to use MCP server default.
 
@@ -331,6 +332,7 @@ Output:
 
 ### `addZosConnection`
 
+> Read-only
 
 Add a z/OS SSH connection (user@host or user@host:port) for the current signed-in user only. Each OIDC subject has a separate persisted list (no cross-user sharing). Prefer this over baking connection lists into server startup for remote HTTP. After adding, use setSystem with the new host or connection spec. Passwords for this user@host (SSH, Db2, etc.): MCP elicitation when supported, else ZOWE_MCP_PASSWORD_* / ZOWE_MCP_CREDENTIALS.
 
@@ -1945,7 +1947,7 @@ Copy a USS file or directory within the same z/OS system. For directories, set r
 
 ### `runSafeUssCommand`
 
-> Read-only
+> Destructive
 
 Run a Unix command on z/OS USS. Results may be line-windowed; follow the pagination instructions in the server instructions. Only allowlisted (safe) commands run automatically; unknown commands require user confirmation via elicitation
 
@@ -2161,7 +2163,7 @@ Delete all files and directories under the given USS path (the path itself is re
 
 ### `runSafeTsoCommand`
 
-> Read-only
+> Destructive
 
 Run a TSO command on z/OS. Results may be line-windowed; follow the pagination instructions in the server instructions. Only allowlisted (safe) commands run automatically; unknown commands require user confirmation via elicitation. Requesting the same command without startLine and lineCount re-executes the command
 
@@ -2215,7 +2217,7 @@ Output:
   },
   "data": {
     "lines": [
-      "TIME-05:24:58 PM. CPU-00:00:00 SERVICE-26895 SESSION-00:01:53 APRIL 23,2026"
+      "TIME-08:56:15 AM. CPU-00:00:00 SERVICE-26895 SESSION-00:01:53 APRIL 25,2026"
     ],
     "mimeType": "text/plain"
   }
@@ -2619,7 +2621,6 @@ Cancel a job on the z/OS system.
 
 ### `holdJob`
 
-> Destructive
 
 Hold a job on the z/OS system.
 
@@ -2733,7 +2734,6 @@ Download a sequential data set or PDS/E member from z/OS to a file under the wor
 
 ### `uploadFileToDataset`
 
-> Destructive
 
 Upload a UTF-8 text file from the workspace to a sequential data set or PDS/E member on z/OS. Replaces the entire member or data set unless using etag for optimistic locking.
 
@@ -2792,7 +2792,6 @@ Download a z/OS USS file to a local workspace file as UTF-8 text. Path must be u
 
 ### `uploadFileToUssFile`
 
-> Destructive
 
 Upload a UTF-8 workspace file to a z/OS USS path. Creates or overwrites the remote file.
 
@@ -2851,7 +2850,7 @@ Download one job spool file from z/OS to a local workspace file as UTF-8 text. U
 
 ### `removeZosConnection`
 
-> Destructive
+> Read-only
 
 Remove a z/OS SSH connection (user@host or user@host:port) from your per-user saved list (OIDC subject). Only connections previously added with addZosConnection or stored in the tenant file can be removed here. Connections supplied only via server startup (--config/--system) must be changed in server configuration. After removal, pick another system with setSystem if needed.
 
@@ -2887,6 +2886,7 @@ Lists all configured Db2 connection profiles.
 
 ### `db2SetConnection`
 
+> Read-only
 
 Sets the active Db2 connection. Call once before using tools; auto-selected when only one profile is configured.
 
@@ -2948,6 +2948,116 @@ Exports a Db2 table as SQL INSERT statements, returning its full content in SQL 
 | `lineCount`    | `integer` | No       | Number of lines per window (default 1000). Used with startLine for windowed reads.           |
 
 ---
+
+## Capability Tiers
+
+The `capabilityTier` setting controls which tools are registered. Each tier includes all tools from lower tiers plus additional ones. The default tier is **read-strict** (safest).
+
+See [Safety and security principles](mcp-safety-security-principles.md) for detailed guidance.
+
+### `read-strict`
+
+Read-only with client confirmation prompts for every read operation. Safest tier for exploration.
+
+**31** tools available.
+
+| Tool                                              | Effect Level |
+|---------------------------------------------------|--------------|
+| [`getContext`](#getcontext)                       | none         |
+| [`listSystems`](#listsystems)                     | none         |
+| [`setSystem`](#setsystem)                         | none         |
+| [`addZosConnection`](#addzosconnection)           | none         |
+| [`listDatasets`](#listdatasets)                   | read         |
+| [`listMembers`](#listmembers)                     | read         |
+| [`searchInDataset`](#searchindataset)             | read         |
+| [`getDatasetAttributes`](#getdatasetattributes)   | read         |
+| [`readDataset`](#readdataset)                     | read         |
+| [`getTempDatasetPrefix`](#gettempdatasetprefix)   | read         |
+| [`getTempDatasetName`](#gettempdatasetname)       | read         |
+| [`getUssHome`](#getusshome)                       | read         |
+| [`changeUssDirectory`](#changeussdirectory)       | read         |
+| [`listUssFiles`](#listussfiles)                   | read         |
+| [`readUssFile`](#readussfile)                     | read         |
+| [`getUssTempDir`](#getusstempdir)                 | read         |
+| [`getUssTempPath`](#getusstemppath)               | read         |
+| [`getJobStatus`](#getjobstatus)                   | read         |
+| [`listJobFiles`](#listjobfiles)                   | read         |
+| [`readJobFile`](#readjobfile)                     | read         |
+| [`getJobOutput`](#getjoboutput)                   | read         |
+| [`searchJobOutput`](#searchjoboutput)             | read         |
+| [`listJobs`](#listjobs)                           | read         |
+| [`getJcl`](#getjcl)                               | read         |
+| [`downloadDatasetToFile`](#downloaddatasettofile) | read         |
+| [`downloadUssFileToFile`](#downloadussfiletofile) | read         |
+| [`downloadJobFileToFile`](#downloadjobfiletofile) | read         |
+| [`removeZosConnection`](#removezosconnection)     | none         |
+| [`db2ListConnections`](#db2listconnections)       | none         |
+| [`db2SetConnection`](#db2setconnection)           | none         |
+| [`db2ExportTable`](#db2exporttable)               | read         |
+
+### `read`
+
+Read-only with auto-approved reads. No confirmation prompts for read operations.
+
+**31** tools available.
+
+### `update`
+
+Adds tools that create, write, copy, rename, and modify resources.
+
+**49** tools available (18 new at this tier).
+
+| Tool                                          | Effect Level |
+|-----------------------------------------------|--------------|
+| [`writeDataset`](#writedataset)               | update       |
+| [`createDataset`](#createdataset)             | update       |
+| [`createTempDataset`](#createtempdataset)     | update       |
+| [`copyDataset`](#copydataset)                 | update       |
+| [`renameDataset`](#renamedataset)             | update       |
+| [`restoreDataset`](#restoredataset)           | update       |
+| [`writeUssFile`](#writeussfile)               | update       |
+| [`createUssFile`](#createussfile)             | update       |
+| [`chmodUssFile`](#chmodussfile)               | update       |
+| [`chownUssFile`](#chownussfile)               | update       |
+| [`chtagUssFile`](#chtagussfile)               | update       |
+| [`copyUssFile`](#copyussfile)                 | update       |
+| [`createTempUssDir`](#createtempussdir)       | update       |
+| [`createTempUssFile`](#createtempussfile)     | update       |
+| [`holdJob`](#holdjob)                         | update       |
+| [`releaseJob`](#releasejob)                   | update       |
+| [`uploadFileToDataset`](#uploadfiletodataset) | update       |
+| [`uploadFileToUssFile`](#uploadfiletoussfile) | update       |
+
+### `delete`
+
+Adds tools that delete or cancel resources.
+
+**55** tools available (6 new at this tier).
+
+| Tool                                                      | Effect Level |
+|-----------------------------------------------------------|--------------|
+| [`deleteDataset`](#deletedataset)                         | delete       |
+| [`deleteDatasetsUnderPrefix`](#deletedatasetsunderprefix) | delete       |
+| [`deleteUssFile`](#deleteussfile)                         | delete       |
+| [`deleteUssTempUnderDir`](#deleteusstempunderdir)         | delete       |
+| [`cancelJob`](#canceljob)                                 | delete       |
+| [`deleteJob`](#deletejob)                                 | delete       |
+
+### `full`
+
+Adds tools that execute commands and submit jobs. Full access to all operations.
+
+**62** tools available (7 new at this tier).
+
+| Tool                                            | Effect Level |
+|-------------------------------------------------|--------------|
+| [`runSafeUssCommand`](#runsafeusscommand)       | execute      |
+| [`runSafeTsoCommand`](#runsafetsocommand)       | execute      |
+| [`submitJob`](#submitjob)                       | execute      |
+| [`submitJobFromDataset`](#submitjobfromdataset) | execute      |
+| [`submitJobFromUss`](#submitjobfromuss)         | execute      |
+| [`db2ExecuteSql`](#db2executesql)               | execute      |
+| [`db2CallProcedure`](#db2callprocedure)         | execute      |
 
 ## Prompts
 

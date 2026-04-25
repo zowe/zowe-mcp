@@ -18,6 +18,7 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import * as fs from 'node:fs/promises';
 import path from 'node:path';
 import { z } from 'zod';
+import { ResourceEffect } from '../../capability-level.js';
 import type { Logger } from '../../log.js';
 import type { ZosBackend } from '../../zos/backend.js';
 import type { CredentialProvider } from '../../zos/credentials.js';
@@ -150,7 +151,7 @@ export function registerLocalFileTools(
         'Download a sequential data set or PDS/E member from z/OS to a file under the workspace. ' +
         'Writes UTF-8 text. Requires a local path under an MCP root or configured workspace directory. ' +
         'Missing parent directories for the destination file are created automatically.',
-      annotations: { readOnlyHint: true },
+      _meta: { resourceEffectLevel: ResourceEffect.READ },
       outputSchema: downloadDatasetToFileOutputSchema,
       inputSchema: {
         dsn: z.string().describe('Fully qualified data set name (e.g. USER.SRC.COBOL).'),
@@ -236,7 +237,7 @@ export function registerLocalFileTools(
       description:
         'Upload a UTF-8 text file from the workspace to a sequential data set or PDS/E member on z/OS. ' +
         'Replaces the entire member or data set unless using etag for optimistic locking.',
-      annotations: { destructiveHint: true },
+      _meta: { resourceEffectLevel: ResourceEffect.UPDATE },
       outputSchema: uploadFileToDatasetOutputSchema,
       inputSchema: {
         localPath: z
@@ -322,7 +323,7 @@ export function registerLocalFileTools(
         'Download a z/OS USS file to a local workspace file as UTF-8 text. ' +
         'Path must be under an MCP root or configured workspace directory. ' +
         'Missing parent directories for the destination file are created automatically.',
-      annotations: { readOnlyHint: true },
+      _meta: { resourceEffectLevel: ResourceEffect.READ },
       outputSchema: downloadUssFileToFileOutputSchema,
       inputSchema: {
         path: z
@@ -420,7 +421,7 @@ export function registerLocalFileTools(
     {
       description:
         'Upload a UTF-8 workspace file to a z/OS USS path. Creates or overwrites the remote file.',
-      annotations: { destructiveHint: true },
+      _meta: { resourceEffectLevel: ResourceEffect.UPDATE },
       outputSchema: uploadFileToUssFileOutputSchema,
       inputSchema: {
         localPath: z.string().describe('Source file under workspace roots or fallback directory.'),
@@ -495,7 +496,7 @@ export function registerLocalFileTools(
         'Download one job spool file from z/OS to a local workspace file as UTF-8 text. ' +
         'Use listJobFiles to obtain jobFileId. ' +
         'Missing parent directories for the destination file are created automatically.',
-      annotations: { readOnlyHint: true },
+      _meta: { resourceEffectLevel: ResourceEffect.READ },
       outputSchema: downloadJobFileToFileOutputSchema,
       inputSchema: {
         jobId: z.string().describe('Job ID (e.g. JOB00123).'),

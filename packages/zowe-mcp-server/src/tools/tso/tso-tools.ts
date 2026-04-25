@@ -18,6 +18,7 @@
 
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
+import { ResourceEffect } from '../../capability-level.js';
 import type { Logger } from '../../log.js';
 import type { ZosBackend } from '../../zos/backend.js';
 import type { CredentialProvider } from '../../zos/credentials.js';
@@ -84,7 +85,7 @@ export function registerTsoTools(server: McpServer, deps: TsoToolDeps, logger: L
           'Requesting the same command without startLine and lineCount re-executes the command',
         PAGINATION_NOTE_LINES
       ),
-      annotations: { readOnlyHint: true },
+      _meta: { resourceEffectLevel: ResourceEffect.EXECUTE },
       inputSchema: {
         commandText: z
           .string()

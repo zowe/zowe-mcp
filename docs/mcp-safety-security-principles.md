@@ -94,21 +94,48 @@ Runtime behavior could mirror GitHub MCP: **hide** tools at discovery time when 
 
 ---
 
-## 7. Progressive safety configuration (proposed for stdio / local use)
+## 7. Progressive capability tiers (implemented)
 
-The following **capability-level** model is **not implemented as a single product knob** in Zowe MCP today (see [§10](#10-implementation-status-in-zowe-mcp)). It is a **reasonable operator pattern** for teams that want explicit safety rails while experimenting—especially when personal credentials are broader than the task requires. **Planned implementation** is the first item under **MCP safety & security** in [TODO.md](../TODO.md).
+Zowe MCP implements a two-concept model for progressive safety:
 
-### Capability levels (conceptual)
+1. **Resource effect level** (per tool, 0–4) — the inherent impact of a tool on resources:
 
-| Level | Name | Intent |
+| Level | Constant | Meaning |
 | --- | --- | --- |
-| 1 | Read-only, explicit | Read operations only; combine with client confirmations or human-in-the-loop workflows. |
-| 2 | Read-only, auto | Read operations without per-call approval; still bounded by z/OS profiles. |
-| 3 | Update | Read + create/update existing user-owned objects. |
-| 4 | Delete | Adds deletion (data sets, USS objects, jobs as supported). |
-| 5 | Execute | Full operational surface including job submission, TSO/USS command tools, and other state-changing paths. |
+| 0 | `ResourceEffect.NONE` | No resource effect — MCP server management (connections, profiles, context). |
+| 1 | `ResourceEffect.READ` | Read resources (list, read, search, download). |
+| 2 | `ResourceEffect.UPDATE` | Update resources (create, write, copy, rename, modify). |
+| 3 | `ResourceEffect.DELETE` | Delete resources (delete, cancel). |
+| 4 | `ResourceEffect.EXECUTE` | Execute (submit jobs, run commands). |
 
-Levels are cumulative. In the absence of native server support, approximate them with **separate service accounts**, **mock mode** for learning, and **client-side tool restrictions** where available.
+1. **Capability tier** (operator setting) — controls which tools register and how MCP hints are set:
+
+| Tier | Allowed levels | Hint behavior |
+| --- | --- | --- |
+| `read-strict` (default) | 0 + 1 | Level 1 tools get `readOnlyHint: false` (clients prompt for confirmation). |
+| `read` | 0 + 1 | Level 1 tools get `readOnlyHint: true` (auto-approved). |
+| `update` | 0 + 1 + 2 | Level 2 tools: `readOnlyHint: false`, `destructiveHint: false`. |
+| `delete` | 0 + 1 + 2 + 3 | Level 3+ tools: `destructiveHint: true`. |
+| `full` | 0 + 1 + 2 + 3 + 4 | All tools including job submit and command execution. |
+
+Level 0 tools (MCP server management) always have `readOnlyHint: true` regardless of tier.
+
+### Configuration
+
+Set the tier via (in priority order):
+
+- `CreateServerOptions.capabilityTier` (programmatic)
+- `--capability-tier <tier>` CLI flag
+- `ZOWE_MCP_CAPABILITY_TIER` environment variable
+- VS Code setting `zoweMCP.capabilityTier`
+- Default: `read-strict`
+
+### How it works
+
+Each tool declares its resource effect level in `_meta.resourceEffectLevel` (built-in tools use `ResourceEffect.*` constants; CLI bridge tools declare it as a number in their YAML). At server startup, `installCapabilityFilter` wraps `registerTool` so that:
+
+1. Tools whose effect level exceeds the tier's maximum are **not registered** (invisible to clients).
+2. MCP `annotations` (`readOnlyHint`, `destructiveHint`) are **derived** from the effect level and tier — never set manually.
 
 ### Functional scoping (second dimension)
 
@@ -159,7 +186,8 @@ This section states **explicitly** what this repository already provides versus 
 | **Transports** | stdio and Streamable HTTP; optional JWT validation for HTTP (`ZOWE_MCP_JWT_ISSUER`, `ZOWE_MCP_JWKS_URI`, optional audience). |
 | **Identity vs z/OS access** | Bearer token identifies the MCP HTTP caller; **z/OS access uses SSH** and separate credential resolution (env, Vault, elicitation, tenant store)—not the OAuth password. See [mcp-authentication-oauth.md](./mcp-authentication-oauth.md). |
 | **Multi-user HTTP** | Per-tenant connection persistence and isolation when JWT + `ZOWE_MCP_TENANT_STORE_DIR` are set; optional encrypt-at-rest (`ZOWE_MCP_TENANT_STORE_KEY`). |
-| **Tool hints** | `readOnlyHint` / `destructiveHint` on tools for supporting MCP clients (UX, not enforcement). |
+| **Tool hints** | `readOnlyHint` / `destructiveHint` derived from each tool's `resourceEffectLevel` and the active capability tier (UX, not enforcement). |
+| **Progressive capability tiers** (§7) | `--capability-tier` / `ZOWE_MCP_CAPABILITY_TIER` / VS Code `zoweMCP.capabilityTier`. Default `read-strict`. Filters tools at registration and derives hints. |
 | **Command safety** | Pattern-based evaluation for TSO and USS command tools (`tso-command-patterns.json`, USS path/command gates); block vs elicit vs allow paths. |
 | **Audit / debug** | Optional full tool-call logging (`ZOWE_MCP_LOG_TOOL_CALLS` / `CreateServerOptions.logToolCalls`)—operational risk if secrets appear in arguments. |
 | **Backend choice** | Mock filesystem backend vs native (Zowe Remote SSH) to limit real system exposure during learning or CI. |
@@ -171,7 +199,7 @@ These are **not** provided as first-class Zowe MCP features today. Some are **in
 
 | Topic | In Zowe MCP today | Notes |
 | --- | --- | --- |
-| **Progressive capability levels** (§7) | No single cumulative tier (1–5) controlling which tools register or run | **Planned first** — [TODO.md](../TODO.md) |
+| **Progressive capability levels** (§7) | **Implemented** — see §7 and `capability-level.ts`. | ✅ Done |
 | **OAuth / JWT scope → tool list** (§6) | JWT validates caller identity; **no** mapping from token scopes/claims to subsets of tools | Planned — [TODO.md](../TODO.md) |
 | **In-server functional scoping** (§7) | No “datasets-only / jobs-only / USS-only” switch on one server process | Planned — [TODO.md](../TODO.md) |
 | **In-server data scope policy** (§7) | No built-in HLQ or USS path allowlist enforced in tool handlers | Planned — [TODO.md](../TODO.md) |

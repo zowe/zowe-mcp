@@ -12,6 +12,7 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { createRequire } from 'node:module';
 import { z } from 'zod';
+import { ResourceEffect } from '../../capability-level.js';
 import type { Logger } from '../../log.js';
 import type { ZosBackend } from '../../zos/backend.js';
 import type { CredentialProvider } from '../../zos/credentials.js';
@@ -76,6 +77,7 @@ export function registerConsoleTools(
   server.registerTool(
     'runConsoleCommand',
     {
+      _meta: { resourceEffectLevel: ResourceEffect.EXECUTE },
       description:
         'Run a z/OS operator console command (e.g. DISPLAY T, DISPLAY A). ' +
         'System-shutdown commands (HALT, SHUTDOWN, QUIESCE, Z EOD) are blocked. ' +

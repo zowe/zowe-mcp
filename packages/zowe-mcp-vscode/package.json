@@ -136,6 +136,27 @@
           "markdownDescription": "Backend to use for z/OS operations. Changes require running **Developer: Reload Window** command.",
           "order": 0
         },
+        "zoweMCP.capabilityTier": {
+          "type": "string",
+          "enum": [
+            "read-strict",
+            "read",
+            "update",
+            "delete",
+            "full"
+          ],
+          "default": "read-strict",
+          "enumDescriptions": [
+            "Read-only with client confirmation prompts for every read operation (safest).",
+            "Read-only, auto-approved by the client.",
+            "Read + create/write/modify resources.",
+            "Read + update + delete/cancel resources.",
+            "Full access including job submission and command execution."
+          ],
+          "description": "Controls which tools the AI assistant can use. Follow the principle of least privilege: grant only the tier needed for the task, and raise it only when required. AI agents can make mistakes — a narrower tier limits the blast radius. Default is 'read-strict' (safest). Changes require running 'Developer: Reload Window' command. See the Safety & Security documentation for details.",
+          "markdownDescription": "Controls which tools the AI assistant can use. **Follow the principle of least privilege:** grant only the tier needed for the task, and raise it only when required. AI agents can make mistakes — a narrower tier limits the blast radius. Changes require running **Developer: Reload Window** command.\n\n- **read-strict** — read-only, client prompts for confirmation on every read (safest)\n- **read** — read-only, auto-approved by the client\n- **update** — read + create/write/modify resources\n- **delete** — read + update + delete/cancel resources\n- **full** — all tools including job submission and command execution\n\nSee [Safety & Security principles](https://github.com/zowe/zowe-mcp/blob/main/docs/mcp-safety-security-principles.md) for the full security model.",
+          "order": 1
+        },
         "zoweMCP.zowexConnections": {
           "type": "array",
           "items": {
@@ -146,7 +167,7 @@
           "default": [],
           "description": "SSH connection specs (user@host or user@host:port) for Zowe Remote SSH / zowex. Each entry is one connection. Passwords use the shared Zowe secret namespace (zowe.ssh.password.*).",
           "markdownDescription": "SSH connection specs (`user@host` or `user@host:port`) for **Zowe Remote SSH / zowex**. Each entry is one connection. Passwords use the shared Zowe secret namespace (`zowe.ssh.password.*`).",
-          "order": 1
+          "order": 2
         },
         "zoweMCP.logLevel": {
           "type": "string",

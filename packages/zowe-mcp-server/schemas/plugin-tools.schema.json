@@ -381,13 +381,30 @@
           "$ref": "#/definitions/descriptionVariants",
           "description": "Description variants for this tool. At least one variant should be provided. The first sentence appears in the MCP tools table in docs/mcp-reference.md."
         },
+        "resourceEffectLevel": {
+          "description": "Resource effect level for capability-tier gating. Determines which capability tier is required to register this tool and controls the MCP hints (readOnlyHint, destructiveHint) derived at startup. Accepts a name or a number (0–4). Defaults to 'read' when omitted.",
+          "oneOf": [
+            {
+              "type": "string",
+              "enum": ["none", "read", "update", "delete", "execute"],
+              "description": "Named resource effect level: 'none' (0) = no resource effect (server management), 'read' (1) = read resources, 'update' (2) = create/write/modify, 'delete' (3) = delete/cancel, 'execute' (4) = submit jobs / run commands."
+            },
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4,
+              "description": "Numeric resource effect level: 0 = none, 1 = read, 2 = update, 3 = delete, 4 = execute."
+            }
+          ],
+          "examples": ["read", "execute", 1, 4]
+        },
         "readOnlyHint": {
           "type": "boolean",
-          "description": "When true, VS Code Copilot skips the confirmation dialog before calling this tool. Set for tools that only read data (list, print, query)."
+          "description": "Deprecated — use resourceEffectLevel instead. Ignored when resourceEffectLevel is set."
         },
         "destructiveHint": {
           "type": "boolean",
-          "description": "When true, VS Code Copilot shows a warning before calling this tool. Set for tools that modify or delete data."
+          "description": "Deprecated — use resourceEffectLevel instead. Ignored when resourceEffectLevel is set."
         },
         "locationParams": {
           "description": "Controls which fields from perToolOverride: true profile types are injected as optional parameters into this tool's input schema. true = all fields; string[] = named subset; false/absent = none.",

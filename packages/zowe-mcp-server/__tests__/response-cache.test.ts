@@ -372,6 +372,7 @@ describe('Response cache', () => {
         credentialProvider,
         responseCache: createResponseCache({ ttlMs: 60_000, maxSizeBytes: 10 * 1024 * 1024 }),
         logToolCalls: true,
+        capabilityTier: 'full',
       })
     );
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
@@ -419,6 +420,7 @@ describe('Response cache', () => {
         credentialProvider,
         responseCache: createResponseCache({ ttlMs: 60_000, maxSizeBytes: 10 * 1024 * 1024 }),
         logToolCalls: true,
+        capabilityTier: 'full',
       })
     );
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
@@ -466,6 +468,7 @@ describe('Response cache', () => {
         credentialProvider,
         responseCache: createResponseCache({ ttlMs: 60_000, maxSizeBytes: 10 * 1024 * 1024 }),
         logToolCalls: true,
+        capabilityTier: 'full',
       })
     );
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
@@ -513,6 +516,7 @@ describe('Response cache', () => {
         credentialProvider,
         responseCache: false,
         logToolCalls: true,
+        capabilityTier: 'full',
       })
     );
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
@@ -561,6 +565,7 @@ describe('Response cache', () => {
           credentialProvider,
           responseCache: createResponseCache({ ttlMs: 60_000, maxSizeBytes: 10 * 1024 * 1024 }),
           logToolCalls: true,
+          capabilityTier: 'full',
         })
       );
       const [_clientTransport, _serverTransport] = InMemoryTransport.createLinkedPair();
@@ -699,6 +704,7 @@ describe('Response cache', () => {
           credentialProvider,
           responseCache: cache,
           logToolCalls: true,
+          capabilityTier: 'full',
         })
       );
       const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
@@ -761,6 +767,7 @@ describe('Response cache', () => {
           credentialProvider,
           tenantSub,
           logToolCalls: true,
+          capabilityTier: 'full',
         })
       );
       const [c1t, s1t] = InMemoryTransport.createLinkedPair();
@@ -790,6 +797,7 @@ describe('Response cache', () => {
           credentialProvider,
           tenantSub,
           logToolCalls: true,
+          capabilityTier: 'full',
         })
       );
       const [c2t, s2t] = InMemoryTransport.createLinkedPair();

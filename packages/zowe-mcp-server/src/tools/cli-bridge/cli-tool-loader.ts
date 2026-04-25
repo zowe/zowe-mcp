@@ -32,6 +32,7 @@ import { load as yamlLoad } from 'js-yaml';
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { z } from 'zod';
+import { parseEffectLevel, ResourceEffect } from '../../capability-level.js';
 import type { Logger } from '../../log.js';
 import {
   buildCacheKey,
@@ -704,7 +705,7 @@ function registerProfileMutationTools(
       {
         description: addDesc,
         inputSchema: shape,
-        annotations: { readOnlyHint: false },
+        _meta: { resourceEffectLevel: ResourceEffect.NONE },
       },
       async (args: Record<string, unknown>) => {
         const profileId = profileArgToString(args.profileId);
@@ -823,7 +824,7 @@ function registerProfileMutationTools(
             .min(1)
             .describe(`The id of the ${typeDef.name} profile to remove.`),
         },
-        annotations: { readOnlyHint: false, destructiveHint: true },
+        _meta: { resourceEffectLevel: ResourceEffect.NONE },
       },
       async (args: Record<string, unknown>) => {
         const profileId = profileArgToString(args.profileId);
@@ -948,7 +949,7 @@ function registerProfileTools(
       {
         description: listDesc,
         inputSchema: {},
-        annotations: { readOnlyHint: true },
+        _meta: { resourceEffectLevel: ResourceEffect.NONE },
       },
       () => {
         const profiles = (state.profilesByType.get(typeKey) ?? []).map(p => {
@@ -996,7 +997,7 @@ function registerProfileTools(
               .string()
               .describe(`The ID of the ${typeDef.name} profile to activate.`),
           },
-          annotations: { readOnlyHint: false },
+          _meta: { resourceEffectLevel: ResourceEffect.NONE },
         },
         (args: Record<string, unknown>) => {
           const id = args[idParamName] as string;
@@ -1057,7 +1058,7 @@ function registerProfileTools(
         {
           description: setDesc,
           inputSchema: shape,
-          annotations: { readOnlyHint: false },
+          _meta: { resourceEffectLevel: ResourceEffect.NONE },
         },
         (args: Record<string, unknown>) => {
           // Start fresh (no args = clear)
@@ -1595,9 +1596,8 @@ function registerPluginTool(
     {
       description,
       inputSchema,
-      annotations: {
-        readOnlyHint: toolDef.readOnlyHint ?? false,
-        destructiveHint: toolDef.destructiveHint ?? false,
+      _meta: {
+        resourceEffectLevel: parseEffectLevel(toolDef.resourceEffectLevel) ?? ResourceEffect.READ,
       },
     },
     async (args: Record<string, unknown>) => {

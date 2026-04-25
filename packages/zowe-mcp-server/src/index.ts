@@ -43,6 +43,7 @@ import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
 import { loadJwtAuthConfigFromEnv, type TenantJwtClaims } from './auth/bearer-jwt.js';
 import { getOrCreateTenantCliPluginStates, tenantKeyFromSub } from './auth/tenant-resources.js';
+import { parseCapabilityTier, type CapabilityTier } from './capability-level.js';
 import type {
   CeedumpCollectedEventData,
   OpenDatasetInEditorEventData,
@@ -168,6 +169,8 @@ interface ParsedArgs {
    * Populated from repeatable --cli-plugin-configuration name=file flags.
    */
   cliPluginConfiguration: Record<string, string>;
+  /** Capability tier (read-strict | read | update | delete | full). */
+  capabilityTier?: CapabilityTier;
 }
 
 /** One CLI plugin bridge entry (one --cli-plugin-yaml / --cli-plugin-connection-file pair). */
@@ -455,7 +458,14 @@ function parseArgs(): ParsedArgs {
         type: 'array',
         string: true,
         describe:
-          'Connection file for an auto-discovered plugin: name=connfile (repeatable, e.g. db2=/path/to/conn.json).',
+          'Connection file for an auto-discovered plugin: name=conf-file (repeatable, e.g. db2=/path/to/conf.json).',
+      },
+      'capability-tier': {
+        type: 'string',
+        describe:
+          'Resource capability tier: read-strict (default, safest), read, update, delete, or full. ' +
+          'Controls which tools are registered and how MCP hints are set. ' +
+          'Also settable via ZOWE_MCP_CAPABILITY_TIER env var.',
       },
     })
     .alias('h', 'help')
@@ -551,6 +561,7 @@ function parseArgs(): ParsedArgs {
     cliPluginsDir: argv['cli-plugins-dir'] as string | undefined,
     enabledCliPlugins,
     cliPluginConfiguration,
+    capabilityTier: parseCapabilityTier(argv['capability-tier'] as string | undefined),
   };
   applyEnvOverrides(parsed);
   return parsed;
@@ -1376,6 +1387,10 @@ async function main(): Promise<void> {
 
   if (serverOptions) {
     serverOptions.localFilesFallbackDirectories = buildLocalFilesFallbackDirectories(parsed);
+  }
+  if (parsed.capabilityTier) {
+    serverOptions = serverOptions ?? {};
+    serverOptions.capabilityTier = parsed.capabilityTier;
   }
 
   const buildZoweExplorerCallbacks = (): ZoweExplorerCallbacks | null => {

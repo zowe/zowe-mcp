@@ -148,6 +148,7 @@ export function activate(context: vscode.ExtensionContext): void {
       const backendChanged = e.affectsConfiguration('zoweMCP.backend');
       const mockDataDirectoryChanged = e.affectsConfiguration('zoweMCP.mockDataDirectory');
       const enabledCliPluginsChanged = e.affectsConfiguration('zoweMCP.enabledCliPlugins');
+      const capabilityTierChanged = e.affectsConfiguration('zoweMCP.capabilityTier');
 
       void Promise.resolve().then(() => {
         if (logLevelChanged) {
@@ -210,7 +211,8 @@ export function activate(context: vscode.ExtensionContext): void {
           zowexOptionsChanged ||
           encodingChanged ||
           jobCardsChanged ||
-          enabledCliPluginsChanged;
+          enabledCliPluginsChanged ||
+          capabilityTierChanged;
         if (
           affectsServerStartup &&
           cursorMcpRegistered &&
@@ -382,6 +384,11 @@ export async function buildServerConfig(
   }
   if (defaultMainframeUssEncoding?.trim()) {
     args.push('--default-uss-encoding', defaultMainframeUssEncoding.trim());
+  }
+
+  const capabilityTier = config.get<string>('capabilityTier', '').trim();
+  if (capabilityTier) {
+    args.push('--capability-tier', capabilityTier);
   }
 
   // CLI plugin bridge: auto-discovery from bundled plugins dir

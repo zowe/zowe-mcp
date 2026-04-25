@@ -423,9 +423,17 @@ export interface PluginToolDef {
   activeDescription?: string;
   /** Description text variants. */
   descriptions: DescriptionVariants;
-  /** When true, VS Code skips the confirmation dialog before calling this tool. */
+  /**
+   * Resource effect level for capability-tier gating (required).
+   *
+   * Accepts a name (`none`, `read`, `update`, `delete`, `execute`)
+   * or a number (0–4). MCP hints are derived automatically from this
+   * value and the active capability tier.
+   */
+  resourceEffectLevel?: number | string;
+  /** @deprecated Use `resourceEffectLevel` instead. Ignored when `resourceEffectLevel` is set. */
   readOnlyHint?: boolean;
-  /** When true, VS Code shows a warning before calling this tool. */
+  /** @deprecated Use `resourceEffectLevel` instead. Ignored when `resourceEffectLevel` is set. */
   destructiveHint?: boolean;
   /**
    * When true, automatically inject all `perToolOverride: true` profile fields

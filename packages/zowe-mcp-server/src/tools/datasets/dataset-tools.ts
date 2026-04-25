@@ -23,6 +23,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
+import { ResourceEffect } from '../../capability-level.js';
 import type { Logger } from '../../log.js';
 import type { DatasetEntry, MemberEntry, ZosBackend } from '../../zos/backend.js';
 import type { CredentialProvider } from '../../zos/credentials.js';
@@ -294,7 +295,7 @@ export function registerDatasetTools(
           dslevelDescription,
         PAGINATION_NOTE_LIST
       ),
-      annotations: { readOnlyHint: true },
+      _meta: { resourceEffectLevel: ResourceEffect.READ },
       outputSchema: listDatasetsOutputSchema,
       inputSchema: {
         dsnPattern: z
@@ -421,7 +422,7 @@ export function registerDatasetTools(
         'List members of a PDS or PDS/E data set',
         PAGINATION_NOTE_LIST
       ),
-      annotations: { readOnlyHint: true },
+      _meta: { resourceEffectLevel: ResourceEffect.READ },
       outputSchema: listMembersOutputSchema,
       inputSchema: {
         dsn: z.string().describe('Fully qualified data set name (e.g. USER.SRC.COBOL).'),
@@ -515,7 +516,7 @@ export function registerDatasetTools(
           'Options: caseSensitive (default false), cobol (search cols 7–72 only), ignoreSequenceNumbers (exclude cols 73–80, default true), doNotProcessComments, includeContextLines (±6 lines via LPSF)',
         PAGINATION_NOTE_LIST
       ),
-      annotations: { readOnlyHint: true },
+      _meta: { resourceEffectLevel: ResourceEffect.READ },
       outputSchema: searchInDatasetOutputSchema,
       inputSchema: {
         dsn: z
@@ -715,7 +716,7 @@ export function registerDatasetTools(
         'Get detailed attributes of a data set: organization, record format, ' +
         'record length, block size, volume, SMS classes, dates, and more. ' +
         'You may pass dsn as USER.LIB(MEM) and omit member.',
-      annotations: { readOnlyHint: true },
+      _meta: { resourceEffectLevel: ResourceEffect.READ },
       outputSchema: getDatasetAttributesOutputSchema,
       inputSchema: {
         dsn: z.string().describe('Fully qualified data set name (e.g. USER.SRC.COBOL).'),
@@ -802,7 +803,7 @@ export function registerDatasetTools(
           'You may pass dsn as USER.LIB(MEM) and omit member',
         PAGINATION_NOTE_LINES
       ),
-      annotations: { readOnlyHint: true },
+      _meta: { resourceEffectLevel: ResourceEffect.READ },
       outputSchema: readDatasetOutputSchema,
       inputSchema: {
         dsn: z.string().describe('Fully qualified data set name (e.g. USER.SRC.COBOL).'),
@@ -923,6 +924,7 @@ export function registerDatasetTools(
   server.registerTool(
     'writeDataset',
     {
+      _meta: { resourceEffectLevel: ResourceEffect.UPDATE },
       description:
         'Write UTF-8 content to a sequential data set or PDS/E member. ' +
         'When startLine and endLine are provided, the block of records from startLine to endLine (inclusive) is replaced by the given lines; the number of lines need not match (data set can grow or shrink). ' +
@@ -1045,7 +1047,7 @@ export function registerDatasetTools(
       description:
         'Return a unique DSN prefix (HLQ) under which temporary data sets can be created. ' +
         `The prefix is verified not to exist on the system. Default: current user + .${REQUIRED_SAFETY_QUALIFIER}.`,
-      annotations: { readOnlyHint: true },
+      _meta: { resourceEffectLevel: ResourceEffect.READ },
       outputSchema: getTempDatasetPrefixOutputSchema,
       inputSchema: {
         prefix: z
@@ -1111,7 +1113,7 @@ export function registerDatasetTools(
       description:
         'Returns a single unique full temporary data set name (for one data set). ' +
         'The DSN is verified not to exist on the system. Same prefix/suffix defaults as getTempDatasetPrefix.',
-      annotations: { readOnlyHint: true },
+      _meta: { resourceEffectLevel: ResourceEffect.READ },
       outputSchema: getTempDatasetNameOutputSchema,
       inputSchema: {
         prefix: z
@@ -1180,6 +1182,7 @@ export function registerDatasetTools(
   server.registerTool(
     'createDataset',
     {
+      _meta: { resourceEffectLevel: ResourceEffect.UPDATE },
       description:
         'Create a new sequential or partitioned data set. ' +
         'Specify the type (PS/SEQUENTIAL, PO/PDS, PO-E/PDSE/LIBRARY) and optional attributes (primarySpace, secondarySpace, blockSize, recfm, lrecl). ' +
@@ -1339,6 +1342,7 @@ export function registerDatasetTools(
   server.registerTool(
     'createTempDataset',
     {
+      _meta: { resourceEffectLevel: ResourceEffect.UPDATE },
       description:
         'Creates a new data set with a unique temporary name in a single call. ' +
         `Returns the created DSN for subsequent steps or cleanup. Same creation options as createDataset; optional prefix/suffix/qualifier for naming. Default prefix: current user + .${REQUIRED_SAFETY_QUALIFIER}. ` +
@@ -1507,7 +1511,7 @@ export function registerDatasetTools(
       description:
         'Delete a data set or a specific PDS or PDS/E member. ' +
         'You may pass dsn as USER.LIB(MEM) and omit member.',
-      annotations: { destructiveHint: true },
+      _meta: { resourceEffectLevel: ResourceEffect.DELETE },
       outputSchema: deleteDatasetOutputSchema,
       inputSchema: {
         dsn: z.string().describe('Fully qualified data set name (e.g. USER.SRC.COBOL).'),
@@ -1583,7 +1587,7 @@ export function registerDatasetTools(
       description:
         'Delete all data sets whose names start with the given prefix (e.g. tempDsnPrefix from getTempDatasetPrefix). ' +
         `Prefix must have at least 3 qualifiers and contain ${REQUIRED_SAFETY_QUALIFIER}.`,
-      annotations: { destructiveHint: true },
+      _meta: { resourceEffectLevel: ResourceEffect.DELETE },
       outputSchema: deleteDatasetsUnderPrefixOutputSchema,
       inputSchema: {
         dsnPrefix: z
@@ -1647,6 +1651,7 @@ export function registerDatasetTools(
   server.registerTool(
     'copyDataset',
     {
+      _meta: { resourceEffectLevel: ResourceEffect.UPDATE },
       description:
         'Copy a data set or PDS or PDS/E member within a single z/OS system. ' +
         'You may pass source or target dsn as USER.LIB(MEM) and omit the corresponding member.',
@@ -1757,6 +1762,7 @@ export function registerDatasetTools(
   server.registerTool(
     'renameDataset',
     {
+      _meta: { resourceEffectLevel: ResourceEffect.UPDATE },
       description:
         'Rename a data set or PDS or PDS/E member. ' +
         'You may pass dsn as USER.LIB(MEM) and omit member.',
@@ -1868,6 +1874,7 @@ export function registerDatasetTools(
   server.registerTool(
     'restoreDataset',
     {
+      _meta: { resourceEffectLevel: ResourceEffect.UPDATE },
       description:
         'Restore (recall) a migrated data set from the hierarchical storage manager (HSM/DFHSM). ' +
         'Use this when a data set shows as migrated in listDatasets or getDatasetAttributes.',

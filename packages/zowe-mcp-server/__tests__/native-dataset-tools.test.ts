@@ -127,6 +127,7 @@ async function createNativeServer(): Promise<{ client: Client; server: McpServer
       systemRegistry,
       credentialProvider,
       logToolCalls: true,
+      capabilityTier: 'full',
     })
   );
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();

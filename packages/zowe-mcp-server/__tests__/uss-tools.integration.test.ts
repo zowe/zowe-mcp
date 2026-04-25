@@ -83,6 +83,7 @@ describe('USS tools integration', () => {
         systemRegistry,
         credentialProvider,
         logToolCalls: true,
+        capabilityTier: 'full',
       })
     );
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
@@ -285,6 +286,7 @@ describe('USS mutation and temp tools (mock)', () => {
         systemRegistry,
         credentialProvider,
         logToolCalls: true,
+        capabilityTier: 'full',
       })
     );
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();

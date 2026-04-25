@@ -12,12 +12,16 @@
     "dirblk",
     "dsorg",
     "evals",
+    "fileicons",
     "hostnames",
     "INVNTORY",
     "ISPF",
+    "jobname",
+    "JOBPARM",
     "lrecl",
     "MACLIB",
     "modelcontextprotocol",
+    "MSGCLASS",
     "OSMF",
     "PARMLIB",
     "PDSE",
@@ -27,8 +31,10 @@
     "recfm",
     "recompiles",
     "SAMPLIB",
+    "SYSUID",
     "volser",
-    "waitable"
+    "waitable",
+    "zowex"
   ],
   "yaml.schemas": {
     "packages/zowe-mcp-evals/schemas/evals-question-set.schema.json": "packages/zowe-mcp-evals/questions/*.yaml",

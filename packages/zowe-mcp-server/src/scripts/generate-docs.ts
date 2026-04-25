@@ -43,6 +43,14 @@ import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import {
+  type CapabilityTier,
+  EFFECT_LEVEL_NAME,
+  type EffectLevel,
+  ResourceEffect,
+  TIER_NAMES,
+  TIER_TO_MAX_EFFECT,
+} from '../capability-level.js';
 import { Logger } from '../log.js';
 import { createServer, getServer, SERVER_VERSION } from '../server.js';
 import {
@@ -705,6 +713,79 @@ function generateResourceTemplatesSection(templates: ResourceTemplateInfo[]): st
 }
 
 // ---------------------------------------------------------------------------
+// Capability Tiers section
+// ---------------------------------------------------------------------------
+
+/**
+ * For each tier, determines which tools are *newly* available at that tier
+ * (i.e. not available at any lower tier) and renders a section with a table.
+ */
+function generateCapabilityTiersSection(
+  toolEffectLevels: Map<string, EffectLevel>,
+  allToolNames: string[]
+): string {
+  const lines: string[] = [];
+  lines.push('## Capability Tiers\n');
+  lines.push(
+    'The `capabilityTier` setting controls which tools are registered. ' +
+      'Each tier includes all tools from lower tiers plus additional ones. ' +
+      'The default tier is **read-strict** (safest).\n'
+  );
+  lines.push(
+    'See [Safety and security principles](mcp-safety-security-principles.md) ' +
+      'for detailed guidance.\n'
+  );
+
+  const tierDescriptions: Record<CapabilityTier, string> = {
+    'read-strict':
+      'Read-only with client confirmation prompts for every read operation. Safest tier for exploration.',
+    read: 'Read-only with auto-approved reads. No confirmation prompts for read operations.',
+    update: 'Adds tools that create, write, copy, rename, and modify resources.',
+    delete: 'Adds tools that delete or cancel resources.',
+    full: 'Adds tools that execute commands and submit jobs. Full access to all operations.',
+  };
+
+  const previousTierTools = new Set<string>();
+
+  for (const tier of TIER_NAMES) {
+    const maxLevel = TIER_TO_MAX_EFFECT[tier];
+    const tierTools = allToolNames.filter(name => {
+      const level = toolEffectLevels.get(name) ?? ResourceEffect.NONE;
+      return level <= maxLevel;
+    });
+
+    const newTools = tierTools.filter(name => !previousTierTools.has(name));
+
+    lines.push(`### \`${tier}\`\n`);
+    lines.push(`${tierDescriptions[tier]}\n`);
+    lines.push(
+      `**${tierTools.length}** tools available` +
+        (newTools.length > 0 && previousTierTools.size > 0
+          ? ` (${newTools.length} new at this tier)`
+          : '') +
+        '.\n'
+    );
+
+    if (newTools.length > 0) {
+      lines.push('| Tool | Effect Level |');
+      lines.push('| --- | --- |');
+      for (const name of newTools) {
+        const level = toolEffectLevels.get(name) ?? ResourceEffect.NONE;
+        const levelName = EFFECT_LEVEL_NAME[level];
+        lines.push(`| [\`${name}\`](#${name.toLowerCase()}) | ${levelName} |`);
+      }
+      lines.push('');
+    }
+
+    for (const name of tierTools) {
+      previousTierTools.add(name);
+    }
+  }
+
+  return lines.join('\n');
+}
+
+// ---------------------------------------------------------------------------
 // Default inputs skeleton generator
 // ---------------------------------------------------------------------------
 
@@ -777,10 +858,13 @@ async function main(): Promise<void> {
 
     const { loadMock } = await import('../zos/mock/load-mock.js');
     const mock = await loadMock(tmpDir);
+    const toolEffectLevels = new Map<string, EffectLevel>();
     const created = createServer({
       backend: mock.backend,
       systemRegistry: mock.systemRegistry,
       credentialProvider: mock.credentialProvider,
+      capabilityTier: 'full',
+      toolEffectLevels,
       // No-op: registers addZosConnection/removeZosConnection for docs (HTTP+JWT uses real handlers).
       addTenantNativeConnection: async () => {
         /* docs generation only */
@@ -1162,6 +1246,7 @@ async function main(): Promise<void> {
         tocLinks.push(`[${g.label}](#${anchor})`);
       }
       tocLinks.push('[Tool Reference](#tool-reference)');
+      tocLinks.push('[Capability Tiers](#capability-tiers)');
       if (prompts.length > 0) tocLinks.push('[Prompts](#prompts)');
       if (resources.length > 0) tocLinks.push('[Resources](#resources)');
       if (templates.length > 0) tocLinks.push('[Resource Templates](#resource-templates)');
@@ -1171,6 +1256,8 @@ async function main(): Promise<void> {
           ' provided by the Zowe MCP Server.\n'
       );
       sections.push(generateToolsSection(toolGroups, examples));
+      const allToolNames = toolGroups.flatMap(g => g.tools.map(t => t.name));
+      sections.push(generateCapabilityTiersSection(toolEffectLevels, allToolNames));
       sections.push(generatePromptsSection(prompts, promptMessages));
       sections.push(generateResourcesSection(resources));
       sections.push(generateResourceTemplatesSection(templates));

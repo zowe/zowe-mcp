@@ -19,6 +19,7 @@
 
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
+import { ResourceEffect } from '../../capability-level.js';
 import type {
   OpenDatasetInEditorEventData,
   OpenJobInEditorEventData,
@@ -66,7 +67,7 @@ export function registerZoweExplorerTools(
     server.registerTool(
       'openDatasetInEditor',
       {
-        annotations: { readOnlyHint: true },
+        _meta: { resourceEffectLevel: ResourceEffect.READ },
         description:
           'Open a sequential data set or a PDS or PDS/E member in the VS Code editor via Zowe Explorer. ' +
           "The data set opens in Zowe Explorer's editor so the user can view or edit it. " +
@@ -127,7 +128,7 @@ export function registerZoweExplorerTools(
     server.registerTool(
       'openUssFileInEditor',
       {
-        annotations: { readOnlyHint: true },
+        _meta: { resourceEffectLevel: ResourceEffect.READ },
         description:
           'Open a USS (Unix System Services) file or directory in the VS Code editor via Zowe Explorer. ' +
           "The file opens in Zowe Explorer's editor. Requires Zowe Explorer to be installed. " +
@@ -179,7 +180,7 @@ export function registerZoweExplorerTools(
     server.registerTool(
       'openJobInEditor',
       {
-        annotations: { readOnlyHint: true },
+        _meta: { resourceEffectLevel: ResourceEffect.READ },
         description:
           'Open a z/OS job or a job spool file in the VS Code editor via Zowe Explorer. ' +
           'Requires Zowe Explorer to be installed. Use jobFileId from listJobFiles to open a specific spool; omit to open the job node. ' +

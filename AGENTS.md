@@ -225,6 +225,8 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 ```
 
+- **MCP tool/prompt/resource icons (deferred)**: The MCP spec defines optional `icons`; do **not** implement or fork the SDK for icons until **`@modelcontextprotocol/sdk`** releases official `registerTool` / `tools/list` support. Rationale and a future checklist: **`docs/plan-mcp-icons.md`**.
+
 ## Naming Conventions and Glossary
 
 - **"data set" (two words)**: All user-facing strings (tool descriptions, `.describe()`, prompt text, resource descriptions, error messages) use "data set" (two words), matching IBM documentation. Code identifiers use "dataset" (one word, e.g. `readDataset`, `DatasetEntry`).

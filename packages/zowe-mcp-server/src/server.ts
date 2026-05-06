@@ -20,6 +20,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { createRequire } from 'node:module';
 import { getOrCreateTenantResponseCache, tenantKeyFromSub } from './auth/tenant-resources.js';
 import {
+  buildCapabilityInstructions,
   type CapabilityTier,
   installServerMiddleware,
   resolveCapabilityTier,
@@ -30,6 +31,7 @@ import type {
   OpenUssFileInEditorEventData,
 } from './events.js';
 import { Logger } from './log.js';
+import { getMcpDeploymentMode } from './mcp-deployment-mode.js';
 import { installMcpServerInvocationContext } from './mcp-tool-context.js';
 import { registerDatasetPrompts } from './prompts/dataset-prompts.js';
 import { registerImprovementPrompts } from './prompts/improvement-prompts.js';
@@ -298,6 +300,11 @@ export function createServer(options?: CreateServerOptions): CreateServerResult 
     mockMode: !!options?.backend,
   });
 
+  const capabilityTier = resolveCapabilityTier({
+    option: options?.capabilityTier,
+    env: process.env.ZOWE_MCP_CAPABILITY_TIER,
+  });
+
   const server: McpServer = new McpServer(
     {
       name: 'zowe-mcp-server',
@@ -307,7 +314,10 @@ export function createServer(options?: CreateServerOptions): CreateServerResult 
       capabilities: {
         logging: {},
       },
-      instructions: SERVER_INSTRUCTIONS,
+      instructions:
+        SERVER_INSTRUCTIONS +
+        '\n\n' +
+        buildCapabilityInstructions(capabilityTier, getMcpDeploymentMode()),
     }
   );
 
@@ -359,10 +369,6 @@ export function createServer(options?: CreateServerOptions): CreateServerResult 
   let sessionStateForZe: SessionState | undefined;
   let backendKindForZe: string | null = null;
 
-  const capabilityTier = resolveCapabilityTier({
-    option: options?.capabilityTier,
-    env: process.env.ZOWE_MCP_CAPABILITY_TIER,
-  });
   installServerMiddleware(server, logger, {
     tier: capabilityTier,
     logToolCalls,

@@ -204,6 +204,58 @@ export function activate(context: vscode.ExtensionContext): void {
             });
         }
 
+        if (capabilityTierChanged) {
+          const config = vscode.workspace.getConfiguration('zoweMCP');
+          const tier = config.get<string>('capabilityTier', 'read-strict').trim() || 'read-strict';
+          log.info(`Capability tier setting changed to "${tier}"`);
+
+          const reload = 'Reload Window';
+          const elevatedTiers = ['update', 'delete', 'full'];
+
+          if (elevatedTiers.includes(tier)) {
+            const tierLabel =
+              tier === 'full'
+                ? 'all z/OS operations including job submission and command execution are now enabled'
+                : tier === 'delete'
+                  ? 'create, modify, and delete operations on z/OS resources are now enabled'
+                  : 'create and modify operations on z/OS resources are now enabled';
+
+            const securityGuide = 'Security Guide';
+            void vscode.window
+              .showWarningMessage(
+                `Zowe MCP: Capability tier changed to "${tier}" — ${tierLabel}. ` +
+                  `Ensure z/OS least-privilege security controls are in place (dedicated user IDs, SAF profiles). ` +
+                  `Content read from z/OS data sets, USS files, or job output may influence agent actions — ` +
+                  `avoid asking the agent to process untrusted external content at this tier. ` +
+                  `Reload the window to apply.`,
+                reload,
+                securityGuide
+              )
+              .then(choice => {
+                if (choice === reload) {
+                  void vscode.commands.executeCommand('workbench.action.reloadWindow');
+                } else if (choice === securityGuide) {
+                  void vscode.env.openExternal(
+                    vscode.Uri.parse(
+                      'https://github.com/zowe/zowe-mcp/blob/main/docs/mcp-safety-security-principles.md'
+                    )
+                  );
+                }
+              });
+          } else {
+            void vscode.window
+              .showInformationMessage(
+                `Zowe MCP: Capability tier changed to "${tier}". Reload the window to apply.`,
+                reload
+              )
+              .then(choice => {
+                if (choice === reload) {
+                  void vscode.commands.executeCommand('workbench.action.reloadWindow');
+                }
+              });
+          }
+        }
+
         const affectsServerStartup =
           backendChanged ||
           mockDataDirectoryChanged ||

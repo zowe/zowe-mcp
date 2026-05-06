@@ -34,6 +34,7 @@
 
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { Logger } from './log.js';
+import type { McpDeploymentMode } from './mcp-deployment-mode.js';
 import { installToolCallLogging } from './tool-call-logging.js';
 
 /** Resource effect level declared per tool (0 = no resource effect, 4 = execute). */
@@ -211,6 +212,103 @@ export function installCapabilityFilter(
   } as McpServer['registerTool'];
 
   log.info('Capability filter installed', { tier, maxEffectLevel: maxLevel });
+}
+
+// ─── Capability Instructions ─────────────────────────────────────────────────
+
+/**
+ * Builds the capability-tier section of the MCP server instructions.
+ *
+ * The returned string is appended to SERVER_INSTRUCTIONS at server creation time
+ * so the AI agent knows which z/OS operation categories are disabled, must not
+ * attempt workarounds, and learns how to ask the user to raise the tier.
+ *
+ * Uses the deployment mode to show only the relevant "how to change" path
+ * (VS Code Settings vs CLI flag / env var).
+ */
+export function buildCapabilityInstructions(
+  tier: CapabilityTier,
+  mode: McpDeploymentMode
+): string {
+  if (tier === 'full') {
+    return 'Capability Tier: full — all z/OS operation categories are enabled.';
+  }
+
+  const maxLevel = maxEffectLevel(tier);
+
+  const tierDescription: Record<CapabilityTier, string> = {
+    'read-strict': 'read-only with user confirmation required before read operations',
+    read: 'read-only, read operations auto-approved',
+    update: 'read and update/create allowed; delete and execute are restricted',
+    delete:
+      'read, update/create, and delete allowed; execute (job submission, commands) is restricted',
+    full: '',
+  };
+
+  const lines: string[] = [
+    `Capability Tier: ${tier} (${tierDescription[tier]})`,
+    `Only ${tier === 'read-strict' || tier === 'read' ? 'read and ' : tier === 'update' ? 'read, update/create, and ' : 'read, update/create, delete, and '}server-management z/OS operations are available.`,
+    'The following categories of z/OS resource operations are NOT registered because they exceed the configured tier:',
+    '',
+  ];
+
+  if (maxLevel < ResourceEffect.UPDATE) {
+    lines.push(
+      'Update/create z/OS resources (requires tier "update" or higher) — examples:',
+      '  writeDataset, createDataset, copyDataset, renameDataset, restoreDataset,',
+      '  writeUssFile, createUssFile, copyUssFile, chmodUssFile, chownUssFile, chtagUssFile,',
+      '  uploadFileToDataset, uploadFileToUssFile, holdJob, releaseJob',
+      ''
+    );
+  }
+
+  if (maxLevel < ResourceEffect.DELETE) {
+    lines.push(
+      'Delete z/OS resources (requires tier "delete" or higher) — examples:',
+      '  deleteDataset, deleteDatasetsUnderPrefix, deleteUssFile, cancelJob, deleteJob',
+      ''
+    );
+  }
+
+  if (maxLevel < ResourceEffect.EXECUTE) {
+    lines.push(
+      'Execute z/OS operations — job submission and TSO/USS commands (requires tier "full") — examples:',
+      '  submitJob, submitJobFromDataset, submitJobFromUss, runSafeTsoCommand, runSafeUssCommand',
+      ''
+    );
+  }
+
+  lines.push(
+    'CRITICAL — Do not work around capability restrictions',
+    '',
+    'If the user asks you to perform an unavailable z/OS operation, you MUST NOT attempt',
+    'workarounds such as:',
+    '- Calling Zowe CLI commands directly (e.g. zowe files upload, zowe jobs submit, zowe uss mkdir)',
+    '- Using SSH, sftp, scp, or any shell access to z/OS',
+    '- Calling z/OSMF REST API endpoints directly',
+    '- Using any other external tool or method to circumvent the restriction',
+    '',
+    'The capability tier is an operator-configured policy. Bypassing it violates the intent of',
+    'the configuration and may cause unintended changes to z/OS resources.',
+    '',
+    'Instead, inform the user that the z/OS operation is not available at the current capability',
+    'tier and ask them to raise it.'
+  );
+
+  if (mode === 'stdio-vscode') {
+    lines.push(
+      'To change the capability tier: open VS Code Settings and search for "zoweMCP.capabilityTier",',
+      'then select a higher tier (read-strict → read → update → delete → full).'
+    );
+  } else {
+    lines.push(
+      'To change the capability tier: restart the server with --capability-tier <tier>',
+      'or set ZOWE_MCP_CAPABILITY_TIER=<tier>.',
+      'Valid tiers (lowest to highest): read-strict, read, update, delete, full.'
+    );
+  }
+
+  return lines.join('\n');
 }
 
 /** Options for {@link installServerMiddleware}. */

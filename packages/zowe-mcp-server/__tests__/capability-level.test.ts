@@ -11,14 +11,15 @@
 
 import { describe, expect, it } from 'vitest';
 import {
-  type CapabilityTier,
-  type EffectLevel,
   ResourceEffect,
+  buildCapabilityInstructions,
   hintsForTool,
   maxEffectLevel,
   parseCapabilityTier,
   parseEffectLevel,
   resolveCapabilityTier,
+  type CapabilityTier,
+  type EffectLevel,
 } from '../src/capability-level.js';
 
 describe('parseCapabilityTier', () => {
@@ -174,5 +175,83 @@ describe('ResourceEffect constants', () => {
     expect(ResourceEffect.UPDATE).toBe(2);
     expect(ResourceEffect.DELETE).toBe(3);
     expect(ResourceEffect.EXECUTE).toBe(4);
+  });
+});
+
+describe('buildCapabilityInstructions', () => {
+  it('full tier returns a brief confirmation with no CRITICAL block', () => {
+    const out = buildCapabilityInstructions('full', 'stdio-vscode');
+    expect(out).toContain('full');
+    expect(out).toContain('all z/OS operation categories are enabled');
+    expect(out).not.toContain('CRITICAL');
+    expect(out).not.toContain('NOT registered');
+    expect(out).not.toContain('zoweMCP.capabilityTier');
+  });
+
+  it('read-strict tier lists all three disabled categories', () => {
+    const out = buildCapabilityInstructions('read-strict', 'stdio-standalone');
+    expect(out).toContain('read-strict');
+    expect(out).toContain('Update/create z/OS resources');
+    expect(out).toContain('Delete z/OS resources');
+    expect(out).toContain('Execute z/OS operations');
+  });
+
+  it('read tier lists all three disabled categories', () => {
+    const out = buildCapabilityInstructions('read', 'stdio-standalone');
+    expect(out).toContain('Update/create z/OS resources');
+    expect(out).toContain('Delete z/OS resources');
+    expect(out).toContain('Execute z/OS operations');
+  });
+
+  it('update tier omits update category but includes delete and execute', () => {
+    const out = buildCapabilityInstructions('update', 'stdio-standalone');
+    expect(out).not.toContain('Update/create z/OS resources');
+    expect(out).toContain('Delete z/OS resources');
+    expect(out).toContain('Execute z/OS operations');
+  });
+
+  it('delete tier omits update and delete categories but includes execute', () => {
+    const out = buildCapabilityInstructions('delete', 'stdio-standalone');
+    expect(out).not.toContain('Update/create z/OS resources');
+    expect(out).not.toContain('Delete z/OS resources');
+    expect(out).toContain('Execute z/OS operations');
+  });
+
+  it('includes CRITICAL block for all restricted tiers', () => {
+    for (const tier of ['read-strict', 'read', 'update', 'delete'] as CapabilityTier[]) {
+      const out = buildCapabilityInstructions(tier, 'stdio-standalone');
+      expect(out).toContain('CRITICAL — Do not work around capability restrictions');
+      expect(out).toContain('Zowe CLI');
+      expect(out).toContain('SSH');
+      expect(out).toContain('z/OSMF REST API');
+    }
+  });
+
+  it('stdio-vscode mode shows VS Code Settings path only', () => {
+    const out = buildCapabilityInstructions('read', 'stdio-vscode');
+    expect(out).toContain('zoweMCP.capabilityTier');
+    expect(out).not.toContain('--capability-tier');
+    expect(out).not.toContain('ZOWE_MCP_CAPABILITY_TIER');
+  });
+
+  it('stdio-standalone mode shows CLI flag path only', () => {
+    const out = buildCapabilityInstructions('read', 'stdio-standalone');
+    expect(out).toContain('--capability-tier');
+    expect(out).toContain('ZOWE_MCP_CAPABILITY_TIER');
+    expect(out).not.toContain('zoweMCP.capabilityTier');
+  });
+
+  it('http mode shows CLI flag path only', () => {
+    const out = buildCapabilityInstructions('read', 'http');
+    expect(out).toContain('--capability-tier');
+    expect(out).toContain('ZOWE_MCP_CAPABILITY_TIER');
+    expect(out).not.toContain('zoweMCP.capabilityTier');
+  });
+
+  it('includes representative tool names for each disabled category', () => {
+    const out = buildCapabilityInstructions('read-strict', 'stdio-standalone');
+    expect(out).toContain('writeDataset');
+    expect(out).toContain('submitJob');
+    expect(out).toContain('deleteDataset');
   });
 });

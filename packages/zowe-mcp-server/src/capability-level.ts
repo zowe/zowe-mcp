@@ -34,6 +34,7 @@
 
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { Logger } from './log.js';
+import { installToolCallLogging } from './tool-call-logging.js';
 
 /** Resource effect level declared per tool (0 = no resource effect, 4 = execute). */
 export type EffectLevel = 0 | 1 | 2 | 3 | 4;
@@ -170,8 +171,8 @@ export function hintsForTool(
  * 2. If the effect level exceeds the tier's maximum, skips registration.
  * 3. Replaces `annotations` with hints derived from the effect level and tier.
  *
- * Must be installed **after** `installToolCallLogging` (when enabled) so that
- * logging only wraps tools that actually pass the capability filter.
+ * When also enabling tool-call logging, prefer {@link installServerMiddleware} — it
+ * enforces the required installation order (logging first, then capability filter).
  */
 export function installCapabilityFilter(
   server: McpServer,
@@ -210,4 +211,41 @@ export function installCapabilityFilter(
   } as McpServer['registerTool'];
 
   log.info('Capability filter installed', { tier, maxEffectLevel: maxLevel });
+}
+
+/** Options for {@link installServerMiddleware}. */
+export interface ServerMiddlewareOptions {
+  /** Capability tier controlling which tools register and how MCP hints are derived. */
+  tier: CapabilityTier;
+  /**
+   * When true, tool-call logging is installed **before** the capability filter so that
+   * only tools that pass the capability filter have their callbacks wrapped for logging.
+   */
+  logToolCalls?: boolean;
+  /** Backend kind label for log entries (e.g. `'mock'`, `'zowex'`, or `null`). */
+  backendKind?: string | null;
+  /** When provided, populated during tool registration with each tool's effect level. */
+  effectLevelMap?: Map<string, EffectLevel>;
+}
+
+/**
+ * Installs both server middleware layers in the required order:
+ * 1. Tool-call logging (when `logToolCalls` is true) — wraps tool callbacks for logging.
+ * 2. Capability filter — decides which tools register and derives MCP hint annotations.
+ *
+ * The ordering ensures that only tools which pass the capability filter have their
+ * callbacks wrapped for logging — not tools that are silently filtered out.
+ *
+ * Always prefer this over calling {@link installToolCallLogging} and
+ * {@link installCapabilityFilter} separately: the correct order is enforced here.
+ */
+export function installServerMiddleware(
+  server: McpServer,
+  logger: Logger,
+  opts: ServerMiddlewareOptions
+): void {
+  if (opts.logToolCalls) {
+    installToolCallLogging(server, logger, opts.backendKind ?? null);
+  }
+  installCapabilityFilter(server, opts.tier, logger, opts.effectLevelMap);
 }

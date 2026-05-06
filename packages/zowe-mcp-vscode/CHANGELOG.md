@@ -4,6 +4,24 @@
 
 All notable changes to the Zowe MCP extension will be documented in this file.
 
+## `0.9.0`
+
+### New features and enhancements
+
+#### MCP server — progressive capability tiers
+
+- **Capability tiers**: A new `--capability-tier` flag (and `ZOWE_MCP_CAPABILITY_TIER` env var / VS Code `zoweMCP.capabilityTier` setting) controls which tools the AI assistant can use and how MCP hint annotations are derived. Tiers: `read-strict` (default, safest), `read`, `update`, `delete`, `full`. Each tool declares its inherent resource impact (none / read / update / delete / execute) and the tier determines which tools are registered.
+- **Automatic MCP hints**: `readOnlyHint` and `destructiveHint` are now derived automatically from each tool's resource effect level and the active tier. They are no longer set manually in tool definitions, so clients that respect MCP hints will see consistent behavior.
+- **Capability tiers section in reference docs**: `docs/mcp-reference.md` now includes a table showing which tools are available at each tier.
+
+### Breaking changes
+
+- **Default tier `read-strict` prompts for confirmation on reads**: In previous releases, all read tools (list, search, read data sets, USS files, etc.) had `readOnlyHint: true` so MCP clients auto-approved them. With the new default `read-strict` tier, read tools have `readOnlyHint: false` — clients that honor MCP hints (e.g. VS Code with Copilot) **will prompt for confirmation before each read**. To restore the previous auto-approved behavior, set the capability tier to `read`:
+  - VS Code: `zoweMCP.capabilityTier = "read"` in `settings.json`, then reload the window.
+  - Standalone CLI: add `--capability-tier read` to your server command.
+  - Env: `ZOWE_MCP_CAPABILITY_TIER=read`.
+- **Write, delete, and execute tools hidden by default**: Tools that create, modify, delete, submit, or run commands are not registered under `read-strict` or `read` tiers. Set the tier to `update`, `delete`, or `full` as needed. All tools remain available at `full`.
+
 ## `0.8.0`
 
 ### New features and enhancements

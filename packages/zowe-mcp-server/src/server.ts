@@ -21,7 +21,7 @@ import { createRequire } from 'node:module';
 import { getOrCreateTenantResponseCache, tenantKeyFromSub } from './auth/tenant-resources.js';
 import {
   type CapabilityTier,
-  installCapabilityFilter,
+  installServerMiddleware,
   resolveCapabilityTier,
 } from './capability-level.js';
 import type {
@@ -34,7 +34,6 @@ import { installMcpServerInvocationContext } from './mcp-tool-context.js';
 import { registerDatasetPrompts } from './prompts/dataset-prompts.js';
 import { registerImprovementPrompts } from './prompts/improvement-prompts.js';
 import { registerDatasetResources } from './resources/dataset-resources.js';
-import { installToolCallLogging } from './tool-call-logging.js';
 import { registerContextTools } from './tools/context/context-tools.js';
 import { registerDatasetTools } from './tools/datasets/dataset-tools.js';
 import { registerJobTools } from './tools/jobs/jobs-tools.js';
@@ -360,15 +359,16 @@ export function createServer(options?: CreateServerOptions): CreateServerResult 
   let sessionStateForZe: SessionState | undefined;
   let backendKindForZe: string | null = null;
 
-  if (logToolCalls) {
-    installToolCallLogging(server, logger, backendKind);
-  }
-
   const capabilityTier = resolveCapabilityTier({
     option: options?.capabilityTier,
     env: process.env.ZOWE_MCP_CAPABILITY_TIER,
   });
-  installCapabilityFilter(server, capabilityTier, logger, options?.toolEffectLevels);
+  installServerMiddleware(server, logger, {
+    tier: capabilityTier,
+    logToolCalls,
+    backendKind,
+    effectLevelMap: options?.toolEffectLevels,
+  });
 
   // Register improvement prompts (for repos that use Zowe MCP) — always available
   registerImprovementPrompts(server, logger);

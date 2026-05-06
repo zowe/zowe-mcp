@@ -13,30 +13,37 @@ OAuth establishes **who is calling the MCP HTTP API**. z/OS access uses a **sepa
 ```mermaid
 flowchart TB
   subgraph clientLayer["MCP client"]
-    Host[MCP Host VS Code or Copilot]
+    Host[MCP Host - VS Code, Copilot, ...]
   end
   subgraph oauthLayer["OAuth OIDC"]
     IdP[Identity Provider]
   end
-  subgraph edgeLayer["Edge optional"]
+  subgraph edgeLayer["HTTPS"]
     GW[Reverse proxy or API gateway]
   end
   subgraph mcpLayer["Zowe MCP server"]
-    ZMCP[Zowe MCP HTTP resource server]
+    ZMCP[Zowe MCP<br/>Remote / centralized HTTP<br/>resource server]
   end
-  subgraph credLayer["z/OS credentials separate from OAuth"]
-    Cred[Vault K8s secrets env tenant store MCP elicitation]
+  subgraph credLayer["z/OS credentials"]
+    Cred[env, tenant store, z/OS identity mapping<br/>Vault, K8s secrets<br/>MCP elicitation]
   end
   subgraph zosLayer["Mainframe"]
-    ZOS[z/OS systems via SSH ZNP]
+    ZRS[z/OS systems via Zowe Remote SSH]
+    zOSMF[z/OSMF]
   end
+
   Host -->|"OIDC login or device code"| IdP
   IdP -->|"access token JWT"| Host
   Host -->|"Streamable HTTPS MCP Authorization Bearer"| GW
   GW --> ZMCP
   ZMCP -->|"JWKS verify iss aud"| IdP
   ZMCP -->|"resolve SSH password or key"| Cred
-  ZMCP -->|"SSH session"| ZOS
+  ZMCP -->|"SSH session"| ZRS
+  ZMCP -->|"HTTP"| zOSMF
+  ZMCP -.->|"HTTP"| APIML
+  APIML -.->|"HTTP"| zOSMF
+  APIML -.->|"JWKS verify"| IdP
+  style APIML stroke-dasharray: 5 5
 ```
 
 ---
@@ -114,7 +121,7 @@ Admins can set the **MCP Registry URL** under **Settings → AI controls → MCP
 
 ### Other IDEs (Copilot)
 
-- **JetBrains** — Copilot Chat → MCP → MCP Registry URL  
+- **JetBrains** — Copilot Chat → MCP → MCP Registry URL
 - **Eclipse / Xcode** — similar “MCP Registry URL” fields in Copilot settings (see product version notes)
 
 ### Remote HTTP: `Authorization` header and Bearer tokens

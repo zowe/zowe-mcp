@@ -12,7 +12,12 @@ All notable changes to the Zowe MCP extension will be documented in this file.
 
 - **Capability tiers**: A new `--capability-tier` flag (and `ZOWE_MCP_CAPABILITY_TIER` env var / VS Code `zoweMCP.capabilityTier` setting) controls which tools the AI assistant can use and how MCP hint annotations are derived. Tiers: `read-strict` (default, safest), `read`, `update`, `delete`, `full`. Each tool declares its inherent resource impact (none / read / update / delete / execute) and the tier determines which tools are registered.
 - **Automatic MCP hints**: `readOnlyHint` and `destructiveHint` are now derived automatically from each tool's resource effect level and the active tier. They are no longer set manually in tool definitions, so clients that respect MCP hints will see consistent behavior.
+- **AI agent tier instructions**: The MCP server now sends the active capability tier and a list of disabled z/OS operation categories in its initialization instructions. The AI agent understands which operations are restricted, will not attempt workarounds (Zowe CLI, SSH, z/OSMF REST API), and knows to ask the user to raise the tier when needed.
 - **Capability tiers section in reference docs**: `docs/mcp-reference.md` now includes a table showing which tools are available at each tier.
+
+#### VS Code extension
+
+- **Capability tier change notification**: Changing `zoweMCP.capabilityTier` now shows a notification with a **Reload Window** button so the server restarts with the new tier automatically. Raising the tier to `update`, `delete`, or `full` also shows a security warning — it recommends having z/OS least-privilege security controls in place (dedicated user IDs, SAF profiles) and notes that content read from z/OS data sets, USS files, or job output may influence agent actions. The notification includes a **Security Guide** button linking to the safety principles documentation.
 
 ### Breaking changes
 

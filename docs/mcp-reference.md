@@ -2,7 +2,7 @@
 
 # Zowe MCP Server Reference
 
-> Auto-generated from the MCP server (v0.9.0-dev, commit b5c0a15). Do not edit manually — run `npx @zowe/mcp-server generate-docs` to regenerate.
+> Auto-generated from the MCP server (v0.9.0, commit ec19149). Do not edit manually — run `npx @zowe/mcp-server generate-docs` to regenerate.
 
 This document describes all [Context](#context), [Data Sets](#data-sets), [USS](#uss), [TSO](#tso), [Jobs](#jobs), [Local Files](#local-files), [Other](#other), [db2 CLI Plugin Tools](#db2-cli-plugin-tools), [Tool Reference](#tool-reference), [Capability Tiers](#capability-tiers), [Prompts](#prompts), [Resource Templates](#resource-templates) provided by the Zowe MCP Server.
 
@@ -156,36 +156,37 @@ Return the Zowe MCP server info (version, backend, components) and the current s
 
 #### Output Schema
 
-| Field                           | Type               | Required | Description                                                                                                          |
-|---------------------------------|--------------------|----------|----------------------------------------------------------------------------------------------------------------------|
-| `messages`                      | `string`[]         | No       | Informational messages. Omitted when empty.                                                                          |
-| `server`                        | `object`           | Yes      | Zowe MCP server metadata: name, version, registered components, and backend status.                                  |
-| &ensp;├─ `name`                 | `string`           | Yes      | Server display name.                                                                                                 |
-| &ensp;├─ `version`              | `string`           | Yes      | Semantic version.                                                                                                    |
-| &ensp;├─ `description`          | `string`           | Yes      | Short server description.                                                                                            |
-| &ensp;├─ `components`           | `string`[]         | Yes      | Registered component names (e.g. context, datasets, uss).                                                            |
-| &ensp;└─ `backend`              | `string` \| `null` | Yes      | Active backend: mock, zowex, or null.                                                                                |
-| `activeSystem`                  | `object` \| `null` | Yes      | Currently selected system and user; null if no system has been set yet.                                              |
-| &ensp;├─ `system`               | `string`           | Yes      | Hostname of the active z/OS system.                                                                                  |
-| &ensp;├─ `userId`               | `string`           | Yes      | User ID on that system.                                                                                              |
-| &ensp;├─ `activeConnection`     | `string`           | No       | Connection spec (user@host) for the active system.                                                                   |
-| &ensp;├─ `ussHome`              | `string`           | No       | USS home directory path for this system/user (when known).                                                           |
-| &ensp;├─ `ussCwd`               | `string`           | No       | Current USS working directory (when set via changeUssDirectory).                                                     |
-| &ensp;├─ `mainframeMvsEncoding` | `string`           | No       | Effective MVS/data set encoding for this system (e.g. IBM-037). Resolved from per-system override or server default. |
-| &ensp;├─ `mainframeUssEncoding` | `string`           | No       | Effective USS encoding for this system (e.g. IBM-1047). Resolved from per-system override or server default.         |
-| &ensp;└─ `jobCard`              | `string`           | No       | Job card for this connection when configured. Used by submitJob when JCL has no job card.                            |
-| `allSystems`                    | `object`[]         | Yes      | All configured z/OS systems with host, optional description/connections, and active flag.                            |
-| &ensp;├─ `host`                 | `string`           | Yes      | System hostname.                                                                                                     |
-| &ensp;├─ `description`          | `string`           | No       | Optional label.                                                                                                      |
-| &ensp;├─ `connections`          | `string`[]         | No       | Connection specs when multiple connections exist for this host.                                                      |
-| &ensp;└─ `active`               | `boolean`          | Yes      | True if this system is the active one.                                                                               |
-| `recentlyUsedSystems`           | `object`[]         | Yes      | Systems that have been used in this session (have saved context: userId, optional ussHome/encodings).                |
-| &ensp;├─ `system`               | `string`           | Yes      | System hostname.                                                                                                     |
-| &ensp;├─ `userId`               | `string`           | Yes      | User ID used on that system.                                                                                         |
-| &ensp;├─ `ussHome`              | `string`           | No       | USS home when known.                                                                                                 |
-| &ensp;├─ `ussCwd`               | `string`           | No       | USS current working directory when set.                                                                              |
-| &ensp;├─ `mainframeMvsEncoding` | `string` \| `null` | No       | Per-system MVS encoding when set.                                                                                    |
-| &ensp;└─ `mainframeUssEncoding` | `string` \| `null` | No       | Per-system USS encoding when set.                                                                                    |
+| Field                           | Type               | Required | Description                                                                                                                                          |
+|---------------------------------|--------------------|----------|------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `messages`                      | `string`[]         | No       | Informational messages. Omitted when empty.                                                                                                          |
+| `server`                        | `object`           | Yes      | Zowe MCP server metadata: name, version, registered components, and backend status.                                                                  |
+| &ensp;├─ `name`                 | `string`           | Yes      | Server display name.                                                                                                                                 |
+| &ensp;├─ `version`              | `string`           | Yes      | Semantic version.                                                                                                                                    |
+| &ensp;├─ `description`          | `string`           | Yes      | Short server description.                                                                                                                            |
+| &ensp;├─ `components`           | `string`[]         | Yes      | Registered component names (e.g. context, datasets, uss).                                                                                            |
+| &ensp;├─ `backend`              | `string` \| `null` | Yes      | Active backend: mock, zowex, or null.                                                                                                                |
+| &ensp;└─ `maxEffectLevel`       | `string`           | No       | Maximum resource effect level allowed by the active capability tier (none, read, update, delete, or execute). Determines which tools are registered. |
+| `activeSystem`                  | `object` \| `null` | Yes      | Currently selected system and user; null if no system has been set yet.                                                                              |
+| &ensp;├─ `system`               | `string`           | Yes      | Hostname of the active z/OS system.                                                                                                                  |
+| &ensp;├─ `userId`               | `string`           | Yes      | User ID on that system.                                                                                                                              |
+| &ensp;├─ `activeConnection`     | `string`           | No       | Connection spec (user@host) for the active system.                                                                                                   |
+| &ensp;├─ `ussHome`              | `string`           | No       | USS home directory path for this system/user (when known).                                                                                           |
+| &ensp;├─ `ussCwd`               | `string`           | No       | Current USS working directory (when set via changeUssDirectory).                                                                                     |
+| &ensp;├─ `mainframeMvsEncoding` | `string`           | No       | Effective MVS/data set encoding for this system (e.g. IBM-037). Resolved from per-system override or server default.                                 |
+| &ensp;├─ `mainframeUssEncoding` | `string`           | No       | Effective USS encoding for this system (e.g. IBM-1047). Resolved from per-system override or server default.                                         |
+| &ensp;└─ `jobCard`              | `string`           | No       | Job card for this connection when configured. Used by submitJob when JCL has no job card.                                                            |
+| `allSystems`                    | `object`[]         | Yes      | All configured z/OS systems with host, optional description/connections, and active flag.                                                            |
+| &ensp;├─ `host`                 | `string`           | Yes      | System hostname.                                                                                                                                     |
+| &ensp;├─ `description`          | `string`           | No       | Optional label.                                                                                                                                      |
+| &ensp;├─ `connections`          | `string`[]         | No       | Connection specs when multiple connections exist for this host.                                                                                      |
+| &ensp;└─ `active`               | `boolean`          | Yes      | True if this system is the active one.                                                                                                               |
+| `recentlyUsedSystems`           | `object`[]         | Yes      | Systems that have been used in this session (have saved context: userId, optional ussHome/encodings).                                                |
+| &ensp;├─ `system`               | `string`           | Yes      | System hostname.                                                                                                                                     |
+| &ensp;├─ `userId`               | `string`           | Yes      | User ID used on that system.                                                                                                                         |
+| &ensp;├─ `ussHome`              | `string`           | No       | USS home when known.                                                                                                                                 |
+| &ensp;├─ `ussCwd`               | `string`           | No       | USS current working directory when set.                                                                                                              |
+| &ensp;├─ `mainframeMvsEncoding` | `string` \| `null` | No       | Per-system MVS encoding when set.                                                                                                                    |
+| &ensp;└─ `mainframeUssEncoding` | `string` \| `null` | No       | Per-system USS encoding when set.                                                                                                                    |
 
 #### Example Output
 
@@ -193,7 +194,7 @@ Return the Zowe MCP server info (version, backend, components) and the current s
 {
   "server": {
     "name": "Zowe MCP Server",
-    "version": "0.9.0-dev",
+    "version": "0.9.0",
     "description": "MCP server providing tools for z/OS systems including data sets, jobs, and UNIX System Services",
     "components": [
       "context",
@@ -205,7 +206,8 @@ Return the Zowe MCP server info (version, backend, components) and the current s
       "jobs",
       "local-files"
     ],
-    "backend": "mock"
+    "backend": "mock",
+    "maxEffectLevel": "execute"
   },
   "activeSystem": {
     "system": "mainframe-dev.example.com",
@@ -2211,13 +2213,13 @@ Output:
     "totalLines": 1,
     "startLine": 1,
     "returnedLines": 1,
-    "contentLength": 75,
+    "contentLength": 72,
     "mimeType": "text/plain",
     "hasMore": false
   },
   "data": {
     "lines": [
-      "TIME-08:56:15 AM. CPU-00:00:00 SERVICE-26895 SESSION-00:01:53 APRIL 25,2026"
+      "TIME-10:16:02 AM. CPU-00:00:00 SERVICE-26895 SESSION-00:01:53 MAY 7,2026"
     ],
     "mimeType": "text/plain"
   }

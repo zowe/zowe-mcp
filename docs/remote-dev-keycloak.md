@@ -12,6 +12,109 @@ Defaults (remote HTTPS dev script):
 
 Requires **Docker**, TLS assets under **`docker/remote-https-dev/certs/`** (see **`docker/remote-https-dev/certs/README.md`** — one leaf for MCP, Keycloak, and local registry), **`/etc/hosts`** for **`zowe.mcp.example.com`**, **`keycloak.mcp.example.com`**, and **`registry.mcp.example.com`**, and **Node.js** / **npm**.
 
+<a id="first-time-setup"></a>
+
+## First-time setup
+
+Do these steps once per machine after cloning. Skip any step you have already completed.
+
+### 1. Install system tools
+
+| Tool | Why |
+| --- | --- |
+| **Node.js ≥ 22 + npm ≥ 10** | Builds and runs the MCP server |
+| **Docker with Compose v2 (≥ 2.29)** | Keycloak and nginx TLS containers |
+| **mkcert** | Generates a locally-trusted dev TLS certificate |
+| **openssl** | Used by the start script to verify certificate SANs |
+| **curl** | Used by the start script to poll Keycloak readiness |
+
+### 2. Install npm dependencies
+
+From the **repository root**:
+
+```bash
+npm install
+```
+
+No `npm run build` or `npm run build-and-install` is needed — the start script builds the server packages (`zowe-mcp-common` and `@zowe/mcp-server`) itself each run. `npm run build-and-install` is for packaging and installing the VS Code extension VSIX and is unrelated to this scenario.
+
+### 3. Add `/etc/hosts` entries (requires sudo, once per machine)
+
+```bash
+sudo sh -c 'echo "127.0.0.1  zowe.mcp.example.com keycloak.mcp.example.com registry.mcp.example.com" >> /etc/hosts'
+```
+
+Verify:
+
+```bash
+grep mcp.example.com /etc/hosts
+```
+
+### 4. Install the mkcert CA (once per machine)
+
+```bash
+mkcert -install
+```
+
+This registers the local CA in your system/browser trust stores so the dev certificates are trusted without warnings.
+
+### 5. Generate the TLS certificate
+
+From `docker/remote-https-dev/certs/`:
+
+```bash
+cd docker/remote-https-dev/certs
+mkcert zowe.mcp.example.com keycloak.mcp.example.com registry.mcp.example.com localhost 127.0.0.1 ::1
+```
+
+mkcert prints the filenames it created (e.g. `zowe.mcp.example.com+5.pem` / `zowe.mcp.example.com+5-key.pem` — the `+N` suffix reflects the number of SANs and may differ). Create symlinks and make them world-readable:
+
+```bash
+# Replace +5 with the suffix mkcert printed
+ln -sf zowe.mcp.example.com+5.pem cert.pem
+ln -sf zowe.mcp.example.com+5-key.pem key.pem
+chmod a+r key.pem cert.pem   # Keycloak runs as uid 1000 — needs read access
+cd ../../..
+```
+
+The start script runs a preflight Docker check and will tell you if permissions are wrong. See **`docker/remote-https-dev/certs/README.md`** for details on updating symlinks after a cert refresh.
+
+### 6. Create `native-config.json` (optional — for real z/OS)
+
+Copy the example and fill in your connection spec:
+
+```bash
+cp native-config.example.json native-config.json
+# Edit native-config.json: replace "user@host.example.com" with your USERID@zos-hostname
+```
+
+Without this file the server starts with no pre-loaded systems — users add connections at runtime via the **`addZosConnection`** tool.
+
+### 7. Set the z/OS SSH password
+
+The start script does **not** source `.env` automatically. Supply the password in the environment before running:
+
+```bash
+# Option A — per-connection env var (user and host uppercased, dots → underscores)
+export ZOWE_MCP_PASSWORD_USERID_ZOS_HOSTNAME=yourpassword
+
+# Option B — JSON map (all connections at once)
+export ZOWE_MCP_CREDENTIALS='{"USERID@zos-hostname":"yourpassword"}'
+
+# Option C — source a .env file
+set -a && source .env && set +a
+```
+
+Without a password in env the server falls back to **MCP elicitation** (a browser prompt) when an AI tool first touches z/OS. See [Passwords (standalone native)](#passwords-standalone-native) for details.
+
+### Start (after setup)
+
+```bash
+# With .env for passwords:
+set -a && source .env && set +a
+npm run start:remote-https-dev-native-zos -- --config ./native-config.json
+```
+
 <a id="one-command-remote-https"></a>
 
 ## One command (recommended): `npm run start:remote-https-dev-native-zos`

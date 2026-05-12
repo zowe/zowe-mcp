@@ -79,6 +79,8 @@ cd ../../..
 
 The start script runs a preflight Docker check and will tell you if permissions are wrong. See **`docker/remote-https-dev/certs/README.md`** for details on updating symlinks after a cert refresh.
 
+> **Firefox note:** `mkcert -install` adds the CA to the system trust store, Chrome, and Safari — but **not** Firefox by default. Firefox uses its own certificate store. This is fine for this scenario: the browser OAuth flow (Keycloak login page) works through the system store. If you do open `https://keycloak.mcp.example.com:18443` directly in Firefox and see a certificate warning, run `mkcert -install` with Firefox closed, or manually import `$(mkcert -CAROOT)/rootCA.pem` under **Firefox → Settings → Privacy & Security → Certificates → View Certificates → Authorities → Import**.
+
 ### 6. Create `native-config.json` (optional — for real z/OS)
 
 Copy the example and fill in your connection spec:

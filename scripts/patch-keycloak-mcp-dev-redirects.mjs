@@ -36,6 +36,10 @@ const adminPass =
 const inspectorPort = process.env.MCP_INSPECTOR_PORT?.trim() || '6274';
 const realm = process.env.ZOWE_MCP_KEYCLOAK_REALM?.trim() || 'demo';
 const clientId = process.env.ZOWE_MCP_KEYCLOAK_CLIENT?.trim() || 'demo';
+// Claude Code uses a fixed callback port (set via `oauth.callbackPort` in `.mcp.json` or `--callback-port`)
+// and the redirect URI shape `http://localhost:<port>/callback` (not `/oauth/callback`). When the static
+// `demo` client is used (`oauth.clientId: "demo"`), this URI must be on the client's Valid redirect URIs.
+const claudeCodeCallbackPort = process.env.ZOWE_MCP_CLAUDE_CODE_CALLBACK_PORT?.trim() || '8089';
 
 /** HTTPS MCP base URL from remote-https-dev (e.g. https://zowe.mcp.example.com:7542) — merged into client for browser OAuth */
 const publicBase = (() => {
@@ -50,6 +54,9 @@ const DEFAULT_REDIRECT_URIS = [
   `http://127.0.0.1:${inspectorPort}/*`,
   `http://localhost:${inspectorPort}/oauth/callback`,
   `http://127.0.0.1:${inspectorPort}/oauth/callback`,
+  // Claude Code OAuth callback (path is /callback, not /oauth/callback; port pinned via oauth.callbackPort).
+  `http://localhost:${claudeCodeCallbackPort}/callback`,
+  `http://127.0.0.1:${claudeCodeCallbackPort}/callback`,
   // VS Code OAuth (HTTPS MCP / web callback — same URIs shown when DCR is unavailable)
   'https://vscode.dev/redirect',
   'https://insiders.vscode.dev/redirect',
@@ -65,6 +72,8 @@ if (publicBase.startsWith('https://')) {
 const DEFAULT_WEB_ORIGINS = [
   `http://localhost:${inspectorPort}`,
   `http://127.0.0.1:${inspectorPort}`,
+  `http://localhost:${claudeCodeCallbackPort}`,
+  `http://127.0.0.1:${claudeCodeCallbackPort}`,
   'https://vscode.dev',
   'https://insiders.vscode.dev',
   'https://code.visualstudio.com',

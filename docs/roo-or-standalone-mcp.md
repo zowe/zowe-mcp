@@ -16,9 +16,9 @@ For **Streamable HTTP** (Bearer JWT, local Keycloak, or any remote URL), Roo sup
 
 ## Install the server
 
-1. **Ephemeral** — `npx -y @zowe/mcp-server` (pin a version in production).
-2. **Project-local** — `npm install @zowe/mcp-server` → `node_modules/.bin/zowe-mcp-server`.
-3. **Global** — `npm install -g @zowe/mcp-server` → run `zowe-mcp-server` (on `PATH`).
+1. **Ephemeral** — `npx -y @zowe/mcp-server` (pin a version in production). **Requires the package to be published to npm or mirrored in a registry your `npm` can resolve `@zowe/*` from — not the case while `@zowe/mcp-server` is unpublished. Until then, use the tarball-npx form in [Obtaining the `.tgz`](#obtaining-the-tgz).**
+2. **Project-local** — `npm install @zowe/mcp-server` → `node_modules/.bin/zowe-mcp-server`. Same publication requirement as above; otherwise install from the `.tgz`.
+3. **Global** — `npm install -g @zowe/mcp-server` → run `zowe-mcp-server` (on `PATH`). Same publication requirement as above; otherwise install the `.tgz` globally (`npm install -g ./zowe-mcp-server-<version>.tgz`).
 
 Ensure your npm registry can resolve `@zowe/*` (public npm or your org’s mirror; see root `.npmrc` if applicable).
 

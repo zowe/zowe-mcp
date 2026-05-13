@@ -240,16 +240,18 @@ if command -v jq > /dev/null 2>&1; then
     ;;
   esac
 
-  # Allowed Client Scopes (providerId allowed-client-templates): anonymous DCR sends scope "openid"; policy must whitelist it.
+  # Allowed Client Scopes (providerId allowed-client-templates): anonymous DCR clients (Claude Code, VS Code, MCP Inspector)
+  # request the standard OIDC scopes and offline_access for refresh tokens; policy must whitelist all of them, otherwise
+  # the authorize step fails with invalid_scope after registration succeeds with a stripped scope list.
   ACS_ID=$(printf '%s' "$COMPONENTS" | jq -r '.[] | select(.providerId=="allowed-client-templates" and .subType=="anonymous") | .id' | head -n1)
   if [ -z "$ACS_ID" ] || [ "$ACS_ID" = "null" ]; then
-    echo "Warning: anonymous Allowed Client Scopes policy (allowed-client-templates) not found; skip adding openid." >&2
+    echo "Warning: anonymous Allowed Client Scopes policy (allowed-client-templates) not found; skip adding scopes." >&2
   else
-    echo "Ensuring scope openid is allowed for anonymous DCR (Allowed Client Scopes policy)..."
+    echo "Ensuring OIDC scopes (openid, profile, email, offline_access, roles, web-origins, acr, basic) are allowed for anonymous DCR (Allowed Client Scopes policy)..."
     ACS_GET=$(curl -sS "${KC}/admin/realms/${REALM}/components/${ACS_ID}" -H "$HDR")
     ACS_PUT=$(printf '%s' "$ACS_GET" | jq 'del(.subComponents)
       | .config = (.config // {})
-      | .config["allowed-client-scopes"] = ((.config["allowed-client-scopes"] // []) | if index("openid") != null then . else . + ["openid"] end)')
+      | .config["allowed-client-scopes"] = (((.config["allowed-client-scopes"] // []) + ["openid","profile","email","offline_access","roles","web-origins","acr","basic"]) | unique)')
     TMPF=$(mktemp)
     ACS_HTTP=$(curl -sS -w "%{http_code}" -o "$TMPF" -X PUT "${KC}/admin/realms/${REALM}/components/${ACS_ID}" \
       -H "$HDR" -H "Content-Type: application/json" \
@@ -258,7 +260,7 @@ if command -v jq > /dev/null 2>&1; then
     rm -f "$TMPF"
     case "$ACS_HTTP" in
     200 | 204)
-      echo "Allowed Client Scopes updated (openid permitted for anonymous registration)."
+      echo "Allowed Client Scopes updated (standard OIDC scopes + offline_access permitted for anonymous registration)."
       if ACS_VERIFY=$(curl -sS -f "${KC}/admin/realms/${REALM}/components/${ACS_ID}" -H "$HDR"); then
         echo "Current Allowed Client Scopes policy config (component ${ACS_ID}):"
         printf '%s' "$ACS_VERIFY" | jq '.config // {}'
@@ -266,7 +268,7 @@ if command -v jq > /dev/null 2>&1; then
       ;;
     *)
       echo "Error: Allowed Client Scopes policy update failed (HTTP ${ACS_HTTP}). Response: ${ACS_BODY}" >&2
-      echo "Hint: Realm → Client registration → Policies → Allowed Client Scopes (anonymous) → add client scope openid." >&2
+      echo "Hint: Realm → Client registration → Policies → Allowed Client Scopes (anonymous) → add openid, profile, email, offline_access, roles, web-origins, acr, basic." >&2
       exit 1
       ;;
     esac

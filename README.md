@@ -297,7 +297,7 @@ wins.
 
 **New to Zowe MCP?** See **[Copilot setup guide](docs/copilot-setup-guide.md)** for installing the extension from a VSIX, configuring Gemini (e.g. for Broadcom), defining `user@host`, and Copilot/MCP tips (list servers, restart, view output). For hands-on checklists (profiles, Copilot tools, mock/native), see **[Manual QA](docs/manual-qa/README.md)**.
 
-**Clients that do not use VS Code–registered MCP servers** (for example Roo Code with `.roo/mcp.json`): use the **`@zowe/mcp-server`** package in stdio mode — see **[Roo and standalone MCP](docs/roo-or-standalone-mcp.md)** (install, tarball, passwords, job cards via `--config`, example JSON).
+**Clients that do not use VS Code–registered MCP servers** (for example Roo Code with `.roo/mcp.json`, or Claude Code with `.mcp.json`): use the **`@zowe/mcp-server`** package in stdio mode — see **[Roo and standalone MCP](docs/roo-or-standalone-mcp.md)** and **[Claude Code MCP](docs/claude-code-mcp.md)** (install, tarball, passwords, job cards via `--config`, example JSON).
 
 There are two ways to use Zowe MCP with GitHub Copilot in VS Code:
 

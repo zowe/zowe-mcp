@@ -25,4 +25,4 @@ Validate the **Generate Mock Data** flow, reload/restart behavior, and a short C
 
 ## Failure notes
 
-Capture whether **backend** in settings is `mock` or `native`, the **Zowe MCP** output channel, and **MCP** server output. If mock data is missing files, re-run **Generate Mock Data** or `npx @zowe/mcp-server init-mock` per [README](../../README.md).
+Capture whether **backend** in settings is `mock` or `native`, the **Zowe MCP** output channel, and **MCP** server output. If mock data is missing files, re-run **Generate Mock Data** or, from a clone of this repo, `npx @zowe/mcp-server init-mock` per [README](../../README.md).

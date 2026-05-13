@@ -164,7 +164,7 @@ Using **different server names** avoids tool ID collisions and makes it obvious 
 
 ## 5. Trying remote and local together
 
-1. Start **local** Zowe MCP as you already do (VS Code extension, or `npx @zowe/mcp-server --stdio …`).
+1. Start **local** Zowe MCP as you already do (VS Code extension, or `zowe-mcp-server --stdio …` from a tarball install — `@zowe/mcp-server` is not yet published, so the bare `npx @zowe/mcp-server` form needs a `--package=file:/abs/path/to/zowe-mcp-server-<version>.tgz` argument).
 2. Configure **remote** only in `mcp.json` (or gallery) with the HTTPS URL and Bearer token.
 3. In the chat/agent settings, enable **both** MCP servers if the product allows multiple servers.
 4. In prompts, refer to the desired server by name if the client supports it (e.g. “use the team z/OS MCP” vs “use local mock”).

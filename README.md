@@ -108,8 +108,17 @@ Mock data is **not** required for building; generate it only when you want to
 test without a mainframe:
 
 ```bash
+# Inside this repo (after `npm install`) — npm workspaces resolve @zowe/mcp-server.
 npx @zowe/mcp-server init-mock --output ./zowe-mcp-mock-data
 ```
+
+> **Running outside the repo?** `@zowe/mcp-server` is not yet on a public npm
+> registry, so `npx @zowe/mcp-server …` and `npm install @zowe/mcp-server`
+> fail with a 404. Install from a tarball produced by `npm run pack:server`
+> (or a CI `zowe-mcp-server-npm` artifact) — see
+> [Roo and standalone MCP § Obtaining the `.tgz`](docs/roo-or-standalone-mcp.md#obtaining-the-tgz).
+> Every `npx @zowe/mcp-server …` snippet below assumes the in-repo form;
+> the equivalent post-install command is `zowe-mcp-server …`.
 
 ## Building
 
@@ -185,12 +194,25 @@ zowe-mcp-mock-data/
 
 ### Running the server standalone with mock data
 
+Inside this repo (after `npm install`):
+
 ```bash
 # Via CLI flag
 npx @zowe/mcp-server --stdio --mock ./zowe-mcp-mock-data
 
 # Via environment variable
 ZOWE_MCP_MOCK_DIR=./zowe-mcp-mock-data npx @zowe/mcp-server --stdio
+```
+
+Outside this repo — `@zowe/mcp-server` is unpublished, so install from a
+tarball first ([Obtaining the `.tgz`](docs/roo-or-standalone-mcp.md#obtaining-the-tgz)),
+then run the installed binary directly:
+
+```bash
+zowe-mcp-server --stdio --mock ./zowe-mcp-mock-data
+# or ephemeral from the tarball:
+npx --package=file:/abs/path/to/zowe-mcp-server-<version>.tgz \
+  zowe-mcp-server --stdio --mock ./zowe-mcp-mock-data
 ```
 
 ## Zowe Remote SSH SDK
@@ -232,7 +254,10 @@ same as SSH.
 
 ### Standalone mode
 
-Systems come from a config file or CLI:
+Systems come from a config file or CLI (in-repo form shown; outside this
+repo, replace `npx @zowe/mcp-server` with the installed binary
+`zowe-mcp-server` — see the "Running outside the repo" callout near the top
+of this README):
 
 ```bash
 # Config file (JSON with "systems" array)

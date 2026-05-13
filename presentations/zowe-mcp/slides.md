@@ -102,7 +102,7 @@ An **MCP server** and **VS Code extension** that gives AI assistants direct, str
 <div class="mt-8 grid grid-cols-3 gap-4 text-sm">
   <div class="p-3 bg-[#f3f4f4] rounded-lg border-l-4 border-[#16825d]">
     <div class="font-bold text-[#1b375f] mb-1"><carbon-terminal class="inline text-[#16825d]" /> Standalone Server</div>
-    <div class="text-[#6d7176]"><code>npx @zowe/mcp-server --stdio</code> — works with any MCP client</div>
+    <div class="text-[#6d7176]"><code>zowe-mcp-server --stdio</code> (npm package <code>@zowe/mcp-server</code>) — works with any MCP client</div>
   </div>
   <div class="p-3 bg-[#f3f4f4] rounded-lg border-l-4 border-[#16825d]">
     <div class="font-bold text-[#1b375f] mb-1"><mdi-microsoft-visual-studio-code class="inline text-[#16825d]" /> VS Code Extension</div>
@@ -744,16 +744,16 @@ When multiple tools request the same credential simultaneously, only one prompt 
 ### <carbon-terminal class="inline text-[#3162ac]" /> Standalone Server
 
 ```bash
-npx @zowe/mcp-server init-mock \
-  --output ./mock-data
+# One-time install from the packed tarball
+# (`@zowe/mcp-server` is not yet on a public npm registry).
+npm install -g ./zowe-mcp-server-<version>.tgz
 
-npx @zowe/mcp-server --stdio \
-  --mock ./mock-data
+zowe-mcp-server init-mock --output ./mock-data
+zowe-mcp-server --stdio --mock ./mock-data
 ```
 
 ```bash
-npx @zowe/mcp-server --stdio \
-  --zowex --system user@host
+zowe-mcp-server --stdio --zowex --system user@host
 ```
 
 </div>
@@ -762,6 +762,7 @@ npx @zowe/mcp-server --stdio \
 ### <carbon-play class="inline text-[#3162ac]" /> Quick Tool Testing
 
 ```bash
+# From a clone of this repo (npm workspaces).
 npx @zowe/mcp-server call-tool \
   --mock=./mock-data \
   listDatasets \

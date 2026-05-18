@@ -253,6 +253,7 @@ export class McpEvalHarness {
         args.push(...splitArgs(this.options.nativeServerArgs));
       } else if (this.options.mockDir) {
         args.push('--mock', this.options.mockDir);
+        args.push('--capability-tier', 'full');
       }
       // CLI bridge plugin connections (can coexist with any backend).
       // Auto-derive from mockServers[].pluginName; explicit cliPluginConfiguration take precedence.

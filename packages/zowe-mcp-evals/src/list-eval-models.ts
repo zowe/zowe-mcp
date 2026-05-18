@@ -57,7 +57,7 @@ async function main(): Promise<void> {
   const byGeminiKey = new Map<string, string[]>();
   const byOpenAiBase = new Map<
     string,
-    { providers: Set<'vllm' | 'lmstudio'>; entryIds: string[] }
+    { providers: Set<'vllm' | 'lmstudio'>; entryIds: string[]; apiKey?: string }
   >();
 
   for (const e of entries) {
@@ -77,9 +77,11 @@ async function main(): Promise<void> {
       const prev = byOpenAiBase.get(base) ?? {
         providers: new Set<'vllm' | 'lmstudio'>(),
         entryIds: [],
+        apiKey: undefined as string | undefined,
       };
       prev.providers.add(e.provider);
       prev.entryIds.push(e.id);
+      if (!prev.apiKey && e.apiKey) prev.apiKey = e.apiKey;
       byOpenAiBase.set(base, prev);
     }
   }
@@ -128,7 +130,7 @@ async function main(): Promise<void> {
       `\n=== ${provLabel} — GET ${baseUrl.replace(/\/+$/, '')}/models (eval entries: ${label}) ===\n`
     );
     try {
-      const ids = await fetchAvailableModelIds(baseUrl, { textLlmOnly });
+      const ids = await fetchAvailableModelIds(baseUrl, { textLlmOnly, apiKey: meta.apiKey });
       if (ids.length === 0) {
         process.stdout.write(
           textLlmOnly ? '(no text/chat LLM candidates matched)\n' : '(no models returned)\n'

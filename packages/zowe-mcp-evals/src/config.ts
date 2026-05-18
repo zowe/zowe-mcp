@@ -123,12 +123,15 @@ function lmStudioApiBase(baseUrl: string): string {
 async function isModelAlreadyLoaded(
   apiBase: string,
   model: string,
-  contextLength: number
+  contextLength: number,
+  apiKey?: string
 ): Promise<boolean> {
   const url = `${apiBase}/api/v1/models`;
   let resp: Response;
   try {
-    resp = await fetch(url);
+    resp = await fetch(url, {
+      headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : undefined,
+    });
   } catch {
     return false;
   }
@@ -158,11 +161,12 @@ async function isModelAlreadyLoaded(
 export async function ensureLmStudioModel(
   baseUrl: string,
   model: string,
-  contextLength: number
+  contextLength: number,
+  apiKey?: string
 ): Promise<void> {
   const apiBase = lmStudioApiBase(baseUrl);
 
-  if (await isModelAlreadyLoaded(apiBase, model, contextLength)) {
+  if (await isModelAlreadyLoaded(apiBase, model, contextLength, apiKey)) {
     process.stderr.write(
       `LM Studio: model "${model}" already loaded (context_length>=${contextLength.toString()}), skipping load\n`
     );
@@ -172,9 +176,11 @@ export async function ensureLmStudioModel(
   const url = `${apiBase}/api/v1/models/load`;
   let resp: Response;
   try {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
     resp = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({
         model,
         context_length: contextLength,
@@ -207,12 +213,14 @@ export async function ensureLmStudioModel(
  */
 export async function fetchAvailableModelIds(
   baseUrl: string,
-  options?: { textLlmOnly?: boolean }
+  options?: { textLlmOnly?: boolean; apiKey?: string }
 ): Promise<string[]> {
   const url = baseUrl.replace(/\/+$/, '') + '/models';
   let resp: Response;
   try {
-    resp = await fetch(url);
+    resp = await fetch(url, {
+      headers: options?.apiKey ? { Authorization: `Bearer ${options.apiKey}` } : undefined,
+    });
   } catch {
     throw new Error(
       `Could not reach OpenAI-compat server at ${baseUrl}. Is it running?\n` +
@@ -448,7 +456,7 @@ export async function loadEvalsConfig(modelId?: string): Promise<EvalsConfig> {
     const contextLength = chosen.contextLength ?? LMSTUDIO_DEFAULT_CONTEXT_LENGTH;
 
     if (!chosen.serverModel?.trim()) {
-      const availableModels = await fetchAvailableModelIds(baseUrl);
+      const availableModels = await fetchAvailableModelIds(baseUrl, { apiKey: chosen.apiKey });
       const modelList =
         availableModels.length > 0
           ? `Available models:\n${availableModels.map(id => `  - ${id}`).join('\n')}`
@@ -458,7 +466,7 @@ export async function loadEvalsConfig(modelId?: string): Promise<EvalsConfig> {
       );
     }
 
-    await ensureLmStudioModel(baseUrl, chosen.serverModel, contextLength);
+    await ensureLmStudioModel(baseUrl, chosen.serverModel, contextLength, chosen.apiKey);
   }
 
   return entryToConfig(chosen);

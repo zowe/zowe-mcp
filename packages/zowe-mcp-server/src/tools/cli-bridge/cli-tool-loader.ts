@@ -1203,7 +1203,8 @@ async function handleListPagination(
   server: McpServer,
   config: CliPluginConfig,
   state: CliPluginState,
-  toolLog: Logger
+  toolLog: Logger,
+  password?: string
 ): Promise<{
   content: { type: 'text'; text: string }[];
   structuredContent?: Record<string, unknown>;
@@ -1235,7 +1236,7 @@ async function handleListPagination(
   let cached: { items: unknown[] };
   try {
     cached = await cache.getOrFetch(cacheKey, async (): Promise<{ items: unknown[] }> => {
-      const result = invokeZoweCli(command, extraArgs, allProfileArgs);
+      const result = invokeZoweCli(command, extraArgs, allProfileArgs, undefined, password);
       if (!result.ok) {
         cliErrorMsg = result.errorMessage ?? 'CLI invocation failed';
         throw new Error(cliErrorMsg);
@@ -1372,7 +1373,8 @@ async function handleContentWindowing(
   connectionSummary: string | undefined,
   config: CliPluginConfig,
   state: CliPluginState,
-  toolLog: Logger
+  toolLog: Logger,
+  password?: string
 ): Promise<{
   content: { type: 'text'; text: string }[];
   structuredContent?: Record<string, unknown>;
@@ -1400,7 +1402,7 @@ async function handleContentWindowing(
   let cached: { lines: string[] };
   try {
     cached = await cache.getOrFetch(cacheKey, (): Promise<{ lines: string[] }> => {
-      const result = invokeZoweCli(command, extraArgs, allProfileArgs);
+      const result = invokeZoweCli(command, extraArgs, allProfileArgs, undefined, password);
       if (!result.ok) {
         cliErrorMsg = result.errorMessage ?? 'CLI invocation failed';
         throw new Error(cliErrorMsg);
@@ -1610,6 +1612,9 @@ function registerPluginTool(
       let connectionSummary: string | undefined;
       // Host of the first required connection profile — used as _context.system.
       let connectionHost: string | undefined;
+      // Password resolved from the active connection profile; delivered to the
+      // Zowe CLI subprocess via ZOWE_OPT_PASSWORD (never placed in argv).
+      let resolvedPassword: string | undefined;
 
       for (const [typeKey, typeDef] of Object.entries(config.profiles ?? {})) {
         if (!typeDef.required) continue;
@@ -1659,8 +1664,8 @@ function registerPluginTool(
           }
         }
 
-        // Get password if needed
-        let password: string | undefined;
+        // Resolve password for the connection profile and store it outside the
+        // loop so it can be passed to invokeZoweCli via ZOWE_OPT_PASSWORD later.
         const usernameField = typeDef.fields.find(f => f.isUsername);
         if (usernameField && state.passwordResolver) {
           const hostField = typeDef.fields.find(f => f.name === 'host');
@@ -1668,7 +1673,7 @@ function registerPluginTool(
           const host = String(profile[hostField?.name ?? 'host'] ?? '');
           if (user && host) {
             try {
-              password = await state.passwordResolver.getPassword(user, host);
+              resolvedPassword = await state.passwordResolver.getPassword(user, host);
             } catch (err) {
               const msg = err instanceof Error ? err.message : String(err);
               return {
@@ -1684,7 +1689,7 @@ function registerPluginTool(
           }
         }
 
-        allProfileArgs.push(...buildProfileArgs(profile, typeDef.fields, password));
+        allProfileArgs.push(...buildProfileArgs(profile, typeDef.fields));
       }
 
       // --- 2. Build effective location context for perToolOverride: true types ---
@@ -1749,7 +1754,8 @@ function registerPluginTool(
             server,
             config,
             state,
-            toolLog
+            toolLog,
+            resolvedPassword
           );
         } else {
           return await handleContentWindowing(
@@ -1764,13 +1770,20 @@ function registerPluginTool(
             connectionSummary,
             config,
             state,
-            toolLog
+            toolLog,
+            resolvedPassword
           );
         }
       }
 
       // --- 4 (non-paginated). Invoke CLI ---
-      const result = invokeZoweCli(command, extraArgs, allProfileArgs);
+      const result = invokeZoweCli(
+        command,
+        extraArgs,
+        allProfileArgs,
+        undefined,
+        resolvedPassword
+      );
 
       if (!result.ok) {
         return buildCliErrorResponse(

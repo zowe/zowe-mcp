@@ -460,14 +460,11 @@ describe('buildProfileArgs', () => {
     expect(args).toContain('ENDEVOR');
   });
 
-  it('injects --password immediately after the isUsername field', () => {
+  it('never includes --password in the returned array', () => {
+    // Passwords must be passed via ZOWE_OPT_PASSWORD env, not argv.
     const profile: CliNamedProfile = { id: 'x', host: 'h', user: 'U', protocol: 'http' };
-    const args = buildProfileArgs(profile, fields, 'SECRETPW');
-    const userIdx = args.indexOf('--user');
-    expect(userIdx).toBeGreaterThanOrEqual(0);
-    expect(args[userIdx + 1]).toBe('U');
-    expect(args[userIdx + 2]).toBe('--password');
-    expect(args[userIdx + 3]).toBe('SECRETPW');
+    const args = buildProfileArgs(profile, fields);
+    expect(args).not.toContain('--password');
   });
 
   it('skips fields with no value in the profile', () => {
@@ -477,22 +474,6 @@ describe('buildProfileArgs', () => {
     expect(args).not.toContain('--user');
     expect(args).not.toContain('--protocol');
     expect(args).not.toContain('--i');
-  });
-
-  it('omits password when no isUsername field is present', () => {
-    const simpleFields: ProfileFieldDef[] = [
-      { name: 'host', cliOption: 'host' },
-      { name: 'protocol', cliOption: 'protocol' },
-    ];
-    const profile: CliNamedProfile = { id: 'x', host: 'h', protocol: 'https' };
-    const args = buildProfileArgs(profile, simpleFields, 'PASS');
-    expect(args).not.toContain('--password');
-  });
-
-  it('omits password when no password provided', () => {
-    const profile: CliNamedProfile = { id: 'x', host: 'h', user: 'U' };
-    const args = buildProfileArgs(profile, fields);
-    expect(args).not.toContain('--password');
   });
 });
 
@@ -928,6 +909,59 @@ describe('invokeZoweCli (binary not found)', () => {
       } else {
         process.env.ZOWE_MCP_ZOWE_BIN = origEnv;
       }
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// invokeZoweCli — password delivered via ZOWE_OPT_PASSWORD, never in argv
+// ---------------------------------------------------------------------------
+
+describe('invokeZoweCli (password env injection)', () => {
+  // Use Node.js itself as the fake "zowe" binary. The scripts emit a valid
+  // --rfj envelope (success:true) so invokeZoweCli returns ok===true and the
+  // data field carries whatever we want to assert on.
+
+  it('sets ZOWE_OPT_PASSWORD in the child environment when password is provided', () => {
+    const origBin = process.env.ZOWE_MCP_ZOWE_BIN;
+    process.env.ZOWE_MCP_ZOWE_BIN = process.execPath;
+    try {
+      const script =
+        'const r={success:true,exitCode:0,message:"",stdout:"",stderr:"",' +
+        'data:{pw:process.env.ZOWE_OPT_PASSWORD}};' +
+        'process.stdout.write(JSON.stringify(r))';
+      // '--' ends Node option parsing so '--rfj' (appended by invokeZoweCli)
+      // is treated as a user argument rather than an unrecognised Node flag.
+      const result = invokeZoweCli(['-e', script, '--'], [], [], undefined, 'SUPERSECRET');
+      expect(result.ok).toBe(true);
+      expect((result.data as { pw: string }).pw).toBe('SUPERSECRET');
+    } finally {
+      if (origBin === undefined) delete process.env.ZOWE_MCP_ZOWE_BIN;
+      else process.env.ZOWE_MCP_ZOWE_BIN = origBin;
+    }
+  });
+
+  it('does not include the password in the argument array passed to the child process', () => {
+    const origBin = process.env.ZOWE_MCP_ZOWE_BIN;
+    process.env.ZOWE_MCP_ZOWE_BIN = process.execPath;
+    try {
+      const script =
+        'const r={success:true,exitCode:0,message:"",stdout:"",stderr:"",' +
+        'data:{argv:process.argv}};' +
+        'process.stdout.write(JSON.stringify(r))';
+      const result = invokeZoweCli(
+        ['-e', script, '--'],
+        [],
+        [],
+        undefined,
+        'SHOULD_NOT_BE_IN_ARGV'
+      );
+      expect(result.ok).toBe(true);
+      const argv = (result.data as { argv: string[] }).argv;
+      expect(argv.join(' ')).not.toContain('SHOULD_NOT_BE_IN_ARGV');
+    } finally {
+      if (origBin === undefined) delete process.env.ZOWE_MCP_ZOWE_BIN;
+      else process.env.ZOWE_MCP_ZOWE_BIN = origBin;
     }
   });
 });

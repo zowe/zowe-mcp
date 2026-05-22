@@ -33,6 +33,8 @@ interface DiscoveryFile {
   workspaceId: string;
   timestamp: number;
   pid: number;
+  /** Per-session secret that must be sent as the first message to authenticate. */
+  pipeSecret?: string;
 }
 
 /** Callback for handling events received from the extension. */
@@ -70,7 +72,7 @@ export class ExtensionClient {
         try {
           const raw = readFileSync(discoveryPath, 'utf-8');
           const discovery: DiscoveryFile = JSON.parse(raw) as DiscoveryFile;
-          await this._connectToPipe(discovery.socketPath, logger);
+          await this._connectToPipe(discovery.socketPath, discovery.pipeSecret, logger);
           return;
         } catch (err) {
           logger.warning(`Extension pipe connect attempt ${attempt} failed`, err);
@@ -111,11 +113,20 @@ export class ExtensionClient {
   // Internals
   // -------------------------------------------------------------------------
 
-  private _connectToPipe(socketPath: string, logger: Logger): Promise<void> {
+  private _connectToPipe(
+    socketPath: string,
+    pipeSecret: string | undefined,
+    logger: Logger
+  ): Promise<void> {
     return new Promise<void>((resolve, reject) => {
       const socket = connect(socketPath);
 
       socket.on('connect', () => {
+        // Send the handshake as the very first message so the extension pipe
+        // server can authenticate this process before forwarding any events.
+        if (pipeSecret) {
+          socket.write(JSON.stringify({ type: 'pipe-handshake', secret: pipeSecret }) + '\n');
+        }
         logger.info('Connected to VS Code extension pipe', { socketPath });
         this._socket = socket;
         resolve();

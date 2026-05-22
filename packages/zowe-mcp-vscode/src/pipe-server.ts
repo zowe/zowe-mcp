@@ -26,6 +26,7 @@ import type {
 import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as net from 'net';
+import * as os from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { handleServerEvent } from './event-handler';
@@ -74,24 +75,53 @@ function getWorkspaceId(): string {
 
 /**
  * Returns the platform-specific pipe/socket path.
+ *
+ * On Unix, the socket is placed in `os.tmpdir()` (per-user on macOS; world-writable
+ * on Linux). A random suffix keeps the filename unguessable so pre-emption is not
+ * feasible. Permissions are set to 0o600 after the socket is created. The discovery
+ * file (written to the per-user `globalStorageUri`) is the only channel through which
+ * legitimate MCP server processes learn the full socket path.
+ *
+ * On Windows, the named-pipe namespace is used. The random suffix prevents name
+ * collisions and brute-force guessing.
  */
-function getPipeName(workspaceId: string): string {
+function getPipeName(workspaceId: string, randomSuffix: string): string {
   if (process.platform === 'win32') {
-    return `\\\\.\\pipe\\zowe-mcp-${workspaceId}`;
+    return `\\\\.\\pipe\\zowe-mcp-${workspaceId}-${randomSuffix}`;
   }
-  return path.join('/tmp', `zowe-mcp-${workspaceId}.sock`);
+  return path.join(os.tmpdir(), `zowe-mcp-${workspaceId}-${randomSuffix}.sock`);
 }
+
+/** How long a newly-connected peer has to send the handshake before the connection is closed. */
+const HANDSHAKE_TIMEOUT_MS = 5_000;
 
 /**
  * Starts the named-pipe server and writes the discovery file.
+ *
+ * Security hardening applied here:
+ *  - The socket filename includes a cryptographically random 8-byte suffix so
+ *    the path cannot be guessed or pre-empted by another local process.
+ *  - On Unix the socket file permissions are set to 0o600 immediately after the
+ *    server starts listening (effective on Linux; advisory on macOS/BSD).
+ *  - A 32-byte random `pipeSecret` is generated and written into the per-user
+ *    discovery file in `globalStorageUri`. Every connecting peer must send a
+ *    `{"type":"pipe-handshake","secret":"<value>"}` line as its very first
+ *    message. Connections that do not authenticate within 5 s are closed.
+ *    Initial configuration events are only broadcast after authentication.
  *
  * @returns Pipe server info needed to set env vars on the MCP server definition.
  */
 export function startPipeServer(context: vscode.ExtensionContext): PipeServerInfo {
   const log = getLog();
   const workspaceId = getWorkspaceId();
-  const pipeName = getPipeName(workspaceId);
+
+  // Cryptographically random suffix — prevents pre-emption and name guessing.
+  const pipeSuffix = crypto.randomBytes(8).toString('hex');
+  const pipeName = getPipeName(workspaceId, pipeSuffix);
   const discoveryDir = context.globalStorageUri.fsPath;
+
+  // One-time secret that the MCP server must present as its first message.
+  const pipeSecret = crypto.randomBytes(32).toString('hex');
 
   // Clean up stale socket file on Unix
   if (process.platform !== 'win32' && fs.existsSync(pipeName)) {
@@ -99,24 +129,63 @@ export function startPipeServer(context: vscode.ExtensionContext): PipeServerInf
   }
 
   const server = net.createServer((socket: net.Socket) => {
-    log.info(`MCP server connected to extension pipe`);
-    connectedClients.push(socket);
+    log.info('New pipe client connecting — awaiting authentication');
 
-    sendInitialLogLevel();
-    sendInitialConnections();
-    sendInitialZowexOptions();
-    sendInitialEncodingOptions();
-    sendInitialJobCards();
-    sendInitialCliPluginConfiguration();
-    sendInitialZoweExplorerStatus();
-
+    let authenticated = false;
     let buffer = '';
+
+    // Reject unauthenticated connections after the grace period.
+    const authTimeout = setTimeout(() => {
+      if (!authenticated) {
+        log.warn('Pipe client did not authenticate in time — closing connection');
+        socket.destroy();
+      }
+    }, HANDSHAKE_TIMEOUT_MS);
+
     socket.on('data', (data: Buffer) => {
       buffer += data.toString();
       const lines = buffer.split('\n');
       buffer = lines.pop() ?? '';
+
       for (const line of lines) {
         if (line.trim().length === 0) continue;
+
+        if (!authenticated) {
+          // The very first non-empty line must be the handshake.
+          let msg: unknown;
+          try {
+            msg = JSON.parse(line);
+          } catch {
+            log.warn('Pipe client sent non-JSON as handshake — closing connection');
+            clearTimeout(authTimeout);
+            socket.destroy();
+            return;
+          }
+
+          const handshake = msg as { type?: unknown; secret?: unknown };
+          if (handshake.type === 'pipe-handshake' && handshake.secret === pipeSecret) {
+            authenticated = true;
+            clearTimeout(authTimeout);
+            log.info('MCP server authenticated on extension pipe');
+
+            connectedClients.push(socket);
+            sendInitialLogLevel();
+            sendInitialConnections();
+            sendInitialZowexOptions();
+            sendInitialEncodingOptions();
+            sendInitialJobCards();
+            sendInitialCliPluginConfiguration();
+            sendInitialZoweExplorerStatus();
+          } else {
+            log.warn('Pipe client sent incorrect handshake — closing connection');
+            clearTimeout(authTimeout);
+            socket.destroy();
+            return;
+          }
+          continue;
+        }
+
+        // Authenticated path: process events normally.
         try {
           const event = JSON.parse(line) as ServerToExtensionEvent;
           handleServerEvent(log, event, {
@@ -131,13 +200,17 @@ export function startPipeServer(context: vscode.ExtensionContext): PipeServerInf
 
     socket.on('error', (err: Error) => {
       log.warn(`Extension pipe socket error: ${err.message}`);
+      clearTimeout(authTimeout);
     });
 
     socket.on('close', () => {
-      log.info('MCP server disconnected from extension pipe');
-      const idx = connectedClients.indexOf(socket);
-      if (idx !== -1) {
-        connectedClients.splice(idx, 1);
+      clearTimeout(authTimeout);
+      if (authenticated) {
+        log.info('MCP server disconnected from extension pipe');
+        const idx = connectedClients.indexOf(socket);
+        if (idx !== -1) {
+          connectedClients.splice(idx, 1);
+        }
       }
     });
   });
@@ -145,7 +218,18 @@ export function startPipeServer(context: vscode.ExtensionContext): PipeServerInf
   server.listen(pipeName, () => {
     log.info(`Extension pipe server listening on ${pipeName}`);
 
-    // Write discovery file
+    // Restrict socket access on Unix. On Linux this prevents other local users
+    // from connecting; on macOS directory permissions apply, but this adds a
+    // defence-in-depth layer.
+    if (process.platform !== 'win32') {
+      try {
+        fs.chmodSync(pipeName, 0o600);
+      } catch (e) {
+        log.warn(`Could not set pipe socket permissions: ${String(e)}`);
+      }
+    }
+
+    // Write discovery file (already in per-user globalStorageUri).
     fs.mkdirSync(discoveryDir, { recursive: true });
     const discoveryFile = path.join(discoveryDir, `mcp-discovery-${workspaceId}.json`);
     fs.writeFileSync(
@@ -155,6 +239,7 @@ export function startPipeServer(context: vscode.ExtensionContext): PipeServerInf
         workspaceId,
         timestamp: Date.now(),
         pid: process.pid,
+        pipeSecret,
       })
     );
     log.info(`Discovery file written: ${discoveryFile}`);

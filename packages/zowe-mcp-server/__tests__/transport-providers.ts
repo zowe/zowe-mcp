@@ -117,7 +117,7 @@ let nextHttpPort = 14000;
  */
 function startHttpServer(port: number): Promise<ChildProcess> {
   return new Promise((resolve, reject) => {
-    const child = fork(serverPath, ['--http', '--port', String(port)], {
+    const child = fork(serverPath, ['--http', '--port', String(port), '--http-allow-no-auth'], {
       stdio: ['pipe', 'pipe', 'pipe', 'ipc'],
       silent: true,
     });

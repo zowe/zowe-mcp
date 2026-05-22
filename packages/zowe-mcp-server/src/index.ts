@@ -171,6 +171,13 @@ interface ParsedArgs {
   cliPluginConfiguration: Record<string, string>;
   /** Capability tier (read-strict | read | update | delete | full). */
   capabilityTier?: CapabilityTier;
+  /**
+   * Explicit opt-in to run the HTTP transport without JWT authentication.
+   * Required when neither ZOWE_MCP_JWT_ISSUER nor ZOWE_MCP_JWKS_URI are set.
+   * Set via --http-allow-no-auth or ZOWE_MCP_HTTP_ALLOW_NO_AUTH=1.
+   * Without this flag the server refuses to start in unauthenticated HTTP mode.
+   */
+  httpAllowNoAuth?: boolean;
 }
 
 /** One CLI plugin bridge entry (one --cli-plugin-yaml / --cli-plugin-connection-file pair). */
@@ -262,6 +269,13 @@ function applyEnvOverrides(parsed: ParsedArgs): void {
   }
   if (!parsed.cliPluginsDir && process.env.ZOWE_MCP_CLI_PLUGINS_DIR?.trim()) {
     parsed.cliPluginsDir = process.env.ZOWE_MCP_CLI_PLUGINS_DIR.trim();
+  }
+  if (
+    !parsed.httpAllowNoAuth &&
+    (process.env.ZOWE_MCP_HTTP_ALLOW_NO_AUTH === '1' ||
+      process.env.ZOWE_MCP_HTTP_ALLOW_NO_AUTH === 'true')
+  ) {
+    parsed.httpAllowNoAuth = true;
   }
 }
 
@@ -529,6 +543,15 @@ function parseArgs(): ParsedArgs {
           'Controls which tools are registered and how MCP hints are set. ' +
           'Also settable via ZOWE_MCP_CAPABILITY_TIER env var.',
       },
+      'http-allow-no-auth': {
+        type: 'boolean',
+        default: false,
+        describe:
+          'Explicitly allow the HTTP transport to run without JWT authentication ' +
+          '(ZOWE_MCP_JWT_ISSUER / ZOWE_MCP_JWKS_URI not set). ' +
+          'Required for local development and testing; never use on a shared or public host. ' +
+          'Also settable via ZOWE_MCP_HTTP_ALLOW_NO_AUTH=1.',
+      },
     })
     .alias('h', 'help')
     .help();
@@ -624,6 +647,7 @@ function parseArgs(): ParsedArgs {
     enabledCliPlugins,
     cliPluginConfiguration,
     capabilityTier: parseCapabilityTier(argv['capability-tier'] as string | undefined),
+    httpAllowNoAuth: Boolean(argv['http-allow-no-auth']),
   };
   applyEnvOverrides(parsed);
   return parsed;
@@ -1116,6 +1140,7 @@ async function main(): Promise<void> {
     configPath,
     systemSpecs,
     responseCache: responseCacheConfig,
+    httpAllowNoAuth,
   } = parsed;
   const logger = getLogger();
   const tenantPersistenceDir = tenantStoreDirFromEnv();
@@ -1806,6 +1831,26 @@ async function main(): Promise<void> {
       );
       process.exit(1);
     }
+
+    // Enforce explicit opt-in when running HTTP without JWT authentication.
+    if (!hasJwtAuthConfigured()) {
+      if (!httpAllowNoAuth) {
+        logger.error(
+          'HTTP transport started without authentication. ' +
+            'Set ZOWE_MCP_JWT_ISSUER and ZOWE_MCP_JWKS_URI to enable JWT auth, ' +
+            'or pass --http-allow-no-auth (ZOWE_MCP_HTTP_ALLOW_NO_AUTH=1) to explicitly ' +
+            'allow unauthenticated access. Never use --http-allow-no-auth on a shared or public host.'
+        );
+        process.exit(1);
+      }
+      logger.warning(
+        'HTTP transport is running WITHOUT authentication ' +
+          '(ZOWE_MCP_JWT_ISSUER / ZOWE_MCP_JWKS_URI are not set). ' +
+          'Any client that can reach this port has full access. ' +
+          'Use only on trusted local networks or for development.'
+      );
+    }
+
     const httpHandle = await startHttp(
       (tenant?: TenantJwtClaims) => {
         const opts: CreateServerOptions | undefined = serverOptions

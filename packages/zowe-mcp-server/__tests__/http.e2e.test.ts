@@ -25,6 +25,45 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
 
+/**
+ * Spawns the HTTP server without --http-allow-no-auth and without JWT env vars.
+ * Resolves when the process exits, returning its exit code and accumulated stderr.
+ */
+function spawnHttpServerNoAuth(port: number): Promise<{ exitCode: number; stderr: string }> {
+  return new Promise((resolve, reject) => {
+    const child = fork(serverPath, ['--http', '--port', String(port)], {
+      stdio: ['pipe', 'pipe', 'pipe', 'ipc'],
+      silent: true,
+      // Ensure JWT env vars from the test runner's environment don't leak in.
+      env: {
+        ...process.env,
+        ZOWE_MCP_JWT_ISSUER: '',
+        ZOWE_MCP_JWKS_URI: '',
+        ZOWE_MCP_HTTP_ALLOW_NO_AUTH: '',
+      },
+    });
+
+    let stderr = '';
+    child.stderr?.on('data', (data: Buffer) => {
+      stderr += data.toString();
+    });
+
+    child.on('exit', (code: number | null) => {
+      resolve({ exitCode: code ?? -1, stderr });
+    });
+
+    child.on('error', err => {
+      reject(err);
+    });
+
+    // Safety timeout — the process should exit almost immediately.
+    setTimeout(() => {
+      child.kill();
+      reject(new Error('Server did not exit within timeout'));
+    }, 10000);
+  });
+}
+
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const serverPath = resolve(__dirname, '..', 'dist', 'index.js');
 
@@ -34,7 +73,7 @@ const serverPath = resolve(__dirname, '..', 'dist', 'index.js');
  */
 function startHttpServer(port: number): Promise<ChildProcess> {
   return new Promise((resolve, reject) => {
-    const child = fork(serverPath, ['--http', '--port', String(port)], {
+    const child = fork(serverPath, ['--http', '--port', String(port), '--http-allow-no-auth'], {
       stdio: ['pipe', 'pipe', 'pipe', 'ipc'],
       silent: true,
     });
@@ -140,5 +179,54 @@ describe('Zowe MCP Server (HTTP-specific)', () => {
     } catch {
       // ignore
     }
+  });
+
+  it('should refuse to start when no JWT auth and --http-allow-no-auth is absent', async () => {
+    const { exitCode, stderr } = await spawnHttpServerNoAuth(15103);
+    expect(exitCode).toBe(1);
+    expect(stderr).toContain('without authentication');
+    expect(stderr).toContain('--http-allow-no-auth');
+  });
+
+  it('should start with a warning when ZOWE_MCP_HTTP_ALLOW_NO_AUTH=1 is used instead of the flag', async () => {
+    const port = 15104;
+    serverProcess = await new Promise<ChildProcess>((resolve, reject) => {
+      const child = fork(serverPath, ['--http', '--port', String(port)], {
+        stdio: ['pipe', 'pipe', 'pipe', 'ipc'],
+        silent: true,
+        env: {
+          ...process.env,
+          ZOWE_MCP_JWT_ISSUER: '',
+          ZOWE_MCP_JWKS_URI: '',
+          ZOWE_MCP_HTTP_ALLOW_NO_AUTH: '1',
+        },
+      });
+
+      let stderr = '';
+      const timeout = setTimeout(() => {
+        child.kill();
+        reject(new Error('Server did not start within timeout'));
+      }, 10000);
+
+      child.stderr?.on('data', (data: Buffer) => {
+        stderr += data.toString();
+        if (stderr.includes('listening')) {
+          clearTimeout(timeout);
+          resolve(child);
+        }
+      });
+
+      child.on('error', err => {
+        clearTimeout(timeout);
+        reject(err);
+      });
+    });
+
+    // Server must have logged the unauthenticated-mode warning.
+    const transport = new StreamableHTTPClientTransport(new URL(`http://localhost:${port}/mcp`));
+    client = new Client({ name: 'http-e2e-test', version: '1.0.0' });
+    await client.connect(transport);
+    const { tools } = await client.listTools();
+    expect(tools.length).toBeGreaterThan(0);
   });
 });

@@ -1689,7 +1689,20 @@ function registerPluginTool(
           }
         }
 
-        allProfileArgs.push(...buildProfileArgs(profile, typeDef.fields));
+        try {
+          allProfileArgs.push(...buildProfileArgs(profile, typeDef.fields));
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          return {
+            content: [
+              {
+                type: 'text' as const,
+                text: JSON.stringify({ error: msg }),
+              },
+            ],
+            isError: true,
+          };
+        }
       }
 
       // --- 2. Build effective location context for perToolOverride: true types ---

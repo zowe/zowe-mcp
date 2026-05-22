@@ -85,6 +85,20 @@ export interface ProfileFieldDef {
    * The password is keyed as `user@host` (where `host` is the field named "host").
    */
   isUsername?: boolean;
+  /**
+   * ECMAScript regular expression pattern that the field's string value must fully match.
+   * Applied before the value is forwarded to the CLI. Example: `'^[a-zA-Z0-9._-]+$'` for
+   * a hostname field — prevents path-separator characters and control characters from
+   * being interpolated into the CLI argument list or any URL the Zowe CLI constructs.
+   * A malformed regex is silently ignored (no validation performed).
+   */
+  pattern?: string;
+  /**
+   * Maximum allowed character length for the field's string value.
+   * Values exceeding this limit are rejected before they reach the CLI.
+   * Typical values: 253 for hostnames (DNS limit), 8 for short Endevor qualifiers.
+   */
+  maxLength?: number;
 }
 
 /**

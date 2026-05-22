@@ -105,6 +105,15 @@
         "isUsername": {
           "type": "boolean",
           "description": "When true, this field's value is the username used for password lookup (keyed as 'user@host'). Only one field per profile type should have this flag."
+        },
+        "pattern": {
+          "type": "string",
+          "description": "ECMAScript regex pattern that the field value must fully match before being forwarded to the CLI. Example: '^[a-zA-Z0-9._-]+$' for a hostname (blocks path separators and control characters). A malformed pattern is silently ignored."
+        },
+        "maxLength": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Maximum allowed character length for the field value. Values exceeding this limit are rejected before reaching the CLI. Typical values: 253 for hostnames (DNS limit), 8 for short Endevor qualifiers."
         }
       }
     },

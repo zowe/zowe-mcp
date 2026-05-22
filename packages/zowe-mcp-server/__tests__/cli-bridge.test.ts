@@ -30,7 +30,11 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { buildProfileArgs, invokeZoweCli } from '../src/tools/cli-bridge/cli-invoker.js';
+import {
+  buildProfileArgs,
+  invokeZoweCli,
+  validateProfileField,
+} from '../src/tools/cli-bridge/cli-invoker.js';
 import {
   buildCliArgs,
   buildToolInputSchema,
@@ -474,6 +478,107 @@ describe('buildProfileArgs', () => {
     expect(args).not.toContain('--user');
     expect(args).not.toContain('--protocol');
     expect(args).not.toContain('--i');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// validateProfileField — character-class and length constraints
+// ---------------------------------------------------------------------------
+
+describe('validateProfileField', () => {
+  it('returns null when no constraints are declared', () => {
+    const field: ProfileFieldDef = { name: 'host', cliOption: 'host' };
+    expect(validateProfileField('host', 'any.value/here', field)).toBeNull();
+  });
+
+  it('returns null when value is within maxLength', () => {
+    const field: ProfileFieldDef = { name: 'host', cliOption: 'host', maxLength: 10 };
+    expect(validateProfileField('host', 'short', field)).toBeNull();
+  });
+
+  it('returns an error when value exceeds maxLength', () => {
+    const field: ProfileFieldDef = { name: 'host', cliOption: 'host', maxLength: 5 };
+    const result = validateProfileField('host', 'toolong_value', field);
+    expect(result).not.toBeNull();
+    expect(result).toContain('"host"');
+    expect(result).toContain('5');
+  });
+
+  it('returns null when value matches pattern', () => {
+    const field: ProfileFieldDef = {
+      name: 'host',
+      cliOption: 'host',
+      pattern: '^[a-zA-Z0-9._-]+$',
+    };
+    expect(validateProfileField('host', 'my-host.example.com', field)).toBeNull();
+  });
+
+  it('returns an error when value does not match pattern', () => {
+    const field: ProfileFieldDef = {
+      name: 'host',
+      cliOption: 'host',
+      pattern: '^[a-zA-Z0-9._-]+$',
+    };
+    const result = validateProfileField('host', '../../../etc/passwd', field);
+    expect(result).not.toBeNull();
+    expect(result).toContain('"host"');
+    expect(result).toContain('^[a-zA-Z0-9._-]+$');
+  });
+
+  it('enforces both maxLength and pattern — maxLength checked first', () => {
+    const field: ProfileFieldDef = {
+      name: 'env',
+      cliOption: 'env',
+      maxLength: 8,
+      pattern: '^[A-Z0-9]+$',
+    };
+    // 9 chars — fails maxLength before pattern is even checked
+    const result = validateProfileField('env', 'TOOLONGENV', field);
+    expect(result).not.toBeNull();
+    expect(result).toContain('8');
+  });
+
+  it('is tolerant of a malformed pattern — returns null instead of throwing', () => {
+    const field: ProfileFieldDef = { name: 'x', cliOption: 'x', pattern: '[invalid(regex' };
+    expect(() => validateProfileField('x', 'value', field)).not.toThrow();
+    expect(validateProfileField('x', 'value', field)).toBeNull();
+  });
+});
+
+describe('buildProfileArgs (field validation)', () => {
+  const constrainedFields: ProfileFieldDef[] = [
+    { name: 'host', cliOption: 'host', pattern: '^[a-zA-Z0-9._-]+$', maxLength: 253 },
+    { name: 'port', cliOption: 'port', pattern: '^\\d+$', maxLength: 5 },
+    { name: 'user', cliOption: 'user', pattern: '^[a-zA-Z0-9._@-]+$', maxLength: 100 },
+  ];
+
+  it('succeeds and includes all args when values satisfy constraints', () => {
+    const profile: CliNamedProfile = {
+      id: 'p',
+      host: 'myhost.example.com',
+      port: '8080',
+      user: 'MYUSER',
+    };
+    const args = buildProfileArgs(profile, constrainedFields);
+    expect(args).toContain('--host');
+    expect(args).toContain('myhost.example.com');
+    expect(args).toContain('--port');
+    expect(args).toContain('8080');
+  });
+
+  it('throws when a host value contains a path separator', () => {
+    const profile: CliNamedProfile = { id: 'p', host: '../../../evil', port: '8080' };
+    expect(() => buildProfileArgs(profile, constrainedFields)).toThrow(/host/);
+  });
+
+  it('throws when a port value is not numeric', () => {
+    const profile: CliNamedProfile = { id: 'p', host: 'valid.host', port: '80; rm -rf /' };
+    expect(() => buildProfileArgs(profile, constrainedFields)).toThrow(/port/);
+  });
+
+  it('throws when a value exceeds maxLength', () => {
+    const profile: CliNamedProfile = { id: 'p', host: 'a'.repeat(300) };
+    expect(() => buildProfileArgs(profile, constrainedFields)).toThrow(/host/);
   });
 });
 

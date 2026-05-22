@@ -45,6 +45,43 @@ export interface CliInvokeResult {
 }
 
 /**
+ * Validate a single profile field value against its declared constraints
+ * (`maxLength` and/or `pattern`).
+ *
+ * Returns `null` when the value is acceptable, or a human-readable error
+ * string when a constraint is violated.  A malformed `pattern` regex is
+ * silently ignored so a bad YAML annotation never crashes the server.
+ */
+export function validateProfileField(
+  fieldName: string,
+  value: string,
+  field: ProfileFieldDef
+): string | null {
+  if (field.maxLength !== undefined && value.length > field.maxLength) {
+    return (
+      `Profile field "${fieldName}" value is too long ` +
+      `(${value.length.toString()} characters; maximum ${field.maxLength.toString()})`
+    );
+  }
+  if (field.pattern !== undefined) {
+    let re: RegExp;
+    try {
+      re = new RegExp(field.pattern);
+    } catch {
+      // Malformed pattern in the plugin YAML — skip validation rather than crash.
+      return null;
+    }
+    if (!re.test(value)) {
+      return (
+        `Profile field "${fieldName}" value contains disallowed characters ` +
+        `(must match ${field.pattern})`
+      );
+    }
+  }
+  return null;
+}
+
+/**
  * Build the CLI argument array from a named profile's field values.
  *
  * Iterates the ProfileFieldDef array in order and maps each field to
@@ -56,6 +93,11 @@ export interface CliInvokeResult {
  * process argument list (where they would be visible to other local users
  * via `ps`/`/proc/<pid>/cmdline`).
  *
+ * Throws when a field value violates a `maxLength` or `pattern` constraint
+ * declared in the plugin YAML. The caller should map this to an MCP
+ * `isError: true` response rather than letting it propagate as an uncaught
+ * exception.
+ *
  * @param profile - the named profile instance (contains field values)
  * @param fields  - ordered field definitions from the profile type
  */
@@ -64,7 +106,12 @@ export function buildProfileArgs(profile: CliNamedProfile, fields: ProfileFieldD
   for (const field of fields) {
     const value = profile[field.name];
     if (value !== undefined && value !== '' && field.cliOption) {
-      args.push(`--${field.cliOption}`, String(value));
+      const strValue = String(value);
+      const err = validateProfileField(field.name, strValue, field);
+      if (err !== null) {
+        throw new Error(err);
+      }
+      args.push(`--${field.cliOption}`, strValue);
     }
   }
   return args;

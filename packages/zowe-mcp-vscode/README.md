@@ -128,9 +128,8 @@ All options that affect the MCP server are documented below. The extension uses 
 When running the bundled server, or the `zowe-mcp-server` binary from a
 standalone install, outside VS Code — `@zowe/mcp-server` is not yet on a
 public npm registry, so the bare `npx @zowe/mcp-server …` form fails with a
-404; install from a packed tarball (`npm run pack:server` produces it; see
-[Roo and standalone MCP § Obtaining the `.tgz`](../../docs/roo-or-standalone-mcp.md#obtaining-the-tgz))
-or use the in-repo workspace form:
+404; install from a packed tarball (`npm run pack:server` produces it) or use
+the in-repo workspace form:
 
 - **Transport:** `--stdio` (default), `--http`, `--port <N>` (default 7542 for HTTP)
 - **Safety:** `--capability-tier <tier>` (`read-strict`, `read`, `update`, `delete`, `full`; default: `read-strict`)

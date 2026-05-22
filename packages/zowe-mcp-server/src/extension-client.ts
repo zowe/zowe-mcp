@@ -124,8 +124,15 @@ export class ExtensionClient {
       socket.on('connect', () => {
         // Send the handshake as the very first message so the extension pipe
         // server can authenticate this process before forwarding any events.
+        // pipeSecret should always be present — the server always writes it.
+        // If it is missing the server will reject this connection after its
+        // handshake timeout, which is the correct outcome.
         if (pipeSecret) {
           socket.write(JSON.stringify({ type: 'pipe-handshake', secret: pipeSecret }) + '\n');
+        } else {
+          logger.warning(
+            'Discovery file has no pipeSecret — server will likely reject this connection'
+          );
         }
         logger.info('Connected to VS Code extension pipe', { socketPath });
         this._socket = socket;

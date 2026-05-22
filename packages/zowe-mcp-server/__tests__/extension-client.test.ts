@@ -26,6 +26,39 @@ import type { LogEvent, LogLevelEvent, ServerToExtensionEvent } from '../src/eve
 import { ExtensionClient, connectExtensionClient } from '../src/extension-client.js';
 import { Logger } from '../src/log.js';
 
+/** Poll until `predicate()` returns a truthy value, up to `timeoutMs`. */
+async function waitUntil(predicate: () => boolean, timeoutMs = 2000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  return new Promise<void>((resolve, reject) => {
+    const check = () => {
+      if (predicate()) {
+        resolve();
+      } else if (Date.now() > deadline) {
+        reject(new Error('waitUntil timed out'));
+      } else {
+        setTimeout(check, 10);
+      }
+    };
+    check();
+  });
+}
+
+/** Read the first complete NDJSON line from a socket, resolving once it arrives. */
+function readFirstLine(socket: Socket): Promise<string> {
+  return new Promise<string>(resolve => {
+    let buf = '';
+    const onData = (chunk: Buffer) => {
+      buf += chunk.toString();
+      const idx = buf.indexOf('\n');
+      if (idx !== -1) {
+        socket.off('data', onData);
+        resolve(buf.slice(0, idx));
+      }
+    };
+    socket.on('data', onData);
+  });
+}
+
 describe('ExtensionClient', () => {
   let mockServer: Server;
   let serverSocket: Socket | undefined;
@@ -332,6 +365,210 @@ describe('ExtensionClient', () => {
     expect(parsed.data.data).toEqual({ key: 'value' });
 
     client.close();
+  });
+
+  // -----------------------------------------------------------------------
+  // Pipe handshake authentication
+  // -----------------------------------------------------------------------
+
+  it('sends pipe-handshake as the very first message when pipeSecret is in the discovery file', async () => {
+    const pipeSecret = 'supersecret-test-42';
+
+    // Overwrite the discovery file to include pipeSecret.
+    const discoveryFile = join(discoveryDir, `mcp-discovery-${workspaceId}.json`);
+    writeFileSync(
+      discoveryFile,
+      JSON.stringify({
+        socketPath: pipePath,
+        workspaceId,
+        timestamp: Date.now(),
+        pid: process.pid,
+        pipeSecret,
+      })
+    );
+
+    const logger = new Logger({ level: 'debug' });
+    const client = new ExtensionClient();
+    await client.connect(discoveryDir, workspaceId, logger);
+
+    // Wait for the server side to accept the connection.
+    await waitUntil(() => serverSocket !== undefined);
+
+    // The socket is initially in paused mode, so the handshake data is buffered
+    // until we add a listener — it is the first (and only) thing the client has sent.
+    const firstLine = await readFirstLine(serverSocket!);
+    const msg = JSON.parse(firstLine) as { type: string; secret: string };
+    expect(msg.type).toBe('pipe-handshake');
+    expect(msg.secret).toBe(pipeSecret);
+
+    client.close();
+  });
+
+  it('logs a warning and skips the handshake when pipeSecret is absent from the discovery file', async () => {
+    // The discovery file written by beforeEach has no pipeSecret field — this
+    // represents a bug or a stale file.  The client should warn and still
+    // attempt to connect (the server will reject it, but that is handled
+    // server-side; the client itself should not crash).
+    const warnMessages: string[] = [];
+    const logger = new Logger({ level: 'debug' });
+    // Capture warning output written to stderr.
+    stderrSpy.mockImplementation((s: unknown) => {
+      if (typeof s === 'string') warnMessages.push(s);
+      return true;
+    });
+
+    const client = new ExtensionClient();
+    await client.connect(discoveryDir, workspaceId, logger);
+
+    await waitUntil(() => serverSocket !== undefined);
+
+    // A warning must have been emitted about the missing secret.
+    expect(warnMessages.some(m => m.includes('pipeSecret'))).toBe(true);
+
+    // Trigger the first data by sending a regular event — no handshake prefix.
+    const event: LogEvent = {
+      type: 'log',
+      data: { level: 'info', logger: 'test', message: 'no-handshake' },
+      timestamp: Date.now(),
+    };
+    client.sendEvent(event);
+
+    const firstLine = await readFirstLine(serverSocket!);
+    const msg = JSON.parse(firstLine) as { type: string };
+    expect(msg.type).toBe('log');
+
+    client.close();
+  });
+
+  it('can exchange events after a mock server enforces handshake authentication', async () => {
+    const pipeSecret = 'roundtrip-secret-99';
+    const authPipePath = join(
+      tmpdir(),
+      `zowe-mcp-auth-test-${Date.now()}-${Math.random().toString(36).slice(2)}.sock`
+    );
+
+    // Build a mock server that enforces the handshake before forwarding events —
+    // this mirrors the behaviour of the real pipe-server.ts after the security fix.
+    const receivedEvents: LogEvent[] = [];
+    let authServerSocket: Socket | undefined;
+
+    const authServer = await new Promise<Server>(resolve => {
+      const srv = createServer((socket: Socket) => {
+        authServerSocket = socket;
+        let buffer = '';
+        let authenticated = false;
+
+        socket.on('data', (chunk: Buffer) => {
+          buffer += chunk.toString();
+          const lines = buffer.split('\n');
+          buffer = lines.pop() ?? '';
+          for (const line of lines) {
+            if (!line.trim()) continue;
+            if (!authenticated) {
+              const msg = JSON.parse(line) as { type?: string; secret?: string };
+              if (msg.type === 'pipe-handshake' && msg.secret === pipeSecret) {
+                authenticated = true;
+              } else {
+                socket.destroy();
+              }
+              continue;
+            }
+            receivedEvents.push(JSON.parse(line) as LogEvent);
+          }
+        });
+      });
+      srv.listen(authPipePath, () => resolve(srv));
+    });
+
+    try {
+      const authDiscoveryFile = join(discoveryDir, `mcp-discovery-authtest.json`);
+      writeFileSync(
+        authDiscoveryFile,
+        JSON.stringify({
+          socketPath: authPipePath,
+          workspaceId: 'authtest',
+          timestamp: Date.now(),
+          pid: process.pid,
+          pipeSecret,
+        })
+      );
+
+      const logger = new Logger({ level: 'debug' });
+      const client = new ExtensionClient();
+      await client.connect(discoveryDir, 'authtest', logger);
+
+      expect(client.connected).toBe(true);
+
+      // Wait for the server to accept the connection.
+      await waitUntil(() => authServerSocket !== undefined);
+
+      // Give the handshake time to be processed.
+      await new Promise<void>(resolve => setTimeout(resolve, 50));
+
+      // Send a regular event — it should be dispatched after authentication.
+      const event: LogEvent = {
+        type: 'log',
+        data: { level: 'info', logger: 'test', message: 'post-auth event' },
+        timestamp: Date.now(),
+      };
+      client.sendEvent(event);
+
+      await waitUntil(() => receivedEvents.length > 0);
+      expect(receivedEvents[0].type).toBe('log');
+      expect(receivedEvents[0].data.message).toBe('post-auth event');
+
+      client.close();
+    } finally {
+      await new Promise<void>(resolve => authServer.close(() => resolve()));
+    }
+  });
+
+  it('is disconnected when the server rejects an incorrect secret', async () => {
+    const correctSecret = 'correct-secret';
+    const wrongSecret = 'wrong-secret';
+    const strictPipePath = join(
+      tmpdir(),
+      `zowe-mcp-strict-test-${Date.now()}-${Math.random().toString(36).slice(2)}.sock`
+    );
+
+    // A mock server that closes the connection on a bad handshake.
+    const strictServer = await new Promise<Server>(resolve => {
+      const srv = createServer((socket: Socket) => {
+        socket.once('data', (chunk: Buffer) => {
+          const line = chunk.toString().split('\n')[0] ?? '';
+          const msg = JSON.parse(line) as { type?: string; secret?: string };
+          if (msg.type !== 'pipe-handshake' || msg.secret !== correctSecret) {
+            socket.destroy();
+          }
+        });
+      });
+      srv.listen(strictPipePath, () => resolve(srv));
+    });
+
+    try {
+      // Write discovery with the WRONG secret so the client sends the wrong one.
+      const strictDiscoveryFile = join(discoveryDir, `mcp-discovery-strict.json`);
+      writeFileSync(
+        strictDiscoveryFile,
+        JSON.stringify({
+          socketPath: strictPipePath,
+          workspaceId: 'strict',
+          timestamp: Date.now(),
+          pid: process.pid,
+          pipeSecret: wrongSecret,
+        })
+      );
+
+      const logger = new Logger({ level: 'debug' });
+      const client = new ExtensionClient();
+      await client.connect(discoveryDir, 'strict', logger);
+
+      // The server will destroy the connection after receiving the wrong secret.
+      await waitUntil(() => !client.connected);
+      expect(client.connected).toBe(false);
+    } finally {
+      await new Promise<void>(resolve => strictServer.close(() => resolve()));
+    }
   });
 
   // -----------------------------------------------------------------------

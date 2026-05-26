@@ -23,6 +23,14 @@ zowe-mcp-server --version                 # sanity check
 
 Full install matrix (global, project-local, tarball, npx) is in [claude-code-mcp.md](claude-code-mcp.md#1-install-the-zowemcp-server-package). Everything there applies — Kiro just consumes the same `zowe-mcp-server` binary over stdio.
 
+### Note about the Zowe MCP VS Code extension
+
+The Zowe MCP VS Code extension (VSIX) installs cleanly in Kiro (`code --install-extension zowe-mcp-vscode-<version>.vsix`) and its **settings UI** is functional — the `zoweMCP.*` entries (Backend, Capability Tier, Mock Data Directory, …) appear in Kiro Settings.
+
+However, **the extension's MCP-server registration is not consumed by Kiro.** The extension calls `vscode.lm.registerMcpServerDefinitionProvider('zowe', …)` (the VS Code MCP-provider API used by Copilot Chat); Kiro inherits the API type declarations from upstream VS Code so the call doesn't error, but Kiro's MCP host runs as a parallel implementation that only honours servers declared in `mcp.json` (and an internal `powers.mcpServers` namespace). The MCP SERVERS panel will not show a server contributed by the extension, and Kiro's agent will not see its tools.
+
+**Recommendation:** in Kiro, configure the Zowe MCP server via `mcp.json` as shown below. Skip the VSIX unless you want it for the Settings UI alone.
+
 ## 2. Connect to one z/OS system
 
 `~/.kiro/settings/mcp.json`:
@@ -183,7 +191,7 @@ Each configured server appears with a status badge — e.g. `zowe — Connected 
 ### Logs and reloads
 
 - **Output panel → `Kiro - MCP Logs`** — Kiro's view of every server: startup, tool calls (with `Consent Mechanism`), errors.
-- **Output panel → `Zowe MCP`** — the extension's own logs (only relevant if you also installed the Zowe MCP VS Code extension; the extension's MCP-server registration via `vscode.lm.registerMcpServerDefinitionProvider` is not consumed by Kiro's MCP host today, so the extension's tools won't appear in MCP SERVERS — only `mcp.json`-defined servers do).
+- **Output panel → `Zowe MCP`** — the Zowe MCP VS Code extension's own logs, if you installed the VSIX. Useful for debugging the extension itself, but not for MCP tool calls — see the [extension note in §1](#note-about-the-zowe-mcp-vs-code-extension).
 - Editing `mcp.json` is picked up automatically. If a server stays stale, use **Developer: Reload Window** from the command palette, or stop/start the server from the MCP SERVERS panel.
 
 ## Troubleshooting (Zowe-specific)

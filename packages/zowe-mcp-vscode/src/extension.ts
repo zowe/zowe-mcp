@@ -20,6 +20,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { plural } from 'zowe-mcp-common';
+import { activateHostCompat } from './host-compat';
 import {
   appendLineVisibleWithLogFilter,
   getDisplayName,
@@ -97,6 +98,10 @@ export function activate(context: vscode.ExtensionContext): void {
   if (typeof vscode.cursor?.mcp?.registerServer === 'function') {
     void registerWithCursor(context, serverModule, discoveryDir, workspaceId, log);
   }
+
+  // In hosts that ignore the provider API (Kiro, Roo Code, …), surface a one-time
+  // notice pointing the user at the host's mcp.json and offer a snippet generator.
+  activateHostCompat(context, serverModule, log);
 
   // Register the "Generate Mock Data" command
   context.subscriptions.push(

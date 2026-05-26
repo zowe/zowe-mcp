@@ -116,6 +116,11 @@
         "command": "zowe-mcp.resetAllSettingsAndState",
         "title": "Reset All Settings and State",
         "category": "Zowe MCP"
+      },
+      {
+        "command": "zowe-mcp.generateHostMcpSnippet",
+        "title": "Generate mcp.json Snippet for Detected Host (Kiro / Roo)",
+        "category": "Zowe MCP"
       }
     ],
     "configuration": {

@@ -25,11 +25,15 @@ Full install matrix (global, project-local, tarball, npx) is in [claude-code-mcp
 
 ### Note about the Zowe MCP VS Code extension
 
-The Zowe MCP VS Code extension (VSIX) installs cleanly in Kiro (`code --install-extension zowe-mcp-vscode-<version>.vsix`) and its **settings UI** is functional — the `zoweMCP.*` entries (Backend, Capability Tier, Mock Data Directory, …) appear in Kiro Settings.
+If you already have the Zowe MCP VS Code extension (VSIX) installed: **uninstall it for Kiro and use the `@zowe/mcp-server` npm package directly via `mcp.json`** (this guide). The extension installs cleanly in Kiro and its `zoweMCP.*` settings UI is functional, but **its MCP-server registration is not consumed by Kiro** — the extension calls `vscode.lm.registerMcpServerDefinitionProvider('zowe', …)` (the VS Code MCP-provider API used by Copilot Chat) and Kiro inherits the API types from upstream VS Code so the call doesn't error, but Kiro's MCP host is a parallel implementation that only honours servers declared in `mcp.json` (and an internal `powers.mcpServers` namespace). The MCP SERVERS panel will not show a server contributed by the extension, and Kiro's agent will not see its tools. Leaving the extension installed alongside an `mcp.json` entry just adds a stale Settings UI and a misleading log channel.
 
-However, **the extension's MCP-server registration is not consumed by Kiro.** The extension calls `vscode.lm.registerMcpServerDefinitionProvider('zowe', …)` (the VS Code MCP-provider API used by Copilot Chat); Kiro inherits the API type declarations from upstream VS Code so the call doesn't error, but Kiro's MCP host runs as a parallel implementation that only honours servers declared in `mcp.json` (and an internal `powers.mcpServers` namespace). The MCP SERVERS panel will not show a server contributed by the extension, and Kiro's agent will not see its tools.
+Uninstall via Kiro's Extensions view, or:
 
-**Recommendation:** in Kiro, configure the Zowe MCP server via `mcp.json` as shown below. Skip the VSIX unless you want it for the Settings UI alone.
+```bash
+/Applications/Kiro.app/Contents/Resources/app/bin/code --uninstall-extension zowe.zowe-mcp-vscode
+```
+
+The extension's helper commands (`zowe-mcp.initMockData`, etc.) are thin wrappers around CLI subcommands — `zowe-mcp-server init-mock --output …` is equivalent and works after the extension is gone.
 
 ## 2. Connect to one z/OS system
 

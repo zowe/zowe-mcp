@@ -100,8 +100,8 @@ export function activate(context: vscode.ExtensionContext): void {
   }
 
   // In hosts that ignore the provider API (Kiro, Roo Code, …), surface a one-time
-  // notice pointing the user at the host's mcp.json and offer a snippet generator.
-  activateHostCompat(context, serverModule, log);
+  // notice linking to that host's mcp.json setup guide.
+  activateHostCompat(context, log);
 
   // Register the "Generate Mock Data" command
   context.subscriptions.push(

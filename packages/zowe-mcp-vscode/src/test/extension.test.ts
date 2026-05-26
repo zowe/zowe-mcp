@@ -371,7 +371,6 @@ suite('Zowe MCP VS Code Extension', () => {
         'zowe-mcp.initMockData',
         'zowe-mcp.clearStoredPassword',
         'zowe-mcp.resetAllSettingsAndState',
-        'zowe-mcp.generateHostMcpSnippet',
       ]) {
         assert.ok(all.includes(id), `Command ${id} should be registered after activation`);
       }

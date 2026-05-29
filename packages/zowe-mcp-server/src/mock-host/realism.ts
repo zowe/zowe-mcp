@@ -47,20 +47,19 @@ export const DEFAULT_MOTD =
 
 /**
  * Default sysname/release fields surfaced by `uname -a`. The format mirrors what
- * `uname -a` produces on a real z/OS USS shell:
- *   OS/390 SY1 28.00 03 8561 9672
- *   sysname=OS/390, nodename=SY1, release=28.00, version=03, machine=8561, processor=9672
+ * `uname -a` produces on a real z/OS USS shell (5 fields):
+ *   OS/390 SY1 28.00 03 8561
+ *   sysname=OS/390, nodename=SY1, release=28.00, version=03, machine=8561
  */
 export const DEFAULT_SYSNAME = 'OS/390';
 export const DEFAULT_NODENAME = 'SY1';
 export const DEFAULT_RELEASE = '28.00';
 export const DEFAULT_VERSION = '03';
 export const DEFAULT_MACHINE = '8561';
-export const DEFAULT_PROCESSOR = '9672';
 
-/** Compose a z/OS-style `uname -a` line. */
+/** Compose a z/OS-style `uname -a` line (5 fields: sysname nodename release version machine). */
 export function unameLine(): string {
-  return `${DEFAULT_SYSNAME} ${DEFAULT_NODENAME} ${DEFAULT_RELEASE} ${DEFAULT_VERSION} ${DEFAULT_MACHINE} ${DEFAULT_PROCESSOR}`;
+  return `${DEFAULT_SYSNAME} ${DEFAULT_NODENAME} ${DEFAULT_RELEASE} ${DEFAULT_VERSION} ${DEFAULT_MACHINE}`;
 }
 
 /** Default `id` output for a user. */

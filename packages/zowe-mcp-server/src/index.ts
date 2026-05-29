@@ -28,7 +28,7 @@
  *   call-tool  Call MCP tools via in-memory transport (optional --mock <dir>)
  */
 
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import {
   existsSync,
   readdirSync,
@@ -310,6 +310,68 @@ function parseArgs(): ParsedArgs {
           stdio: 'inherit',
         });
         process.exit(result.status ?? 0);
+      }
+    )
+    .command(
+      'mock-zos [args..]',
+      'Run a standalone mock z/OS host (SSH + optional z/OSMF HTTP) for testing',
+      y =>
+        y.options({
+          port: {
+            type: 'number',
+            describe: 'SSH port to listen on (default 4022, 0 for ephemeral)',
+          },
+          'mock-dir': { type: 'string', describe: 'Mock data directory (required for start)' },
+          host: { type: 'string', describe: 'Host to bind for SSH (default 127.0.0.1)' },
+          'log-level': {
+            type: 'string',
+            describe: 'Log level (error|warn|info|debug|trace)',
+          },
+          'http-port': {
+            type: 'number',
+            describe:
+              'Enable the z/OSMF HTTP listener on this port. Omit to disable HTTP entirely.',
+          },
+          'http-host': {
+            type: 'string',
+            describe: 'Bind address for the z/OSMF HTTP listener (default 127.0.0.1)',
+          },
+        }),
+      () => {
+        // `mock-zos start` is a long-running daemon, so we use async spawn
+        // (NOT spawnSync) and forward SIGINT/SIGTERM to the child. With
+        // spawnSync, signals to this parent kill the parent by default
+        // disposition while orphaning the daemon child — `kill <pid>` then
+        // appears to "not work" because port 8443 stays bound.
+        const scriptPath = resolve(__dirname, 'scripts', 'mock-zos.js');
+        const child = spawn(process.execPath, [scriptPath, ...process.argv.slice(3)], {
+          stdio: 'inherit',
+        });
+        let forwarding = false;
+        const forward = (sig: NodeJS.Signals): void => {
+          if (forwarding) return;
+          forwarding = true;
+          child.kill(sig);
+          // 7s safety net — child has its own 5s dispose timeout, give it a
+          // small grace period before SIGKILLing the lot.
+          const force = setTimeout(() => child.kill('SIGKILL'), 7000);
+          force.unref();
+        };
+        process.on('SIGINT', () => forward('SIGINT'));
+        process.on('SIGTERM', () => forward('SIGTERM'));
+        child.on('exit', (code, signal) => {
+          // Node convention: if killed by a signal, exit with 128 + signo.
+          // Otherwise mirror the child's exit code.
+          if (signal) {
+            const signo = (process as unknown as { binding?: (n: string) => { signals: Record<string, number> } }).binding?.('constants')?.signals?.[signal];
+            process.exit(128 + (signo ?? 15));
+          }
+          process.exit(code ?? 0);
+        });
+        child.on('error', err => {
+          process.stderr.write(`mock-zos child error: ${err.message}\n`);
+          process.exit(1);
+        });
       }
     )
     .command(

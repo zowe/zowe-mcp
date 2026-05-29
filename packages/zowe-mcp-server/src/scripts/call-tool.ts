@@ -196,7 +196,22 @@ function parseArgs(): {
 
 /**
  * Build tool arguments from key=value pairs.
- * Values are kept as strings unless they look like numbers or booleans.
+ *
+ * Value coercion rules (applied to each `raw`):
+ *   - `key:str=value`   → forces string (no number/bool coercion). Use for octal-looking
+ *                         args like `chmodUssFile mode:str=644`.
+ *   - `key:int=value`   → parseInt.
+ *   - `key:bool=value`  → true/false.
+ *   - `key:json=value`  → JSON.parse(value); use for nested objects.
+ *   - `key=@-`          → read the value from stdin (then JSON-parsed if it looks like
+ *                         an array/object, otherwise split into a line array if the key
+ *                         is named "lines", else string).
+ *   - `key=@FILE`       → read the value from the named file (same parsing as @-).
+ *   - `key=[...]` / `key={...}`  → JSON-parsed.
+ *   - `key=value` plain → boolean ('true'/'false') if exact match, else number if
+ *                         Number(value) is a finite number, else string. (Original behavior.)
+ *
+ * The `:type` selector is BEFORE the `=`, e.g. `mode:str=644`, `lines:json=["a","b"]`.
  */
 function buildToolArgs(argsRest: string[]): Record<string, unknown> {
   if (argsRest.length === 0) return {};
@@ -207,22 +222,86 @@ function buildToolArgs(argsRest: string[]): Record<string, unknown> {
     if (eq === -1) {
       throw new Error(`Invalid argument "${arg}": expected key=value`);
     }
-    const key = arg.slice(0, eq).trim();
+    const keyAndType = arg.slice(0, eq).trim();
     const raw = arg.slice(eq + 1);
+    const colon = keyAndType.indexOf(':');
+    const key = colon >= 0 ? keyAndType.slice(0, colon) : keyAndType;
+    const typeHint = colon >= 0 ? keyAndType.slice(colon + 1).toLowerCase() : undefined;
     if (!key) {
       throw new Error(`Invalid argument "${arg}": missing key before =`);
     }
-    out[key] = coerceValue(raw);
+    let materialized = raw;
+    if (raw === '@-') {
+      materialized = readStdinSync();
+    } else if (raw.startsWith('@') && raw.length > 1) {
+      materialized = readFileSyncUtf8(raw.slice(1));
+    }
+    out[key] = applyTypeHint(materialized, typeHint, key);
   }
   return out;
 }
 
-function coerceValue(raw: string): string | number | boolean {
+function applyTypeHint(raw: string, hint: string | undefined, key: string): unknown {
+  if (hint === 'str' || hint === 'string') return raw;
+  if (hint === 'int') {
+    const n = parseInt(raw, 10);
+    if (Number.isNaN(n)) throw new Error(`Invalid int for ${key}: ${raw}`);
+    return n;
+  }
+  if (hint === 'num' || hint === 'number') {
+    const n = Number(raw);
+    if (Number.isNaN(n)) throw new Error(`Invalid number for ${key}: ${raw}`);
+    return n;
+  }
+  if (hint === 'bool' || hint === 'boolean') {
+    if (raw === 'true') return true;
+    if (raw === 'false') return false;
+    throw new Error(`Invalid bool for ${key}: ${raw}`);
+  }
+  if (hint === 'json') {
+    try {
+      return JSON.parse(raw);
+    } catch (e) {
+      throw new Error(`Invalid JSON for ${key}: ${(e as Error).message}`);
+    }
+  }
+  if (hint !== undefined) {
+    throw new Error(`Unknown type hint :${hint} for ${key}`);
+  }
+  return coerceValue(raw, key);
+}
+
+function readStdinSync(): string {
+  // Synchronous stdin read for short CLI inputs. Returns the buffer up to EOF.
+  return readFileSyncUtf8('/dev/stdin');
+}
+
+function readFileSyncUtf8(p: string): string {
+  return readFileSync(p, 'utf-8');
+}
+
+function coerceValue(raw: string, key?: string): unknown {
   const s = raw.trim();
+  // JSON literal? (array or object)
+  if (s.startsWith('[') || s.startsWith('{')) {
+    try {
+      return JSON.parse(s);
+    } catch {
+      /* fall through */
+    }
+  }
   if (s === 'true') return true;
   if (s === 'false') return false;
   const n = Number(s);
-  if (s !== '' && !Number.isNaN(n)) return n;
+  if (s !== '' && !Number.isNaN(n)) {
+    // Heuristic: if the value came from a key named like "mode", "perms", "permissions"
+    // and the raw text is a short octal-looking string, keep it as a string so
+    // chmod / chmodUssFile schemas (which require string) don't reject.
+    if (key && /^(mode|perms|permissions|umask)$/i.test(key) && /^0*[0-7]{3,4}$/.test(s)) {
+      return raw;
+    }
+    return n;
+  }
   return raw;
 }
 
@@ -410,7 +489,13 @@ async function main(): Promise<void> {
   }
 }
 
-main().catch((error: unknown) => {
-  log.error('Error', error);
-  process.exit(1);
-});
+main()
+  // Force exit on clean completion. Without this, the SSH keepalive timer in the
+  // native backend (ssh2.Client, default 30s) keeps Node's event loop alive long
+  // after the work and `server.close()` have finished, causing the CLI to sit idle
+  // before terminating. Loop callers don't want that.
+  .then(() => process.exit(0))
+  .catch((error: unknown) => {
+    log.error('Error', error);
+    process.exit(1);
+  });

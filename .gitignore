@@ -65,6 +65,14 @@ coverage/
 !resources/zowex-sdk-*.tgz
 !resources/znp-sdk-fallback.tgz
 
+# z/OSMF OpenAPI specs downloaded from a live server (not committed)
+resources/zosmf/zos-*/
+resources/zosmf/zosmf-*/
+resources/zosmf/unknown-version/
+
+# z/OSMF instance list (personal/team-specific, created from zosmf-instances.example.json)
+zosmf-instances.json
+
 # SDK switch temporary directories
 .sdk-download-tmp/
 .sdk-version-tmp/

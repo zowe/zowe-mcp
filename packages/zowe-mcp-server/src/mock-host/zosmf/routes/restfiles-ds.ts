@@ -101,12 +101,14 @@ async function handleListDs(
     if (Number.isFinite(parsed) && parsed > 0) maxItems = parsed;
   }
 
-  // 4. X-IBM-Attributes — accepted, not differentiated. Note for debug visibility.
-  const attrHeader = req.header('x-ibm-attributes');
-  if (attrHeader && attrHeader !== 'base') {
+  // 4. X-IBM-Attributes — `base` (default) returns all rich fields; `vol`
+  // returns only dsname + vol (matching real z/OSMF behaviour); `csi` is
+  // accepted but treated as `base` (clients tolerate extra fields).
+  const attrMode = (req.header('x-ibm-attributes') ?? 'base').toLowerCase();
+  if (attrMode !== 'base' && attrMode !== 'vol') {
     deps.log(
       'debug',
-      `X-IBM-Attributes=${attrHeader} requested; mock always returns the rich attribute set`
+      `X-IBM-Attributes=${attrMode} requested; mock returns base attribute set for unknown modes`
     );
   }
 
@@ -124,17 +126,42 @@ async function handleListDs(
     if (start) {
       entries = entries.filter(e => e.dsn.toUpperCase() >= start);
     }
-    // 7. Cap by max-items.
+    // 7. Cap by max-items; track whether the list was truncated so moreRows is set.
+    let truncated = false;
     if (maxItems !== undefined && entries.length > maxItems) {
       entries = entries.slice(0, maxItems);
+      truncated = true;
     }
 
-    const body = buildDatasetListResponse(entries);
+    const body = buildDatasetListResponse(entries, truncated);
     deps.log(
       'debug',
       `restfiles/ds dslevel=${dslevel} user=${auth.username} returned=${body.returnedRows}`
     );
-    res.status(200).type('application/json').send(JSON.stringify(body));
+    // `vol` attribute mode — return only dsname + vol per entry.
+    if (attrMode === 'vol') {
+      const volItems = entries.map(e => {
+        const item: { dsname: string; vol?: string } = { dsname: e.dsn.toUpperCase() };
+        // VSAM pseudo-volser "*VSAM*" is not a real volume — omit it.
+        if (e.volser && e.volser !== '*VSAM*') item.vol = e.volser;
+        return item;
+      });
+      const volBody = {
+        items: volItems,
+        returnedRows: volItems.length,
+        ...(truncated ? { moreRows: true } : {}),
+        JSONversion: 1,
+      };
+      res
+        .status(200)
+        .set('Content-Type', 'application/json; charset=UTF-8')
+        .send(JSON.stringify(volBody));
+      return;
+    }
+    res
+      .status(200)
+      .set('Content-Type', 'application/json; charset=UTF-8')
+      .send(JSON.stringify(body));
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     deps.log('warn', `restfiles/ds backend error: ${msg}`);

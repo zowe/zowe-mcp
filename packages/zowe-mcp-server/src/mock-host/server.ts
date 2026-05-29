@@ -82,6 +82,12 @@ export interface StartMockZosOptions {
    * Useful for debugging Zowe Explorer / Zowe SDK exchanges against the mock.
    */
   verbose?: boolean;
+  /**
+   * z/OSMF version to advertise in `GET /zosmf/info`. Defaults to `'5.30'`.
+   * Currently the only supported value. Controls the `zos_version`,
+   * `zosmf_version`, and `zosmf_full_version` response fields.
+   */
+  zosmfVersion?: '5.30';
 }
 
 export interface StartMockZosResult {
@@ -159,6 +165,7 @@ export async function startMockZosHost(opts: StartMockZosOptions): Promise<Start
       store,
       log: (lvl, msg) => logger(lvl, `[mock-zosmf] ${msg}`),
       verbose: opts.verbose,
+      zosmfVersion: opts.zosmfVersion,
     });
     logger(
       'info',

@@ -89,7 +89,7 @@ describe('mock-zos GET /zosmf/restfiles/ds/{dsname}[/{member}]', () => {
     });
     expect(res.status).toBe(200);
     expect(res.headers.get('content-type')).toMatch(/text\/plain/);
-    expect(res.headers.get('etag')).toMatch(/^"[0-9a-f]+"$/);
+    expect(res.headers.get('etag')).toMatch(/^[0-9a-f]+$/);
     expect(res.headers.get('x-ibm-data-type')).toBe('text');
     expect(await res.text()).toBe(PS_BODY);
   });
@@ -181,7 +181,7 @@ describe('mock-zos GET /zosmf/restfiles/ds/{dsname}[/{member}]', () => {
       headers: { Cookie: `LtpaToken2=${cookie}`, 'X-CSRF-ZOSMF-HEADER': 'x' },
     });
     const etag = first.headers.get('etag')!;
-    expect(etag).toMatch(/^"[0-9a-f]+"$/);
+    expect(etag).toMatch(/^[0-9a-f]+$/);
 
     const second = await fetch(`${env.httpBaseUrl!}${RESTFILES_DS}/USER1.NOTES.TXT`, {
       headers: {

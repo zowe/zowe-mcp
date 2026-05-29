@@ -98,13 +98,20 @@ describe('mock-zos GET /zosmf/restfiles/ds', () => {
       'USER1.NOTES.TXT',
       'USER1.SAMPLE.COBOL',
     ]);
-    // Confirm IBM REST field names per item (NOT the ZNP/RPC names).
+    // Confirm IBM REST field names and types per item (NOT the ZNP/RPC names).
+    // Real z/OSMF 5.30 returns numeric-looking fields as strings (e.g. lrecl: "80").
     const notes = body.items.find(i => i.dsname === 'USER1.NOTES.TXT')!;
     expect(notes.dsorg).toBe('PS');
     expect(notes.recfm).toBe('FB');
-    expect(notes.lrecl).toBe(80);
-    expect(notes.blksz).toBe(27920);
+    expect(notes.lrecl).toBe('80');
+    expect(notes.blksz).toBe('27920');
     expect(notes.vol).toBe('VOL001');
+    // migr and mvol use z/OSMF string forms
+    expect(notes.migr).toBe('NO');
+    expect(notes.mvol).toBe('N');
+    expect(notes.ovf).toBe('NO');
+    // edate uses "***None***" when no expiry (not null)
+    expect(notes.edate).toBe('***None***');
     // Real z/OSMF clients should NEVER see ZNP-style aliases.
     expect(notes).not.toHaveProperty('name');
     expect(notes).not.toHaveProperty('blksize');
@@ -181,6 +188,8 @@ describe('mock-zos GET /zosmf/restfiles/ds', () => {
     const body = (await res.json()) as ZosmfDataSetListResponse;
     expect(body.items.length).toBe(1);
     expect(body.returnedRows).toBe(1);
+    // moreRows must be true when the list was truncated by X-IBM-Max-Items
+    expect(body.moreRows).toBe(true);
   });
 
   it('honors the `start` query cursor (skip entries lexically before it)', async () => {

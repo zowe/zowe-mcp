@@ -48,7 +48,10 @@ export function registerInfoRoute(deps: InfoRouteDeps): Router {
       sendZosmfError(res, 401, ZosmfErrors.unauthorized());
       return;
     }
-    res.status(200).type('application/json').send(JSON.stringify(body));
+    res
+      .status(200)
+      .set('Content-Type', 'application/json; charset=UTF-8')
+      .send(JSON.stringify(body));
   });
 
   return router;

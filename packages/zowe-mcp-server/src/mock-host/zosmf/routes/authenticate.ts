@@ -138,7 +138,11 @@ async function handleLogin(
     `login OK: ${result.user.username} (token expires ${new Date(info.expiresAt).toISOString()})`
   );
   void recordAuthOutcome(deps.mockDir, result.user.username, 'tokenIssued');
-  res.status(200).end();
+  // Real z/OSMF returns a JSON-like body as text/plain with ISO-8859-1 charset.
+  res
+    .status(200)
+    .set('Content-Type', 'text/plain;charset=ISO-8859-1')
+    .send('{"returnCode":0,"reasonCode":0,"message":"Success."}');
 }
 
 function handleLogout(req: Request, res: Response, deps: AuthenticateRouteDeps): void {

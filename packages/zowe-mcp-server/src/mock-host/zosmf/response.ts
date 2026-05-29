@@ -12,20 +12,26 @@
 /**
  * IBM z/OSMF REST response shapes for the data-set endpoints.
  *
- * The Zowe SDK (`@zowe/zos-files-for-zowe-sdk`) and Zowe Explorer's data-set
- * panel both consume the response from `GET /zosmf/restfiles/ds`. Field names
- * here come from the published z/OSMF REST API ("List the z/OS data sets on a
- * system"), NOT from the ZNP RPC wire shape used over SSH:
+ * Field names, types, and formatting come from real z/OSMF 5.30 on a real z/OS system:
  *
- *   z/OSMF REST     ZNP RPC
- *   ───────────     ───────
+ *   z/OSMF REST     ZNP RPC         Notes
+ *   ───────────     ───────         ──────────────────────────────────────────
  *   dsname          name
- *   blksz           blksize
- *   vol / vols      volser / volsers
+ *   blksz           blksize         STRING in z/OSMF, even though it is numeric
+ *   lrecl           lrecl           STRING in z/OSMF
+ *   extx            usedExtents     STRING in z/OSMF
+ *   sizex           –               STRING in z/OSMF (allocated tracks/blocks)
+ *   used            usedPercent     STRING ("0"–"100") in z/OSMF
+ *   migr            migrated        STRING "YES"/"NO" in z/OSMF (not boolean)
+ *   mvol            multivolume     STRING "Y"/"N" in z/OSMF (not boolean)
+ *   ovf             –               STRING "YES"/"NO" — overflow flag (mock: always "NO")
+ *   edate           expirationDate  "***None***" when none (not null)
+ *   cdate / rdate   creationDate    Format "YYYY/MM/DD" (slash-separated)
+ *   vol / vols      volser          vols is a STRING (not an array) — space-separated
+ *                                   when multi-volume
  *
- * Fields the FilesystemMockBackend doesn't supply (used, extx, sizex, dev,
- * catnm) are stable plausible defaults. Undefined fields are dropped from the
- * JSON so the wire shape stays compact.
+ * Fields the FilesystemMockBackend doesn't supply (dev, catnm) get plausible
+ * defaults. Undefined fields are dropped from the JSON so the payload stays compact.
  */
 
 import type { DatasetEntry } from '../../zos/backend.js';
@@ -35,33 +41,37 @@ export interface ZosmfDataSetItem {
   dsname: string;
   dsorg?: string;
   recfm?: string;
-  lrecl?: number;
-  blksz?: number;
+  /** Logical record length — STRING per z/OSMF wire format (e.g. "80"). */
+  lrecl?: string;
+  /** Block size — STRING per z/OSMF wire format (e.g. "27920"). */
+  blksz?: string;
   /** Primary volume serial. */
   vol?: string;
-  /** Multi-volume list. Always set to a one-element array when `vol` is known. */
-  vols?: string[];
-  /** Creation date (ISO 8601 yyyy-MM-dd). */
+  /** Volume serial list, space-separated STRING (z/OSMF format, e.g. "VOL001 VOL002"). */
+  vols?: string;
+  /** Creation date "YYYY/MM/DD". */
   cdate?: string;
-  /** Last-referenced date. Falls back to `cdate` when the entry has none. */
+  /** Last-referenced date "YYYY/MM/DD". */
   rdate?: string;
-  /** Expiration date. Real z/OSMF returns `null` for never-expiring data sets. */
-  edate?: string | null;
-  /** True if HSM-migrated. */
-  migr?: boolean;
-  /** True if the data set spans multiple volumes. */
-  mvol?: boolean;
+  /** Expiration date "YYYY/MM/DD", or "***None***" when the data set never expires. */
+  edate?: string;
+  /** HSM migration status — STRING "YES" or "NO" per z/OSMF wire format. */
+  migr?: string;
+  /** Multi-volume flag — STRING "Y" or "N" per z/OSMF wire format. */
+  mvol?: string;
+  /** Overflow indicator — STRING "YES" or "NO" per z/OSMF wire format. */
+  ovf?: string;
   /** Space unit ('TRACKS' | 'CYLINDERS' | ...). */
   spacu?: string;
-  /** Used tracks. */
-  used?: number;
-  /** Used extents. */
-  extx?: number;
-  /** Size (records). */
-  sizex?: number;
+  /** Used percentage — STRING (e.g. "60") per z/OSMF wire format. */
+  used?: string;
+  /** Used extents — STRING (e.g. "1") per z/OSMF wire format. */
+  extx?: string;
+  /** Allocated size in tracks/blocks — STRING (e.g. "41") per z/OSMF wire format. */
+  sizex?: string;
   /** Device type, e.g. '3390'. */
   dev?: string;
-  /** Data-set-name type — 'PDS', 'LIBRARY' (== PDSE), 'BASIC', etc. */
+  /** Data-set-name type — 'PDS', 'LIBRARY' (== PDS/E), 'BASIC', etc. */
   dsntp?: string;
   /** Containing catalog. */
   catnm?: string;
@@ -70,6 +80,11 @@ export interface ZosmfDataSetItem {
 export interface ZosmfDataSetListResponse {
   items: ZosmfDataSetItem[];
   returnedRows: number;
+  /**
+   * Present (and `true`) when the result was truncated by `X-IBM-Max-Items`.
+   * Matches real z/OSMF 5.30 behaviour — omitted when there are no more rows.
+   */
+  moreRows?: true;
   JSONversion: 1;
 }
 
@@ -78,30 +93,45 @@ const DEFAULT_DEVICE = '3390';
 const DEFAULT_SPACE_UNIT = 'TRACKS';
 
 /**
- * Map a backend {@link DatasetEntry} into a wire item using the z/OSMF field
- * names. Drop undefined keys so the response payload stays small.
+ * Convert an ISO date string ("YYYY-MM-DD") or any other format to the
+ * slash-separated "YYYY/MM/DD" that real z/OSMF returns.
+ * Returns `undefined` when the input is falsy.
+ */
+function toZosmfDate(iso: string | undefined): string | undefined {
+  if (!iso) return undefined;
+  // Already slash-separated — return as-is
+  if (iso.includes('/')) return iso;
+  // "YYYY-MM-DD" → "YYYY/MM/DD"
+  return iso.replace(/-/g, '/');
+}
+
+/**
+ * Map a backend {@link DatasetEntry} into a wire item using z/OSMF 5.30 field
+ * names and types. Drop undefined keys so the payload stays small.
  */
 export function datasetEntryToZosmfItem(entry: DatasetEntry): ZosmfDataSetItem {
   const item: ZosmfDataSetItem = {
     dsname: entry.dsn,
     dsorg: entry.dsorg,
     recfm: entry.recfm,
-    lrecl: entry.lrecl,
-    blksz: entry.blksz,
+    lrecl: entry.lrecl !== undefined ? String(entry.lrecl) : undefined,
+    blksz: entry.blksz !== undefined ? String(entry.blksz) : undefined,
     vol: entry.volser,
-    vols: entry.volsers ?? (entry.volser ? [entry.volser] : undefined),
-    cdate: entry.creationDate,
-    rdate: entry.referenceDate ?? entry.creationDate,
-    edate: entry.expirationDate ?? null,
-    migr: entry.migrated ?? false,
-    mvol: entry.multivolume ?? false,
+    // z/OSMF returns vols as a space-separated STRING (not an array)
+    vols: entry.volsers ? entry.volsers.join(' ') : entry.volser,
+    cdate: toZosmfDate(entry.creationDate),
+    rdate: toZosmfDate(entry.referenceDate ?? entry.creationDate),
+    // "***None***" when no expiry — matches real z/OSMF 5.30 wire format
+    edate: entry.expirationDate ? toZosmfDate(entry.expirationDate) : '***None***',
+    // z/OSMF uses "YES"/"NO" strings, not booleans
+    migr: entry.migrated ? 'YES' : 'NO',
+    mvol: entry.multivolume ? 'Y' : 'N',
+    ovf: 'NO',
     spacu: entry.spaceUnits ?? DEFAULT_SPACE_UNIT,
-    // z/OSMF doc field `used` is the used percentage (0–100). `DatasetEntry`
-    // exposes the same value as `usedPercent`. The richer `usedTracks` is only
-    // on `DatasetAttributes` from getAttributes(), not on the list-entry shape.
-    used: entry.usedPercent ?? 0,
-    extx: entry.usedExtents ?? 0,
-    sizex: 0,
+    // z/OSMF "used" is the used percentage as a string (not a number)
+    used: String(entry.usedPercent ?? 0),
+    extx: String(entry.usedExtents ?? 0),
+    sizex: String(0),
     dev: entry.devtype ?? DEFAULT_DEVICE,
     dsntp: entry.dsntype ?? defaultDsntp(entry.dsorg),
     catnm: DEFAULT_CATALOG,
@@ -109,10 +139,15 @@ export function datasetEntryToZosmfItem(entry: DatasetEntry): ZosmfDataSetItem {
   return stripUndefined(item);
 }
 
-/** Build the top-level wrapper {items, returnedRows, JSONversion:1}. */
-export function buildDatasetListResponse(entries: DatasetEntry[]): ZosmfDataSetListResponse {
+/** Build the top-level wrapper. Pass `truncated: true` when `X-IBM-Max-Items` clipped the list. */
+export function buildDatasetListResponse(
+  entries: DatasetEntry[],
+  truncated = false
+): ZosmfDataSetListResponse {
   const items = entries.map(datasetEntryToZosmfItem);
-  return { items, returnedRows: items.length, JSONversion: 1 };
+  const resp: ZosmfDataSetListResponse = { items, returnedRows: items.length, JSONversion: 1 };
+  if (truncated) resp.moreRows = true;
+  return resp;
 }
 
 /**
@@ -131,13 +166,20 @@ export interface ZosmfMemberItem {
 export interface ZosmfMemberListResponse {
   items: ZosmfMemberItem[];
   returnedRows: number;
+  /** Present (and `true`) when the list was truncated by `X-IBM-Max-Items`. */
+  moreRows?: true;
   JSONversion: 1;
 }
 
-/** Build the wrapper for the member-list endpoint. */
-export function buildMemberListResponse(memberNames: string[]): ZosmfMemberListResponse {
+/** Build the wrapper for the member-list endpoint. Pass `truncated: true` when capped. */
+export function buildMemberListResponse(
+  memberNames: string[],
+  truncated = false
+): ZosmfMemberListResponse {
   const items: ZosmfMemberItem[] = memberNames.map(name => ({ member: name.toUpperCase() }));
-  return { items, returnedRows: items.length, JSONversion: 1 };
+  const resp: ZosmfMemberListResponse = { items, returnedRows: items.length, JSONversion: 1 };
+  if (truncated) resp.moreRows = true;
+  return resp;
 }
 
 /** Default DSNTYPE inference from DSORG when the entry has none. */

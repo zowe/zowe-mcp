@@ -26,7 +26,9 @@ import express, { type NextFunction, type Request, type Response } from 'express
 import { createServer, type Server } from 'node:http';
 import type { MockHostStore } from '../store.js';
 import type { MockUser } from '../users.js';
+import { buildZosmfInfoPayload, type ZosmfVersion } from './info-payload.js';
 import { accessLog } from './middleware/access-log.js';
+import { txidMiddleware } from './middleware/txid.js';
 import { registerAuthenticateRoute } from './routes/authenticate.js';
 import { registerInfoRoute } from './routes/info.js';
 import { registerRestfilesDsReadRoute } from './routes/restfiles-ds-read.js';
@@ -50,6 +52,11 @@ export interface StartZosmfHttpOptions {
    * alongside the nginx-style summary line.
    */
   verbose?: boolean;
+  /**
+   * z/OSMF version to advertise in `GET /zosmf/info`. Defaults to `'5.30'`.
+   * Controls `zos_version`, `zosmf_version`, and `zosmf_full_version` fields.
+   */
+  zosmfVersion?: ZosmfVersion;
 }
 
 export interface ZosmfHttpHandle {
@@ -65,6 +72,9 @@ export async function startZosmfHttpServer(opts: StartZosmfHttpOptions): Promise
 
   const app = express();
   app.disable('x-powered-by');
+
+  // X-IBM-Txid on every response — real z/OSMF always returns this header.
+  app.use(txidMiddleware);
 
   // Access log first — emits an info-level stderr line + appends to
   // <mockDir>/_ssh/last_http.json on res.on('finish'). With `verbose: true`
@@ -83,11 +93,16 @@ export async function startZosmfHttpServer(opts: StartZosmfHttpOptions): Promise
       log: routeLog,
     })
   );
+  // Build the info payload early so we can mutate zosmf_port after an ephemeral
+  // port is resolved (the info route captures the object reference, not a snapshot,
+  // so JSON.stringify(payload) on each request picks up the updated port).
+  const infoPayload = buildZosmfInfoPayload({ version: opts.zosmfVersion, port: opts.port });
   app.use(
     registerInfoRoute({
       users: opts.users,
       tokens,
       defaultSystemId: opts.defaultSystemId,
+      payload: infoPayload,
       log: routeLog,
     })
   );
@@ -118,7 +133,7 @@ export async function startZosmfHttpServer(opts: StartZosmfHttpOptions): Promise
   app.use((_req: Request, res: Response) => {
     res
       .status(404)
-      .type('application/json')
+      .set('Content-Type', 'application/json; charset=UTF-8')
       .send(
         JSON.stringify({
           rc: 4,
@@ -136,7 +151,7 @@ export async function startZosmfHttpServer(opts: StartZosmfHttpOptions): Promise
     if (res.headersSent) return;
     res
       .status(500)
-      .type('application/json')
+      .set('Content-Type', 'application/json; charset=UTF-8')
       .send(
         JSON.stringify({
           rc: 16,
@@ -155,6 +170,13 @@ export async function startZosmfHttpServer(opts: StartZosmfHttpOptions): Promise
 
   const addr = server.address();
   const resolvedPort = typeof addr === 'object' && addr ? addr.port : opts.port;
+
+  // When the configured port was 0 (ephemeral), update the info payload so that
+  // GET /zosmf/info advertises the real bound port. The route serializes the
+  // payload object on every request, so this mutation takes effect immediately.
+  if (opts.port === 0 && infoPayload) {
+    infoPayload.zosmf_port = String(resolvedPort);
+  }
 
   return {
     host: opts.host,

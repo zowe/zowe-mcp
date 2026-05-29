@@ -112,5 +112,8 @@ export const ZosmfErrors = {
 
 /** Write a z/OSMF-style JSON error envelope. */
 export function sendZosmfError(res: Response, status: number, body: ZosmfErrorBody): void {
-  res.status(status).type('application/json').send(JSON.stringify(body));
+  res
+    .status(status)
+    .set('Content-Type', 'application/json; charset=UTF-8')
+    .send(JSON.stringify(body));
 }

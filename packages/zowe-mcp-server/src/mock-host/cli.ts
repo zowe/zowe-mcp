@@ -90,6 +90,15 @@ export async function runMockZosCli(argv: string[]): Promise<void> {
               'Cookie, Set-Cookie, and X-CSRF-ZOSMF-HEADER values are redacted; bodies are ' +
               'truncated at 4 KiB. Independent of --log-level.',
           },
+          'zosmf-version': {
+            type: 'string',
+            default: '5.30',
+            choices: ['5.30'] as const,
+            describe:
+              'z/OSMF version to advertise in GET /zosmf/info ' +
+              '(zos_version, zosmf_version, zosmf_full_version). ' +
+              'Only applies when --http-port is set.',
+          },
         }),
       async args => {
         const result = await startMockZosHost({
@@ -104,6 +113,7 @@ export async function runMockZosCli(argv: string[]): Promise<void> {
           httpPort: args['http-port'],
           httpHost: args['http-host'],
           verbose: args.verbose,
+          zosmfVersion: args['zosmf-version'] as '5.30',
         });
         // startMockZosHost emits listener banners (`SSH listening on …`,
         // `z/OSMF listening on …`) through the daemon's central logger, so

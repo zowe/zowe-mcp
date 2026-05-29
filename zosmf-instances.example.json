@@ -1,0 +1,23 @@
+{
+  "_doc": "Copy this to zosmf-instances.json (gitignored) and fill in your z/OSMF instances. Run: npm run zosmf:download-specs-batch",
+  "defaults": {
+    "port": 10443,
+    "insecure": true
+  },
+  "instances": [
+    {
+      "host": "myhost.example.com",
+      "user": "MYUSER",
+      "description": "My z/OS system (z/OS 3.1)",
+      "port": 10443,
+      "insecure": true
+    },
+    {
+      "host": "anotherhost.example.com",
+      "user": "MYUSER",
+      "port": 1443,
+      "description": "Another system (z/OS 2.5)",
+      "disabled": true
+    }
+  ]
+}

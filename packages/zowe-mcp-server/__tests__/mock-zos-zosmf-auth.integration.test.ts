@@ -67,9 +67,12 @@ describe('mock-zos z/OSMF authentication lifecycle', () => {
     });
     expect(infoRes.status).toBe(200);
     const infoBody = (await infoRes.json()) as Record<string, unknown>;
-    expect(infoBody.zos_version).toBeTypeOf('string');
-    expect(infoBody.zosmf_full_version).toBeTypeOf('string');
+    expect(infoBody.zos_version).toBe('05.30.00');
+    expect(infoBody.zosmf_version).toBe('30');
+    expect(infoBody.zosmf_full_version).toBe('30.0');
     expect(infoBody.plugins).toBeInstanceOf(Array);
+    // zos_subreleases must NOT appear — removed in conformance fix
+    expect(infoBody).not.toHaveProperty('zos_subreleases');
 
     // 3. Logout
     const logoutRes = await fetch(`${base}/zosmf/services/authenticate`, {

@@ -230,7 +230,15 @@ describe.skipIf(!shouldRunNativeStdioE2E)(
     beforeAll(async () => {
       const transport = new StdioClientTransport({
         command: 'node',
-        args: [serverPath, '--stdio', '--native', '--config', configPath!],
+        args: [
+          serverPath,
+          '--stdio',
+          '--native',
+          '--config',
+          configPath!,
+          '--capability-tier',
+          'full',
+        ],
         env: getChildEnv(),
       });
       client = new Client({ name: 'e2e-native-test', version: '1.0.0' });

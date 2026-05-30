@@ -27,10 +27,17 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { plural } from 'zowe-mcp-common';
-import { runAssertions } from './assertions.js';
 import { buildCacheKey, get as cacheGet, set as cacheSet, getToolsUnderTest } from './cache.js';
 import { getConfigDir, loadEvalsConfig, type EvalsConfig } from './config.js';
-import { errorMessage, FAIL, PASS, resolveNativeServerArgs } from './evals-utils.js';
+import {
+  assertAndRecord,
+  buildToolDefsSubset,
+  errorMessage,
+  FAIL,
+  makeFailedRunResult,
+  PASS,
+  resolveNativeServerArgs,
+} from './evals-utils.js';
 import { getSystemPrompt, initMockData, McpEvalHarness, prepareEvalWorkspace } from './harness.js';
 import { listSetNames, loadAndValidateAllSets } from './load-questions.js';
 import { log } from './log.js';
@@ -200,13 +207,7 @@ async function runSetForModel(
       for (const line of q.prompt.trim().split(/\n/)) log.info(`  ${line}`);
 
       const toolNames = getToolsUnderTest(q.assertionBlock);
-      const toolDefs: Record<string, { description?: string; inputSchema?: unknown }> = {};
-      if (toolDefinitions) {
-        for (const name of toolNames) {
-          const t = toolDefinitions.find(td => td.name === name);
-          if (t) toolDefs[name] = { description: t.description, inputSchema: t.inputSchema };
-        }
-      }
+      const toolDefs = buildToolDefsSubset(toolDefinitions, toolNames);
       const cacheKey = cache.enabled
         ? buildCacheKey({
             systemPrompt: getSystemPrompt(effectiveConfig, serverInstructions),
@@ -222,27 +223,23 @@ async function runSetForModel(
       if (cached) {
         for (let r = 0; r < repetitions; r++) {
           const { finalText, toolCalls } = cached;
-          const { passed, failedAssertion } = runAssertions(
-            q.assertionBlock,
-            toolCalls,
-            finalText
-          );
-          const result: RunResult = {
+          const result = assertAndRecord({
             questionId: q.id,
             prompt: q.prompt,
             runIndex: r,
-            passed,
-            toolCalls,
             finalText,
-            assertionFailed: failedAssertion,
-          };
+            toolCalls,
+            assertionBlock: q.assertionBlock,
+          });
           questionResults.push(result);
           allResults.push(result);
           cache.stats.hits++;
-          const icon = passed ? PASS : FAIL;
-          const detail = passed ? ' cache hit' : ` ${failedAssertion ?? 'assertion failed'}`;
+          const icon = result.passed ? PASS : FAIL;
+          const detail = result.passed
+            ? ' cache hit'
+            : ` ${result.assertionFailed ?? 'assertion failed'}`;
           const msg = `${progressTag}[${evalsConfig.modelId ?? 'default'}] ${setName}/${q.id} (${r + 1}/${repetitions}) ${icon}${detail}`;
-          if (passed) log.pass(msg);
+          if (result.passed) log.pass(msg);
           else log.fail(msg);
         }
       } else {
@@ -250,41 +247,27 @@ async function runSetForModel(
           try {
             const runResult = await harness.runOne(q.prompt);
             const { finalText, toolCalls } = runResult;
-            const { passed, failedAssertion } = runAssertions(
-              q.assertionBlock,
-              toolCalls,
-              finalText
-            );
-            const result: RunResult = {
+            const result = assertAndRecord({
               questionId: q.id,
               prompt: q.prompt,
               runIndex: r,
-              passed,
-              toolCalls,
               finalText,
-              assertionFailed: failedAssertion,
+              toolCalls,
+              assertionBlock: q.assertionBlock,
               durationMs: runResult.durationMs,
               tokenUsage: runResult.tokenUsage,
               stepCount: runResult.stepCount,
-            };
+            });
             questionResults.push(result);
             allResults.push(result);
-            const icon = passed ? PASS : FAIL;
-            const detail = passed ? '' : ` ${failedAssertion ?? 'assertion failed'}`;
+            const icon = result.passed ? PASS : FAIL;
+            const detail = result.passed ? '' : ` ${result.assertionFailed ?? 'assertion failed'}`;
             const msg = `${progressTag}[${evalsConfig.modelId ?? 'default'}] ${setName}/${q.id} (${r + 1}/${repetitions}) ${icon}${detail}`;
-            if (passed) log.pass(msg);
+            if (result.passed) log.pass(msg);
             else log.fail(msg);
           } catch (err) {
             const msg = errorMessage(err);
-            const failedResult: RunResult = {
-              questionId: q.id,
-              prompt: q.prompt,
-              runIndex: r,
-              passed: false,
-              toolCalls: [],
-              finalText: '',
-              error: msg,
-            };
+            const failedResult = makeFailedRunResult(q.id, q.prompt, r, msg);
             questionResults.push(failedResult);
             allResults.push(failedResult);
             log.fail(

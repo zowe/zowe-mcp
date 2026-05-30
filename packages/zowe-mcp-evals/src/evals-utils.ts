@@ -10,7 +10,10 @@
  */
 
 import { isAbsolute, resolve } from 'node:path';
+import { runAssertions } from './assertions.js';
 import { getConfigDir } from './config.js';
+import type { ToolDefinition } from './harness.js';
+import type { Question, RunResult, TokenUsage } from './types.js';
 
 export const PASS = '\u2713';
 export const FAIL = '\u2717';
@@ -42,4 +45,76 @@ export function resolveNativeServerArgs(serverArgs: string): string {
     }
   }
   return tokens.join(' ');
+}
+
+/**
+ * Build a subset of tool definitions keyed by name, for cache-key computation.
+ */
+export function buildToolDefsSubset(
+  toolDefinitions: ToolDefinition[] | undefined,
+  toolNames: string[]
+): Record<string, { description?: string; inputSchema?: unknown }> {
+  const toolDefs: Record<string, { description?: string; inputSchema?: unknown }> = {};
+  if (toolDefinitions) {
+    for (const name of toolNames) {
+      const t = toolDefinitions.find(td => td.name === name);
+      if (t) toolDefs[name] = { description: t.description, inputSchema: t.inputSchema };
+    }
+  }
+  return toolDefs;
+}
+
+interface AssertAndRecordInput {
+  questionId: string;
+  prompt: string;
+  runIndex: number;
+  finalText: string;
+  toolCalls: RunResult['toolCalls'];
+  assertionBlock: Question['assertionBlock'];
+  durationMs?: number;
+  tokenUsage?: TokenUsage;
+  stepCount?: number;
+}
+
+/**
+ * Run assertions against a completed eval run and return a RunResult.
+ */
+export function assertAndRecord(input: AssertAndRecordInput): RunResult {
+  const { passed, failedAssertion } = runAssertions(
+    input.assertionBlock,
+    input.toolCalls,
+    input.finalText
+  );
+  return {
+    questionId: input.questionId,
+    prompt: input.prompt,
+    runIndex: input.runIndex,
+    passed,
+    toolCalls: input.toolCalls,
+    finalText: input.finalText,
+    assertionFailed: failedAssertion,
+    durationMs: input.durationMs,
+    tokenUsage: input.tokenUsage,
+    stepCount: input.stepCount,
+  };
+}
+
+/**
+ * Build a failed RunResult for the catch block of an eval run.
+ */
+export function makeFailedRunResult(
+  questionId: string,
+  prompt: string,
+  runIndex: number,
+  errorMsg: string
+): RunResult {
+  return {
+    questionId,
+    prompt,
+    runIndex,
+    passed: false,
+    toolCalls: [],
+    finalText: '',
+    error: errorMsg,
+  };
 }

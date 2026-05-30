@@ -14,51 +14,26 @@ import { existsSync, rmSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { plural } from 'zowe-mcp-common';
-import { runAssertions } from './assertions.js';
 import { buildCacheKey, get as cacheGet, set as cacheSet, getToolsUnderTest } from './cache.js';
 import { getConfigDir, loadEvalsConfig } from './config.js';
-import { errorMessage, FAIL, PASS, resolveNativeServerArgs } from './evals-utils.js';
+import {
+  assertAndRecord,
+  buildToolDefsSubset,
+  errorMessage,
+  FAIL,
+  makeFailedRunResult,
+  PASS,
+  resolveNativeServerArgs,
+} from './evals-utils.js';
 import { getSystemPrompt, initMockData, McpEvalHarness, prepareEvalWorkspace } from './harness.js';
 import { listSetNames, loadAndValidateAllSets } from './load-questions.js';
 import { log } from './log.js';
 import { writeReport } from './report.js';
-import type { Question, QuestionSet, RunResult, TokenUsage } from './types.js';
+import type { Question, QuestionSet, RunResult } from './types.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const SERVER_PATH = resolve(__dirname, '..', '..', 'zowe-mcp-server', 'dist', 'index.js');
-
-interface AssertAndRecordInput {
-  questionId: string;
-  prompt: string;
-  runIndex: number;
-  finalText: string;
-  toolCalls: RunResult['toolCalls'];
-  assertionBlock: Question['assertionBlock'];
-  durationMs?: number;
-  tokenUsage?: TokenUsage;
-  stepCount?: number;
-}
-
-function assertAndRecord(input: AssertAndRecordInput): RunResult {
-  const { passed, failedAssertion } = runAssertions(
-    input.assertionBlock,
-    input.toolCalls,
-    input.finalText
-  );
-  return {
-    questionId: input.questionId,
-    prompt: input.prompt,
-    runIndex: input.runIndex,
-    passed,
-    toolCalls: input.toolCalls,
-    finalText: input.finalText,
-    assertionFailed: failedAssertion,
-    durationMs: input.durationMs,
-    tokenUsage: input.tokenUsage,
-    stepCount: input.stepCount,
-  };
-}
 
 function logRunOutcome(result: RunResult, label: string, suffix: string): void {
   const icon = result.passed ? PASS : FAIL;
@@ -248,13 +223,7 @@ async function main(): Promise<void> {
         }
         const questionResults: RunResult[] = [];
         const toolNames = getToolsUnderTest(q.assertionBlock);
-        const toolDefs: Record<string, { description?: string; inputSchema?: unknown }> = {};
-        if (toolDefinitions) {
-          for (const name of toolNames) {
-            const t = toolDefinitions.find(td => td.name === name);
-            if (t) toolDefs[name] = { description: t.description, inputSchema: t.inputSchema };
-          }
-        }
+        const toolDefs = buildToolDefsSubset(toolDefinitions, toolNames);
         const cacheKey = useCache
           ? buildCacheKey({
               systemPrompt: getSystemPrompt(config, serverInstructions),
@@ -316,15 +285,7 @@ async function main(): Promise<void> {
               logRunOutcome(result, `Running ${setName}/${q.id} (${r + 1}/${repetitions})`, '');
             } catch (err) {
               const msg = errorMessage(err);
-              const failedResult: RunResult = {
-                questionId: q.id,
-                prompt: q.prompt,
-                runIndex: r,
-                passed: false,
-                toolCalls: [],
-                finalText: '',
-                error: msg,
-              };
+              const failedResult = makeFailedRunResult(q.id, q.prompt, r, msg);
               allResults.push(failedResult);
               questionResults.push(failedResult);
               log.fail(`Running ${setName}/${q.id} (${r + 1}/${repetitions}) ${FAIL} ${msg}`);

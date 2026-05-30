@@ -21,7 +21,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   disposeMockZos,
-  extractLtpaCookie,
+  loginAndGetCookie,
   spawnMockZos,
   type SpawnedMockZos,
 } from './helpers/spawn-mock-zos.js';
@@ -44,17 +44,7 @@ describe('mock-zos GET /zosmf/restfiles/ds/{dsname}[/{member}]', () => {
   let cookie: string;
 
   async function login(): Promise<string> {
-    const loginRes = await fetch(`${env.httpBaseUrl!}/zosmf/services/authenticate`, {
-      method: 'POST',
-      headers: {
-        Authorization: 'Basic ' + Buffer.from('USER1:password').toString('base64'),
-        'X-CSRF-ZOSMF-HEADER': 'x',
-      },
-    });
-    expect(loginRes.status).toBe(200);
-    const token = extractLtpaCookie(loginRes.headers.get('set-cookie') ?? undefined);
-    expect(token).toBeTruthy();
-    return token!;
+    return loginAndGetCookie(env.httpBaseUrl!);
   }
 
   beforeEach(async () => {

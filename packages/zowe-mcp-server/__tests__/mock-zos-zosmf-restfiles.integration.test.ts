@@ -25,7 +25,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   disposeMockZos,
-  extractLtpaCookie,
+  loginAndGetCookie,
   spawnMockZos,
   type SpawnedMockZos,
 } from './helpers/spawn-mock-zos.js';
@@ -74,20 +74,11 @@ describe('mock-zos GET /zosmf/restfiles/ds', () => {
 
   it('lists datasets matching the dslevel via cookie auth', async () => {
     // 1. Login to get a cookie.
-    const loginRes = await fetch(`${env.httpBaseUrl!}/zosmf/services/authenticate`, {
-      method: 'POST',
-      headers: {
-        Authorization: 'Basic ' + Buffer.from('USER1:password').toString('base64'),
-        'X-CSRF-ZOSMF-HEADER': 'x',
-      },
-    });
-    expect(loginRes.status).toBe(200);
-    const token = extractLtpaCookie(loginRes.headers.get('set-cookie') ?? undefined);
-    expect(token).toBeTruthy();
+    const token = await loginAndGetCookie(env.httpBaseUrl!);
 
     // 2. List USER1.*
     const res = await fetch(`${env.httpBaseUrl!}${RESTFILES_DS}?dslevel=USER1.*`, {
-      headers: { Cookie: `LtpaToken2=${token!}`, 'X-CSRF-ZOSMF-HEADER': 'x' },
+      headers: { Cookie: `LtpaToken2=${token}`, 'X-CSRF-ZOSMF-HEADER': 'x' },
     });
     expect(res.status).toBe(200);
     const body = (await res.json()) as ZosmfDataSetListResponse;

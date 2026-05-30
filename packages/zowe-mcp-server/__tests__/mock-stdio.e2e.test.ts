@@ -57,38 +57,41 @@ interface ToolTestCase {
 
 const FIRST_SYSTEM = 'mainframe-dev.example.com';
 
-describe('Zowe MCP Server (mock stdio E2E)', () => {
-  let tmpdirPath: string;
-  let client: Client;
-
+/**
+ * Registers `beforeAll`/`afterAll` that initialise a mock data directory with
+ * the given preset and clean up after the suite. Returns a mutable context
+ * object whose `dir` and `client` properties are populated at runtime.
+ */
+function setupMockFixtures(preset: string, dirPrefix: string) {
+  const ctx = { dir: '', client: undefined as Client | undefined };
   beforeAll(() => {
-    tmpdirPath = mkdtempSync(resolve(tmpdir(), 'zowe-mcp-mock-e2e-'));
+    ctx.dir = mkdtempSync(resolve(tmpdir(), dirPrefix));
     const init = spawnSync(
       'node',
-      [serverPath, 'init-mock', '--output', tmpdirPath, '--preset', 'default'],
-      {
-        cwd: packageRoot,
-        encoding: 'utf-8',
-      }
+      [serverPath, 'init-mock', '--output', ctx.dir, '--preset', preset],
+      { cwd: packageRoot, encoding: 'utf-8' }
     );
     if (init.status !== 0) {
       throw new Error(`init-mock failed: ${init.stderr ?? init.stdout}`);
     }
   });
-
   afterAll(async () => {
-    if (client) {
-      await client.close();
-    }
-    rmSync(tmpdirPath, { recursive: true, force: true });
+    await ctx.client?.close();
+    rmSync(ctx.dir, { recursive: true, force: true });
   });
+  return ctx;
+}
+
+describe('Zowe MCP Server (mock stdio E2E)', () => {
+  const mock = setupMockFixtures('default', 'zowe-mcp-mock-e2e-');
 
   it('should run supported tools against default mock in one session', async () => {
     const transport = new StdioClientTransport({
       command: 'node',
-      args: [serverPath, '--stdio', '--mock', tmpdirPath, '--capability-tier', 'full'],
+      args: [serverPath, '--stdio', '--mock', mock.dir, '--capability-tier', 'full'],
     });
-    client = new Client({ name: 'e2e-mock-test', version: '1.0.0' });
+    const client = new Client({ name: 'e2e-mock-test', version: '1.0.0' });
+    mock.client = client;
     await client.connect(transport);
 
     const { tools } = await client.listTools();
@@ -196,37 +199,15 @@ describe('Zowe MCP Server (mock stdio E2E)', () => {
 });
 
 describe('listMembers pagination (inventory 2000)', () => {
-  let tmpdirPath: string;
-  let client: Client;
-
-  beforeAll(() => {
-    tmpdirPath = mkdtempSync(resolve(tmpdir(), 'zowe-mcp-mock-inv-e2e-'));
-    const init = spawnSync(
-      'node',
-      [serverPath, 'init-mock', '--output', tmpdirPath, '--preset', 'inventory'],
-      {
-        cwd: packageRoot,
-        encoding: 'utf-8',
-      }
-    );
-    if (init.status !== 0) {
-      throw new Error(`init-mock failed: ${init.stderr ?? init.stdout}`);
-    }
-  });
-
-  afterAll(async () => {
-    if (client) {
-      await client.close();
-    }
-    rmSync(tmpdirPath, { recursive: true, force: true });
-  });
+  const mock = setupMockFixtures('inventory', 'zowe-mcp-mock-inv-e2e-');
 
   it('should page through 2000 inventory members', async () => {
     const transport = new StdioClientTransport({
       command: 'node',
-      args: [serverPath, '--stdio', '--mock', tmpdirPath, '--capability-tier', 'full'],
+      args: [serverPath, '--stdio', '--mock', mock.dir, '--capability-tier', 'full'],
     });
-    client = new Client({ name: 'e2e-mock-inv-test', version: '1.0.0' });
+    const client = new Client({ name: 'e2e-mock-inv-test', version: '1.0.0' });
+    mock.client = client;
     await client.connect(transport);
 
     await client.callTool({
@@ -287,37 +268,15 @@ describe('listMembers pagination (inventory 2000)', () => {
 });
 
 describe('readDataset pagination (pagination preset)', () => {
-  let tmpdirPath: string;
-  let client: Client;
-
-  beforeAll(() => {
-    tmpdirPath = mkdtempSync(resolve(tmpdir(), 'zowe-mcp-read-e2e-'));
-    const init = spawnSync(
-      'node',
-      [serverPath, 'init-mock', '--output', tmpdirPath, '--preset', 'pagination'],
-      {
-        cwd: packageRoot,
-        encoding: 'utf-8',
-      }
-    );
-    if (init.status !== 0) {
-      throw new Error(`init-mock failed: ${init.stderr ?? init.stdout}`);
-    }
-  });
-
-  afterAll(async () => {
-    if (client) {
-      await client.close();
-    }
-    rmSync(tmpdirPath, { recursive: true, force: true });
-  });
+  const mock = setupMockFixtures('pagination', 'zowe-mcp-read-e2e-');
 
   it('should page through USER.LARGE.SEQ with hasMore and messages', async () => {
     const transport = new StdioClientTransport({
       command: 'node',
-      args: [serverPath, '--stdio', '--mock', tmpdirPath, '--capability-tier', 'full'],
+      args: [serverPath, '--stdio', '--mock', mock.dir, '--capability-tier', 'full'],
     });
-    client = new Client({ name: 'e2e-read-pagination-test', version: '1.0.0' });
+    const client = new Client({ name: 'e2e-read-pagination-test', version: '1.0.0' });
+    mock.client = client;
     await client.connect(transport);
 
     await client.callTool({
@@ -384,9 +343,10 @@ describe('readDataset pagination (pagination preset)', () => {
   it('should page through USER.INVNTORY(LARGE) member', async () => {
     const transport = new StdioClientTransport({
       command: 'node',
-      args: [serverPath, '--stdio', '--mock', tmpdirPath, '--capability-tier', 'full'],
+      args: [serverPath, '--stdio', '--mock', mock.dir, '--capability-tier', 'full'],
     });
-    client = new Client({ name: 'e2e-read-member-test', version: '1.0.0' });
+    const client = new Client({ name: 'e2e-read-member-test', version: '1.0.0' });
+    mock.client = client;
     await client.connect(transport);
 
     await client.callTool({

@@ -239,3 +239,27 @@ export function extractLtpaCookie(setCookie: string | string[] | undefined): str
   }
   return undefined;
 }
+
+/**
+ * POST to z/OSMF authenticate, assert HTTP 200, and return the LtpaToken2
+ * cookie value. Throws an error on failure.
+ */
+export async function loginAndGetCookie(
+  httpBaseUrl: string,
+  username = 'USER1',
+  password = 'password'
+): Promise<string> {
+  const loginRes = await fetch(`${httpBaseUrl}/zosmf/services/authenticate`, {
+    method: 'POST',
+    headers: {
+      Authorization: 'Basic ' + Buffer.from(`${username}:${password}`).toString('base64'),
+      'X-CSRF-ZOSMF-HEADER': 'x',
+    },
+  });
+  if (loginRes.status !== 200) {
+    throw new Error(`loginAndGetCookie: expected 200 from authenticate, got ${loginRes.status}`);
+  }
+  const token = extractLtpaCookie(loginRes.headers.get('set-cookie') ?? undefined);
+  if (!token) throw new Error('loginAndGetCookie: no LtpaToken2 cookie in authenticate response');
+  return token;
+}

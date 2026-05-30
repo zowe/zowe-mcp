@@ -13,7 +13,7 @@
  * Unit tests for Bearer JWT verification (RS256 + JWKS) and env config.
  */
 
-import { createSign, generateKeyPairSync, type JsonWebKey, type KeyObject } from 'node:crypto';
+import { generateKeyPairSync, type JsonWebKey, type KeyObject } from 'node:crypto';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   __clearJwtJwksCacheForTests,
@@ -21,25 +21,11 @@ import {
   loadJwtAuthConfigFromEnv,
   verifyBearerJwt,
 } from '../src/auth/bearer-jwt.js';
+import { b64url, requestUrl, signJwt } from './helpers/jwt-test-utils.js';
 
 const TEST_ISSUER = 'https://idp.example.com';
 const TEST_JWKS_URI = 'https://idp.example.com/.well-known/jwks.json';
 const KID = 'unit-test-kid';
-
-function requestUrl(input: RequestInfo | URL): string {
-  if (typeof input === 'string') {
-    return input;
-  }
-  if (input instanceof URL) {
-    return input.href;
-  }
-  return input.url;
-}
-
-function b64url(buf: Buffer | string): string {
-  const b = typeof buf === 'string' ? Buffer.from(buf, 'utf8') : buf;
-  return b.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-}
 
 let privateKey: KeyObject;
 let jwkPublic: JsonWebKey;
@@ -70,16 +56,9 @@ afterEach(() => {
   __clearJwtJwksCacheForTests();
 });
 
-function signJwt(payload: Record<string, unknown>): string {
-  const header = { alg: 'RS256', kid: KID };
-  const h = b64url(JSON.stringify(header));
-  const p = b64url(JSON.stringify(payload));
-  const data = `${h}.${p}`;
-  const sign = createSign('RSA-SHA256');
-  sign.update(data);
-  sign.end();
-  const sig = sign.sign(privateKey);
-  return `${data}.${b64url(sig)}`;
+/** Wrapper that binds the test-local privateKey and KID. */
+function sign(payload: Record<string, unknown>): string {
+  return signJwt(payload, privateKey, KID);
 }
 
 describe('extractBearerToken', () => {
@@ -107,7 +86,7 @@ describe('verifyBearerJwt', () => {
   };
 
   it('returns sub and email for a valid RS256 JWT', async () => {
-    const token = signJwt({ ...basePayload, email: 'u@example.com' });
+    const token = sign({ ...basePayload, email: 'u@example.com' });
     const claims = await verifyBearerJwt(token, {
       issuer: TEST_ISSUER,
       jwksUri: TEST_JWKS_URI,
@@ -132,14 +111,14 @@ describe('verifyBearerJwt', () => {
   });
 
   it('throws on issuer mismatch', async () => {
-    const token = signJwt({ ...basePayload, iss: 'https://evil.example.com' });
+    const token = sign({ ...basePayload, iss: 'https://evil.example.com' });
     await expect(
       verifyBearerJwt(token, { issuer: TEST_ISSUER, jwksUri: TEST_JWKS_URI })
     ).rejects.toThrow('issuer mismatch');
   });
 
   it('throws when audience is required but wrong', async () => {
-    const token = signJwt({ ...basePayload, aud: 'expected-aud' });
+    const token = sign({ ...basePayload, aud: 'expected-aud' });
     await expect(
       verifyBearerJwt(token, {
         issuer: TEST_ISSUER,
@@ -150,7 +129,7 @@ describe('verifyBearerJwt', () => {
   });
 
   it('accepts audience when it matches (string)', async () => {
-    const token = signJwt({ ...basePayload, aud: 'api://mcp' });
+    const token = sign({ ...basePayload, aud: 'api://mcp' });
     const claims = await verifyBearerJwt(token, {
       issuer: TEST_ISSUER,
       jwksUri: TEST_JWKS_URI,
@@ -160,14 +139,14 @@ describe('verifyBearerJwt', () => {
   });
 
   it('throws on expired JWT', async () => {
-    const token = signJwt({ ...basePayload, exp: Math.floor(Date.now() / 1000) - 10 });
+    const token = sign({ ...basePayload, exp: Math.floor(Date.now() / 1000) - 10 });
     await expect(
       verifyBearerJwt(token, { issuer: TEST_ISSUER, jwksUri: TEST_JWKS_URI })
     ).rejects.toThrow('expired');
   });
 
   it('throws when signature does not match', async () => {
-    const token = signJwt(basePayload);
+    const token = sign(basePayload);
     const [h, p] = token.split('.');
     const bad = `${h}.${p}.aaaa`;
     await expect(
@@ -177,7 +156,7 @@ describe('verifyBearerJwt', () => {
 
   it('throws when sub is missing', async () => {
     const { sub: _s, ...rest } = basePayload;
-    const token = signJwt(rest as Record<string, unknown>);
+    const token = sign(rest as Record<string, unknown>);
     await expect(
       verifyBearerJwt(token, { issuer: TEST_ISSUER, jwksUri: TEST_JWKS_URI })
     ).rejects.toThrow('missing sub');

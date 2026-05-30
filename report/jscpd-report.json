@@ -1,12 +1,24 @@
 {
   "statistics": {
-    "detectionDate": "2026-05-30T05:22:09.221Z",
+    "detectionDate": "2026-05-30T05:38:42.302Z",
     "formats": {
       "typescript": {
         "sources": {
-          "packages/zowe-mcp-server/src/mock-host/zosmf/routes/restfiles-ds.ts": {
-            "lines": 174,
-            "tokens": 1380,
+          "packages/zowe-mcp-server/__tests__/uss-tools.integration.test.ts": {
+            "lines": 441,
+            "tokens": 5280,
+            "sources": 1,
+            "clones": 1,
+            "duplicatedLines": 11,
+            "duplicatedTokens": 96,
+            "percentage": 2.49,
+            "percentageTokens": 1.82,
+            "newDuplicatedLines": 0,
+            "newClones": 0
+          },
+          "packages/zowe-mcp-server/__tests__/uss-path.test.ts": {
+            "lines": 107,
+            "tokens": 881,
             "sources": 1,
             "clones": 0,
             "duplicatedLines": 0,
@@ -16,9 +28,9 @@
             "newDuplicatedLines": 0,
             "newClones": 0
           },
-          "packages/zowe-mcp-server/src/mock-host/zosmf/routes/restfiles-ds-read.ts": {
-            "lines": 471,
-            "tokens": 3684,
+          "packages/zowe-mcp-server/__tests__/ttl-password-store.test.ts": {
+            "lines": 27,
+            "tokens": 175,
             "sources": 1,
             "clones": 0,
             "duplicatedLines": 0,
@@ -28,9 +40,9 @@
             "newDuplicatedLines": 0,
             "newClones": 0
           },
-          "packages/zowe-mcp-server/src/mock-host/zosmf/routes/info.ts": {
-            "lines": 57,
-            "tokens": 372,
+          "packages/zowe-mcp-server/__tests__/tso-tools.integration.test.ts": {
+            "lines": 146,
+            "tokens": 1583,
             "sources": 1,
             "clones": 0,
             "duplicatedLines": 0,
@@ -40,9 +52,9 @@
             "newDuplicatedLines": 0,
             "newClones": 0
           },
-          "packages/zowe-mcp-server/src/mock-host/zosmf/routes/authenticate.ts": {
-            "lines": 176,
-            "tokens": 1493,
+          "packages/zowe-mcp-server/__tests__/tso-command-validation.test.ts": {
+            "lines": 95,
+            "tokens": 939,
             "sources": 1,
             "clones": 0,
             "duplicatedLines": 0,
@@ -52,369 +64,21 @@
             "newDuplicatedLines": 0,
             "newClones": 0
           },
-          "packages/zowe-mcp-server/src/mock-host/zosmf/middleware/txid.ts": {
-            "lines": 31,
-            "tokens": 105,
+          "packages/zowe-mcp-server/__tests__/transport-providers.ts": {
+            "lines": 186,
+            "tokens": 1269,
             "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
+            "clones": 1,
+            "duplicatedLines": 33,
+            "duplicatedTokens": 262,
+            "percentage": 17.74,
+            "percentageTokens": 20.65,
             "newDuplicatedLines": 0,
             "newClones": 0
           },
-          "packages/zowe-mcp-server/src/mock-host/zosmf/middleware/csrf.ts": {
-            "lines": 33,
-            "tokens": 135,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-server/src/mock-host/zosmf/middleware/auth.ts": {
-            "lines": 62,
-            "tokens": 405,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-server/src/mock-host/zosmf/middleware/access-log.ts": {
-            "lines": 289,
-            "tokens": 2743,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-server/src/zos/native/zowex-debug.ts": {
-            "lines": 93,
-            "tokens": 651,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-server/src/zos/native/vault-kv-credentials.ts": {
-            "lines": 117,
-            "tokens": 1111,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-server/src/zos/native/stderr-abend-capture.ts": {
-            "lines": 99,
-            "tokens": 788,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-server/src/zos/native/ssh-client-cache.ts": {
-            "lines": 308,
-            "tokens": 2451,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-server/src/zos/native/sdk-error-details.ts": {
-            "lines": 31,
-            "tokens": 185,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-server/src/zos/native/password-url-elicit-registry.ts": {
-            "lines": 50,
-            "tokens": 279,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-server/src/zos/native/password-store.ts": {
-            "lines": 118,
-            "tokens": 1031,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-server/src/zos/native/password-hash.ts": {
-            "lines": 21,
-            "tokens": 82,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-server/src/zos/native/password-elicitation.ts": {
-            "lines": 261,
-            "tokens": 2252,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-server/src/zos/native/native-credential-provider.ts": {
-            "lines": 383,
-            "tokens": 3121,
-            "sources": 1,
-            "clones": 2,
-            "duplicatedLines": 22,
-            "duplicatedTokens": 204,
-            "percentage": 5.74,
-            "percentageTokens": 6.54,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-server/src/zos/native/load-native.ts": {
-            "lines": 197,
-            "tokens": 1460,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-server/src/zos/native/connection-spec.ts": {
-            "lines": 209,
-            "tokens": 1560,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-server/src/zos/mock/mock-types.ts": {
-            "lines": 53,
-            "tokens": 215,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-server/src/zos/mock/mock-credential-provider.ts": {
-            "lines": 59,
-            "tokens": 496,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-server/src/zos/mock/load-mock.ts": {
-            "lines": 59,
-            "tokens": 354,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-server/src/tools/zowe-explorer/open-in-editor.ts": {
-            "lines": 233,
-            "tokens": 1648,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-server/src/tools/uss/uss-output-schemas.ts": {
-            "lines": 225,
-            "tokens": 1256,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-server/src/tools/uss/command-validation.ts": {
-            "lines": 101,
-            "tokens": 615,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-server/src/tools/tso/tso-tools.ts": {
-            "lines": 216,
-            "tokens": 1846,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-server/src/tools/tso/tso-output-schemas.ts": {
-            "lines": 65,
-            "tokens": 265,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-server/src/tools/tso/tso-command-validation.ts": {
-            "lines": 44,
-            "tokens": 211,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-server/src/tools/local-files/path-under-roots.ts": {
-            "lines": 192,
-            "tokens": 1354,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-server/src/tools/local-files/local-file-tools.ts": {
-            "lines": 578,
-            "tokens": 5141,
-            "sources": 1,
-            "clones": 8,
-            "duplicatedLines": 106,
-            "duplicatedTokens": 928,
-            "percentage": 18.34,
-            "percentageTokens": 18.05,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-server/src/tools/local-files/local-file-output-schemas.ts": {
-            "lines": 70,
-            "tokens": 512,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-server/src/tools/jobs/jobs-output-schemas.ts": {
-            "lines": 274,
-            "tokens": 1844,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-server/src/tools/jobs/job-retcode.ts": {
-            "lines": 20,
-            "tokens": 92,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-server/src/tools/jobs/job-progress-text.ts": {
+          "packages/zowe-mcp-server/__tests__/tenant-store-crypto.test.ts": {
             "lines": 39,
-            "tokens": 178,
+            "tokens": 254,
             "sources": 1,
             "clones": 0,
             "duplicatedLines": 0,
@@ -424,381 +88,9 @@
             "newDuplicatedLines": 0,
             "newClones": 0
           },
-          "packages/zowe-mcp-server/src/tools/datasets/dataset-output-schemas.ts": {
-            "lines": 522,
-            "tokens": 3655,
-            "sources": 1,
-            "clones": 4,
-            "duplicatedLines": 60,
-            "duplicatedTokens": 570,
-            "percentage": 11.49,
-            "percentageTokens": 15.6,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-server/src/tools/datasets/dataset-cache.ts": {
-            "lines": 117,
-            "tokens": 785,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-server/src/tools/context/context-tools.ts": {
-            "lines": 521,
-            "tokens": 4048,
-            "sources": 1,
-            "clones": 4,
-            "duplicatedLines": 50,
-            "duplicatedTokens": 544,
-            "percentage": 9.6,
-            "percentageTokens": 13.44,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-server/src/tools/context/context-output-schemas.ts": {
-            "lines": 222,
-            "tokens": 1421,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-server/src/tools/console/console-tools.ts": {
-            "lines": 162,
-            "tokens": 1319,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-server/src/tools/console/console-output-schemas.ts": {
-            "lines": 31,
-            "tokens": 174,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-server/src/tools/cli-bridge/types.ts": {
-            "lines": 625,
-            "tokens": 1376,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-server/src/tools/cli-bridge/cli-invoker.ts": {
-            "lines": 215,
-            "tokens": 1347,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-server/src/mock-host/zosmf/token-store.ts": {
-            "lines": 107,
-            "tokens": 661,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-server/src/mock-host/zosmf/response.ts": {
-            "lines": 199,
-            "tokens": 1226,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-server/src/mock-host/zosmf/request.ts": {
-            "lines": 104,
-            "tokens": 645,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-server/src/mock-host/zosmf/info-payload.ts": {
-            "lines": 63,
-            "tokens": 328,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-server/src/mock-host/zosmf/http-server.ts": {
-            "lines": 188,
-            "tokens": 1330,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-server/src/mock-host/zosmf/errors.ts": {
-            "lines": 118,
-            "tokens": 534,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-server/src/mock-host/uss-shell/interpreter.ts": {
-            "lines": 909,
-            "tokens": 10135,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-server/src/mock-host/rpc/handlers.ts": {
-            "lines": 533,
-            "tokens": 5473,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-server/src/mock-host/rpc/dispatcher.ts": {
-            "lines": 189,
-            "tokens": 1577,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-server/src/mock-host/channels/stream-channel.ts": {
-            "lines": 106,
-            "tokens": 675,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-server/src/mock-host/channels/shell.ts": {
-            "lines": 175,
-            "tokens": 1655,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-server/src/mock-host/channels/rpc-channel.ts": {
-            "lines": 107,
-            "tokens": 852,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-server/src/mock-host/channels/exec-router.ts": {
-            "lines": 155,
-            "tokens": 1205,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-vscode/src/test/extension.test.ts": {
-            "lines": 542,
-            "tokens": 4794,
-            "sources": 1,
-            "clones": 8,
-            "duplicatedLines": 186,
-            "duplicatedTokens": 1696,
-            "percentage": 34.32,
-            "percentageTokens": 35.38,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-server/src/zos/uss-path.ts": {
-            "lines": 117,
-            "tokens": 809,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-server/src/zos/temp-dsn.ts": {
-            "lines": 264,
-            "tokens": 1837,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-server/src/zos/system.ts": {
-            "lines": 132,
-            "tokens": 715,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-server/src/zos/session.ts": {
-            "lines": 299,
-            "tokens": 1846,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-server/src/zos/search-runner.ts": {
-            "lines": 259,
-            "tokens": 2097,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-server/src/zos/search-options.ts": {
-            "lines": 86,
-            "tokens": 466,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-server/src/zos/response-cache.ts": {
-            "lines": 208,
-            "tokens": 1397,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-server/src/zos/member-pattern.ts": {
-            "lines": 38,
-            "tokens": 129,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-server/src/zos/job-cards.ts": {
-            "lines": 109,
-            "tokens": 820,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-server/src/zos/encoding.ts": {
+          "packages/zowe-mcp-server/__tests__/tenant-resources.test.ts": {
             "lines": 75,
-            "tokens": 336,
+            "tokens": 536,
             "sources": 1,
             "clones": 0,
             "duplicatedLines": 0,
@@ -808,9 +100,9 @@
             "newDuplicatedLines": 0,
             "newClones": 0
           },
-          "packages/zowe-mcp-server/src/zos/dsn.ts": {
-            "lines": 345,
-            "tokens": 1971,
+          "packages/zowe-mcp-server/__tests__/tenant-connections-store.test.ts": {
+            "lines": 101,
+            "tokens": 1057,
             "sources": 1,
             "clones": 0,
             "duplicatedLines": 0,
@@ -820,9 +112,9 @@
             "newDuplicatedLines": 0,
             "newClones": 0
           },
-          "packages/zowe-mcp-server/src/zos/credentials.ts": {
-            "lines": 59,
-            "tokens": 173,
+          "packages/zowe-mcp-server/__tests__/temp-dsn.test.ts": {
+            "lines": 187,
+            "tokens": 1643,
             "sources": 1,
             "clones": 0,
             "duplicatedLines": 0,
@@ -832,9 +124,9 @@
             "newDuplicatedLines": 0,
             "newClones": 0
           },
-          "packages/zowe-mcp-server/src/transports/stdio.ts": {
-            "lines": 34,
-            "tokens": 129,
+          "packages/zowe-mcp-server/__tests__/system.test.ts": {
+            "lines": 130,
+            "tokens": 1501,
             "sources": 1,
             "clones": 0,
             "duplicatedLines": 0,
@@ -844,716 +136,8 @@
             "newDuplicatedLines": 0,
             "newClones": 0
           },
-          "packages/zowe-mcp-server/src/transports/http.ts": {
-            "lines": 338,
-            "tokens": 2927,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-server/src/transports/http-password-elicit.ts": {
-            "lines": 493,
-            "tokens": 1453,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-server/src/tools/tool-utils.ts": {
-            "lines": 40,
-            "tokens": 251,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-server/src/tools/schema-utils.ts": {
-            "lines": 59,
-            "tokens": 351,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-server/src/tools/response.ts": {
-            "lines": 463,
-            "tokens": 3031,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-server/src/tools/progress.ts": {
-            "lines": 151,
-            "tokens": 960,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-server/src/tools/command-safety.ts": {
-            "lines": 69,
-            "tokens": 423,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-server/src/scripts/mock-zos.ts": {
-            "lines": 26,
-            "tokens": 75,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-server/src/scripts/init-mock.ts": {
-            "lines": 942,
-            "tokens": 7165,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-server/src/scripts/call-tool.ts": {
-            "lines": 500,
-            "tokens": 4542,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-server/src/resources/dataset-resources.ts": {
-            "lines": 111,
-            "tokens": 645,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-server/src/prompts/improvement-prompts.ts": {
-            "lines": 91,
-            "tokens": 427,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-server/src/prompts/dataset-prompts.ts": {
-            "lines": 241,
-            "tokens": 1690,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-server/src/persistence/tenant-store-crypto.ts": {
-            "lines": 88,
-            "tokens": 777,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-server/src/persistence/tenant-connections-store.ts": {
-            "lines": 183,
-            "tokens": 1658,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-server/src/mock-host/users.ts": {
-            "lines": 124,
-            "tokens": 982,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-server/src/mock-host/store.ts": {
-            "lines": 33,
-            "tokens": 108,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-server/src/mock-host/sftp-server.ts": {
-            "lines": 189,
-            "tokens": 1818,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-server/src/mock-host/server.ts": {
-            "lines": 527,
-            "tokens": 4117,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-server/src/mock-host/sample-data.ts": {
-            "lines": 362,
-            "tokens": 2006,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-server/src/mock-host/realism.ts": {
-            "lines": 107,
-            "tokens": 585,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-server/src/mock-host/log.ts": {
-            "lines": 87,
-            "tokens": 552,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-server/src/mock-host/jobs.ts": {
-            "lines": 351,
-            "tokens": 3638,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-server/src/mock-host/host-keys.ts": {
-            "lines": 162,
-            "tokens": 1114,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-server/src/mock-host/errors.ts": {
-            "lines": 153,
-            "tokens": 1175,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-server/src/mock-host/cli.ts": {
-            "lines": 191,
-            "tokens": 1358,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-server/src/mock-host/auth.ts": {
-            "lines": 86,
-            "tokens": 452,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-server/src/mock-host/audit.ts": {
-            "lines": 125,
-            "tokens": 794,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-server/src/auth/tenant-resources.ts": {
-            "lines": 67,
-            "tokens": 395,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-server/src/auth/bearer-jwt.ts": {
-            "lines": 191,
-            "tokens": 1725,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-vscode/src/zowex-settings.ts": {
-            "lines": 131,
-            "tokens": 1187,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-vscode/src/zowe-profile.ts": {
-            "lines": 232,
-            "tokens": 2245,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-vscode/src/status-bar.ts": {
-            "lines": 172,
-            "tokens": 1451,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-vscode/src/startup-log.ts": {
-            "lines": 109,
-            "tokens": 816,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-vscode/src/secrets.ts": {
-            "lines": 26,
-            "tokens": 81,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-vscode/src/pipe-server.ts": {
-            "lines": 479,
-            "tokens": 3078,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-vscode/src/log.ts": {
-            "lines": 114,
-            "tokens": 598,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-vscode/src/host-compat.ts": {
-            "lines": 76,
-            "tokens": 460,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-vscode/src/host-compat-profiles.ts": {
-            "lines": 79,
-            "tokens": 310,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-vscode/src/extension.ts": {
-            "lines": 880,
-            "tokens": 7014,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-vscode/src/event-handler.ts": {
-            "lines": 650,
-            "tokens": 5909,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-server/src/tool-call-logging.ts": {
-            "lines": 85,
-            "tokens": 581,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-server/src/server.ts": {
-            "lines": 603,
-            "tokens": 3586,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-server/src/mcp-tool-context.ts": {
-            "lines": 76,
-            "tokens": 457,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-server/src/mcp-deployment-mode.ts": {
-            "lines": 34,
-            "tokens": 138,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-server/src/mcp-client-hints.ts": {
-            "lines": 30,
-            "tokens": 145,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-server/src/log.ts": {
-            "lines": 256,
-            "tokens": 1771,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-server/src/extension-client.ts": {
-            "lines": 205,
-            "tokens": 1410,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-server/src/events.ts": {
-            "lines": 398,
-            "tokens": 1760,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-server/src/capability-level.ts": {
-            "lines": 348,
-            "tokens": 2059,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-evals/src/types.ts": {
-            "lines": 342,
-            "tokens": 1161,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-evals/src/tool-dsn-registry.ts": {
-            "lines": 51,
-            "tokens": 441,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-evals/src/run.ts": {
-            "lines": 392,
-            "tokens": 4541,
-            "sources": 1,
-            "clones": 4,
-            "duplicatedLines": 42,
-            "duplicatedTokens": 437,
-            "percentage": 10.71,
-            "percentageTokens": 9.62,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-evals/src/report.ts": {
-            "lines": 273,
-            "tokens": 3091,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-evals/src/log.ts": {
-            "lines": 73,
-            "tokens": 586,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-evals/src/load-questions.ts": {
-            "lines": 401,
-            "tokens": 5297,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-evals/src/list-eval-models.ts": {
-            "lines": 172,
-            "tokens": 1536,
-            "sources": 1,
-            "clones": 2,
-            "duplicatedLines": 22,
-            "duplicatedTokens": 188,
-            "percentage": 12.79,
-            "percentageTokens": 12.24,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-evals/src/harness.ts": {
-            "lines": 635,
-            "tokens": 6563,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-evals/src/gemini-zowe-mcp-smoke.ts": {
-            "lines": 140,
-            "tokens": 1123,
-            "sources": 1,
-            "clones": 0,
-            "duplicatedLines": 0,
-            "duplicatedTokens": 0,
-            "percentage": 0,
-            "percentageTokens": 0,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-evals/src/evals-utils.ts": {
-            "lines": 44,
+          "packages/zowe-mcp-server/__tests__/stdio.e2e.test.ts": {
+            "lines": 64,
             "tokens": 450,
             "sources": 1,
             "clones": 0,
@@ -1564,21 +148,9 @@
             "newDuplicatedLines": 0,
             "newClones": 0
           },
-          "packages/zowe-mcp-evals/src/eval-compare.ts": {
-            "lines": 660,
-            "tokens": 7524,
-            "sources": 1,
-            "clones": 4,
-            "duplicatedLines": 50,
-            "duplicatedTokens": 433,
-            "percentage": 7.58,
-            "percentageTokens": 5.75,
-            "newDuplicatedLines": 0,
-            "newClones": 0
-          },
-          "packages/zowe-mcp-evals/src/dsn-utils.ts": {
-            "lines": 50,
-            "tokens": 348,
+          "packages/zowe-mcp-server/__tests__/ssh-client-cache.test.ts": {
+            "lines": 195,
+            "tokens": 1971,
             "sources": 1,
             "clones": 0,
             "duplicatedLines": 0,
@@ -1588,21 +160,285 @@
             "newDuplicatedLines": 0,
             "newClones": 0
           },
-          "packages/zowe-mcp-evals/src/config.ts": {
-            "lines": 472,
-            "tokens": 4208,
+          "packages/zowe-mcp-server/__tests__/session.test.ts": {
+            "lines": 210,
+            "tokens": 2176,
+            "sources": 1,
+            "clones": 0,
+            "duplicatedLines": 0,
+            "duplicatedTokens": 0,
+            "percentage": 0,
+            "percentageTokens": 0,
+            "newDuplicatedLines": 0,
+            "newClones": 0
+          },
+          "packages/zowe-mcp-server/__tests__/server.test.ts": {
+            "lines": 69,
+            "tokens": 596,
+            "sources": 1,
+            "clones": 1,
+            "duplicatedLines": 12,
+            "duplicatedTokens": 169,
+            "percentage": 17.39,
+            "percentageTokens": 28.36,
+            "newDuplicatedLines": 0,
+            "newClones": 0
+          },
+          "packages/zowe-mcp-server/__tests__/search-runner.test.ts": {
+            "lines": 186,
+            "tokens": 2039,
+            "sources": 1,
+            "clones": 0,
+            "duplicatedLines": 0,
+            "duplicatedTokens": 0,
+            "percentage": 0,
+            "percentageTokens": 0,
+            "newDuplicatedLines": 0,
+            "newClones": 0
+          },
+          "packages/zowe-mcp-server/__tests__/search-options.test.ts": {
+            "lines": 73,
+            "tokens": 691,
+            "sources": 1,
+            "clones": 0,
+            "duplicatedLines": 0,
+            "duplicatedTokens": 0,
+            "percentage": 0,
+            "percentageTokens": 0,
+            "newDuplicatedLines": 0,
+            "newClones": 0
+          },
+          "packages/zowe-mcp-server/__tests__/search-benchmark.test.ts": {
+            "lines": 281,
+            "tokens": 2539,
+            "sources": 1,
+            "clones": 6,
+            "duplicatedLines": 86,
+            "duplicatedTokens": 736,
+            "percentage": 30.6,
+            "percentageTokens": 28.99,
+            "newDuplicatedLines": 0,
+            "newClones": 0
+          },
+          "packages/zowe-mcp-server/__tests__/response-cache.test.ts": {
+            "lines": 824,
+            "tokens": 7923,
+            "sources": 1,
+            "clones": 17,
+            "duplicatedLines": 305,
+            "duplicatedTokens": 3222,
+            "percentage": 37.01,
+            "percentageTokens": 40.67,
+            "newDuplicatedLines": 0,
+            "newClones": 0
+          },
+          "packages/zowe-mcp-server/__tests__/response-cache-stdio.e2e.test.ts": {
+            "lines": 160,
+            "tokens": 1596,
+            "sources": 1,
+            "clones": 4,
+            "duplicatedLines": 56,
+            "duplicatedTokens": 609,
+            "percentage": 35,
+            "percentageTokens": 38.16,
+            "newDuplicatedLines": 0,
+            "newClones": 0
+          },
+          "packages/zowe-mcp-server/__tests__/progress.test.ts": {
+            "lines": 98,
+            "tokens": 895,
+            "sources": 1,
+            "clones": 0,
+            "duplicatedLines": 0,
+            "duplicatedTokens": 0,
+            "percentage": 0,
+            "percentageTokens": 0,
+            "newDuplicatedLines": 0,
+            "newClones": 0
+          },
+          "packages/zowe-mcp-server/__tests__/progress-title.test.ts": {
+            "lines": 85,
+            "tokens": 877,
+            "sources": 1,
+            "clones": 0,
+            "duplicatedLines": 0,
+            "duplicatedTokens": 0,
+            "percentage": 0,
+            "percentageTokens": 0,
+            "newDuplicatedLines": 0,
+            "newClones": 0
+          },
+          "packages/zowe-mcp-server/__tests__/path-under-roots.test.ts": {
+            "lines": 80,
+            "tokens": 691,
+            "sources": 1,
+            "clones": 0,
+            "duplicatedLines": 0,
+            "duplicatedTokens": 0,
+            "percentage": 0,
+            "percentageTokens": 0,
+            "newDuplicatedLines": 0,
+            "newClones": 0
+          },
+          "packages/zowe-mcp-server/__tests__/native-zowex-deploy.e2e.test.ts": {
+            "lines": 240,
+            "tokens": 1992,
+            "sources": 1,
+            "clones": 2,
+            "duplicatedLines": 30,
+            "duplicatedTokens": 331,
+            "percentage": 12.5,
+            "percentageTokens": 16.62,
+            "newDuplicatedLines": 0,
+            "newClones": 0
+          },
+          "packages/zowe-mcp-server/__tests__/native-dataset-tools.test.ts": {
+            "lines": 260,
+            "tokens": 2276,
+            "sources": 1,
+            "clones": 1,
+            "duplicatedLines": 12,
+            "duplicatedTokens": 88,
+            "percentage": 4.62,
+            "percentageTokens": 3.87,
+            "newDuplicatedLines": 0,
+            "newClones": 0
+          },
+          "packages/zowe-mcp-server/__tests__/native-credential-provider.test.ts": {
+            "lines": 341,
+            "tokens": 3268,
+            "sources": 1,
+            "clones": 6,
+            "duplicatedLines": 76,
+            "duplicatedTokens": 666,
+            "percentage": 22.29,
+            "percentageTokens": 20.38,
+            "newDuplicatedLines": 0,
+            "newClones": 0
+          },
+          "packages/zowe-mcp-server/__tests__/native-backend.test.ts": {
+            "lines": 771,
+            "tokens": 7192,
+            "sources": 1,
+            "clones": 6,
+            "duplicatedLines": 72,
+            "duplicatedTokens": 678,
+            "percentage": 9.34,
+            "percentageTokens": 9.43,
+            "newDuplicatedLines": 0,
+            "newClones": 0
+          },
+          "packages/zowe-mcp-server/__tests__/mock-zos-zosmf-scenarios.test.ts": {
+            "lines": 105,
+            "tokens": 888,
+            "sources": 1,
+            "clones": 0,
+            "duplicatedLines": 0,
+            "duplicatedTokens": 0,
+            "percentage": 0,
+            "percentageTokens": 0,
+            "newDuplicatedLines": 0,
+            "newClones": 0
+          },
+          "packages/zowe-mcp-server/__tests__/mock-zos-zosmf-restfiles.integration.test.ts": {
+            "lines": 197,
+            "tokens": 1857,
+            "sources": 1,
+            "clones": 0,
+            "duplicatedLines": 0,
+            "duplicatedTokens": 0,
+            "percentage": 0,
+            "percentageTokens": 0,
+            "newDuplicatedLines": 0,
+            "newClones": 0
+          },
+          "packages/zowe-mcp-server/__tests__/mock-zos-zosmf-restfiles-read.integration.test.ts": {
+            "lines": 244,
+            "tokens": 2597,
+            "sources": 1,
+            "clones": 0,
+            "duplicatedLines": 0,
+            "duplicatedTokens": 0,
+            "percentage": 0,
+            "percentageTokens": 0,
+            "newDuplicatedLines": 0,
+            "newClones": 0
+          },
+          "packages/zowe-mcp-server/__tests__/mock-zos-zosmf-auth.integration.test.ts": {
+            "lines": 174,
+            "tokens": 1584,
+            "sources": 1,
+            "clones": 0,
+            "duplicatedLines": 0,
+            "duplicatedTokens": 0,
+            "percentage": 0,
+            "percentageTokens": 0,
+            "newDuplicatedLines": 0,
+            "newClones": 0
+          },
+          "packages/zowe-mcp-server/__tests__/mock-zos-shared-catalog.test.ts": {
+            "lines": 93,
+            "tokens": 684,
+            "sources": 1,
+            "clones": 0,
+            "duplicatedLines": 0,
+            "duplicatedTokens": 0,
+            "percentage": 0,
+            "percentageTokens": 0,
+            "newDuplicatedLines": 0,
+            "newClones": 0
+          },
+          "packages/zowe-mcp-server/__tests__/mock-zos-http-verbose.test.ts": {
+            "lines": 122,
+            "tokens": 1019,
+            "sources": 1,
+            "clones": 0,
+            "duplicatedLines": 0,
+            "duplicatedTokens": 0,
+            "percentage": 0,
+            "percentageTokens": 0,
+            "newDuplicatedLines": 0,
+            "newClones": 0
+          },
+          "packages/zowe-mcp-server/__tests__/mock-zos-http-access-log.test.ts": {
+            "lines": 116,
+            "tokens": 1035,
+            "sources": 1,
+            "clones": 0,
+            "duplicatedLines": 0,
+            "duplicatedTokens": 0,
+            "percentage": 0,
+            "percentageTokens": 0,
+            "newDuplicatedLines": 0,
+            "newClones": 0
+          },
+          "packages/zowe-mcp-server/__tests__/mock-uss-backend.test.ts": {
+            "lines": 160,
+            "tokens": 1766,
+            "sources": 1,
+            "clones": 0,
+            "duplicatedLines": 0,
+            "duplicatedTokens": 0,
+            "percentage": 0,
+            "percentageTokens": 0,
+            "newDuplicatedLines": 0,
+            "newClones": 0
+          },
+          "packages/zowe-mcp-server/__tests__/mock-stdio.e2e.test.ts": {
+            "lines": 371,
+            "tokens": 4200,
             "sources": 1,
             "clones": 2,
             "duplicatedLines": 24,
-            "duplicatedTokens": 226,
-            "percentage": 5.08,
-            "percentageTokens": 5.37,
+            "duplicatedTokens": 270,
+            "percentage": 6.47,
+            "percentageTokens": 6.43,
             "newDuplicatedLines": 0,
             "newClones": 0
           },
-          "packages/zowe-mcp-evals/src/cache.ts": {
-            "lines": 142,
-            "tokens": 1322,
+          "packages/zowe-mcp-server/__tests__/mock-credential-provider.test.ts": {
+            "lines": 161,
+            "tokens": 1422,
             "sources": 1,
             "clones": 0,
             "duplicatedLines": 0,
@@ -1612,9 +448,9 @@
             "newDuplicatedLines": 0,
             "newClones": 0
           },
-          "packages/zowe-mcp-evals/src/assertions.ts": {
-            "lines": 352,
-            "tokens": 3619,
+          "packages/zowe-mcp-server/__tests__/member-pattern.test.ts": {
+            "lines": 76,
+            "tokens": 796,
             "sources": 1,
             "clones": 0,
             "duplicatedLines": 0,
@@ -1624,9 +460,9 @@
             "newDuplicatedLines": 0,
             "newClones": 0
           },
-          "packages/zowe-mcp-common/src/plural.ts": {
-            "lines": 21,
-            "tokens": 64,
+          "packages/zowe-mcp-server/__tests__/mcp-deployment-mode.test.ts": {
+            "lines": 37,
+            "tokens": 262,
             "sources": 1,
             "clones": 0,
             "duplicatedLines": 0,
@@ -1636,9 +472,9 @@
             "newDuplicatedLines": 0,
             "newClones": 0
           },
-          "packages/zowe-mcp-common/src/index.ts": {
-            "lines": 11,
-            "tokens": 14,
+          "packages/zowe-mcp-server/__tests__/mcp-client-hints.test.ts": {
+            "lines": 33,
+            "tokens": 256,
             "sources": 1,
             "clones": 0,
             "duplicatedLines": 0,
@@ -1648,9 +484,9 @@
             "newDuplicatedLines": 0,
             "newClones": 0
           },
-          "packages/zowe-mcp-server/vitest.config.ts": {
-            "lines": 18,
-            "tokens": 51,
+          "packages/zowe-mcp-server/__tests__/match-pattern.test.ts": {
+            "lines": 127,
+            "tokens": 1051,
             "sources": 1,
             "clones": 0,
             "duplicatedLines": 0,
@@ -1660,9 +496,9 @@
             "newDuplicatedLines": 0,
             "newClones": 0
           },
-          "packages/zowe-mcp-evals/vitest.config.ts": {
-            "lines": 17,
-            "tokens": 44,
+          "packages/zowe-mcp-server/__tests__/log.test.ts": {
+            "lines": 342,
+            "tokens": 2891,
             "sources": 1,
             "clones": 0,
             "duplicatedLines": 0,
@@ -1671,26 +507,58 @@
             "percentageTokens": 0,
             "newDuplicatedLines": 0,
             "newClones": 0
-          }
-        },
-        "total": {
-          "lines": 29142,
-          "tokens": 223488,
-          "sources": 139,
-          "clones": 19,
-          "duplicatedLines": 281,
-          "duplicatedTokens": 2613,
-          "percentage": 0.96,
-          "percentageTokens": 1.17,
-          "newDuplicatedLines": 0,
-          "newClones": 0
-        }
-      },
-      "javascript": {
-        "sources": {
-          "packages/zowe-mcp-vscode/scripts/install-extension.js": {
+          },
+          "packages/zowe-mcp-server/__tests__/local-file-tools.test.ts": {
+            "lines": 293,
+            "tokens": 2991,
+            "sources": 1,
+            "clones": 1,
+            "duplicatedLines": 18,
+            "duplicatedTokens": 136,
+            "percentage": 6.14,
+            "percentageTokens": 4.55,
+            "newDuplicatedLines": 0,
+            "newClones": 0
+          },
+          "packages/zowe-mcp-server/__tests__/keycloak-http-jwt.e2e.test.ts": {
+            "lines": 178,
+            "tokens": 1700,
+            "sources": 1,
+            "clones": 5,
+            "duplicatedLines": 60,
+            "duplicatedTokens": 657,
+            "percentage": 33.71,
+            "percentageTokens": 38.65,
+            "newDuplicatedLines": 0,
+            "newClones": 0
+          },
+          "packages/zowe-mcp-server/__tests__/job-retcode.test.ts": {
+            "lines": 32,
+            "tokens": 215,
+            "sources": 1,
+            "clones": 0,
+            "duplicatedLines": 0,
+            "duplicatedTokens": 0,
+            "percentage": 0,
+            "percentageTokens": 0,
+            "newDuplicatedLines": 0,
+            "newClones": 0
+          },
+          "packages/zowe-mcp-server/__tests__/job-progress-text.test.ts": {
+            "lines": 68,
+            "tokens": 402,
+            "sources": 1,
+            "clones": 0,
+            "duplicatedLines": 0,
+            "duplicatedTokens": 0,
+            "percentage": 0,
+            "percentageTokens": 0,
+            "newDuplicatedLines": 0,
+            "newClones": 0
+          },
+          "packages/zowe-mcp-server/__tests__/init-mock.test.ts": {
             "lines": 89,
-            "tokens": 645,
+            "tokens": 880,
             "sources": 1,
             "clones": 0,
             "duplicatedLines": 0,
@@ -1700,9 +568,9 @@
             "newDuplicatedLines": 0,
             "newClones": 0
           },
-          "packages/zowe-mcp-vscode/scripts/bundle-server.js": {
-            "lines": 177,
-            "tokens": 1623,
+          "packages/zowe-mcp-server/__tests__/init-mock-entrypoint.e2e.test.ts": {
+            "lines": 82,
+            "tokens": 805,
             "sources": 1,
             "clones": 0,
             "duplicatedLines": 0,
@@ -1712,9 +580,45 @@
             "newDuplicatedLines": 0,
             "newClones": 0
           },
-          "packages/zowe-mcp-server/scripts/restore-after-pack.cjs": {
-            "lines": 60,
-            "tokens": 442,
+          "packages/zowe-mcp-server/__tests__/http.e2e.test.ts": {
+            "lines": 231,
+            "tokens": 2078,
+            "sources": 1,
+            "clones": 2,
+            "duplicatedLines": 45,
+            "duplicatedTokens": 431,
+            "percentage": 19.48,
+            "percentageTokens": 20.74,
+            "newDuplicatedLines": 0,
+            "newClones": 0
+          },
+          "packages/zowe-mcp-server/__tests__/http-transport-jwt.test.ts": {
+            "lines": 255,
+            "tokens": 2241,
+            "sources": 1,
+            "clones": 11,
+            "duplicatedLines": 163,
+            "duplicatedTokens": 1368,
+            "percentage": 63.92,
+            "percentageTokens": 61.04,
+            "newDuplicatedLines": 0,
+            "newClones": 0
+          },
+          "packages/zowe-mcp-server/__tests__/extension-client.test.ts": {
+            "lines": 606,
+            "tokens": 5538,
+            "sources": 1,
+            "clones": 2,
+            "duplicatedLines": 28,
+            "duplicatedTokens": 258,
+            "percentage": 4.62,
+            "percentageTokens": 4.66,
+            "newDuplicatedLines": 0,
+            "newClones": 0
+          },
+          "packages/zowe-mcp-server/__tests__/encoding.test.ts": {
+            "lines": 96,
+            "tokens": 742,
             "sources": 1,
             "clones": 0,
             "duplicatedLines": 0,
@@ -1724,9 +628,9 @@
             "newDuplicatedLines": 0,
             "newClones": 0
           },
-          "packages/zowe-mcp-server/scripts/copy-resources.cjs": {
-            "lines": 45,
-            "tokens": 476,
+          "packages/zowe-mcp-server/__tests__/dsn.test.ts": {
+            "lines": 819,
+            "tokens": 6373,
             "sources": 1,
             "clones": 0,
             "duplicatedLines": 0,
@@ -1736,9 +640,9 @@
             "newDuplicatedLines": 0,
             "newClones": 0
           },
-          "packages/zowe-mcp-server/scripts/bundle-for-pack.cjs": {
-            "lines": 104,
-            "tokens": 719,
+          "packages/zowe-mcp-server/__tests__/connection-spec.test.ts": {
+            "lines": 183,
+            "tokens": 1727,
             "sources": 1,
             "clones": 0,
             "duplicatedLines": 0,
@@ -1748,42 +652,78 @@
             "newDuplicatedLines": 0,
             "newClones": 0
           },
-          "packages/zowe-mcp-vscode/.vscode-test.mjs": {
-            "lines": 15,
-            "tokens": 40,
+          "packages/zowe-mcp-server/__tests__/common.test.ts": {
+            "lines": 118,
+            "tokens": 1255,
             "sources": 1,
             "clones": 0,
             "duplicatedLines": 0,
             "duplicatedTokens": 0,
             "percentage": 0,
             "percentageTokens": 0,
+            "newDuplicatedLines": 0,
+            "newClones": 0
+          },
+          "packages/zowe-mcp-server/__tests__/command-validation.test.ts": {
+            "lines": 81,
+            "tokens": 670,
+            "sources": 1,
+            "clones": 0,
+            "duplicatedLines": 0,
+            "duplicatedTokens": 0,
+            "percentage": 0,
+            "percentageTokens": 0,
+            "newDuplicatedLines": 0,
+            "newClones": 0
+          },
+          "packages/zowe-mcp-server/__tests__/capability-level.test.ts": {
+            "lines": 256,
+            "tokens": 2424,
+            "sources": 1,
+            "clones": 0,
+            "duplicatedLines": 0,
+            "duplicatedTokens": 0,
+            "percentage": 0,
+            "percentageTokens": 0,
+            "newDuplicatedLines": 0,
+            "newClones": 0
+          },
+          "packages/zowe-mcp-server/__tests__/bearer-jwt.test.ts": {
+            "lines": 209,
+            "tokens": 2005,
+            "sources": 1,
+            "clones": 2,
+            "duplicatedLines": 25,
+            "duplicatedTokens": 215,
+            "percentage": 11.96,
+            "percentageTokens": 10.72,
             "newDuplicatedLines": 0,
             "newClones": 0
           }
         },
         "total": {
-          "lines": 490,
-          "tokens": 3945,
-          "sources": 6,
-          "clones": 0,
-          "duplicatedLines": 0,
-          "duplicatedTokens": 0,
-          "percentage": 0,
-          "percentageTokens": 0,
+          "lines": 11425,
+          "tokens": 106644,
+          "sources": 58,
+          "clones": 35,
+          "duplicatedLines": 528,
+          "duplicatedTokens": 5096,
+          "percentage": 4.62,
+          "percentageTokens": 4.78,
           "newDuplicatedLines": 0,
           "newClones": 0
         }
       }
     },
     "total": {
-      "lines": 29632,
-      "tokens": 227433,
-      "sources": 145,
-      "clones": 19,
-      "duplicatedLines": 281,
-      "duplicatedTokens": 2613,
-      "percentage": 0.95,
-      "percentageTokens": 1.15,
+      "lines": 11425,
+      "tokens": 106644,
+      "sources": 58,
+      "clones": 35,
+      "duplicatedLines": 528,
+      "duplicatedTokens": 5096,
+      "percentage": 4.62,
+      "percentageTokens": 4.78,
       "newDuplicatedLines": 0,
       "newClones": 0
     }
@@ -1792,684 +732,1260 @@
     {
       "format": "typescript",
       "lines": 12,
-      "fragment": ", {\n            key,\n            host: spec.host,\n            user: spec.user,\n          });\n          password = await inFlight;\n        } else {\n          const requestPromise = this._requestPasswordOnce(key, spec, options?.progress);\n          this._passwordRequestByKey.set(key, requestPromise);\n          try {\n            password = await requestPromise;\n            if",
+      "fragment": ");\n    const credentialProvider: CredentialProvider = new MockCredentialProvider(mockConfig);\n    const systemRegistry = new SystemRegistry();\n    for (const sys of mockConfig.systems) {\n      systemRegistry.register({\n        host: sys.host,\n        port: sys.port,\n        description: sys.description,\n      });\n    }\n\n    const",
       "tokens": 0,
       "firstFile": {
-        "name": "packages/zowe-mcp-server/src/zos/native/native-credential-provider.ts",
-        "start": 335,
-        "end": 346,
+        "name": "packages/zowe-mcp-server/__tests__/response-cache.test.ts",
+        "start": 357,
+        "end": 368,
         "startLoc": {
-          "line": 335,
-          "column": 41,
-          "position": 2689
+          "line": 357,
+          "column": 13,
+          "position": 3101
         },
         "endLoc": {
-          "line": 346,
+          "line": 368,
+          "column": 6,
+          "position": 3197
+        }
+      },
+      "secondFile": {
+        "name": "packages/zowe-mcp-server/__tests__/uss-tools.integration.test.ts",
+        "start": 238,
+        "end": 249,
+        "startLoc": {
+          "line": 238,
+          "column": 8,
+          "position": 2686
+        },
+        "endLoc": {
+          "line": 249,
+          "column": 7,
+          "position": 2782
+        }
+      }
+    },
+    {
+      "format": "typescript",
+      "lines": 27,
+      "fragment": ", async () => {\n    const innerBackend = new FilesystemMockBackend(mockDir);\n    const countingBackend = new CountingBackend(innerBackend);\n    const credentialProvider: CredentialProvider = new MockCredentialProvider(mockConfig);\n    const systemRegistry = new SystemRegistry();\n    for (const sys of mockConfig.systems) {\n      systemRegistry.register({\n        host: sys.host,\n        port: sys.port,\n        description: sys.description,\n      });\n    }\n\n    const server = getServer(\n      createServer({\n        backend: countingBackend,\n        systemRegistry,\n        credentialProvider,\n        responseCache: createResponseCache({ ttlMs: 60_000, maxSizeBytes: 10 * 1024 * 1024 }),\n        logToolCalls: true,\n        capabilityTier: 'full',\n      })\n    );\n    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();\n    const client = new Client({ name: 'test', version: '1.0.0' });\n    await Promise.all([client.connect(clientTransport), server.connect(serverTransport)]);\n    await new Promise(resolve => setTimeout(resolve, 100",
+      "tokens": 0,
+      "firstFile": {
+        "name": "packages/zowe-mcp-server/__tests__/response-cache.test.ts",
+        "start": 403,
+        "end": 429,
+        "startLoc": {
+          "line": 403,
+          "column": 81,
+          "position": 3576
+        },
+        "endLoc": {
+          "line": 429,
+          "column": 4,
+          "position": 3882
+        }
+      },
+      "secondFile": {
+        "name": "packages/zowe-mcp-server/__tests__/response-cache.test.ts",
+        "start": 355,
+        "end": 381,
+        "startLoc": {
+          "line": 355,
+          "column": 82,
+          "position": 3063
+        },
+        "endLoc": {
+          "line": 381,
           "column": 3,
-          "position": 2791
-        }
-      },
-      "secondFile": {
-        "name": "packages/zowe-mcp-server/src/zos/native/native-credential-provider.ts",
-        "start": 279,
-        "end": 290,
-        "startLoc": {
-          "line": 279,
-          "column": 55,
-          "position": 2182
-        },
-        "endLoc": {
-          "line": 290,
-          "column": 2,
-          "position": 2284
-        }
-      }
-    },
-    {
-      "format": "typescript",
-      "lines": 11,
-      "fragment": "const resolved = await resolveDatasetToolInput(deps, dsn, member, system, log);\n        const systemCtx = deps.sessionState.getContext(resolved.systemId);\n        const resolvedEncoding = resolveDatasetEncoding(\n          encoding,\n          systemCtx?.mainframeMvsEncoding,\n          deps.encodingOptions.defaultMainframeMvsEncoding\n        );\n        const progressCb = extra._meta?.progressToken\n          ? (msg: string) => void progress.step(msg)\n          : undefined;\n        const result = await deps.backend.writeDataset",
-      "tokens": 0,
-      "firstFile": {
-        "name": "packages/zowe-mcp-server/src/tools/local-files/local-file-tools.ts",
-        "start": 304,
-        "end": 314,
-        "startLoc": {
-          "line": 304,
-          "column": 9,
-          "position": 2718
-        },
-        "endLoc": {
-          "line": 314,
-          "column": 13,
-          "position": 2849
-        }
-      },
-      "secondFile": {
-        "name": "packages/zowe-mcp-server/src/tools/local-files/local-file-tools.ts",
-        "start": 234,
-        "end": 244,
-        "startLoc": {
-          "line": 234,
-          "column": 9,
-          "position": 1975
-        },
-        "endLoc": {
-          "line": 244,
-          "column": 12,
-          "position": 2106
-        }
-      }
-    },
-    {
-      "format": "typescript",
-      "lines": 20,
-      "fragment": ",\n          etag: result.etag,\n          dsn: fullDsn,\n          member: resolved.member,\n        });\n      } catch (err) {\n        const message =\n          err instanceof LocalPathResolutionError || err instanceof DsnError\n            ? err.message\n            : err instanceof Error\n              ? err.message\n              : String(err);\n        await progress.complete(message);\n        return errorResult(message);\n      }\n    }\n  );\n\n  server.registerTool(\n    'downloadUssFileToFile'",
-      "tokens": 0,
-      "firstFile": {
-        "name": "packages/zowe-mcp-server/src/tools/local-files/local-file-tools.ts",
-        "start": 345,
-        "end": 364,
-        "startLoc": {
-          "line": 345,
-          "column": 10,
-          "position": 3112
-        },
-        "endLoc": {
-          "line": 364,
-          "column": 24,
-          "position": 3247
-        }
-      },
-      "secondFile": {
-        "name": "packages/zowe-mcp-server/src/tools/local-files/local-file-tools.ts",
-        "start": 260,
-        "end": 279,
-        "startLoc": {
-          "line": 260,
-          "column": 13,
-          "position": 2301
-        },
-        "endLoc": {
-          "line": 279,
-          "column": 22,
-          "position": 2436
-        }
-      }
-    },
-    {
-      "format": "typescript",
-      "lines": 11,
-      "fragment": "${localPath}`);\n      await progress.start();\n      try {\n        const localResolved = await resolveLocalPathForTool(deps, localPath);\n        const overwriteErr = await guardOverwrite(localResolved.absolutePath, overwrite);\n        if (overwriteErr) {\n          await progress.complete('File exists');\n          return overwriteErr;\n        }\n\n        const {",
-      "tokens": 0,
-      "firstFile": {
-        "name": "packages/zowe-mcp-server/src/tools/local-files/local-file-tools.ts",
-        "start": 391,
-        "end": 401,
-        "startLoc": {
-          "line": 391,
-          "column": 23,
-          "position": 3469
-        },
-        "endLoc": {
-          "line": 401,
-          "column": 2,
-          "position": 3562
-        }
-      },
-      "secondFile": {
-        "name": "packages/zowe-mcp-server/src/tools/local-files/local-file-tools.ts",
-        "start": 224,
-        "end": 234,
-        "startLoc": {
-          "line": 224,
-          "column": 23,
-          "position": 1884
-        },
-        "endLoc": {
-          "line": 234,
-          "column": 9,
-          "position": 1977
-        }
-      }
-    },
-    {
-      "format": "typescript",
-      "lines": 15,
-      "fragment": ",\n          etag: result.etag,\n          ussPath: resolvedUssPath,\n        });\n      } catch (err) {\n        const message =\n          err instanceof LocalPathResolutionError ? err.message : (err as Error).message;\n        await progress.complete(message);\n        return errorResult(message);\n      }\n    }\n  );\n\n  server.registerTool(\n    'downloadJobFileToFile'",
-      "tokens": 0,
-      "firstFile": {
-        "name": "packages/zowe-mcp-server/src/tools/local-files/local-file-tools.ts",
-        "start": 490,
-        "end": 504,
-        "startLoc": {
-          "line": 490,
-          "column": 10,
-          "position": 4348
-        },
-        "endLoc": {
-          "line": 504,
-          "column": 24,
-          "position": 4453
-        }
-      },
-      "secondFile": {
-        "name": "packages/zowe-mcp-server/src/tools/local-files/local-file-tools.ts",
-        "start": 430,
-        "end": 444,
-        "startLoc": {
-          "line": 430,
-          "column": 13,
-          "position": 3826
-        },
-        "endLoc": {
-          "line": 444,
-          "column": 22,
-          "position": 3931
-        }
-      }
-    },
-    {
-      "format": "typescript",
-      "lines": 21,
-      "fragment": "= baseContextSchema\n  .extend({\n    resolvedPattern: z\n      .string()\n      .optional()\n      .describe(\n        'Normalized list pattern (uppercase, no quotes). Present only when input was quoted or lowercase.'\n      ),\n    resolvedDsn: z\n      .string()\n      .optional()\n      .describe(\n        'Normalized data set name (uppercase, no quotes). Present only when input was quoted or lowercase.'\n      ),\n    resolvedTargetDsn: z\n      .string()\n      .optional()\n      .describe(\n        'Normalized target data set name for copy/rename. Present only when input differed from resolved value.'\n      ),\n    resolvedPath",
-      "tokens": 0,
-      "firstFile": {
-        "name": "packages/zowe-mcp-server/src/tools/datasets/dataset-output-schemas.ts",
-        "start": 78,
-        "end": 98,
-        "startLoc": {
-          "line": 78,
-          "column": 2,
-          "position": 312
-        },
-        "endLoc": {
-          "line": 98,
-          "column": 13,
-          "position": 413
-        }
-      },
-      "secondFile": {
-        "name": "packages/zowe-mcp-server/src/tools/datasets/dataset-output-schemas.ts",
-        "start": 33,
-        "end": 53,
-        "startLoc": {
-          "line": 33,
-          "column": 2,
-          "position": 82
-        },
-        "endLoc": {
-          "line": 53,
-          "column": 2,
-          "position": 183
-        }
-      }
-    },
-    {
-      "format": "typescript",
-      "lines": 11,
-      "fragment": "),\n  multivolume: z.boolean().optional().describe('True if data set spans multiple volumes.'),\n  migrated: z.boolean().optional().describe('True if data set is migrated (HSM).'),\n  encrypted: z.boolean().optional().describe('True if data set is encrypted.'),\n  dsntype: z.string().optional().describe('Data set name type (e.g. PDS, LIBRARY).'),\n  dataclass: z.string().optional().describe('SMS data class.'),\n  mgmtclass: z.string().optional().describe('SMS management class.'),\n  storclass: z.string().optional().describe('SMS storage class.'),\n  spaceUnits: z.string().optional().describe('Space unit type (TRACKS, CYLINDERS, etc.).'),\n  usedPercent: z.number().optional().describe('Used space percentage.'),\n  primary",
-      "tokens": 0,
-      "firstFile": {
-        "name": "packages/zowe-mcp-server/src/tools/datasets/dataset-output-schemas.ts",
-        "start": 303,
-        "end": 313,
-        "startLoc": {
-          "line": 303,
-          "column": 26,
-          "position": 2266
-        },
-        "endLoc": {
-          "line": 313,
-          "column": 8,
-          "position": 2450
-        }
-      },
-      "secondFile": {
-        "name": "packages/zowe-mcp-server/src/tools/datasets/dataset-output-schemas.ts",
-        "start": 211,
-        "end": 221,
-        "startLoc": {
-          "line": 211,
-          "column": 32,
-          "position": 1253
-        },
-        "endLoc": {
-          "line": 221,
-          "column": 12,
-          "position": 1437
-        }
-      }
-    },
-    {
-      "format": "typescript",
-      "lines": 13,
-      "fragment": ");\n        await progress.start();\n        const parsed = normalizeSpec(connectionSpec);\n        if (!parsed.ok) {\n          await progress.complete('failed');\n          return {\n            content: [{ type: 'text' as const, text: JSON.stringify({ error: parsed.error }) }],\n            isError: true,\n          };\n        }\n        const normalized = parsed.value;\n        try {\n          await removeTenantNativeConnection",
-      "tokens": 0,
-      "firstFile": {
-        "name": "packages/zowe-mcp-server/src/tools/context/context-tools.ts",
-        "start": 203,
-        "end": 215,
-        "startLoc": {
-          "line": 203,
-          "column": 25,
-          "position": 1410
-        },
-        "endLoc": {
-          "line": 215,
-          "column": 29,
-          "position": 1538
-        }
-      },
-      "secondFile": {
-        "name": "packages/zowe-mcp-server/src/tools/context/context-tools.ts",
-        "start": 151,
-        "end": 163,
-        "startLoc": {
-          "line": 151,
-          "column": 22,
-          "position": 941
-        },
-        "endLoc": {
-          "line": 163,
-          "column": 26,
-          "position": 1069
-        }
-      }
-    },
-    {
-      "format": "typescript",
-      "lines": 14,
-      "fragment": "(normalized);\n        } catch (err: unknown) {\n          const message = err instanceof Error ? err.message : String(err);\n          await progress.complete('failed');\n          return {\n            content: [{ type: 'text' as const, text: JSON.stringify({ error: message }) }],\n            isError: true,\n          };\n        }\n        const payload = {\n          connectionSpec: normalized,\n          persisted: true,\n          messages: [\n            'Connection removed from your saved list. If it was the active connection, call setSystem to switch to another host or connection.'",
-      "tokens": 0,
-      "firstFile": {
-        "name": "packages/zowe-mcp-server/src/tools/context/context-tools.ts",
-        "start": 215,
-        "end": 228,
-        "startLoc": {
-          "line": 215,
-          "column": 29,
-          "position": 1539
-        },
-        "endLoc": {
-          "line": 228,
-          "column": 132,
-          "position": 1683
-        }
-      },
-      "secondFile": {
-        "name": "packages/zowe-mcp-server/src/tools/context/context-tools.ts",
-        "start": 163,
-        "end": 176,
-        "startLoc": {
-          "line": 163,
-          "column": 26,
-          "position": 1070
-        },
-        "endLoc": {
-          "line": 176,
-          "column": 210,
-          "position": 1214
-        }
-      }
-    },
-    {
-      "format": "typescript",
-      "lines": 14,
-      "fragment": "];\n          if (key === 'nativeSystems') return [];\n          if (key === 'mockDataDirectory') return '';\n          return defaultValue;\n        },\n        has: () => false,\n        inspect: () => undefined,\n        update: () => Promise.resolve(),\n      };\n      (\n        vscode.workspace as {\n          getConfiguration: (section: string) => vscode.WorkspaceConfiguration;\n        }\n      ).getConfiguration = ()",
-      "tokens": 0,
-      "firstFile": {
-        "name": "packages/zowe-mcp-vscode/src/test/extension.test.ts",
-        "start": 164,
-        "end": 177,
-        "startLoc": {
-          "line": 164,
-          "column": 12,
-          "position": 1351
-        },
-        "endLoc": {
-          "line": 177,
-          "column": 2,
-          "position": 1482
-        }
-      },
-      "secondFile": {
-        "name": "packages/zowe-mcp-vscode/src/test/extension.test.ts",
-        "start": 114,
-        "end": 127,
-        "startLoc": {
-          "line": 114,
-          "column": 2,
-          "position": 881
-        },
-        "endLoc": {
-          "line": 127,
-          "column": 8,
-          "position": 1012
-        }
-      }
-    },
-    {
-      "format": "typescript",
-      "lines": 29,
-      "fragment": ";\n          return defaultValue;\n        },\n        has: () => false,\n        inspect: () => undefined,\n        update: () => Promise.resolve(),\n      };\n      (\n        vscode.workspace as {\n          getConfiguration: (section: string) => vscode.WorkspaceConfiguration;\n        }\n      ).getConfiguration = () => mockConfig;\n\n      let showCalls = 0;\n      (\n        vscode.window as {\n          showInformationMessage: (\n            _message: string,\n            ..._items: string[]\n          ) => Thenable<string | undefined>;\n        }\n      ).showInformationMessage = () => {\n        showCalls++;\n        return Promise.resolve(undefined);\n      };\n\n      showNoConnectionsNotificationIfNeeded();\n\n      assert.strictEqual(showCalls, 0, 'Should not show notification when backend is mock'",
-      "tokens": 0,
-      "firstFile": {
-        "name": "packages/zowe-mcp-vscode/src/test/extension.test.ts",
-        "start": 203,
-        "end": 231,
-        "startLoc": {
-          "line": 203,
-          "column": 16,
-          "position": 1728
-        },
-        "endLoc": {
-          "line": 231,
-          "column": 52,
-          "position": 1948
-        }
-      },
-      "secondFile": {
-        "name": "packages/zowe-mcp-vscode/src/test/extension.test.ts",
-        "start": 116,
-        "end": 194,
-        "startLoc": {
-          "line": 116,
-          "column": 3,
-          "position": 915
-        },
-        "endLoc": {
-          "line": 194,
-          "column": 56,
-          "position": 1605
-        }
-      }
-    },
-    {
-      "format": "typescript",
-      "lines": 23,
-      "fragment": ", async () => {\n      const mockConfig: vscode.WorkspaceConfiguration = {\n        get: (key: string, defaultValue?: unknown) => {\n          if (key === 'backend') return 'native';\n          if (key === 'nativeConnections') return [];\n          if (key === 'nativeSystems') return [];\n          if (key === 'mockDataDirectory') return '';\n          return defaultValue;\n        },\n        has: () => false,\n        inspect: () => undefined,\n        update: () => Promise.resolve(),\n      };\n      (\n        vscode.workspace as {\n          getConfiguration: (section: string) => vscode.WorkspaceConfiguration;\n        }\n      ).getConfiguration = (section: string) => {\n        assert.strictEqual(section, 'zoweMCP');\n        return mockConfig;\n      };\n\n      const zoweMcp",
-      "tokens": 0,
-      "firstFile": {
-        "name": "packages/zowe-mcp-vscode/src/test/extension.test.ts",
-        "start": 251,
-        "end": 273,
-        "startLoc": {
-          "line": 251,
-          "column": 106,
-          "position": 2108
-        },
-        "endLoc": {
-          "line": 273,
-          "column": 8,
-          "position": 2352
-        }
-      },
-      "secondFile": {
-        "name": "packages/zowe-mcp-vscode/src/test/extension.test.ts",
-        "start": 110,
-        "end": 132,
-        "startLoc": {
-          "line": 110,
-          "column": 61,
-          "position": 804
-        },
-        "endLoc": {
-          "line": 132,
-          "column": 16,
-          "position": 1048
+          "position": 3369
         }
       }
     },
     {
       "format": "typescript",
       "lines": 31,
-      "fragment": ",\n        update: () => Promise.resolve(),\n      };\n      (\n        vscode.workspace as {\n          getConfiguration: (section: string) => vscode.WorkspaceConfiguration;\n        }\n      ).getConfiguration = (section: string) => {\n        assert.strictEqual(section, 'zoweMCP');\n        return mockConfig;\n      };\n\n      const zoweMcp = findZoweMcpExtension();\n      assert.ok(zoweMcp, 'Extension should be present');\n      const dummyContext = {\n        extensionPath: zoweMcp.extensionPath,\n      } as vscode.ExtensionContext;\n      const serverModule = path.join(dummyContext.extensionPath, 'server', 'index.js');\n      const log = getLog();\n      assert.ok(log, 'Log should be initialized after activation');\n\n      const serverConfig = await buildServerConfig(\n        dummyContext,\n        serverModule,\n        '/tmp/discovery',\n        'test-workspace-id',\n        log\n      );\n\n      const args = serverConfig.args;\n      assert.ok(args.includes('--mock'",
+      "fragment": ", async () => {\n    const innerBackend = new FilesystemMockBackend(mockDir);\n    const countingBackend = new CountingBackend(innerBackend);\n    const credentialProvider: CredentialProvider = new MockCredentialProvider(mockConfig);\n    const systemRegistry = new SystemRegistry();\n    for (const sys of mockConfig.systems) {\n      systemRegistry.register({\n        host: sys.host,\n        port: sys.port,\n        description: sys.description,\n      });\n    }\n\n    const server = getServer(\n      createServer({\n        backend: countingBackend,\n        systemRegistry,\n        credentialProvider,\n        responseCache: createResponseCache({ ttlMs: 60_000, maxSizeBytes: 10 * 1024 * 1024 }),\n        logToolCalls: true,\n        capabilityTier: 'full',\n      })\n    );\n    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();\n    const client = new Client({ name: 'test', version: '1.0.0' });\n    await Promise.all([client.connect(clientTransport), server.connect(serverTransport)]);\n    await new Promise(resolve => setTimeout(resolve, 50));\n\n    try {\n      const result1 = await client.callTool({\n        name: 'readDataset'",
       "tokens": 0,
       "firstFile": {
-        "name": "packages/zowe-mcp-vscode/src/test/extension.test.ts",
-        "start": 319,
-        "end": 349,
+        "name": "packages/zowe-mcp-server/__tests__/response-cache.test.ts",
+        "start": 451,
+        "end": 481,
         "startLoc": {
-          "line": 319,
-          "column": 2,
-          "position": 2801
+          "line": 451,
+          "column": 77,
+          "position": 4089
         },
         "endLoc": {
-          "line": 349,
-          "column": 9,
-          "position": 3054
+          "line": 481,
+          "column": 14,
+          "position": 4425
         }
       },
       "secondFile": {
-        "name": "packages/zowe-mcp-vscode/src/test/extension.test.ts",
-        "start": 120,
-        "end": 291,
+        "name": "packages/zowe-mcp-server/__tests__/response-cache.test.ts",
+        "start": 355,
+        "end": 385,
         "startLoc": {
-          "line": 120,
-          "column": 10,
-          "position": 949
+          "line": 355,
+          "column": 82,
+          "position": 3063
         },
         "endLoc": {
-          "line": 291,
-          "column": 11,
-          "position": 2506
+          "line": 385,
+          "column": 15,
+          "position": 3399
         }
       }
     },
     {
       "format": "typescript",
-      "lines": 11,
-      "fragment": ";\n              for (const tc of toolCalls)\n                allToolCalls.push({ name: tc.name, arguments: tc.arguments });\n              const result = assertAndRecord({\n                questionId: q.id,\n                prompt: q.prompt,\n                runIndex: r,\n                finalText,\n                toolCalls,\n                assertionBlock: q.assertionBlock,\n                durationMs",
+      "lines": 19,
+      "fragment": ", async () => {\n    const innerBackend = new FilesystemMockBackend(mockDir);\n    const countingBackend = new CountingBackend(innerBackend);\n    const credentialProvider: CredentialProvider = new MockCredentialProvider(mockConfig);\n    const systemRegistry = new SystemRegistry();\n    for (const sys of mockConfig.systems) {\n      systemRegistry.register({\n        host: sys.host,\n        port: sys.port,\n        description: sys.description,\n      });\n    }\n\n    const server = getServer(\n      createServer({\n        backend: countingBackend,\n        systemRegistry,\n        credentialProvider,\n        responseCache: false",
       "tokens": 0,
       "firstFile": {
-        "name": "packages/zowe-mcp-evals/src/run.ts",
-        "start": 300,
-        "end": 310,
+        "name": "packages/zowe-mcp-server/__tests__/response-cache.test.ts",
+        "start": 499,
+        "end": 517,
         "startLoc": {
-          "line": 300,
-          "column": 10,
-          "position": 3505
+          "line": 499,
+          "column": 61,
+          "position": 4602
         },
         "endLoc": {
-          "line": 310,
-          "column": 11,
-          "position": 3600
+          "line": 517,
+          "column": 6,
+          "position": 4769
         }
       },
       "secondFile": {
-        "name": "packages/zowe-mcp-evals/src/run.ts",
-        "start": 276,
-        "end": 286,
+        "name": "packages/zowe-mcp-server/__tests__/response-cache.test.ts",
+        "start": 355,
+        "end": 373,
         "startLoc": {
-          "line": 276,
-          "column": 7,
-          "position": 3266
+          "line": 355,
+          "column": 82,
+          "position": 3063
         },
         "endLoc": {
-          "line": 286,
-          "column": 2,
-          "position": 3361
+          "line": 373,
+          "column": 20,
+          "position": 3230
         }
       }
     },
     {
       "format": "typescript",
       "lines": 12,
-      "fragment": ") {\n          process.stdout.write(`${id}\\n`);\n        }\n      }\n    } catch (e) {\n      anyError = true;\n      const msg = e instanceof Error ? e.message : String(e);\n      process.stderr.write(`Error: ${msg}\\n`);\n    }\n  }\n\n  if",
+      "fragment": ",\n        logToolCalls: true,\n        capabilityTier: 'full',\n      })\n    );\n    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();\n    const client = new Client({ name: 'test', version: '1.0.0' });\n    await Promise.all([client.connect(clientTransport), server.connect(serverTransport)]);\n    await new Promise(resolve => setTimeout(resolve, 50));\n\n    try {\n      await",
       "tokens": 0,
       "firstFile": {
-        "name": "packages/zowe-mcp-evals/src/list-eval-models.ts",
-        "start": 139,
-        "end": 150,
+        "name": "packages/zowe-mcp-server/__tests__/response-cache.test.ts",
+        "start": 517,
+        "end": 528,
         "startLoc": {
-          "line": 139,
-          "column": 2,
-          "position": 1253
+          "line": 517,
+          "column": 6,
+          "position": 4770
         },
         "endLoc": {
-          "line": 150,
-          "column": 3,
-          "position": 1347
+          "line": 528,
+          "column": 6,
+          "position": 4895
         }
       },
       "secondFile": {
-        "name": "packages/zowe-mcp-evals/src/list-eval-models.ts",
-        "start": 113,
-        "end": 124,
+        "name": "packages/zowe-mcp-server/__tests__/response-cache.test.ts",
+        "start": 373,
+        "end": 384,
         "startLoc": {
-          "line": 113,
-          "column": 4,
-          "position": 915
+          "line": 373,
+          "column": 2,
+          "position": 3256
         },
         "endLoc": {
-          "line": 124,
-          "column": 4,
-          "position": 1009
+          "line": 384,
+          "column": 6,
+          "position": 3381
         }
       }
     },
     {
       "format": "typescript",
-      "lines": 11,
-      "fragment": ";\n\n      const toolNames = getToolsUnderTest(q.assertionBlock);\n      const toolDefs: Record<string, { description?: string; inputSchema?: unknown }> = {};\n      if (toolDefinitions) {\n        for (const name of toolNames) {\n          const t = toolDefinitions.find(td => td.name === name);\n          if (t) toolDefs[name] = { description: t.description, inputSchema: t.inputSchema };\n        }\n      }\n      const cacheKey = cache",
+      "lines": 23,
+      "fragment": "{\n      const innerBackend = new FilesystemMockBackend(mockDir);\n      const countingBackend = new CountingBackend(innerBackend);\n      const credentialProvider: CredentialProvider = new MockCredentialProvider(mockConfig);\n      const systemRegistry = new SystemRegistry();\n      for (const sys of mockConfig.systems) {\n        systemRegistry.register({\n          host: sys.host,\n          port: sys.port,\n          description: sys.description,\n        });\n      }\n      const server = getServer(\n        createServer({\n          backend: countingBackend,\n          systemRegistry,\n          credentialProvider,\n          responseCache: createResponseCache({ ttlMs: 60_000, maxSizeBytes: 10 * 1024 * 1024 }),\n          logToolCalls: true,\n          capabilityTier: 'full',\n        })\n      );\n      const [_clientTransport",
       "tokens": 0,
       "firstFile": {
-        "name": "packages/zowe-mcp-evals/src/eval-compare.ts",
-        "start": 200,
-        "end": 210,
+        "name": "packages/zowe-mcp-server/__tests__/response-cache.test.ts",
+        "start": 549,
+        "end": 571,
         "startLoc": {
-          "line": 200,
+          "line": 549,
           "column": 2,
-          "position": 2010
+          "position": 5099
         },
         "endLoc": {
-          "line": 210,
-          "column": 6,
-          "position": 2159
+          "line": 571,
+          "column": 17,
+          "position": 5310
         }
       },
       "secondFile": {
-        "name": "packages/zowe-mcp-evals/src/run.ts",
-        "start": 249,
-        "end": 258,
+        "name": "packages/zowe-mcp-server/__tests__/response-cache.test.ts",
+        "start": 355,
+        "end": 378,
         "startLoc": {
-          "line": 249,
+          "line": 355,
           "column": 2,
-          "position": 2895
+          "position": 3072
         },
         "endLoc": {
-          "line": 258,
-          "column": 9,
-          "position": 3043
+          "line": 378,
+          "column": 16,
+          "position": 3284
+        }
+      }
+    },
+    {
+      "format": "typescript",
+      "lines": 17,
+      "fragment": "const innerBackend = new FilesystemMockBackend(mockDir);\n      const countingBackend = new CountingBackend(innerBackend);\n      const credentialProvider: CredentialProvider = new MockCredentialProvider(mockConfig);\n      const systemRegistry = new SystemRegistry();\n      for (const sys of mockConfig.systems) {\n        systemRegistry.register({\n          host: sys.host,\n          port: sys.port,\n          description: sys.description,\n        });\n      }\n      const server = getServer(\n        createServer({\n          backend: countingBackend,\n          systemRegistry,\n          credentialProvider,\n          responseCache: cache",
+      "tokens": 0,
+      "firstFile": {
+        "name": "packages/zowe-mcp-server/__tests__/response-cache.test.ts",
+        "start": 689,
+        "end": 705,
+        "startLoc": {
+          "line": 689,
+          "column": 7,
+          "position": 6623
+        },
+        "endLoc": {
+          "line": 705,
+          "column": 6,
+          "position": 6777
+        }
+      },
+      "secondFile": {
+        "name": "packages/zowe-mcp-server/__tests__/response-cache.test.ts",
+        "start": 356,
+        "end": 373,
+        "startLoc": {
+          "line": 356,
+          "column": 5,
+          "position": 3075
+        },
+        "endLoc": {
+          "line": 373,
+          "column": 20,
+          "position": 3230
+        }
+      }
+    },
+    {
+      "format": "typescript",
+      "lines": 13,
+      "fragment": ",\n          logToolCalls: true,\n          capabilityTier: 'full',\n        })\n      );\n      const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();\n      const client = new Client({ name: 'test', version: '1.0.0' });\n      await Promise.all([client.connect(clientTransport), server.connect(serverTransport)]);\n      await new Promise(resolve => setTimeout(resolve, 50));\n\n      try {\n        await client.callTool({\n          name: 'setSystem'",
+      "tokens": 0,
+      "firstFile": {
+        "name": "packages/zowe-mcp-server/__tests__/response-cache.test.ts",
+        "start": 705,
+        "end": 717,
+        "startLoc": {
+          "line": 705,
+          "column": 6,
+          "position": 6778
+        },
+        "endLoc": {
+          "line": 717,
+          "column": 12,
+          "position": 6915
+        }
+      },
+      "secondFile": {
+        "name": "packages/zowe-mcp-server/__tests__/response-cache.test.ts",
+        "start": 373,
+        "end": 529,
+        "startLoc": {
+          "line": 373,
+          "column": 2,
+          "position": 3256
+        },
+        "endLoc": {
+          "line": 529,
+          "column": 15,
+          "position": 4907
+        }
+      }
+    },
+    {
+      "format": "typescript",
+      "lines": 13,
+      "fragment": ");\n      const innerBackend = new FilesystemMockBackend(mockDir);\n      const countingBackend = new CountingBackend(innerBackend);\n      const credentialProvider: CredentialProvider = new MockCredentialProvider(mockConfig);\n      const systemRegistry = new SystemRegistry();\n      for (const sys of mockConfig.systems) {\n        systemRegistry.register({\n          host: sys.host,\n          port: sys.port,\n          description: sys.description,\n        });\n      }\n      const tenantSub",
+      "tokens": 0,
+      "firstFile": {
+        "name": "packages/zowe-mcp-server/__tests__/response-cache.test.ts",
+        "start": 749,
+        "end": 761,
+        "startLoc": {
+          "line": 749,
+          "column": 2,
+          "position": 7197
+        },
+        "endLoc": {
+          "line": 761,
+          "column": 10,
+          "position": 7324
+        }
+      },
+      "secondFile": {
+        "name": "packages/zowe-mcp-server/__tests__/response-cache.test.ts",
+        "start": 688,
+        "end": 368,
+        "startLoc": {
+          "line": 688,
+          "column": 2,
+          "position": 6619
+        },
+        "endLoc": {
+          "line": 368,
+          "column": 7,
+          "position": 3199
         }
       }
     },
     {
       "format": "typescript",
       "lines": 15,
-      "fragment": ";\n            const { passed, failedAssertion } = runAssertions(\n              q.assertionBlock,\n              toolCalls,\n              finalText\n            );\n            const result: RunResult = {\n              questionId: q.id,\n              prompt: q.prompt,\n              runIndex: r,\n              passed,\n              toolCalls,\n              finalText,\n              assertionFailed: failedAssertion,\n              durationMs",
+      "fragment": ";\n\ninterface ToolContent {\n  type: string;\n  text: string;\n}\n\ntype ToolResult = Awaited<ReturnType<Client['callTool']>>;\n\nfunction getResultText(result: ToolResult): string {\n  const content = result.content as ToolContent[];\n  return content[0].text;\n}\n\ndescribe",
       "tokens": 0,
       "firstFile": {
-        "name": "packages/zowe-mcp-evals/src/eval-compare.ts",
-        "start": 252,
-        "end": 266,
+        "name": "packages/zowe-mcp-server/__tests__/response-cache-stdio.e2e.test.ts",
+        "start": 34,
+        "end": 48,
         "startLoc": {
-          "line": 252,
+          "line": 34,
+          "column": 28,
+          "position": 191
+        },
+        "endLoc": {
+          "line": 48,
+          "column": 9,
+          "position": 282
+        }
+      },
+      "secondFile": {
+        "name": "packages/zowe-mcp-server/__tests__/search-benchmark.test.ts",
+        "start": 50,
+        "end": 64,
+        "startLoc": {
+          "line": 50,
+          "column": 2,
+          "position": 435
+        },
+        "endLoc": {
+          "line": 64,
           "column": 10,
-          "position": 2633
+          "position": 526
+        }
+      }
+    },
+    {
+      "format": "typescript",
+      "lines": 16,
+      "fragment": ", version: '1.0.0' });\n    await client.connect(transport);\n\n    try {\n      await client.callTool({\n        name: 'setSystem',\n        arguments: { system: FIRST_SYSTEM },\n      });\n\n      const result1 = await client.callTool({\n        name: 'listDatasets',\n        arguments: { dsnPattern: 'USER.*', offset: 0, limit: 2 },\n      });\n      expect(result1.isError).toBeFalsy();\n      const page1 = JSON.parse(getResultText(result1)) as {\n        _result: { totalAvailable: number; count: number; hasMore",
+      "tokens": 0,
+      "firstFile": {
+        "name": "packages/zowe-mcp-server/__tests__/response-cache-stdio.e2e.test.ts",
+        "start": 125,
+        "end": 140,
+        "startLoc": {
+          "line": 125,
+          "column": 15,
+          "position": 1172
         },
         "endLoc": {
-          "line": 266,
-          "column": 11,
-          "position": 2726
+          "line": 140,
+          "column": 8,
+          "position": 1341
         }
       },
       "secondFile": {
-        "name": "packages/zowe-mcp-evals/src/eval-compare.ts",
-        "start": 224,
-        "end": 238,
+        "name": "packages/zowe-mcp-server/__tests__/response-cache-stdio.e2e.test.ts",
+        "start": 79,
+        "end": 94,
         "startLoc": {
-          "line": 224,
+          "line": 79,
+          "column": 21,
+          "position": 583
+        },
+        "endLoc": {
+          "line": 94,
           "column": 7,
-          "position": 2313
+          "position": 752
+        }
+      }
+    },
+    {
+      "format": "typescript",
+      "lines": 17,
+      "fragment": "function loadEnvFile(path: string): void {\n  if (!existsSync(path)) return;\n  const content = readFileSync(path, 'utf-8');\n  for (const line of content.split('\\n')) {\n    const trimmed = line.trim();\n    if (trimmed === '' || trimmed.startsWith('#')) continue;\n    const eq = trimmed.indexOf('=');\n    if (eq <= 0) continue;\n    const key = trimmed.slice(0, eq).trim();\n    if (process.env[key] !== undefined) continue;\n    const value = trimmed.slice(eq + 1).trim();\n    const unquoted = /^['\"](.*)['\"]$/.exec(value);\n    process.env[key] = unquoted ? unquoted[1] : value;\n  }\n}\n\n// Load .env from cwd (e.g. repo root when run via \"npm run test\" from root) or from repo root relative to this file",
+      "tokens": 0,
+      "firstFile": {
+        "name": "packages/zowe-mcp-server/__tests__/native-zowex-deploy.e2e.test.ts",
+        "start": 52,
+        "end": 68,
+        "startLoc": {
+          "line": 52,
+          "column": 1,
+          "position": 184
         },
         "endLoc": {
-          "line": 238,
+          "line": 68,
+          "column": 117,
+          "position": 424
+        }
+      },
+      "secondFile": {
+        "name": "packages/zowe-mcp-server/__tests__/search-benchmark.test.ts",
+        "start": 33,
+        "end": 49,
+        "startLoc": {
+          "line": 33,
+          "column": 1,
+          "position": 160
+        },
+        "endLoc": {
+          "line": 49,
+          "column": 12,
+          "position": 400
+        }
+      }
+    },
+    {
+      "format": "typescript",
+      "lines": 15,
+      "fragment": ";\n\ninterface ToolContent {\n  type: string;\n  text: string;\n}\n\ntype ToolResult = Awaited<ReturnType<Client['callTool']>>;\n\nfunction getResultText(result: ToolResult): string {\n  const content = result.content as ToolContent[];\n  return content[0].text;\n}\n\n/** True if the result text indicates SSH/auth failure (invalid password, auth methods failed). */",
+      "tokens": 0,
+      "firstFile": {
+        "name": "packages/zowe-mcp-server/__tests__/native-zowex-deploy.e2e.test.ts",
+        "start": 72,
+        "end": 86,
+        "startLoc": {
+          "line": 72,
+          "column": 29,
+          "position": 471
+        },
+        "endLoc": {
+          "line": 86,
+          "column": 99,
+          "position": 562
+        }
+      },
+      "secondFile": {
+        "name": "packages/zowe-mcp-server/__tests__/search-benchmark.test.ts",
+        "start": 50,
+        "end": 64,
+        "startLoc": {
+          "line": 50,
           "column": 2,
-          "position": 2406
+          "position": 435
+        },
+        "endLoc": {
+          "line": 64,
+          "column": 10,
+          "position": 526
         }
       }
     },
     {
       "format": "typescript",
       "lines": 13,
-      "fragment": ");\n          } catch (err) {\n            const msg = errorMessage(err);\n            const failedResult: RunResult = {\n              questionId: q.id,\n              prompt: q.prompt,\n              runIndex: r,\n              passed: false,\n              toolCalls: [],\n              finalText: '',\n              error: msg,\n            };\n            questionResults",
+      "fragment": "interface ToolContent {\n  type: string;\n  text: string;\n}\n\ntype ToolResult = Awaited<ReturnType<Client['callTool']>>;\n\nfunction getResultText(result: ToolResult): string {\n  const content = result.content as ToolContent[];\n  return content[0].text;\n}\n\nfunction",
       "tokens": 0,
       "firstFile": {
-        "name": "packages/zowe-mcp-evals/src/eval-compare.ts",
-        "start": 276,
-        "end": 288,
+        "name": "packages/zowe-mcp-server/__tests__/native-dataset-tools.test.ts",
+        "start": 36,
+        "end": 48,
         "startLoc": {
-          "line": 276,
-          "column": 4,
-          "position": 2893
+          "line": 36,
+          "column": 1,
+          "position": 196
         },
         "endLoc": {
-          "line": 288,
+          "line": 48,
+          "column": 9,
+          "position": 284
+        }
+      },
+      "secondFile": {
+        "name": "packages/zowe-mcp-server/__tests__/search-benchmark.test.ts",
+        "start": 52,
+        "end": 64,
+        "startLoc": {
+          "line": 52,
+          "column": 1,
+          "position": 438
+        },
+        "endLoc": {
+          "line": 64,
+          "column": 10,
+          "position": 526
+        }
+      }
+    },
+    {
+      "format": "typescript",
+      "lines": 11,
+      "fragment": ",\n        });\n      } finally {\n        if (prevVar === undefined) delete process.env[envVar];\n        else process.env[envVar] = prevVar;\n        if (prevCred === undefined) delete process.env.ZOWE_MCP_CREDENTIALS;\n        else process.env.ZOWE_MCP_CREDENTIALS = prevCred;\n      }\n    });\n\n    it('reuses elicited password for the process without calling elicitation again'",
+      "tokens": 0,
+      "firstFile": {
+        "name": "packages/zowe-mcp-server/__tests__/native-credential-provider.test.ts",
+        "start": 70,
+        "end": 80,
+        "startLoc": {
+          "line": 70,
+          "column": 22,
+          "position": 599
+        },
+        "endLoc": {
+          "line": 80,
+          "column": 77,
+          "position": 695
+        }
+      },
+      "secondFile": {
+        "name": "packages/zowe-mcp-server/__tests__/native-credential-provider.test.ts",
+        "start": 46,
+        "end": 56,
+        "startLoc": {
+          "line": 46,
           "column": 16,
-          "position": 2991
-        }
-      },
-      "secondFile": {
-        "name": "packages/zowe-mcp-evals/src/run.ts",
-        "start": 316,
-        "end": 328,
-        "startLoc": {
-          "line": 316,
-          "column": 3,
-          "position": 3680
+          "position": 330
         },
         "endLoc": {
-          "line": 328,
-          "column": 11,
-          "position": 3778
+          "line": 56,
+          "column": 80,
+          "position": 426
         }
       }
     },
     {
       "format": "typescript",
-      "lines": 13,
-      "fragment": "{\n  const configDir = findConfigDir();\n  let content: string | undefined;\n  for (const name of CONFIG_NAMES) {\n    const p = resolve(configDir, name);\n    if (existsSync(p)) {\n      content = readFileSync(p, 'utf-8');\n      break;\n    }\n  }\n  if (!content) {\n    throw new Error(\n      `Evals config not found. Create evals.config.json (or evals.config.local.json) in the repo root or in packages/zowe-mcp-evals. See evals.config.example.json.`",
+      "lines": 11,
+      "fragment": ", async () => {\n      const waitableStore = new WaitablePasswordStore();\n      let requestPasswordCalled = false;\n\n      const provider = new NativeCredentialProvider({\n        connectionSpecs: [SPEC],\n        useEnvForPassword: false,\n        passwordStore: waitableStore,\n        requestPasswordViaElicitation: async () => {\n          await Promise.resolve();\n          throw",
       "tokens": 0,
       "firstFile": {
-        "name": "packages/zowe-mcp-evals/src/config.ts",
-        "start": 430,
-        "end": 442,
+        "name": "packages/zowe-mcp-server/__tests__/native-credential-provider.test.ts",
+        "start": 202,
+        "end": 212,
         "startLoc": {
-          "line": 430,
-          "column": 2,
-          "position": 3761
+          "line": 202,
+          "column": 63,
+          "position": 1924
         },
         "endLoc": {
-          "line": 442,
-          "column": 159,
-          "position": 3874
+          "line": 212,
+          "column": 6,
+          "position": 2020
         }
       },
       "secondFile": {
-        "name": "packages/zowe-mcp-evals/src/config.ts",
-        "start": 403,
-        "end": 415,
+        "name": "packages/zowe-mcp-server/__tests__/native-credential-provider.test.ts",
+        "start": 174,
+        "end": 184,
         "startLoc": {
+          "line": 174,
+          "column": 74,
+          "position": 1683
+        },
+        "endLoc": {
+          "line": 184,
+          "column": 7,
+          "position": 1779
+        }
+      }
+    },
+    {
+      "format": "typescript",
+      "lines": 19,
+      "fragment": ";\n        },\n        requestPasswordCallback: () => {\n          requestPasswordCalled = true;\n          setTimeout(() => {\n            waitableStore.set(cacheKey(SPEC), 'pipe-password');\n          }, 0);\n        },\n      });\n\n      const credsPromise = provider.getCredentials(SPEC.host);\n      await expect(credsPromise).resolves.toEqual({\n        user: SPEC.user,\n        password: 'pipe-password',\n      });\n      expect(requestPasswordCalled).toBe(true);\n    });\n\n    it('does not call onElicitedPasswordUsed when password comes from store'",
+      "tokens": 0,
+      "firstFile": {
+        "name": "packages/zowe-mcp-server/__tests__/native-credential-provider.test.ts",
+        "start": 212,
+        "end": 230,
+        "startLoc": {
+          "line": 212,
+          "column": 2,
+          "position": 2028
+        },
+        "endLoc": {
+          "line": 230,
+          "column": 70,
+          "position": 2169
+        }
+      },
+      "secondFile": {
+        "name": "packages/zowe-mcp-server/__tests__/native-credential-provider.test.ts",
+        "start": 184,
+        "end": 202,
+        "startLoc": {
+          "line": 184,
+          "column": 10,
+          "position": 1782
+        },
+        "endLoc": {
+          "line": 202,
+          "column": 63,
+          "position": 1923
+        }
+      }
+    },
+    {
+      "format": "typescript",
+      "lines": 12,
+      "fragment": ");\n      const options = createOptions({\n        clientCache: {\n          getOrCreate: vi.fn().mockRejectedValue(authError),\n          evict: vi.fn(),\n          hasKey: vi.fn().mockReturnValue(true),\n        },\n      });\n      const backend = new NativeBackend(options);\n\n      await expect(backend.listDatasets(SYSTEM_ID, 'USER.*')).rejects.toThrow(\n        'All configured authentication methods failed'",
+      "tokens": 0,
+      "firstFile": {
+        "name": "packages/zowe-mcp-server/__tests__/native-backend.test.ts",
+        "start": 345,
+        "end": 356,
+        "startLoc": {
+          "line": 345,
+          "column": 47,
+          "position": 3006
+        },
+        "endLoc": {
+          "line": 356,
+          "column": 47,
+          "position": 3116
+        }
+      },
+      "secondFile": {
+        "name": "packages/zowe-mcp-server/__tests__/native-backend.test.ts",
+        "start": 325,
+        "end": 336,
+        "startLoc": {
+          "line": 325,
+          "column": 24,
+          "position": 2798
+        },
+        "endLoc": {
+          "line": 336,
+          "column": 24,
+          "position": 2908
+        }
+      }
+    },
+    {
+      "format": "typescript",
+      "lines": 16,
+      "fragment": ");\n      const options = createOptions({\n        clientCache: {\n          getOrCreate: vi.fn().mockRejectedValue(expiredError),\n          evict: vi.fn(),\n          hasKey: vi.fn().mockReturnValue(true),\n        },\n      });\n      const backend = new NativeBackend(options);\n\n      await expect(backend.listDatasets(SYSTEM_ID, 'USER.*')).rejects.toThrow(\n        'Password for USER@host.example.com has expired'\n      );\n\n      expect(options.credentialProvider.markInvalid).toHaveBeenCalledWith(SPEC);\n    }",
+      "tokens": 0,
+      "firstFile": {
+        "name": "packages/zowe-mcp-server/__tests__/native-backend.test.ts",
+        "start": 388,
+        "end": 403,
+        "startLoc": {
+          "line": 388,
+          "column": 37,
+          "position": 3442
+        },
+        "endLoc": {
           "line": 403,
           "column": 2,
-          "position": 3589
+          "position": 3576
+        }
+      },
+      "secondFile": {
+        "name": "packages/zowe-mcp-server/__tests__/native-backend.test.ts",
+        "start": 368,
+        "end": 383,
+        "startLoc": {
+          "line": 368,
+          "column": 7,
+          "position": 3234
         },
         "endLoc": {
-          "line": 415,
-          "column": 129,
-          "position": 3702
+          "line": 383,
+          "column": 7,
+          "position": 3368
+        }
+      }
+    },
+    {
+      "format": "typescript",
+      "lines": 11,
+      "fragment": ");\n      const options = createOptions({\n        clientCache: {\n          getOrCreate: vi.fn().mockRejectedValue(authError),\n          evict: vi.fn(),\n          hasKey: vi.fn().mockReturnValue(true),\n        },\n      });\n      const backend = new NativeBackend(options);\n\n      await expect(backend.listMembers",
+      "tokens": 0,
+      "firstFile": {
+        "name": "packages/zowe-mcp-server/__tests__/native-backend.test.ts",
+        "start": 550,
+        "end": 560,
+        "startLoc": {
+          "line": 550,
+          "column": 19,
+          "position": 5086
+        },
+        "endLoc": {
+          "line": 560,
+          "column": 12,
+          "position": 5181
+        }
+      },
+      "secondFile": {
+        "name": "packages/zowe-mcp-server/__tests__/native-backend.test.ts",
+        "start": 325,
+        "end": 335,
+        "startLoc": {
+          "line": 325,
+          "column": 24,
+          "position": 2798
+        },
+        "endLoc": {
+          "line": 335,
+          "column": 13,
+          "position": 2893
+        }
+      }
+    },
+    {
+      "format": "typescript",
+      "lines": 13,
+      "fragment": "import { Client } from '@modelcontextprotocol/sdk/client/index.js';\nimport { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';\nimport { spawnSync } from 'node:child_process';\nimport { mkdtempSync, rmSync } from 'node:fs';\nimport { tmpdir } from 'node:os';\nimport { dirname, resolve } from 'node:path';\nimport { fileURLToPath } from 'node:url';\nimport { afterAll, beforeAll, describe, expect, it } from 'vitest';\n\nconst __dirname = dirname(fileURLToPath(import.meta.url));\nconst serverPath = resolve(__dirname, '..', 'dist', 'index.js');\nconst packageRoot = resolve(__dirname, '..');\nconst EXPECTED_TOOL_COUNT",
+      "tokens": 0,
+      "firstFile": {
+        "name": "packages/zowe-mcp-server/__tests__/mock-stdio.e2e.test.ts",
+        "start": 24,
+        "end": 36,
+        "startLoc": {
+          "line": 24,
+          "column": 1,
+          "position": 6
+        },
+        "endLoc": {
+          "line": 36,
+          "column": 20,
+          "position": 186
+        }
+      },
+      "secondFile": {
+        "name": "packages/zowe-mcp-server/__tests__/response-cache-stdio.e2e.test.ts",
+        "start": 22,
+        "end": 34,
+        "startLoc": {
+          "line": 22,
+          "column": 1,
+          "position": 6
+        },
+        "endLoc": {
+          "line": 34,
+          "column": 13,
+          "position": 186
+        }
+      }
+    },
+    {
+      "format": "typescript",
+      "lines": 13,
+      "fragment": "interface ToolContent {\n  type: string;\n  text: string;\n}\n\ntype ToolResult = Awaited<ReturnType<Client['callTool']>>;\n\nfunction getResultText(result: ToolResult): string {\n  const content = result.content as ToolContent[];\n  return content[0].text;\n}\n\ninterface ToolTestCase",
+      "tokens": 0,
+      "firstFile": {
+        "name": "packages/zowe-mcp-server/__tests__/mock-stdio.e2e.test.ts",
+        "start": 39,
+        "end": 51,
+        "startLoc": {
+          "line": 39,
+          "column": 1,
+          "position": 198
+        },
+        "endLoc": {
+          "line": 51,
+          "column": 13,
+          "position": 288
+        }
+      },
+      "secondFile": {
+        "name": "packages/zowe-mcp-server/__tests__/search-benchmark.test.ts",
+        "start": 52,
+        "end": 64,
+        "startLoc": {
+          "line": 52,
+          "column": 1,
+          "position": 438
+        },
+        "endLoc": {
+          "line": 64,
+          "column": 15,
+          "position": 528
+        }
+      }
+    },
+    {
+      "format": "typescript",
+      "lines": 19,
+      "fragment": ";\n\ninterface ToolContent {\n  type: string;\n  text: string;\n}\n\ntype ToolResult = Awaited<ReturnType<Client['callTool']>>;\n\nfunction getResultText(result: ToolResult): string {\n  const content = result.content as ToolContent[];\n  return content[0].text;\n}\n\nfunction parseEnvelope<T>(result: ToolResult): ToolResponseEnvelope<T> {\n  return JSON.parse(getResultText(result)) as ToolResponseEnvelope<T>;\n}\n\n/** Minimal mock layout: datasets + USS sample file (see FilesystemMockBackend.ussPath). */",
+      "tokens": 0,
+      "firstFile": {
+        "name": "packages/zowe-mcp-server/__tests__/local-file-tools.test.ts",
+        "start": 46,
+        "end": 64,
+        "startLoc": {
+          "line": 46,
+          "column": 7,
+          "position": 326
+        },
+        "endLoc": {
+          "line": 64,
+          "column": 92,
+          "position": 462
+        }
+      },
+      "secondFile": {
+        "name": "packages/zowe-mcp-server/__tests__/search-benchmark.test.ts",
+        "start": 50,
+        "end": 52,
+        "startLoc": {
+          "line": 50,
+          "column": 2,
+          "position": 435
+        },
+        "endLoc": {
+          "line": 52,
+          "column": 6,
+          "position": 329
+        }
+      }
+    },
+    {
+      "format": "typescript",
+      "lines": 12,
+      "fragment": "const logger = getLogger();\n    const handle = await startHttp(\n      () => {\n        const r = createServer();\n        return getServer(r);\n      },\n      0,\n      logger,\n      { jwtAuth: { issuer, jwksUri } }\n    );\n    try {\n      const res = await postMcpLocal(handle.port, MCP_INIT_BODY,",
+      "tokens": 0,
+      "firstFile": {
+        "name": "packages/zowe-mcp-server/__tests__/keycloak-http-jwt.e2e.test.ts",
+        "start": 121,
+        "end": 132,
+        "startLoc": {
+          "line": 121,
+          "column": 5,
+          "position": 1080
+        },
+        "endLoc": {
+          "line": 132,
+          "column": 2,
+          "position": 1187
+        }
+      },
+      "secondFile": {
+        "name": "packages/zowe-mcp-server/__tests__/keycloak-http-jwt.e2e.test.ts",
+        "start": 93,
+        "end": 104,
+        "startLoc": {
+          "line": 93,
+          "column": 5,
+          "position": 745
+        },
+        "endLoc": {
+          "line": 104,
+          "column": 2,
+          "position": 852
+        }
+      }
+    },
+    {
+      "format": "typescript",
+      "lines": 34,
+      "fragment": ";\n\n/**\n * Starts the HTTP server in a child process on the given port.\n * Waits for the \"listening\" message on stderr before resolving.\n */\nfunction startHttpServer(port: number): Promise<ChildProcess> {\n  return new Promise((resolve, reject) => {\n    const child = fork(serverPath, ['--http', '--port', String(port), '--http-allow-no-auth'], {\n      stdio: ['pipe', 'pipe', 'pipe', 'ipc'],\n      silent: true,\n    });\n\n    const timeout = setTimeout(() => {\n      child.kill();\n      reject(new Error('Server did not start within timeout'));\n    }, 10000);\n\n    child.stderr?.on('data', (data: Buffer) => {\n      const msg = data.toString();\n      if (msg.includes('listening')) {\n        clearTimeout(timeout);\n        resolve(child);\n      }\n    });\n\n    child.on('error', err => {\n      clearTimeout(timeout);\n      reject(err);\n    });\n  });\n}\n\ndescribe",
+      "tokens": 0,
+      "firstFile": {
+        "name": "packages/zowe-mcp-server/__tests__/http.e2e.test.ts",
+        "start": 68,
+        "end": 101,
+        "startLoc": {
+          "line": 68,
+          "column": 2,
+          "position": 467
+        },
+        "endLoc": {
+          "line": 101,
+          "column": 9,
+          "position": 729
+        }
+      },
+      "secondFile": {
+        "name": "packages/zowe-mcp-server/__tests__/transport-providers.ts",
+        "start": 112,
+        "end": 145,
+        "startLoc": {
+          "line": 112,
+          "column": 6,
+          "position": 710
+        },
+        "endLoc": {
+          "line": 145,
+          "column": 7,
+          "position": 972
+        }
+      }
+    },
+    {
+      "format": "typescript",
+      "lines": 13,
+      "fragment": ");\n\n    const content1 = result1.content as { type: string; text: string }[];\n    const content2 = result2.content as { type: string; text: string }[];\n\n    expect((JSON.parse(content1[0].text) as { server: { name: string } }).server.name).toBe(\n      'Zowe MCP Server'\n    );\n    expect((JSON.parse(content2[0].text) as { server: { name: string } }).server.name).toBe(\n      'Zowe MCP Server'\n    );\n\n    // Clean up both clients",
+      "tokens": 0,
+      "firstFile": {
+        "name": "packages/zowe-mcp-server/__tests__/http.e2e.test.ts",
+        "start": 163,
+        "end": 175,
+        "startLoc": {
+          "line": 163,
+          "column": 2,
+          "position": 1367
+        },
+        "endLoc": {
+          "line": 175,
+          "column": 25,
+          "position": 1536
+        }
+      },
+      "secondFile": {
+        "name": "packages/zowe-mcp-server/__tests__/server.test.ts",
+        "start": 58,
+        "end": 69,
+        "startLoc": {
+          "line": 58,
+          "column": 2,
+          "position": 422
+        },
+        "endLoc": {
+          "line": 69,
+          "column": 2,
+          "position": 590
+        }
+      }
+    },
+    {
+      "format": "typescript",
+      "lines": 18,
+      "fragment": ", async () => {\n    const logger = getLogger();\n    const handle = await startHttp(\n      () => {\n        const r = createServer();\n        return getServer(r);\n      },\n      0,\n      logger,\n      {\n        jwtAuth: {\n          issuer: TEST_ISSUER,\n          jwksUri: TEST_JWKS_URI,\n        },\n      }\n    );\n    try {\n      const res = await postMcpLocal",
+      "tokens": 0,
+      "firstFile": {
+        "name": "packages/zowe-mcp-server/__tests__/http-transport-jwt.test.ts",
+        "start": 151,
+        "end": 168,
+        "startLoc": {
+          "line": 151,
+          "column": 58,
+          "position": 1253
+        },
+        "endLoc": {
+          "line": 168,
+          "column": 13,
+          "position": 1377
+        }
+      },
+      "secondFile": {
+        "name": "packages/zowe-mcp-server/__tests__/http-transport-jwt.test.ts",
+        "start": 119,
+        "end": 136,
+        "startLoc": {
+          "line": 119,
+          "column": 90,
+          "position": 987
+        },
+        "endLoc": {
+          "line": 136,
+          "column": 18,
+          "position": 1111
+        }
+      }
+    },
+    {
+      "format": "typescript",
+      "lines": 13,
+      "fragment": "}\n    );\n    try {\n      const res = await postMcpLocal(handle.port, MCP_INIT_BODY);\n      expect(res.statusCode).toBe(401);\n      const body = JSON.parse(res.text) as { error?: { message?: string } };\n      expect(body.error?.message).toMatch(/Bearer token/i);\n    } finally {\n      await handle.close();\n    }\n  });\n\n  it('accepts initialize when Bearer token is valid'",
+      "tokens": 0,
+      "firstFile": {
+        "name": "packages/zowe-mcp-server/__tests__/http-transport-jwt.test.ts",
+        "start": 165,
+        "end": 177,
+        "startLoc": {
+          "line": 165,
+          "column": 7,
+          "position": 1357
+        },
+        "endLoc": {
+          "line": 177,
+          "column": 48,
+          "position": 1485
+        }
+      },
+      "secondFile": {
+        "name": "packages/zowe-mcp-server/__tests__/keycloak-http-jwt.e2e.test.ts",
+        "start": 101,
+        "end": 113,
+        "startLoc": {
+          "line": 101,
+          "column": 2,
+          "position": 824
+        },
+        "endLoc": {
+          "line": 113,
+          "column": 55,
+          "position": 952
+        }
+      }
+    },
+    {
+      "format": "typescript",
+      "lines": 17,
+      "fragment": ");\n    const handle = await startHttp(\n      () => {\n        const r = createServer();\n        return getServer(r);\n      },\n      0,\n      logger,\n      {\n        jwtAuth: {\n          issuer: TEST_ISSUER,\n          jwksUri: TEST_JWKS_URI,\n        },\n      }\n    );\n    try {\n      const res = await postMcpLocal(handle.port, MCP_INIT_BODY,",
+      "tokens": 0,
+      "firstFile": {
+        "name": "packages/zowe-mcp-server/__tests__/http-transport-jwt.test.ts",
+        "start": 183,
+        "end": 199,
+        "startLoc": {
+          "line": 183,
+          "column": 2,
+          "position": 1560
+        },
+        "endLoc": {
+          "line": 199,
+          "column": 2,
+          "position": 1672
+        }
+      },
+      "secondFile": {
+        "name": "packages/zowe-mcp-server/__tests__/http-transport-jwt.test.ts",
+        "start": 120,
+        "end": 168,
+        "startLoc": {
+          "line": 120,
+          "column": 2,
+          "position": 1007
+        },
+        "endLoc": {
+          "line": 168,
+          "column": 2,
+          "position": 1385
+        }
+      }
+    },
+    {
+      "format": "typescript",
+      "lines": 18,
+      "fragment": ",\n      exp: Math.floor(Date.now() / 1000) + 3600,\n    });\n    const handle = await startHttp(\n      () => {\n        const r = createServer();\n        return getServer(r);\n      },\n      0,\n      logger,\n      {\n        jwtAuth: {\n          issuer: TEST_ISSUER,\n          jwksUri: TEST_JWKS_URI,\n        },\n      }\n    );\n    const",
+      "tokens": 0,
+      "firstFile": {
+        "name": "packages/zowe-mcp-server/__tests__/http-transport-jwt.test.ts",
+        "start": 215,
+        "end": 232,
+        "startLoc": {
+          "line": 215,
+          "column": 17,
+          "position": 1813
+        },
+        "endLoc": {
+          "line": 232,
+          "column": 6,
+          "position": 1932
+        }
+      },
+      "secondFile": {
+        "name": "packages/zowe-mcp-server/__tests__/http-transport-jwt.test.ts",
+        "start": 181,
+        "end": 198,
+        "startLoc": {
+          "line": 181,
+          "column": 14,
+          "position": 1532
+        },
+        "endLoc": {
+          "line": 198,
+          "column": 4,
+          "position": 1651
+        }
+      }
+    },
+    {
+      "format": "typescript",
+      "lines": 13,
+      "fragment": "}\n    );\n    const transport = new StreamableHTTPClientTransport(\n      new URL(`http://127.0.0.1:${handle.port}/mcp`),\n      {\n        requestInit: {\n          headers: {\n            Authorization: `Bearer ${token}`,\n          },\n        },\n      }\n    );\n    const client = new Client({ name: 'http-jwt-tool-test'",
+      "tokens": 0,
+      "firstFile": {
+        "name": "packages/zowe-mcp-server/__tests__/http-transport-jwt.test.ts",
+        "start": 230,
+        "end": 242,
+        "startLoc": {
+          "line": 230,
+          "column": 7,
+          "position": 1925
+        },
+        "endLoc": {
+          "line": 242,
+          "column": 21,
+          "position": 2015
+        }
+      },
+      "secondFile": {
+        "name": "packages/zowe-mcp-server/__tests__/keycloak-http-jwt.e2e.test.ts",
+        "start": 153,
+        "end": 165,
+        "startLoc": {
+          "line": 153,
+          "column": 2,
+          "position": 1384
+        },
+        "endLoc": {
+          "line": 165,
+          "column": 24,
+          "position": 1474
+        }
+      }
+    },
+    {
+      "format": "typescript",
+      "lines": 15,
+      "fragment": ", version: '1.0.0' });\n    try {\n      await client.connect(transport);\n      const result = await client.callTool({ name: 'getContext', arguments: {} });\n      expect(result.isError).not.toBe(true);\n      const content = result.content as { type: string; text: string }[];\n      expect(content[0].type).toBe('text');\n      const data = JSON.parse(content[0].text) as { server?: { name: string } };\n      expect(data.server?.name).toBe('Zowe MCP Server');\n    } finally {\n      await client.close().catch(() => undefined);\n      await handle.close();\n    }\n  });\n});",
+      "tokens": 0,
+      "firstFile": {
+        "name": "packages/zowe-mcp-server/__tests__/http-transport-jwt.test.ts",
+        "start": 242,
+        "end": 256,
+        "startLoc": {
+          "line": 242,
+          "column": 21,
+          "position": 2016
+        },
+        "endLoc": {
+          "line": 256,
+          "column": 2,
+          "position": 2241
+        }
+      },
+      "secondFile": {
+        "name": "packages/zowe-mcp-server/__tests__/keycloak-http-jwt.e2e.test.ts",
+        "start": 165,
+        "end": 179,
+        "startLoc": {
+          "line": 165,
+          "column": 24,
+          "position": 1475
+        },
+        "endLoc": {
+          "line": 179,
+          "column": 2,
+          "position": 1700
+        }
+      }
+    },
+    {
+      "format": "typescript",
+      "lines": 15,
+      "fragment": ", async () => {\n    const logger = new Logger({ level: 'debug' });\n    const client = new ExtensionClient();\n\n    const receivedEvents: LogLevelEvent[] = [];\n    client.onEvent(event => {\n      receivedEvents.push(event);\n    });\n\n    await client.connect(discoveryDir, workspaceId, logger);\n\n    // Wait for server socket\n    await waitUntil(() => !!serverSocket);\n\n    // Send two events in one write",
+      "tokens": 0,
+      "firstFile": {
+        "name": "packages/zowe-mcp-server/__tests__/extension-client.test.ts",
+        "start": 255,
+        "end": 269,
+        "startLoc": {
+          "line": 255,
+          "column": 55,
+          "position": 2170
+        },
+        "endLoc": {
+          "line": 269,
+          "column": 32,
+          "position": 2299
+        }
+      },
+      "secondFile": {
+        "name": "packages/zowe-mcp-server/__tests__/extension-client.test.ts",
+        "start": 217,
+        "end": 231,
+        "startLoc": {
+          "line": 217,
+          "column": 57,
+          "position": 1825
+        },
+        "endLoc": {
+          "line": 231,
+          "column": 61,
+          "position": 1954
+        }
+      }
+    },
+    {
+      "format": "typescript",
+      "lines": 11,
+      "fragment": ";\n\nbeforeEach(() => {\n  __clearJwtJwksCacheForTests();\n  const pair = generateKeyPairSync('rsa', { modulusLength: 2048 });\n  privateKey = pair.privateKey;\n  const exported = pair.publicKey.export({ format: 'jwk' });\n  jwkPublic = { ...exported, kid: KID, use: 'sig', alg: 'RS256' };\n  vi.stubGlobal(\n    'fetch',\n    vi.fn((input: RequestInfo | URL)",
+      "tokens": 0,
+      "firstFile": {
+        "name": "packages/zowe-mcp-server/__tests__/bearer-jwt.test.ts",
+        "start": 31,
+        "end": 41,
+        "startLoc": {
+          "line": 31,
+          "column": 11,
+          "position": 146
+        },
+        "endLoc": {
+          "line": 41,
+          "column": 2,
+          "position": 276
+        }
+      },
+      "secondFile": {
+        "name": "packages/zowe-mcp-server/__tests__/http-transport-jwt.test.ts",
+        "start": 46,
+        "end": 56,
+        "startLoc": {
+          "line": 46,
+          "column": 2,
+          "position": 317
+        },
+        "endLoc": {
+          "line": 56,
+          "column": 2,
+          "position": 447
+        }
+      }
+    },
+    {
+      "format": "typescript",
+      "lines": 16,
+      "fragment": ");\n    })\n  );\n});\n\nafterEach(() => {\n  vi.unstubAllGlobals();\n  __clearJwtJwksCacheForTests();\n});\n\n/** Wrapper that binds the test-local privateKey and KID. */\nfunction sign(payload: Record<string, unknown>): string {\n  return signJwt(payload, privateKey, KID);\n}\n\ndescribe",
+      "tokens": 0,
+      "firstFile": {
+        "name": "packages/zowe-mcp-server/__tests__/bearer-jwt.test.ts",
+        "start": 49,
+        "end": 64,
+        "startLoc": {
+          "line": 49,
+          "column": 2,
+          "position": 379
+        },
+        "endLoc": {
+          "line": 64,
+          "column": 9,
+          "position": 464
+        }
+      },
+      "secondFile": {
+        "name": "packages/zowe-mcp-server/__tests__/http-transport-jwt.test.ts",
+        "start": 74,
+        "end": 89,
+        "startLoc": {
+          "line": 74,
+          "column": 5,
+          "position": 629
+        },
+        "endLoc": {
+          "line": 89,
+          "column": 9,
+          "position": 714
         }
       }
     }

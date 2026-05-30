@@ -230,6 +230,23 @@ function createOptions(
   };
 }
 
+/**
+ * Convenience factory: creates a NativeBackend whose clientCache is wired to a fake client.
+ * Use when a test only needs to verify the backend's behaviour with controlled SDK responses.
+ */
+function createBackendWithClient(
+  overrides?: Parameters<typeof createFakeClient>[0]
+): NativeBackend {
+  const options = createOptions({
+    clientCache: {
+      getOrCreate: vi.fn().mockResolvedValue(createFakeClient(overrides)),
+      evict: vi.fn(),
+      hasKey: vi.fn().mockReturnValue(true),
+    },
+  });
+  return new NativeBackend(options);
+}
+
 describe('NativeBackend', () => {
   describe('listDatasets', () => {
     it('throws when getSpec returns undefined', async () => {
@@ -284,16 +301,7 @@ describe('NativeBackend', () => {
           },
         ],
       });
-      const options = createOptions({
-        clientCache: {
-          getOrCreate: vi
-            .fn()
-            .mockResolvedValue(createFakeClient({ listDatasets: listDatasetsSpy })),
-          evict: vi.fn(),
-          hasKey: vi.fn().mockReturnValue(true),
-        },
-      });
-      const backend = new NativeBackend(options);
+      const backend = createBackendWithClient({ listDatasets: listDatasetsSpy });
 
       await backend.listDatasets(SYSTEM_ID, 'USER.*');
 
@@ -304,16 +312,7 @@ describe('NativeBackend', () => {
       const listDatasetsSpy = vi.fn().mockResolvedValue({
         items: [{ name: 'USER.DATA' }],
       });
-      const options = createOptions({
-        clientCache: {
-          getOrCreate: vi
-            .fn()
-            .mockResolvedValue(createFakeClient({ listDatasets: listDatasetsSpy })),
-          evict: vi.fn(),
-          hasKey: vi.fn().mockReturnValue(true),
-        },
-      });
-      const backend = new NativeBackend(options);
+      const backend = createBackendWithClient({ listDatasets: listDatasetsSpy });
 
       const result = await backend.listDatasets(SYSTEM_ID, 'USER.*', undefined, undefined, false);
 
@@ -481,21 +480,10 @@ describe('NativeBackend', () => {
 
   describe('listMembers', () => {
     it('returns MemberEntry[] with uppercase names from listDsMembers response', async () => {
-      const options = createOptions({
-        clientCache: {
-          getOrCreate: vi.fn().mockResolvedValue(
-            createFakeClient({
-              listDsMembers: () =>
-                Promise.resolve({
-                  items: [{ name: 'a' }, { name: 'B' }, { name: 'cobol' }],
-                }),
-            })
-          ),
-          evict: vi.fn(),
-          hasKey: vi.fn().mockReturnValue(true),
-        },
+      const backend = createBackendWithClient({
+        listDsMembers: () =>
+          Promise.resolve({ items: [{ name: 'a' }, { name: 'B' }, { name: 'cobol' }] }),
       });
-      const backend = new NativeBackend(options);
 
       const result = await backend.listMembers(SYSTEM_ID, 'USER.PDS');
 
@@ -503,21 +491,12 @@ describe('NativeBackend', () => {
     });
 
     it('filters by pattern client-side when pattern is provided', async () => {
-      const options = createOptions({
-        clientCache: {
-          getOrCreate: vi.fn().mockResolvedValue(
-            createFakeClient({
-              listDsMembers: () =>
-                Promise.resolve({
-                  items: [{ name: 'ALPHA' }, { name: 'BETA' }, { name: 'ALICE' }, { name: 'BOB' }],
-                }),
-            })
-          ),
-          evict: vi.fn(),
-          hasKey: vi.fn().mockReturnValue(true),
-        },
+      const backend = createBackendWithClient({
+        listDsMembers: () =>
+          Promise.resolve({
+            items: [{ name: 'ALPHA' }, { name: 'BETA' }, { name: 'ALICE' }, { name: 'BOB' }],
+          }),
       });
-      const backend = new NativeBackend(options);
 
       const result = await backend.listMembers(SYSTEM_ID, 'USER.PDS', 'A*');
 
@@ -525,27 +504,18 @@ describe('NativeBackend', () => {
     });
 
     it('filters by % (one character) wildcard in pattern', async () => {
-      const options = createOptions({
-        clientCache: {
-          getOrCreate: vi.fn().mockResolvedValue(
-            createFakeClient({
-              listDsMembers: () =>
-                Promise.resolve({
-                  items: [
-                    { name: 'ALPHA' },
-                    { name: 'AB' },
-                    { name: 'A' },
-                    { name: 'BETA' },
-                    { name: 'AX' },
-                  ],
-                }),
-            })
-          ),
-          evict: vi.fn(),
-          hasKey: vi.fn().mockReturnValue(true),
-        },
+      const backend = createBackendWithClient({
+        listDsMembers: () =>
+          Promise.resolve({
+            items: [
+              { name: 'ALPHA' },
+              { name: 'AB' },
+              { name: 'A' },
+              { name: 'BETA' },
+              { name: 'AX' },
+            ],
+          }),
       });
-      const backend = new NativeBackend(options);
 
       const result = await backend.listMembers(SYSTEM_ID, 'USER.PDS', 'A%');
 
@@ -553,21 +523,12 @@ describe('NativeBackend', () => {
     });
 
     it('returns list sorted by name', async () => {
-      const options = createOptions({
-        clientCache: {
-          getOrCreate: vi.fn().mockResolvedValue(
-            createFakeClient({
-              listDsMembers: () =>
-                Promise.resolve({
-                  items: [{ name: 'ZEE' }, { name: 'ALPHA' }, { name: 'MID' }],
-                }),
-            })
-          ),
-          evict: vi.fn(),
-          hasKey: vi.fn().mockReturnValue(true),
-        },
+      const backend = createBackendWithClient({
+        listDsMembers: () =>
+          Promise.resolve({
+            items: [{ name: 'ZEE' }, { name: 'ALPHA' }, { name: 'MID' }],
+          }),
       });
-      const backend = new NativeBackend(options);
 
       const result = await backend.listMembers(SYSTEM_ID, 'USER.PDS');
 
@@ -631,16 +592,7 @@ describe('NativeBackend', () => {
         etag: 'e1',
         data: Buffer.from('content', 'utf-8').toString('base64'),
       });
-      const options = createOptions({
-        clientCache: {
-          getOrCreate: vi
-            .fn()
-            .mockResolvedValue(createFakeClient({ readDataset: readDatasetMock })),
-          evict: vi.fn(),
-          hasKey: vi.fn().mockReturnValue(true),
-        },
-      });
-      const backend = new NativeBackend(options);
+      const backend = createBackendWithClient({ readDataset: readDatasetMock });
 
       await backend.readDataset(SYSTEM_ID, 'USER.PS.DATA');
 
@@ -657,16 +609,7 @@ describe('NativeBackend', () => {
         etag: 'e2',
         data: Buffer.from('member content', 'utf-8').toString('base64'),
       });
-      const options = createOptions({
-        clientCache: {
-          getOrCreate: vi
-            .fn()
-            .mockResolvedValue(createFakeClient({ readDataset: readDatasetMock })),
-          evict: vi.fn(),
-          hasKey: vi.fn().mockReturnValue(true),
-        },
-      });
-      const backend = new NativeBackend(options);
+      const backend = createBackendWithClient({ readDataset: readDatasetMock });
 
       await backend.readDataset(SYSTEM_ID, 'USER.SRC.COBOL', 'MAIN');
 
@@ -680,16 +623,7 @@ describe('NativeBackend', () => {
 
     it('passes encoding to SDK when provided', async () => {
       const readDatasetMock = vi.fn().mockResolvedValue({ etag: '', data: '' });
-      const options = createOptions({
-        clientCache: {
-          getOrCreate: vi
-            .fn()
-            .mockResolvedValue(createFakeClient({ readDataset: readDatasetMock })),
-          evict: vi.fn(),
-          hasKey: vi.fn().mockReturnValue(true),
-        },
-      });
-      const backend = new NativeBackend(options);
+      const backend = createBackendWithClient({ readDataset: readDatasetMock });
 
       await backend.readDataset(SYSTEM_ID, 'USER.DATA', undefined, 'IBM-037');
 
@@ -701,18 +635,9 @@ describe('NativeBackend', () => {
     });
 
     it('returns empty text when SDK returns empty data', async () => {
-      const options = createOptions({
-        clientCache: {
-          getOrCreate: vi.fn().mockResolvedValue(
-            createFakeClient({
-              readDataset: () => Promise.resolve({ etag: 'e', data: '' }),
-            })
-          ),
-          evict: vi.fn(),
-          hasKey: vi.fn().mockReturnValue(true),
-        },
+      const backend = createBackendWithClient({
+        readDataset: () => Promise.resolve({ etag: 'e', data: '' }),
       });
-      const backend = new NativeBackend(options);
 
       const result = await backend.readDataset(SYSTEM_ID, 'USER.EMPTY');
 
@@ -763,14 +688,7 @@ describe('NativeBackend', () => {
 
     it('uses tool.search and returns mapped SearchInDatasetResult', async () => {
       const toolSearchMock = vi.fn().mockResolvedValue({ data: SUPERC_OUTPUT });
-      const options = createOptions({
-        clientCache: {
-          getOrCreate: vi.fn().mockResolvedValue(createFakeClient({ toolSearch: toolSearchMock })),
-          evict: vi.fn(),
-          hasKey: vi.fn().mockReturnValue(true),
-        },
-      });
-      const backend = new NativeBackend(options);
+      const backend = createBackendWithClient({ toolSearch: toolSearchMock });
 
       const result = await backend.searchInDataset(SYSTEM_ID, 'USER.SRC.COBOL', {
         string: 'HELLO',
@@ -802,27 +720,16 @@ describe('NativeBackend', () => {
       process.env.ZOWE_MCP_SEARCH_FORCE_FALLBACK = '1';
 
       const toolSearchMock = vi.fn().mockResolvedValue({ data: SUPERC_OUTPUT });
-      const listDsMembersMock = vi.fn().mockResolvedValue({
-        items: [{ name: 'MEMBER1' }],
-      });
+      const listDsMembersMock = vi.fn().mockResolvedValue({ items: [{ name: 'MEMBER1' }] });
       const readDatasetMock = vi.fn().mockResolvedValue({
         etag: 'e',
         data: Buffer.from('line1\nHELLO WORLD\nline3', 'utf-8').toString('base64'),
       });
-      const options = createOptions({
-        clientCache: {
-          getOrCreate: vi.fn().mockResolvedValue(
-            createFakeClient({
-              toolSearch: toolSearchMock,
-              listDsMembers: listDsMembersMock,
-              readDataset: readDatasetMock,
-            })
-          ),
-          evict: vi.fn(),
-          hasKey: vi.fn().mockReturnValue(true),
-        },
+      const backend = createBackendWithClient({
+        toolSearch: toolSearchMock,
+        listDsMembers: listDsMembersMock,
+        readDataset: readDatasetMock,
       });
-      const backend = new NativeBackend(options);
 
       const result = await backend.searchInDataset(SYSTEM_ID, 'USER.SRC.COBOL', {
         string: 'HELLO',
@@ -838,14 +745,7 @@ describe('NativeBackend', () => {
 
     it('maps beforeContext/afterContext when LPSF is in parms', async () => {
       const toolSearchMock = vi.fn().mockResolvedValue({ data: SUPERC_OUTPUT_WITH_CONTEXT });
-      const options = createOptions({
-        clientCache: {
-          getOrCreate: vi.fn().mockResolvedValue(createFakeClient({ toolSearch: toolSearchMock })),
-          evict: vi.fn(),
-          hasKey: vi.fn().mockReturnValue(true),
-        },
-      });
-      const backend = new NativeBackend(options);
+      const backend = createBackendWithClient({ toolSearch: toolSearchMock });
 
       const result = await backend.searchInDataset(SYSTEM_ID, 'USER.SRC.COBOL', {
         string: 'HELLO',
@@ -858,14 +758,7 @@ describe('NativeBackend', () => {
 
     it('returns empty result when tool.search returns empty data', async () => {
       const toolSearchMock = vi.fn().mockResolvedValue({ data: '' });
-      const options = createOptions({
-        clientCache: {
-          getOrCreate: vi.fn().mockResolvedValue(createFakeClient({ toolSearch: toolSearchMock })),
-          evict: vi.fn(),
-          hasKey: vi.fn().mockReturnValue(true),
-        },
-      });
-      const backend = new NativeBackend(options);
+      const backend = createBackendWithClient({ toolSearch: toolSearchMock });
 
       const result = await backend.searchInDataset(SYSTEM_ID, 'USER.SRC.COBOL', {
         string: 'NOTFOUND',

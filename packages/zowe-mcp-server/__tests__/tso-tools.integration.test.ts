@@ -13,18 +13,13 @@
  * Integration tests for TSO tools (runSafeTsoCommand) via MCP with mock backend.
  */
 
-import { Client } from '@modelcontextprotocol/sdk/client/index.js';
-import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
+import type { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { createServer, getServer } from '../src/server.js';
-import type { CredentialProvider } from '../src/zos/credentials.js';
-import { FilesystemMockBackend } from '../src/zos/mock/filesystem-mock-backend.js';
-import { MockCredentialProvider } from '../src/zos/mock/mock-credential-provider.js';
 import type { MockSystemsConfig } from '../src/zos/mock/mock-types.js';
-import { SystemRegistry } from '../src/zos/system.js';
+import { createMockIntegrationClient, getResultText } from './helpers/integration-test-utils.js';
 
 const SYSTEM_HOST = 'tso-test.example.com';
 const DEFAULT_USER = 'testuser';
@@ -40,16 +35,10 @@ const mockConfig: MockSystemsConfig = {
   ],
 };
 
-function getResultText(result: Awaited<ReturnType<Client['callTool']>>): string {
-  const content = result.content as { type: string; text?: string }[] | undefined;
-  const first = content?.[0];
-  return first?.type === 'text' ? (first.text ?? '') : '';
-}
-
 describe('TSO tools integration', () => {
   let mockDir: string;
   let client: Client;
-  let server: import('@modelcontextprotocol/sdk/server/mcp.js').McpServer;
+  let server: Awaited<ReturnType<typeof createMockIntegrationClient>>['server'];
 
   beforeAll(async () => {
     mockDir = await fs.mkdtemp(path.join(os.tmpdir(), 'zowe-mcp-tso-'));
@@ -58,30 +47,7 @@ describe('TSO tools integration', () => {
       recursive: true,
     });
 
-    const backend = new FilesystemMockBackend(mockDir);
-    const credentialProvider: CredentialProvider = new MockCredentialProvider(mockConfig);
-    const systemRegistry = new SystemRegistry();
-    for (const sys of mockConfig.systems) {
-      systemRegistry.register({
-        host: sys.host,
-        port: sys.port,
-        description: sys.description,
-      });
-    }
-
-    server = getServer(
-      createServer({
-        backend,
-        systemRegistry,
-        credentialProvider,
-        logToolCalls: true,
-        capabilityTier: 'full',
-      })
-    );
-    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
-    client = new Client({ name: 'tso-test', version: '1.0.0' });
-    await Promise.all([client.connect(clientTransport), server.connect(serverTransport)]);
-    await new Promise(resolve => setTimeout(resolve, 50));
+    ({ client, server } = await createMockIntegrationClient(mockDir, mockConfig, 'tso-test'));
   });
 
   afterAll(async () => {

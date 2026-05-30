@@ -226,13 +226,7 @@ describe('ExtensionClient', () => {
     await client.connect(discoveryDir, workspaceId, logger);
 
     // Wait for server socket
-    await new Promise<void>(resolve => {
-      const check = () => {
-        if (serverSocket) resolve();
-        else setTimeout(check, 10);
-      };
-      check();
-    });
+    await waitUntil(() => !!serverSocket);
 
     // Send a log-level event from the "extension" (mock server)
     const event: LogLevelEvent = {
@@ -270,13 +264,7 @@ describe('ExtensionClient', () => {
     await client.connect(discoveryDir, workspaceId, logger);
 
     // Wait for server socket
-    await new Promise<void>(resolve => {
-      const check = () => {
-        if (serverSocket) resolve();
-        else setTimeout(check, 10);
-      };
-      check();
-    });
+    await waitUntil(() => !!serverSocket);
 
     // Send two events in one write
     const event1: LogLevelEvent = { type: 'log-level', data: { level: 'debug' }, timestamp: 1 };
@@ -336,13 +324,7 @@ describe('ExtensionClient', () => {
     await client.connect(discoveryDir, workspaceId, logger);
 
     // Wait for server socket
-    await new Promise<void>(resolve => {
-      const check = () => {
-        if (serverSocket) resolve();
-        else setTimeout(check, 10);
-      };
-      check();
-    });
+    await waitUntil(() => !!serverSocket);
 
     // Attach the extension client to the logger
     logger.attachExtension(client);
@@ -592,13 +574,7 @@ describe('ExtensionClient', () => {
       await client.connect(discoveryDir, workspaceId, logger);
 
       // Wait for server socket
-      await new Promise<void>(resolve => {
-        const check = () => {
-          if (serverSocket) resolve();
-          else setTimeout(check, 10);
-        };
-        check();
-      });
+      await waitUntil(() => !!serverSocket);
 
       // Verify info is logged but debug is not
       logger.debug('should be suppressed');

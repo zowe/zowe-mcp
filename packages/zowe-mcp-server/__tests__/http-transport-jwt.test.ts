@@ -15,12 +15,13 @@
 
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
-import { createSign, generateKeyPairSync, type JsonWebKey, type KeyObject } from 'node:crypto';
-import { get as httpGet, request as httpRequest } from 'node:http';
+import { generateKeyPairSync, type JsonWebKey, type KeyObject } from 'node:crypto';
+import { get as httpGet } from 'node:http';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { __clearJwtJwksCacheForTests } from '../src/auth/bearer-jwt.js';
 import { createServer, getLogger, getServer } from '../src/server.js';
 import { startHttp } from '../src/transports/http.js';
+import { postMcpLocal, requestUrl, signJwt } from './helpers/jwt-test-utils.js';
 
 const TEST_ISSUER = 'https://idp.http-test.example.com';
 const TEST_JWKS_URI = 'https://idp.http-test.example.com/jwks.json';
@@ -29,21 +30,6 @@ const KID = 'http-test-kid';
 
 /** Preserve Node/Web fetch so MCP Streamable HTTP client can POST to localhost while JWKS is mocked. */
 const realFetch = globalThis.fetch.bind(globalThis);
-
-function requestUrl(input: RequestInfo | URL): string {
-  if (typeof input === 'string') {
-    return input;
-  }
-  if (input instanceof URL) {
-    return input.href;
-  }
-  return input.url;
-}
-
-function b64url(buf: Buffer | string): string {
-  const b = typeof buf === 'string' ? Buffer.from(buf, 'utf8') : buf;
-  return b.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-}
 
 let privateKey: KeyObject;
 let jwkPublic: JsonWebKey;
@@ -95,54 +81,9 @@ afterEach(() => {
   __clearJwtJwksCacheForTests();
 });
 
-function signJwt(payload: Record<string, unknown>): string {
-  const header = { alg: 'RS256', kid: KID };
-  const h = b64url(JSON.stringify(header));
-  const p = b64url(JSON.stringify(payload));
-  const data = `${h}.${p}`;
-  const sign = createSign('RSA-SHA256');
-  sign.update(data);
-  sign.end();
-  const sig = sign.sign(privateKey);
-  return `${data}.${b64url(sig)}`;
-}
-
-/** POST JSON to local HTTP server without using global `fetch` (tests stub `fetch` for JWKS only). */
-function postMcpLocal(
-  port: number,
-  body: object,
-  extraHeaders: Record<string, string> = {}
-): Promise<{ statusCode: number; text: string }> {
-  const payload = JSON.stringify(body);
-  return new Promise((resolve, reject) => {
-    const req = httpRequest(
-      {
-        hostname: '127.0.0.1',
-        port,
-        path: '/mcp',
-        method: 'POST',
-        headers: {
-          Accept: 'application/json, text/event-stream',
-          'Content-Type': 'application/json',
-          'Content-Length': Buffer.byteLength(payload),
-          ...extraHeaders,
-        },
-      },
-      res => {
-        const chunks: Buffer[] = [];
-        res.on('data', (c: Buffer) => chunks.push(c));
-        res.on('end', () => {
-          resolve({
-            statusCode: res.statusCode ?? 0,
-            text: Buffer.concat(chunks).toString('utf8'),
-          });
-        });
-      }
-    );
-    req.on('error', reject);
-    req.write(payload);
-    req.end();
-  });
+/** Wrapper that binds the test-local privateKey and KID. */
+function sign(payload: Record<string, unknown>): string {
+  return signJwt(payload, privateKey, KID);
 }
 
 function getWellKnownLocal(
@@ -235,7 +176,7 @@ describe('startHttp with jwtAuth', () => {
 
   it('accepts initialize when Bearer token is valid', async () => {
     const logger = getLogger();
-    const token = signJwt({
+    const token = sign({
       iss: TEST_ISSUER,
       sub: 'http-user-1',
       exp: Math.floor(Date.now() / 1000) + 3600,
@@ -269,7 +210,7 @@ describe('startHttp with jwtAuth', () => {
 
   it('invokes getContext via MCP Streamable HTTP client with Bearer JWT', async () => {
     const logger = getLogger();
-    const token = signJwt({
+    const token = sign({
       iss: TEST_ISSUER,
       sub: 'http-user-tool',
       exp: Math.floor(Date.now() / 1000) + 3600,

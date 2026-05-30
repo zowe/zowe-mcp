@@ -21,11 +21,11 @@
 
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
-import { request as httpRequest } from 'node:http';
 import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { __clearJwtJwksCacheForTests } from '../src/auth/bearer-jwt.js';
 import { createServer, getLogger, getServer } from '../src/server.js';
 import { startHttp } from '../src/transports/http.js';
+import { postMcpLocal } from './helpers/jwt-test-utils.js';
 
 const KEYCLOAK_E2E =
   process.env.ZOWE_MCP_KEYCLOAK_E2E === '1' || process.env.ZOWE_MCP_KEYCLOAK_E2E === 'true';
@@ -47,43 +47,6 @@ const MCP_INIT_BODY = {
     clientInfo: { name: 'keycloak-jwt-e2e', version: '1.0.0' },
   },
 };
-
-function postMcpLocal(
-  port: number,
-  body: object,
-  extraHeaders: Record<string, string> = {}
-): Promise<{ statusCode: number; text: string }> {
-  const payload = JSON.stringify(body);
-  return new Promise((resolve, reject) => {
-    const req = httpRequest(
-      {
-        hostname: '127.0.0.1',
-        port,
-        path: '/mcp',
-        method: 'POST',
-        headers: {
-          Accept: 'application/json, text/event-stream',
-          'Content-Type': 'application/json',
-          'Content-Length': Buffer.byteLength(payload),
-          ...extraHeaders,
-        },
-      },
-      res => {
-        const chunks: Buffer[] = [];
-        res.on('data', (c: Buffer) => chunks.push(c));
-        res.on('end', () => {
-          resolve({
-            statusCode: res.statusCode ?? 0,
-            text: Buffer.concat(chunks).toString('utf8'),
-          });
-        });
-      }
-    );
-    req.on('error', reject);
-    req.write(payload);
-    req.end();
-  });
-}
 
 async function getKeycloakAccessToken(): Promise<string> {
   const body = new URLSearchParams({

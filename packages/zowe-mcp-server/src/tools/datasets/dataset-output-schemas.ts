@@ -75,26 +75,8 @@ export const ussContextSchema = baseContextSchema
  * @deprecated Use the scoped schemas instead: {@link baseContextSchema},
  * {@link datasetContextSchema}, or {@link ussContextSchema}.
  */
-export const responseContextSchema = baseContextSchema
+export const responseContextSchema = datasetContextSchema
   .extend({
-    resolvedPattern: z
-      .string()
-      .optional()
-      .describe(
-        'Normalized list pattern (uppercase, no quotes). Present only when input was quoted or lowercase.'
-      ),
-    resolvedDsn: z
-      .string()
-      .optional()
-      .describe(
-        'Normalized data set name (uppercase, no quotes). Present only when input was quoted or lowercase.'
-      ),
-    resolvedTargetDsn: z
-      .string()
-      .optional()
-      .describe(
-        'Normalized target data set name for copy/rename. Present only when input differed from resolved value.'
-      ),
     resolvedPath: z
       .string()
       .optional()
@@ -183,6 +165,23 @@ export const mutationResultMetaSchema = z
 // Data shapes per tool
 // ---------------------------------------------------------------------------
 
+/** Fields shared between datasetListEntrySchema and getDatasetAttributesDataSchema. */
+const sharedDatasetAttributeShape = {
+  multivolume: z.boolean().optional().describe('True if data set spans multiple volumes.'),
+  migrated: z.boolean().optional().describe('True if data set is migrated (HSM).'),
+  encrypted: z.boolean().optional().describe('True if data set is encrypted.'),
+  dsntype: z.string().optional().describe('Data set name type (e.g. PDS, LIBRARY).'),
+  dataclass: z.string().optional().describe('SMS data class.'),
+  mgmtclass: z.string().optional().describe('SMS management class.'),
+  storclass: z.string().optional().describe('SMS storage class.'),
+  spaceUnits: z.string().optional().describe('Space unit type (TRACKS, CYLINDERS, etc.).'),
+  usedPercent: z.number().optional().describe('Used space percentage.'),
+  primary: z.number().optional().describe('Primary allocation units.'),
+  secondary: z.number().optional().describe('Secondary allocation units.'),
+  devtype: z.string().optional().describe('Device type.'),
+  volsers: z.array(z.string()).optional().describe('Multi-volume serial list.'),
+};
+
 const datasetListEntrySchema = z.object({
   dsn: z.string().describe('Fully qualified data set name (uppercase, no quotes).'),
   resourceLink: z
@@ -209,20 +208,8 @@ const datasetListEntrySchema = z.object({
   creationDate: z.string().optional().describe('Creation date (YYYY-MM-DD).'),
   referenceDate: z.string().optional().describe('Last referenced date (YYYY-MM-DD).'),
   expirationDate: z.string().optional().describe('Expiration date (YYYY-MM-DD).'),
-  multivolume: z.boolean().optional().describe('True if data set spans multiple volumes.'),
-  migrated: z.boolean().optional().describe('True if data set is migrated (HSM).'),
-  encrypted: z.boolean().optional().describe('True if data set is encrypted.'),
-  dsntype: z.string().optional().describe('Data set name type (e.g. PDS, LIBRARY).'),
-  dataclass: z.string().optional().describe('SMS data class.'),
-  mgmtclass: z.string().optional().describe('SMS management class.'),
-  storclass: z.string().optional().describe('SMS storage class.'),
-  spaceUnits: z.string().optional().describe('Space unit type (TRACKS, CYLINDERS, etc.).'),
-  usedPercent: z.number().optional().describe('Used space percentage.'),
+  ...sharedDatasetAttributeShape,
   usedExtents: z.number().optional().describe('Used extents count.'),
-  primary: z.number().optional().describe('Primary allocation units.'),
-  secondary: z.number().optional().describe('Secondary allocation units.'),
-  devtype: z.string().optional().describe('Device type.'),
-  volsers: z.array(z.string()).optional().describe('Multi-volume serial list.'),
 });
 
 const memberEntrySchema = z.object({
@@ -301,19 +288,7 @@ const getDatasetAttributesDataSchema = z.object({
   smsClass: z.string().optional().describe('SMS storage/management class (when SMS managed).'),
   usedTracks: z.number().optional().describe('Number of tracks used.'),
   usedExtents: z.number().optional().describe('Number of extents used.'),
-  multivolume: z.boolean().optional().describe('True if data set spans multiple volumes.'),
-  migrated: z.boolean().optional().describe('True if data set is migrated (HSM).'),
-  encrypted: z.boolean().optional().describe('True if data set is encrypted.'),
-  dsntype: z.string().optional().describe('Data set name type (e.g. PDS, LIBRARY).'),
-  dataclass: z.string().optional().describe('SMS data class.'),
-  mgmtclass: z.string().optional().describe('SMS management class.'),
-  storclass: z.string().optional().describe('SMS storage class.'),
-  spaceUnits: z.string().optional().describe('Space unit type (TRACKS, CYLINDERS, etc.).'),
-  usedPercent: z.number().optional().describe('Used space percentage.'),
-  primary: z.number().optional().describe('Primary allocation units.'),
-  secondary: z.number().optional().describe('Secondary allocation units.'),
-  devtype: z.string().optional().describe('Device type.'),
-  volsers: z.array(z.string()).optional().describe('Multi-volume serial list.'),
+  ...sharedDatasetAttributeShape,
 });
 
 const writeDatasetDataSchema = z.object({

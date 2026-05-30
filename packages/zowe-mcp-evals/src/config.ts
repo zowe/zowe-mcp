@@ -397,25 +397,25 @@ export function parseEvalsConfigRaw(raw: Record<string, unknown>): EvalsModelEnt
   ];
 }
 
+/** Find and read the evals config file; throws with a clear message if not found. */
+function readConfigFileContent(): string {
+  const configDir = findConfigDir();
+  for (const name of CONFIG_NAMES) {
+    const p = resolve(configDir, name);
+    if (existsSync(p)) {
+      return readFileSync(p, 'utf-8');
+    }
+  }
+  throw new Error(
+    `Evals config not found. Create evals.config.json (or evals.config.local.json) in the repo root or in packages/zowe-mcp-evals. See evals.config.example.json.`
+  );
+}
+
 /**
  * Read evals.config.json (or evals.config.local.json) and return all model entries without resolving a default.
  */
 export function loadEvalsModelEntries(): EvalsModelEntry[] {
-  const configDir = findConfigDir();
-  let content: string | undefined;
-  for (const name of CONFIG_NAMES) {
-    const p = resolve(configDir, name);
-    if (existsSync(p)) {
-      content = readFileSync(p, 'utf-8');
-      break;
-    }
-  }
-  if (!content) {
-    throw new Error(
-      `Evals config not found. Create evals.config.json (or evals.config.local.json) in the repo root. See evals.config.example.json.`
-    );
-  }
-  return parseEvalsConfigRaw(JSON.parse(content) as Record<string, unknown>);
+  return parseEvalsConfigRaw(JSON.parse(readConfigFileContent()) as Record<string, unknown>);
 }
 
 /**
@@ -428,21 +428,7 @@ export function loadEvalsModelEntries(): EvalsModelEntry[] {
  * @param modelId - Optional model id (from --model). If omitted, the first model is used.
  */
 export async function loadEvalsConfig(modelId?: string): Promise<EvalsConfig> {
-  const configDir = findConfigDir();
-  let content: string | undefined;
-  for (const name of CONFIG_NAMES) {
-    const p = resolve(configDir, name);
-    if (existsSync(p)) {
-      content = readFileSync(p, 'utf-8');
-      break;
-    }
-  }
-  if (!content) {
-    throw new Error(
-      `Evals config not found. Create evals.config.json (or evals.config.local.json) in the repo root or in packages/zowe-mcp-evals. See evals.config.example.json.`
-    );
-  }
-  const raw = JSON.parse(content) as Record<string, unknown>;
+  const raw = JSON.parse(readConfigFileContent()) as Record<string, unknown>;
   const entries = parseEvalsConfigRaw(raw);
 
   const chosen = modelId !== undefined ? entries.find(e => e.id === modelId) : entries[0];

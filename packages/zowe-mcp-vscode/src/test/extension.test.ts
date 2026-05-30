@@ -36,6 +36,44 @@ function findZoweMcpExtension(): vscode.Extension<unknown> | undefined {
   );
 }
 
+/**
+ * Create a stub vscode.WorkspaceConfiguration backed by an overrides map.
+ * Keys not present in overrides fall through to defaultValue.
+ * Pass a custom inspect function for tests that need to simulate persisted settings.
+ */
+function makeMockConfig(
+  overrides: Record<string, unknown> = {},
+  customInspect?: vscode.WorkspaceConfiguration['inspect']
+): vscode.WorkspaceConfiguration {
+  return {
+    get: <T>(key: string, defaultValue?: T): T => {
+      if (key in overrides) return overrides[key] as T;
+      return defaultValue as T;
+    },
+    has: () => false,
+    inspect: customInspect ?? (() => undefined),
+    update: () => Promise.resolve(),
+  };
+}
+
+/**
+ * Monkey-patch vscode.workspace.getConfiguration to return config.
+ * When assertSection is true (default), asserts the section is 'zoweMCP'.
+ */
+function installMockZoweMcpConfig(
+  config: vscode.WorkspaceConfiguration,
+  assertSection = true
+): void {
+  (
+    vscode.workspace as {
+      getConfiguration: (section: string) => vscode.WorkspaceConfiguration;
+    }
+  ).getConfiguration = (section: string) => {
+    if (assertSection) assert.strictEqual(section, 'zoweMCP');
+    return config;
+  };
+}
+
 suite('Zowe MCP VS Code Extension', () => {
   test('Extension should be present', () => {
     const zoweMcp = findZoweMcpExtension();
@@ -108,26 +146,13 @@ suite('Zowe MCP VS Code Extension', () => {
     });
 
     test('Shows notification when native backend with no connections', async () => {
-      const mockConfig: vscode.WorkspaceConfiguration = {
-        get: (key: string, defaultValue?: unknown) => {
-          if (key === 'backend') return 'native';
-          if (key === 'nativeConnections') return [];
-          if (key === 'nativeSystems') return [];
-          if (key === 'mockDataDirectory') return '';
-          return defaultValue;
-        },
-        has: () => false,
-        inspect: () => undefined,
-        update: () => Promise.resolve(),
-      };
-      (
-        vscode.workspace as {
-          getConfiguration: (section: string) => vscode.WorkspaceConfiguration;
-        }
-      ).getConfiguration = (section: string) => {
-        assert.strictEqual(section, 'zoweMCP');
-        return mockConfig;
-      };
+      const mockConfig = makeMockConfig({
+        backend: 'native',
+        nativeConnections: [],
+        nativeSystems: [],
+        mockDataDirectory: '',
+      });
+      installMockZoweMcpConfig(mockConfig);
 
       const showMessageArgs: [string, string][] = [];
       (
@@ -159,22 +184,12 @@ suite('Zowe MCP VS Code Extension', () => {
     });
 
     test('Does not show notification when native connections are set', () => {
-      const mockConfig: vscode.WorkspaceConfiguration = {
-        get: (key: string, defaultValue?: unknown) => {
-          if (key === 'nativeConnections') return ['user@host'];
-          if (key === 'nativeSystems') return [];
-          if (key === 'mockDataDirectory') return '';
-          return defaultValue;
-        },
-        has: () => false,
-        inspect: () => undefined,
-        update: () => Promise.resolve(),
-      };
-      (
-        vscode.workspace as {
-          getConfiguration: (section: string) => vscode.WorkspaceConfiguration;
-        }
-      ).getConfiguration = () => mockConfig;
+      const mockConfig = makeMockConfig({
+        nativeConnections: ['user@host'],
+        nativeSystems: [],
+        mockDataDirectory: '',
+      });
+      installMockZoweMcpConfig(mockConfig, false);
 
       let showCalls = 0;
       (
@@ -195,23 +210,13 @@ suite('Zowe MCP VS Code Extension', () => {
     });
 
     test('Does not show notification when backend is mock', () => {
-      const mockConfig: vscode.WorkspaceConfiguration = {
-        get: (key: string, defaultValue?: unknown) => {
-          if (key === 'backend') return 'mock';
-          if (key === 'nativeConnections') return [];
-          if (key === 'nativeSystems') return [];
-          if (key === 'mockDataDirectory') return '/path/to/mock';
-          return defaultValue;
-        },
-        has: () => false,
-        inspect: () => undefined,
-        update: () => Promise.resolve(),
-      };
-      (
-        vscode.workspace as {
-          getConfiguration: (section: string) => vscode.WorkspaceConfiguration;
-        }
-      ).getConfiguration = () => mockConfig;
+      const mockConfig = makeMockConfig({
+        backend: 'mock',
+        nativeConnections: [],
+        nativeSystems: [],
+        mockDataDirectory: '/path/to/mock',
+      });
+      installMockZoweMcpConfig(mockConfig, false);
 
       let showCalls = 0;
       (
@@ -249,26 +254,13 @@ suite('Zowe MCP VS Code Extension', () => {
     });
 
     test('With fresh config (backend=native default, no connections), server gets native backend and zero systems', async () => {
-      const mockConfig: vscode.WorkspaceConfiguration = {
-        get: (key: string, defaultValue?: unknown) => {
-          if (key === 'backend') return 'native';
-          if (key === 'nativeConnections') return [];
-          if (key === 'nativeSystems') return [];
-          if (key === 'mockDataDirectory') return '';
-          return defaultValue;
-        },
-        has: () => false,
-        inspect: () => undefined,
-        update: () => Promise.resolve(),
-      };
-      (
-        vscode.workspace as {
-          getConfiguration: (section: string) => vscode.WorkspaceConfiguration;
-        }
-      ).getConfiguration = (section: string) => {
-        assert.strictEqual(section, 'zoweMCP');
-        return mockConfig;
-      };
+      const mockConfig = makeMockConfig({
+        backend: 'native',
+        nativeConnections: [],
+        nativeSystems: [],
+        mockDataDirectory: '',
+      });
+      installMockZoweMcpConfig(mockConfig);
 
       const zoweMcp = findZoweMcpExtension();
       assert.ok(zoweMcp, 'Extension should be present');
@@ -299,34 +291,21 @@ suite('Zowe MCP VS Code Extension', () => {
     });
 
     test('With backend=mock and mock dir set, server gets mock backend', async () => {
-      const mockConfig: vscode.WorkspaceConfiguration = {
-        get: (key: string, defaultValue?: unknown) => {
-          if (key === 'backend') return 'mock';
-          if (key === 'nativeConnections') return [];
-          if (key === 'nativeSystems') return [];
-          if (key === 'mockDataDirectory') return '/tmp/mock-data';
-          return defaultValue;
+      const mockConfig = makeMockConfig(
+        {
+          backend: 'mock',
+          nativeConnections: [],
+          nativeSystems: [],
+          mockDataDirectory: '/tmp/mock-data',
         },
-        has: () => false,
-        inspect: <T>(key: string) => {
+        <T>(key: string) => {
           if (key === 'backend') {
-            return {
-              key: 'zoweMCP.backend',
-              globalValue: 'mock' as unknown as T,
-            };
+            return { key: 'zoweMCP.backend', globalValue: 'mock' as unknown as T };
           }
           return undefined;
-        },
-        update: () => Promise.resolve(),
-      };
-      (
-        vscode.workspace as {
-          getConfiguration: (section: string) => vscode.WorkspaceConfiguration;
         }
-      ).getConfiguration = (section: string) => {
-        assert.strictEqual(section, 'zoweMCP');
-        return mockConfig;
-      };
+      );
+      installMockZoweMcpConfig(mockConfig);
 
       const zoweMcp = findZoweMcpExtension();
       assert.ok(zoweMcp, 'Extension should be present');

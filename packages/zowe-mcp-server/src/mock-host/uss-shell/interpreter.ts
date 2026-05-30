@@ -365,6 +365,52 @@ type Builtin = (
   stdin: string
 ) => CommandResult | Promise<CommandResult>;
 
+/** Parse `-n N` / `-N` arg style shared by `head` and `tail`. */
+function parseNLinesArgs(args: string[]): { n: number; positional: string[] } {
+  let n = 10;
+  const positional: string[] = [];
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === '-n' && args[i + 1]) {
+      n = parseInt(args[++i], 10);
+    } else if (/^-\d+$/.test(args[i])) {
+      n = parseInt(args[i].slice(1), 10);
+    } else if (!args[i].startsWith('-')) {
+      positional.push(args[i]);
+    }
+  }
+  return { n, positional };
+}
+
+/**
+ * Read a list of USS files and apply `sliceFn` to each file's lines.
+ * Multiple files get `==> file <==` banners. Returns a `CommandResult`.
+ */
+async function readLinesFromFiles(
+  session: ShellSession,
+  files: string[],
+  sliceFn: (lines: string[]) => string,
+  errFn: (resolvedPath: string) => string
+): Promise<CommandResult> {
+  let out = '';
+  let err = '';
+  let code = 0;
+  const multi = files.length > 1;
+  for (const f of files) {
+    const p = resolvePath(session, f);
+    try {
+      const text = (await session.store.backend.readUssFile(session.systemId, p)).text;
+      const lines = text.split('\n');
+      if (multi) out += `==> ${f} <==\n`;
+      out += sliceFn(lines);
+      if (multi) out += '\n';
+    } catch {
+      err += errFn(p);
+      code = 1;
+    }
+  }
+  return { stdout: out, stderr: err, exitCode: code };
+}
+
 const builtins: Record<string, Builtin> = {
   pwd: session => ({ stdout: `${session.cwd}\n`, stderr: '', exitCode: 0 }),
 
@@ -659,20 +705,8 @@ const builtins: Record<string, Builtin> = {
   },
 
   head: async (session, args, stdin) => {
-    let n = 10;
-    const positional: string[] = [];
-    for (let i = 0; i < args.length; i++) {
-      if (args[i] === '-n' && args[i + 1]) {
-        n = parseInt(args[++i], 10);
-      } else if (/^-\d+$/.test(args[i])) {
-        n = parseInt(args[i].slice(1), 10);
-      } else if (!args[i].startsWith('-')) {
-        positional.push(args[i]);
-      }
-    }
-
+    const { n, positional } = parseNLinesArgs(args);
     if (positional.length === 0) {
-      // Read from stdin
       const lines = stdin.split('\n');
       return {
         stdout: lines.slice(0, n).join('\n') + (lines.length > n ? '\n' : ''),
@@ -680,64 +714,27 @@ const builtins: Record<string, Builtin> = {
         exitCode: 0,
       };
     }
-
-    // Multiple files get `==> file <==` headers (same as GNU head on non-tty).
-    let out = '';
-    let err = '';
-    let code = 0;
-    const multi = positional.length > 1;
-    for (const f of positional) {
-      const p = resolvePath(session, f);
-      try {
-        const text = (await session.store.backend.readUssFile(session.systemId, p)).text;
-        const lines = text.split('\n');
-        if (multi) out += `==> ${f} <==\n`;
-        out += lines.slice(0, n).join('\n') + (lines.length > n ? '\n' : '');
-        if (multi) out += '\n';
-      } catch {
-        err += `head: ${p}: EDC5129I No such file or directory.\n`;
-        code = 1;
-      }
-    }
-    return { stdout: out, stderr: err, exitCode: code };
+    // Multiple files get `==> file <==` headers (same as on non-tty).
+    return readLinesFromFiles(
+      session,
+      positional,
+      lines => lines.slice(0, n).join('\n') + (lines.length > n ? '\n' : ''),
+      p => `head: ${p}: EDC5129I No such file or directory.\n`
+    );
   },
 
   tail: async (session, args, stdin) => {
-    let n = 10;
-    const positional: string[] = [];
-    for (let i = 0; i < args.length; i++) {
-      if (args[i] === '-n' && args[i + 1]) {
-        n = parseInt(args[++i], 10);
-      } else if (/^-\d+$/.test(args[i])) {
-        n = parseInt(args[i].slice(1), 10);
-      } else if (!args[i].startsWith('-')) {
-        positional.push(args[i]);
-      }
-    }
-
+    const { n, positional } = parseNLinesArgs(args);
     if (positional.length === 0) {
       const lines = stdin.split('\n');
       return { stdout: lines.slice(-n).join('\n'), stderr: '', exitCode: 0 };
     }
-
-    let out = '';
-    let err = '';
-    let code = 0;
-    const multi = positional.length > 1;
-    for (const f of positional) {
-      const p = resolvePath(session, f);
-      try {
-        const text = (await session.store.backend.readUssFile(session.systemId, p)).text;
-        const lines = text.split('\n');
-        if (multi) out += `==> ${f} <==\n`;
-        out += lines.slice(-n).join('\n');
-        if (multi) out += '\n';
-      } catch {
-        err += `tail: FSUM6003 input file "${p}": EDC5129I No such file or directory.\n`;
-        code = 1;
-      }
-    }
-    return { stdout: out, stderr: err, exitCode: code };
+    return readLinesFromFiles(
+      session,
+      positional,
+      lines => lines.slice(-n).join('\n'),
+      p => `tail: FSUM6003 input file "${p}": EDC5129I No such file or directory.\n`
+    );
   },
 
   wc: async (session, args, stdin) => {

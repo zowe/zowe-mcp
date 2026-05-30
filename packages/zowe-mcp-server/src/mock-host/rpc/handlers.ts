@@ -48,6 +48,41 @@ function isStreamRequest(params: RpcParams): boolean {
   return typeof params.stream === 'number';
 }
 
+/** Shared streaming-send response for read operations (ds + uss). */
+function buildReadResponse(
+  result: { text: string; etag?: string; encoding?: string },
+  params: RpcParams,
+  ctx: RpcHandlerContext
+): object {
+  const bytes = Buffer.byteLength(result.text, 'utf8');
+  if (isStreamRequest(params) && bytes > STREAM_THRESHOLD) {
+    const pipePath = nextPipePath();
+    registerSend(pipePath, Buffer.from(result.text, 'utf8'));
+    ctx.emit?.('sendStream', { id: ctx.requestId, pipePath, contentLen: bytes });
+    return { etag: result.etag, encoding: result.encoding, data: '', contentLen: bytes };
+  }
+  return { etag: result.etag, encoding: result.encoding, data: b64(result.text) };
+}
+
+/** Shared streaming-receive content resolution for write operations (ds + uss). */
+async function resolveWriteContent(
+  params: RpcParams,
+  ctx: RpcHandlerContext
+): Promise<{ content: string; contentLen: number }> {
+  if (isStreamRequest(params)) {
+    const pipePath = nextPipePath();
+    const promise = awaitReceive(pipePath);
+    ctx.emit?.('receiveStream', { id: ctx.requestId, pipePath });
+    const buf = await promise;
+    return { content: buf.toString('utf8'), contentLen: buf.length };
+  }
+  if (typeof params.data === 'string') {
+    const content = fromB64(params.data);
+    return { content, contentLen: Buffer.byteLength(content, 'utf8') };
+  }
+  return { content: '', contentLen: 0 };
+}
+
 function b64(s: string): string {
   return Buffer.from(s, 'utf8').toString('base64');
 }
@@ -101,14 +136,7 @@ const readDataset: Handler = async (p, ctx) => {
     member,
     p.encoding as string | undefined
   );
-  const bytes = Buffer.byteLength(result.text, 'utf8');
-  if (isStreamRequest(p) && bytes > STREAM_THRESHOLD) {
-    const pipePath = nextPipePath();
-    registerSend(pipePath, Buffer.from(result.text, 'utf8'));
-    ctx.emit?.('sendStream', { id: ctx.requestId, pipePath, contentLen: bytes });
-    return { etag: result.etag, encoding: result.encoding, data: '', contentLen: bytes };
-  }
-  return { etag: result.etag, encoding: result.encoding, data: b64(result.text) };
+  return buildReadResponse(result, p, ctx);
 };
 
 const writeDataset: Handler = async (p, ctx) => {
@@ -117,21 +145,7 @@ const writeDataset: Handler = async (p, ctx) => {
   const baseName = match ? match[1] : dsname;
   const member = match?.[2] ?? undefined;
 
-  let content: string;
-  let contentLen = 0;
-  if (isStreamRequest(p)) {
-    const pipePath = nextPipePath();
-    const promise = awaitReceive(pipePath);
-    ctx.emit?.('receiveStream', { id: ctx.requestId, pipePath });
-    const buf = await promise;
-    content = buf.toString('utf8');
-    contentLen = buf.length;
-  } else if (typeof p.data === 'string') {
-    content = fromB64(p.data);
-    contentLen = Buffer.byteLength(content, 'utf8');
-  } else {
-    content = '';
-  }
+  const { content, contentLen } = await resolveWriteContent(p, ctx);
   const result = await ctx.store.backend.writeDataset(
     ctx.systemId,
     baseName,
@@ -226,32 +240,11 @@ const listFiles: Handler = async (p, { store, systemId }) => {
 
 const readFile: Handler = async (p, ctx) => {
   const result = await ctx.store.backend.readUssFile(ctx.systemId, p.fspath as string);
-  const bytes = Buffer.byteLength(result.text, 'utf8');
-  if (isStreamRequest(p) && bytes > STREAM_THRESHOLD) {
-    const pipePath = nextPipePath();
-    registerSend(pipePath, Buffer.from(result.text, 'utf8'));
-    ctx.emit?.('sendStream', { id: ctx.requestId, pipePath, contentLen: bytes });
-    return { etag: result.etag, encoding: result.encoding, data: '', contentLen: bytes };
-  }
-  return { etag: result.etag, encoding: result.encoding, data: b64(result.text) };
+  return buildReadResponse(result, p, ctx);
 };
 
 const writeFile: Handler = async (p, ctx) => {
-  let content: string;
-  let contentLen = 0;
-  if (isStreamRequest(p)) {
-    const pipePath = nextPipePath();
-    const promise = awaitReceive(pipePath);
-    ctx.emit?.('receiveStream', { id: ctx.requestId, pipePath });
-    const buf = await promise;
-    content = buf.toString('utf8');
-    contentLen = buf.length;
-  } else if (typeof p.data === 'string') {
-    content = fromB64(p.data);
-    contentLen = Buffer.byteLength(content, 'utf8');
-  } else {
-    content = '';
-  }
+  const { content, contentLen } = await resolveWriteContent(p, ctx);
   const result = await ctx.store.backend.writeUssFile(
     ctx.systemId,
     p.fspath as string,

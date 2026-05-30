@@ -322,3 +322,17 @@ Automatically updated by `npm run eval-compare`.
 | 2026-05-17 | full-top3-mock-tier-full  | minimax-m2.7          | minimax/minimax-m2.7            | tso                      | 3         | 65.0%     | 39     | 60    | d47ccfe | 6a545b02  | reps=20  |
 | 2026-05-17 | full-top3-mock-tier-full  | minimax-m2.7          | minimax/minimax-m2.7            | uss                      | 4         | 86.3%     | 69     | 80    | d47ccfe | 6a545b02  | reps=20  |
 | 2026-05-17 | full-top3-mock-tier-full  | minimax-m2.7          | minimax/minimax-m2.7            | uss-copy                 | 3         | 100.0%    | 60     | 60    | d47ccfe | 6a545b02  | reps=20  |
+| 2026-05-30 | post-dedup-refactor       | gemini-2.5-flash      | gemini-2.5-flash                | naming-stress            | 18        | 63.9%     | 115    | 180   | bde1e95 |           |          |
+| 2026-05-30 | post-dedup-refactor       | gemini-2.5-flash      | gemini-2.5-flash                | description-quality      | 11        | 65.5%     | 72     | 110   | bde1e95 |           |          |
+| 2026-05-30 | post-dedup-refactor       | qwen3                 | Qwen3-30B-A3B-Thinking-2507-FP8 | naming-stress            | 18        | 100.0%    | 180    | 180   | bde1e95 |           |          |
+| 2026-05-30 | post-dedup-refactor       | qwen3                 | Qwen3-30B-A3B-Thinking-2507-FP8 | description-quality      | 11        | 96.4%     | 106    | 110   | bde1e95 |           |          |
+| 2026-05-30 | post-dedup-refactor       | gemini-2.5-flash      | gemini-2.5-flash                | naming-stress            | 18        | 76.7%     | 138    | 180   | bde1e95 |           |          |
+| 2026-05-30 | post-dedup-refactor       | gemini-2.5-flash      | gemini-2.5-flash                | description-quality      | 11        | 80.9%     | 89     | 110   | bde1e95 |           |          |
+| 2026-05-30 | post-dedup-refactor       | qwen3                 | Qwen3-30B-A3B-Thinking-2507-FP8 | naming-stress            | 18        | 100.0%    | 180    | 180   | bde1e95 |           |          |
+| 2026-05-30 | post-dedup-refactor       | qwen3                 | Qwen3-30B-A3B-Thinking-2507-FP8 | description-quality      | 11        | 94.5%     | 104    | 110   | bde1e95 |           |          |
+| 2026-05-30 | top3-local-remote-cloud   | lm-qwen3-8b           | broadcom/qwen3-8b               | naming-stress            | 18        | 6.7%      | 6      | 90    | bde1e95 | 7abe4ebf  | reps=5   |
+| 2026-05-30 | top3-local-remote-cloud   | lm-qwen3-8b           | broadcom/qwen3-8b               | description-quality      | 11        | 0.0%      | 0      | 55    | bde1e95 | 7abe4ebf  | reps=5   |
+| 2026-05-30 | top3-local-remote-cloud   | qwen3                 | Qwen3-30B-A3B-Thinking-2507-FP8 | naming-stress            | 18        | 100.0%    | 90     | 90    | bde1e95 | 7abe4ebf  | reps=5   |
+| 2026-05-30 | top3-local-remote-cloud   | qwen3                 | Qwen3-30B-A3B-Thinking-2507-FP8 | description-quality      | 11        | 100.0%    | 55     | 55    | bde1e95 | 7abe4ebf  | reps=5   |
+| 2026-05-30 | top3-local-remote-cloud   | gemini-2.5-flash      | gemini-2.5-flash                | naming-stress            | 18        | 73.3%     | 66     | 90    | bde1e95 | 7abe4ebf  | reps=5   |
+| 2026-05-30 | top3-local-remote-cloud   | gemini-2.5-flash      | gemini-2.5-flash                | description-quality      | 11        | 83.6%     | 46     | 55    | bde1e95 | 7abe4ebf  | reps=5   |

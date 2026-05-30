@@ -113,6 +113,25 @@ export function registerContextTools(
   // addZosConnection / removeZosConnection (HTTP + JWT + tenant store only)
   // -----------------------------------------------------------------------
   if (hasBackend && addTenantNativeConnection && removeTenantNativeConnection) {
+    /**
+     * Parses and normalises a connection spec string.
+     * Returns `{ ok: true, value }` on success, `{ ok: false, error }` on parse failure.
+     */
+    function normalizeSpec(
+      raw: string
+    ): { ok: true; value: string } | { ok: false; error: string } {
+      try {
+        const parsed = parseConnectionSpec(raw.trim());
+        const value =
+          parsed.port === 22
+            ? `${parsed.user}@${parsed.host}`
+            : `${parsed.user}@${parsed.host}:${parsed.port}`;
+        return { ok: true, value };
+      } catch (err: unknown) {
+        return { ok: false, error: err instanceof Error ? err.message : String(err) };
+      }
+    }
+
     server.registerTool(
       'addZosConnection',
       {
@@ -131,21 +150,15 @@ export function registerContextTools(
       async ({ connectionSpec }, extra) => {
         const progress = createToolProgress(extra, 'Add z/OS connection');
         await progress.start();
-        let normalized: string;
-        try {
-          const parsed = parseConnectionSpec(connectionSpec.trim());
-          normalized =
-            parsed.port === 22
-              ? `${parsed.user}@${parsed.host}`
-              : `${parsed.user}@${parsed.host}:${parsed.port}`;
-        } catch (err: unknown) {
-          const message = err instanceof Error ? err.message : String(err);
+        const parsed = normalizeSpec(connectionSpec);
+        if (!parsed.ok) {
           await progress.complete('failed');
           return {
-            content: [{ type: 'text' as const, text: JSON.stringify({ error: message }) }],
+            content: [{ type: 'text' as const, text: JSON.stringify({ error: parsed.error }) }],
             isError: true,
           };
         }
+        const normalized = parsed.value;
         try {
           await addTenantNativeConnection(normalized);
         } catch (err: unknown) {
@@ -189,21 +202,15 @@ export function registerContextTools(
       async ({ connectionSpec }, extra) => {
         const progress = createToolProgress(extra, 'Remove z/OS connection');
         await progress.start();
-        let normalized: string;
-        try {
-          const parsed = parseConnectionSpec(connectionSpec.trim());
-          normalized =
-            parsed.port === 22
-              ? `${parsed.user}@${parsed.host}`
-              : `${parsed.user}@${parsed.host}:${parsed.port}`;
-        } catch (err: unknown) {
-          const message = err instanceof Error ? err.message : String(err);
+        const parsed = normalizeSpec(connectionSpec);
+        if (!parsed.ok) {
           await progress.complete('failed');
           return {
-            content: [{ type: 'text' as const, text: JSON.stringify({ error: message }) }],
+            content: [{ type: 'text' as const, text: JSON.stringify({ error: parsed.error }) }],
             isError: true,
           };
         }
+        const normalized = parsed.value;
         try {
           await removeTenantNativeConnection(normalized);
         } catch (err: unknown) {

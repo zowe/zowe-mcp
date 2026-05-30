@@ -445,7 +445,9 @@ async function writeMeta(
   dirPath: string,
   dsn: string,
   dsorg: string,
-  extra?: Partial<MockDatasetMeta>
+  extra?: Partial<MockDatasetMeta>,
+  /** When set, writes a sidecar `${entryName}_meta.json` for a sequential data set instead of `_meta.json`. */
+  entryName?: string
 ): Promise<void> {
   const meta: MockDatasetMeta = {
     dsn,
@@ -457,7 +459,8 @@ async function writeMeta(
     creationDate: extra?.creationDate ?? '2024-03-15',
     smsClass: extra?.smsClass ?? { data: 'STANDARD', storage: 'PRIMARY', management: 'DEFAULT' },
   };
-  await fs.writeFile(path.join(dirPath, '_meta.json'), JSON.stringify(meta, null, 2), 'utf-8');
+  const filename = entryName ? `${entryName}_meta.json` : '_meta.json';
+  await fs.writeFile(path.join(dirPath, filename), JSON.stringify(meta, null, 2), 'utf-8');
 }
 
 async function generateUserDatasets(
@@ -654,7 +657,7 @@ async function generateLargeSequentialDataset(sysDir: string, hlq: string): Prom
   // Line 2100: Star Wars character for read-pagination evals (answer on third page, 2001–2200)
   largeLines[2099] = 'LUKE SKYWALKER';
   await fs.writeFile(path.join(hlqDir, entryName), largeLines.join('\n') + '\n', 'utf-8');
-  await writeMetaFile(hlqDir, entryName, dsn, 'PS');
+  await writeMeta(hlqDir, dsn, 'PS', undefined, entryName);
 }
 
 // ---------------------------------------------------------------------------
@@ -698,27 +701,6 @@ function generateUniquePeopleNames(
   return result;
 }
 
-async function writeMetaFile(
-  hlqDir: string,
-  entryName: string,
-  dsn: string,
-  dsorg: string,
-  extra?: Partial<MockDatasetMeta>
-): Promise<void> {
-  const meta: MockDatasetMeta = {
-    dsn,
-    dsorg,
-    recfm: extra?.recfm ?? 'FB',
-    lrecl: extra?.lrecl ?? 80,
-    blksz: extra?.blksz ?? 27920,
-    volser: extra?.volser ?? 'VOL001',
-    creationDate: extra?.creationDate ?? '2024-03-15',
-    smsClass: extra?.smsClass ?? { data: 'STANDARD', storage: 'PRIMARY', management: 'DEFAULT' },
-  };
-  const metaPath = path.join(hlqDir, `${entryName}_meta.json`);
-  await fs.writeFile(metaPath, JSON.stringify(meta, null, 2), 'utf-8');
-}
-
 /**
  * Generate USER.PEOPLE.firstname.lastname PS data sets (configurable count).
  * Names are unique, English, no special characters, first and last each ≤8 chars.
@@ -738,7 +720,7 @@ async function generatePeopleDatasets(
     const dsn = `${hlq}.${entryName}`;
     const filePath = path.join(hlqDir, entryName);
     await fs.writeFile(filePath, `* ${first} ${last}\n`, 'utf-8');
-    await writeMetaFile(hlqDir, entryName, dsn, 'PS');
+    await writeMeta(hlqDir, dsn, 'PS', undefined, entryName);
   }
 }
 

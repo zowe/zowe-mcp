@@ -37,6 +37,7 @@ import {
   wrapResponse,
   type ResponseContext,
 } from '../response.js';
+import { ensureContext, errorResult } from '../tool-utils.js';
 import {
   downloadDatasetToFileOutputSchema,
   downloadJobFileToFileOutputSchema,
@@ -57,16 +58,6 @@ export interface LocalFileToolDeps {
   mcpServer: McpServer;
   /** Directories allowed when MCP roots are missing (env / CLI). */
   localFilesFallbackDirectories: string[];
-}
-
-async function ensureContext(
-  deps: Pick<LocalFileToolDeps, 'sessionState' | 'credentialProvider'>,
-  systemId: string,
-  userId?: string
-): Promise<void> {
-  if (deps.sessionState.getContext(systemId)) return;
-  const credentials = await deps.credentialProvider.getCredentials(systemId, userId);
-  deps.sessionState.setActiveSystem(systemId, credentials.user);
 }
 
 async function resolveDatasetToolInput(
@@ -115,16 +106,6 @@ async function resolveLocalPathForTool(
   });
 }
 
-function errorResult(message: string): {
-  content: { type: 'text'; text: string }[];
-  isError: true;
-} {
-  return {
-    content: [{ type: 'text' as const, text: JSON.stringify({ error: message }) }],
-    isError: true,
-  };
-}
-
 function localFileContext(
   systemId: string,
   resolved: { absolutePath: string; rootUri: string; source: 'mcp' | 'fallback' }
@@ -143,6 +124,75 @@ export function registerLocalFileTools(
   logger: Logger
 ): void {
   const log = logger.child('local-files');
+
+  /** Returns an error result when `absolutePath` already exists and `overwrite` is not true. */
+  async function guardOverwrite(
+    absolutePath: string,
+    overwrite: boolean | undefined
+  ): Promise<ReturnType<typeof errorResult> | null> {
+    try {
+      await fs.access(absolutePath);
+      if (!overwrite) {
+        return errorResult(
+          'Local file already exists. Pass overwrite: true to replace it, or choose a different localPath.'
+        );
+      }
+    } catch {
+      // file does not exist — ok
+    }
+    return null;
+  }
+
+  interface UssCtx {
+    systemId: string;
+    userId: string | undefined;
+    effectiveCwd: string | undefined;
+    resolvedUssPath: string;
+    enc: string;
+  }
+
+  /** Resolves system, USS cwd, path, and encoding for a USS file tool. */
+  async function resolveUssCtx(
+    system: string | undefined,
+    pathArg: string,
+    encoding: string | undefined
+  ): Promise<UssCtx> {
+    const { systemId, userId: resolvedUserId } = resolveSystemForTool(
+      deps.systemRegistry,
+      deps.sessionState,
+      system
+    );
+    await ensureContext(deps, systemId, resolvedUserId);
+    const sessionCtx = deps.sessionState.getContext(systemId);
+    const effectiveCwd = sessionCtx?.ussCwd ?? sessionCtx?.ussHome;
+    const resolvedUssPath = resolveUssPath(pathArg, effectiveCwd);
+    const enc = resolveDatasetEncoding(
+      encoding,
+      sessionCtx?.mainframeUssEncoding,
+      deps.encodingOptions.defaultMainframeUssEncoding
+    );
+    return { systemId, userId: sessionCtx?.userId, effectiveCwd, resolvedUssPath, enc };
+  }
+
+  /** Builds the merged USS + local-file response context. */
+  function buildUssLocalCtx(
+    systemId: string,
+    pathArg: string,
+    resolvedUssPath: string,
+    effectiveCwd: string | undefined,
+    localResolved: Awaited<ReturnType<typeof resolveLocalPathForTool>>
+  ): ResponseContext {
+    const pathDisplay = relativizeForDisplay(resolvedUssPath, effectiveCwd);
+    const baseCtx = buildContext(systemId, {
+      resolvedPath: resolvedUssPath !== pathArg.trim() ? pathDisplay : undefined,
+    });
+    return {
+      ...baseCtx,
+      resolvedLocalPath: localResolved.absolutePath,
+      rootUri: localResolved.rootUri,
+      rootsSource: localResolved.source,
+    } as ResponseContext;
+  }
 
   server.registerTool(
     'downloadDatasetToFile',
@@ -175,16 +225,10 @@ export function registerLocalFileTools(
       await progress.start();
       try {
         const localResolved = await resolveLocalPathForTool(deps, localPath);
-        try {
-          await fs.access(localResolved.absolutePath);
-          if (!overwrite) {
-            await progress.complete('File exists');
-            return errorResult(
-              'Local file already exists. Pass overwrite: true to replace it, or choose a different localPath.'
-            );
-          }
-        } catch {
-          // does not exist — ok
+        const overwriteErr = await guardOverwrite(localResolved.absolutePath, overwrite);
+        if (overwriteErr) {
+          await progress.complete('File exists');
+          return overwriteErr;
         }
 
         const resolved = await resolveDatasetToolInput(deps, dsn, member, system, log);
@@ -348,33 +392,17 @@ export function registerLocalFileTools(
       await progress.start();
       try {
         const localResolved = await resolveLocalPathForTool(deps, localPath);
-        try {
-          await fs.access(localResolved.absolutePath);
-          if (!overwrite) {
-            await progress.complete('File exists');
-            return errorResult(
-              'Local file already exists. Pass overwrite: true to replace it, or choose a different localPath.'
-            );
-          }
-        } catch {
-          // ok
+        const overwriteErr = await guardOverwrite(localResolved.absolutePath, overwrite);
+        if (overwriteErr) {
+          await progress.complete('File exists');
+          return overwriteErr;
         }
 
-        const { systemId, userId: resolvedUserId } = resolveSystemForTool(
-          deps.systemRegistry,
-          deps.sessionState,
-          system
+        const { systemId, userId, effectiveCwd, resolvedUssPath, enc } = await resolveUssCtx(
+          system,
+          pathArg,
+          encoding
         );
-        await ensureContext(deps, systemId, resolvedUserId);
-        const sessionCtx = deps.sessionState.getContext(systemId);
-        const effectiveCwd = sessionCtx?.ussCwd ?? sessionCtx?.ussHome;
-        const resolvedUssPath = resolveUssPath(pathArg, effectiveCwd);
-        const enc = resolveDatasetEncoding(
-          encoding,
-          sessionCtx?.mainframeUssEncoding,
-          deps.encodingOptions.defaultMainframeUssEncoding
-        );
-        const userId = sessionCtx?.userId;
         const progressCb = extra._meta?.progressToken
           ? (msg: string) => void progress.step(msg)
           : undefined;
@@ -390,17 +418,13 @@ export function registerLocalFileTools(
         await fs.writeFile(localResolved.absolutePath, text, 'utf-8');
         const bytesWritten = Buffer.byteLength(text, 'utf-8');
 
-        const pathDisplay = relativizeForDisplay(resolvedUssPath, effectiveCwd);
-        const baseCtx = buildContext(systemId, {
-          resolvedPath: resolvedUssPath !== pathArg.trim() ? pathDisplay : undefined,
-        });
-        const ctx = {
-          ...baseCtx,
-          resolvedLocalPath: localResolved.absolutePath,
-          rootUri: localResolved.rootUri,
-          rootsSource: localResolved.source,
-        } as ResponseContext;
-
+        const ctx = buildUssLocalCtx(
+          systemId,
+          pathArg,
+          resolvedUssPath,
+          effectiveCwd,
+          localResolved
+        );
         await progress.complete(`Wrote ${bytesWritten} bytes`);
         return wrapResponse(ctx, undefined, {
           bytesWritten,
@@ -438,21 +462,11 @@ export function registerLocalFileTools(
         const localResolved = await resolveLocalPathForTool(deps, localPath);
         const content = await fs.readFile(localResolved.absolutePath, 'utf-8');
 
-        const { systemId, userId: resolvedUserId } = resolveSystemForTool(
-          deps.systemRegistry,
-          deps.sessionState,
-          system
+        const { systemId, userId, effectiveCwd, resolvedUssPath, enc } = await resolveUssCtx(
+          system,
+          pathArg,
+          encoding
         );
-        await ensureContext(deps, systemId, resolvedUserId);
-        const sessionCtx = deps.sessionState.getContext(systemId);
-        const effectiveCwd = sessionCtx?.ussCwd ?? sessionCtx?.ussHome;
-        const resolvedUssPath = resolveUssPath(pathArg, effectiveCwd);
-        const enc = resolveDatasetEncoding(
-          encoding,
-          sessionCtx?.mainframeUssEncoding,
-          deps.encodingOptions.defaultMainframeUssEncoding
-        );
-        const userId = sessionCtx?.userId;
         const result = await deps.backend.writeUssFile(
           systemId,
           resolvedUssPath,
@@ -462,16 +476,13 @@ export function registerLocalFileTools(
           userId
         );
 
-        const pathDisplay = relativizeForDisplay(resolvedUssPath, effectiveCwd);
-        const baseCtx = buildContext(systemId, {
-          resolvedPath: resolvedUssPath !== pathArg.trim() ? pathDisplay : undefined,
-        });
-        const outCtx = {
-          ...baseCtx,
-          resolvedLocalPath: localResolved.absolutePath,
-          rootUri: localResolved.rootUri,
-          rootsSource: localResolved.source,
-        } as ResponseContext;
+        const outCtx = buildUssLocalCtx(
+          systemId,
+          pathArg,
+          resolvedUssPath,
+          effectiveCwd,
+          localResolved
+        );
 
         const bytesRead = Buffer.byteLength(content, 'utf-8');
         await progress.complete('Uploaded');

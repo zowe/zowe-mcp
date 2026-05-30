@@ -28,6 +28,7 @@ import {
   windowContent,
   wrapResponse,
 } from '../response.js';
+import { ensureContext, errorResult } from '../tool-utils.js';
 import { runConsoleCommandOutputSchema } from './console-output-schemas.js';
 
 const require = createRequire(import.meta.url);
@@ -37,26 +38,6 @@ let cachedPatterns: CommandPatterns | undefined;
 function getPatterns(): CommandPatterns {
   cachedPatterns ??= require('./console-command-patterns.json') as CommandPatterns;
   return cachedPatterns;
-}
-
-async function ensureContext(
-  deps: { sessionState: SessionState; credentialProvider: CredentialProvider },
-  systemId: string,
-  userId?: string
-): Promise<void> {
-  if (deps.sessionState.getContext(systemId)) return;
-  const credentials = await deps.credentialProvider.getCredentials(systemId, userId);
-  deps.sessionState.setActiveSystem(systemId, credentials.user);
-}
-
-function errorResult(message: string): {
-  content: { type: 'text'; text: string }[];
-  isError: true;
-} {
-  return {
-    content: [{ type: 'text' as const, text: JSON.stringify({ error: message }) }],
-    isError: true,
-  };
 }
 
 export interface ConsoleToolDeps {

@@ -502,6 +502,34 @@ export async function buildServerConfig(
 }
 
 /**
+ * Builds the server config and calls `vscode.cursor.mcp.registerServer`.
+ * Shared by initial registration and settings-change re-registration.
+ */
+async function applyCursorMcpRegistration(
+  context: vscode.ExtensionContext,
+  serverModule: string,
+  discoveryDir: string,
+  workspaceId: string,
+  log: ReturnType<typeof initLog>
+): Promise<void> {
+  const serverConfig = await buildServerConfig(
+    context,
+    serverModule,
+    discoveryDir,
+    workspaceId,
+    log
+  );
+  vscode.cursor.mcp.registerServer({
+    name: 'zowe',
+    server: {
+      command: serverConfig.command,
+      args: serverConfig.args,
+      env: serverConfig.env,
+    },
+  });
+}
+
+/**
  * Registers the Zowe MCP server with Cursor's MCP API when running in Cursor.
  * Sets cursorMcpRegistered on success.
  */
@@ -516,21 +544,7 @@ async function registerWithCursor(
     return;
   }
   try {
-    const serverConfig = await buildServerConfig(
-      context,
-      serverModule,
-      discoveryDir,
-      workspaceId,
-      log
-    );
-    vscode.cursor.mcp.registerServer({
-      name: 'zowe',
-      server: {
-        command: serverConfig.command,
-        args: serverConfig.args,
-        env: serverConfig.env,
-      },
-    });
+    await applyCursorMcpRegistration(context, serverModule, discoveryDir, workspaceId, log);
     cursorMcpRegistered = true;
     log.info('Registered Zowe MCP server with Cursor');
   } catch (err) {
@@ -553,21 +567,7 @@ async function updateCursorRegistration(
   }
   vscode.cursor.mcp.unregisterServer('zowe');
   try {
-    const serverConfig = await buildServerConfig(
-      context,
-      serverModule,
-      discoveryDir,
-      workspaceId,
-      log
-    );
-    vscode.cursor.mcp.registerServer({
-      name: 'zowe',
-      server: {
-        command: serverConfig.command,
-        args: serverConfig.args,
-        env: serverConfig.env,
-      },
-    });
+    await applyCursorMcpRegistration(context, serverModule, discoveryDir, workspaceId, log);
     log.info('Updated Cursor MCP server registration with new settings');
   } catch (err) {
     log.warn(`Cursor MCP re-registration failed: ${String(err)}`);

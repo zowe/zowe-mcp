@@ -348,20 +348,7 @@ function sendInitialZowexOptions(): void {
  * Called when a new server connects.
  */
 function sendInitialEncodingOptions(): void {
-  const config = vscode.workspace.getConfiguration('zoweMCP');
-  const defaultMainframeMvsEncoding = config.get<string>('defaultMainframeMvsEncoding', 'IBM-037');
-  const defaultMainframeUssEncoding = config.get<string>(
-    'defaultMainframeUssEncoding',
-    'IBM-1047'
-  );
-  sendEventToServers({
-    type: 'encoding-options-update',
-    data: {
-      defaultMainframeMvsEncoding: defaultMainframeMvsEncoding?.trim() || undefined,
-      defaultMainframeUssEncoding: defaultMainframeUssEncoding?.trim() || undefined,
-    },
-    timestamp: Date.now(),
-  } as ExtensionToServerEvent);
+  sendEncodingOptionsUpdateEvent();
 }
 
 /**

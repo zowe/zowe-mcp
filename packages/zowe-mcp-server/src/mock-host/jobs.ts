@@ -55,6 +55,42 @@ interface CounterFile {
   next: number;
 }
 
+/**
+ * Default time (ms) a normally-completing job reports ACTIVE before transitioning
+ * to OUTPUT, measured from `submittedAt`.
+ */
+const DEFAULT_JOB_ACTIVE_MS = 6000;
+
+/**
+ * How long a normally-completing job lingers in ACTIVE before OUTPUT. Override with
+ * `ZOWE_MCP_MOCK_JOB_ACTIVE_MS`; set to `0` for legacy instant-OUTPUT behavior.
+ * Read per call so the daemon's environment governs it.
+ */
+function jobActiveDurationMs(): number {
+  const raw = process.env.ZOWE_MCP_MOCK_JOB_ACTIVE_MS;
+  if (raw === undefined || raw.trim() === '') return DEFAULT_JOB_ACTIVE_MS;
+  const n = Number(raw);
+  return Number.isFinite(n) && n >= 0 ? n : DEFAULT_JOB_ACTIVE_MS;
+}
+
+/**
+ * Apply the time-based lifecycle view to a stored job. A normally-completing job
+ * (non-held, non-canceled, status OUTPUT) reports ACTIVE/EXECUTING with no retcode
+ * until {@link jobActiveDurationMs} has elapsed since submit, then its stored
+ * OUTPUT/retcode. Held and canceled jobs are returned unchanged. This makes the
+ * job lifecycle observable to clients that poll getJobStatus (e.g. MCP progress
+ * notifications during a submitJob wait) without any background timer — the view
+ * is computed purely from `submittedAt`, so it survives daemon restarts.
+ */
+function withLifecycle(meta: JobMeta): JobMeta {
+  if (meta.held || meta.status !== 'OUTPUT' || meta.retcode === 'CANCELED') return meta;
+  const activeMs = jobActiveDurationMs();
+  if (activeMs <= 0) return meta;
+  const submitted = Date.parse(meta.submittedAt);
+  if (!Number.isFinite(submitted) || Date.now() - submitted >= activeMs) return meta;
+  return { ...meta, status: 'ACTIVE', retcode: undefined, phase: 10, phaseName: 'EXECUTING' };
+}
+
 async function pathExists(p: string): Promise<boolean> {
   try {
     await fs.access(p);
@@ -201,7 +237,7 @@ export class MockJobStore {
   async getStatus(systemId: string, jobId: string): Promise<JobMeta> {
     const metaPath = path.join(this.jobDir(systemId, jobId), 'meta.json');
     if (!(await pathExists(metaPath))) throw ZosErrors.jobNotFound(jobId);
-    return JSON.parse(await fs.readFile(metaPath, 'utf-8')) as JobMeta;
+    return withLifecycle(JSON.parse(await fs.readFile(metaPath, 'utf-8')) as JobMeta);
   }
 
   async list(
@@ -219,7 +255,7 @@ export class MockJobStore {
         const meta = JSON.parse(await fs.readFile(metaPath, 'utf-8')) as JobMeta;
         if (opts.owner && meta.owner !== opts.owner.toUpperCase()) continue;
         if (opts.prefix && !meta.name.startsWith(opts.prefix.toUpperCase())) continue;
-        out.push(meta);
+        out.push(withLifecycle(meta));
       } catch {
         /* skip */
       }

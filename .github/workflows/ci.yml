@@ -68,6 +68,9 @@ jobs:
       - name: Download VS Code API types
         run: npm run download-api -w packages/zowe-mcp-vscode
 
+      - name: Lint Markdown
+        run: npm run lint:md
+
       - name: Build (common + server)
         run: |
           npm run build -w packages/zowe-mcp-common

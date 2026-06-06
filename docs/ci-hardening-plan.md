@@ -136,7 +136,9 @@ locally before Phase 1+ consumes them.
   the rest and manually fixed the residue: escaped literal `|` inside table
   cells (`MD056`) and added languages to 14 code fences (`MD040`). Added the
   check-only `lint:md` script and renamed the mutating one to `markdownlint:fix`.
-  Result: **0 errors across 61 files.** (CI enforcement is wired in Phase 2.)
+  Result: **0 errors across 61 files.** Since the tree is clean, `lint:md` is
+  also **enforced in CI** in this PR (a step in the `build` job, before build so
+  it fails fast) — covered by the existing required `build` check.
 
 ## Phase 1 — Harden the existing job
 
@@ -153,7 +155,7 @@ No new tools; make `ci.yml` robust.
 Each as its own job/step so failures are legible.
 
 - [ ] **Format**: `npm run check-format` (Prettier + shfmt `--check`).
-- [ ] **Markdown**: `npm run lint:md`.
+- [x] **Markdown**: `npm run lint:md` — enforced in the `build` job (PR-1b).
 - [ ] **Duplication**: `npm run duplication` (jscpd, 5% threshold).
 - [ ] **Typecheck**: `npm run typecheck`.
 - [ ] **Lint**: keep `npm run lint` (`--max-warnings 0`); optionally emit ESLint

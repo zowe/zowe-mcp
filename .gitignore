@@ -65,7 +65,8 @@ coverage/
 !resources/zowex-sdk-*.tgz
 !resources/znp-sdk-fallback.tgz
 
-# z/OSMF OpenAPI specs downloaded from a live server (not committed)
+# z/OSMF OpenAPI specs downloaded from a live server: IBM-owned, must never be committed
+# (obtain locally via `npm run zosmf:download-specs`)
 resources/zosmf/zos-*/
 resources/zosmf/zosmf-*/
 resources/zosmf/unknown-version/

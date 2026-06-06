@@ -113,7 +113,7 @@ Same concept as current `prepare.ts` but simplified:
 
 ### Architecture
 
-```
+```text
 packages/zowe-mcp-e2e/
   package.json              # devDeps: @playwright/test, @vscode/test-electron
   playwright.config.ts      # Playwright config (timeout, retries, output)
@@ -139,7 +139,7 @@ packages/zowe-mcp-e2e/
 
 ### Test flow (copilot-demo.spec.ts)
 
-```
+```ts
 test('Copilot lists datasets via Zowe MCP', async ({ page }) => {
   // 1. Wait for VS Code to load
   await page.waitForSelector('.monaco-workbench');

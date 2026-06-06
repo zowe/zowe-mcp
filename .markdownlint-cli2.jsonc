@@ -1,7 +1,20 @@
 {
-  "ignores": ["presentations/**/*.md"],
+  // Lint all Markdown in the repo. Without globs, markdownlint-cli2 lints
+  // nothing, so both `lint:md` (check) and `markdownlint:fix` rely on these.
+  "globs": ["**/*.md"],
+  // Respect .gitignore (skips node_modules, dist, evals-report, etc.).
+  "gitignore": true,
+  "ignores": [
+    "presentations/**/*.md", // slide decks (not prose)
+    "**/themes/**", // generated theme docs (e.g. FILE_ICONS.md)
+    "vendor/**", // vendored upstream docs (not ours to lint)
+    ".claude/**", // local agent worktrees/scratch
+  ],
   "config": {
-    "MD013": false,
-    "MD033": false,
+    "MD013": false, // line length: prose wraps vary, not enforced
+    "MD033": false, // inline HTML: used intentionally in docs
+    "MD024": { "siblings_only": true }, // allow repeated headings across sections
+    "MD036": false, // bold used as inline labels (Notes:/Tips:/Question:) intentionally
+    "MD060": false, // table pipe spacing: cosmetic, not auto-fixable, formatted separately
   },
 }

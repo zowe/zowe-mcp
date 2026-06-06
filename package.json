@@ -27,6 +27,7 @@
     "inspector": "npx @modelcontextprotocol/inspector node packages/zowe-mcp-server/dist/index.js --stdio",
     "lint:fix": "eslint --fix \"packages/**/*.ts\" --max-warnings 0",
     "lint": "eslint \"packages/**/*.ts\" --max-warnings 0",
+    "typecheck": "npm run build -w packages/zowe-mcp-common && npm run build -w @zowe/mcp-server && npm run typecheck --workspaces --if-present",
     "markdownlint": "markdownlint-cli2 --fix",
     "test:all": "npm run test --workspaces",
     "test:server": "npm run test -w @zowe/mcp-server",

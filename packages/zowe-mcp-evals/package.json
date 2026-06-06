@@ -6,6 +6,7 @@
   "main": "dist/run.js",
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.build.json --noEmit",
     "evals": "node dist/run.js",
     "list-eval-models": "node dist/list-eval-models.js",
     "smoke:gemini-zowe-mcp": "node dist/gemini-zowe-mcp-smoke.js",

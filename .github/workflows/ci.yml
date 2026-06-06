@@ -39,10 +39,23 @@ jobs:
         with:
           node-version-file: '.nvmrc'
 
-      - name: Download zowex-sdk (Zowe Remote SSH)
+      # Default path (push / PR / dispatch with fallback): install strictly from
+      # the committed lockfile, which already pins the fallback zowex-sdk. Use
+      # --ignore-scripts because the prebuilt zowex-sdk tarball ships no build
+      # step and other deps' install scripts are not needed here (VS Code API
+      # types are fetched explicitly below).
+      - name: Install dependencies (npm ci)
+        if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.sdk-mode != 'fallback') }}
+        run: npm ci --ignore-scripts
+
+      # Custom SDK source (manual dispatch only): sdk-switch rewrites the server
+      # dependency to the chosen tarball and runs its own install, so npm ci is
+      # skipped on this path.
+      - name: Switch zowex-sdk and install (custom SDK mode)
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.sdk-mode != 'fallback' }}
         env:
           GH_TOKEN: ${{ github.token }}
-        run: node scripts/sdk-switch.js ${{ inputs.sdk-mode || 'fallback' }} ${{ inputs.sdk-arg }}
+        run: node scripts/sdk-switch.js ${{ inputs.sdk-mode }} ${{ inputs.sdk-arg }}
 
       - name: Environment info
         run: |

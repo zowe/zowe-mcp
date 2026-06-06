@@ -99,20 +99,42 @@ type-check independent of build. There is **no** `npm audit`, **no** CodeQL,
 
 ## Phase 0 — Make scripts CI-safe (prerequisite)
 
-Small `package.json` / config changes; no workflow edits yet. Verify each runs
+Small `package.json` / config changes plus the `npm ci` switch. Verify each runs
 locally before Phase 1+ consumes them.
 
-- [ ] **Add a check-only markdown script.** Add
-  `"lint:md": "markdownlint-cli2 \"**/*.md\" \"#node_modules\""` (no `--fix`);
-  rename the mutating one to `markdownlint:fix`.
-- [ ] **Add a typecheck script** independent of emit, e.g.
-  `"typecheck": "tsc -b --noEmit"` (or per-workspace `--noEmit`).
-- [ ] **Clean up jscpd output.** Stop committing `report/jscpd-report.json`
-  (`git rm --cached` + gitignore); run CI with `--reporters console` (still
-  fails past the 5% threshold).
-- [ ] **Decide `npm ci` vs `--ignore-scripts`.** Introduce an explicit `npm ci`
-  in CI for lockfile-reproducible installs and run the vscode `download-api`
-  step explicitly (already invoked in `ci.yml`). Document the choice.
+**Done in PR-1:**
+
+- [x] **Add a typecheck script.** Per-package `"typecheck": "tsc -p … --noEmit"`
+  (each package's dev `tsconfig.json`, so tests/scripts are checked too) plus a
+  root aggregator `"typecheck": "npm run build -w …common && npm run build -w
+  @zowe/mcp-server && npm run typecheck --workspaces --if-present"`. The root
+  script builds the two library packages first because cross-package types
+  resolve via built `dist` (no tsconfig path mappings).
+- [x] **Clean up jscpd output.** `.jscpd.json` reporters set to `["console"]`
+  only (still fails past the 5% threshold); `report/jscpd-report.json`
+  untracked via `git rm --cached` (it was tracked despite already being in
+  `.gitignore`).
+- [x] **Switch CI to `npm ci`.** Default path (push / PR / `fallback` dispatch)
+  now runs `npm ci --ignore-scripts` for lockfile-reproducible installs — the
+  committed lockfile already pins the fallback `zowex-sdk`, so `sdk-switch` is
+  no longer run on the normal path (and no longer mutates the lockfile in CI).
+  `sdk-switch` still runs for manual dispatch with a non-fallback SDK mode.
+  `--ignore-scripts` is kept (the prebuilt `zowex-sdk` tarball has no build
+  step); the VS Code API types are still fetched by the explicit `download-api`
+  step.
+
+**Split into its own follow-up PR (PR-1b):**
+
+- [ ] **Markdown lint (`lint:md`).** Deferred because the existing `markdownlint`
+  script (`markdownlint-cli2 --fix` with **no globs**) is a silent **no-op** —
+  it lints 0 files, so markdown has never actually been gated. Adding real globs
+  surfaces a backlog of **~681 errors across ~10 tracked docs** (most
+  auto-fixable: MD060/MD004/MD032/MD022/MD031; some manual: MD024 duplicate
+  headings, MD040 code-fence languages, MD041, MD045). This needs a focused
+  cleanup PR: fix `.markdownlint-cli2.jsonc` (add `globs` + `gitignore: true`,
+  ignore `themes/**`), auto-fix, clear the residue, then add the check-only
+  `lint:md` script. Generated/ignored trees (`evals-report/**`,
+  `.claude/**`, `presentations/**`) are excluded.
 
 ## Phase 1 — Harden the existing job
 

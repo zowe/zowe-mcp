@@ -49,7 +49,7 @@ catalog so a single set of fixtures gates both transports identically.
 | **SSH protocol** | Password + publickey auth; pre-auth banner; pinned `SSH-2.0-OpenSSH_7.6p1` ident; FOTS-coded disconnect messages (`FOTS1373` wrong password, `FOTS1668` expired, `FOTS0830` max attempts, `ICH408I` RACF revoked). |
 | **SFTP subsystem** | Just enough to accept `fastPut` of `server.pax.Z` (the upload zowex-sdk does on first connect). Bytes are discarded; a sha256 + size is recorded to `_ssh/last_upload.json`. |
 | **Exec channels** | `~/.zowe-server/zowex server` → JSON-RPC dispatcher. `pax -rzf server.pax.Z` → silent RC=0. `cat > /tmp/zrs-pipe-*` / `cat /tmp/zrs-pipe-*` → in-memory streaming for large reads/writes. Anything else → USS shell interpreter. |
-| **Shell channel** | Interactive prompt `USER1:/u/user1>`; MOTD with last-login + `/etc/motd`; line-oriented USS commands (`pwd ls cat cd mkdir rm cp mv chmod echo head tail grep wc uname id whoami env exit` plus pipes/redirects/`&&`/`||`). |
+| **Shell channel** | Interactive prompt `USER1:/u/user1>`; MOTD with last-login + `/etc/motd`; line-oriented USS commands (`pwd ls cat cd mkdir rm cp mv chmod echo head tail grep wc uname id whoami env exit` plus pipes/redirects/`&&`/`\|\|`). |
 | **RPC methods (over `zowex server`)** | Datasets (list, listMembers, read/write, create, delete, copy, rename, getAttributes, toolSearch). USS (listFiles, readFile, writeFile, createFile, deleteFile, chmodFile, chownFile, chtagFile, copyUss, moveFile, unixCommand). Jobs (submitJob, submitJcl, submitUss, getJobStatus, listJobs, listSpools, readSpool, getJcl, cancelJob, holdJob, releaseJob, deleteJob). TSO (tsoCommand). Core (getInfo). |
 | **Realistic output** | `uname -a` → `OS/390 SY1 28.00 03 8561 9672`. `id` → `uid=12345(USER1) gid=10(STCGROUP) groups=...`. Job spool files mimic JES2 (`IEF236I`, `IEF142I`, `IEF033I`, `IRR010I`). Errors use IBM message IDs (`IDC3012I`, `EDC5129I`, `ICH408I`, `IEFC452I` ...). |
 
@@ -79,7 +79,7 @@ node packages/zowe-mcp-server/dist/index.js mock-zos gen-fixtures \
 
 `gen-fixtures` creates:
 
-```
+```text
 ~/mock-zos/
   systems.json                  # compatible with FilesystemMockBackend, too
   _ssh/host_key, host_key.pub   # RSA-3072 (generated on first start)
@@ -117,7 +117,7 @@ echo $! > /tmp/mock-zos.pid
 
 The startup line on stderr:
 
-```
+```text
 Mock z/OS SSH host listening on 127.0.0.1:4022 (mockDir=/Users/petr/mock-zos)
 ```
 
@@ -143,7 +143,7 @@ ssh USER1@127.0.0.1 -p 4022
 
 You'll see a z/OS-style session:
 
-```
+```text
 *****************************************************************
 *                  Zowe Mock z/OS SSH Host                      *
 *                       https://zowe.org                        *
@@ -159,6 +159,7 @@ USER1:/u/user1>
 ```
 
 > **Customize the banner.** The daemon reads the pre-auth banner in this order:
+>
 > 1. `--banner /path/to/file` (CLI override)
 > 2. `<mockDir>/_ssh/banner.txt` (per-mock-dir, written by `gen-fixtures`)
 > 3. Built-in default (the Zowe banner above)
@@ -467,7 +468,7 @@ zowe-mcp-server mock-zos start \
 
 stderr now prints both listener lines on startup:
 
-```
+```text
 Mock z/OS host (SSH) listening on 127.0.0.1:4022 (mockDir=/Users/you/mock-zos)
 Mock z/OS host (z/OSMF HTTP) listening on http://127.0.0.1:8443 (mockDir=/Users/you/mock-zos)
 ```
@@ -683,7 +684,7 @@ Response (`200 OK`):
 `mock-zos start --verbose` flips on full request + response logging at the
 z/OSMF listener:
 
-```
+```text
 [info] [mock-zosmf] --> GET /zosmf/restfiles/ds/USER1.SAMPLE.COBOL/member HTTP/1.1
 [info] [mock-zosmf]     > host: 127.0.0.1:8499
 [info] [mock-zosmf]     > user-agent: curl/8.7.1
@@ -727,7 +728,7 @@ Every finished z/OSMF HTTP request leaves two trails:
    request-time suffix. Severity is bumped automatically: `info` for 2xx/3xx,
    `warn` for 4xx, `error` for 5xx:
 
-   ```
+   ```text
    [info] [mock-zosmf] 127.0.0.1 - USER1 [29/May/2026:01:13:16 +0200] "GET /zosmf/restfiles/ds?dslevel=USER1.* HTTP/1.1" 200 563 "-" "curl/8.7.1" 10ms
    [info] [mock-zosmf] 127.0.0.1 - USER1 [29/May/2026:01:13:16 +0200] "GET /zosmf/restfiles/ds/USER1.NOTES.TXT HTTP/1.1" 200 37 "-" "curl/8.7.1" 2ms
    [warn] [mock-zosmf] 127.0.0.1 - - [29/May/2026:01:13:16 +0200] "GET /zosmf/info HTTP/1.1" 401 0 "-" "Zowe-Explorer/3.0.0" 1ms
@@ -866,7 +867,7 @@ commit the key file somewhere and point each user at it via
 
 ## Directory layout
 
-```
+```text
 ~/mock-zos/
 ├── systems.json                       # legacy/shared catalog (also FilesystemMockBackend)
 ├── _ssh/
@@ -914,7 +915,7 @@ on the next call.
 | MCP server `--native` hangs after `Authenticated USER1` | RPC dispatch never starts. Run the daemon with `--log-level debug` and check for `EXEC ~/.zowe-server/zowex server` and `RPC ready`. If those don't appear, the SDK isn't asking for the exec channel — verify your dist matches the daemon (rebuild both). |
 | `call-tool` returns immediately but waits ~30 s before exiting | Old build of `call-tool.ts`. The current version calls `process.exit(0)` after work completes. Rebuild. |
 | `Tool runConsoleCommand not found` | Expected. The MCP server intentionally does not register the tool (the real zowex server doesn't dispatch `consoleCommand`). The mock daemon handles the wire RPC for direct testing, but the MCP server tool is disabled. |
-| Tool returns `Input validation error … expected string for 'mode'` | Numeric coercion. Pass `mode:str=644` or rely on the `mode|perms|permissions|umask` heuristic (which keeps octal-looking strings). |
+| Tool returns `Input validation error … expected string for 'mode'` | Numeric coercion. Pass `mode:str=644` or rely on the `mode\|perms\|permissions\|umask` heuristic (which keeps octal-looking strings). |
 | Tool returns `Input validation error … expected array for 'lines'` | Pass as JSON: `'lines=["a","b"]'`. Or read from stdin: `'lines:json=@-'`. |
 | `pkill -f mock-zos` doesn't kill it | Use the exact PID file you saved on start, or `lsof -nP -iTCP:4022 -sTCP:LISTEN` to find the listener. |
 

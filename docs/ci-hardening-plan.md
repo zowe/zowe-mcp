@@ -123,18 +123,20 @@ locally before Phase 1+ consumes them.
   step); the VS Code API types are still fetched by the explicit `download-api`
   step.
 
-**Split into its own follow-up PR (PR-1b):**
+**Done in PR-1b (markdownlint cleanup):**
 
-- [ ] **Markdown lint (`lint:md`).** Deferred because the existing `markdownlint`
-  script (`markdownlint-cli2 --fix` with **no globs**) is a silent **no-op** —
-  it lints 0 files, so markdown has never actually been gated. Adding real globs
-  surfaces a backlog of **~681 errors across ~10 tracked docs** (most
-  auto-fixable: MD060/MD004/MD032/MD022/MD031; some manual: MD024 duplicate
-  headings, MD040 code-fence languages, MD041, MD045). This needs a focused
-  cleanup PR: fix `.markdownlint-cli2.jsonc` (add `globs` + `gitignore: true`,
-  ignore `themes/**`), auto-fix, clear the residue, then add the check-only
-  `lint:md` script. Generated/ignored trees (`evals-report/**`,
-  `.claude/**`, `presentations/**`) are excluded.
+- [x] **Markdown lint (`lint:md`).** The old `markdownlint` script
+  (`markdownlint-cli2 --fix` with **no globs**) was a silent **no-op** (linted
+  0 files), so markdown was never gated. Fixed `.markdownlint-cli2.jsonc` (added
+  `globs`, `gitignore: true`, ignored `themes/**` / `vendor/**` / `.claude/**`),
+  which dropped the backlog from ~681 to ~206. Disabled cosmetic/noisy rules
+  (`MD060` table pipe spacing — not auto-fixable; `MD036` intentional bold
+  labels) and set `MD024` to `siblings_only`. Scoped `MD041` off for
+  `.github/**` templates via a nested `.github/.markdownlint.jsonc`. Auto-fixed
+  the rest and manually fixed the residue: escaped literal `|` inside table
+  cells (`MD056`) and added languages to 14 code fences (`MD040`). Added the
+  check-only `lint:md` script and renamed the mutating one to `markdownlint:fix`.
+  Result: **0 errors across 61 files.** (CI enforcement is wired in Phase 2.)
 
 ## Phase 1 — Harden the existing job
 

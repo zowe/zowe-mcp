@@ -111,6 +111,7 @@ The fix surfaced the real leaderboard. Pre-fix, the spread between top and botto
 Beyond the now-fixed capability-tier bug, these patterns hold all three models back:
 
 ### 1. Pagination flow (all 3 models weak)
+
 - `pagination`: 27.5–32.5% (was 17.5–67.5%)
 - `search-pagination`: 0–55% — almost universally weak
 - `read-pagination`: 80–95% — strongest of the three pagination sets
@@ -118,18 +119,21 @@ Beyond the now-fixed capability-tier bug, these patterns hold all three models b
 Models don't reliably page through results. This is a *real* model weakness, not an eval-design bug; the sets are correctly discriminating.
 
 ### 2. `readDataset` argument-form mismatch
+
 - Assertion expects `validDsn: "USER.SRC.COBOL(CUSTFILE)"` (combined form)
 - Models call with `dsn: "USER.SRC.COBOL", member: "CUSTFILE"` (separate fields — also valid in the tool schema)
 
 **Fix:** Make `validDsn` matcher accept either form, OR add `dsn`+`member` as an `oneOf` alternative in the affected assertions.
 
 ### 3. DSN-pattern wildcard expectations
+
 - 19 failures where agent uses `dsnPattern: "USER.*"` but assertion wants `USER.**` (or vice versa)
 - Affects naming-stress, description-quality, pagination sets
 
 **Fix:** Broaden the pattern accept lists.
 
 ### 4. USS step-ordering rigidity in `uss-write-temp-read-cleanup`
+
 - Assertion demands `getUssTempDir` as exact step 1
 - Some agents skip it and use a known temp path
 - 32 failures pre-fix, still present post-fix
@@ -137,6 +141,7 @@ Models don't reliably page through results. This is a *real* model weakness, not
 **Fix:** Make step 1 optional or alternative.
 
 ### 5. Prompt-clarity for "from line 20"
+
 - Models interpret "starting at line 20" inconsistently (some pick 20, some pick 31 or 42)
 - Affects readDataset paginated reads
 

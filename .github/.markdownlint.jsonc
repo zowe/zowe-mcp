@@ -1,0 +1,5 @@
+{
+  // GitHub issue/PR templates are fragments that intentionally start with a
+  // section heading (## ...) or comment, not a top-level H1.
+  "MD041": false,
+}

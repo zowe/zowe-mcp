@@ -178,7 +178,7 @@ Server tests are organized into **common** (parameterized) and **transport-speci
 
 - **Auto-formatted by Cursor hook**: `.cursor/hooks/format.sh` runs automatically after every Agent and Tab file edit. For `.ts`/`.mts` it first runs ESLint `--fix` (to insert the license header if missing), then Prettier. `.js`/`.mjs`/`.cjs`/`.json`/`.jsonc`/`.yaml`/`.yml`/`.css`/`.html` get Prettier. `.sh`/`.bash` get `node scripts/shfmt-write.mjs`. Markdown files get markdownlint-cli2. No manual formatting needed during development.
 - **License header**: Every `.ts` file must begin with the EPL-2.0 block comment. ESLint (`eslint-plugin-headers`) enforces this via `eslint.config.mjs` and auto-fixes with `--fix`. You do not need to manually add the header — the hook does it for you.
-- **Manual formatting**: Run `npm run format` to format Prettier-covered types and all tracked shell scripts (`shfmt-write.mjs`), `npm run check-format` to verify, or `npm run markdownlint <file>` for Markdown.
+- **Manual formatting**: Run `npm run format` to format Prettier-covered types and all tracked shell scripts (`shfmt-write.mjs`), `npm run check-format` to verify. For Markdown, `npm run lint:md` checks all docs and `npm run markdownlint:fix <file>` auto-fixes.
 - **Manual linting**: Run `npm run lint` to check all ESLint rules (type-checked + license headers), `npm run lint:fix` to auto-fix.
 - **Config**: `.prettierrc.json` at the repo root. Uses `prettier-plugin-organize-imports` to auto-sort imports. `eslint.config.mjs` at the repo root for license header enforcement.
 - **Ignored files**: See `.prettierignore`. Markdown files are excluded from Prettier (handled by markdownlint instead). Build artifacts (`.vscode-test/`, `dist/`, `out/`, `server/`) are excluded from ESLint.
@@ -377,7 +377,8 @@ The project uses a data-driven approach to validate tool definition changes. Eve
 | `npm run format` | Prettier on TS/MTS/JS/MJS/CJS/JSON/JSONC/YAML/CSS/HTML; shfmt on tracked `.sh`/`.bash` |
 | `npm run check-format` | Same checks without modifying files |
 | `npm run duplication` | Scan all packages for code duplication using jscpd (config: `.jscpd.json`). Exits non-zero if duplication exceeds threshold. |
-| `npm run markdownlint <file>` | Fix markdown lint issues |
+| `npm run lint:md` | Check all Markdown (CI-style gate) |
+| `npm run markdownlint:fix <file>` | Auto-fix markdown lint issues |
 | `npx @zowe/mcp-server init-mock --output <dir>` | Generate mock data directory |
 | `npm run eval-compare` | Run eval-compare: evals across models with auto-scoreboard update. Options after `--`: `--set`, `--model`, `--label`, `--repetitions`, `--system-prompt-addition`, `--no-cache`. Results in `evals-report/` and `docs/eval-scoreboard.md`. Cached LLM results in `.evals-cache/` are reused by default; `--no-cache` forces fresh calls. |
 | `npm run evals` | Run AI evals from repo root (requires `evals.config.json` at root; pass options after `--`: `--set`, `--model <id>`, `--number`, `--id`, `--filter`) |

@@ -29,23 +29,11 @@ import {
   spawnMockZos,
   type SpawnedMockZos,
 } from './helpers/spawn-mock-zos.js';
+// Use the production response types (not a local duplicate) so the test stays
+// in sync with the z/OSMF wire shape the server actually emits.
+import type { ZosmfDataSetListResponse } from '../src/mock-host/zosmf/response.js';
 
 const RESTFILES_DS = '/zosmf/restfiles/ds';
-
-interface ZosmfDataSetItem {
-  dsname: string;
-  dsorg?: string;
-  recfm?: string;
-  lrecl?: number;
-  blksz?: number;
-  vol?: string;
-}
-
-interface ZosmfDataSetListResponse {
-  items: ZosmfDataSetItem[];
-  returnedRows: number;
-  JSONversion: number;
-}
 
 interface ZosmfErrorBody {
   rc: number;

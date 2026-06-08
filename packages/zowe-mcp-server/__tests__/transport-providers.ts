@@ -23,7 +23,7 @@ import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { ChildProcess, fork } from 'node:child_process';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createServer } from '../src/server.js';
+import { createServer, getServer } from '../src/server.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const serverPath = resolve(__dirname, '..', 'dist', 'index.js');
@@ -51,7 +51,7 @@ export function createInMemoryProvider(): TransportProvider {
   return {
     name: 'in-memory',
     async setup() {
-      const server = createServer({ logToolCalls: true, capabilityTier: 'full' });
+      const server = getServer(createServer({ logToolCalls: true, capabilityTier: 'full' }));
       const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
 
       client = new Client({ name: 'test-client', version: '1.0.0' });

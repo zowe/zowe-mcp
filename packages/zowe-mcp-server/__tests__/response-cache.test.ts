@@ -543,7 +543,7 @@ describe('Response cache', () => {
 
   describe('Cache invalidation after mutations', () => {
     function setupServerWithCountingBackend(): {
-      server: ReturnType<typeof createServer>;
+      server: ReturnType<typeof getServer>;
       client: Client;
       countingBackend: CountingBackend;
     } {

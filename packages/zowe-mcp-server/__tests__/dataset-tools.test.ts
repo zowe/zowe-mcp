@@ -34,6 +34,7 @@ import { filterDatasetFields } from '../src/tools/datasets/dataset-tools.js';
 import type {
   ListResultMeta,
   ReadResultMeta,
+  SearchResultMeta,
   ToolResponseEnvelope,
 } from '../src/tools/response.js';
 import type { CredentialProvider } from '../src/zos/credentials.js';

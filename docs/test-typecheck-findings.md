@@ -80,20 +80,31 @@ runtime (unused methods are never called), but `tsc` flags the structural gap.
 
 ## Bucket 2 — Stale duplicate types / ignored helpers (~18 errors)
 
+> **Resolved (this PR):** all 22 Bucket 2 errors are fixed, dropping the total
+> from 59 to 37. The fixes are type-level only — runtime behavior is unchanged
+> and the touched test files still pass (92 tests).
+
 The genuinely valuable findings: tests pointing at types/shapes that have moved.
 
-- `mock-zos-zosmf-restfiles.integration.test.ts` **redefines its own local**
-  `interface ZosmfDataSetItem` / `ZosmfDataSetListResponse` (lines 35/44) that
-  are **stale** — missing `migr`, `mvol`, `ovf`, `edate`, `moreRows`. The
-  production type in `src/mock-host/zosmf/response.ts` already declares all of
-  them. The test asserts on fields its local type does not know about →
-  `TS2339` / `TS2551`. Runtime passes because the real response has the fields.
-- `dataset-tools.test.ts` references `SearchResultMeta`, which was **renamed to
-  `ReadResultMeta`** → `TS2552` (×8).
+- `mock-zos-zosmf-restfiles.integration.test.ts` **redefined its own local**
+  `interface ZosmfDataSetItem` / `ZosmfDataSetListResponse` that were **stale** —
+  missing `migr`, `mvol`, `ovf`, `edate`, `moreRows` (and typing `lrecl`/`blksz`
+  as `number` though the wire form is `string`). The production type in
+  `src/mock-host/zosmf/response.ts` already declares all of them. The test
+  asserted on fields its local type did not know about → `TS2339` / `TS2551`.
+  Runtime passed because the real response has the fields.
+  **Fix:** delete the local duplicates, import the production types.
+- `dataset-tools.test.ts` uses `SearchResultMeta` but **omitted it from the
+  import** (only `ListResultMeta` / `ReadResultMeta` were imported);
+  `SearchResultMeta` does exist in `src/tools/response.ts` → `TS2552` (×8). The
+  `tsc` "did you mean `ReadResultMeta`?" hint was misleading — it was a missing
+  import, not a rename. **Fix:** add `SearchResultMeta` to the import.
 - `CreateServerResult` is a union (`McpServer | { server, registerZoweExplorerTools }`)
   with a `getServer()` helper to narrow it, but `response-cache.test.ts`,
-  `transport-providers.ts`, and `server.test.ts` use the union **directly as
+  `transport-providers.ts`, and `server.test.ts` used the union **directly as
   `McpServer`** (`.connect()` / `.close()`) → `TS2339` / `TS2322`.
+  **Fix:** wrap `createServer(...)` in `getServer(...)` (or annotate the helper's
+  return type as `ReturnType<typeof getServer>`).
 
 ## Bucket 3 — Missing narrowing under `strict` (~9 errors)
 
@@ -155,8 +166,9 @@ Bucket 3 (narrowing) — small, local:
 
 ### Recommendation
 
-Do **Bucket 2 now** regardless (real staleness, ~18 errors, low-risk,
-high-signal). Clear **Bucket 1** with a shared `fakeBackend` helper, mop up
-**Bucket 3**, then enable test type-checking (strategy 1), optionally staged via
-a separate `typecheck:tests` lane (strategy 2) so it lands as its own PR without
-blocking Phase 2.
+**Bucket 2 is done** (this PR) — 59 → 37. Next: clear **Bucket 1** with a shared
+`fakeBackend` helper (covers the ~24 mock errors in `native-backend.test.ts`,
+`response-cache.test.ts`, `search-runner.test.ts`), mop up **Bucket 3**'s
+remaining ~13 narrowing errors, then enable test type-checking (strategy 1),
+optionally staged via a separate `typecheck:tests` lane (strategy 2) so it lands
+as its own PR without blocking Phase 2.

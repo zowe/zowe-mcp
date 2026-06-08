@@ -22,7 +22,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { createServer } from '../src/server.js';
+import { createServer, getServer } from '../src/server.js';
 
 describe('Zowe MCP Server (in-memory specific)', () => {
   let client: Client;
@@ -30,7 +30,7 @@ describe('Zowe MCP Server (in-memory specific)', () => {
   let cleanup: () => Promise<void>;
 
   beforeEach(async () => {
-    server = createServer({ logToolCalls: true, capabilityTier: 'full' });
+    server = getServer(createServer({ logToolCalls: true, capabilityTier: 'full' }));
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
 
     client = new Client({ name: 'test-client', version: '1.0.0' });

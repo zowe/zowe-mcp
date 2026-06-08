@@ -157,7 +157,10 @@ Each as its own job/step so failures are legible.
 - [ ] **Format**: `npm run check-format` (Prettier + shfmt `--check`).
 - [x] **Markdown**: `npm run lint:md` — enforced in the `build` job (PR-1b).
 - [ ] **Duplication**: `npm run duplication` (jscpd, 5% threshold).
-- [ ] **Typecheck**: `npm run typecheck`.
+- [x] **Typecheck**: `npm run typecheck:tests --workspaces` — enforced in the
+  `build` job. Type-checks `src/**` + `__tests__/**` per package (superset of the
+  source-only `typecheck`). Required the test type-error backlog to be cleared
+  first — see [test-typecheck-findings.md](test-typecheck-findings.md).
 - [ ] **Lint**: keep `npm run lint` (`--max-warnings 0`); optionally emit ESLint
   SARIF and upload to code-scanning for inline PR annotations.
 - [ ] **Docs drift**: run `npm run generate-docs` then

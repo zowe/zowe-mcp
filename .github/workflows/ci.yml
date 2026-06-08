@@ -76,6 +76,12 @@ jobs:
           npm run build -w packages/zowe-mcp-common
           npm run build -w @zowe/mcp-server
 
+      # Type-check every package including its tests (dev tsconfig, --noEmit).
+      # common + server are already built above, so run the workspace scripts
+      # directly rather than the root script (which would rebuild them).
+      - name: Type-check (incl. tests)
+        run: npm run typecheck:tests --workspaces --if-present
+
       - run: npm run lint
 
       - run: npm run test

@@ -2,7 +2,7 @@
 
 # Test Type-Check Findings
 
-Status: **analysis** · Scope: `packages/zowe-mcp-server/__tests__` · Last updated: 2026-06-06
+Status: **resolved & enforced** · Scope: all package `__tests__` · Last updated: 2026-06-06
 
 ## Context
 
@@ -188,12 +188,22 @@ Bucket 3 (narrowing) — small, local:
 4. **Status quo** — leave tests out of type-checking (Vitest runs them untyped).
    Lowest effort, but it is what let Bucket 2 drift in.
 
-### Recommendation
+### Outcome — done and enforced
 
-**All three buckets are done — the server package's tests now type-check with 0
-errors.** The remaining step is to **enable enforcement** so it cannot regress:
-extend type-checking to each package's dev `tsconfig.json` (which includes
-`__tests__/**`) and wire it into CI. Recommended as a separate `typecheck:tests`
-lane (strategy 2) — and first confirm the other packages' tests
-(`zowe-mcp-vscode`, `zowe-mcp-evals`, `zowe-mcp-common`) are also clean, since
-only `@zowe/mcp-server`'s tests were audited here.
+All three buckets are fixed and **every package's tests now type-check with 0
+errors** (`zowe-mcp-vscode`, `zowe-mcp-evals`, and `zowe-mcp-common` were
+confirmed clean too — only `@zowe/mcp-server` had a backlog).
+
+Enforcement is wired (strategy 2, the separate lane):
+
+- Each package has a **`typecheck:tests`** script (`tsc -p tsconfig.json
+  --noEmit`) that type-checks `src/**` plus `__tests__/**` via its dev tsconfig.
+- A root **`npm run typecheck:tests`** builds the library packages, then runs
+  each package's script.
+- CI runs **`npm run typecheck:tests --workspaces --if-present`** as a step in
+  the `build` job (after the build, so common + server are already compiled),
+  covered by the required `build` status check.
+
+The earlier source-only `typecheck` (build tsconfigs) is retained as a faster
+local check; `typecheck:tests` is its superset and is the enforced gate. Any
+future test type error now fails CI, so this class of drift cannot recur.

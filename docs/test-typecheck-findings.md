@@ -63,20 +63,31 @@ By file:
 | `__tests__/progress.test.ts` | 1 |
 | `__tests__/native-stdio.e2e.test.ts` | 1 |
 
-## Bucket 1 — Partial mocks of interfaces that have grown (~32 errors)
+## Bucket 1 — Partial mocks of interfaces that have grown (~24 errors)
+
+> **Resolved (this PR):** all Bucket 1 errors are fixed, taking the total to
+> **0**. Type-level / test-double changes only; affected tests still pass.
 
 Tests build hand-rolled fakes implementing only the methods they exercise; the
 real interfaces gained members and the mocks did not keep up. Harmless at
 runtime (unused methods are never called), but `tsc` flags the structural gap.
+Fixes applied:
 
 - `response-cache.test.ts`: `class CountingBackend implements ZosBackend`
-  defines 3 methods; `ZosBackend` now has ~16 (`copyUssFile`, `runTsoCommand`,
+  defined ~17 methods but `ZosBackend` has ~45 (`copyUssFile`, `runTsoCommand`,
   `runConsoleCommand`, `restoreDataset`, …) → `TS2420` + `TS2740` (×9).
+  **Fix:** replaced the 228-line hand-delegating class with a ~25-line
+  Proxy-based `createCountingBackend(inner)` factory that delegates every method
+  to the real `inner` backend and counts the three of interest — complete by
+  construction, so it never drifts again.
 - `native-backend.test.ts`: `clientCache: { getOrCreate, evict, hasKey }` passed
   where `SshClientCache` needs `clients, staticOptions, getOptions, options, …`
-  → `TS2740` (×10) and `TS2322` (×2).
-- `search-runner.test.ts`: a fake backend object missing 25+ `ZosBackend`
-  methods → `TS2740`.
+  → `TS2740` (×10) and `TS2322` (×2). **Fix:** widened `createOptions`' override
+  params to `Partial<…>` and cast the assembled doubles once at the return.
+- `search-runner.test.ts`: a fake backend missing ~35 `ZosBackend` methods →
+  `TS2740`. **Fix:** a shared `createStubBackend(overrides)` helper
+  (`__tests__/helpers/stub-backend.ts`) — a Proxy whose methods reject by
+  default; tests override only what they call. Reusable and drift-proof.
 
 ## Bucket 2 — Stale duplicate types / ignored helpers (~18 errors)
 
@@ -179,9 +190,10 @@ Bucket 3 (narrowing) — small, local:
 
 ### Recommendation
 
-**Buckets 2 and 3 are done** — 59 → 22. Only **Bucket 1** (partial mocks)
-remains: 22 errors across `native-backend.test.ts` (12), `response-cache.test.ts`
-(9), and `search-runner.test.ts` (1). Clear them with a shared `fakeBackend()` /
-`fakeClientCache()` helper (all members stubbed, override what each test needs),
-then enable test type-checking (strategy 1) — ideally via a separate
-`typecheck:tests` lane (strategy 2) so it lands without blocking Phase 2.
+**All three buckets are done — the server package's tests now type-check with 0
+errors.** The remaining step is to **enable enforcement** so it cannot regress:
+extend type-checking to each package's dev `tsconfig.json` (which includes
+`__tests__/**`) and wire it into CI. Recommended as a separate `typecheck:tests`
+lane (strategy 2) — and first confirm the other packages' tests
+(`zowe-mcp-vscode`, `zowe-mcp-evals`, `zowe-mcp-common`) are also clean, since
+only `@zowe/mcp-server`'s tests were audited here.

@@ -119,7 +119,7 @@ function fakeParseSearchOutput(output: string) {
 }
 
 vi.mock('zowex-sdk', async importOriginal => {
-  const actual = await importOriginal();
+  const actual = await importOriginal<Record<string, unknown>>();
   if (!actual.UtilsApi) {
     return {
       ...actual,

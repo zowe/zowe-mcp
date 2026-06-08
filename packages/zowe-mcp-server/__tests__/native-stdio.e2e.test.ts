@@ -706,7 +706,7 @@ describe.skipIf(!shouldRunNativeStdioE2E)(
         if ('error' in readParsed && readParsed.error) {
           throw new Error(`readUssFile failed for path ${filePath}: ${readParsed.error}`);
         }
-        const o = readParsed as {
+        const o = readParsed as unknown as {
           _context: { system: string };
           _result: {
             totalLines: number;

@@ -106,19 +106,32 @@ The genuinely valuable findings: tests pointing at types/shapes that have moved.
   **Fix:** wrap `createServer(...)` in `getServer(...)` (or annotate the helper's
   return type as `ReturnType<typeof getServer>`).
 
-## Bucket 3 — Missing narrowing under `strict` (~9 errors)
+## Bucket 3 — Missing narrowing under `strict` (~15 errors)
 
-Loose test code that should narrow or assert.
+> **Resolved (this PR):** all Bucket 3 errors are fixed, dropping the total from
+> 37 to 22 (only Bucket 1 mocks remain). Fixes are type-level except a harmless
+> `event.type === 'log-level'` guard in `extension-client.test.ts`; affected
+> tests still pass.
+
+Loose test code that should narrow or assert. Fixes applied:
 
 - `dataset-tools.test.ts`: `envelope.messages` is optional (`TS18048`),
-  `envelope.data` is `unknown` (`TS18046`) — accessed without narrowing.
-- `native-backend.test.ts`: spread of an `unknown` value (`TS2698` / `TS18046`).
-- `extension-client.test.ts`: a broad `ExtensionToServerEvent` passed where
-  `LogLevelEvent` is expected (`TS2345`).
-- `search-benchmark.test.ts`: `Record<string, string | undefined>` (env spread)
-  vs `Record<string, string>` (`TS2322`).
+  `envelope.data` is `unknown` (`TS18046`). **Fix:** type the `parseEnvelope<T>()`
+  call and assert `envelope.messages![i]` after the length check (also removed a
+  now-unused `eslint-disable no-unsafe-assignment`).
+- `native-backend.test.ts`: `await importOriginal()` was `unknown` → spread /
+  property access errors (`TS2698` / `TS18046`). **Fix:**
+  `importOriginal<Record<string, unknown>>()`.
+- `extension-client.test.ts`: handler receives the `ExtensionToServerEvent`
+  union, pushed into a `LogLevelEvent[]` (`TS2345`). **Fix:** narrow with
+  `if (event.type === 'log-level')` before pushing.
+- `search-benchmark.test.ts`: `{ ...process.env }` is
+  `Record<string, string | undefined>` vs `Record<string, string>` (`TS2322`).
+  **Fix:** `as Record<string, string>`.
 - `progress.test.ts`: `number | undefined` vs `number | bigint` (`TS2345`).
-- `native-stdio.e2e.test.ts`: a non-overlapping cast (`TS2352`).
+  **Fix:** non-null assertion on the compared value.
+- `native-stdio.e2e.test.ts`: non-overlapping cast (`TS2352`). **Fix:**
+  `as unknown as <target>` per the compiler's own suggestion.
 
 ## How to address
 
@@ -166,9 +179,9 @@ Bucket 3 (narrowing) — small, local:
 
 ### Recommendation
 
-**Bucket 2 is done** (this PR) — 59 → 37. Next: clear **Bucket 1** with a shared
-`fakeBackend` helper (covers the ~24 mock errors in `native-backend.test.ts`,
-`response-cache.test.ts`, `search-runner.test.ts`), mop up **Bucket 3**'s
-remaining ~13 narrowing errors, then enable test type-checking (strategy 1),
-optionally staged via a separate `typecheck:tests` lane (strategy 2) so it lands
-as its own PR without blocking Phase 2.
+**Buckets 2 and 3 are done** — 59 → 22. Only **Bucket 1** (partial mocks)
+remains: 22 errors across `native-backend.test.ts` (12), `response-cache.test.ts`
+(9), and `search-runner.test.ts` (1). Clear them with a shared `fakeBackend()` /
+`fakeClientCache()` helper (all members stubbed, override what each test needs),
+then enable test type-checking (strategy 1) — ideally via a separate
+`typecheck:tests` lane (strategy 2) so it lands without blocking Phase 2.

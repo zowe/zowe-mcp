@@ -33,9 +33,9 @@ jobs:
       NODE_OPTIONS: --max_old_space_size=4096
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version-file: '.nvmrc'
 
@@ -80,7 +80,7 @@ jobs:
       # common + server are already built above, so run the workspace scripts
       # directly rather than the root script (which would rebuild them).
       - name: Type-check (incl. tests)
-        run: npm run typecheck:tests --workspaces --if-present
+        run: npm run typecheck --workspaces --if-present
 
       - run: npm run lint
 
@@ -90,7 +90,7 @@ jobs:
         run: npm pack -w @zowe/mcp-server --pack-destination .
 
       - name: Upload npm package tarball
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         id: npm-pack-upload
         with:
           name: zowe-mcp-server-npm
@@ -104,14 +104,14 @@ jobs:
         run: npm run package -w packages/zowe-mcp-vscode
 
       - name: Upload VSIX artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         id: vsix-upload
         with:
           name: vsix
           path: packages/zowe-mcp-vscode/*.vsix
 
       - name: Upload MCP reference docs
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         id: docs-upload
         with:
           name: mcp-reference
@@ -119,7 +119,7 @@ jobs:
 
       - name: Comment on PR
         if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
-        uses: marocchino/sticky-pull-request-comment@v2
+        uses: marocchino/sticky-pull-request-comment@v3
         with:
           header: Build artifacts
           number: ${{ github.event.pull_request.number }}

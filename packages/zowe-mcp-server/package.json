@@ -16,8 +16,7 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json && node scripts/copy-resources.cjs",
-    "typecheck": "tsc -p tsconfig.build.json --noEmit",
-    "typecheck:tests": "tsc -p tsconfig.json --noEmit",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
     "dev": "tsc -p tsconfig.build.json --watch",
     "pretest": "npm run build",
     "test": "vitest run",

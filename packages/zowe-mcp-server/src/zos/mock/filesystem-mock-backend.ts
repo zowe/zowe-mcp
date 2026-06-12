@@ -992,16 +992,24 @@ export class FilesystemMockBackend implements ZosBackend {
       return Promise.resolve(`WHO mock output\nUSER=${_userId ?? 'mockuser'}`);
     }
     if (verb === 'TIME') {
-      const now = new Date();
-      const hours = now.getHours();
+      // Honor an injected fixed clock so `generate-docs` produces deterministic
+      // example output; fall back to the real local time at runtime. When a
+      // fixed clock is set, format in UTC so the result is independent of the
+      // runner's timezone (CI is UTC, dev machines are not).
+      const fixedIso = process.env.ZOWE_MCP_MOCK_CLOCK_ISO;
+      const now = fixedIso ? new Date(fixedIso) : new Date();
+      const utc = Boolean(fixedIso);
+      const hours = utc ? now.getUTCHours() : now.getHours();
       const h12 = hours % 12 || 12;
       const ampm = hours < 12 ? 'AM' : 'PM';
       const hh = String(h12).padStart(2, '0');
-      const mm = String(now.getMinutes()).padStart(2, '0');
-      const ss = String(now.getSeconds()).padStart(2, '0');
-      const month = now.toLocaleString('en-US', { month: 'long' }).toUpperCase();
-      const day = now.getDate();
-      const year = now.getFullYear();
+      const mm = String(utc ? now.getUTCMinutes() : now.getMinutes()).padStart(2, '0');
+      const ss = String(utc ? now.getUTCSeconds() : now.getSeconds()).padStart(2, '0');
+      const month = now
+        .toLocaleString('en-US', { month: 'long', timeZone: utc ? 'UTC' : undefined })
+        .toUpperCase();
+      const day = utc ? now.getUTCDate() : now.getDate();
+      const year = utc ? now.getUTCFullYear() : now.getFullYear();
       const timeStr = `TIME-${hh}:${mm}:${ss} ${ampm}. CPU-00:00:00 SERVICE-26895 SESSION-00:01:53 ${month} ${day},${year}`;
       return Promise.resolve(timeStr);
     }

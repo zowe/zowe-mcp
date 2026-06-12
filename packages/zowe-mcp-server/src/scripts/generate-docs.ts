@@ -840,6 +840,11 @@ async function main(): Promise<void> {
   const { output, inputs: inputsPath } = parseArgs();
   log.info('Generating MCP reference documentation', { output, inputsPath });
 
+  // Pin the mock clock so time-dependent example output (e.g. the TSO `TIME`
+  // command) is deterministic across machines and runs — keeps the generated
+  // docs stable for the docs-drift CI check. Respect a caller-provided value.
+  process.env.ZOWE_MCP_MOCK_CLOCK_ISO ??= '2026-01-15T17:30:00Z';
+
   const __dirname = dirname(fileURLToPath(import.meta.url));
 
   // Create a temporary mock data directory via the init-mock CLI
@@ -1212,19 +1217,10 @@ async function main(): Promise<void> {
       }
       log.info('Collected prompt messages', { count: promptMessages.size });
 
-      // 5. Assemble the Markdown document
-      let commitHash = '';
-      try {
-        const gitResult = spawnSync('git', ['rev-parse', '--short', 'HEAD'], {
-          encoding: 'utf-8',
-        });
-        if (gitResult.status === 0 && gitResult.stdout) {
-          commitHash = gitResult.stdout.trim();
-        }
-      } catch {
-        // Not in a git repo or git not available
-      }
-
+      // 5. Assemble the Markdown document.
+      // NB: the header intentionally carries only the (stable) package version,
+      // not the git commit hash, so regenerating on a clean tree is
+      // deterministic and the docs-drift CI gate doesn't fail on every commit.
       const sections: string[] = [];
       // markdownlint front-matter: disable rules triggered by MCP tool/prompt
       // descriptions that the generator cannot control, and structural duplicates.
@@ -1232,7 +1228,7 @@ async function main(): Promise<void> {
         '<!-- markdownlint-disable MD004 MD009 MD012 MD024 MD031 MD032 MD034 MD036 MD037 MD060 -->\n'
       );
       sections.push(`# Zowe MCP Server Reference\n`);
-      const commitInfo = commitHash ? `, commit ${commitHash}` : '';
+      const commitInfo = '';
       sections.push(
         `> Auto-generated from the MCP server (v${SERVER_VERSION}${commitInfo}). ` +
           `Do not edit manually — run \`npx @zowe/mcp-server generate-docs\` to regenerate.\n`

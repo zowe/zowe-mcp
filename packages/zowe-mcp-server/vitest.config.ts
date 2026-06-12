@@ -15,5 +15,11 @@ export default defineConfig({
   test: {
     globals: true,
     testTimeout: 30000,
+    coverage: {
+      // Only active when --coverage is passed (CI does; report-only, no gate).
+      provider: 'v8',
+      include: ['src/**/*.ts'],
+      exclude: ['src/scripts/**', '**/*.d.ts'],
+    },
   },
 });

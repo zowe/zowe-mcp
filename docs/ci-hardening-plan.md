@@ -170,11 +170,11 @@ Each as its own job/step so failures are legible.
   doubles complete going forward.
 - [x] **Lint**: `npm run lint` (`--max-warnings 0`) — already a `build`-job step
   (predates this plan). ESLint SARIF → code-scanning is a future nice-to-have.
-- [ ] **Docs drift** — **blocked**: `npm run generate-docs` is non-deterministic
-  (the output embeds the current commit hash and a live timestamp in a TSO
-  example), so `git diff --exit-code docs/mcp-reference.md` would fail on every
-  commit. Make the generator deterministic (freeze the example timestamp; drop
-  or stabilize the commit/version header) before gating.
+- [x] **Docs drift** — enforced in the `build` job (PR #14). Required making
+  `generate-docs` deterministic first: the header no longer embeds the git
+  commit hash, and the mock TSO clock is pinned via `ZOWE_MCP_MOCK_CLOCK_ISO`
+  (UTC-formatted when set), so regenerating on a clean tree is byte-identical
+  and `git diff --exit-code` gates both reference docs.
 - [ ] **Plugin schema validation**: validate bundled CLI-bridge plugin YAMLs
   against `schemas/plugin-tools.schema.json`. Needs a validator (`ajv` is not
   currently a dependency) — a small node script or `ajv-cli` dev dep.
@@ -183,20 +183,28 @@ Each as its own job/step so failures are legible.
 
 Today only `test:server` runs. Add the rest, tiered by infra needs.
 
-- [ ] **Server tests**: already running; add **coverage (report-only)** via
-  `vitest run --coverage` (Decision 4 — no threshold gate).
-- [ ] **VS Code extension**: `npm run test:vscode` under `xvfb-run -a` on Linux;
-  cache `.vscode-test/`. (Windows/macOS run it directly — see Phase 5.)
-- [ ] **Mock/integration suites**: ensure the in-process `spawn-mock-zos.ts`
-  suites run (CI-safe, no external services).
-- [ ] **JUnit reporting**: vitest `junit` reporter + `dorny/test-reporter` so
-  results render in the PR checks UI.
-- [ ] **Airgap**: `test:airgap` after `npm pack`, exercising the real tarball.
+- [x] **Server tests**: coverage (report-only, Decision 4) via
+  `--coverage --coverage.reporter=text-summary` on the CI test step
+  (`@vitest/coverage-v8`, scoped to `src/**` excluding `src/scripts/**`).
+  ~50% statements at time of enablement; no threshold gate.
+- [x] **VS Code extension**: `xvfb-run -a npm run test:vscode` in the `build`
+  job, with the `.vscode-test/` VS Code download cached.
+- [x] **Mock/integration suites**: verified the in-process `spawn-mock-zos.ts`
+  suites already run in plain `npm test` (no include/exclude in vitest config);
+  e2e suites self-skip via env gates, so the default run is CI-safe.
+- [x] **JUnit reporting**: vitest `junit` reporter writes
+  `test-results.junit.xml` (gitignored); `dorny/test-reporter@v2` publishes it
+  as a check run (needs `checks: write`; skipped for fork PRs whose token is
+  read-only).
+- [x] **Airgap**: `npm run test:airgap` runs after the `npm pack` step and
+  installs the freshly packed tarball with an empty cache, invalid registry,
+  and 5 ms network timeout — proves the tarball is self-contained.
 - [ ] **Service-dependent e2e** (`test:keycloak-jwt-e2e`,
   `test:native-stdio-e2e`): **kept off the required PR path** per Decision 3 —
   nightly-only / manual dispatch until the Open Decision is resolved.
-- [ ] **Nightly SDK-mode run**: scheduled job with `sdk-mode: nightly` to catch
-  upstream zowex breakage (uses existing `workflow_dispatch` inputs).
+- [x] **Nightly SDK-mode run**: new `nightly.yml` (daily cron + dispatch) runs
+  `sdk-switch nightly` → build → typecheck → test against the latest upstream
+  zowex SDK, catching upstream drift without touching the PR path.
 
 ## Phase 4 — Security & supply-chain
 

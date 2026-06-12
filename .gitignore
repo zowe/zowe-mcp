@@ -59,6 +59,9 @@ coverage/
 *.lcov
 .nyc_output/
 
+# Vitest JUnit output (CI test reporting)
+test-results.junit.xml
+
 # Output of 'npm pack' (repo root only)
 *.tgz
 # Committed SDK baseline(s) in resources/ are tracked despite *.tgz rule

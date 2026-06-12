@@ -220,7 +220,7 @@ describe('ExtensionClient', () => {
 
     const receivedEvents: LogLevelEvent[] = [];
     client.onEvent(event => {
-      receivedEvents.push(event);
+      if (event.type === 'log-level') receivedEvents.push(event);
     });
 
     await client.connect(discoveryDir, workspaceId, logger);
@@ -258,7 +258,7 @@ describe('ExtensionClient', () => {
 
     const receivedEvents: LogLevelEvent[] = [];
     client.onEvent(event => {
-      receivedEvents.push(event);
+      if (event.type === 'log-level') receivedEvents.push(event);
     });
 
     await client.connect(discoveryDir, workspaceId, logger);

@@ -18,28 +18,20 @@ import type {
 } from '../src/zos/backend.js';
 import { runSearchWithListAndRead } from '../src/zos/search-runner.js';
 import type { SystemId } from '../src/zos/system.js';
+import { createStubBackend } from './helpers/stub-backend.js';
 
 const SYSTEM_ID: SystemId = 'test.example.com';
-const NOT_IMPL = 'Not implemented in test mock';
 
 /** Minimal backend for search runner: only listMembers and readDataset. */
 function createMockBackend(behaviors: {
   listMembers: (dsn: string) => Promise<MemberEntry[]>;
   readDataset: (dsn: string, member?: string, encoding?: string) => Promise<ReadDatasetResult>;
 }): ZosBackend {
-  return {
-    listDatasets: () => Promise.reject(new Error(NOT_IMPL)),
-    listMembers: (_systemId: SystemId, dsn: string) => behaviors.listMembers(dsn),
-    readDataset: (_systemId: SystemId, dsn: string, member?: string, encoding?: string) =>
+  return createStubBackend({
+    listMembers: (_systemId, dsn) => behaviors.listMembers(dsn),
+    readDataset: (_systemId, dsn, member, encoding) =>
       behaviors.readDataset(dsn, member, encoding),
-    writeDataset: () => Promise.reject(new Error(NOT_IMPL)),
-    createDataset: () => Promise.reject(new Error(NOT_IMPL)),
-    deleteDataset: () => Promise.reject(new Error(NOT_IMPL)),
-    getAttributes: () => Promise.reject(new Error(NOT_IMPL)),
-    copyDataset: () => Promise.reject(new Error(NOT_IMPL)),
-    renameDataset: () => Promise.reject(new Error(NOT_IMPL)),
-    searchInDataset: () => Promise.reject(new Error(NOT_IMPL)),
-  };
+  });
 }
 
 describe('runSearchWithListAndRead', () => {

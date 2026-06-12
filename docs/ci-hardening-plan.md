@@ -157,7 +157,12 @@ Each as its own job/step so failures are legible.
 - [ ] **Format**: `npm run check-format` (Prettier + shfmt `--check`).
 - [x] **Markdown**: `npm run lint:md` — enforced in the `build` job (PR-1b).
 - [ ] **Duplication**: `npm run duplication` (jscpd, 5% threshold).
-- [ ] **Typecheck**: `npm run typecheck`.
+- [x] **Typecheck**: `npm run typecheck:tests --workspaces` — enforced in the
+  `build` job. Type-checks `src/**` + `__tests__/**` per package (superset of the
+  source-only `typecheck`). Required clearing a 59-error test type backlog in
+  `@zowe/mcp-server` first (stale duplicate types, partial mocks, missing
+  narrowing); the shared `__tests__/helpers/stub-backend.ts` keeps backend
+  doubles complete going forward.
 - [ ] **Lint**: keep `npm run lint` (`--max-warnings 0`); optionally emit ESLint
   SARIF and upload to code-scanning for inline PR annotations.
 - [ ] **Docs drift**: run `npm run generate-docs` then

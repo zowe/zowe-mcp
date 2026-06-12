@@ -71,7 +71,7 @@ describe('createToolProgress', () => {
     expect(calls[0].progress).toBe(0);
     expect(calls[1].progress).toBeGreaterThan(0);
     expect(calls[1].message).toBe(`Read USER.DATA ${EN_DASH} Connecting to sys1 via SSH`);
-    expect(calls[2].progress).toBeGreaterThan(calls[1].progress);
+    expect(calls[2].progress).toBeGreaterThan(calls[1].progress!);
     expect(calls[3].progress).toBe(1);
     expect(calls[3].total).toBe(1);
     expect(calls[3].message).toBe(`Read USER.DATA ${EN_DASH} range 1${EN_DASH}100, 500 records`);

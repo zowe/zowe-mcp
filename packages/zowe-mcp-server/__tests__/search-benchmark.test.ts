@@ -144,7 +144,7 @@ async function startServer(
   const transport = new StdioClientTransport({
     command: 'node',
     args: [serverPath, '--native', '--config', configPath!, '--native-response-timeout', '180'],
-    env: { ...process.env, ...env },
+    env: { ...process.env, ...env } as Record<string, string>,
   });
   const client = new Client({ name: 'search-benchmark', version: '1.0.0' });
   await client.connect(transport);

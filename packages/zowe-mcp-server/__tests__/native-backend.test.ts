@@ -119,7 +119,7 @@ function fakeParseSearchOutput(output: string) {
 }
 
 vi.mock('zowex-sdk', async importOriginal => {
-  const actual = await importOriginal();
+  const actual = await importOriginal<Record<string, unknown>>();
   if (!actual.UtilsApi) {
     return {
       ...actual,
@@ -201,8 +201,8 @@ function createFakeClient(overrides?: {
 function createOptions(
   overrides?: Partial<{
     getSpec: NativeBackendOptions['getSpec'];
-    credentialProvider: NativeBackendOptions['credentialProvider'];
-    clientCache: NativeBackendOptions['clientCache'];
+    credentialProvider: Partial<NativeBackendOptions['credentialProvider']>;
+    clientCache: Partial<NativeBackendOptions['clientCache']>;
     onPasswordInvalid: NonNullable<NativeBackendOptions['onPasswordInvalid']>;
   }>
 ): NativeBackendOptions {
@@ -217,15 +217,15 @@ function createOptions(
 
   return {
     getSpec,
-    credentialProvider: overrides?.credentialProvider ?? {
+    credentialProvider: (overrides?.credentialProvider ?? {
       getCredentials,
       markInvalid,
-    },
-    clientCache: overrides?.clientCache ?? {
+    }) as NativeBackendOptions['credentialProvider'],
+    clientCache: (overrides?.clientCache ?? {
       getOrCreate,
       evict,
       hasKey,
-    },
+    }) as NativeBackendOptions['clientCache'],
     onPasswordInvalid,
   };
 }

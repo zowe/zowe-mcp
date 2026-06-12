@@ -22,24 +22,12 @@ import * as path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { __resetTenantResourcesForTests } from '../src/auth/tenant-resources.js';
 import { createServer, getServer } from '../src/server.js';
-import type {
-  BackendProgressCallback,
-  CreateUssFileOptions,
-  DatasetAttributes,
-  DatasetEntry,
-  ListUssFilesOptions,
-  MemberEntry,
-  ReadDatasetResult,
-  SearchInDatasetOptions,
-  SearchInDatasetResult,
-  ZosBackend,
-} from '../src/zos/backend.js';
+import type { ZosBackend } from '../src/zos/backend.js';
 import type { CredentialProvider } from '../src/zos/credentials.js';
 import { FilesystemMockBackend } from '../src/zos/mock/filesystem-mock-backend.js';
 import { MockCredentialProvider } from '../src/zos/mock/mock-credential-provider.js';
 import type { MockSystemsConfig } from '../src/zos/mock/mock-types.js';
 import { buildScopeSystem, createResponseCache } from '../src/zos/response-cache.js';
-import type { SystemId } from '../src/zos/system.js';
 import { SystemRegistry } from '../src/zos/system.js';
 
 const SYSTEM_HOST = 'cache-test.example.com';
@@ -56,234 +44,44 @@ const mockConfig: MockSystemsConfig = {
   ],
 };
 
-/** Backend wrapper that counts listDatasets, listMembers, and readDataset calls. */
-class CountingBackend implements ZosBackend {
-  listDatasetsCallCount = 0;
-  listMembersCallCount = 0;
-  readDatasetCallCount = 0;
+/**
+ * Wrap a real backend, counting listDatasets / listMembers / readDataset calls.
+ * Every other method delegates to `inner` unchanged, so this stays a complete
+ * ZosBackend even as the interface grows (no per-method maintenance).
+ */
+type CountingBackend = ZosBackend & {
+  listDatasetsCallCount: number;
+  listMembersCallCount: number;
+  readDatasetCallCount: number;
+};
 
-  constructor(private readonly inner: ZosBackend) {}
-
-  async listDatasets(
-    systemId: SystemId,
-    pattern: string,
-    volser?: string,
-    userId?: string,
-    attributes?: boolean
-  ): Promise<DatasetEntry[]> {
-    this.listDatasetsCallCount++;
-    return this.inner.listDatasets(systemId, pattern, volser, userId, attributes);
-  }
-
-  async listMembers(systemId: SystemId, dsn: string, pattern?: string): Promise<MemberEntry[]> {
-    this.listMembersCallCount++;
-    return this.inner.listMembers(systemId, dsn, pattern);
-  }
-
-  async readDataset(
-    systemId: SystemId,
-    dsn: string,
-    member?: string,
-    encoding?: string
-  ): Promise<ReadDatasetResult> {
-    this.readDatasetCallCount++;
-    return this.inner.readDataset(systemId, dsn, member, encoding);
-  }
-
-  writeDataset(
-    systemId: SystemId,
-    dsn: string,
-    content: string,
-    member?: string,
-    etag?: string,
-    encoding?: string,
-    startLine?: number,
-    endLine?: number,
-    progress?: BackendProgressCallback
-  ) {
-    return this.inner.writeDataset(
-      systemId,
-      dsn,
-      content,
-      member,
-      etag,
-      encoding,
-      startLine,
-      endLine,
-      progress
-    );
-  }
-
-  createDataset(
-    systemId: SystemId,
-    dsn: string,
-    options: Parameters<ZosBackend['createDataset']>[2]
-  ) {
-    return this.inner.createDataset(systemId, dsn, options);
-  }
-
-  deleteDataset(systemId: SystemId, dsn: string, member?: string): Promise<void> {
-    return this.inner.deleteDataset(systemId, dsn, member);
-  }
-
-  getAttributes(systemId: SystemId, dsn: string): Promise<DatasetAttributes> {
-    return this.inner.getAttributes(systemId, dsn);
-  }
-
-  copyDataset(
-    systemId: SystemId,
-    sourceDsn: string,
-    targetDsn: string,
-    sourceMember?: string,
-    targetMember?: string
-  ): Promise<void> {
-    return this.inner.copyDataset(systemId, sourceDsn, targetDsn, sourceMember, targetMember);
-  }
-
-  renameDataset(
-    systemId: SystemId,
-    dsn: string,
-    newDsn: string,
-    member?: string,
-    newMember?: string
-  ): Promise<void> {
-    return this.inner.renameDataset(systemId, dsn, newDsn, member, newMember);
-  }
-
-  searchInDataset(
-    systemId: SystemId,
-    dsn: string,
-    options: SearchInDatasetOptions,
-    progress?: BackendProgressCallback
-  ): Promise<SearchInDatasetResult> {
-    return this.inner.searchInDataset(systemId, dsn, options, progress);
-  }
-
-  listUssFiles(
-    systemId: SystemId,
-    path: string,
-    options?: ListUssFilesOptions,
-    userId?: string,
-    progress?: BackendProgressCallback
-  ) {
-    return this.inner.listUssFiles(systemId, path, options, userId, progress);
-  }
-
-  readUssFile(
-    systemId: SystemId,
-    path: string,
-    encoding?: string,
-    userId?: string,
-    progress?: BackendProgressCallback
-  ) {
-    return this.inner.readUssFile(systemId, path, encoding, userId, progress);
-  }
-
-  writeUssFile(
-    systemId: SystemId,
-    path: string,
-    content: string,
-    etag?: string,
-    encoding?: string,
-    userId?: string,
-    progress?: BackendProgressCallback
-  ) {
-    return this.inner.writeUssFile(systemId, path, content, etag, encoding, userId, progress);
-  }
-
-  createUssFile(
-    systemId: SystemId,
-    path: string,
-    options: CreateUssFileOptions,
-    userId?: string,
-    progress?: BackendProgressCallback
-  ) {
-    return this.inner.createUssFile(systemId, path, options, userId, progress);
-  }
-
-  deleteUssFile(
-    systemId: SystemId,
-    path: string,
-    recursive?: boolean,
-    userId?: string,
-    progress?: BackendProgressCallback
-  ) {
-    return this.inner.deleteUssFile(systemId, path, recursive, userId, progress);
-  }
-
-  chmodUssFile(
-    systemId: SystemId,
-    path: string,
-    mode: string,
-    recursive?: boolean,
-    userId?: string,
-    progress?: BackendProgressCallback
-  ) {
-    return this.inner.chmodUssFile(systemId, path, mode, recursive, userId, progress);
-  }
-
-  chownUssFile(
-    systemId: SystemId,
-    path: string,
-    owner: string,
-    recursive?: boolean,
-    userId?: string,
-    progress?: BackendProgressCallback
-  ) {
-    return this.inner.chownUssFile(systemId, path, owner, recursive, userId, progress);
-  }
-
-  chtagUssFile(
-    systemId: SystemId,
-    path: string,
-    tag: string,
-    recursive?: boolean,
-    userId?: string,
-    progress?: BackendProgressCallback
-  ) {
-    return this.inner.chtagUssFile(systemId, path, tag, recursive, userId, progress);
-  }
-
-  runUnixCommand(
-    systemId: SystemId,
-    commandText: string,
-    userId?: string,
-    progress?: BackendProgressCallback
-  ) {
-    return this.inner.runUnixCommand(systemId, commandText, userId, progress);
-  }
-
-  getUssHome(systemId: SystemId, userId?: string, progress?: BackendProgressCallback) {
-    return this.inner.getUssHome(systemId, userId, progress);
-  }
-
-  getUssTempDir(
-    systemId: SystemId,
-    basePath: string,
-    userId?: string,
-    progress?: BackendProgressCallback
-  ) {
-    return this.inner.getUssTempDir(systemId, basePath, userId, progress);
-  }
-
-  getUssTempPath(
-    systemId: SystemId,
-    dirPath: string,
-    prefix?: string,
-    userId?: string,
-    progress?: BackendProgressCallback
-  ) {
-    return this.inner.getUssTempPath(systemId, dirPath, prefix, userId, progress);
-  }
-
-  deleteUssUnderPath(
-    systemId: SystemId,
-    path: string,
-    userId?: string,
-    progress?: BackendProgressCallback
-  ) {
-    return this.inner.deleteUssUnderPath(systemId, path, userId, progress);
-  }
+function createCountingBackend(inner: ZosBackend): CountingBackend {
+  const counts = {
+    listDatasetsCallCount: 0,
+    listMembersCallCount: 0,
+    readDatasetCallCount: 0,
+  };
+  const counterFor: Partial<Record<keyof ZosBackend, keyof typeof counts>> = {
+    listDatasets: 'listDatasetsCallCount',
+    listMembers: 'listMembersCallCount',
+    readDataset: 'readDatasetCallCount',
+  };
+  return new Proxy(inner, {
+    get(target, prop, receiver) {
+      if (prop === 'listDatasetsCallCount') return counts.listDatasetsCallCount;
+      if (prop === 'listMembersCallCount') return counts.listMembersCallCount;
+      if (prop === 'readDatasetCallCount') return counts.readDatasetCallCount;
+      const value: unknown = Reflect.get(target, prop, receiver);
+      if (typeof value !== 'function') return value;
+      const bound = (value as (...args: unknown[]) => unknown).bind(target);
+      const counter = counterFor[prop as keyof ZosBackend];
+      if (!counter) return bound;
+      return (...args: unknown[]) => {
+        counts[counter] += 1;
+        return bound(...args);
+      };
+    },
+  }) as CountingBackend;
 }
 
 async function createMockData(dir: string): Promise<void> {
@@ -354,7 +152,7 @@ describe('Response cache', () => {
 
   it('calls backend listDatasets once when paginating (same params, different offset)', async () => {
     const innerBackend = new FilesystemMockBackend(mockDir);
-    const countingBackend = new CountingBackend(innerBackend);
+    const countingBackend = createCountingBackend(innerBackend);
     const credentialProvider: CredentialProvider = new MockCredentialProvider(mockConfig);
     const systemRegistry = new SystemRegistry();
     for (const sys of mockConfig.systems) {
@@ -402,7 +200,7 @@ describe('Response cache', () => {
 
   it('calls backend listMembers once when paginating (same params, different offset)', async () => {
     const innerBackend = new FilesystemMockBackend(mockDir);
-    const countingBackend = new CountingBackend(innerBackend);
+    const countingBackend = createCountingBackend(innerBackend);
     const credentialProvider: CredentialProvider = new MockCredentialProvider(mockConfig);
     const systemRegistry = new SystemRegistry();
     for (const sys of mockConfig.systems) {
@@ -450,7 +248,7 @@ describe('Response cache', () => {
 
   it('calls backend readDataset once when paging (same dsn, different startLine)', async () => {
     const innerBackend = new FilesystemMockBackend(mockDir);
-    const countingBackend = new CountingBackend(innerBackend);
+    const countingBackend = createCountingBackend(innerBackend);
     const credentialProvider: CredentialProvider = new MockCredentialProvider(mockConfig);
     const systemRegistry = new SystemRegistry();
     for (const sys of mockConfig.systems) {
@@ -498,7 +296,7 @@ describe('Response cache', () => {
 
   it('calls backend on every request when responseCache is false', async () => {
     const innerBackend = new FilesystemMockBackend(mockDir);
-    const countingBackend = new CountingBackend(innerBackend);
+    const countingBackend = createCountingBackend(innerBackend);
     const credentialProvider: CredentialProvider = new MockCredentialProvider(mockConfig);
     const systemRegistry = new SystemRegistry();
     for (const sys of mockConfig.systems) {
@@ -543,12 +341,12 @@ describe('Response cache', () => {
 
   describe('Cache invalidation after mutations', () => {
     function setupServerWithCountingBackend(): {
-      server: ReturnType<typeof createServer>;
+      server: ReturnType<typeof getServer>;
       client: Client;
       countingBackend: CountingBackend;
     } {
       const innerBackend = new FilesystemMockBackend(mockDir);
-      const countingBackend = new CountingBackend(innerBackend);
+      const countingBackend = createCountingBackend(innerBackend);
       const credentialProvider: CredentialProvider = new MockCredentialProvider(mockConfig);
       const systemRegistry = new SystemRegistry();
       for (const sys of mockConfig.systems) {
@@ -687,7 +485,7 @@ describe('Response cache', () => {
     it('after createDataset, listDatasets for system is invalidated', async () => {
       const cache = createResponseCache({ ttlMs: 60_000, maxSizeBytes: 10 * 1024 * 1024 });
       const innerBackend = new FilesystemMockBackend(mockDir);
-      const countingBackend = new CountingBackend(innerBackend);
+      const countingBackend = createCountingBackend(innerBackend);
       const credentialProvider: CredentialProvider = new MockCredentialProvider(mockConfig);
       const systemRegistry = new SystemRegistry();
       for (const sys of mockConfig.systems) {
@@ -748,7 +546,7 @@ describe('Response cache', () => {
     it('reuses tenant response cache across two server instances with the same tenantSub', async () => {
       __resetTenantResourcesForTests();
       const innerBackend = new FilesystemMockBackend(mockDir);
-      const countingBackend = new CountingBackend(innerBackend);
+      const countingBackend = createCountingBackend(innerBackend);
       const credentialProvider: CredentialProvider = new MockCredentialProvider(mockConfig);
       const systemRegistry = new SystemRegistry();
       for (const sys of mockConfig.systems) {

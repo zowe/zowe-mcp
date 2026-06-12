@@ -34,6 +34,7 @@ import { filterDatasetFields } from '../src/tools/datasets/dataset-tools.js';
 import type {
   ListResultMeta,
   ReadResultMeta,
+  SearchResultMeta,
   ToolResponseEnvelope,
 } from '../src/tools/response.js';
 import type { CredentialProvider } from '../src/zos/credentials.js';
@@ -619,8 +620,8 @@ describe('Dataset tools with mock backend', () => {
       expect(meta.offset).toBe(0);
       expect(meta.hasMore).toBe(true);
       expect(envelope.messages).toHaveLength(1);
-      expect(envelope.messages[0]).toContain('offset=2');
-      expect(envelope.messages[0]).toContain('limit=2');
+      expect(envelope.messages![0]).toContain('offset=2');
+      expect(envelope.messages![0]).toContain('limit=2');
     });
 
     it('should respect offset parameter for listDatasets', async () => {
@@ -692,7 +693,6 @@ describe('Dataset tools with mock backend', () => {
   // searchInDataset
   // -----------------------------------------------------------------------
   describe('searchInDataset', () => {
-    /* eslint-disable @typescript-eslint/no-unsafe-assignment -- envelope from JSON.parse; shape asserted by test */
     it('should return envelope with _context, _result, data (dataset, members, summary)', async () => {
       const result = await client.callTool({
         name: 'searchInDataset',
@@ -769,7 +769,9 @@ describe('Dataset tools with mock backend', () => {
         arguments: { dsn: 'TESTUSER.RAW.DATA', string: 'world' },
       });
 
-      const envelope = parseEnvelope(result);
+      const envelope = parseEnvelope<{
+        members: { name: string; matches: { lineNumber: number; content: string }[] }[];
+      }>(result);
       expect(envelope.data.members).toHaveLength(1);
       expect(envelope.data.members[0].matches).toHaveLength(1);
       const content = envelope.data.members[0].matches[0].content;
@@ -863,9 +865,9 @@ describe('Dataset tools with mock backend', () => {
       expect(meta.returnedLines).toBe(10);
       expect(meta.hasMore).toBe(true);
       expect(envelope.messages).toHaveLength(1);
-      expect(envelope.messages[0]).toContain('startLine=11');
-      expect(envelope.messages[0]).toContain('lineCount');
-      expect(envelope.messages[0]).toContain('_result.hasMore is false');
+      expect(envelope.messages![0]).toContain('startLine=11');
+      expect(envelope.messages![0]).toContain('lineCount');
+      expect(envelope.messages![0]).toContain('_result.hasMore is false');
     });
 
     it('should return second page with startLine 11', async () => {

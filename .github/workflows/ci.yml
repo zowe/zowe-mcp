@@ -21,12 +21,20 @@ on:
         required: false
         type: string
 
+# Least privilege: only the sticky PR comment needs write; everything else reads.
 permissions:
+  contents: read
   pull-requests: write
+
+# Cancel superseded runs on the same ref (e.g. rapid pushes to a PR branch).
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     if: "!contains(github.event.head_commit.message || '', '[ci skip]')"
 
     env:
@@ -38,6 +46,7 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version-file: '.nvmrc'
+          cache: npm
 
       # Default path (push / PR / dispatch with fallback): install strictly from
       # the committed lockfile, which already pins the fallback zowex-sdk. Use
@@ -70,6 +79,12 @@ jobs:
 
       - name: Lint Markdown
         run: npm run lint:md
+
+      - name: Check formatting (Prettier + shfmt)
+        run: npm run check-format
+
+      - name: Check code duplication (jscpd)
+        run: npm run duplication
 
       - name: Build (common + server)
         run: |

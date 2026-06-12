@@ -100,6 +100,12 @@ jobs:
       - name: Generate MCP reference docs
         run: npm run generate-docs
 
+      # Docs-drift gate: the generator is deterministic (pinned mock clock, no
+      # commit hash in the header), so regenerating must not change the committed
+      # reference docs. If this fails, run `npm run generate-docs` and commit.
+      - name: Check MCP reference docs are up to date
+        run: git diff --exit-code docs/mcp-reference.md vendor/zowe/docs/mcp-reference-vendor.md
+
       - name: Build VS Code extension (VSIX)
         run: npm run package -w packages/zowe-mcp-vscode
 

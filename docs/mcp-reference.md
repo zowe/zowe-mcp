@@ -2,7 +2,7 @@
 
 # Zowe MCP Server Reference
 
-> Auto-generated from the MCP server (v0.9.0, commit ec19149). Do not edit manually — run `npx @zowe/mcp-server generate-docs` to regenerate.
+> Auto-generated from the MCP server (v0.10.0-dev). Do not edit manually — run `npx @zowe/mcp-server generate-docs` to regenerate.
 
 This document describes all [Context](#context), [Data Sets](#data-sets), [USS](#uss), [TSO](#tso), [Jobs](#jobs), [Local Files](#local-files), [Other](#other), [db2 CLI Plugin Tools](#db2-cli-plugin-tools), [Tool Reference](#tool-reference), [Capability Tiers](#capability-tiers), [Prompts](#prompts), [Resource Templates](#resource-templates) provided by the Zowe MCP Server.
 
@@ -194,7 +194,7 @@ Return the Zowe MCP server info (version, backend, components) and the current s
 {
   "server": {
     "name": "Zowe MCP Server",
-    "version": "0.9.0",
+    "version": "0.10.0-dev",
     "description": "MCP server providing tools for z/OS systems including data sets, jobs, and UNIX System Services",
     "components": [
       "context",
@@ -461,11 +461,11 @@ Notes:
 | &ensp;├─ `storclass`         | `string`   | No       | SMS storage class.                                                                                                                                                                                                                                                                   |
 | &ensp;├─ `spaceUnits`        | `string`   | No       | Space unit type (TRACKS, CYLINDERS, etc.).                                                                                                                                                                                                                                           |
 | &ensp;├─ `usedPercent`       | `number`   | No       | Used space percentage.                                                                                                                                                                                                                                                               |
-| &ensp;├─ `usedExtents`       | `number`   | No       | Used extents count.                                                                                                                                                                                                                                                                  |
 | &ensp;├─ `primary`           | `number`   | No       | Primary allocation units.                                                                                                                                                                                                                                                            |
 | &ensp;├─ `secondary`         | `number`   | No       | Secondary allocation units.                                                                                                                                                                                                                                                          |
 | &ensp;├─ `devtype`           | `string`   | No       | Device type.                                                                                                                                                                                                                                                                         |
-| &ensp;└─ `volsers`           | `string`[] | No       | Multi-volume serial list.                                                                                                                                                                                                                                                            |
+| &ensp;├─ `volsers`           | `string`[] | No       | Multi-volume serial list.                                                                                                                                                                                                                                                            |
+| &ensp;└─ `usedExtents`       | `number`   | No       | Used extents count.                                                                                                                                                                                                                                                                  |
 
 #### Example Outputs
 
@@ -2213,13 +2213,13 @@ Output:
     "totalLines": 1,
     "startLine": 1,
     "returnedLines": 1,
-    "contentLength": 72,
+    "contentLength": 77,
     "mimeType": "text/plain",
     "hasMore": false
   },
   "data": {
     "lines": [
-      "TIME-10:16:02 AM. CPU-00:00:00 SERVICE-26895 SESSION-00:01:53 MAY 7,2026"
+      "TIME-05:30:00 PM. CPU-00:00:00 SERVICE-26895 SESSION-00:01:53 JANUARY 15,2026"
     ],
     "mimeType": "text/plain"
   }

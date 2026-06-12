@@ -144,31 +144,40 @@ locally before Phase 1+ consumes them.
 
 No new tools; make `ci.yml` robust.
 
-- [ ] `concurrency` (cancel-in-progress) keyed on workflow + ref.
-- [ ] `timeout-minutes` on the job (start at 30).
-- [ ] Least-privilege `permissions`.
-- [ ] npm caching via `setup-node`.
-- [ ] Pin actions (or rely on Dependabot from Phase 4).
+- [x] `concurrency` (cancel-in-progress) keyed on workflow + ref.
+- [x] `timeout-minutes` on the job (30).
+- [x] Least-privilege `permissions` (`contents: read` + `pull-requests: write`).
+- [x] npm caching via `setup-node` (`cache: npm`).
+- [ ] Pin actions to SHAs — deferred to **Phase 4 Dependabot**; majors were
+  already bumped to Node-24-ready versions in the carry-overs PR
+  (checkout v6, setup-node v6, upload-artifact v7, sticky-comment v3).
 
 ## Phase 2 — Enforce existing quality scripts
 
 Each as its own job/step so failures are legible.
 
-- [ ] **Format**: `npm run check-format` (Prettier + shfmt `--check`).
+- [x] **Format**: `npm run check-format` (Prettier + shfmt `--check`) — enforced
+  in the `build` job. Required fixing a pre-existing `src/index.ts` Prettier
+  violation first (carry-overs PR).
 - [x] **Markdown**: `npm run lint:md` — enforced in the `build` job (PR-1b).
-- [ ] **Duplication**: `npm run duplication` (jscpd, 5% threshold).
+- [x] **Duplication**: `npm run duplication` (jscpd, 5% threshold) — enforced in
+  the `build` job. Currently 14 clones, well under threshold.
 - [x] **Typecheck**: `npm run typecheck --workspaces` — enforced in the `build`
   job. Type-checks `src/**` + `__tests__/**` per package (dev `tsconfig.json`,
   `--noEmit`). Required clearing a 59-error test type backlog in
   `@zowe/mcp-server` first (stale duplicate types, partial mocks, missing
   narrowing); the shared `__tests__/helpers/stub-backend.ts` keeps backend
   doubles complete going forward.
-- [ ] **Lint**: keep `npm run lint` (`--max-warnings 0`); optionally emit ESLint
-  SARIF and upload to code-scanning for inline PR annotations.
-- [ ] **Docs drift**: run `npm run generate-docs` then
-  `git diff --exit-code docs/mcp-reference.md` so a stale reference fails CI.
+- [x] **Lint**: `npm run lint` (`--max-warnings 0`) — already a `build`-job step
+  (predates this plan). ESLint SARIF → code-scanning is a future nice-to-have.
+- [ ] **Docs drift** — **blocked**: `npm run generate-docs` is non-deterministic
+  (the output embeds the current commit hash and a live timestamp in a TSO
+  example), so `git diff --exit-code docs/mcp-reference.md` would fail on every
+  commit. Make the generator deterministic (freeze the example timestamp; drop
+  or stabilize the commit/version header) before gating.
 - [ ] **Plugin schema validation**: validate bundled CLI-bridge plugin YAMLs
-  against `schemas/plugin-tools.schema.json`.
+  against `schemas/plugin-tools.schema.json`. Needs a validator (`ajv` is not
+  currently a dependency) — a small node script or `ajv-cli` dev dep.
 
 ## Phase 3 — Expand test execution
 

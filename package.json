@@ -28,7 +28,6 @@
     "lint:fix": "eslint --fix \"packages/**/*.ts\" --max-warnings 0",
     "lint": "eslint \"packages/**/*.ts\" --max-warnings 0",
     "typecheck": "npm run build -w packages/zowe-mcp-common && npm run build -w @zowe/mcp-server && npm run typecheck --workspaces --if-present",
-    "typecheck:tests": "npm run build -w packages/zowe-mcp-common && npm run build -w @zowe/mcp-server && npm run typecheck:tests --workspaces --if-present",
     "lint:md": "markdownlint-cli2",
     "markdownlint:fix": "markdownlint-cli2 --fix",
     "test:all": "npm run test --workspaces",

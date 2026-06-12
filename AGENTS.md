@@ -151,6 +151,8 @@ Tools that return structured data declare an `outputSchema` (Zod) so the MCP ser
 
 ### Testing
 
+- **Local hang under parallelism (workaround):** on some machines (observed on macOS) the full `npm test` can stall partway through — not a test bug. It is contention between the many integration tests that spawn mock-zos SSH/socket daemons concurrently; it passes in CI and passes locally when run sequentially. If you hit it, run `npm test -- --no-file-parallelism` (full suite ~50s) or narrow to specific files (`npx vitest run <file>`). The exact concurrency race is not yet pinned down.
+
 Server tests are organized into **common** (parameterized) and **transport-specific** files:
 
 - **Common tests** (`__tests__/common.test.ts`): Tests that must pass on every transport. They run once per transport provider (in-memory, stdio, HTTP) using the `allProviders` array from `transport-providers.ts`. Add new tool tests here so they are automatically verified across all transports.

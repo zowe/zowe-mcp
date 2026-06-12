@@ -343,8 +343,7 @@
   "scripts": {
     "vscode:prepublish": "npm run build:all",
     "build": "tsc -p ./",
-    "typecheck": "tsc -p ./ --noEmit",
-    "typecheck:tests": "tsc -p tsconfig.json --noEmit",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
     "build:server": "npm run build -w @zowe/mcp-server && npm run bundle:server",
     "bundle:server": "node scripts/bundle-server.js",
     "build:all": "npm run build:server && npm run build",

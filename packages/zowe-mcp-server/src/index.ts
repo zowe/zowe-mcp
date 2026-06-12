@@ -377,7 +377,11 @@ function parseArgs(): ParsedArgs {
           // Node convention: if killed by a signal, exit with 128 + signo.
           // Otherwise mirror the child's exit code.
           if (signal) {
-            const signo = (process as unknown as { binding?: (n: string) => { signals: Record<string, number> } }).binding?.('constants')?.signals?.[signal];
+            const signo = (
+              process as unknown as {
+                binding?: (n: string) => { signals: Record<string, number> };
+              }
+            ).binding?.('constants')?.signals?.[signal];
             process.exit(128 + (signo ?? 15));
           }
           process.exit(code ?? 0);

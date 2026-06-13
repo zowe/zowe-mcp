@@ -183,19 +183,23 @@ Each as its own job/step so failures are legible.
 
 Today only `test:server` runs. Add the rest, tiered by infra needs.
 
-- [x] **Server tests**: coverage (report-only, Decision 4) via
-  `--coverage --coverage.reporter=text-summary` on the CI test step
-  (`@vitest/coverage-v8`, scoped to `src/**` excluding `src/scripts/**`).
-  ~50% statements at time of enablement; no threshold gate.
+- [x] **Server tests**: coverage (report-only, Decision 4) via `--coverage` on
+  the CI test step (`@vitest/coverage-v8`, scoped to `src/**` excluding
+  `src/scripts/**`). ~45% statements at time of enablement; no threshold gate.
+  Surfaced three ways: a text summary in the step log, a Markdown table on the
+  **run Summary page** (from the `json-summary` reporter via
+  `GITHUB_STEP_SUMMARY`), and a browsable HTML report uploaded as the
+  `coverage-report` artifact and linked from the sticky PR comment.
 - [x] **VS Code extension**: `xvfb-run -a npm run test:vscode` in the `build`
   job, with the `.vscode-test/` VS Code download cached.
 - [x] **Mock/integration suites**: verified the in-process `spawn-mock-zos.ts`
   suites already run in plain `npm test` (no include/exclude in vitest config);
   e2e suites self-skip via env gates, so the default run is CI-safe.
 - [x] **JUnit reporting**: vitest `junit` reporter writes
-  `test-results.junit.xml` (gitignored); `dorny/test-reporter@v2` publishes it
-  as a check run (needs `checks: write`; skipped for fork PRs whose token is
-  read-only).
+  `test-results.junit.xml` (gitignored); `dorny/test-reporter@v2` renders it on
+  the **run Summary page** (its v2 default `use-actions-summary: true` — no
+  separate check run) with failure annotations on PR files (needs
+  `checks: write`; skipped for fork PRs whose token is read-only).
 - [x] **Airgap**: `npm run test:airgap` runs after the `npm pack` step and
   installs the freshly packed tarball with an empty cache, invalid registry,
   and 5 ms network timeout — proves the tarball is self-contained.
@@ -205,6 +209,9 @@ Today only `test:server` runs. Add the rest, tiered by infra needs.
 - [x] **Nightly SDK-mode run**: new `nightly.yml` (daily cron + dispatch) runs
   `sdk-switch nightly` → build → typecheck → test against the latest upstream
   zowex SDK, catching upstream drift without touching the PR path.
+  **Caveat:** GitHub fires `schedule`/`workflow_dispatch` only from the default
+  branch, so the cron activates once this lands on `main` (the next
+  develop → main promotion).
 
 ## Phase 4 — Security & supply-chain
 

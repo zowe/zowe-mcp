@@ -224,27 +224,11 @@ Today only `test:server` runs. Add the rest, tiered by infra needs.
   Remaining 5 lows are evals-only `@ai-sdk/*` needing major bumps — below the
   `moderate` gate; left to Dependabot.
 
-- [ ] **`codeql.yml`** — TypeScript only (no C/C++ in this repo):
-
-  ```yaml
-  name: CodeQL
-  on:
-    push: { branches: [main, develop] }
-    pull_request: { branches: [main, develop] }
-    schedule:
-      - cron: "0 10 * * 1"
-  jobs:
-    analyze:
-      runs-on: ubuntu-latest
-      timeout-minutes: 30
-      permissions: { actions: read, contents: read, security-events: write }
-      steps:
-        - uses: actions/checkout@v4
-        - uses: github/codeql-action/init@v3
-          with: { languages: javascript-typescript, queries: security-extended }
-        - uses: github/codeql-action/autobuild@v3
-        - uses: github/codeql-action/analyze@v3
-  ```
+- [x] **`codeql.yml`** — CodeQL SAST for `javascript-typescript` (no C/C++ here),
+  `build-mode: none` (source analysis, no build), `security-extended` queries,
+  on push/PR (main + develop) + a weekly cron. A `.github/codeql/codeql-config.yml`
+  scopes analysis to our own source (ignores `vendor`, `dist`, `out`, `coverage`).
+  Results surface under **Security → Code scanning**.
 
 - [x] **`dependabot.yml`** — weekly `npm` (grouped dev vs production to limit PR
   volume; security updates still raised individually) + `github-actions`

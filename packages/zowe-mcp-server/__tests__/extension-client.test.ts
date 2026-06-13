@@ -73,11 +73,14 @@ describe('ExtensionClient', () => {
     // Create a temp directory for the discovery file
     discoveryDir = mkdtempSync(join(tmpdir(), 'zowe-mcp-test-'));
 
-    // Create a unique pipe path
-    pipePath = join(
-      tmpdir(),
-      `zowe-mcp-test-${Date.now()}-${Math.random().toString(36).slice(2)}.sock`
-    );
+    // Create a unique pipe path. Mirror the production pipe-server: a named
+    // pipe on Windows (a tmpdir .sock path is not valid IPC there), a unix
+    // socket under tmpdir elsewhere.
+    const pipeSuffix = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    pipePath =
+      process.platform === 'win32'
+        ? `\\\\.\\pipe\\zowe-mcp-test-${pipeSuffix}`
+        : join(tmpdir(), `zowe-mcp-test-${pipeSuffix}.sock`);
 
     // Start a mock pipe server
     await new Promise<void>(resolve => {

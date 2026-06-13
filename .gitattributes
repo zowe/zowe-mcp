@@ -1,0 +1,21 @@
+# Normalize line endings to LF on checkout for all text files. Without this a
+# Windows checkout converts shell scripts (and other text) to CRLF, which breaks
+# bash execution and shfmt/Prettier — important now that CI runs on Windows.
+* text=auto eol=lf
+
+# Binary files — never normalize line endings.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.tgz binary
+*.gz binary
+*.zip binary
+*.pax binary
+*.Z binary
+*.vsix binary
+*.woff binary
+*.woff2 binary
+*.ttf binary

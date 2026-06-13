@@ -248,20 +248,18 @@ Today only `test:server` runs. Add the rest, tiered by infra needs.
 
 ## Phase 5 — Cross-platform matrix
 
-- [ ] **OS matrix** for build + unit/vscode tests:
-
-  ```yaml
-  strategy:
-    fail-fast: false
-    matrix: { os: [ubuntu-latest, windows-latest, macos-latest] }
-  runs-on: ${{ matrix.os }}
-  ```
-
-  Catches path-separator, CRLF, and case-sensitivity bugs the extension/CLI hit
-  on user machines. **Gotcha**: `xvfb` is Linux-only — guard the display
-  wrapper per-OS; Windows/macOS run `vscode-test` directly.
-- [ ] Keep `.nvmrc` (Node 24) as the single source of truth; optionally add a
-  second LTS Node to the unit-test lane only.
+- [x] **OS matrix** — a separate `cross-platform` job (matrix
+  `windows-latest` + `macos-latest`, `fail-fast: false`) runs the portable set:
+  `npm ci` → build → type-check → server tests (`--no-file-parallelism`) → VS
+  Code extension tests. The full `build` job stays Linux-only (it owns the
+  packaging/release/coverage/JUnit steps that shouldn't run 3×); ubuntu is
+  already covered there. No `xvfb` on win/mac (`@vscode/test-electron` is
+  headless there). Catches path-separator, CRLF, and case-sensitivity bugs.
+  Prerequisite: the macOS bundling fix (PR #20).
+- [x] **`.gitattributes`** with `* text=auto eol=lf` so Windows checkouts don't
+  CRLF-mangle the shell scripts (renormalized one CRLF-committed SVG).
+- [ ] Keep `.nvmrc` (Node 24) as the single source of truth; second LTS Node not
+  added (the matrix exercises OS variation, which is the higher-value axis).
 
 ## Phase 6 — Gating & ergonomics
 

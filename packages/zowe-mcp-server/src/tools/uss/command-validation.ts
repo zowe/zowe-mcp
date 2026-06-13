@@ -25,6 +25,15 @@ import {
   checkReadSensitive,
 } from 'hardstop-patterns';
 
+/**
+ * The commands and paths validated here always target z/OS USS (a Unix
+ * environment), regardless of the OS the MCP server process runs on. Pass
+ * `platform: null` so hardstop-patterns does not filter its (Unix-tagged)
+ * patterns by the *host* platform — otherwise on a Windows host every result
+ * silently degrades to "elicit". See hardstop-patterns CheckOptions.platform.
+ */
+const USS_CHECK_OPTS = { platform: null } as const;
+
 /** Result of validating a shell command. */
 export interface CommandValidationResult {
   /** Action to take: block, allow (known safe), or elicit (unknown — need user confirmation). */
@@ -48,14 +57,14 @@ export interface ReadPathValidationResult {
  * 3. Unknown → ELICIT (caller must prompt user; if elicitation unavailable, treat as deny).
  */
 export function validateCommand(commandText: string): CommandValidationResult {
-  const dangerous = checkBashDangerous(commandText);
+  const dangerous = checkBashDangerous(commandText, USS_CHECK_OPTS);
   if (dangerous.matched && dangerous.pattern) {
     return {
       action: 'block',
       pattern: { id: dangerous.pattern.id, message: dangerous.pattern.message },
     };
   }
-  const safe = checkBashSafe(commandText);
+  const safe = checkBashSafe(commandText, USS_CHECK_OPTS);
   if (safe.matched) {
     return { action: 'allow' };
   }
@@ -74,21 +83,21 @@ export function validateReadPath(
   filePath: string,
   allowedPrefix?: string
 ): ReadPathValidationResult {
-  const dangerous = checkReadDangerous(filePath);
+  const dangerous = checkReadDangerous(filePath, USS_CHECK_OPTS);
   if (dangerous.matched && dangerous.pattern) {
     return {
       action: 'block',
       pattern: { id: dangerous.pattern.id, message: dangerous.pattern.message },
     };
   }
-  const sensitive = checkReadSensitive(filePath);
+  const sensitive = checkReadSensitive(filePath, USS_CHECK_OPTS);
   if (sensitive.matched && sensitive.pattern) {
     return {
       action: 'warn',
       pattern: { id: sensitive.pattern.id, message: sensitive.pattern.message },
     };
   }
-  const safe = checkReadSafe(filePath);
+  const safe = checkReadSafe(filePath, USS_CHECK_OPTS);
   if (safe.matched) {
     return { action: 'allow' };
   }

@@ -234,10 +234,15 @@ Today only `test:server` runs. Add the rest, tiered by infra needs.
   volume; security updates still raised individually) + `github-actions`
   ecosystems. The actions ecosystem replaces manual SHA-pinning (Phase 1).
 
-- [ ] **Secret scanning** (gitleaks) — improvement beyond zowex; we handle
-  tokens/credentials.
-- [ ] **License header check** — verify SPDX/EPL-2.0 headers on source files
-  (zowex runs a license step).
+- [x] **Secret scanning** (`secret-scan.yml`) — gitleaks via the OSS CLI (the
+  GitHub Action needs a paid org license), on push/PR + weekly cron. A
+  `.gitleaks.toml` allowlists known-public dev/test values by exact match (so
+  real secrets are still caught anywhere, including tests) and excludes
+  non-source paths.
+- [x] **License header check** (`license-headers.yml`) — verifies the EPL-2.0
+  SPDX header on non-TS source (`.js`/`.mjs`/`.cjs`/`.sh`); `.ts`/`.mts` are
+  already enforced by `eslint-plugin-headers` in the lint step. Added the header
+  to 6 files that were missing it.
 - [ ] *(Optional / later)* `step-security/harden-runner`, OpenSSF Scorecard,
   SBOM (CycloneDX).
 

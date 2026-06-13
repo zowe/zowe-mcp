@@ -24,10 +24,10 @@ const repoRoot = path.resolve(serverPkgDir, '..', '..');
 const packageJsonPath = path.join(serverPkgDir, 'package.json');
 const backupPath = path.join(serverPkgDir, '.package.json.backup');
 
-// Restore original package.json
+// Restore original package.json verbatim (byte-exact — preserves formatting,
+// e.g. the trailing newline, so packing leaves the working tree clean).
 if (fs.existsSync(backupPath)) {
-  const originalPkg = JSON.parse(fs.readFileSync(backupPath, 'utf-8'));
-  fs.writeFileSync(packageJsonPath, JSON.stringify(originalPkg, null, 2));
+  fs.copyFileSync(backupPath, packageJsonPath);
   fs.unlinkSync(backupPath);
   console.log('Restored original package.json');
 } else {

@@ -180,7 +180,11 @@ function dereferenceSymlinks(dir) {
         // Broken symlink — skip
         continue;
       }
-      fs.rmSync(full, { force: true });
+      // Remove the symlink itself (not its target). `recursive: true` is
+      // required for symlinks pointing at a directory — without it, newer Node
+      // throws ERR_FS_EISDIR ("Path is a directory") on macOS. rmSync does not
+      // traverse the link, so the target tree is untouched and is copied below.
+      fs.rmSync(full, { recursive: true, force: true });
       const realStat = fs.statSync(realPath);
       if (realStat.isDirectory()) {
         fs.cpSync(realPath, full, { recursive: true });

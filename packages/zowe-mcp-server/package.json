@@ -61,6 +61,7 @@
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^22.0.0",
     "@types/ssh2": "^1.15.5",
+    "@vitest/coverage-v8": "4.1.0",
     "vitest": "^4.0.18"
   }
 }

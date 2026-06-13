@@ -1,0 +1,55 @@
+name: Nightly (zowex SDK)
+
+# Builds and tests against the latest upstream zowex nightly SDK to catch
+# breakage early (the regular CI pins the committed fallback SDK). Failures
+# here indicate upstream drift, not a broken develop branch.
+
+on:
+  schedule:
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nightly-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  nightly-sdk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    env:
+      NODE_OPTIONS: --max_old_space_size=4096
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: '.nvmrc'
+          cache: npm
+
+      # sdk-switch rewrites the server dependency to the downloaded nightly
+      # tarball and runs its own npm install (falls back to the latest
+      # successful upstream Build artifact when Artifactory has no nightly).
+      - name: Switch to nightly zowex-sdk and install
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/sdk-switch.js nightly
+
+      - name: Download VS Code API types
+        run: npm run download-api -w packages/zowe-mcp-vscode
+
+      - name: Build (common + server)
+        run: |
+          npm run build -w packages/zowe-mcp-common
+          npm run build -w @zowe/mcp-server
+
+      - name: Type-check (incl. tests)
+        run: npm run typecheck --workspaces --if-present
+
+      - name: Test (server)
+        run: npm run test

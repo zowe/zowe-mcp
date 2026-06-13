@@ -1,8 +1,9 @@
 # <img src="packages/zowe-mcp-vscode/resources/icon.svg" alt="Zowe MCP" style="height:1.2em; vertical-align: text-top;" /> Zowe MCP
 
-Model Context Protocol (MCP) server and VS Code extension that gives AI
-assistants tools for working with z/OS systems -- data sets, jobs, and UNIX
-System Services.
+Model Context Protocol (MCP) server that gives AI assistants tools for working
+with z/OS systems -- data sets, jobs, and UNIX System Services. Works with any
+MCP-capable client (Claude Code, Cursor, VS Code, Zed, Roo Code, and others).
+An optional VS Code extension is also included.
 
 ## Use case examples
 
@@ -346,7 +347,7 @@ registers a "Zowe" MCP server provider.
 #### Enabling mock mode in the extension
 
 By default the extension starts the server without a z/OS backend, so only
-the `info` tool is available. A warning notification will appear with buttons
+the `getContext` tool is available. A warning notification will appear with buttons
 to help you configure mock data.
 
 Use the built-in command (easiest):
@@ -447,7 +448,7 @@ Copilot's tool list.
 Open GitHub Copilot Chat (Ctrl+Shift+I / Cmd+Shift+I) and try:
 
 ```text
-Use the info tool to show the Zowe MCP server version.
+Use the getContext tool to show the Zowe MCP server version.
 ```
 
 If mock mode is active, you can also try:
@@ -461,7 +462,7 @@ Set the active system to mainframe-dev.example.com and list datasets matching US
 ```
 
 Tool names use camelCase; in Copilot they appear prefixed with `mcp_zowe_` (e.g.
-`mcp_zowe_info`, `mcp_zowe_listDatasets`, `mcp_zowe_setSystem`).
+`mcp_zowe_getContext`, `mcp_zowe_listDatasets`, `mcp_zowe_setSystem`).
 
 ## Testing
 
@@ -488,7 +489,7 @@ Use the script that matches how you want to run the server:
 
 | Script | Backend | Use when |
 | --- | --- | --- |
-| `npm run inspector` | None | Quick check: only core tools (e.g. `info`) are available; no z/OS systems. |
+| `npm run inspector` | None | Quick check: only core tools (e.g. `getContext`) are available; no z/OS systems. |
 | `npm run inspector:mock` | Mock (filesystem) | Try dataset tools without a real z/OS: uses `./zowe-mcp-mock-data`. Generate mock data first with `npx @zowe/mcp-server init-mock --output ./zowe-mcp-mock-data`. |
 | `npm run inspector:native` | Native (SSH) | Connect to real z/OS via SSH. Needs `native-config.json` (systems) and `.env` (passwords). Copy `native-config.example.json` → `native-config.json` and `.env.example` → `.env`, then set `ZOWE_MCP_PASSWORD_<USER>_<HOST>` (see [Standalone mode](#standalone-mode)). |
 

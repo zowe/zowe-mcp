@@ -1,0 +1,12 @@
+name: Zowe MCP CodeQL config
+
+# Analyze our own source only. Exclude vendored upstream code, build output,
+# generated artifacts, and dependencies (CodeQL ignores node_modules by default,
+# but list it for clarity).
+paths-ignore:
+  - vendor
+  - '**/dist'
+  - '**/out'
+  - '**/.vscode-test'
+  - coverage
+  - '**/node_modules'

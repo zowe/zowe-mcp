@@ -1,0 +1,21 @@
+version: 2
+updates:
+  # npm dependencies across the workspace root. Grouped to keep PR volume low:
+  # one PR for dev-dependency bumps, one for production. Security updates are
+  # always raised individually by Dependabot regardless of grouping.
+  - package-ecosystem: npm
+    directory: '/'
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10
+    groups:
+      dev-dependencies:
+        dependency-type: development
+      production-dependencies:
+        dependency-type: production
+
+  # Keep GitHub Actions current (replaces manual SHA-pinning of actions).
+  - package-ecosystem: github-actions
+    directory: '/'
+    schedule:
+      interval: weekly

@@ -215,26 +215,14 @@ Today only `test:server` runs. Add the rest, tiered by infra needs.
 
 ## Phase 4 — Security & supply-chain
 
-- [ ] **`audit.yml`** (Decision 2 — mirror zowex):
-
-  ```yaml
-  name: Audit
-  on:
-    pull_request:
-      branches: [main, develop]
-    schedule:
-      - cron: "0 10 * * *"
-  permissions: { contents: read }
-  jobs:
-    audit:
-      runs-on: ubuntu-latest
-      timeout-minutes: 10
-      steps:
-        - uses: actions/checkout@v4
-        - uses: actions/setup-node@v4
-          with: { node-version: lts/* }
-        - run: npm audit --production --audit-level=moderate
-  ```
+- [x] **`audit.yml`** (Decision 2 — mirror zowex) — `npm audit --omit=dev
+  --audit-level=moderate` on push/PR (both branches) + a daily cron. To ship it
+  green, first cleared the production findings (high `fast-uri` path traversal
+  and moderate `hono` / `express-rate-limit` / `ip-address` / `qs`) with a
+  **targeted `npm update`** of just those 5 transitive packages (lockfile-only, no
+  `package.json` change; `npm audit fix` was rejected — it churned 98 packages).
+  Remaining 5 lows are evals-only `@ai-sdk/*` needing major bumps — below the
+  `moderate` gate; left to Dependabot.
 
 - [ ] **`codeql.yml`** — TypeScript only (no C/C++ in this repo):
 
@@ -258,19 +246,9 @@ Today only `test:server` runs. Add the rest, tiered by infra needs.
         - uses: github/codeql-action/analyze@v3
   ```
 
-- [ ] **`dependabot.yml`** — npm + github-actions ecosystems:
-
-  ```yaml
-  version: 2
-  updates:
-    - package-ecosystem: npm
-      directory: "/"
-      schedule: { interval: weekly }
-      groups: { dev-deps: { dependency-type: development } }
-    - package-ecosystem: github-actions
-      directory: "/"
-      schedule: { interval: weekly }
-  ```
+- [x] **`dependabot.yml`** — weekly `npm` (grouped dev vs production to limit PR
+  volume; security updates still raised individually) + `github-actions`
+  ecosystems. The actions ecosystem replaces manual SHA-pinning (Phase 1).
 
 - [ ] **Secret scanning** (gitleaks) — improvement beyond zowex; we handle
   tokens/credentials.

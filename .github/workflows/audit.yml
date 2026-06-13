@@ -1,0 +1,34 @@
+name: Audit
+
+# Dependency vulnerability scan. Runs on every PR and once daily so newly
+# disclosed advisories surface even without a code change. Production deps
+# only, failing at moderate+ (mirrors zowe/zowex).
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+  schedule:
+    - cron: '0 10 * * *'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: audit-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: '.nvmrc'
+
+      - name: npm audit (production, moderate+)
+        run: npm audit --omit=dev --audit-level=moderate

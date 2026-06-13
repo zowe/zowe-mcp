@@ -1,0 +1,30 @@
+title = "Zowe MCP gitleaks config"
+
+# Default rule set, plus an allowlist for values that are intentionally public
+# (dev/example/test) and for paths that aren't our source. Real secrets — in any
+# file, including tests — are still flagged. When a new fake secret in a test
+# trips a rule, add its exact value below rather than allowlisting whole trees.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Known-public dev/test values and non-source paths"
+regexTarget = "match"
+regexes = [
+  # infrastructure/local-registry + docs/mcp-registry-research.md — public dev
+  # credentials copied from the upstream MCP registry .env.example (no privileges).
+  '''0e8db54879b02c29adef51795586f3c510a9341d''',
+  '''bb2c6b424005acd5df47a9e2c87f446def86dd740c888ea3efb825b23f7ef47c''',
+  # test fixtures (not real secrets)
+  '''abc123def4567890''',
+  '''roundtrip-secret-99''',
+]
+paths = [
+  '''(^|/)vendor/''',          # vendored upstream content (not ours)
+  '''(^|/)node_modules/''',
+  '''(^|/)dist/''',
+  '''(^|/)out/''',
+  '''(^|/)\.vscode-test/''',   # downloaded VS Code (local/CI-generated)
+  '''(^|/)\.claude/''',        # local agent worktrees/scratch
+  '''remote-https-dev/certs/''', # local mkcert TLS material (gitignored)
+]

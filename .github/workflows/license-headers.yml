@@ -1,0 +1,40 @@
+name: License headers
+
+# Verifies the EPL-2.0 SPDX header on non-TypeScript source files
+# (.js/.mjs/.cjs/.sh). TypeScript (.ts/.mts) is already enforced by
+# eslint-plugin-headers in the lint step of the build job; this covers the gap.
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: license-headers-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  headers:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Check SPDX headers (non-TS source)
+        run: |
+          missing=0
+          while read -r f; do
+            if ! grep -q "SPDX-License-Identifier: EPL-2.0" "$f"; then
+              echo "::error file=$f::Missing EPL-2.0 SPDX license header"
+              missing=1
+            fi
+          done < <(git ls-files '*.js' '*.mjs' '*.cjs' '*.sh' | grep -vE '^vendor/')
+          if [ "$missing" -ne 0 ]; then
+            echo "One or more source files are missing the EPL-2.0 SPDX header."
+            exit 1
+          fi
+          echo "All non-TS source files carry the EPL-2.0 SPDX header."

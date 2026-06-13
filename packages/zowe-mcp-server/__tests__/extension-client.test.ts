@@ -59,6 +59,18 @@ function readFirstLine(socket: Socket): Promise<string> {
   });
 }
 
+/**
+ * Platform-appropriate IPC path, mirroring the production pipe-server: a named
+ * pipe on Windows (a tmpdir `.sock` path is not valid IPC there — `listen`
+ * fails with EACCES), a unix socket under tmpdir elsewhere.
+ */
+function makePipePath(prefix: string): string {
+  const suffix = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  return process.platform === 'win32'
+    ? `\\\\.\\pipe\\${prefix}-${suffix}`
+    : join(tmpdir(), `${prefix}-${suffix}.sock`);
+}
+
 describe('ExtensionClient', () => {
   let mockServer: Server;
   let serverSocket: Socket | undefined;
@@ -73,14 +85,7 @@ describe('ExtensionClient', () => {
     // Create a temp directory for the discovery file
     discoveryDir = mkdtempSync(join(tmpdir(), 'zowe-mcp-test-'));
 
-    // Create a unique pipe path. Mirror the production pipe-server: a named
-    // pipe on Windows (a tmpdir .sock path is not valid IPC there), a unix
-    // socket under tmpdir elsewhere.
-    const pipeSuffix = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    pipePath =
-      process.platform === 'win32'
-        ? `\\\\.\\pipe\\zowe-mcp-test-${pipeSuffix}`
-        : join(tmpdir(), `zowe-mcp-test-${pipeSuffix}.sock`);
+    pipePath = makePipePath('zowe-mcp-test');
 
     // Start a mock pipe server
     await new Promise<void>(resolve => {
@@ -427,10 +432,7 @@ describe('ExtensionClient', () => {
 
   it('can exchange events after a mock server enforces handshake authentication', async () => {
     const pipeSecret = 'roundtrip-secret-99';
-    const authPipePath = join(
-      tmpdir(),
-      `zowe-mcp-auth-test-${Date.now()}-${Math.random().toString(36).slice(2)}.sock`
-    );
+    const authPipePath = makePipePath('zowe-mcp-auth-test');
 
     // Build a mock server that enforces the handshake before forwarding events —
     // this mirrors the behaviour of the real pipe-server.ts after the security fix.
@@ -511,10 +513,7 @@ describe('ExtensionClient', () => {
   it('is disconnected when the server rejects an incorrect secret', async () => {
     const correctSecret = 'correct-secret';
     const wrongSecret = 'wrong-secret';
-    const strictPipePath = join(
-      tmpdir(),
-      `zowe-mcp-strict-test-${Date.now()}-${Math.random().toString(36).slice(2)}.sock`
-    );
+    const strictPipePath = makePipePath('zowe-mcp-strict-test');
 
     // A mock server that closes the connection on a bad handshake.
     const strictServer = await new Promise<Server>(resolve => {

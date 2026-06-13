@@ -49,57 +49,73 @@ const fileDepDirs = [
   { prefix: 'file:../../resources/', absDir: path.join(repoRoot, 'resources') },
 ];
 
-// 1. Backup original package.json
-const originalPkg = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
-fs.writeFileSync(backupPath, JSON.stringify(originalPkg, null, 2));
+// 1. Backup original package.json verbatim (byte-exact, so postpack can restore
+//    it without changing formatting — e.g. the trailing newline).
+fs.copyFileSync(packageJsonPath, backupPath);
 
-// 2. Rewrite deps in-place (workspace → .local/, file: tgz → .unpack/)
-bundleWorkspaceDep({
-  targetDir: serverPkgDir,
-  targetPackageJsonPath: packageJsonPath,
-  depName: 'zowe-mcp-common',
-  depSourceDir: commonPkgDir,
-});
+// Everything after the backup is wrapped so a failure restores the original
+// package.json and removes scratch dirs — otherwise a crash here leaves the repo
+// half-rewritten (postpack, which restores, only runs after a *successful* pack).
+try {
+  // 2. Rewrite deps in-place (workspace → .local/, file: tgz → .unpack/)
+  bundleWorkspaceDep({
+    targetDir: serverPkgDir,
+    targetPackageJsonPath: packageJsonPath,
+    depName: 'zowe-mcp-common',
+    depSourceDir: commonPkgDir,
+  });
 
-prepareFileDepsForBundle({
-  targetDir: serverPkgDir,
-  targetPackageJsonPath: packageJsonPath,
-  fileDepDirs,
-});
+  prepareFileDepsForBundle({
+    targetDir: serverPkgDir,
+    targetPackageJsonPath: packageJsonPath,
+    fileDepDirs,
+  });
 
-// 3. Create an isolated temp directory and copy the rewritten package.json
-//    plus the .local/ and .unpack/ directories into it. This is outside the
-//    monorepo so npm install doesn't hoist deps to the workspace root.
-const isoDir = fs.mkdtempSync(path.join(os.tmpdir(), 'zowe-mcp-pack-'));
-fs.cpSync(packageJsonPath, path.join(isoDir, 'package.json'));
-for (const dir of ['.local', '.unpack']) {
-  const src = path.join(serverPkgDir, dir);
-  if (fs.existsSync(src)) {
-    fs.cpSync(src, path.join(isoDir, dir), { recursive: true });
+  // 3. Create an isolated temp directory and copy the rewritten package.json
+  //    plus the .local/ and .unpack/ directories into it. This is outside the
+  //    monorepo so npm install doesn't hoist deps to the workspace root.
+  const isoDir = fs.mkdtempSync(path.join(os.tmpdir(), 'zowe-mcp-pack-'));
+  fs.cpSync(packageJsonPath, path.join(isoDir, 'package.json'));
+  for (const dir of ['.local', '.unpack']) {
+    const src = path.join(serverPkgDir, dir);
+    if (fs.existsSync(src)) {
+      fs.cpSync(src, path.join(isoDir, dir), { recursive: true });
+    }
   }
+
+  // 4. Run npm install in the isolated directory
+  console.log('Installing production dependencies in isolated directory...');
+  npmInstallProduction(isoDir);
+
+  // 5. Dereference symlinks created by file: deps
+  dereferenceSymlinks(path.join(isoDir, 'node_modules'));
+
+  // 6. Copy the node_modules tree into the server package directory
+  const targetNodeModules = path.join(serverPkgDir, 'node_modules');
+  if (fs.existsSync(targetNodeModules)) {
+    fs.rmSync(targetNodeModules, { recursive: true, force: true });
+  }
+  fs.cpSync(path.join(isoDir, 'node_modules'), targetNodeModules, { recursive: true });
+
+  // Clean up the temp directory
+  fs.rmSync(isoDir, { recursive: true, force: true });
+
+  // 7. Add bundledDependencies: true so npm pack includes the node_modules/ tree.
+  //    This flag is NOT in the committed package.json (it would cause npm install
+  //    to skip deps during development). We add it here only for the pack phase.
+  const modifiedPkg = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
+  modifiedPkg.bundledDependencies = true;
+  fs.writeFileSync(packageJsonPath, JSON.stringify(modifiedPkg, null, 2));
+  console.log('Prepack complete — bundledDependencies will include node_modules/ in the tarball.');
+} catch (err) {
+  // Restore the original package.json and remove scratch dirs so a failed
+  // prepack doesn't leave the working tree broken (which then breaks npm ci).
+  if (fs.existsSync(backupPath)) {
+    fs.writeFileSync(packageJsonPath, fs.readFileSync(backupPath, 'utf-8'));
+    fs.unlinkSync(backupPath);
+  }
+  for (const dir of ['.local', '.unpack', '.extract-tmp']) {
+    fs.rmSync(path.join(serverPkgDir, dir), { recursive: true, force: true });
+  }
+  throw err;
 }
-
-// 4. Run npm install in the isolated directory
-console.log('Installing production dependencies in isolated directory...');
-npmInstallProduction(isoDir);
-
-// 5. Dereference symlinks created by file: deps
-dereferenceSymlinks(path.join(isoDir, 'node_modules'));
-
-// 6. Copy the node_modules tree into the server package directory
-const targetNodeModules = path.join(serverPkgDir, 'node_modules');
-if (fs.existsSync(targetNodeModules)) {
-  fs.rmSync(targetNodeModules, { recursive: true, force: true });
-}
-fs.cpSync(path.join(isoDir, 'node_modules'), targetNodeModules, { recursive: true });
-
-// Clean up the temp directory
-fs.rmSync(isoDir, { recursive: true, force: true });
-
-// 7. Add bundledDependencies: true so npm pack includes the node_modules/ tree.
-//    This flag is NOT in the committed package.json (it would cause npm install
-//    to skip deps during development). We add it here only for the pack phase.
-const modifiedPkg = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
-modifiedPkg.bundledDependencies = true;
-fs.writeFileSync(packageJsonPath, JSON.stringify(modifiedPkg, null, 2));
-console.log('Prepack complete — bundledDependencies will include node_modules/ in the tarball.');

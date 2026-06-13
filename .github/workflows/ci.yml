@@ -206,3 +206,54 @@ jobs:
              - MCP server npm package (.tgz): ${{ steps.npm-pack-upload.outputs.artifact-url }}
              - MCP Reference Docs: ${{ steps.docs-upload.outputs.artifact-url }}
              - Server coverage report (HTML): ${{ steps.coverage-upload.outputs.artifact-url }}
+
+  # Cross-platform verification on Windows and macOS. The full build job above
+  # runs on Linux (it owns the packaging/release/coverage steps); this leg runs
+  # only the portable parts — build, type-check, server tests, and the VS Code
+  # extension tests — to catch path-separator, line-ending, and case-sensitivity
+  # bugs the extension/CLI hit on users' machines. Ubuntu is already covered by
+  # `build`. fail-fast: false so one OS failing doesn't cancel the other.
+  cross-platform:
+    name: Cross-platform (${{ matrix.os }})
+    if: "!contains(github.event.head_commit.message || '', '[ci skip]')"
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+
+    env:
+      NODE_OPTIONS: --max_old_space_size=4096
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: '.nvmrc'
+          cache: npm
+
+      - name: Install dependencies (npm ci)
+        run: npm ci --ignore-scripts
+
+      - name: Download VS Code API types
+        run: npm run download-api -w packages/zowe-mcp-vscode
+
+      - name: Build (common + server)
+        run: |
+          npm run build -w packages/zowe-mcp-common
+          npm run build -w @zowe/mcp-server
+
+      - name: Type-check (incl. tests)
+        run: npm run typecheck --workspaces --if-present
+
+      # --no-file-parallelism avoids the cross-platform integration-test
+      # contention documented in AGENTS.md (observed hanging on macOS).
+      - name: Test (server)
+        run: npm run test -w @zowe/mcp-server -- --no-file-parallelism
+
+      # No xvfb here: @vscode/test-electron runs headless natively on
+      # Windows/macOS runners (xvfb is Linux-only).
+      - name: Test (VS Code extension)
+        run: npm run test:vscode

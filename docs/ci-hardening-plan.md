@@ -255,9 +255,22 @@ Today only `test:server` runs. Add the rest, tiered by infra needs.
   packaging/release/coverage/JUnit steps that shouldn't run 3×); ubuntu is
   already covered there. No `xvfb` on win/mac (`@vscode/test-electron` is
   headless there). Catches path-separator, CRLF, and case-sensitivity bugs.
-  Prerequisite: the macOS bundling fix (PR #20).
+  Prerequisite: the **macOS bundling fix** (PR #20) — `dereferenceSymlinks`
+  threw `ERR_FS_EISDIR` removing a dir symlink without `recursive: true`, which
+  broke `pack:server` / `bundle:server` on macOS; that PR also hardened the
+  prepack crash-restore and made the package.json backup byte-exact.
 - [x] **`.gitattributes`** with `* text=auto eol=lf` so Windows checkouts don't
   CRLF-mangle the shell scripts (renormalized one CRLF-committed SVG).
+- [x] **Cross-platform bugs the matrix caught and fixed** (the payoff):
+  - **`validateCommand` degraded to `elicit` on Windows** — a real product bug.
+    `hardstop-patterns` filters by the *host* platform, but USS commands always
+    target z/OS Unix; fixed by passing `platform: null` in
+    `command-validation.ts`.
+  - **`extension-client` tests used unix `.sock` paths** for their mock pipe
+    (`listen EACCES` on Windows) — fixed with a `makePipePath()` helper that
+    mirrors the production pipe-server (`\\.\pipe\…` on Windows).
+- [ ] **Not yet a required check** — promote `cross-platform` (and the security
+  checks) to required in Phase 6, once stable.
 - [ ] Keep `.nvmrc` (Node 24) as the single source of truth; second LTS Node not
   added (the matrix exercises OS variation, which is the higher-value axis).
 
@@ -316,6 +329,25 @@ All PRs target `develop`.
   `test:keycloak-jwt-e2e` stay nightly-only? Same question for
   `test:native-stdio-e2e` (does it need a real backend, or does it run against
   the mock?). Until resolved, these stay **off the required PR path**.
+
+## Follow-ups (tracked)
+
+Deferred work spun off from the phases above, so it isn't lost:
+
+- **Re-enable the Windows extension-client tests** (from Phase 5). Six tests in
+  `packages/zowe-mcp-server/__tests__/extension-client.test.ts` that exercise
+  the *shared* mock pipe server's bidirectional data flow are skipped on Windows
+  (`it.skipIf(isWindows)`) — they time out on the Windows runner. The per-test
+  inline mock servers and the connect/discovery tests pass, and **production is
+  unaffected** (the real `ExtensionClient` connects to the VS Code extension's
+  pipe-server, which already uses `\\.\pipe\…`). Fix the test harness's Windows
+  named-pipe data delivery, then remove the skips. (Spawned task.)
+- **Plugin-schema validation** (from Phase 4) — validate the bundled CLI-bridge
+  plugin YAMLs against `schemas/plugin-tools.schema.json`; needs an `ajv`-based
+  check. Low value today (only 2 vendor files); revisit if plugin authoring
+  grows.
+- **ESLint SARIF → code scanning** (from Phase 2) — optional: emit ESLint SARIF
+  and upload so lint findings annotate PRs inline.
 
 ## Reference: what zowex runs (for comparison)
 

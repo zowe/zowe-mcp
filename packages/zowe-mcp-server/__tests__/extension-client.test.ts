@@ -254,12 +254,12 @@ describe('ExtensionClient', () => {
       if (event.type === 'log-level') receivedEvents.push(event);
     });
 
-    // Handshake on connect so the pipe is primed for server→client delivery.
+    // Handshake on connect, then wait until the server has actually received it
+    // before the server replies — this confirms the pipe is fully established in
+    // both directions, which server→client delivery needs on Windows.
     writeDiscovery('recv-secret');
     await client.connect(discoveryDir, workspaceId, logger);
-
-    // Wait for server socket
-    await waitUntil(() => !!serverSocket);
+    await waitUntil(() => serverReceived.length > 0);
 
     // Send a log-level event from the "extension" (mock server)
     const event: LogLevelEvent = {
@@ -288,12 +288,12 @@ describe('ExtensionClient', () => {
       if (event.type === 'log-level') receivedEvents.push(event);
     });
 
-    // Handshake on connect so the pipe is primed for server→client delivery.
+    // Handshake on connect, then wait until the server has actually received it
+    // before the server replies — this confirms the pipe is fully established in
+    // both directions, which server→client delivery needs on Windows.
     writeDiscovery('recv-secret');
     await client.connect(discoveryDir, workspaceId, logger);
-
-    // Wait for server socket
-    await waitUntil(() => !!serverSocket);
+    await waitUntil(() => serverReceived.length > 0);
 
     // Send two events in one write
     const event1: LogLevelEvent = { type: 'log-level', data: { level: 'debug' }, timestamp: 1 };
@@ -574,20 +574,25 @@ describe('ExtensionClient', () => {
       const logger = new Logger({ level: 'info' });
       const client = new ExtensionClient();
 
-      // Register the log-level handler (same as index.ts does)
+      // Register the log-level handler (same as index.ts does). Also record the
+      // received level so the test can wait for the event without reaching into
+      // the logger's private state.
+      let receivedLevel: string | undefined;
       client.onEvent(event => {
         if (event.type === 'log-level') {
           const { level } = event.data;
+          receivedLevel = level;
           logger.setLevel(level);
         }
       });
 
-      // Handshake on connect so the pipe is primed for server→client delivery.
+      // Handshake on connect, then wait until the server has actually received
+      // it before the server replies — this confirms the pipe is fully
+      // established in both directions, which server→client delivery needs on
+      // Windows.
       writeDiscovery('recv-secret');
       await client.connect(discoveryDir, workspaceId, logger);
-
-      // Wait for server socket
-      await waitUntil(() => !!serverSocket);
+      await waitUntil(() => serverReceived.length > 0);
 
       // Verify info is logged but debug is not
       logger.debug('should be suppressed');
@@ -604,8 +609,9 @@ describe('ExtensionClient', () => {
       };
       serverSocket!.write(JSON.stringify(event) + '\n');
 
-      // Wait for the event to be processed
-      await new Promise<void>(resolve => setTimeout(resolve, 100));
+      // Wait until the event was received and the handler ran, rather than
+      // guessing a fixed delay.
+      await waitUntil(() => receivedLevel === 'debug');
 
       // Now debug should be logged
       logger.debug('should now be visible');

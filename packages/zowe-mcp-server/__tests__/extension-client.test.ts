@@ -27,7 +27,7 @@ import { ExtensionClient, connectExtensionClient } from '../src/extension-client
 import { Logger } from '../src/log.js';
 
 /** Poll until `predicate()` returns a truthy value, up to `timeoutMs`. */
-async function waitUntil(predicate: () => boolean, timeoutMs = 2000): Promise<void> {
+async function waitUntil(predicate: () => boolean, timeoutMs = 5000): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   return new Promise<void>((resolve, reject) => {
     const check = () => {
@@ -43,22 +43,6 @@ async function waitUntil(predicate: () => boolean, timeoutMs = 2000): Promise<vo
   });
 }
 
-/** Read the first complete NDJSON line from a socket, resolving once it arrives. */
-function readFirstLine(socket: Socket): Promise<string> {
-  return new Promise<string>(resolve => {
-    let buf = '';
-    const onData = (chunk: Buffer) => {
-      buf += chunk.toString();
-      const idx = buf.indexOf('\n');
-      if (idx !== -1) {
-        socket.off('data', onData);
-        resolve(buf.slice(0, idx));
-      }
-    };
-    socket.on('data', onData);
-  });
-}
-
 /**
  * Platform-appropriate IPC path, mirroring the production pipe-server: a named
  * pipe on Windows (a tmpdir `.sock` path is not valid IPC there — `listen`
@@ -71,17 +55,11 @@ function makePipePath(prefix: string): string {
     : join(tmpdir(), `${prefix}-${suffix}.sock`);
 }
 
-// Tests that exercise bidirectional data flow over the *shared* mock pipe
-// server (the per-test inline servers below work fine on all OSes). On Windows
-// CI the shared server's accepted socket doesn't reliably deliver data, so
-// these time out. Production is unaffected — the real ExtensionClient only
-// connects to the VS Code extension's pipe, which is platform-correct. Skipped
-// on Windows pending a fix to the test harness's Windows named-pipe handling.
-const isWindows = process.platform === 'win32';
-
 describe('ExtensionClient', () => {
   let mockServer: Server;
   let serverSocket: Socket | undefined;
+  /** Complete NDJSON lines the mock server has received from the client. */
+  let serverReceived: string[];
   let pipePath: string;
   let discoveryDir: string;
   const workspaceId = 'test1234';
@@ -94,11 +72,31 @@ describe('ExtensionClient', () => {
     discoveryDir = mkdtempSync(join(tmpdir(), 'zowe-mcp-test-'));
 
     pipePath = makePipePath('zowe-mcp-test');
+    serverReceived = [];
 
-    // Start a mock pipe server
+    // Start a mock pipe server. The `data` listener is attached *inside* the
+    // connection callback — the moment the socket is accepted — for two reasons,
+    // both of which matter on Windows named pipes:
+    //   1. Nothing the client sends is ever missed, including the connect-time
+    //      handshake (which arrives before a test body could attach a listener).
+    //   2. The accepted socket enters flowing mode immediately. A Windows named
+    //      pipe whose accepted socket never reads can stall in *both* directions,
+    //      so this also keeps server→client writes pumping. (This mirrors the
+    //      production pipe-server, which reads from the moment of accept.)
+    // Received lines accumulate in `serverReceived`; tests assert against it
+    // rather than racing a late listener.
     await new Promise<void>(resolve => {
       mockServer = createServer(socket => {
         serverSocket = socket;
+        let buf = '';
+        socket.on('data', (chunk: Buffer) => {
+          buf += chunk.toString();
+          const lines = buf.split('\n');
+          buf = lines.pop() ?? '';
+          for (const line of lines) {
+            if (line.trim().length > 0) serverReceived.push(line);
+          }
+        });
       });
       mockServer.listen(pipePath, () => {
         resolve();
@@ -230,7 +228,7 @@ describe('ExtensionClient', () => {
   // Receiving events
   // -----------------------------------------------------------------------
 
-  it.skipIf(isWindows)('should dispatch received events to registered handlers', async () => {
+  it('should dispatch received events to registered handlers', async () => {
     const logger = new Logger({ level: 'debug' });
     const client = new ExtensionClient();
 
@@ -253,13 +251,7 @@ describe('ExtensionClient', () => {
     serverSocket!.write(JSON.stringify(event) + '\n');
 
     // Wait for the event to be dispatched
-    await new Promise<void>(resolve => {
-      const check = () => {
-        if (receivedEvents.length > 0) resolve();
-        else setTimeout(check, 10);
-      };
-      check();
-    });
+    await waitUntil(() => receivedEvents.length > 0);
 
     expect(receivedEvents).toHaveLength(1);
     expect(receivedEvents[0].type).toBe('log-level');
@@ -268,7 +260,7 @@ describe('ExtensionClient', () => {
     client.close();
   });
 
-  it.skipIf(isWindows)('should handle multiple events in a single data chunk', async () => {
+  it('should handle multiple events in a single data chunk', async () => {
     const logger = new Logger({ level: 'debug' });
     const client = new ExtensionClient();
 
@@ -288,13 +280,7 @@ describe('ExtensionClient', () => {
     serverSocket!.write(JSON.stringify(event1) + '\n' + JSON.stringify(event2) + '\n');
 
     // Wait for both events
-    await new Promise<void>(resolve => {
-      const check = () => {
-        if (receivedEvents.length >= 2) resolve();
-        else setTimeout(check, 10);
-      };
-      check();
-    });
+    await waitUntil(() => receivedEvents.length >= 2);
 
     expect(receivedEvents).toHaveLength(2);
     expect(receivedEvents[0].data.level).toBe('debug');
@@ -334,118 +320,101 @@ describe('ExtensionClient', () => {
   // Logger integration
   // -----------------------------------------------------------------------
 
-  it.skipIf(isWindows)(
-    'should forward log messages to the extension pipe when attached',
-    async () => {
-      const logger = new Logger({ level: 'debug' });
-      const client = new ExtensionClient();
-      await client.connect(discoveryDir, workspaceId, logger);
+  it('should forward log messages to the extension pipe when attached', async () => {
+    const logger = new Logger({ level: 'debug' });
+    const client = new ExtensionClient();
+    await client.connect(discoveryDir, workspaceId, logger);
 
-      // Wait for server socket
-      await waitUntil(() => !!serverSocket);
+    // Wait for server socket
+    await waitUntil(() => !!serverSocket);
 
-      // Attach the extension client to the logger
-      logger.attachExtension(client);
+    // Attach the extension client to the logger
+    logger.attachExtension(client);
 
-      const received = new Promise<string>(resolve => {
-        let data = '';
-        serverSocket!.on('data', (chunk: Buffer) => {
-          data += chunk.toString();
-          if (data.includes('\n')) resolve(data);
-        });
-      });
+    logger.info('test log message', { key: 'value' });
 
-      logger.info('test log message', { key: 'value' });
+    // The discovery file has no pipeSecret, so no handshake precedes the log —
+    // the forwarded log event is the first line the server receives.
+    await waitUntil(() => serverReceived.length > 0);
+    const parsed = JSON.parse(serverReceived[0]) as LogEvent;
+    expect(parsed.type).toBe('log');
+    expect(parsed.data.level).toBe('info');
+    expect(parsed.data.message).toBe('test log message');
+    expect(parsed.data.data).toEqual({ key: 'value' });
 
-      const raw = await received;
-      const parsed = JSON.parse(raw.trim()) as LogEvent;
-      expect(parsed.type).toBe('log');
-      expect(parsed.data.level).toBe('info');
-      expect(parsed.data.message).toBe('test log message');
-      expect(parsed.data.data).toEqual({ key: 'value' });
-
-      client.close();
-    }
-  );
+    client.close();
+  });
 
   // -----------------------------------------------------------------------
   // Pipe handshake authentication
   // -----------------------------------------------------------------------
 
-  it.skipIf(isWindows)(
-    'sends pipe-handshake as the very first message when pipeSecret is in the discovery file',
-    async () => {
-      const pipeSecret = 'supersecret-test-42';
+  it('sends pipe-handshake as the very first message when pipeSecret is in the discovery file', async () => {
+    const pipeSecret = 'supersecret-test-42';
 
-      // Overwrite the discovery file to include pipeSecret.
-      const discoveryFile = join(discoveryDir, `mcp-discovery-${workspaceId}.json`);
-      writeFileSync(
-        discoveryFile,
-        JSON.stringify({
-          socketPath: pipePath,
-          workspaceId,
-          timestamp: Date.now(),
-          pid: process.pid,
-          pipeSecret,
-        })
-      );
-
-      const logger = new Logger({ level: 'debug' });
-      const client = new ExtensionClient();
-      await client.connect(discoveryDir, workspaceId, logger);
-
-      // Wait for the server side to accept the connection.
-      await waitUntil(() => serverSocket !== undefined);
-
-      // The socket is initially in paused mode, so the handshake data is buffered
-      // until we add a listener — it is the first (and only) thing the client has sent.
-      const firstLine = await readFirstLine(serverSocket!);
-      const msg = JSON.parse(firstLine) as { type: string; secret: string };
-      expect(msg.type).toBe('pipe-handshake');
-      expect(msg.secret).toBe(pipeSecret);
-
-      client.close();
-    }
-  );
-
-  it.skipIf(isWindows)(
-    'logs a warning and skips the handshake when pipeSecret is absent from the discovery file',
-    async () => {
-      // The discovery file written by beforeEach has no pipeSecret field — this
-      // represents a bug or a stale file.  The client should warn and still
-      // attempt to connect (the server will reject it, but that is handled
-      // server-side; the client itself should not crash).
-      const warnMessages: string[] = [];
-      const logger = new Logger({ level: 'debug' });
-      // Capture warning output written to stderr.
-      stderrSpy.mockImplementation((s: unknown) => {
-        if (typeof s === 'string') warnMessages.push(s);
-        return true;
-      });
-
-      const client = new ExtensionClient();
-      await client.connect(discoveryDir, workspaceId, logger);
-
-      await waitUntil(() => serverSocket !== undefined);
-
-      // A warning must have been emitted about the missing secret.
-      expect(warnMessages.some(m => m.includes('pipeSecret'))).toBe(true);
-
-      // Trigger the first data by sending a regular event — no handshake prefix.
-      const event: LogEvent = {
-        type: 'log',
-        data: { level: 'info', logger: 'test', message: 'no-handshake' },
+    // Overwrite the discovery file to include pipeSecret.
+    const discoveryFile = join(discoveryDir, `mcp-discovery-${workspaceId}.json`);
+    writeFileSync(
+      discoveryFile,
+      JSON.stringify({
+        socketPath: pipePath,
+        workspaceId,
         timestamp: Date.now(),
-      };
-      client.sendEvent(event);
+        pid: process.pid,
+        pipeSecret,
+      })
+    );
 
-      const firstLine = await readFirstLine(serverSocket!);
-      const msg = JSON.parse(firstLine) as { type: string };
-      expect(msg.type).toBe('log');
+    const logger = new Logger({ level: 'debug' });
+    const client = new ExtensionClient();
+    await client.connect(discoveryDir, workspaceId, logger);
 
-      client.close();
-    }
-  );
+    // The handshake is the very first line the client sends on connect; the
+    // server captures it from the moment of accept, so it is serverReceived[0].
+    await waitUntil(() => serverReceived.length > 0);
+    const msg = JSON.parse(serverReceived[0]) as { type: string; secret: string };
+    expect(msg.type).toBe('pipe-handshake');
+    expect(msg.secret).toBe(pipeSecret);
+
+    client.close();
+  });
+
+  it('logs a warning and skips the handshake when pipeSecret is absent from the discovery file', async () => {
+    // The discovery file written by beforeEach has no pipeSecret field — this
+    // represents a bug or a stale file.  The client should warn and still
+    // attempt to connect (the server will reject it, but that is handled
+    // server-side; the client itself should not crash).
+    const warnMessages: string[] = [];
+    const logger = new Logger({ level: 'debug' });
+    // Capture warning output written to stderr.
+    stderrSpy.mockImplementation((s: unknown) => {
+      if (typeof s === 'string') warnMessages.push(s);
+      return true;
+    });
+
+    const client = new ExtensionClient();
+    await client.connect(discoveryDir, workspaceId, logger);
+
+    await waitUntil(() => serverSocket !== undefined);
+
+    // A warning must have been emitted about the missing secret.
+    expect(warnMessages.some(m => m.includes('pipeSecret'))).toBe(true);
+
+    // No handshake was sent, so a regular event is the first line the server
+    // sees — proving the client skipped the handshake but still sends events.
+    const event: LogEvent = {
+      type: 'log',
+      data: { level: 'info', logger: 'test', message: 'no-handshake' },
+      timestamp: Date.now(),
+    };
+    client.sendEvent(event);
+
+    await waitUntil(() => serverReceived.length > 0);
+    const msg = JSON.parse(serverReceived[0]) as { type: string };
+    expect(msg.type).toBe('log');
+
+    client.close();
+  });
 
   it('can exchange events after a mock server enforces handshake authentication', async () => {
     const pipeSecret = 'roundtrip-secret-99';
@@ -576,8 +545,9 @@ describe('ExtensionClient', () => {
   // setLevel via log-level event
   // -----------------------------------------------------------------------
 
-  // Also skipped on Windows: see itExceptWindows note (shared mock pipe data flow).
-  it.skipIf(process.env.ZOWE_MCP_LOG_LEVEL !== undefined || isWindows)(
+  // Skipped only when ZOWE_MCP_LOG_LEVEL is set in the environment (it would
+  // override setLevel and make the assertion below meaningless).
+  it.skipIf(process.env.ZOWE_MCP_LOG_LEVEL !== undefined)(
     'should update logger level when receiving a log-level event',
     async () => {
       const logger = new Logger({ level: 'info' });

@@ -257,3 +257,27 @@ jobs:
       # Windows/macOS runners (xvfb is Linux-only).
       - name: Test (VS Code extension)
         run: npm run test:vscode
+
+  # Aggregate gate: one stable check name for branch protection to require, so
+  # adding, renaming, or sharding the CI jobs above never churns the protection
+  # config (only a brand-new *workflow* would). Runs even when an upstream job
+  # failed or was skipped (if: always()) and fails only if a needed job actually
+  # failed or was cancelled. A skipped job — e.g. a `[ci skip]` push, where build
+  # and cross-platform are guarded off — counts as a pass, so `[ci skip]` commits
+  # still satisfy the required check.
+  ci-ok:
+    name: ci-ok
+    needs: [build, cross-platform]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Verify required CI jobs succeeded
+        run: |
+          echo "build          = ${{ needs.build.result }}"
+          echo "cross-platform = ${{ needs.cross-platform.result }}"
+          if [ "${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}" = "true" ]; then
+            echo "::error::A required CI job failed or was cancelled."
+            exit 1
+          fi
+          echo "All required CI jobs passed (or were skipped)."

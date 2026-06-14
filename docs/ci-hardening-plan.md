@@ -269,33 +269,54 @@ Today only `test:server` runs. Add the rest, tiered by infra needs.
   - **`extension-client` tests used unix `.sock` paths** for their mock pipe
     (`listen EACCES` on Windows) — fixed with a `makePipePath()` helper that
     mirrors the production pipe-server (`\\.\pipe\…` on Windows).
-- [ ] **Not yet a required check** — promote `cross-platform` (and the security
-  checks) to required in Phase 6, once stable.
+- [x] **Promoted to required** in Phase 6 (PR-8) via the `ci-ok` aggregate, which
+  `needs: [build, cross-platform]`; the security checks are required individually.
 - [ ] Keep `.nvmrc` (Node 24) as the single source of truth; second LTS Node not
   added (the matrix exercises OS variation, which is the higher-value axis).
 
 ## Phase 6 — Gating & ergonomics
 
-- [ ] **Aggregate `ci-ok` gate job** that `needs:` all required jobs, so branch
-  protection requires one stable check name:
+**Done in PR-8.** The plan's original `ci-ok` snippet assumed every gate was a
+job in one workflow. Reality: the checks live in **5 workflows** — `ci.yml`
+(`build` + `cross-platform`), `audit.yml`, `codeql.yml`, `secret-scan.yml`,
+`license-headers.yml`. A `needs:`-based aggregate can only span jobs **within its
+own workflow**, so we chose **Option A**: `ci-ok` aggregates the `ci.yml` jobs
+into one stable name; the four security checks stay independent workflows
+(keeping their own cron schedules) and are required individually.
+
+- [x] **Aggregate `ci-ok` gate job** in `ci.yml`:
 
   ```yaml
   ci-ok:
-    needs: [build, format, lint, lint-md, dup, typecheck, test-server, test-vscode, audit, codeql]
+    name: ci-ok
+    needs: [build, cross-platform]
     if: always()
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - run: |
-          [ "${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}" = "false" ]
+          if [ "${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}" = "true" ]; then
+            exit 1
+          fi
   ```
 
-- [ ] **Enable branch protection** on `main` and `develop`: require `ci-ok` +
-  1 review + DCO + up-to-date branch. (Repo setting — document in
-  `CONTRIBUTING.md`.)
-- [ ] **Changelog check** (`changelog.yml`, `no-changelog` label escape hatch) —
-  pairs with later release-automation work.
-- [ ] **`[ci skip]` handling** — replicate the existing guard onto new jobs (or
-  hoist to a shared condition).
+  Collapses the `cross-platform` matrix legs into one check name, so CI jobs can
+  be added/renamed/sharded without churning branch protection — only a brand-new
+  *workflow* would.
+- [x] **Branch protection** now requires: `ci-ok`, `audit`, `gitleaks`,
+  `headers`, `Analyze (javascript-typescript)`, plus `DCO`. `main` additionally
+  requires a code-owner review and enforces rules for admins; `develop` merges
+  stay restricted to `zowe-cli-administrators`. Documented in `CONTRIBUTING.md`
+  (Continuous Integration & Branch Protection).
+- [x] **Changelog check** (`changelog.yml`, `no-changelog` label escape hatch) —
+  **advisory, not required.** A PR passes when it edits a `CHANGELOG.md` (root or
+  package) or carries `no-changelog`. Added a root `CHANGELOG.md` (Keep-a-Changelog
+  style, `[Unreleased]` section) as the repo-wide home; per-component history for
+  the extension stays in `packages/zowe-mcp-vscode/CHANGELOG.md`.
+- [x] **`[ci skip]` handling** — the only new `ci.yml` job, `ci-ok`, uses
+  `if: always()` so it runs even when `build`/`cross-platform` are guarded off by
+  `[ci skip]`; skipped jobs count as a pass, so `[ci skip]` commits still satisfy
+  the required check.
 
 ## Phase 7 — Speed & cost (after correctness)
 

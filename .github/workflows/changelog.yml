@@ -1,0 +1,51 @@
+name: Changelog
+
+# Reminds contributors to record user-facing changes. A PR passes when it edits
+# a CHANGELOG.md (root or any package), or carries the `no-changelog` label for
+# changes that don't warrant an entry (CI, chore, internal refactors, docs).
+#
+# Not a required check (see CONTRIBUTING.md) — it's an advisory gate that pairs
+# with later release-automation work. The `labeled`/`unlabeled` triggers let the
+# check re-run the moment the escape-hatch label is added or removed.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+    branches: [main, develop]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: changelog-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  changelog:
+    name: changelog
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Require a CHANGELOG.md entry (or the 'no-changelog' label)
+        env:
+          HAS_LABEL: ${{ contains(github.event.pull_request.labels.*.name, 'no-changelog') }}
+          BASE: ${{ github.base_ref }}
+        run: |
+          if [ "$HAS_LABEL" = "true" ]; then
+            echo "PR has the 'no-changelog' label — a changelog entry is not required."
+            exit 0
+          fi
+          # Fetch the target branch so the merge-base diff (origin/<base>...HEAD)
+          # resolves to exactly this PR's changes.
+          git fetch --no-tags origin "$BASE"
+          changed=$(git diff --name-only "origin/$BASE...HEAD")
+          if printf '%s\n' "$changed" | grep -qE '(^|/)CHANGELOG\.md$'; then
+            echo "Changelog entry found:"
+            printf '%s\n' "$changed" | grep -E '(^|/)CHANGELOG\.md$'
+            exit 0
+          fi
+          echo "::error::This PR changes no CHANGELOG.md. Add an entry under [Unreleased] in CHANGELOG.md, or apply the 'no-changelog' label for changes that don't need one (CI, chore, docs, internal refactors)."
+          exit 1

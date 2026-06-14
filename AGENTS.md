@@ -193,6 +193,21 @@ Server tests are organized into **common** (parameterized) and **transport-speci
 - **Cursor hook**: `.cursor/hooks/duplication.sh` runs automatically after Agent file edits (not Tab edits) on `.ts` files under `packages/`. It runs jscpd on the edited file and reports any duplication to the agent as advisory output. Always exits 0 (non-blocking).
 - **CI integration**: jscpd exits non-zero when duplication exceeds the configured `threshold`, suitable for CI quality gates.
 
+### Continuous Integration (GitHub Actions)
+
+Workflows live in `.github/workflows/`. The local Cursor hooks above are advisory; **CI is the enforcing copy of the same gates**, so a change that passes locally can still be blocked in CI. The full backlog and rationale are in `docs/ci-hardening-plan.md`; branch-protection details are in `CONTRIBUTING.md`.
+
+- **`ci.yml`** — the main pipeline, two jobs:
+  - **`build`** (ubuntu): installs with **`npm ci --ignore-scripts`** (lockfile-reproducible; the committed lockfile pins the fallback `zowex-sdk`, so `sdk-switch` is **not** run on the normal path), then runs every gate in order: `lint:md` → `check-format` (Prettier + shfmt) → `duplication` (jscpd) → build (common + server) → **`typecheck`** → `lint` (ESLint) → server **tests with coverage + JUnit** → `vscode-test` (under `xvfb-run`) → `pack` → **`test:airgap`** → `generate-docs` → **docs-drift check** → VSIX. Coverage is **report-only** (no threshold gate); a JUnit report and coverage summary are surfaced on the run.
+  - **`cross-platform`** (matrix: `windows-latest` + `macos-latest`, `fail-fast: false`): install/build/typecheck + server tests (`--no-file-parallelism`) + `vscode-test` (no xvfb — Electron is headless natively off Linux).
+  - **`ci-ok`** — aggregate gate (`needs: [build, cross-platform]`, `if: always()`). One stable check name for branch protection; collapses the matrix legs. Fails only if a needed job failed/was cancelled; **skipped jobs count as a pass**, so a `[ci skip]` push still satisfies it.
+- **Other workflows**: `audit.yml` (`npm audit` on prod deps, moderate+, + daily cron), `codeql.yml` (CodeQL `javascript-typescript`, security-extended → check **`Analyze (javascript-typescript)`**), `secret-scan.yml` (gitleaks CLI, `.gitleaks.toml` → check **`gitleaks`**), `license-headers.yml` (ESLint headers rule → check **`headers`**), `nightly.yml` (cron, nightly SDK), `changelog.yml` (**advisory, not required** — wants a `CHANGELOG.md` edit or the `no-changelog` label).
+- **Required checks** (branch protection on `main` + `develop`): `ci-ok`, `audit`, `gitleaks`, `headers`, `Analyze (javascript-typescript)`, `DCO`. `main` also requires a code-owner review (`.github/CODEOWNERS`, enforced for admins); `develop` merges are restricted to the `zowe-cli-administrators` team.
+- **The `typecheck` gate** (not just `build`): per-package `tsc -p tsconfig.json --noEmit` (covers tests + scripts) plus a root aggregator that builds `common` + `server` first (cross-package types resolve via built `dist`). Run `npm run typecheck` before pushing — tests can break types without breaking the build.
+- **Docs-drift gate**: `generate-docs` is deterministic (pinned mock clock, no commit hash); regenerating must not change the committed `docs/mcp-reference.md` / `vendor/zowe/docs/mcp-reference-vendor.md`. If CI fails here, run `npm run generate-docs` and commit the result.
+- **Cross-platform invariants** the matrix enforces (don't regress): USS command/path validation must pass `platform: null` to `hardstop-patterns` (USS targets z/OS Unix, not the CI host OS — see `command-validation.ts`); tests that open the extension's IPC channel must use `\\.\pipe\…` on Windows (see the `makePipePath` helper in `extension-client.test.ts`); `.gitattributes` enforces `eol=lf` so Windows checkouts don't CRLF-mangle shell scripts. Node version comes from **`.nvmrc` (Node 24)** everywhere.
+- **Dependencies are kept current by Dependabot** (`.github/dependabot.yml`: weekly npm, grouped dev/prod, + `github-actions`).
+
 ### Logging (MCP Server)
 
 - **Logger class**: `packages/zowe-mcp-server/src/log.ts` exports a `Logger` class with triple output: stderr (always), MCP protocol notifications (when connected), and VS Code extension pipe (when connected). Created as a singleton via `getLogger()` in `server.ts`.

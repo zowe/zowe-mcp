@@ -6,6 +6,7 @@ development within Zowe MCP.
 - [AI-Assisted Development](#ai-assisted-development)
 - [Sign All of Your Git Commits](#sign-all-of-your-git-commits)
 - [Pull Request Guidelines](#pull-request-guidelines)
+- [Continuous Integration & Branch Protection](#continuous-integration--branch-protection)
 - [AI Evaluation Requirements](#ai-evaluation-requirements)
 - [Code Style](#code-style)
 - [Testing Guidelines](#testing-guidelines)
@@ -101,6 +102,40 @@ Consider the following when you interact with pull requests:
   Requirements](#ai-evaluation-requirements) checklist (see below).
 - Pull requests must include an [AI Usage](#ai-usage-disclosure-in-pull-requests)
   section describing how AI was used.
+
+## Continuous Integration & Branch Protection
+
+Both `main` and `develop` are protected. A pull request can be merged only when
+the required status checks are green and the branch rules are satisfied.
+
+### Required status checks
+
+| Check | Workflow | What it covers |
+| ----- | -------- | -------------- |
+| `ci-ok` | `ci.yml` | Aggregate gate over the Linux `build` job (lint, format, duplication, type-check, server tests + coverage, VS Code tests, pack, airgap, docs-drift, VSIX) **and** the `cross-platform` matrix (Windows + macOS build/type-check/tests). One stable name, so the CI jobs can be reorganized without touching branch protection. |
+| `audit` | `audit.yml` | `npm audit` on production dependencies (moderate+). |
+| `gitleaks` | `secret-scan.yml` | Secret scanning. |
+| `headers` | `license-headers.yml` | EPL-2.0 license header on every `.ts` file. |
+| `Analyze (javascript-typescript)` | `codeql.yml` | CodeQL static analysis (security-extended). |
+| `DCO` | (GitHub app) | Every commit is signed off (`git commit -s`). |
+
+`ci-ok` runs with `if: always()` and only fails if a required CI job actually
+failed or was cancelled. A `[ci skip]` push skips `build`/`cross-platform`, which
+counts as a pass — so trivial pushes still satisfy the check.
+
+The **Changelog** check (`changelog.yml`) is **advisory, not required**: it asks
+each PR to update a `CHANGELOG.md` (root or a package), or to carry the
+`no-changelog` label for changes that don't need an entry (CI, chore, docs,
+internal refactors). Record user-facing changes under **[Unreleased]** in the
+root [CHANGELOG.md](CHANGELOG.md).
+
+### Branch rules
+
+- **`main`** — requires a passing review from a code owner (see
+  [`.github/CODEOWNERS`](.github/CODEOWNERS)); rules are enforced for
+  administrators too.
+- **`develop`** — the integration branch; no review approval required, but only
+  members of the `zowe-cli-administrators` team can merge.
 
 ## AI Evaluation Requirements
 

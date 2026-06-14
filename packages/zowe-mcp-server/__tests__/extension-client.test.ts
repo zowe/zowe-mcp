@@ -75,16 +75,12 @@ describe('ExtensionClient', () => {
     serverReceived = [];
 
     // Start a mock pipe server. The `data` listener is attached *inside* the
-    // connection callback — the moment the socket is accepted — for two reasons,
-    // both of which matter on Windows named pipes:
-    //   1. Nothing the client sends is ever missed, including the connect-time
-    //      handshake (which arrives before a test body could attach a listener).
-    //   2. The accepted socket enters flowing mode immediately. A Windows named
-    //      pipe whose accepted socket never reads can stall in *both* directions,
-    //      so this also keeps server→client writes pumping. (This mirrors the
-    //      production pipe-server, which reads from the moment of accept.)
-    // Received lines accumulate in `serverReceived`; tests assert against it
-    // rather than racing a late listener.
+    // connection callback — the moment the socket is accepted — so nothing the
+    // client sends is ever missed, including the connect-time handshake (which
+    // arrives before a test body could attach a listener). This mirrors the
+    // production pipe-server, which reads from the moment of accept. Received
+    // lines accumulate in `serverReceived`; tests assert against it rather than
+    // racing a late listener.
     await new Promise<void>(resolve => {
       mockServer = createServer(socket => {
         serverSocket = socket;
@@ -125,6 +121,27 @@ describe('ExtensionClient', () => {
     delete process.env.MCP_DISCOVERY_DIR;
     delete process.env.WORKSPACE_ID;
   });
+
+  /**
+   * (Re)write the discovery file, optionally with a pipeSecret. Tests that
+   * expect to *receive* data from the server pass a secret so the client sends
+   * a handshake on connect: a Windows named-pipe client that never writes does
+   * not reliably receive server→client data, and the real client always
+   * handshakes first, so this models production rather than working around it.
+   */
+  const writeDiscovery = (pipeSecret?: string): void => {
+    const discoveryFile = join(discoveryDir, `mcp-discovery-${workspaceId}.json`);
+    writeFileSync(
+      discoveryFile,
+      JSON.stringify({
+        socketPath: pipePath,
+        workspaceId,
+        timestamp: Date.now(),
+        pid: process.pid,
+        ...(pipeSecret !== undefined ? { pipeSecret } : {}),
+      })
+    );
+  };
 
   // -----------------------------------------------------------------------
   // Connection
@@ -237,6 +254,8 @@ describe('ExtensionClient', () => {
       if (event.type === 'log-level') receivedEvents.push(event);
     });
 
+    // Handshake on connect so the pipe is primed for server→client delivery.
+    writeDiscovery('recv-secret');
     await client.connect(discoveryDir, workspaceId, logger);
 
     // Wait for server socket
@@ -269,6 +288,8 @@ describe('ExtensionClient', () => {
       if (event.type === 'log-level') receivedEvents.push(event);
     });
 
+    // Handshake on connect so the pipe is primed for server→client delivery.
+    writeDiscovery('recv-secret');
     await client.connect(discoveryDir, workspaceId, logger);
 
     // Wait for server socket
@@ -561,6 +582,8 @@ describe('ExtensionClient', () => {
         }
       });
 
+      // Handshake on connect so the pipe is primed for server→client delivery.
+      writeDiscovery('recv-secret');
       await client.connect(discoveryDir, workspaceId, logger);
 
       // Wait for server socket

@@ -355,14 +355,16 @@ All PRs target `develop`.
 
 Deferred work spun off from the phases above, so it isn't lost:
 
-- **Re-enable the Windows extension-client tests** (from Phase 5). Six tests in
-  `packages/zowe-mcp-server/__tests__/extension-client.test.ts` that exercise
-  the *shared* mock pipe server's bidirectional data flow are skipped on Windows
-  (`it.skipIf(isWindows)`) — they time out on the Windows runner. The per-test
-  inline mock servers and the connect/discovery tests pass, and **production is
-  unaffected** (the real `ExtensionClient` connects to the VS Code extension's
-  pipe-server, which already uses `\\.\pipe\…`). Fix the test harness's Windows
-  named-pipe data delivery, then remove the skips. (Spawned task.)
+- ✅ **Re-enable the Windows extension-client tests** (from Phase 5) — **done**
+  (PR #23). All six `extension-client.test.ts` data-flow tests now run on
+  Windows. Root cause was a test-harness readiness race, not a product bug: the
+  mock server attached its `data` listener *late* (so it missed the connect-time
+  handshake), and for the server→client tests it replied before the named pipe
+  was established in both directions. Fix mirrors production — attach the
+  server's `data` listener inside the connection callback and accumulate into a
+  buffer, give the receive tests a `pipeSecret` so the client handshakes, and
+  wait until the server has received that handshake before it replies. No
+  production change.
 - **Plugin-schema validation** (from Phase 4) — validate the bundled CLI-bridge
   plugin YAMLs against `schemas/plugin-tools.schema.json`; needs an `ajv`-based
   check. Low value today (only 2 vendor files); revisit if plugin authoring

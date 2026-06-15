@@ -175,9 +175,12 @@ Each as its own job/step so failures are legible.
   commit hash, and the mock TSO clock is pinned via `ZOWE_MCP_MOCK_CLOCK_ISO`
   (UTC-formatted when set), so regenerating on a clean tree is byte-identical
   and `git diff --exit-code` gates both reference docs.
-- [ ] **Plugin schema validation**: validate bundled CLI-bridge plugin YAMLs
-  against `schemas/plugin-tools.schema.json`. Needs a validator (`ajv` is not
-  currently a dependency) — a small node script or `ajv-cli` dev dep.
+- [x] **Plugin schema validation**: a vitest test
+  (`__tests__/plugin-schema.test.ts`) validates every CLI-bridge plugin
+  `*-tools.yaml` against `schemas/plugin-tools.schema.json` with `ajv` (added as
+  a server devDep). Runs in the normal test job on every OS — no separate CI
+  step. Catches schema drift (the schema is `additionalProperties: false`
+  throughout), wrong types, and missing required fields.
 
 ## Phase 3 — Expand test execution
 
@@ -365,10 +368,11 @@ Deferred work spun off from the phases above, so it isn't lost:
   buffer, give the receive tests a `pipeSecret` so the client handshakes, and
   wait until the server has received that handshake before it replies. No
   production change.
-- **Plugin-schema validation** (from Phase 4) — validate the bundled CLI-bridge
-  plugin YAMLs against `schemas/plugin-tools.schema.json`; needs an `ajv`-based
-  check. Low value today (only 2 vendor files); revisit if plugin authoring
-  grows.
+- ✅ **Plugin-schema validation** (from Phase 2) — **done** (PR #24). A vitest
+  test validates every CLI-bridge plugin `*-tools.yaml` against
+  `schemas/plugin-tools.schema.json` with `ajv`; runs in the normal test job on
+  every OS. `vendor/zowe/cli-bridge-plugins/db2-tools.yaml` passes clean (no
+  drift).
 - **ESLint SARIF → code scanning** (from Phase 2) — optional: emit ESLint SARIF
   and upload so lint findings annotate PRs inline.
 

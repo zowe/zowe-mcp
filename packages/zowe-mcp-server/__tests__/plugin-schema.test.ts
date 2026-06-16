@@ -19,7 +19,9 @@
  * Runs in the normal test job on every OS, so no separate CI step is needed.
  */
 
-import Ajv, { type ErrorObject } from 'ajv';
+// Use the named `Ajv` export: under NodeNext, ajv v8's CJS default import
+// resolves to the (non-constructable) namespace, but the named class works.
+import { Ajv, type ErrorObject } from 'ajv';
 import { load as yamlLoad } from 'js-yaml';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
@@ -67,7 +69,7 @@ function formatErrors(errors: ErrorObject[] | null | undefined): string {
   if (!errors?.length) return '(no details)';
   return errors
     .map(e => {
-      const where = e.dataPath.length > 0 ? e.dataPath : '(root)';
+      const where = e.instancePath.length > 0 ? e.instancePath : '(root)';
       return `  • ${where} ${e.message ?? ''}`.trimEnd();
     })
     .join('\n');
@@ -77,7 +79,9 @@ const schema = JSON.parse(readFileSync(schemaPath, 'utf-8')) as object;
 const pluginFiles = findPluginToolFiles();
 
 describe('CLI-bridge plugin YAMLs', () => {
-  const ajv = new Ajv({ allErrors: true });
+  // strict: false so the schema's `examples` annotation keyword doesn't trip
+  // ajv v8's strict-mode schema checks.
+  const ajv = new Ajv({ allErrors: true, strict: false });
   const validate = ajv.compile(schema);
 
   it('the plugin-tools schema compiles', () => {

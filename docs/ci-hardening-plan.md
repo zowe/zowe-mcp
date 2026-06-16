@@ -148,9 +148,13 @@ No new tools; make `ci.yml` robust.
 - [x] `timeout-minutes` on the job (30).
 - [x] Least-privilege `permissions` (`contents: read` + `pull-requests: write`).
 - [x] npm caching via `setup-node` (`cache: npm`).
-- [ ] Pin actions to SHAs — deferred to **Phase 4 Dependabot**; majors were
-  already bumped to Node-24-ready versions in the carry-overs PR
-  (checkout v6, setup-node v6, upload-artifact v7, sticky-comment v3).
+- [x] **Action pinning — decided: tag-pinning, not SHAs.** Actions stay pinned to
+  major tags (checkout v6, setup-node v6, upload-artifact v7, sticky-comment v3,
+  codeql-action v3) and the Dependabot `github-actions` ecosystem (Phase 4) keeps
+  them current. Full-SHA pinning was considered and **not adopted** — the marginal
+  supply-chain hardening isn't worth the readability/maintenance cost here, and
+  Dependabot would rewrite the SHAs anyway. Revisit only if we adopt OpenSSF
+  Scorecard, which scores SHA-pinning.
 
 ## Phase 2 — Enforce existing quality scripts
 
@@ -274,8 +278,9 @@ Today only `test:server` runs. Add the rest, tiered by infra needs.
     mirrors the production pipe-server (`\\.\pipe\…` on Windows).
 - [x] **Promoted to required** in Phase 6 (PR-8) via the `ci-ok` aggregate, which
   `needs: [build, cross-platform]`; the security checks are required individually.
-- [ ] Keep `.nvmrc` (Node 24) as the single source of truth; second LTS Node not
-  added (the matrix exercises OS variation, which is the higher-value axis).
+- [x] **`.nvmrc` (Node 24) is the single source of truth** (settled decision); a
+  second LTS Node was deliberately not added — the matrix exercises OS variation,
+  which is the higher-value axis.
 
 ## Phase 6 — Gating & ergonomics
 

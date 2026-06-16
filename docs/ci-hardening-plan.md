@@ -148,9 +148,13 @@ No new tools; make `ci.yml` robust.
 - [x] `timeout-minutes` on the job (30).
 - [x] Least-privilege `permissions` (`contents: read` + `pull-requests: write`).
 - [x] npm caching via `setup-node` (`cache: npm`).
-- [ ] Pin actions to SHAs — deferred to **Phase 4 Dependabot**; majors were
-  already bumped to Node-24-ready versions in the carry-overs PR
-  (checkout v6, setup-node v6, upload-artifact v7, sticky-comment v3).
+- [x] **Action pinning — decided: tag-pinning, not SHAs.** Actions stay pinned to
+  major tags (checkout v6, setup-node v6, upload-artifact v7, sticky-comment v3,
+  codeql-action v3) and the Dependabot `github-actions` ecosystem (Phase 4) keeps
+  them current. Full-SHA pinning was considered and **not adopted** — the marginal
+  supply-chain hardening isn't worth the readability/maintenance cost here, and
+  Dependabot would rewrite the SHAs anyway. Revisit only if we adopt OpenSSF
+  Scorecard, which scores SHA-pinning.
 
 ## Phase 2 — Enforce existing quality scripts
 
@@ -274,8 +278,9 @@ Today only `test:server` runs. Add the rest, tiered by infra needs.
     mirrors the production pipe-server (`\\.\pipe\…` on Windows).
 - [x] **Promoted to required** in Phase 6 (PR-8) via the `ci-ok` aggregate, which
   `needs: [build, cross-platform]`; the security checks are required individually.
-- [ ] Keep `.nvmrc` (Node 24) as the single source of truth; second LTS Node not
-  added (the matrix exercises OS variation, which is the higher-value axis).
+- [x] **`.nvmrc` (Node 24) is the single source of truth** (settled decision); a
+  second LTS Node was deliberately not added — the matrix exercises OS variation,
+  which is the higher-value axis.
 
 ## Phase 6 — Gating & ergonomics
 
@@ -373,8 +378,15 @@ Deferred work spun off from the phases above, so it isn't lost:
   `schemas/plugin-tools.schema.json` with `ajv`; runs in the normal test job on
   every OS. `vendor/zowe/cli-bridge-plugins/db2-tools.yaml` passes clean (no
   drift).
-- **ESLint SARIF → code scanning** (from Phase 2) — optional: emit ESLint SARIF
-  and upload so lint findings annotate PRs inline.
+- ✅ **ESLint SARIF → code scanning** (from Phase 2) — **done** (PR #26). The
+  `build` job runs `npm run lint:sarif` (`@microsoft/eslint-formatter-sarif`)
+  and uploads the result via `github/codeql-action/upload-sarif`, so lint
+  findings surface in the Security tab and as inline PR annotations. It's
+  visibility-only (`continue-on-error`, runs on `!cancelled()`); the existing
+  `npm run lint` (`--max-warnings 0`) remains the hard gate. Inline
+  `// eslint-disable` directives are emitted with SARIF `suppressions`, so code
+  scanning shows them as suppressed rather than active alerts. Upload is skipped
+  for fork PRs (no `security-events: write` on their token).
 
 ## Reference: what zowex runs (for comparison)
 

@@ -74,10 +74,18 @@ jobs:
           changed=$(git diff --name-only "$range" 2>/dev/null) || changed=""
           echo "Changed files in $range:"
           echo "$changed"
-          # 'code' is true when ANY changed file is not a Markdown file. Pure-.md
-          # changes (the only docs we ship) skip the heavy lanes; anything else —
-          # including an empty or failed diff — runs them, the safe default.
-          if [ -z "$changed" ] || printf '%s\n' "$changed" | grep -qvE '\.md$'; then
+          # An empty or failed diff runs the full pipeline (the safe default).
+          if [ -z "$changed" ]; then
+            echo "Empty diff — running all lanes."
+            echo "code=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # 'code' is true when ANY changed file is not a Markdown file. Filter
+          # with `grep -v` and test for non-empty output rather than `grep -qv` —
+          # the -q exit code with -v is unreliable across BSD/GNU grep. Pure-.md
+          # changes (the only docs we ship) skip the heavy lanes.
+          nonmd=$(printf '%s\n' "$changed" | grep -vE '\.md$' || true)
+          if [ -n "$nonmd" ]; then
             echo "code=true" >> "$GITHUB_OUTPUT"
           else
             echo "Docs-only (Markdown) change — heavy lanes will be skipped."

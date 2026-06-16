@@ -328,10 +328,32 @@ into one stable name; the four security checks stay independent workflows
 
 ## Phase 7 — Speed & cost (after correctness)
 
-- [ ] Cache npm, `.vscode-test/`, TS build outputs, and the CodeQL DB.
-- [ ] Path filters (`dorny/paths-filter`) so docs-only PRs skip heavy lanes.
-- [ ] Split a fast fail-early "lint" job from the slower test matrix and e2e
-  lanes.
+**Done in PR-9.** Measured baseline (a green code PR): `build` job **304 s** (the
+long pole), `Cross-platform (windows)` 260 s, total wall-clock ~**350 s**.
+
+- [x] **Caching.** npm was already cached via `setup-node` (Phase 1). Added the
+  `.vscode-test/` cache to the **`cross-platform`** matrix (Windows/macOS
+  previously re-downloaded the editor every run — part of a ~70 s step; it was
+  cached only on Linux). Also added eslint `--cache` so the SARIF pass reuses the
+  gate's cache (≈16 s → ≈2 s in CI). TS build outputs and the CodeQL DB were
+  **deliberately not cached** — the TS build is ~25 s with real staleness risk,
+  and `codeql-action` manages its own DB caching.
+- [x] **Path filters** — a fast `changes` job (git-diff, no third-party action)
+  sets `code=true` unless the change is **purely Markdown**. `lint` / `build` /
+  `cross-platform` are `needs: changes` + `if: code == 'true'`, so a docs-only
+  PR skips all heavy lanes; `ci-ok` (`needs:` them, `if: always()`) still passes
+  because skipped counts as a pass. Safe default: an empty or failed diff runs
+  the full pipeline.
+- [x] **Fast fail-early `lint` job** — the static checks (markdown, format,
+  duplication, type-check, ESLint + SARIF) moved out of `build` into their own
+  parallel `lint` job, so lint/type failures surface in ~1.5 min instead of after
+  the full test + package lane, and they no longer sit on `build`'s critical
+  path. (Service-dependent e2e remains nightly-only per Decision 3, so there is
+  no e2e lane to split here.)
+
+After: `build` drops to ~235 s (static checks removed) and `lint` (~90 s) runs in
+parallel; the `changes` job adds ~12 s up front. See PR-9 for the before/after
+numbers.
 
 ---
 

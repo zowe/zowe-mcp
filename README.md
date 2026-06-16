@@ -1,8 +1,9 @@
 # <img src="packages/zowe-mcp-vscode/resources/icon.svg" alt="Zowe MCP" style="height:1.2em; vertical-align: text-top;" /> Zowe MCP
 
-Model Context Protocol (MCP) server and VS Code extension that gives AI
-assistants tools for working with z/OS systems -- data sets, jobs, and UNIX
-System Services.
+Model Context Protocol (MCP) server that gives AI assistants tools for working
+with z/OS systems -- data sets, jobs, and UNIX System Services. Works with any
+MCP-capable client (Claude Code, Cursor, VS Code, Zed, Roo Code, and others).
+An optional VS Code extension is also included.
 
 ## Use case examples
 
@@ -318,19 +319,135 @@ in the logs when the same password is used.
 You cannot use both mock mode and native mode; if both are configured, native
 wins.
 
-## Configuring VS Code Copilot
+## Configure your MCP client
 
-**New to Zowe MCP?** See **[Copilot setup guide](docs/copilot-setup-guide.md)** for installing the extension from a VSIX, configuring Gemini (e.g. for Broadcom), defining `user@host`, and Copilot/MCP tips (list servers, restart, view output). For hands-on checklists (profiles, Copilot tools, mock/native), see **[Manual QA](docs/manual-qa/README.md)**.
+Zowe MCP works with any MCP-capable client. Add the following config to your
+client, replacing the path with the absolute path to your built `dist/index.js`:
 
-**Clients that do not use VS Code–registered MCP servers** (for example Roo Code with `.roo/mcp.json`, or Claude Code with `.mcp.json`): use the **`@zowe/mcp-server`** package in stdio mode — see **[Roo and standalone MCP](docs/roo-or-standalone-mcp.md)** and **[Claude Code MCP](docs/claude-code-mcp.md)** (install, tarball, passwords, job cards via `--config`, example JSON).
+```json
+{
+  "mcpServers": {
+    "zowe": {
+      "type": "stdio",
+      "command": "node",
+      "args": [
+        "/absolute/path/to/zowe-mcp/packages/zowe-mcp-server/dist/index.js",
+        "--stdio",
+        "--native",
+        "--system",
+        "USERID@sys1.example.com"
+      ]
+    }
+  }
+}
+```
 
-There are two ways to use Zowe MCP with GitHub Copilot in VS Code:
+<details>
+<summary><b>VS Code</b></summary>
 
-### Option A: Install the VS Code extension (recommended)
+Create or edit `.vscode/mcp.json` in your workspace using the standard config
+from above, with `"servers"` as the top-level key instead of `"mcpServers"`.
+New to Copilot + MCP? See the
+[Copilot setup guide](docs/copilot-setup-guide.md) and the
+[Manual QA checklists](docs/manual-qa/README.md). The optional VS Code
+extension (below) can register the server for you instead.
 
-The extension automatically registers the MCP server with Copilot. It also
-provides a bidirectional communication channel for log forwarding and dynamic
-configuration.
+</details>
+
+<details>
+<summary><b>Claude Code</b></summary>
+
+Add the standard config from above to `.mcp.json` in your project root, or
+use the CLI:
+
+```bash
+claude mcp add zowe -- node /absolute/path/to/zowe-mcp/packages/zowe-mcp-server/dist/index.js --stdio --native --system USERID@sys1.example.com
+```
+
+See also [Claude Code MCP](docs/claude-code-mcp.md) (tarball install, passwords,
+and job cards via `--config`).
+
+</details>
+
+<details>
+<summary><b>Cursor</b></summary>
+
+Add the standard config from above to `~/.cursor/mcp.json` (global) or
+`.cursor/mcp.json` (project).
+
+</details>
+
+<details>
+<summary><b>Roo Code</b></summary>
+
+Add the standard config from above to `.roo/mcp.json`. See also
+[Roo and standalone MCP](docs/roo-or-standalone-mcp.md).
+
+</details>
+
+<details>
+<summary><b>Other clients</b></summary>
+
+Check your client's MCP documentation for the config file location and
+whether it expects `mcpServers` or `servers` as the top-level key. The server
+block is the same either way. If your client does not forward your shell
+environment, pass the password variable in an `env` block instead — only in a
+local, uncommitted config file:
+
+```json
+      "env": {
+        "ZOWE_MCP_PASSWORD_USERID_SYS1_EXAMPLE_COM": "password"
+      }
+```
+
+</details>
+
+To run against **mock data** instead of a real z/OS system (no SSH needed), swap
+the `--native --system …` arguments for `--mock` and the absolute path to a
+generated mock-data directory (see [Mock mode](#mock-mode)):
+
+```jsonc
+"args": [
+  "/absolute/path/to/zowe-mcp/packages/zowe-mcp-server/dist/index.js",
+  "--stdio",
+  "--mock",
+  "/absolute/path/to/zowe-mcp/zowe-mcp-mock-data"
+]
+```
+
+### Verifying the setup
+
+After reloading your editor, open your assistant's chat and confirm the server
+is connected:
+
+```text
+Use the getContext tool to show the Zowe MCP server version.
+```
+
+If mock or native data is available, you can also try:
+
+```text
+List the available z/OS systems.
+```
+
+```text
+Set the active system to mainframe-dev.example.com and list datasets matching USER.**
+```
+
+Tool names use camelCase; in Copilot they appear prefixed with `mcp_zowe_` (e.g.
+`mcp_zowe_getContext`, `mcp_zowe_listDatasets`, `mcp_zowe_setSystem`).
+
+## VS Code extension (optional)
+
+The repository also includes a VS Code extension that registers the MCP server
+with GitHub Copilot Chat automatically and adds a bidirectional channel for log
+forwarding, dynamic configuration, and password prompts via VS Code Secret
+Storage. If you configured the server through `mcp.json` above, you do not need
+it. Native (SSH) connections through the extension are covered under
+[Native (SSH) backend](#native-ssh-backend); this section covers install and
+mock mode.
+
+### Install
 
 ```bash
 # Build and install in one step
@@ -343,10 +460,10 @@ VSCODE_CLONE=cursor npm run build-and-install
 After installation, reload VS Code. The extension activates on startup and
 registers a "Zowe" MCP server provider.
 
-#### Enabling mock mode in the extension
+### Mock mode in the extension
 
-By default the extension starts the server without a z/OS backend, so only
-the `info` tool is available. A warning notification will appear with buttons
+By default the extension starts the server without a z/OS backend, so only the
+`getContext` tool is available. A warning notification will appear with buttons
 to help you configure mock data.
 
 Use the built-in command (easiest):
@@ -357,15 +474,8 @@ Use the built-in command (easiest):
 4. The command generates the data, configures the setting, and offers to
    reload the window
 
-Or point at an existing mock data directory:
-
-1. Open VS Code Settings (Ctrl+, / Cmd+,)
-2. Search for **Zowe MCP**
-3. Set **Mock Data Dir** to the absolute path of your mock data directory
-4. Restart the MCP server (reload VS Code or run the
-   "MCP: List Servers" command and restart "Zowe")
-
-Or add this to your `settings.json`:
+Or point at an existing mock data directory via the **Mock Data Dir** setting,
+or in `settings.json`:
 
 ```jsonc
 {
@@ -373,95 +483,8 @@ Or add this to your `settings.json`:
 }
 ```
 
-Once configured, the server starts with the full set of tools (dataset
-listing, reading, writing, context management, etc.).
-
-### Option B: Configure as a standalone MCP server in VS Code
-
-This approach lets you pass the `--mock` flag directly. Create or edit
-`.vscode/mcp.json` in your workspace:
-
-```json
-{
-  "servers": {
-    "zowe": {
-      "type": "stdio",
-      "command": "node",
-      "args": [
-        "/absolute/path/to/zowe-mcp/packages/zowe-mcp-server/dist/index.js",
-        "--stdio",
-        "--mock",
-        "/absolute/path/to/zowe-mcp/zowe-mcp-mock-data"
-      ]
-    }
-  }
-}
-```
-
-Replace the paths with the actual absolute paths on your machine. For
-example, if you cloned the repo to `~/workspace/zowe-mcp` and generated mock
-data in `~/workspace/zowe-mcp/zowe-mcp-mock-data`:
-
-```jsonc
-{
-  "github.copilot.chat.mcp.servers": {
-    "zowe": {
-      "type": "stdio",
-      "command": "node",
-      "args": [
-        "/Users/me/workspace/zowe-mcp/packages/zowe-mcp-server/dist/index.js",
-        "--stdio",
-        "--mock",
-        "/Users/me/workspace/zowe-mcp/zowe-mcp-mock-data"
-      ]
-    }
-  }
-}
-```
-
-You can also use the environment variable form:
-
-```jsonc
-{
-  "github.copilot.chat.mcp.servers": {
-    "zowe": {
-      "type": "stdio",
-      "command": "node",
-      "args": [
-        "/absolute/path/to/zowe-mcp/packages/zowe-mcp-server/dist/index.js",
-        "--stdio"
-      ],
-      "env": {
-        "ZOWE_MCP_MOCK_DIR": "/absolute/path/to/zowe-mcp/zowe-mcp-mock-data"
-      }
-    }
-  }
-}
-```
-
-After saving `settings.json`, reload VS Code. The MCP server will appear in
-Copilot's tool list.
-
-### Verifying the setup
-
-Open GitHub Copilot Chat (Ctrl+Shift+I / Cmd+Shift+I) and try:
-
-```text
-Use the info tool to show the Zowe MCP server version.
-```
-
-If mock mode is active, you can also try:
-
-```text
-List the available z/OS systems.
-```
-
-```text
-Set the active system to mainframe-dev.example.com and list datasets matching USER.**
-```
-
-Tool names use camelCase; in Copilot they appear prefixed with `mcp_zowe_` (e.g.
-`mcp_zowe_info`, `mcp_zowe_listDatasets`, `mcp_zowe_setSystem`).
+Once configured, the server starts with the full set of tools (dataset listing,
+reading, writing, context management, etc.).
 
 ## Testing
 
@@ -488,7 +511,7 @@ Use the script that matches how you want to run the server:
 
 | Script | Backend | Use when |
 | --- | --- | --- |
-| `npm run inspector` | None | Quick check: only core tools (e.g. `info`) are available; no z/OS systems. |
+| `npm run inspector` | None | Quick check: only core tools (e.g. `getContext`) are available; no z/OS systems. |
 | `npm run inspector:mock` | Mock (filesystem) | Try dataset tools without a real z/OS: uses `./zowe-mcp-mock-data`. Generate mock data first with `npx @zowe/mcp-server init-mock --output ./zowe-mcp-mock-data`. |
 | `npm run inspector:native` | Native (SSH) | Connect to real z/OS via SSH. Needs `native-config.json` (systems) and `.env` (passwords). Copy `native-config.example.json` → `native-config.json` and `.env.example` → `.env`, then set `ZOWE_MCP_PASSWORD_<USER>_<HOST>` (see [Standalone mode](#standalone-mode)). |
 

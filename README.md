@@ -123,6 +123,9 @@ npx @zowe/mcp-server init-mock --output ./zowe-mcp-mock-data
 
 ## Building
 
+For a deeper guide to local development (environment setup, architecture, and
+day-to-day workflows), see [DEVELOPMENT.md](DEVELOPMENT.md).
+
 ### Full build (all packages)
 
 ```bash

@@ -13,7 +13,7 @@ Install the **Zowe MCP** extension so it registers the **Zowe** MCP server with 
 
 ### Option A — From the repo (developers)
 
-1. At the repository root, run `npm run build-and-install` (see [README — Option A](../../README.md#option-a-install-the-vs-code-extension-recommended)). The script builds the extension and server, packages a `.vsix`, and runs the editor CLI to install it—the first run can take **one to several minutes**.
+1. At the repository root, run `npm run build-and-install` (see [README install](../../README.md#install)). The script builds the extension and server, packages a `.vsix`, and runs the editor CLI to install it. The first run can take **one to several minutes**.
 2. Optional: `VSCODE_PROFILE=YourProfile npm run build-and-install` to target a [named profile](01-profiles-and-clean-machine.md) (**the profile must already exist**—see step 01-C).
 3. Reload the window when prompted or run **Developer: Reload Window**.
 
@@ -32,4 +32,4 @@ Install the **Zowe MCP** extension so it registers the **Zowe** MCP server with 
 ## Failure notes
 
 - If installation fails, capture the Extensions view error and confirm VS Code engine version matches the extension’s requirement.
-- Do not confuse this with adding a server only via `mcp.json`; the **recommended** path is extension registration ([README](../../README.md#option-a-install-the-vs-code-extension-recommended)). Standalone `mcp.json` is [Option B](../../README.md#option-b-configure-as-a-standalone-mcp-server-in-vs-code).
+- Do not confuse this with adding a server only via `mcp.json`; the **recommended** path is extension registration ([README](../../README.md#vs-code-extension-optional)). Standalone `mcp.json` setup is covered by [Configure your editor](../../README.md#configure-your-editor).

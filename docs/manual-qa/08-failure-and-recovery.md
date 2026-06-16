@@ -36,4 +36,4 @@ Recover from stale tools, bad passwords, or confusing MCP state during manual QA
 ## Failure notes
 
 - Attach **both** log channels, VS Code version, extension version, and whether you use a **profile** or **Settings Sync**.
-- Screen recording helps for intermittent UI issues (see [docs/manual-qa/README.md — Playwright](README.md#playwright-automation-and-screen-capture)).
+- Screen recording helps for intermittent UI issues (see [docs/manual-qa/README.md screen capture](README.md#screen-capture-on-failures)).

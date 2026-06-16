@@ -2,7 +2,7 @@
 
 Repeatable, human-run checks for **first-run experience**, **Copilot + MCP integration**, **mock vs native** flows, and **observability**. Use with the small workspace at [`manual-test-workspace/`](../../manual-test-workspace/).
 
-**Companion docs:** [Copilot setup guide](../copilot-setup-guide.md) (BYOK, model providers, MCP list, outputs), [README — Configuring VS Code Copilot](../../README.md#configuring-vs-code-copilot).
+**Companion docs:** [Copilot setup guide](../copilot-setup-guide.md) (BYOK, model providers, MCP list, outputs), [README VS Code extension](../../README.md#vs-code-extension-optional).
 
 ## Procedure index
 

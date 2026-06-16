@@ -32,7 +32,7 @@ If you want a **scripted** check that **Gemini** can call **`listDatasets`** on 
 4. Send a prompt that forces a tool call, for example:
    - *“Use the getContext tool (Zowe MCP) and tell me the Zowe MCP server version from the response.”*
 
-   In Copilot, tool names are typically prefixed like `mcp_zowe_getContext` (see [README](../../README.md#configuring-vs-code-copilot)).
+   In Copilot, tool names are typically prefixed like `mcp_zowe_getContext` (see [README](../../README.md#vs-code-extension-optional)).
 
 ## Expected result
 

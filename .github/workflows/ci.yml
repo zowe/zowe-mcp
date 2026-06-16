@@ -36,10 +36,128 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Detect whether this change touches anything other than Markdown docs. When a
+  # push/PR changes only *.md files, the heavy lanes (lint, build, cross-platform)
+  # are skipped — `ci-ok` still reports success (a skipped job counts as a pass),
+  # so required-check branch protection is satisfied without spending ~5 min of CI
+  # on a docs typo. Anything that is not purely Markdown runs the full pipeline.
+  changes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    if: "!contains(github.event.head_commit.message || '', '[ci skip]')"
+    outputs:
+      code: ${{ steps.filter.outputs.code }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - id: filter
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE: ${{ github.base_ref }}
+          BEFORE: ${{ github.event.before }}
+        run: |
+          set -uo pipefail
+          range=""
+          if [ "$EVENT" = "pull_request" ]; then
+            git fetch --no-tags --depth=1 origin "$BASE" >/dev/null 2>&1 || true
+            range="origin/$BASE...HEAD"
+          elif [ -n "${BEFORE:-}" ] && [ "$BEFORE" != "0000000000000000000000000000000000000000" ] \
+            && git rev-parse --verify --quiet "$BEFORE^{commit}" >/dev/null 2>&1; then
+            range="$BEFORE...HEAD"
+          fi
+          if [ -z "$range" ]; then
+            echo "No diff range (new branch / manual dispatch) — running all lanes."
+            echo "code=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          changed=$(git diff --name-only "$range" 2>/dev/null) || changed=""
+          echo "Changed files in $range:"
+          echo "$changed"
+          # 'code' is true when ANY changed file is not a Markdown file. Pure-.md
+          # changes (the only docs we ship) skip the heavy lanes; anything else —
+          # including an empty or failed diff — runs them, the safe default.
+          if [ -z "$changed" ] || printf '%s\n' "$changed" | grep -qvE '\.md$'; then
+            echo "code=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Docs-only (Markdown) change — heavy lanes will be skipped."
+            echo "code=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  # Fast static checks (markdown lint, formatting, duplication, type-check, ESLint
+  # + SARIF). Split out of `build` so lint/type failures surface in ~1.5 min
+  # instead of waiting on the full test + package lane.
+  lint:
+    needs: changes
+    if: ${{ needs.changes.outputs.code == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    env:
+      NODE_OPTIONS: --max_old_space_size=4096
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: '.nvmrc'
+          cache: npm
+
+      - name: Install dependencies (npm ci)
+        run: npm ci --ignore-scripts
+
+      # Needed so the VS Code extension package type-checks against @types/vscode.
+      - name: Download VS Code API types
+        run: npm run download-api -w packages/zowe-mcp-vscode
+
+      - name: Lint Markdown
+        run: npm run lint:md
+
+      - name: Check formatting (Prettier + shfmt)
+        run: npm run check-format
+
+      - name: Check code duplication (jscpd)
+        run: npm run duplication
+
+      - name: Build (common + server)
+        run: |
+          npm run build -w packages/zowe-mcp-common
+          npm run build -w @zowe/mcp-server
+
+      # Type-check every package including its tests (dev tsconfig, --noEmit).
+      # common + server are already built above, so run the workspace scripts
+      # directly rather than the root script (which would rebuild them).
+      - name: Type-check (incl. tests)
+        run: npm run typecheck --workspaces --if-present
+
+      - run: npm run lint
+
+      # Emit an ESLint SARIF report and upload it to code scanning, so lint
+      # findings appear in the Security tab and as inline PR annotations. Reuses
+      # the eslint cache the gate above just populated (--cache), so this second
+      # pass is near-instant. Visibility-only: never fails the job, and runs even
+      # if the gate failed (!cancelled) so the annotations show up when needed.
+      - name: ESLint SARIF report
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        run: npm run lint:sarif
+      - name: Upload ESLint SARIF
+        # security-events:write is unavailable to fork-PR tokens — skip there.
+        if: ${{ !cancelled() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: eslint-results.sarif
+          category: eslint
+
+  # Heavy lane: build, server tests + coverage, VS Code extension tests, pack,
+  # airgap, docs, VSIX, and artifact uploads. Runs on Linux; the static checks
+  # live in `lint` and the OS coverage in `cross-platform`.
   build:
+    needs: changes
+    if: ${{ needs.changes.outputs.code == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    if: "!contains(github.event.head_commit.message || '', '[ci skip]')"
 
     env:
       NODE_OPTIONS: --max_old_space_size=4096
@@ -81,44 +199,10 @@ jobs:
       - name: Download VS Code API types
         run: npm run download-api -w packages/zowe-mcp-vscode
 
-      - name: Lint Markdown
-        run: npm run lint:md
-
-      - name: Check formatting (Prettier + shfmt)
-        run: npm run check-format
-
-      - name: Check code duplication (jscpd)
-        run: npm run duplication
-
       - name: Build (common + server)
         run: |
           npm run build -w packages/zowe-mcp-common
           npm run build -w @zowe/mcp-server
-
-      # Type-check every package including its tests (dev tsconfig, --noEmit).
-      # common + server are already built above, so run the workspace scripts
-      # directly rather than the root script (which would rebuild them).
-      - name: Type-check (incl. tests)
-        run: npm run typecheck --workspaces --if-present
-
-      - run: npm run lint
-
-      # Emit an ESLint SARIF report and upload it to code scanning, so lint
-      # findings appear in the Security tab and as inline PR annotations. The
-      # hard gate above (`npm run lint`, --max-warnings 0) is what blocks the
-      # build; this is visibility-only and never fails the job. Runs even if the
-      # gate failed (!cancelled) so the annotations show up exactly when needed.
-      - name: ESLint SARIF report
-        if: ${{ !cancelled() }}
-        continue-on-error: true
-        run: npm run lint:sarif
-      - name: Upload ESLint SARIF
-        # security-events:write is unavailable to fork-PR tokens — skip there.
-        if: ${{ !cancelled() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
-        uses: github/codeql-action/upload-sarif@v3
-        with:
-          sarif_file: eslint-results.sarif
-          category: eslint
 
       # Server tests with coverage (report-only — no threshold gate) and a
       # JUnit file for the PR checks UI. e2e suites self-skip without their
@@ -233,8 +317,9 @@ jobs:
   # bugs the extension/CLI hit on users' machines. Ubuntu is already covered by
   # `build`. fail-fast: false so one OS failing doesn't cancel the other.
   cross-platform:
+    needs: changes
     name: Cross-platform (${{ matrix.os }})
-    if: "!contains(github.event.head_commit.message || '', '[ci skip]')"
+    if: ${{ needs.changes.outputs.code == 'true' }}
     strategy:
       fail-fast: false
       matrix:
@@ -272,6 +357,14 @@ jobs:
       - name: Test (server)
         run: npm run test -w @zowe/mcp-server -- --no-file-parallelism
 
+      # Cache the VS Code download here too (keyed per-OS) so Windows/macOS don't
+      # re-fetch the editor every run — it was previously cached only on Linux.
+      - name: Cache VS Code test download
+        uses: actions/cache@v4
+        with:
+          path: packages/zowe-mcp-vscode/.vscode-test
+          key: vscode-test-${{ runner.os }}-${{ hashFiles('packages/zowe-mcp-vscode/package.json') }}
+
       # No xvfb here: @vscode/test-electron runs headless natively on
       # Windows/macOS runners (xvfb is Linux-only).
       - name: Test (VS Code extension)
@@ -281,18 +374,20 @@ jobs:
   # adding, renaming, or sharding the CI jobs above never churns the protection
   # config (only a brand-new *workflow* would). Runs even when an upstream job
   # failed or was skipped (if: always()) and fails only if a needed job actually
-  # failed or was cancelled. A skipped job — e.g. a `[ci skip]` push, where build
-  # and cross-platform are guarded off — counts as a pass, so `[ci skip]` commits
-  # still satisfy the required check.
+  # failed or was cancelled. Skipped jobs count as a pass — so a `[ci skip]` push
+  # (changes guarded off) or a docs-only change (heavy lanes skipped) still
+  # satisfies the required check.
   ci-ok:
     name: ci-ok
-    needs: [build, cross-platform]
+    needs: [changes, lint, build, cross-platform]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - name: Verify required CI jobs succeeded
         run: |
+          echo "changes        = ${{ needs.changes.result }} (code=${{ needs.changes.outputs.code }})"
+          echo "lint           = ${{ needs.lint.result }}"
           echo "build          = ${{ needs.build.result }}"
           echo "cross-platform = ${{ needs.cross-platform.result }}"
           if [ "${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}" = "true" ]; then

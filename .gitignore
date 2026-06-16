@@ -118,3 +118,6 @@ report/jscpd-report.json
 
 # ESLint SARIF report (generated in CI, uploaded to code scanning)
 eslint-results.sarif
+
+# ESLint cache (--cache, used to speed the gate + SARIF passes)
+.eslintcache

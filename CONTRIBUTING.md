@@ -55,6 +55,13 @@ be merged, which can be quite a pain.
 
 Use the `-s` or `--signoff` flags to sign a commit.
 
+> **Match your sign-off email to your commit author email.** DCO requires the
+> `Signed-off-by` email to equal the commit author email. If your local
+> `git config user.email` differs from the email on your GitHub account, a
+> **squash merge** can rewrite the author to your GitHub email while keeping the
+> original sign-off, which fails DCO on the squashed commit. Keep the two emails
+> the same (or add the other as a verified email on your GitHub account).
+
 Example calls:
 
 ```bash

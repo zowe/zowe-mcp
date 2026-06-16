@@ -21,12 +21,14 @@ on:
         required: false
         type: string
 
-# Least privilege: the sticky PR comment needs pull-requests write and the
-# JUnit test reporter needs checks write; everything else reads.
+# Least privilege: the sticky PR comment needs pull-requests write, the JUnit
+# test reporter needs checks write, and the ESLint SARIF upload needs
+# security-events write; everything else reads.
 permissions:
   contents: read
   pull-requests: write
   checks: write
+  security-events: write
 
 # Cancel superseded runs on the same ref (e.g. rapid pushes to a PR branch).
 concurrency:
@@ -100,6 +102,23 @@ jobs:
         run: npm run typecheck --workspaces --if-present
 
       - run: npm run lint
+
+      # Emit an ESLint SARIF report and upload it to code scanning, so lint
+      # findings appear in the Security tab and as inline PR annotations. The
+      # hard gate above (`npm run lint`, --max-warnings 0) is what blocks the
+      # build; this is visibility-only and never fails the job. Runs even if the
+      # gate failed (!cancelled) so the annotations show up exactly when needed.
+      - name: ESLint SARIF report
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        run: npm run lint:sarif
+      - name: Upload ESLint SARIF
+        # security-events:write is unavailable to fork-PR tokens — skip there.
+        if: ${{ !cancelled() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: eslint-results.sarif
+          category: eslint
 
       # Server tests with coverage (report-only — no threshold gate) and a
       # JUnit file for the PR checks UI. e2e suites self-skip without their

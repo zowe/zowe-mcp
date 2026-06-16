@@ -27,6 +27,7 @@
     "inspector": "npx @modelcontextprotocol/inspector node packages/zowe-mcp-server/dist/index.js --stdio",
     "lint:fix": "eslint --fix \"packages/**/*.ts\" --max-warnings 0",
     "lint": "eslint \"packages/**/*.ts\" --max-warnings 0",
+    "lint:sarif": "eslint \"packages/**/*.ts\" -f @microsoft/eslint-formatter-sarif -o eslint-results.sarif",
     "typecheck": "npm run build -w packages/zowe-mcp-common && npm run build -w @zowe/mcp-server && npm run typecheck --workspaces --if-present",
     "lint:md": "markdownlint-cli2",
     "markdownlint:fix": "markdownlint-cli2 --fix",
@@ -56,6 +57,7 @@
     "local-registry:wipe-publish-dev": "bash scripts/local-registry-wipe-publish-dev.sh"
   },
   "devDependencies": {
+    "@microsoft/eslint-formatter-sarif": "^3.1.0",
     "@vitest/eslint-plugin": "^1.6.7",
     "@wasm-fmt/shfmt": "^0.2.7",
     "cloc": "^2.6.0",

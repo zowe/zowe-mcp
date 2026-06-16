@@ -262,7 +262,7 @@ examples.
 For quick tool testing during development:
 
 ```bash
-npx @zowe/mcp-server call-tool [--mock=<dir>] [<tool-name> [key=value ...]]
+node packages/zowe-mcp-server/dist/index.js call-tool [--mock=<dir>] [<tool-name> [key=value ...]]
 ```
 
 ## Dependencies
@@ -293,3 +293,4 @@ remediation.
 | Project architecture and patterns | [AGENTS.md](AGENTS.md) |
 | MCP tools reference | [docs/mcp-reference.md](docs/mcp-reference.md) |
 | Eval scoreboard | [docs/eval-scoreboard.md](docs/eval-scoreboard.md) |
+| Development guide | [DEVELOPMENT.md](DEVELOPMENT.md) |

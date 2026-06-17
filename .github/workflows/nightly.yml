@@ -16,13 +16,15 @@ concurrency:
   group: nightly-${{ github.ref }}
   cancel-in-progress: true
 
+# Workflow-level so the build/test job shares the same heap setting as the
+# other workflows. Bump in one place here.
+env:
+  NODE_OPTIONS: --max_old_space_size=4096
+
 jobs:
   nightly-sdk:
     runs-on: ubuntu-latest
     timeout-minutes: 45
-
-    env:
-      NODE_OPTIONS: --max_old_space_size=4096
 
     steps:
       - uses: actions/checkout@v6

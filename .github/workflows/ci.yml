@@ -35,6 +35,11 @@ concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# Workflow-level so every job shares one heap setting (build / type-check /
+# vitest / VSIX bundling can exceed Node's default). Bump in one place here.
+env:
+  NODE_OPTIONS: --max_old_space_size=4096
+
 jobs:
   # Detect whether this change touches anything other than Markdown docs. When a
   # push/PR changes only *.md files, the heavy lanes (lint, build, cross-platform)
@@ -101,9 +106,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
-    env:
-      NODE_OPTIONS: --max_old_space_size=4096
-
     steps:
       - uses: actions/checkout@v6
 
@@ -166,9 +168,6 @@ jobs:
     if: ${{ needs.changes.outputs.code == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
-
-    env:
-      NODE_OPTIONS: --max_old_space_size=4096
 
     steps:
       - uses: actions/checkout@v6
@@ -334,9 +333,6 @@ jobs:
         os: [windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 40
-
-    env:
-      NODE_OPTIONS: --max_old_space_size=4096
 
     steps:
       - uses: actions/checkout@v6

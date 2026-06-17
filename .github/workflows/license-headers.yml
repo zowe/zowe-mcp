@@ -28,8 +28,13 @@ jobs:
         run: |
           missing=0
           while read -r f; do
-            if ! grep -q "SPDX-License-Identifier: EPL-2.0" "$f"; then
-              echo "::error file=$f::Missing EPL-2.0 SPDX license header"
+            # Require the header at the TOP of the file: the SPDX line must appear
+            # within the first 10 lines (allowing a shebang + the comment block).
+            # A grep over the whole file would false-pass when the text only
+            # appears mid-file (e.g. inside an unrelated comment or string). Every
+            # real header here lands by line 8.
+            if ! head -n 10 "$f" | grep -q "SPDX-License-Identifier: EPL-2.0"; then
+              echo "::error file=$f::Missing EPL-2.0 SPDX license header in the first 10 lines"
               missing=1
             fi
           done < <(git ls-files '*.js' '*.mjs' '*.cjs' '*.sh' | grep -vE '^vendor/')

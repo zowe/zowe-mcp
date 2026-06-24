@@ -141,10 +141,12 @@ export function invokeZoweCli(
 
   const spawnEnv: Record<string, string> = {
     ...process.env,
-    // Deliver the password via env so it never appears in argv / ps output.
-    ...(password !== undefined ? { ZOWE_OPT_PASSWORD: password } : {}),
-    // Caller-provided env comes last so it can override if needed.
+    // Caller-provided env (e.g. ZOWE_CLI_HOME) overrides the process env.
     ...(env ?? {}),
+    // The explicit `password` arg is authoritative and spread last, so a
+    // ZOWE_OPT_PASSWORD in the caller env can never clobber it. Delivered via
+    // env so it never appears in argv / ps output.
+    ...(password !== undefined ? { ZOWE_OPT_PASSWORD: password } : {}),
   } as Record<string, string>;
 
   const options: SpawnSyncOptions = {

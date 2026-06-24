@@ -142,7 +142,7 @@ root [CHANGELOG.md](CHANGELOG.md).
   [`.github/CODEOWNERS`](.github/CODEOWNERS)); rules are enforced for
   administrators too.
 - **`develop`** — the integration branch; no review approval required, but only
-  members of the `zowe-cli-administrators` team can merge.
+  members of the `zowe-mcp-administrators` team can merge.
 
 ## AI Evaluation Requirements
 

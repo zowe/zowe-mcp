@@ -2,9 +2,9 @@
 #
 # An approving review from any of these owners satisfies the "Require review
 # from Code Owners" branch-protection rule on `main`. Branch protection also
-# restricts who may merge `develop` to the zowe-cli-administrators team (repo
+# restricts who may merge `develop` to the zowe-mcp-administrators team (repo
 # admins retain bypass).
 #
 # All owners must have write access for their reviews to count.
 
-* @zowe/zowe-cli-administrators @plavjanik @dkelosky
+* @zowe/zowe-mcp-administrators @plavjanik @dkelosky

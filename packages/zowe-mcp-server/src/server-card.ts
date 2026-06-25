@@ -79,7 +79,8 @@ export function assembleServerCard(opts: {
   capabilityTier?: CapabilityTier;
   generated?: string;
 }): McpServerCard {
-  const card: McpServerCard = {
+  return {
+    ...(opts.generated !== undefined ? { _generated: opts.generated } : {}),
     protocolVersion: LATEST_PROTOCOL_VERSION,
     serverInfo: {
       name: SERVER_CARD_NAME,
@@ -87,20 +88,14 @@ export function assembleServerCard(opts: {
       description: SERVER_CARD_DESCRIPTION,
       version: SERVER_VERSION,
     },
+    ...(opts.capabilityTier !== undefined
+      ? { _meta: { [SERVER_CARD_NAME]: { capabilityTier: opts.capabilityTier } } }
+      : {}),
     tools: opts.tools,
     prompts: opts.prompts,
     resources: opts.resources,
     resourceTemplates: opts.resourceTemplates,
   };
-  if (opts.capabilityTier !== undefined) {
-    card._meta = {
-      [SERVER_CARD_NAME]: { capabilityTier: opts.capabilityTier },
-    };
-  }
-  if (opts.generated !== undefined) {
-    card._generated = opts.generated;
-  }
-  return card;
 }
 
 /**
@@ -114,7 +109,8 @@ export function assembleServerCard(opts: {
  */
 export async function buildServerCard(
   indexJsPath: string,
-  capabilityTier: CapabilityTier
+  capabilityTier: CapabilityTier,
+  generated?: string
 ): Promise<McpServerCard> {
   const tmpDir = mkdtempSync(join(tmpdir(), 'zowe-mcp-card-'));
   try {
@@ -160,6 +156,7 @@ export async function buildServerCard(
         resources: resourcesResult.resources,
         resourceTemplates: templatesResult.resourceTemplates,
         capabilityTier,
+        generated,
       });
     } finally {
       await client.close();

@@ -29,6 +29,7 @@ import { randomUUID } from 'node:crypto';
 import type { JwtAuthConfig, TenantJwtClaims } from '../auth/bearer-jwt.js';
 import { extractBearerToken, verifyBearerJwt } from '../auth/bearer-jwt.js';
 import type { Logger } from '../log.js';
+import type { McpServerCard } from '../server-card.js';
 import { registerPasswordUrlElicitRoutes } from './http-password-elicit.js';
 
 /** OIDC discovery document subset (we only read registration_endpoint). */
@@ -78,6 +79,8 @@ export type HttpServerFactory = (tenant?: TenantJwtClaims) => McpServer;
 export interface StartHttpOptions {
   /** When set, requires `Authorization: Bearer` on every /mcp request and binds sessions to `sub`. */
   jwtAuth?: JwtAuthConfig;
+  /** When set, serves this document at `/.well-known/mcp/server-card.json`. */
+  serverCard?: McpServerCard;
 }
 
 /** Handle returned by {@link startHttp} so tests (or embedding) can shut down the listener. */
@@ -163,6 +166,21 @@ export async function startHttp(
       paths: oauthDiscoveryPaths,
     });
     logOidcRegistrationDiscovery(jwtAuth.issuer, log);
+  }
+
+  // -----------------------------------------------------------------------
+  // GET /.well-known/mcp/server-card.json — MCP Server Card (SEP-1649)
+  // -----------------------------------------------------------------------
+  if (options?.serverCard) {
+    const cardJson = JSON.stringify(options.serverCard, null, 2);
+    const serverCardPaths = ['/.well-known/mcp/server-card.json', '/.well-known/mcp/server-card'];
+    app.get(serverCardPaths, (_req: Request, res: Response) => {
+      res.setHeader('Content-Type', 'application/json; charset=utf-8');
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Cache-Control', 'public, max-age=300');
+      res.status(200).send(cardJson);
+    });
+    log.info('MCP server card route enabled', { path: serverCardPaths[0] });
   }
 
   /** Map of active session ID → transport and optional JWT subject. */

@@ -60,6 +60,7 @@ import {
   removeTenantSystem,
   tenantStoreDirFromEnv,
 } from './persistence/tenant-connections-store.js';
+import { buildServerCard, type McpServerCard } from './server-card.js';
 import type { CreateServerOptions, CreateServerResult, ZoweExplorerCallbacks } from './server.js';
 import { createServer, getLogger, getServer, SERVER_VERSION } from './server.js';
 import {
@@ -320,6 +321,28 @@ function parseArgs(): ParsedArgs {
         }),
       () => {
         const scriptPath = resolve(__dirname, 'scripts', 'generate-docs.js');
+        const result = spawnSync(process.execPath, [scriptPath, ...process.argv.slice(3)], {
+          stdio: 'inherit',
+        });
+        process.exit(result.status ?? 0);
+      }
+    )
+    .command(
+      'server-card',
+      'Write the MCP server card (tools, prompts, resources) to a JSON file',
+      y =>
+        y.options({
+          output: {
+            type: 'string',
+            describe: 'Output file path (default: docs/mcp-server-card.json)',
+          },
+          'capability-tier': {
+            type: 'string',
+            describe: 'Capability tier to include (default: full)',
+          },
+        }),
+      () => {
+        const scriptPath = resolve(__dirname, 'scripts', 'server-card.js');
         const result = spawnSync(process.execPath, [scriptPath, ...process.argv.slice(3)], {
           stdio: 'inherit',
         });
@@ -1122,7 +1145,12 @@ function setupExtensionEventHandlers(
 async function main(): Promise<void> {
   // Run subcommand scripts directly so they work even if yargs doesn't dispatch (e.g. in bundled extension)
   const subcommand = process.argv[2];
-  if (subcommand === 'init-mock' || subcommand === 'call-tool' || subcommand === 'generate-docs') {
+  if (
+    subcommand === 'init-mock' ||
+    subcommand === 'call-tool' ||
+    subcommand === 'generate-docs' ||
+    subcommand === 'server-card'
+  ) {
     const scriptPath = resolve(__dirname, 'scripts', `${subcommand}.js`);
     const result = spawnSync(process.execPath, [scriptPath, ...process.argv.slice(3)], {
       stdio: 'inherit',
@@ -1855,6 +1883,33 @@ async function main(): Promise<void> {
       );
     }
 
+    // Build server card for /.well-known/mcp/server-card.json.
+    // Uses a lightweight in-memory probe with a minimal mock backend — tool
+    // registration is backend-independent, so the card accurately reflects
+    // which tools are available at the configured capabilityTier.
+    let httpServerCard: McpServerCard | undefined;
+    try {
+      const indexJsPath = resolve(__dirname, 'index.js');
+      const capabilityTier =
+        serverOptions?.capabilityTier ??
+        (process.env.ZOWE_MCP_CAPABILITY_TIER as
+          | Parameters<typeof buildServerCard>[1]
+          | undefined) ??
+        'read-strict';
+      httpServerCard = await buildServerCard(indexJsPath, capabilityTier);
+      logger.info('MCP server card built', {
+        tools: httpServerCard.tools.length,
+        capabilityTier,
+      });
+    } catch (e) {
+      logger.warning(
+        'Failed to build MCP server card — /.well-known/mcp/server-card.json will not be served',
+        {
+          error: e instanceof Error ? e.message : String(e),
+        }
+      );
+    }
+
     const httpHandle = await startHttp(
       (tenant?: TenantJwtClaims) => {
         const opts: CreateServerOptions | undefined = serverOptions
@@ -1941,7 +1996,7 @@ async function main(): Promise<void> {
       },
       port,
       logger,
-      httpJwtAuth ? { jwtAuth: httpJwtAuth } : undefined
+      { jwtAuth: httpJwtAuth, serverCard: httpServerCard }
     );
     if (!httpPublicBaseUrlRef.current) {
       httpPublicBaseUrlRef.current = `http://127.0.0.1:${httpHandle.port}`;

@@ -18,7 +18,7 @@
 import { dump as yamlDump } from 'js-yaml';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import type { ZSshClient } from 'zowex-sdk';
+import { ZSshUtils, type ZSshClient } from 'zowex-sdk';
 import type { CeedumpCollectedEventData } from '../../events.js';
 import { getCurrentMcpTool } from '../../mcp-tool-context.js';
 import { getLogger } from '../../server.js';
@@ -46,6 +46,7 @@ import type {
   WriteDatasetResult,
   WriteUssFileResult,
 } from '../backend.js';
+import type { Credentials } from '../credentials.js';
 import { memberPatternToRegExp } from '../member-pattern.js';
 import { runSearchWithListAndRead, type SearchBackendAdapter } from '../search-runner.js';
 import type { SystemId } from '../system.js';
@@ -451,45 +452,33 @@ export class NativeBackend {
     await prev;
     log.debug('Native backend: connection lock acquired', { key, systemId });
 
-    const credentials = await this.options.credentialProvider.getCredentials(systemId, userId, {
+    let credentials = await this.options.credentialProvider.getCredentials(systemId, userId, {
       progress,
     });
 
     try {
-      log.debug('Native backend: getOrCreate client', { key, systemId });
-      const client = await this.options.clientCache.getOrCreate(spec, credentials, progress);
-      log.debug('Native backend: got client, running operation', { key, systemId });
-      progress?.('Running Zowe Remote SSH operation');
-
-      let rejectAbend: (err: Error) => void;
-      const abendPromise = new Promise<never>((_, reject) => {
-        rejectAbend = reject;
-      });
-      const unbindStderr = installStderrAbendCapture(key, (snippet: string) => {
-        rejectAbend(new Error(snippet));
-      });
-      const baseTimeoutSec = this.options.getResponseTimeout?.() ?? 60;
-      const timeoutSec = this.options.clientCache.hasKey(key)
-        ? baseTimeoutSec
-        : baseTimeoutSec * 2;
-      const timeoutMs = timeoutSec * 1000;
-      let timeoutId: ReturnType<typeof setTimeout>;
-      const timeoutPromise = new Promise<never>((_, reject) => {
-        timeoutId = setTimeout(
-          () => reject(new Error(`Request timed out after ${timeoutSec} s`)),
-          timeoutMs
-        );
-      });
       try {
-        const result = await Promise.race([
-          fn(client).finally(() => clearTimeout(timeoutId!)),
-          timeoutPromise,
-          abendPromise,
-        ]);
-        log.debug('Native backend: operation completed', { key, systemId });
-        return result;
-      } finally {
-        unbindStderr();
+        return await this.connectAndRunOperation(spec, key, systemId, credentials, fn, progress);
+      } catch (attemptErr: unknown) {
+        // SSH key auth failed: fall back to the password flow once (env / vault / elicitation /
+        // VS Code prompt). markKeyFailed makes subsequent operations skip the key for this
+        // connection; a failure of the password retry below flows to the classification handler.
+        if (credentials.authMethod === 'key' && this.isKeyAuthFailure(attemptErr)) {
+          log.info('SSH key authentication failed; falling back to password', {
+            key,
+            systemId,
+            host: spec.host,
+            port: spec.port,
+            user: spec.user,
+          });
+          this.options.credentialProvider.markKeyFailed(spec);
+          this.options.clientCache.evict(spec);
+          credentials = await this.options.credentialProvider.getCredentials(systemId, userId, {
+            progress,
+          });
+          return await this.connectAndRunOperation(spec, key, systemId, credentials, fn, progress);
+        }
+        throw attemptErr;
       }
     } catch (err: unknown) {
       const abendSnippet = takeAbendSnippet(key);
@@ -579,6 +568,62 @@ export class NativeBackend {
       release!();
       log.debug('Native backend: connection lock released', { key, systemId });
     }
+  }
+
+  /**
+   * Acquires (or reuses) a client for the given credentials and runs the operation with the
+   * standard timeout + abend-capture race. Extracted so the key→password fallback can re-run the
+   * same operation with different credentials without duplicating the timeout/abend plumbing.
+   */
+  private async connectAndRunOperation<T>(
+    spec: ParsedConnectionSpec,
+    key: string,
+    systemId: SystemId,
+    credentials: Credentials,
+    fn: (client: ZSshClient) => Promise<T>,
+    progress?: BackendProgressCallback
+  ): Promise<T> {
+    log.debug('Native backend: getOrCreate client', { key, systemId });
+    const client = await this.options.clientCache.getOrCreate(spec, credentials, progress);
+    log.debug('Native backend: got client, running operation', { key, systemId });
+    progress?.('Running Zowe Remote SSH operation');
+
+    let rejectAbend: (err: Error) => void;
+    const abendPromise = new Promise<never>((_, reject) => {
+      rejectAbend = reject;
+    });
+    const unbindStderr = installStderrAbendCapture(key, (snippet: string) => {
+      rejectAbend(new Error(snippet));
+    });
+    const baseTimeoutSec = this.options.getResponseTimeout?.() ?? 60;
+    const timeoutSec = this.options.clientCache.hasKey(key) ? baseTimeoutSec : baseTimeoutSec * 2;
+    const timeoutMs = timeoutSec * 1000;
+    let timeoutId: ReturnType<typeof setTimeout>;
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timeoutId = setTimeout(
+        () => reject(new Error(`Request timed out after ${timeoutSec} s`)),
+        timeoutMs
+      );
+    });
+    try {
+      const result = await Promise.race([
+        fn(client).finally(() => clearTimeout(timeoutId!)),
+        timeoutPromise,
+        abendPromise,
+      ]);
+      log.debug('Native backend: operation completed', { key, systemId });
+      return result;
+    } finally {
+      unbindStderr();
+    }
+  }
+
+  /** Returns true when the error indicates an SSH private-key authentication failure. */
+  private isKeyAuthFailure(err: unknown): boolean {
+    const msg = err instanceof Error ? err.message : String(err);
+    const details = getAdditionalDetails(err);
+    const full = details ? `${msg} | ${details}` : msg;
+    return ZSshUtils.isPrivateKeyAuthFailure(full, true);
   }
 
   /**

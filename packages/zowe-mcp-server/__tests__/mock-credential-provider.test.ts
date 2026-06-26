@@ -40,19 +40,23 @@ describe('MockCredentialProvider', () => {
     it('should return credentials for the default user when no userId given', async () => {
       const provider = new MockCredentialProvider(makeConfig());
       const credentials = await provider.getCredentials('sys1.example.com');
-      expect(credentials).toEqual({ user: 'USER', password: 'secret1' });
+      expect(credentials).toEqual({ user: 'USER', password: 'secret1', authMethod: 'password' });
     });
 
     it('should return credentials for a specific user', async () => {
       const provider = new MockCredentialProvider(makeConfig());
       const credentials = await provider.getCredentials('sys1.example.com', 'DEVUSER');
-      expect(credentials).toEqual({ user: 'DEVUSER', password: 'secret2' });
+      expect(credentials).toEqual({
+        user: 'DEVUSER',
+        password: 'secret2',
+        authMethod: 'password',
+      });
     });
 
     it('should perform case-insensitive user lookup', async () => {
       const provider = new MockCredentialProvider(makeConfig());
       const credentials = await provider.getCredentials('sys1.example.com', 'user');
-      expect(credentials).toEqual({ user: 'USER', password: 'secret1' });
+      expect(credentials).toEqual({ user: 'USER', password: 'secret1', authMethod: 'password' });
     });
 
     it('should reject for unknown system', async () => {
@@ -92,7 +96,11 @@ describe('MockCredentialProvider', () => {
       };
       const provider = new MockCredentialProvider(config);
       const credentials = await provider.getCredentials('sys-no-default.example.com');
-      expect(credentials).toEqual({ user: 'FIRSTUSER', password: 'pass1' });
+      expect(credentials).toEqual({
+        user: 'FIRSTUSER',
+        password: 'pass1',
+        authMethod: 'password',
+      });
     });
 
     it('should reject when system has no credentials at all', async () => {

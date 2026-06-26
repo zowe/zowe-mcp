@@ -17,7 +17,9 @@ import {
   parseZoweMcpCredentialsEnv,
   toConnectionsEnvLookupKey,
   toHostNormalized,
+  toKeyPassphraseEnvVarName,
   toPasswordEnvVarName,
+  toPrivateKeyEnvVarName,
   toSecretStorageKey,
 } from '../src/zos/native/connection-spec.js';
 
@@ -96,6 +98,22 @@ describe('connection-spec', () => {
     it('produces env var name with uppercase user and host', () => {
       expect(toPasswordEnvVarName('USERID', 'sys1.example.com')).toBe(
         'ZOWE_MCP_PASSWORD_USERID_SYS1_EXAMPLE_COM'
+      );
+    });
+  });
+
+  describe('toPrivateKeyEnvVarName', () => {
+    it('produces env var name with uppercase user and host', () => {
+      expect(toPrivateKeyEnvVarName('USERID', 'sys1.example.com')).toBe(
+        'ZOWE_MCP_PRIVATE_KEY_USERID_SYS1_EXAMPLE_COM'
+      );
+    });
+  });
+
+  describe('toKeyPassphraseEnvVarName', () => {
+    it('produces env var name with uppercase user and host', () => {
+      expect(toKeyPassphraseEnvVarName('USERID', 'sys1.example.com')).toBe(
+        'ZOWE_MCP_KEY_PASSPHRASE_USERID_SYS1_EXAMPLE_COM'
       );
     });
   });

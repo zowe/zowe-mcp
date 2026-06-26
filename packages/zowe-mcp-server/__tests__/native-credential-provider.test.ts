@@ -13,12 +13,29 @@
  * Unit tests for NativeCredentialProvider: elicitation path, fallback to pipe, onElicitedPasswordUsed.
  */
 
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ParsedConnectionSpec } from '../src/zos/native/connection-spec.js';
 import { toPasswordEnvVarName } from '../src/zos/native/connection-spec.js';
 import { NativeCredentialProvider } from '../src/zos/native/native-credential-provider.js';
 import { WaitablePasswordStore } from '../src/zos/native/password-store.js';
 import { cacheKey } from '../src/zos/native/ssh-client-cache.js';
+import { getKeyPassphraseFromEnv, resolveSshKey } from '../src/zos/native/ssh-key-resolver.js';
+
+// Mock the SSH key resolver so these password-focused tests do not read the real ~/.ssh.
+// By default no key is found, so getCredentials takes the password path; individual tests
+// override resolveSshKey to exercise key authentication.
+vi.mock('../src/zos/native/ssh-key-resolver.js', () => ({
+  resolveSshKey: vi.fn().mockResolvedValue(undefined),
+  getKeyPassphraseFromEnv: vi.fn().mockReturnValue(undefined),
+}));
+
+const mockResolveSshKey = vi.mocked(resolveSshKey);
+const mockGetKeyPassphraseFromEnv = vi.mocked(getKeyPassphraseFromEnv);
+
+beforeEach(() => {
+  mockResolveSshKey.mockReset().mockResolvedValue(undefined);
+  mockGetKeyPassphraseFromEnv.mockReset().mockReturnValue(undefined);
+});
 
 const SPEC: ParsedConnectionSpec = {
   user: 'USER',
@@ -44,6 +61,7 @@ describe('NativeCredentialProvider', () => {
         await expect(provider.getCredentials(SPEC.host)).resolves.toEqual({
           user: SPEC.user,
           password: 'json-password',
+          authMethod: 'password',
         });
       } finally {
         if (prevVar === undefined) delete process.env[envVar];
@@ -68,6 +86,7 @@ describe('NativeCredentialProvider', () => {
         await expect(provider.getCredentials(SPEC.host)).resolves.toEqual({
           user: SPEC.user,
           password: 'elicited-standalone',
+          authMethod: 'password',
         });
       } finally {
         if (prevVar === undefined) delete process.env[envVar];
@@ -96,10 +115,12 @@ describe('NativeCredentialProvider', () => {
         await expect(provider.getCredentials(SPEC.host)).resolves.toEqual({
           user: SPEC.user,
           password: 'elicited-once',
+          authMethod: 'password',
         });
         await expect(provider.getCredentials(SPEC.host)).resolves.toEqual({
           user: SPEC.user,
           password: 'elicited-once',
+          authMethod: 'password',
         });
         expect(elicitCalls).toBe(1);
       } finally {
@@ -134,7 +155,11 @@ describe('NativeCredentialProvider', () => {
       });
 
       const creds = await provider.getCredentials(SPEC.host);
-      expect(creds).toEqual({ user: SPEC.user, password: 'elicited-secret' });
+      expect(creds).toEqual({
+        user: SPEC.user,
+        password: 'elicited-secret',
+        authMethod: 'password',
+      });
       expect(used).toHaveLength(1);
       expect(used[0]).toEqual({
         user: SPEC.user,
@@ -167,6 +192,7 @@ describe('NativeCredentialProvider', () => {
       await expect(provider.getCredentials(SPEC.host)).resolves.toEqual({
         user: SPEC.user,
         password: 'pipe-only-password',
+        authMethod: 'password',
       });
       expect(elicitationCalled).toBe(false);
     });
@@ -195,6 +221,7 @@ describe('NativeCredentialProvider', () => {
       await expect(credsPromise).resolves.toEqual({
         user: SPEC.user,
         password: 'pipe-password',
+        authMethod: 'password',
       });
       expect(requestPasswordCalled).toBe(true);
     });
@@ -223,6 +250,7 @@ describe('NativeCredentialProvider', () => {
       await expect(credsPromise).resolves.toEqual({
         user: SPEC.user,
         password: 'pipe-password',
+        authMethod: 'password',
       });
       expect(requestPasswordCalled).toBe(true);
     });
@@ -319,7 +347,11 @@ describe('NativeCredentialProvider', () => {
       const credsPromise = provider.getCredentials(SPEC.host, undefined, {
         progress: msg => progressMessages.push(msg),
       });
-      await expect(credsPromise).resolves.toEqual({ user: SPEC.user, password: 'pwd' });
+      await expect(credsPromise).resolves.toEqual({
+        user: SPEC.user,
+        password: 'pwd',
+        authMethod: 'password',
+      });
       expect(progressMessages).toContain('Waiting for password');
     });
 
@@ -337,6 +369,103 @@ describe('NativeCredentialProvider', () => {
       });
       expect(creds.password).toBe('elicited-pwd');
       expect(progressMessages).toContain('Waiting for password');
+    });
+  });
+
+  describe('SSH key authentication (preferred over password)', () => {
+    it('returns key credentials when an unencrypted key is resolved', async () => {
+      mockResolveSshKey.mockResolvedValue({
+        privateKeyPath: '/home/u/.ssh/id_ed25519',
+        encrypted: false,
+      });
+      const provider = new NativeCredentialProvider({
+        connectionSpecs: [SPEC],
+        useEnvForPassword: true,
+      });
+      await expect(provider.getCredentials(SPEC.host)).resolves.toEqual({
+        user: SPEC.user,
+        privateKeyPath: '/home/u/.ssh/id_ed25519',
+        keyPassphrase: undefined,
+        authMethod: 'key',
+      });
+    });
+
+    it('uses the env passphrase for an encrypted key', async () => {
+      mockResolveSshKey.mockResolvedValue({
+        privateKeyPath: '/home/u/.ssh/id_rsa',
+        encrypted: true,
+      });
+      mockGetKeyPassphraseFromEnv.mockReturnValue('s3cret');
+      const provider = new NativeCredentialProvider({
+        connectionSpecs: [SPEC],
+        useEnvForPassword: true,
+      });
+      await expect(provider.getCredentials(SPEC.host)).resolves.toEqual({
+        user: SPEC.user,
+        privateKeyPath: '/home/u/.ssh/id_rsa',
+        keyPassphrase: 's3cret',
+        authMethod: 'key',
+      });
+    });
+
+    it('falls back to password when key is encrypted but no passphrase is available', async () => {
+      mockResolveSshKey.mockResolvedValue({
+        privateKeyPath: '/home/u/.ssh/id_rsa',
+        encrypted: true,
+      });
+      mockGetKeyPassphraseFromEnv.mockReturnValue(undefined);
+      const provider = new NativeCredentialProvider({
+        connectionSpecs: [SPEC],
+        useEnvForPassword: true,
+        requestPasswordViaElicitation: () => Promise.resolve('fallback-pwd'),
+      });
+      await expect(provider.getCredentials(SPEC.host)).resolves.toEqual({
+        user: SPEC.user,
+        password: 'fallback-pwd',
+        authMethod: 'password',
+      });
+    });
+
+    it('does not attempt key auth when disableSshKey is set', async () => {
+      mockResolveSshKey.mockResolvedValue({
+        privateKeyPath: '/home/u/.ssh/id_ed25519',
+        encrypted: false,
+      });
+      const provider = new NativeCredentialProvider({
+        connectionSpecs: [SPEC],
+        useEnvForPassword: true,
+        disableSshKey: true,
+        requestPasswordViaElicitation: () => Promise.resolve('pwd-only'),
+      });
+      await expect(provider.getCredentials(SPEC.host)).resolves.toEqual({
+        user: SPEC.user,
+        password: 'pwd-only',
+        authMethod: 'password',
+      });
+      expect(mockResolveSshKey).not.toHaveBeenCalled();
+    });
+
+    it('after markKeyFailed, skips the key and uses password', async () => {
+      mockResolveSshKey.mockResolvedValue({
+        privateKeyPath: '/home/u/.ssh/id_ed25519',
+        encrypted: false,
+      });
+      const provider = new NativeCredentialProvider({
+        connectionSpecs: [SPEC],
+        useEnvForPassword: true,
+        requestPasswordViaElicitation: () => Promise.resolve('pwd-after-key-fail'),
+      });
+      // First resolves the key.
+      await expect(provider.getCredentials(SPEC.host)).resolves.toMatchObject({
+        authMethod: 'key',
+      });
+      // After the backend reports the key failed, subsequent calls use the password flow.
+      provider.markKeyFailed(SPEC);
+      await expect(provider.getCredentials(SPEC.host)).resolves.toEqual({
+        user: SPEC.user,
+        password: 'pwd-after-key-fail',
+        authMethod: 'password',
+      });
     });
   });
 });

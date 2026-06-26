@@ -1287,6 +1287,11 @@ async function main(): Promise<void> {
     serverRef = { current: null };
     const defaultNativeServerPath = '~/.zowe-server';
     const defaultResponseTimeout = 60;
+    // SSH key auth is preferred (most secure) and on by default. Disable via ZOWE_MCP_DISABLE_SSH_KEY;
+    // the VS Code extension sets this env var when its `zoweMCP.preferSshKey` setting is turned off.
+    const disableSshKey = ['1', 'true', 'yes'].includes(
+      (process.env.ZOWE_MCP_DISABLE_SSH_KEY ?? '').trim().toLowerCase()
+    );
     const zowexOptionsRef = {
       current: {
         autoInstallZowex: parsed.zowexServerAutoInstall ?? true,
@@ -1318,6 +1323,7 @@ async function main(): Promise<void> {
       passwordStore: nativePasswordStore,
       ...extensionCallbacks,
       ...standalonePasswordElicitation,
+      disableSshKey,
       autoInstallZowex: parsed.zowexServerAutoInstall ?? true,
       zowexServerPath: parsed.zowexServerPath,
       responseTimeout: parsed.zowexResponseTimeout ?? defaultResponseTimeout,
@@ -1369,6 +1375,7 @@ async function main(): Promise<void> {
         passwordStore: nativePasswordStore,
         ...extensionCallbacks,
         ...standalonePasswordElicitation,
+        disableSshKey,
         autoInstallZowex: parsed.zowexServerAutoInstall ?? true,
         zowexServerPath: parsed.zowexServerPath,
         responseTimeout: parsed.zowexResponseTimeout ?? defaultResponseTimeout,

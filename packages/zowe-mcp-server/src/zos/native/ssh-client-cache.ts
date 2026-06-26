@@ -16,6 +16,7 @@
  * should evict the entry so the next request can retry with new credentials.
  */
 
+import { basename } from 'node:path';
 import { SshSession, ZSshClient, ZSshUtils } from 'zowex-sdk';
 import { getLogger } from '../../server.js';
 import type { Credentials } from '../credentials.js';
@@ -24,6 +25,25 @@ import { passwordHash } from './password-hash.js';
 import { formatErrorWithDetails, getAdditionalDetails } from './sdk-error-details.js';
 
 const log = getLogger().child('native.ssh');
+
+/**
+ * Returns non-sensitive log fields describing how a connection authenticates.
+ * Never logs key bytes or the passphrase — only the auth method, the key file
+ * basename, and a short password hash for correlation.
+ */
+function credentialLogFields(credentials: Credentials): Record<string, unknown> {
+  if (credentials.authMethod === 'key') {
+    return {
+      authMethod: 'key',
+      keyFile: credentials.privateKeyPath ? basename(credentials.privateKeyPath) : undefined,
+      encryptedKey: credentials.keyPassphrase !== undefined,
+    };
+  }
+  return {
+    authMethod: 'password',
+    passwordHash: credentials.password ? passwordHash(credentials.password) : undefined,
+  };
+}
 
 /** Builds a cache key from a parsed spec (user@host:port). */
 export function cacheKey(spec: ParsedConnectionSpec): string {
@@ -134,15 +154,25 @@ export class SshClientCache {
       host: spec.host,
       port: spec.port,
       user: spec.user,
-      passwordHash: passwordHash(credentials.password),
+      ...credentialLogFields(credentials),
       responseTimeoutSec: opts.responseTimeout,
     });
-    const session = new SshSession({
-      hostname: spec.host,
-      port: spec.port,
-      user: credentials.user,
-      password: credentials.password,
-    });
+    const session = new SshSession(
+      credentials.authMethod === 'key'
+        ? {
+            hostname: spec.host,
+            port: spec.port,
+            user: credentials.user,
+            privateKey: credentials.privateKeyPath,
+            keyPassphrase: credentials.keyPassphrase,
+          }
+        : {
+            hostname: spec.host,
+            port: spec.port,
+            user: credentials.user,
+            password: credentials.password,
+          }
+    );
 
     const createOpts = {
       serverPath: opts.serverPath,
@@ -202,7 +232,7 @@ export class SshClientCache {
         host: spec.host,
         port: spec.port,
         user: spec.user,
-        passwordHash: passwordHash(credentials.password),
+        ...credentialLogFields(credentials),
         errorMessage: msg,
         additionalDetails,
         errorCode: code,

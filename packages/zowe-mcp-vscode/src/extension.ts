@@ -154,6 +154,7 @@ export function activate(context: vscode.ExtensionContext): void {
       const mockDataDirectoryChanged = e.affectsConfiguration('zoweMCP.mockDataDirectory');
       const enabledCliPluginsChanged = e.affectsConfiguration('zoweMCP.enabledCliPlugins');
       const capabilityTierChanged = e.affectsConfiguration('zoweMCP.capabilityTier');
+      const preferSshKeyChanged = e.affectsConfiguration('zoweMCP.preferSshKey');
 
       void Promise.resolve().then(() => {
         if (logLevelChanged) {
@@ -261,6 +262,23 @@ export function activate(context: vscode.ExtensionContext): void {
           }
         }
 
+        if (preferSshKeyChanged) {
+          const config = vscode.workspace.getConfiguration('zoweMCP');
+          const preferSshKey = config.get<boolean>('preferSshKey', true);
+          log.info(`SSH key preference changed to "${preferSshKey}"`);
+          const reload = 'Reload Window';
+          void vscode.window
+            .showInformationMessage(
+              `Zowe MCP: SSH key authentication ${preferSshKey ? 'enabled' : 'disabled'}. Reload the window to apply.`,
+              reload
+            )
+            .then(choice => {
+              if (choice === reload) {
+                void vscode.commands.executeCommand('workbench.action.reloadWindow');
+              }
+            });
+        }
+
         const affectsServerStartup =
           backendChanged ||
           mockDataDirectoryChanged ||
@@ -269,7 +287,8 @@ export function activate(context: vscode.ExtensionContext): void {
           encodingChanged ||
           jobCardsChanged ||
           enabledCliPluginsChanged ||
-          capabilityTierChanged;
+          capabilityTierChanged ||
+          preferSshKeyChanged;
         if (
           affectsServerStartup &&
           cursorMcpRegistered &&
@@ -497,6 +516,10 @@ export async function buildServerConfig(
   }
   if (zoweExplorerAvailable) {
     env.ZOWE_EXPLORER_AVAILABLE = '1';
+  }
+  // SSH key authentication is preferred and on by default; disable it when the user opts out.
+  if (!config.get<boolean>('preferSshKey', true)) {
+    env.ZOWE_MCP_DISABLE_SSH_KEY = '1';
   }
   return { command: process.execPath, args, env };
 }
@@ -815,6 +838,7 @@ const ZOWE_MCP_CONFIG_KEYS = [
   'zowexConnections',
   'logLevel',
   'zowexServerAutoInstall',
+  'preferSshKey',
   'zowexServerPath',
   'zowexResponseTimeout',
   'installZoweNativeServerAutomatically',

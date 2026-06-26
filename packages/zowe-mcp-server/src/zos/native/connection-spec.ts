@@ -46,6 +46,31 @@ export function toPasswordEnvVarName(user: string, host: string): string {
 }
 
 /**
+ * Returns the environment variable name for an explicit SSH private key path (standalone mode).
+ * Format: ZOWE_MCP_PRIVATE_KEY_<USER>_<HOST> (USER uppercase, HOST with dots replaced by _).
+ * Optional override — when unset, the resolver auto-detects ~/.ssh/config and default ~/.ssh/id_* keys.
+ */
+export function toPrivateKeyEnvVarName(user: string, host: string): string {
+  const userPart = user.toUpperCase().replace(/[^A-Z0-9]/g, '_');
+  const hostPart = toHostNormalized(host)
+    .toUpperCase()
+    .replace(/[^A-Z0-9_]/g, '_');
+  return `ZOWE_MCP_PRIVATE_KEY_${userPart}_${hostPart}`;
+}
+
+/**
+ * Returns the environment variable name for an SSH private key passphrase (standalone mode).
+ * Format: ZOWE_MCP_KEY_PASSPHRASE_<USER>_<HOST> (USER uppercase, HOST with dots replaced by _).
+ */
+export function toKeyPassphraseEnvVarName(user: string, host: string): string {
+  const userPart = user.toUpperCase().replace(/[^A-Z0-9]/g, '_');
+  const hostPart = toHostNormalized(host)
+    .toUpperCase()
+    .replace(/[^A-Z0-9_]/g, '_');
+  return `ZOWE_MCP_KEY_PASSPHRASE_${userPart}_${hostPart}`;
+}
+
+/**
  * Returns the shared Zowe OSS secret storage key for an SSH password.
  * Format: zowe.ssh.password.${user}.${hostNormalized}
  * Other Zowe extensions can use this key to share credentials for the same user@host.

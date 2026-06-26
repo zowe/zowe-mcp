@@ -46,7 +46,7 @@ Ideas inspired by [Gestell-AI/zowe-mcp](https://github.com/Gestell-AI/zowe-mcp) 
 - ✅ **Password error messages**: Validate that the password error messages match what really happens when errors occur.
 - ✅ **Tool description quality**: Evaluate tool descriptions; see how Code4z Assistant does it for reference.
 - ✅ **z/OS integration tests**: Add or run z/OS integration tests. (Native stdio E2E tests)
-- **SSH key-auth handshake test (mock z/OS host)**: Add a real-handshake test for SSH key authentication against the standalone mock host (`mock-zos`), which already accepts publickey auth via `authorizedKeys` in `users.json`. Generate ephemeral keypairs at test time (ssh2 `generateKeyPairSync`), seed `authorizedKeys`, and assert: (1) authorized key connects (`authMethod: 'key'`), (2) unauthorized key falls back to password, (3) encrypted key + passphrase connects, (4) encrypted key + wrong/no passphrase falls back. Optionally gate behind `ZOWE_MCP_RUN_SSH_AUTH_E2E=1`. Core logic is already covered by unit tests; this adds end-to-end confidence that a real key file is presented and decrypts.
+- ✅ **SSH key-auth handshake test (mock z/OS host)**: Implemented in `__tests__/mock-zos-ssh-key-auth.test.ts` — real-handshake coverage against the mock host (`spawnMockZos`), which accepts publickey auth via `authorizedKeys`. Generates ephemeral keypairs (ssh2 `generateKeyPairSync`) and asserts: authorized key connects; unauthorized key falls back to password; encrypted key + passphrase decrypts and connects; encrypted key without passphrase falls back to password. Runs by default with the suite.
 
 ## VS Code / UX
 

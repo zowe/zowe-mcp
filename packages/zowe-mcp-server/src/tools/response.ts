@@ -58,7 +58,10 @@ export const PAGINATION_NOTE_LINES =
  * Defined once to ensure consistency.
  */
 export const SYSTEM_PARAM_DESCRIPTION =
-  'Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system.';
+  'Optional. Target z/OS system (a host, or user@host when several connections exist). ' +
+  'Omit it to use the active/default connection — you do not need to select or set a system first, ' +
+  'and you should still call the tool when no system has been chosen yet. ' +
+  'Specify it only to target a different configured system.';
 
 /**
  * Insert a pagination note after the first sentence of a tool description

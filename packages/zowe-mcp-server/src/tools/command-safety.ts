@@ -68,3 +68,24 @@ export function evaluateCommandSafety(
 
   return { action: 'elicit' };
 }
+
+/**
+ * Formats the error returned to the model when a command is blocked.
+ *
+ * The per-pattern `message` only explains *why* a command is dangerous (e.g.
+ * "ALTER changes VSAM or catalog entries."), which models tend to reinterpret as
+ * a usage hint and then helpfully explain how to run the command. This wraps the
+ * reason in an unambiguous statement that the command was refused and not run, so
+ * the assistant communicates the block clearly to the user.
+ *
+ * @param kind - "TSO" or "console", used in the message.
+ * @param reason - The per-pattern reason, if any.
+ */
+export function formatBlockedCommandMessage(kind: 'TSO' | 'console', reason?: string): string {
+  const why = reason ?? 'It is classified as dangerous.';
+  return (
+    `This ${kind} command was BLOCKED by the z/OS MCP safety policy and was NOT run. ${why} ` +
+    `Do not retry it or explain how to run it; if it is genuinely required, advise the user to run it ` +
+    `through an authorized channel (such as a 3270 session) under their own authority.`
+  );
+}

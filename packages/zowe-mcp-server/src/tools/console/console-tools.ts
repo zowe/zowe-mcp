@@ -18,7 +18,11 @@ import type { ZosBackend } from '../../zos/backend.js';
 import type { CredentialProvider } from '../../zos/credentials.js';
 import { resolveSystemForTool, type SessionState } from '../../zos/session.js';
 import type { SystemRegistry } from '../../zos/system.js';
-import { evaluateCommandSafety, type CommandPatterns } from '../command-safety.js';
+import {
+  evaluateCommandSafety,
+  formatBlockedCommandMessage,
+  type CommandPatterns,
+} from '../command-safety.js';
 import { createToolProgress } from '../progress.js';
 import {
   buildContext,
@@ -93,10 +97,9 @@ export function registerConsoleTools(
       try {
         const validation = evaluateCommandSafety(commandText, getPatterns());
         if (validation.action === 'block') {
-          const msg =
-            validation.pattern?.message ?? 'This console command is too dangerous to run via AI.';
+          const msg = formatBlockedCommandMessage('console', validation.pattern?.message);
           await progress.complete('blocked');
-          return errorResult(`Console command blocked: ${msg}`);
+          return errorResult(msg);
         }
 
         if (validation.action === 'elicit') {

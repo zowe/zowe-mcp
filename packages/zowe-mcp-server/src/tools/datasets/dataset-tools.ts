@@ -291,6 +291,8 @@ export function registerDatasetTools(
     {
       description: withPaginationNote(
         'List data sets matching a DSLEVEL pattern. ' +
+          'Use this whenever the user wants to see, list, or browse their data sets, files, or libraries ' +
+          '(e.g. "what data sets do I have", "show my libraries", or a catalog search). ' +
           'Use the detail parameter to control response verbosity (minimal, basic, full). ' +
           dslevelDescription,
         PAGINATION_NOTE_LIST
@@ -302,7 +304,9 @@ export function registerDatasetTools(
           .string()
           .describe(
             'Fully qualified data set list pattern (e.g. USER.* or USER.**). ' +
-              'Wildcards: * matches one qualifier, ** matches across qualifiers, % matches one character.'
+              'Wildcards: * matches one qualifier, ** matches across qualifiers, % matches one character. ' +
+              'To list ALL data sets under a high-level qualifier, use a trailing ** (e.g. USER.**); ' +
+              'USER.* matches only the next single qualifier, not everything beneath it.'
           ),
         system: z.string().optional().describe(SYSTEM_PARAM_DESCRIPTION),
         volser: z
@@ -511,8 +515,9 @@ export function registerDatasetTools(
     {
       description: withPaginationNote(
         'Search for a string in a sequential data set, PDS, or PDS/E (all members or one member). ' +
+          'Use this for "find / grep / search for TEXT in DSN" requests. ' +
           'Returns matching lines with line numbers and a summary. ' +
-          'You may pass dsn as USER.LIB(MEM) and omit member. ' +
+          'To search one member, either pass dsn as USER.LIB(MEM) (omit member) or set the member parameter. ' +
           'Options: caseSensitive (default false), cobol (search cols 7–72 only), ignoreSequenceNumbers (exclude cols 73–80, default true), doNotProcessComments, includeContextLines (±6 lines via LPSF)',
         PAGINATION_NOTE_LIST
       ),

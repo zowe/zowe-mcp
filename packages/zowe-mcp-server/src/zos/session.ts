@@ -84,7 +84,10 @@ export function resolveSystemForTool(
     const active = sessionState.getActiveSystem();
     if (active === undefined) {
       throw new Error(
-        'No active z/OS system. Use setSystem to select a system, or pass the "system" parameter explicitly.'
+        'No active z/OS system. ' +
+          systemNotFoundHint(systemRegistry) +
+          ' To proceed: call setSystem with one of them (or pass the "system" parameter to this tool), then retry this operation. ' +
+          'If exactly one system is available, select it and continue — do not ask the user to pick.'
       );
     }
     const ctx = sessionState.getContext(active);

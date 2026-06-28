@@ -230,7 +230,9 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
     {
       outputSchema: listUssFilesOutputSchema,
       description: withPaginationNote(
-        'List files and directories in a USS path',
+        'List files and directories in a USS path (the z/OS UNIX equivalent of "ls"). ' +
+          'Use for requests like "ls", "show the files in <dir>", or "what is in my home directory" ' +
+          '(resolve the home directory with getUssHome when the user means "home").',
         PAGINATION_NOTE_LIST
       ),
       _meta: { resourceEffectLevel: ResourceEffect.READ },
@@ -339,7 +341,11 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
     'readUssFile',
     {
       outputSchema: readUssFileOutputSchema,
-      description: withPaginationNote('Read the content of a USS file', PAGINATION_NOTE_LINES),
+      description: withPaginationNote(
+        'Read the content of a USS file (the z/OS UNIX equivalent of "cat"). ' +
+          'Use for "cat / open / show / read <file>".',
+        PAGINATION_NOTE_LINES
+      ),
       _meta: { resourceEffectLevel: ResourceEffect.READ },
       inputSchema: {
         path: z

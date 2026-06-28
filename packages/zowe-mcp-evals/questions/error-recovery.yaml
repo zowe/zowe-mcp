@@ -1,0 +1,95 @@
+# yaml-language-server: $schema=../schemas/evals-question-set.schema.json
+# Error-recovery evals: the agent must call the right tool against a target that
+# does not exist (or yields no results) and report the not-found / empty outcome
+# gracefully instead of fabricating data. Assertions accept whichever lookup tool
+# the model reasonably chooses, and match the not-found wording loosely.
+config:
+  name: error-recovery
+  description: Agent handles missing data sets, members, USS files, and empty searches gracefully
+  repetitions: 5
+  minSuccessRate: 0.8
+  mock:
+    # Single-system fixture: this set tests graceful not-found handling, not
+    # multi-system disambiguation. minimal = one connection, auto-activated at
+    # startup, so tools resolve a system without a setSystem step.
+    initArgs: --preset minimal
+
+questions:
+  - id: read-nonexistent-dataset
+    prompt: Read the contents of data set USER.NOSUCH.DATA and tell me what is in it.
+    assertions:
+      # Accept any reasonable way to discover the data set is missing (read it,
+      # list the catalog, list members, or check attributes) — what matters is
+      # that the model attempts access and then reports the not-found outcome.
+      - anyOf:
+          - toolCall:
+              tool: readDataset
+              args:
+                validDsn: 'USER.NOSUCH.DATA'
+          - toolCall:
+              tool: listDatasets
+          - toolCall:
+              tool: listMembers
+          - toolCall:
+              tool: getDatasetAttributes
+      - answerContains:
+          pattern: 'not found|does not exist|no such|could not|couldn|unable|no data set|not exist|doesn'
+
+  - id: list-members-nonexistent-pds
+    prompt: List the members of the PDS USER.NOSUCH.PDS.
+    assertions:
+      - anyOf:
+          - toolCall:
+              tool: listMembers
+              args:
+                validDsn: 'USER.NOSUCH.PDS'
+          - toolCall:
+              tool: listDatasets
+      - answerContains:
+          pattern: 'not found|does not exist|no such|could not|couldn|unable|not a pds|not exist|doesn'
+
+  - id: read-nonexistent-member
+    prompt: Read member NOSUCHMB from USER.SRC.COBOL.
+    assertions:
+      - toolCall:
+          tool: readDataset
+          args:
+            validDsn: 'USER.SRC.COBOL(NOSUCHMB)'
+      - answerContains:
+          pattern: 'not found|does not exist|no such|could not|couldn|unable|no member|not exist|doesn'
+
+  - id: search-no-match
+    prompt: Search for the string ZZZQQQNOMATCH in data set USER.SRC.COBOL and tell me how many matches there are.
+    assertions:
+      - toolCall:
+          tool: searchInDataset
+          args:
+            validDsn: 'USER.SRC.COBOL'
+            string: 'ZZZQQQNOMATCH'
+      - answerContains:
+          pattern: 'no match|not found|0 match|zero|none|no result|no occurrence|no lines'
+
+  - id: read-nonexistent-uss-file
+    prompt: Read the USS file /u/USER/nosuchfile.txt and show me its contents.
+    assertions:
+      - toolCall:
+          tool: readUssFile
+          args:
+            path:
+              - 'nosuchfile.txt'
+              - '/u/USER/nosuchfile.txt'
+      - answerContains:
+          pattern: 'not found|does not exist|no such|could not|couldn|unable|not exist|doesn'
+
+  - id: attributes-nonexistent-dataset
+    prompt: Show me the attributes (RECFM, LRECL, DSORG) of data set USER.NOSUCH.DATA.
+    assertions:
+      - anyOf:
+          - toolCall:
+              tool: getDatasetAttributes
+              args:
+                validDsn: 'USER.NOSUCH.DATA'
+          - toolCall:
+              tool: listDatasets
+      - answerContains:
+          pattern: 'not found|does not exist|no such|could not|couldn|unable|not exist|doesn'

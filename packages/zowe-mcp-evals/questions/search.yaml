@@ -27,3 +27,14 @@ questions:
           args:
             validDsn: 'USER.SRC.COBOL(CUSTFILE)'
             string: 'PROCEDURE'
+
+  - id: search-in-jcl-library
+    prompt: Search for the string JOB across the JCL library USER.JCL.CNTL.
+    assertions:
+      - toolCall:
+          tool: searchInDataset
+          args:
+            validDsn: 'USER.JCL.CNTL'
+            string: 'JOB'
+      - answerContains:
+          pattern: 'JOB|found|match|member'

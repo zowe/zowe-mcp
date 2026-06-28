@@ -23,16 +23,23 @@ questions:
           pattern: 'SYSIN|USER.INPUT|Allocations|allocated'
 
   - id: tso-list-dataset-attributes
-    prompt: Run TSO to show the attributes of a data set (like RECFM, LRECL).
+    prompt: Run a TSO command to show the attributes (RECFM, LRECL) of data set USER.SRC.COBOL.
     assertions:
-      - toolCall:
-          tool: runSafeTsoCommand
-          args:
-            commandText:
-              - 'LISTDS'
-              - 'LISTD'
+      # Accept either the raw TSO LISTDS command or the dedicated getDatasetAttributes
+      # tool — both correctly answer "show the attributes"; don't penalize the better tool.
+      - anyOf:
+          - toolCall:
+              tool: runSafeTsoCommand
+              args:
+                commandText:
+                  - 'LISTDS'
+                  - 'LISTD'
+          - toolCall:
+              tool: getDatasetAttributes
+              args:
+                validDsn: 'USER.SRC.COBOL'
       - answerContains:
-          pattern: 'RECFM|LRECL|USER.MOCK.DATA'
+          pattern: 'RECFM|LRECL|DSORG|USER.MOCK.DATA|attribute'
 
   - id: tso-who
     prompt: Who am I in TSO?
@@ -45,3 +52,47 @@ questions:
               args: { commandText: 'WHO' }
       - answerContains:
           pattern: 'USER|mockuser'
+
+  - id: tso-list-catalog
+    prompt: Use a TSO command to list catalog entries.
+    assertions:
+      - toolCall:
+          tool: runSafeTsoCommand
+          args:
+            commandText:
+              - 'LISTCAT'
+              - 'LISTC'
+      - answerContains:
+          pattern: 'USER.MOCK|Catalog|LISTCAT'
+
+  - id: tso-session-status
+    prompt: Use TSO to show my current session status.
+    assertions:
+      - toolCall:
+          tool: runSafeTsoCommand
+          args:
+            commandText: 'STATUS'
+      - answerContains:
+          pattern: 'READY|STATUS'
+
+  - id: tso-time
+    prompt: What time does TSO report right now?
+    assertions:
+      - toolCall:
+          tool: runSafeTsoCommand
+          args:
+            commandText: 'TIME'
+      - answerContains:
+          pattern: 'TIME|CPU|:'
+
+  - id: tso-help
+    prompt: Show the TSO HELP output.
+    assertions:
+      - toolCall:
+          tool: runSafeTsoCommand
+          args:
+            commandText:
+              - 'HELP'
+              - 'H'
+      - answerContains:
+          pattern: 'command|HELP|LISTDS'

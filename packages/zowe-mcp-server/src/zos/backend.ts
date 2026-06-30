@@ -438,6 +438,60 @@ export interface ListJobsOptions {
 }
 
 // ---------------------------------------------------------------------------
+// System information types
+// ---------------------------------------------------------------------------
+
+/** A single APF-authorized data set entry. */
+export interface ApfDatasetEntry {
+  /** Data set name. */
+  dsname: string;
+  /** Volume serial the data set resides on (empty when SMS-managed / dynamic). */
+  volume: string;
+}
+
+/** Result of listing APF-authorized data sets. */
+export interface ListApfResult {
+  /** APF-authorized data sets. */
+  items: ApfDatasetEntry[];
+}
+
+/** Result of listing the PROCLIB concatenation. */
+export interface ListProclibResult {
+  /** PROCLIB data set names (in concatenation order). */
+  items: string[];
+}
+
+/** Options for reading the z/OS SYSLOG. Date/time and secondsAgo are mutually exclusive. */
+export interface ViewSyslogOptions {
+  /** Start date in yyyy-mm-dd. Mutually exclusive with secondsAgo. */
+  date?: string;
+  /** Start time in hh:mm:ss. Mutually exclusive with secondsAgo. */
+  time?: string;
+  /** Relative offset: start from (now - secondsAgo) on z/OS. Mutually exclusive with date/time. */
+  secondsAgo?: number;
+  /** Maximum syslog lines to read from the host. */
+  maxLines?: number;
+}
+
+/** Result of reading the z/OS SYSLOG. */
+export interface ViewSyslogResult {
+  /** Raw syslog text (UTF-8), newline-separated lines. */
+  text: string;
+  /** Actual start date used for the read (yyyy-mm-dd). */
+  startDate?: string;
+  /** Actual start time used for the read (hh:mm:ss). */
+  startTime?: string;
+  /** Date of the last record returned (yyyy-mm-dd). */
+  endDate?: string;
+  /** Time of the last record returned (hh:mm:ss). */
+  endTime?: string;
+  /** Number of lines returned by the host. */
+  returnedLines?: number;
+  /** True when the syslog had more lines than maxLines and the host truncated the read. */
+  hasMore?: boolean;
+}
+
+// ---------------------------------------------------------------------------
 // Backend interface
 // ---------------------------------------------------------------------------
 
@@ -859,6 +913,48 @@ export interface ZosBackend {
     dsn: string,
     progress?: BackendProgressCallback
   ): Promise<void>;
+
+  // -------------------------------------------------------------------------
+  // System information operations (read-only)
+  // -------------------------------------------------------------------------
+
+  /**
+   * List the APF-authorized data sets on the system.
+   *
+   * @param systemId - Target z/OS system.
+   * @param userId - Optional user ID (for backends that select a connection by user).
+   */
+  listApf(
+    systemId: SystemId,
+    userId?: string,
+    progress?: BackendProgressCallback
+  ): Promise<ListApfResult>;
+
+  /**
+   * List the PROCLIB concatenation on the system.
+   *
+   * @param systemId - Target z/OS system.
+   * @param userId - Optional user ID (for backends that select a connection by user).
+   */
+  listProclib(
+    systemId: SystemId,
+    userId?: string,
+    progress?: BackendProgressCallback
+  ): Promise<ListProclibResult>;
+
+  /**
+   * Read the z/OS SYSLOG (operations log).
+   *
+   * @param systemId - Target z/OS system.
+   * @param options - Start window (date/time or secondsAgo) and maxLines.
+   * @param userId - Optional user ID (for backends that select a connection by user).
+   */
+  viewSyslog(
+    systemId: SystemId,
+    options?: ViewSyslogOptions,
+    userId?: string,
+    progress?: BackendProgressCallback
+  ): Promise<ViewSyslogResult>;
 
   /**
    * Get the USS home directory path for a user on the system.

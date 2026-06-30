@@ -65,7 +65,7 @@ test-results.junit.xml
 # Output of 'npm pack' (repo root only)
 *.tgz
 # Committed SDK baseline(s) in resources/ are tracked despite *.tgz rule
-!resources/zowex-sdk-*.tgz
+!resources/zowe-zowex-for-zowe-sdk-*.tgz
 !resources/znp-sdk-fallback.tgz
 
 # z/OSMF OpenAPI specs downloaded from a live server: IBM-owned, must never be committed

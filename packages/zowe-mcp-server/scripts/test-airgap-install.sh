@@ -89,8 +89,8 @@ if npm install \
   if [ -d "node_modules/zowe-mcp-common" ]; then
     echo "  Bundled dependency installed: node_modules/zowe-mcp-common"
   fi
-  if [ -d "node_modules/zowex-sdk" ]; then
-    echo "  Bundled dependency installed: node_modules/zowex-sdk"
+  if [ -d "node_modules/@zowe/zowex-for-zowe-sdk" ]; then
+    echo "  Bundled dependency installed: node_modules/@zowe/zowex-for-zowe-sdk"
   fi
   echo ""
   echo "Testing binary..."

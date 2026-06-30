@@ -15,10 +15,10 @@
  * Implements listDatasets, listMembers, and readDataset; other methods throw "not implemented".
  */
 
+import type { ZSshClient } from '@zowe/zowex-for-zowe-sdk';
 import { dump as yamlDump } from 'js-yaml';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import type { ZSshClient } from 'zowex-sdk';
 import type { CeedumpCollectedEventData } from '../../events.js';
 import { getCurrentMcpTool } from '../../mcp-tool-context.js';
 import { getLogger } from '../../server.js';
@@ -33,7 +33,9 @@ import type {
   JobEntry,
   JobFileEntry,
   JobStatusResult,
+  ListApfResult,
   ListJobsOptions,
+  ListProclibResult,
   ListUssFilesOptions,
   MemberEntry,
   ReadDatasetResult,
@@ -43,6 +45,8 @@ import type {
   SearchInDatasetResult,
   SubmitJobResult,
   UssFileEntry,
+  ViewSyslogOptions,
+  ViewSyslogResult,
   WriteDatasetResult,
   WriteUssFileResult,
 } from '../backend.js';
@@ -190,6 +194,32 @@ interface NativeToolApi {
 /** Subset of ZSshClient.console we use (ZNP console RPCs). */
 interface NativeConsoleApi {
   issueCmd(req: { commandText: string; consoleName?: string }): Promise<{ data?: string }>;
+}
+
+/** Subset of ZSshClient.system we use (ZNP system RPCs — SDK 0.6.0+). */
+interface NativeSystemApi {
+  listApf(req: Record<string, never>): Promise<{
+    items?: { dsname: string; volume: string }[];
+    returnedRows?: number;
+  }>;
+  listProclib(req: Record<string, never>): Promise<{
+    items?: string[];
+    returnedRows?: number;
+  }>;
+  viewSyslog(req: {
+    date?: string;
+    time?: string;
+    secondsAgo?: number;
+    maxLines?: number;
+  }): Promise<{
+    data?: string;
+    startDate?: string;
+    startTime?: string;
+    endDate?: string;
+    endTime?: string;
+    returnedLines?: number;
+    hasMore?: boolean;
+  }>;
 }
 
 /** Shape returned by UtilsApi.tools.parseSearchOutput (SDK 0.3.0+). */
@@ -1159,7 +1189,7 @@ export class NativeBackend {
       };
     }
 
-    const sdk = (await import('zowex-sdk')) as unknown as {
+    const sdk = (await import('@zowe/zowex-for-zowe-sdk')) as unknown as {
       UtilsApi?: {
         tools: {
           parseSearchOutput: (output: string) => ZowexParsedSearchResult;
@@ -1526,6 +1556,10 @@ export class NativeBackend {
     return (client as unknown as { console: NativeConsoleApi }).console;
   }
 
+  private getSystem(client: ZSshClient): NativeSystemApi {
+    return (client as unknown as { system: NativeSystemApi }).system;
+  }
+
   async runConsoleCommand(
     systemId: SystemId,
     commandText: string,
@@ -1563,6 +1597,79 @@ export class NativeBackend {
         ).restoreDataset({ dsname: dsn });
       },
       progress
+    );
+  }
+
+  async listApf(
+    systemId: SystemId,
+    userId?: string,
+    progress?: BackendProgressCallback
+  ): Promise<ListApfResult> {
+    return this.withNativeClient(
+      systemId,
+      userId,
+      async client => {
+        const system = this.getSystem(client);
+        const response = await system.listApf({});
+        const items = (response.items ?? []).map(i => ({
+          dsname: sanitizeZowexString(i.dsname) ?? i.dsname,
+          volume: sanitizeZowexString(i.volume) ?? i.volume ?? '',
+        }));
+        return { items };
+      },
+      progress,
+      { operation: 'listApf', params: {} }
+    );
+  }
+
+  async listProclib(
+    systemId: SystemId,
+    userId?: string,
+    progress?: BackendProgressCallback
+  ): Promise<ListProclibResult> {
+    return this.withNativeClient(
+      systemId,
+      userId,
+      async client => {
+        const system = this.getSystem(client);
+        const response = await system.listProclib({});
+        const items = (response.items ?? []).map(i => sanitizeZowexString(i) ?? i);
+        return { items };
+      },
+      progress,
+      { operation: 'listProclib', params: {} }
+    );
+  }
+
+  async viewSyslog(
+    systemId: SystemId,
+    options?: ViewSyslogOptions,
+    userId?: string,
+    progress?: BackendProgressCallback
+  ): Promise<ViewSyslogResult> {
+    return this.withNativeClient(
+      systemId,
+      userId,
+      async client => {
+        const system = this.getSystem(client);
+        const response = await system.viewSyslog({
+          date: options?.date,
+          time: options?.time,
+          secondsAgo: options?.secondsAgo,
+          maxLines: options?.maxLines,
+        });
+        return {
+          text: response.data ?? '',
+          startDate: response.startDate,
+          startTime: response.startTime,
+          endDate: response.endDate,
+          endTime: response.endTime,
+          returnedLines: response.returnedLines,
+          hasMore: response.hasMore,
+        };
+      },
+      progress,
+      { operation: 'viewSyslog', params: { ...(options ?? {}) } }
     );
   }
 

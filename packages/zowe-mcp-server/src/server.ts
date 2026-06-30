@@ -41,6 +41,7 @@ import { registerContextTools } from './tools/context/context-tools.js';
 import { registerDatasetTools } from './tools/datasets/dataset-tools.js';
 import { registerJobTools } from './tools/jobs/jobs-tools.js';
 import { registerLocalFileTools } from './tools/local-files/local-file-tools.js';
+import { registerSystemTools } from './tools/system/system-tools.js';
 import { registerTsoTools } from './tools/tso/tso-tools.js';
 import { registerUssTools } from './tools/uss/uss-tools.js';
 import { registerZoweExplorerTools } from './tools/zowe-explorer/open-in-editor.js';
@@ -470,6 +471,17 @@ export function createServer(options?: CreateServerOptions): CreateServerResult 
         credentialProvider,
         responseCache: responseCache ?? undefined,
         mcpServer: server,
+      },
+      logger
+    );
+    registerSystemTools(
+      server,
+      {
+        backend,
+        systemRegistry,
+        sessionState,
+        credentialProvider,
+        responseCache: responseCache ?? undefined,
       },
       logger
     );

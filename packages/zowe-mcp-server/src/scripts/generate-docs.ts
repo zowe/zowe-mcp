@@ -821,6 +821,9 @@ function generateDefaultInputs(tools: ToolInfo[]): Record<string, Record<string,
     readUssFile: { path: '/etc/profile' },
     runSafeTsoCommand: { command: 'TIME' },
     getUssHome: {},
+    listApf: {},
+    listProclib: {},
+    viewSyslog: {},
   };
 
   for (const [name, args] of Object.entries(knownInputs)) {
@@ -966,6 +969,12 @@ async function main(): Promise<void> {
           label: 'TSO',
           description: 'Time Sharing Option — run TSO commands interactively on z/OS.',
           toolNames: ['runSafeTsoCommand'],
+        },
+        {
+          label: 'System Information',
+          description:
+            'Read-only information about the z/OS system itself — APF-authorized data sets, the PROCLIB concatenation, and the operations SYSLOG.',
+          toolNames: ['listApf', 'listProclib', 'viewSyslog'],
         },
         {
           label: 'Jobs',

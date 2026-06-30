@@ -45,7 +45,9 @@ import type {
   JobEntry,
   JobFileEntry,
   JobStatusResult,
+  ListApfResult,
   ListJobsOptions,
+  ListProclibResult,
   ListUssFilesOptions,
   MemberEntry,
   ReadDatasetResult,
@@ -56,6 +58,8 @@ import type {
   SearchInDatasetResult,
   SubmitJobResult,
   UssFileEntry,
+  ViewSyslogOptions,
+  ViewSyslogResult,
   WriteDatasetResult,
   WriteUssFileResult,
   ZosBackend,
@@ -1058,6 +1062,68 @@ export class FilesystemMockBackend implements ZosBackend {
     _progress?: BackendProgressCallback
   ): Promise<void> {
     return Promise.resolve();
+  }
+
+  listApf(
+    _systemId: SystemId,
+    _userId?: string,
+    _progress?: BackendProgressCallback
+  ): Promise<ListApfResult> {
+    return Promise.resolve({
+      items: [
+        { dsname: 'SYS1.LINKLIB', volume: 'RES001' },
+        { dsname: 'SYS1.LPALIB', volume: 'RES001' },
+        { dsname: 'SYS1.SVCLIB', volume: 'RES001' },
+        { dsname: 'SYS1.MIGLIB', volume: 'RES001' },
+        { dsname: 'SYS1.CSSLIB', volume: 'RES001' },
+        { dsname: 'CEE.SCEERUN', volume: 'PRD002' },
+        { dsname: 'CEE.SCEERUN2', volume: 'PRD002' },
+        { dsname: 'CSF.SCSFMOD0', volume: 'PRD003' },
+        { dsname: 'TCPIP.SEZALOAD', volume: 'PRD004' },
+        { dsname: 'ISP.SISPLOAD', volume: 'PRD005' },
+      ],
+    });
+  }
+
+  listProclib(
+    _systemId: SystemId,
+    _userId?: string,
+    _progress?: BackendProgressCallback
+  ): Promise<ListProclibResult> {
+    return Promise.resolve({
+      items: ['SYS1.PROCLIB', 'SYS1.IBM.PROCLIB', 'USER.PROCLIB', 'CPAC.PROCLIB', 'SYS2.PROCLIB'],
+    });
+  }
+
+  viewSyslog(
+    _systemId: SystemId,
+    options?: ViewSyslogOptions,
+    _userId?: string,
+    _progress?: BackendProgressCallback
+  ): Promise<ViewSyslogResult> {
+    const lines = [
+      'IEE042I SYSTEM LOG DATA SET INITIALIZED',
+      'IEF196I IEF237I JES2 ALLOCATED TO SYSLOG',
+      'IEA989I SLIP TRAP ID=X33E MATCHED.',
+      '$HASP373 MOCKJOB STARTED - INIT 1 - CLASS A - SYS MOCK1',
+      'IEF403I MOCKJOB - STARTED - TIME=12.00.01',
+      'IEF404I MOCKJOB - ENDED - TIME=12.00.05',
+      '$HASP395 MOCKJOB ENDED - RC=0000',
+      'IEE163I MODE= RD',
+      'IEE612I CN=MOCK01   DEVNUM=0700 SYS=MOCK1',
+      'BPXP018I THREAD TAKEN OFF (mock syslog line)',
+    ];
+    const max = options?.maxLines && options.maxLines > 0 ? options.maxLines : lines.length;
+    const returned = lines.slice(0, max);
+    return Promise.resolve({
+      text: returned.join('\n'),
+      startDate: options?.date ?? '2026-06-29',
+      startTime: options?.time ?? '12:00:00',
+      endDate: '2026-06-29',
+      endTime: '12:00:05',
+      returnedLines: returned.length,
+      hasMore: max < lines.length,
+    });
   }
 
   getUssHome(

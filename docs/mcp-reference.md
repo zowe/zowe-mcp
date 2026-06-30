@@ -4,7 +4,7 @@
 
 > Auto-generated from the MCP server (v0.10.0-dev). Do not edit manually — run `npx @zowe/mcp-server generate-docs` to regenerate.
 
-This document describes all [Context](#context), [Data Sets](#data-sets), [USS](#uss), [TSO](#tso), [Jobs](#jobs), [Local Files](#local-files), [Other](#other), [db2 CLI Plugin Tools](#db2-cli-plugin-tools), [Tool Reference](#tool-reference), [Capability Tiers](#capability-tiers), [Prompts](#prompts), [Resource Templates](#resource-templates) provided by the Zowe MCP Server.
+This document describes all [Context](#context), [Data Sets](#data-sets), [USS](#uss), [TSO](#tso), [System Information](#system-information), [Jobs](#jobs), [Local Files](#local-files), [Other](#other), [db2 CLI Plugin Tools](#db2-cli-plugin-tools), [Tool Reference](#tool-reference), [Capability Tiers](#capability-tiers), [Prompts](#prompts), [Resource Templates](#resource-templates) provided by the Zowe MCP Server.
 
 ## Context
 
@@ -78,6 +78,18 @@ Time Sharing Option — run TSO commands interactively on z/OS.
 | # | Tool                                      | Description               |
 |---|-------------------------------------------|---------------------------|
 | 1 | [`runSafeTsoCommand`](#runsafetsocommand) | Run a TSO command on z/OS |
+
+## System Information
+
+The server provides **3** tools.
+
+Read-only information about the z/OS system itself — APF-authorized data sets, the PROCLIB concatenation, and the operations SYSLOG.
+
+| # | Tool                          | Description                                                                                                     |
+|---|-------------------------------|-----------------------------------------------------------------------------------------------------------------|
+| 1 | [`listApf`](#listapf)         | List the APF-authorized (Authorized Program Facility) data sets on the z/OS system, each with its volume serial |
+| 2 | [`listProclib`](#listproclib) | List the PROCLIB concatenation on the z/OS system (the data sets searched for JCL procedures, in order)         |
+| 3 | [`viewSyslog`](#viewsyslog)   | View the z/OS SYSLOG (the system operations log)                                                                |
 
 ## Jobs
 
@@ -204,6 +216,7 @@ Return the Zowe MCP server info (version, backend, components) and the current s
       "uss",
       "tso",
       "jobs",
+      "system",
       "local-files"
     ],
     "backend": "mock",
@@ -2247,6 +2260,263 @@ Output:
 
 ---
 
+### `listApf`
+
+> Read-only
+
+List the APF-authorized (Authorized Program Facility) data sets on the z/OS system, each with its volume serial. Results are paginated (default 500, max 1000 per page); follow the pagination instructions in the server instructions. Use this to audit which load libraries are authorized to run privileged code.
+
+#### Parameters
+
+| Parameter | Type      | Required | Description                                                                                                         |
+|-----------|-----------|----------|---------------------------------------------------------------------------------------------------------------------|
+| `system`  | `string`  | No       | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system. |
+| `offset`  | `integer` | No       | 0-based index of the first item to return. Default: 0.                                                              |
+| `limit`   | `integer` | No       | Maximum items to return. Default: 500, max 1000.                                                                    |
+
+<a id="listapf-output-schema"></a>
+
+#### Output Schema
+
+| Field            | Type       | Required | Description                                                                                                            |
+|------------------|------------|----------|------------------------------------------------------------------------------------------------------------------------|
+| `_context`       | `object`   | Yes      | Resolution context: target z/OS system. *(same as [`runSafeTsoCommand`](#runsafetsocommand-output-schema))*            |
+| `_result`        | `object`   | Yes      | Pagination metadata: count, totalAvailable, offset, hasMore. *(same as [`listDatasets`](#listdatasets-output-schema))* |
+| `messages`       | `string`[] | No       | Operational messages (e.g. pagination/line-window hints). Omitted when empty.                                          |
+| `data`           | `object`   | Yes      |                                                                                                                        |
+| &ensp;└─ `items` | `object`[] | Yes      | APF-authorized data sets for this page.                                                                                |
+
+#### Example Output
+
+```json
+{
+  "_context": {
+    "system": "mainframe-dev.example.com"
+  },
+  "_result": {
+    "count": 10,
+    "totalAvailable": 10,
+    "offset": 0,
+    "hasMore": false
+  },
+  "data": {
+    "items": [
+      {
+        "dsname": "SYS1.LINKLIB",
+        "volume": "RES001"
+      },
+      {
+        "dsname": "SYS1.LPALIB",
+        "volume": "RES001"
+      },
+      {
+        "dsname": "SYS1.SVCLIB",
+        "volume": "RES001"
+      },
+      {
+        "dsname": "SYS1.MIGLIB",
+        "volume": "RES001"
+      },
+      {
+        "dsname": "SYS1.CSSLIB",
+        "volume": "RES001"
+      },
+      {
+        "dsname": "CEE.SCEERUN",
+        "volume": "PRD002"
+      },
+      {
+        "dsname": "CEE.SCEERUN2",
+        "volume": "PRD002"
+      },
+      {
+        "dsname": "CSF.SCSFMOD0",
+        "volume": "PRD003"
+      },
+      {
+        "dsname": "TCPIP.SEZALOAD",
+        "volume": "PRD004"
+      },
+      {
+        "dsname": "ISP.SISPLOAD",
+        "volume": "PRD005"
+      }
+    ]
+  }
+}
+```
+
+---
+
+### `listProclib`
+
+> Read-only
+
+List the PROCLIB concatenation on the z/OS system (the data sets searched for JCL procedures, in order). Results are paginated (default 500, max 1000 per page); follow the pagination instructions in the server instructions. Use this to find where cataloged procedures and started-task JCL live.
+
+#### Parameters
+
+| Parameter | Type      | Required | Description                                                                                                         |
+|-----------|-----------|----------|---------------------------------------------------------------------------------------------------------------------|
+| `system`  | `string`  | No       | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system. |
+| `offset`  | `integer` | No       | 0-based index of the first item to return. Default: 0.                                                              |
+| `limit`   | `integer` | No       | Maximum items to return. Default: 500, max 1000.                                                                    |
+
+<a id="listproclib-output-schema"></a>
+
+#### Output Schema
+
+| Field            | Type       | Required | Description                                                                                                            |
+|------------------|------------|----------|------------------------------------------------------------------------------------------------------------------------|
+| `_context`       | `object`   | Yes      | Resolution context: target z/OS system. *(same as [`runSafeTsoCommand`](#runsafetsocommand-output-schema))*            |
+| `_result`        | `object`   | Yes      | Pagination metadata: count, totalAvailable, offset, hasMore. *(same as [`listDatasets`](#listdatasets-output-schema))* |
+| `messages`       | `string`[] | No       | Operational messages (e.g. pagination/line-window hints). Omitted when empty.                                          |
+| `data`           | `object`   | Yes      |                                                                                                                        |
+| &ensp;└─ `items` | `string`[] | Yes      | PROCLIB data set names (in concatenation order) for this page.                                                         |
+
+#### Example Output
+
+```json
+{
+  "_context": {
+    "system": "mainframe-dev.example.com"
+  },
+  "_result": {
+    "count": 5,
+    "totalAvailable": 5,
+    "offset": 0,
+    "hasMore": false
+  },
+  "data": {
+    "items": [
+      "SYS1.PROCLIB",
+      "SYS1.IBM.PROCLIB",
+      "USER.PROCLIB",
+      "CPAC.PROCLIB",
+      "SYS2.PROCLIB"
+    ]
+  }
+}
+```
+
+---
+
+### `viewSyslog`
+
+> Read-only
+
+View the z/OS SYSLOG (the system operations log). Results may be line-windowed; follow the pagination instructions in the server instructions. Optionally start from a date and time, or from a relative offset (secondsAgo); limit how much the host reads with maxLines. Requesting the same window again without startLine and lineCount re-reads from the host.
+
+#### Parameters
+
+| Parameter    | Type      | Required | Description                                                                                                         |
+|--------------|-----------|----------|---------------------------------------------------------------------------------------------------------------------|
+| `system`     | `string`  | No       | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system. |
+| `date`       | `string`  | No       | Start date in yyyy-mm-dd. Mutually exclusive with secondsAgo.                                                       |
+| `time`       | `string`  | No       | Start time in hh:mm:ss. Use with date. Mutually exclusive with secondsAgo.                                          |
+| `secondsAgo` | `integer` | No       | Start from (now - secondsAgo) on z/OS. Mutually exclusive with date/time.                                           |
+| `maxLines`   | `integer` | No       | Maximum syslog lines for the host to read.                                                                          |
+| `startLine`  | `integer` | No       | 1-based first line of output to return. Default: 1.                                                                 |
+| `lineCount`  | `integer` | No       | Number of lines to return. Omit for default window size.                                                            |
+
+<a id="viewsyslog-output-schema"></a>
+
+#### Output Schema
+
+| Field                | Type       | Required | Description                                                                                                                  |
+|----------------------|------------|----------|------------------------------------------------------------------------------------------------------------------------------|
+| `_context`           | `object`   | Yes      | Resolution context: target z/OS system. *(same as [`runSafeTsoCommand`](#runsafetsocommand-output-schema))*                  |
+| `_result`            | `object`   | Yes      | Line-window metadata: totalLines, startLine, returnedLines, hasMore. *(same as [`readDataset`](#readdataset-output-schema))* |
+| `messages`           | `string`[] | No       | Operational messages (e.g. pagination/line-window hints). Omitted when empty.                                                |
+| `data`               | `object`   | Yes      |                                                                                                                              |
+| &ensp;├─ `lines`     | `string`[] | Yes      | SYSLOG text (UTF-8) as an array of lines; may be a line window.                                                              |
+| &ensp;├─ `mimeType`  | `string`   | Yes      | Content type (e.g. text/plain).                                                                                              |
+| &ensp;├─ `startDate` | `string`   | No       | Actual start date used for the read (yyyy-mm-dd).                                                                            |
+| &ensp;├─ `startTime` | `string`   | No       | Actual start time used for the read (hh:mm:ss).                                                                              |
+| &ensp;├─ `endDate`   | `string`   | No       | Date of the last record returned (yyyy-mm-dd).                                                                               |
+| &ensp;└─ `endTime`   | `string`   | No       | Time of the last record returned (hh:mm:ss).                                                                                 |
+
+#### Example Outputs
+
+##### default
+
+```json
+{
+  "_context": {
+    "system": "mainframe-dev.example.com"
+  },
+  "_result": {
+    "totalLines": 10,
+    "startLine": 1,
+    "returnedLines": 10,
+    "contentLength": 390,
+    "mimeType": "text/plain",
+    "hasMore": false
+  },
+  "data": {
+    "lines": [
+      "IEE042I SYSTEM LOG DATA SET INITIALIZED",
+      "IEF196I IEF237I JES2 ALLOCATED TO SYSLOG",
+      "IEA989I SLIP TRAP ID=X33E MATCHED.",
+      "$HASP373 MOCKJOB STARTED - INIT 1 - CLASS A - SYS MOCK1",
+      "IEF403I MOCKJOB - STARTED - TIME=12.00.01",
+      "IEF404I MOCKJOB - ENDED - TIME=12.00.05",
+      "$HASP395 MOCKJOB ENDED - RC=0000",
+      "IEE163I MODE= RD",
+      "IEE612I CN=MOCK01   DEVNUM=0700 SYS=MOCK1",
+      "BPXP018I THREAD TAKEN OFF (mock syslog line)"
+    ],
+    "mimeType": "text/plain",
+    "startDate": "2026-06-29",
+    "startTime": "12:00:00",
+    "endDate": "2026-06-29",
+    "endTime": "12:00:05"
+  }
+}
+```
+
+##### last 3 lines
+
+Input:
+
+```json
+{
+  "maxLines": 3
+}
+```
+
+Output:
+
+```json
+{
+  "_context": {
+    "system": "mainframe-dev.example.com"
+  },
+  "_result": {
+    "totalLines": 3,
+    "startLine": 1,
+    "returnedLines": 3,
+    "contentLength": 115,
+    "mimeType": "text/plain",
+    "hasMore": false
+  },
+  "data": {
+    "lines": [
+      "IEE042I SYSTEM LOG DATA SET INITIALIZED",
+      "IEF196I IEF237I JES2 ALLOCATED TO SYSLOG",
+      "IEA989I SLIP TRAP ID=X33E MATCHED."
+    ],
+    "mimeType": "text/plain",
+    "startDate": "2026-06-29",
+    "startTime": "12:00:00",
+    "endDate": "2026-06-29",
+    "endTime": "12:00:05"
+  }
+}
+```
+
+---
+
 ### `submitJob`
 
 > Destructive
@@ -2961,7 +3231,7 @@ See [Safety and security principles](mcp-safety-security-principles.md) for deta
 
 Read-only with client confirmation prompts for every read operation. Safest tier for exploration.
 
-**31** tools available.
+**34** tools available.
 
 | Tool                                              | Effect Level |
 |---------------------------------------------------|--------------|
@@ -2982,6 +3252,9 @@ Read-only with client confirmation prompts for every read operation. Safest tier
 | [`readUssFile`](#readussfile)                     | read         |
 | [`getUssTempDir`](#getusstempdir)                 | read         |
 | [`getUssTempPath`](#getusstemppath)               | read         |
+| [`listApf`](#listapf)                             | read         |
+| [`listProclib`](#listproclib)                     | read         |
+| [`viewSyslog`](#viewsyslog)                       | read         |
 | [`getJobStatus`](#getjobstatus)                   | read         |
 | [`listJobFiles`](#listjobfiles)                   | read         |
 | [`readJobFile`](#readjobfile)                     | read         |
@@ -3001,13 +3274,13 @@ Read-only with client confirmation prompts for every read operation. Safest tier
 
 Read-only with auto-approved reads. No confirmation prompts for read operations.
 
-**31** tools available.
+**34** tools available.
 
 ### `update`
 
 Adds tools that create, write, copy, rename, and modify resources.
 
-**49** tools available (18 new at this tier).
+**52** tools available (18 new at this tier).
 
 | Tool                                          | Effect Level |
 |-----------------------------------------------|--------------|
@@ -3034,7 +3307,7 @@ Adds tools that create, write, copy, rename, and modify resources.
 
 Adds tools that delete or cancel resources.
 
-**55** tools available (6 new at this tier).
+**58** tools available (6 new at this tier).
 
 | Tool                                                      | Effect Level |
 |-----------------------------------------------------------|--------------|
@@ -3049,7 +3322,7 @@ Adds tools that delete or cancel resources.
 
 Adds tools that execute commands and submit jobs. Full access to all operations.
 
-**62** tools available (7 new at this tier).
+**65** tools available (7 new at this tier).
 
 | Tool                                            | Effect Level |
 |-------------------------------------------------|--------------|

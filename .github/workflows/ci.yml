@@ -178,10 +178,10 @@ jobs:
           cache: npm
 
       # Default path (push / PR / dispatch with fallback): install strictly from
-      # the committed lockfile, which already pins the fallback zowex-sdk. Use
-      # --ignore-scripts because the prebuilt zowex-sdk tarball ships no build
-      # step and other deps' install scripts are not needed here (VS Code API
-      # types are fetched explicitly below).
+      # the committed lockfile, which already pins the fallback SDK
+      # (@zowe/zowex-for-zowe-sdk). Use --ignore-scripts because the prebuilt SDK
+      # tarball ships no build step and other deps' install scripts are not
+      # needed here (VS Code API types are fetched explicitly below).
       - name: Install dependencies (npm ci)
         if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.sdk-mode != 'fallback') }}
         run: npm ci --ignore-scripts
@@ -189,7 +189,7 @@ jobs:
       # Custom SDK source (manual dispatch only): sdk-switch rewrites the server
       # dependency to the chosen tarball and runs its own install, so npm ci is
       # skipped on this path.
-      - name: Switch zowex-sdk and install (custom SDK mode)
+      - name: Switch SDK and install (custom SDK mode)
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.sdk-mode != 'fallback' }}
         env:
           GH_TOKEN: ${{ github.token }}

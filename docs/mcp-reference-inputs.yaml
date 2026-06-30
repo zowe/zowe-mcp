@@ -142,6 +142,15 @@ runSafeTsoCommand:
 runSafeTsoCommand[blocked command]:
   commandText: 'OSHELL rm -rf /'
 
+listApf:
+
+listProclib:
+
+viewSyslog:
+
+viewSyslog[last 3 lines]:
+  maxLines: 3
+
 submitJob:
   skip: true
 

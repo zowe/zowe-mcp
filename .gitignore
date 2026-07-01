@@ -35,6 +35,12 @@ packages/zowe-mcp-vscode/vscode.proposed.*.d.ts
 !.vscode/settings.json
 .idea/
 
+# Claude Code local config and worktrees
+.claude/
+
+# Local working notes
+notes/
+
 # OS
 .DS_Store
 Thumbs.db

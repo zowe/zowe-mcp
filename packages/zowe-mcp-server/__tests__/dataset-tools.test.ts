@@ -1035,14 +1035,31 @@ describe('Dataset tools with mock backend', () => {
       await multiServer.close();
     });
 
-    it('should fail listDatasets without system when no system is active', async () => {
+    it('auto-selects the first system for listDatasets without an explicit system', async () => {
       const multiResult = await multiClient.callTool({
         name: 'listDatasets',
         arguments: { dsnPattern: 'USER1.*' },
       });
 
       const text = getResultText(multiResult);
-      expect(text).toContain('No active z/OS system');
+      expect(text).not.toContain('No active z/OS system');
+      const data = parseData<{ dsn: string }[]>(multiResult);
+      expect(Array.isArray(data)).toBe(true);
+    });
+
+    it('requires an explicit system under ZOWE_MCP_REQUIRE_EXPLICIT_SYSTEM', async () => {
+      const prev = process.env.ZOWE_MCP_REQUIRE_EXPLICIT_SYSTEM;
+      process.env.ZOWE_MCP_REQUIRE_EXPLICIT_SYSTEM = '1';
+      try {
+        const multiResult = await multiClient.callTool({
+          name: 'listDatasets',
+          arguments: { dsnPattern: 'USER1.*' },
+        });
+        expect(getResultText(multiResult)).toContain('No active z/OS system');
+      } finally {
+        if (prev === undefined) delete process.env.ZOWE_MCP_REQUIRE_EXPLICIT_SYSTEM;
+        else process.env.ZOWE_MCP_REQUIRE_EXPLICIT_SYSTEM = prev;
+      }
     });
 
     it('should lazily initialize context when explicit system is provided in multi-system setup', async () => {

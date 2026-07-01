@@ -131,11 +131,31 @@ describe('resolveSystemForTool', () => {
     expect(resolveSystemForTool(registry, state).systemId).toBe('sys1.example.com');
   });
 
-  it('should throw when no system param and no active system', () => {
+  it('auto-selects the first configured system when none is active', () => {
     const registry = new SystemRegistry();
     registry.register({ host: 'sys1.example.com', port: 443 });
     const state = new SessionState();
+    expect(resolveSystemForTool(registry, state).systemId).toBe('sys1.example.com');
+  });
+
+  it('throws when no system param, none active, and none configured', () => {
+    const registry = new SystemRegistry();
+    const state = new SessionState();
     expect(() => resolveSystemForTool(registry, state)).toThrow('No active z/OS system');
+  });
+
+  it('requires explicit selection when ZOWE_MCP_REQUIRE_EXPLICIT_SYSTEM is set', () => {
+    const prev = process.env.ZOWE_MCP_REQUIRE_EXPLICIT_SYSTEM;
+    process.env.ZOWE_MCP_REQUIRE_EXPLICIT_SYSTEM = '1';
+    try {
+      const registry = new SystemRegistry();
+      registry.register({ host: 'sys1.example.com', port: 443 });
+      const state = new SessionState();
+      expect(() => resolveSystemForTool(registry, state)).toThrow('No active z/OS system');
+    } finally {
+      if (prev === undefined) delete process.env.ZOWE_MCP_REQUIRE_EXPLICIT_SYSTEM;
+      else process.env.ZOWE_MCP_REQUIRE_EXPLICIT_SYSTEM = prev;
+    }
   });
 
   it('should resolve FQDN to canonical host when registered', () => {

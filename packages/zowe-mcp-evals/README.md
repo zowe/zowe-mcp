@@ -162,7 +162,7 @@ assertions:
 
 ### Mutations (write and delete)
 
-- **Set** `mutations` (run with `--set mutations`): Two questions. (1) Create a temp sequential data set, write a line, read it back, then delete under the temp prefix. (2) Create a temp PDS, write a member, delete that member, then delete under the temp prefix. Uses **toolCallOrder** to assert the flow.
+- **Set** `mutations` (run with `--set mutations`): Five questions covering write/delete lifecycles on temp data sets (all cleaned up via the temp prefix): sequential write/read, PDS member add/delete, multi-line write/read-back, two-member PDS + listMembers, and delete-one-member-keep-other. Uses **toolCallOrder** to assert the flow; create steps accept either `createTempDataset` or `createDataset` under a fetched temp prefix.
 
 ### Context and core
 
@@ -180,7 +180,7 @@ assertions:
 
 ### USS (UNIX System Services)
 
-- **Set** `uss` (run with `--set uss`): getUssHome, listUssFiles, readUssFile, and a write-temp-read-cleanup flow. Mock; init-mock creates a minimal USS tree for the first system/user (`/u/<user>/file.txt`, `subdir`) when using default preset.
+- **Set** `uss` (run with `--set uss`): eight questions across getUssHome, listUssFiles (home and subdir), readUssFile (relative and absolute path), a home-then-list sequence, an entry count, and a write-temp-read-cleanup flow. Mock; init-mock creates a minimal USS tree for the first system/user (`/u/<user>/file.txt`, `subdir`).
 
 ### Local workspace upload/download
 

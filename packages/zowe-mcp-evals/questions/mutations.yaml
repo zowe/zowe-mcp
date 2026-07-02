@@ -14,11 +14,11 @@ questions:
     assertions:
       - name: create temp, write, read, cleanup
         toolCallOrder:
-          - tool: createTempDataset
-            args:
-              type:
-                - 'PS'
-                - 'SEQUENTIAL'
+          # Accept either create tool (createTempDataset, or createDataset under a
+          # fetched temp prefix) — both are valid and both clean up via the prefix.
+          - tools:
+              - createTempDataset
+              - createDataset
           - tool: writeDataset
             args:
               lines: ['Evals write test']
@@ -52,11 +52,9 @@ questions:
     assertions:
       - name: create temp, write three lines, read, cleanup
         toolCallOrder:
-          - tool: createTempDataset
-            args:
-              type:
-                - 'PS'
-                - 'SEQUENTIAL'
+          - tools:
+              - createTempDataset
+              - createDataset
           - tool: writeDataset
             args:
               lines: ['LINE ONE', 'LINE TWO', 'LINE THREE']

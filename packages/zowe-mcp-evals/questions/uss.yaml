@@ -40,12 +40,12 @@ questions:
   - id: uss-write-temp-read-cleanup
     prompt: Create a temporary file under a temp directory in my USS home, write "USS eval test" to it, read it back, then delete all temp files under that temp directory.
     assertions:
-      - name: getUssTempDir then create/write/read/cleanup
+      # Focus on the essential lifecycle: write a temp USS file, read it back, clean
+      # up. The temp-dir plumbing (getUssTempDir / getUssTempPath / createTempUssDir /
+      # createTempUssFile) varies by model and order, so it is not asserted — requiring
+      # a specific first step made this brittle without testing anything meaningful.
+      - name: write temp USS file, read back, clean up
         toolCallOrder:
-          - tool: getUssTempDir
-          - tools:
-              - createTempUssFile
-              - getUssTempPath
           - tool: writeUssFile
             args:
               lines: ['USS eval test']

@@ -253,7 +253,10 @@ export class McpEvalHarness {
         args.push(...splitArgs(this.options.nativeServerArgs));
       } else if (this.options.mockDir) {
         args.push('--mock', this.options.mockDir);
-        args.push('--capability-tier', 'full');
+        // Default to 'full' (all tools) unless the set requests a narrower tier
+        // (e.g. injection variants run at 'read' so destructive tools are never
+        // registered — a deterministic control the model cannot bypass).
+        args.push('--capability-tier', setConfig.mock?.capabilityTier ?? 'full');
       }
       // CLI bridge plugin connections (can coexist with any backend).
       // Auto-derive from mockServers[].pluginName; explicit cliPluginConfiguration take precedence.

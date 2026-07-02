@@ -208,7 +208,10 @@ function parseSetConfig(raw: unknown): SetConfig {
   if (typeof o.minSuccessRate === 'number') config.minSuccessRate = o.minSuccessRate;
   if (o.mock && typeof o.mock === 'object') {
     const m = o.mock as Record<string, unknown>;
-    if (typeof m.initArgs === 'string') config.mock = { initArgs: m.initArgs };
+    if (typeof m.initArgs === 'string') {
+      config.mock = { initArgs: m.initArgs };
+      if (typeof m.capabilityTier === 'string') config.mock.capabilityTier = m.capabilityTier;
+    }
   }
   if (o.native && typeof o.native === 'object') {
     const n = o.native as Record<string, unknown>;

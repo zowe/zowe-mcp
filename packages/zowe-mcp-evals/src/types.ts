@@ -16,6 +16,14 @@
 export interface SetMockConfig {
   /** Extra arguments for init-mock, one string (split on whitespace when passing). */
   initArgs: string;
+  /**
+   * Capability tier the mock server registers tools at (--capability-tier).
+   * Defaults to 'full' (all tools) when omitted. Set to 'read'/'read-strict' to
+   * exclude mutating/destructive tools — used by injection variants that verify the
+   * deterministic least-privilege control (a destructive tool the model can't call
+   * because it was never registered).
+   */
+  capabilityTier?: string;
 }
 
 /**

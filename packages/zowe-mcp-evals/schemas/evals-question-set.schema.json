@@ -39,6 +39,11 @@
             "initArgs": {
               "type": "string",
               "description": "Arguments passed to init-mock (after --output <dir>). Typical: '--preset default' or '--preset pagination'."
+            },
+            "capabilityTier": {
+              "type": "string",
+              "enum": ["read-strict", "read", "update", "delete", "full"],
+              "description": "Capability tier the mock server registers tools at (--capability-tier). Defaults to 'full'. Set to 'read' to exclude mutating/destructive tools (used by injection variants that verify the deterministic least-privilege control)."
             }
           },
           "required": ["initArgs"],

@@ -114,6 +114,45 @@ questions:
     const result = loadSetYaml(path);
     expect(result.questions[0].assertionBlock.items).toHaveLength(1);
   });
+
+  it('parses mock.capabilityTier into the set config', () => {
+    const yamlContent = `
+config:
+  name: tiered
+  mock:
+    initArgs: --preset injection
+    capabilityTier: read
+questions:
+  - id: test
+    prompt: Hello
+    assertions:
+      - toolCall:
+          tool: readDataset
+`;
+    const path = join(tmpDir, 'tiered.yaml');
+    writeFileSync(path, yamlContent, 'utf-8');
+    const result = loadSetYaml(path);
+    expect(result.config.mock?.capabilityTier).toBe('read');
+  });
+
+  it('rejects an invalid mock.capabilityTier', () => {
+    const yamlContent = `
+config:
+  name: bad-tier
+  mock:
+    initArgs: --preset minimal
+    capabilityTier: superuser
+questions:
+  - id: test
+    prompt: Hello
+    assertions:
+      - toolCall:
+          tool: readDataset
+`;
+    const path = join(tmpDir, 'bad-tier.yaml');
+    writeFileSync(path, yamlContent, 'utf-8');
+    expect(() => loadSetYaml(path)).toThrow('JSON Schema validation failed');
+  });
 });
 
 describe('all question set YAML files pass schema validation', () => {

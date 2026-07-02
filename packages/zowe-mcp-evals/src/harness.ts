@@ -13,7 +13,7 @@ import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
-import type { LanguageModel } from 'ai';
+import type { LanguageModel, ModelMessage } from 'ai';
 import { generateText, jsonSchema, stepCountIs, tool } from 'ai';
 import type { ChildProcess } from 'node:child_process';
 import { spawn, spawnSync } from 'node:child_process';
@@ -117,6 +117,12 @@ export interface AgentRunResult {
   tokenUsage?: TokenUsage;
   /** Number of agent steps taken. */
   stepCount: number;
+}
+
+/** Result of a multi-turn conversation: per-turn results plus cumulative totals. */
+export interface ConversationRunResult extends AgentRunResult {
+  /** One entry per turn: that turn's final answer text and the tool calls it made. */
+  turns: AgentRunResult[];
 }
 
 /** Optional overrides for {@link McpEvalHarness.runOne} (e.g. Gemini smoke forcing `listDatasets`). */
@@ -447,10 +453,109 @@ export class McpEvalHarness {
    */
   async runOne(prompt: string, runOptions?: RunOneOptions): Promise<AgentRunResult> {
     if (!this.client) throw new Error('Harness not started');
-    const { tools: mcpTools } = await this.client.listTools();
+    const { tools, toolCallRecords } = await this.buildAgentTools();
+    const { model, systemPrompt } = this.prepareRun();
+
+    const t0 = Date.now();
+    const result = await generateText({
+      model,
+      system: systemPrompt,
+      prompt,
+      tools,
+      ...(runOptions?.toolChoice != null ? { toolChoice: runOptions.toolChoice } : {}),
+      ...(runOptions?.activeTools != null && runOptions.activeTools.length > 0
+        ? { activeTools: runOptions.activeTools }
+        : {}),
+      stopWhen: stepCountIs(MAX_STEPS),
+      prepareStep(options) {
+        log.debug('AI SDK prepareStep (before request)', prepareStepPayload(options));
+        return {};
+      },
+      onStepFinish(stepResult: StepFinishInfo) {
+        log.debug('AI SDK onStepFinish', stepFinishPayload(stepResult));
+      },
+    });
+    const durationMs = Date.now() - t0;
+
+    log.debug('AI SDK generateText result', {
+      finishReason: result.finishReason,
+      usage: result.usage,
+      totalUsage: result.totalUsage,
+      textPreview: result.text != null ? truncate(result.text) : undefined,
+      stepCount: result.steps?.length ?? 0,
+      reasoningPreview: result.reasoningText != null ? truncate(result.reasoningText) : undefined,
+    });
+
+    return {
+      finalText: result.text ?? '',
+      toolCalls: toolCallRecords,
+      durationMs,
+      tokenUsage: toTokenUsage(result.usage),
+      stepCount: result.steps?.length ?? 0,
+    };
+  }
+
+  /**
+   * Run a multi-turn conversation: each prompt is a user turn, driven through the
+   * agent while accumulating the conversation (assistant + tool messages) so later
+   * turns see earlier results. Returns a per-turn result (finalText + the tool calls
+   * made during that turn) plus cumulative totals.
+   */
+  async runConversation(prompts: string[]): Promise<ConversationRunResult> {
+    if (!this.client) throw new Error('Harness not started');
+    const { tools, toolCallRecords } = await this.buildAgentTools();
+    const { model, systemPrompt } = this.prepareRun();
+
+    const messages: ModelMessage[] = [];
+    const turns: AgentRunResult[] = [];
+    const t0 = Date.now();
+    for (const prompt of prompts) {
+      const start = toolCallRecords.length;
+      const turnT0 = Date.now();
+      messages.push({ role: 'user', content: prompt });
+      const result = await generateText({
+        model,
+        system: systemPrompt,
+        messages,
+        tools,
+        stopWhen: stepCountIs(MAX_STEPS),
+        prepareStep(options) {
+          log.debug('AI SDK prepareStep (before request)', prepareStepPayload(options));
+          return {};
+        },
+        onStepFinish(stepResult: StepFinishInfo) {
+          log.debug('AI SDK onStepFinish', stepFinishPayload(stepResult));
+        },
+      });
+      // Carry the assistant + tool messages into the next turn's context.
+      messages.push(...(result.response.messages as ModelMessage[]));
+      turns.push({
+        finalText: result.text ?? '',
+        toolCalls: toolCallRecords.slice(start),
+        durationMs: Date.now() - turnT0,
+        tokenUsage: toTokenUsage(result.usage),
+        stepCount: result.steps?.length ?? 0,
+      });
+    }
+
+    return {
+      turns,
+      finalText: turns[turns.length - 1]?.finalText ?? '',
+      toolCalls: toolCallRecords,
+      durationMs: Date.now() - t0,
+      tokenUsage: sumTokenUsage(turns),
+      stepCount: turns.reduce((a, t) => a + t.stepCount, 0),
+    };
+  }
+
+  /** Build the AI SDK tool set that proxies to the MCP client, recording each call. */
+  private async buildAgentTools(): Promise<{
+    tools: Record<string, ReturnType<typeof tool>>;
+    toolCallRecords: ToolCallRecord[];
+  }> {
+    const { tools: mcpTools } = await this.client!.listTools();
     const toolCallRecords: ToolCallRecord[] = [];
     const toolAliases = this.options.setConfig.toolAliases ?? {};
-
     const tools: Record<string, ReturnType<typeof tool>> = {};
     for (const t of mcpTools) {
       const name = t.name;
@@ -472,62 +577,57 @@ export class McpEvalHarness {
         },
       }) as unknown as ReturnType<typeof tool>;
     }
+    return { tools, toolCallRecords };
+  }
 
+  /** Build the model and system prompt for a run (logs server instructions once). */
+  private prepareRun(): { model: LanguageModel; systemPrompt: string } {
     const model = buildModel(this.options.evalsConfig);
-    const serverInstructions = this.client.getInstructions();
+    const serverInstructions = this.client!.getInstructions();
     log.info('Server instructions', {
       hasInstructions: serverInstructions != null,
       length: serverInstructions?.length ?? 0,
       preview: serverInstructions?.slice(0, 100),
     });
     const systemPrompt = getSystemPrompt(this.options.setConfig, serverInstructions);
-
-    const t0 = Date.now();
-    const result = await generateText({
-      model,
-      system: systemPrompt,
-      prompt,
-      tools,
-      ...(runOptions?.toolChoice != null ? { toolChoice: runOptions.toolChoice } : {}),
-      ...(runOptions?.activeTools != null && runOptions.activeTools.length > 0
-        ? { activeTools: runOptions.activeTools }
-        : {}),
-      stopWhen: stepCountIs(MAX_STEPS),
-      prepareStep(options) {
-        log.debug('AI SDK prepareStep (before request)', prepareStepPayload(options));
-        return {};
-      },
-      onStepFinish(stepResult: {
-        finishReason?: string;
-        usage?: unknown;
-        totalUsage?: unknown;
-        text?: string;
-        toolCalls?: unknown[];
-        toolResults?: unknown[];
-        isContinued?: boolean;
-      }) {
-        log.debug('AI SDK onStepFinish', stepFinishPayload(stepResult));
-      },
-    });
-    const durationMs = Date.now() - t0;
-
-    log.debug('AI SDK generateText result', {
-      finishReason: result.finishReason,
-      usage: result.usage,
-      totalUsage: result.totalUsage,
-      textPreview: result.text != null ? truncate(result.text) : undefined,
-      stepCount: result.steps?.length ?? 0,
-      reasoningPreview: result.reasoningText != null ? truncate(result.reasoningText) : undefined,
-    });
-
-    const u = result.usage;
-    const tokenUsage: TokenUsage | undefined = u
-      ? { input: u.inputTokens ?? 0, output: u.outputTokens ?? 0, total: u.totalTokens ?? 0 }
-      : undefined;
-    const stepCount = result.steps?.length ?? 0;
-    const finalText = result.text ?? '';
-    return { finalText, toolCalls: toolCallRecords, durationMs, tokenUsage, stepCount };
+    return { model, systemPrompt };
   }
+}
+
+/** Shape of the AI SDK onStepFinish argument we log. */
+interface StepFinishInfo {
+  finishReason?: string;
+  usage?: unknown;
+  totalUsage?: unknown;
+  text?: string;
+  toolCalls?: unknown[];
+  toolResults?: unknown[];
+  isContinued?: boolean;
+}
+
+/** Convert AI SDK usage to our TokenUsage (undefined when the provider omits usage). */
+function toTokenUsage(u: {
+  inputTokens?: number;
+  outputTokens?: number;
+  totalTokens?: number;
+}): TokenUsage | undefined {
+  return u
+    ? { input: u.inputTokens ?? 0, output: u.outputTokens ?? 0, total: u.totalTokens ?? 0 }
+    : undefined;
+}
+
+/** Sum per-turn token usage into a single TokenUsage (undefined when none reported). */
+function sumTokenUsage(turns: AgentRunResult[]): TokenUsage | undefined {
+  const withUsage = turns.filter(t => t.tokenUsage);
+  if (withUsage.length === 0) return undefined;
+  return withUsage.reduce<TokenUsage>(
+    (acc, t) => ({
+      input: acc.input + (t.tokenUsage?.input ?? 0),
+      output: acc.output + (t.tokenUsage?.output ?? 0),
+      total: acc.total + (t.tokenUsage?.total ?? 0),
+    }),
+    { input: 0, output: 0, total: 0 }
+  );
 }
 
 /**

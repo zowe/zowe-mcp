@@ -20,6 +20,7 @@ import type {
   AssertionItem,
   Question,
   QuestionSet,
+  QuestionTurn,
   SetConfig,
 } from './types.js';
 
@@ -183,9 +184,29 @@ function parseQuestion(raw: unknown): Question {
   if (!raw || typeof raw !== 'object') throw new Error('Invalid question');
   const o = raw as Record<string, unknown>;
   const id = o.id as string;
+  if (!id) throw new Error('Question must have an id');
+
+  // Multi-turn question: `turns` array instead of a single prompt/assertions.
+  if (Array.isArray(o.turns)) {
+    if (o.prompt !== undefined || o.assertions !== undefined)
+      throw new Error(`Question "${id}": use either prompt/assertions or turns, not both`);
+    if (o.turns.length === 0) throw new Error(`Question "${id}": turns must be non-empty`);
+    const turns = o.turns.map((t, i) => parseTurn(t, id, i));
+    return {
+      id,
+      // First turn's prompt drives display/logging; combined items feed
+      // tool-under-test discovery only (pass/fail is per turn).
+      prompt: turns[0].prompt,
+      assertionBlock: { mode: 'all', items: turns.flatMap(t => t.assertionBlock.items) },
+      turns,
+      preset: o.preset as 'default' | 'inventory' | undefined,
+      skip: typeof o.skip === 'string' ? o.skip : undefined,
+    };
+  }
+
   const prompt = o.prompt as string;
   const assertionsRaw = o.assertions;
-  if (!id || !prompt) throw new Error('Question must have id, prompt');
+  if (!prompt) throw new Error('Question must have id, prompt');
   if (assertionsRaw === undefined || assertionsRaw === null)
     throw new Error('Question must have assertions (array or allOf/anyOf object)');
   const assertionBlock = parseAssertionBlock(assertionsRaw);
@@ -196,6 +217,20 @@ function parseQuestion(raw: unknown): Question {
     assertionBlock,
     skip: typeof o.skip === 'string' ? o.skip : undefined,
   };
+}
+
+/** Parse one turn of a multi-turn question. Assertions are optional (setup turns). */
+function parseTurn(raw: unknown, questionId: string, index: number): QuestionTurn {
+  if (!raw || typeof raw !== 'object')
+    throw new Error(`Question "${questionId}" turn ${index + 1}: must be an object`);
+  const t = raw as Record<string, unknown>;
+  if (typeof t.prompt !== 'string' || !t.prompt)
+    throw new Error(`Question "${questionId}" turn ${index + 1}: must have a prompt`);
+  const assertionBlock =
+    t.assertions === undefined || t.assertions === null
+      ? { mode: 'all' as const, items: [] }
+      : parseAssertionBlock(t.assertions);
+  return { prompt: t.prompt, assertionBlock };
 }
 
 function parseSetConfig(raw: unknown): SetConfig {

@@ -287,7 +287,22 @@ export interface AssertionBlock {
 }
 
 /**
- * One question in a set.
+ * One turn of a multi-turn question: a user prompt plus the assertions checked
+ * against that turn's own tool calls and final answer text.
+ */
+export interface QuestionTurn {
+  prompt: string;
+  /** Assertions for this turn (empty block = no assertions, e.g. a setup turn). */
+  assertionBlock: AssertionBlock;
+}
+
+/**
+ * One question in a set. Single-turn questions have `prompt` + `assertionBlock`.
+ * Multi-turn questions additionally set `turns`; the runner drives each turn through
+ * the agent with a shared, accumulating conversation and asserts per turn. For a
+ * multi-turn question, `prompt` is the first turn's prompt (for display) and
+ * `assertionBlock` is the union of all turns' items (used only for tool-under-test
+ * discovery, not for pass/fail — that is per turn).
  */
 export interface Question {
   id: string;
@@ -296,6 +311,8 @@ export interface Question {
   preset?: 'default' | 'inventory';
   /** Normalized assertion block (all items must pass when mode is 'all'; any item must pass when mode is 'any'). */
   assertionBlock: AssertionBlock;
+  /** When set, this is a multi-turn question; each turn is run in sequence in one conversation. */
+  turns?: QuestionTurn[];
   /** When set, this question is skipped with this reason. */
   skip?: string;
 }

@@ -12,8 +12,8 @@
 import { isAbsolute, resolve } from 'node:path';
 import { runAssertions } from './assertions.js';
 import { getConfigDir } from './config.js';
-import type { ToolDefinition } from './harness.js';
-import type { Question, RunResult, TokenUsage } from './types.js';
+import type { AgentRunResult, ToolDefinition } from './harness.js';
+import type { Question, QuestionTurn, RunResult, TokenUsage } from './types.js';
 
 export const PASS = '\u2713';
 export const FAIL = '\u2717';
@@ -97,6 +97,47 @@ export function assertAndRecord(input: AssertAndRecordInput): RunResult {
     tokenUsage: input.tokenUsage,
     stepCount: input.stepCount,
   };
+}
+
+/**
+ * Assert a multi-turn conversation: each question turn's assertions are checked
+ * against that turn's own tool calls and final answer. The run passes only if every
+ * turn passes; the first failing turn's message is prefixed with its turn number.
+ * The returned RunResult carries cumulative tool calls and the last turn's final text.
+ */
+export function assertConversation(input: {
+  questionId: string;
+  displayPrompt: string;
+  runIndex: number;
+  questionTurns: QuestionTurn[];
+  conversation: { turns: AgentRunResult[] } & AgentRunResult;
+}): RunResult {
+  const base: RunResult = {
+    questionId: input.questionId,
+    prompt: input.displayPrompt,
+    runIndex: input.runIndex,
+    passed: true,
+    toolCalls: input.conversation.toolCalls,
+    finalText: input.conversation.finalText,
+    durationMs: input.conversation.durationMs,
+    tokenUsage: input.conversation.tokenUsage,
+    stepCount: input.conversation.stepCount,
+  };
+  for (let i = 0; i < input.questionTurns.length; i++) {
+    const turnRun = input.conversation.turns[i];
+    if (!turnRun) {
+      return { ...base, passed: false, assertionFailed: `turn ${i + 1}: no agent response` };
+    }
+    const { passed, failedAssertion } = runAssertions(
+      input.questionTurns[i].assertionBlock,
+      turnRun.toolCalls,
+      turnRun.finalText
+    );
+    if (!passed) {
+      return { ...base, passed: false, assertionFailed: `turn ${i + 1}: ${failedAssertion ?? ''}` };
+    }
+  }
+  return base;
 }
 
 /**

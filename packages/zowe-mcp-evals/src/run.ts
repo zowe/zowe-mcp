@@ -18,6 +18,7 @@ import { buildCacheKey, get as cacheGet, set as cacheSet, getToolsUnderTest } fr
 import { getConfigDir, loadEvalsConfig } from './config.js';
 import {
   assertAndRecord,
+  assertConversation,
   buildToolDefsSubset,
   errorMessage,
   FAIL,
@@ -222,9 +223,13 @@ async function main(): Promise<void> {
           continue;
         }
         const questionResults: RunResult[] = [];
+        const isMultiTurn = Array.isArray(q.turns) && q.turns.length > 0;
+        // Caching stores a single {finalText, toolCalls}; it does not fit per-turn
+        // multi-turn assertions, so multi-turn questions always run live.
+        const cacheableQ = useCache && !isMultiTurn;
         const toolNames = getToolsUnderTest(q.assertionBlock);
         const toolDefs = buildToolDefsSubset(toolDefinitions, toolNames);
-        const cacheKey = useCache
+        const cacheKey = cacheableQ
           ? buildCacheKey({
               systemPrompt: getSystemPrompt(config, serverInstructions),
               prompt: q.prompt,
@@ -233,12 +238,18 @@ async function main(): Promise<void> {
             })
           : '';
 
-        const cached = useCache ? await cacheGet(cacheDir, cacheKey) : null;
+        const cached = cacheableQ ? await cacheGet(cacheDir, cacheKey) : null;
 
         questionIndex++;
         const progress = `[${questionIndex.toString()}/${totalQuestions.toString()}]`;
         log.info(`${progress} ${setName}/${q.id}:`);
-        for (const line of q.prompt.trim().split(/\n/)) log.info(`  ${line}`);
+        if (isMultiTurn) {
+          q.turns!.forEach((t, i) => {
+            log.info(`  turn ${i + 1}: ${t.prompt}`);
+          });
+        } else {
+          for (const line of q.prompt.trim().split(/\n/)) log.info(`  ${line}`);
+        }
 
         if (cached) {
           for (let r = 0; r < repetitions; r++) {
@@ -265,21 +276,35 @@ async function main(): Promise<void> {
         } else {
           for (let r = 0; r < repetitions; r++) {
             try {
-              const runResult = await harness.runOne(q.prompt);
-              const { finalText, toolCalls } = runResult;
-              for (const tc of toolCalls)
-                allToolCalls.push({ name: tc.name, arguments: tc.arguments });
-              const result = assertAndRecord({
-                questionId: q.id,
-                prompt: q.prompt,
-                runIndex: r,
-                finalText,
-                toolCalls,
-                assertionBlock: q.assertionBlock,
-                durationMs: runResult.durationMs,
-                tokenUsage: runResult.tokenUsage,
-                stepCount: runResult.stepCount,
-              });
+              let result: RunResult;
+              if (isMultiTurn) {
+                const conversation = await harness.runConversation(q.turns!.map(t => t.prompt));
+                for (const tc of conversation.toolCalls)
+                  allToolCalls.push({ name: tc.name, arguments: tc.arguments });
+                result = assertConversation({
+                  questionId: q.id,
+                  displayPrompt: q.prompt,
+                  runIndex: r,
+                  questionTurns: q.turns!,
+                  conversation,
+                });
+              } else {
+                const runResult = await harness.runOne(q.prompt);
+                const { finalText, toolCalls } = runResult;
+                for (const tc of toolCalls)
+                  allToolCalls.push({ name: tc.name, arguments: tc.arguments });
+                result = assertAndRecord({
+                  questionId: q.id,
+                  prompt: q.prompt,
+                  runIndex: r,
+                  finalText,
+                  toolCalls,
+                  assertionBlock: q.assertionBlock,
+                  durationMs: runResult.durationMs,
+                  tokenUsage: runResult.tokenUsage,
+                  stepCount: runResult.stepCount,
+                });
+              }
               questionResults.push(result);
               allResults.push(result);
               logRunOutcome(result, `Running ${setName}/${q.id} (${r + 1}/${repetitions})`, '');
@@ -297,7 +322,7 @@ async function main(): Promise<void> {
           const qPassed = questionResults.filter(x => x.passed).length;
           const qTotal = questionResults.length;
           const questionPassRate = qTotal > 0 ? qPassed / qTotal : 0;
-          if (useCache && questionPassRate >= minSuccessRate) {
+          if (cacheableQ && questionPassRate >= minSuccessRate) {
             const firstPassing = questionResults.find(x => x.passed);
             if (firstPassing) {
               await cacheSet(cacheDir, cacheKey, {

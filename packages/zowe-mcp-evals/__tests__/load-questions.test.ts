@@ -135,6 +135,63 @@ questions:
     expect(result.config.mock?.capabilityTier).toBe('read');
   });
 
+  it('parses a multi-turn question with per-turn assertions', () => {
+    const yamlContent = `
+questions:
+  - id: convo
+    turns:
+      - prompt: List members of USER.SRC.COBOL.
+        assertions:
+          - toolCall: { tool: listMembers }
+      - prompt: Read the first one.
+        assertions:
+          - toolCall: { tool: readDataset }
+`;
+    const path = join(tmpDir, 'multi.yaml');
+    writeFileSync(path, yamlContent, 'utf-8');
+    const result = loadSetYaml(path);
+    const q = result.questions[0];
+    expect(q.turns).toHaveLength(2);
+    expect(q.turns?.[0].prompt).toBe('List members of USER.SRC.COBOL.');
+    expect(q.prompt).toBe('List members of USER.SRC.COBOL.'); // first turn drives display
+    // Combined block aggregates all turns' tool assertions for tool-under-test discovery.
+    expect(q.assertionBlock.items).toHaveLength(2);
+  });
+
+  it('allows a turn with no assertions (setup turn)', () => {
+    const yamlContent = `
+questions:
+  - id: convo
+    turns:
+      - prompt: Create a temp data set.
+      - prompt: Write to it.
+        assertions:
+          - toolCall: { tool: writeDataset }
+`;
+    const path = join(tmpDir, 'multi-setup.yaml');
+    writeFileSync(path, yamlContent, 'utf-8');
+    const result = loadSetYaml(path);
+    expect(result.questions[0].turns?.[0].assertionBlock.items).toHaveLength(0);
+    expect(result.questions[0].turns?.[1].assertionBlock.items).toHaveLength(1);
+  });
+
+  it('rejects a question with both prompt and turns', () => {
+    const yamlContent = `
+questions:
+  - id: bad
+    prompt: Hello
+    assertions:
+      - toolCall: { tool: info }
+    turns:
+      - prompt: also this
+        assertions:
+          - toolCall: { tool: info }
+`;
+    const path = join(tmpDir, 'both.yaml');
+    writeFileSync(path, yamlContent, 'utf-8');
+    expect(() => loadSetYaml(path)).toThrow('JSON Schema validation failed');
+  });
+
   it('rejects an invalid mock.capabilityTier', () => {
     const yamlContent = `
 config:

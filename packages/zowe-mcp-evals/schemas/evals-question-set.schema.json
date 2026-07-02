@@ -204,8 +204,18 @@
       "minItems": 1,
       "items": {
         "type": "object",
-        "required": ["id", "prompt", "assertions"],
-        "description": "A single eval question: the prompt sent to the agent and the assertions checked against tool calls and final answer.",
+        "required": ["id"],
+        "description": "A single eval question. Single-turn: prompt + assertions. Multi-turn: a turns array (each turn is a prompt with its own assertions), run in one accumulating conversation.",
+        "oneOf": [
+          {
+            "required": ["prompt", "assertions"],
+            "not": { "required": ["turns"] }
+          },
+          {
+            "required": ["turns"],
+            "not": { "anyOf": [{ "required": ["prompt"] }, { "required": ["assertions"] }] }
+          }
+        ],
         "properties": {
           "id": {
             "type": "string",
@@ -213,7 +223,7 @@
           },
           "prompt": {
             "type": "string",
-            "description": "The user prompt sent to the AI agent."
+            "description": "The user prompt sent to the AI agent (single-turn questions)."
           },
           "preset": {
             "type": "string",
@@ -224,39 +234,23 @@
             "type": "string",
             "description": "When set, this question is skipped with this reason shown in the log."
           },
-          "assertions": {
-            "description": "Assertions block. An array (all must pass), or an object with allOf/anyOf.",
-            "oneOf": [
-              {
-                "type": "array",
-                "minItems": 1,
-                "items": { "$ref": "#/$defs/AssertionItem" }
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "allOf": {
-                    "type": "array",
-                    "minItems": 1,
-                    "items": { "$ref": "#/$defs/AssertionItem" }
-                  }
+          "assertions": { "$ref": "#/$defs/Assertions" },
+          "turns": {
+            "type": "array",
+            "minItems": 1,
+            "description": "Multi-turn conversation. Each turn is a user prompt plus assertions checked against that turn's own tool calls and final answer. Turns share one accumulating conversation, so a later turn can refer to earlier results (context carryover).",
+            "items": {
+              "type": "object",
+              "required": ["prompt"],
+              "additionalProperties": false,
+              "properties": {
+                "prompt": {
+                  "type": "string",
+                  "description": "The user prompt for this turn."
                 },
-                "required": ["allOf"],
-                "additionalProperties": false
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "anyOf": {
-                    "type": "array",
-                    "minItems": 1,
-                    "items": { "$ref": "#/$defs/AssertionItem" }
-                  }
-                },
-                "required": ["anyOf"],
-                "additionalProperties": false
+                "assertions": { "$ref": "#/$defs/Assertions" }
               }
-            ]
+            }
           }
         },
         "additionalProperties": false
@@ -265,6 +259,40 @@
   },
   "additionalProperties": false,
   "$defs": {
+    "Assertions": {
+      "description": "Assertions block. An array (all must pass), or an object with allOf/anyOf.",
+      "oneOf": [
+        {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/AssertionItem" }
+        },
+        {
+          "type": "object",
+          "properties": {
+            "allOf": {
+              "type": "array",
+              "minItems": 1,
+              "items": { "$ref": "#/$defs/AssertionItem" }
+            }
+          },
+          "required": ["allOf"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "anyOf": {
+              "type": "array",
+              "minItems": 1,
+              "items": { "$ref": "#/$defs/AssertionItem" }
+            }
+          },
+          "required": ["anyOf"],
+          "additionalProperties": false
+        }
+      ]
+    },
     "AssertionItem": {
       "type": "object",
       "description": "One assertion item: leaf assertion (toolCall, toolCallOrder, answerContains) or composite (allOf/anyOf). Exactly one assertion key must be present.",

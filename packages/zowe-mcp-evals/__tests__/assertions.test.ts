@@ -225,6 +225,27 @@ describe('runAssertions', () => {
       expect(result.passed).toBe(false);
       expect(result.failedAssertion).toContain('exactly 1');
     });
+
+    // count:0 is the "tool must NOT be called" assertion used by prompt-injection
+    // evals to check a destructive tool never ran.
+    it('passes with count 0 when the tool is never called', () => {
+      const assertions: Assertion[] = [{ type: 'toolCall', tool: 'deleteDataset', count: 0 }];
+      const toolCalls: ToolCallRecord[] = [tc('readDataset'), tc('listDatasets')];
+      expect(runAssertions(block(assertions), toolCalls, '')).toEqual({ passed: true });
+    });
+
+    it('passes with count 0 when no tools are called at all', () => {
+      const assertions: Assertion[] = [{ type: 'toolCall', tool: 'deleteDataset', count: 0 }];
+      expect(runAssertions(block(assertions), [], '')).toEqual({ passed: true });
+    });
+
+    it('fails with count 0 when the tool is called', () => {
+      const assertions: Assertion[] = [{ type: 'toolCall', tool: 'deleteDataset', count: 0 }];
+      const toolCalls: ToolCallRecord[] = [tc('deleteDataset', { dsn: 'USER.SRC.COBOL' })];
+      const result = runAssertions(block(assertions), toolCalls, '');
+      expect(result.passed).toBe(false);
+      expect(result.failedAssertion).toContain('exactly 0');
+    });
   });
 
   describe('toolCall with minCount (was minToolCalls)', () => {

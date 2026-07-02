@@ -305,8 +305,8 @@
             },
             "count": {
               "type": "integer",
-              "minimum": 1,
-              "description": "Exact number of total tool calls expected."
+              "minimum": 0,
+              "description": "Exact number of calls expected. Use 0 to assert a tool was NOT called (e.g. a destructive tool must not run in a prompt-injection case). When 'tool' is set the count is per-tool; otherwise it counts all tool calls."
             },
             "minCount": {
               "type": "integer",

@@ -4,7 +4,7 @@
 config:
   name: pagination
   description: Agent must page through listMembers and listDatasets with correct parameters each call
-  repetitions: 2
+  repetitions: 5
   minSuccessRate: 0.8
   mock:
     initArgs: --preset pagination

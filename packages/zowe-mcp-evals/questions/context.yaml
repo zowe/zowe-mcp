@@ -3,7 +3,7 @@
 config:
   name: context
   description: Agent must use getContext or setSystem then getContext
-  repetitions: 2
+  repetitions: 5
   minSuccessRate: 0.8
   mock:
     initArgs: --preset default

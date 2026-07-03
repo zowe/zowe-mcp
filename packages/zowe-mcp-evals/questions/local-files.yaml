@@ -5,7 +5,7 @@ config:
   description: >-
     Agent uses downloadDatasetToFile, downloadUssFileToFile, uploadFileToDataset, uploadFileToUssFile
     with mock data (--preset minimal; USER on mainframe-dev.example.com, USS file.txt).
-  repetitions: 2
+  repetitions: 5
   minSuccessRate: 0.5
   mock:
     initArgs: --preset minimal

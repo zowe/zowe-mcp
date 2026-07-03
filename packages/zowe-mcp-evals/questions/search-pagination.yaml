@@ -3,7 +3,7 @@
 config:
   name: search-pagination
   description: Agent must use searchInDataset and page when hasMore is true
-  repetitions: 2
+  repetitions: 5
   minSuccessRate: 0.8
   mock:
     initArgs: --preset pagination

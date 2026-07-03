@@ -14,7 +14,13 @@ import { existsSync, rmSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { plural } from 'zowe-mcp-common';
-import { buildCacheKey, get as cacheGet, set as cacheSet, getToolsUnderTest } from './cache.js';
+import {
+  buildCacheKey,
+  type CachedRunResult,
+  get as cacheGet,
+  set as cacheSet,
+  getToolsUnderTest,
+} from './cache.js';
 import { getConfigDir, loadEvalsConfig } from './config.js';
 import {
   assertAndRecord,
@@ -224,15 +230,18 @@ async function main(): Promise<void> {
         }
         const questionResults: RunResult[] = [];
         const isMultiTurn = Array.isArray(q.turns) && q.turns.length > 0;
-        // Caching stores a single {finalText, toolCalls}; it does not fit per-turn
-        // multi-turn assertions, so multi-turn questions always run live.
-        const cacheableQ = useCache && !isMultiTurn;
+        const cacheableQ = useCache;
         const toolNames = getToolsUnderTest(q.assertionBlock);
         const toolDefs = buildToolDefsSubset(toolDefinitions, toolNames);
+        // Multi-turn questions key on all turn prompts joined, so two conversations
+        // that share a first turn but differ later get distinct cache entries.
+        const cachePrompt = isMultiTurn
+          ? q.turns!.map(t => t.prompt).join('\n<<turn>>\n')
+          : q.prompt;
         const cacheKey = cacheableQ
           ? buildCacheKey({
               systemPrompt: getSystemPrompt(config, serverInstructions),
-              prompt: q.prompt,
+              prompt: cachePrompt,
               toolDefs,
               modelId: evalsConfig.modelId,
             })
@@ -253,17 +262,43 @@ async function main(): Promise<void> {
 
         if (cached) {
           for (let r = 0; r < repetitions; r++) {
-            const { finalText, toolCalls } = cached;
-            for (const tc of toolCalls)
-              allToolCalls.push({ name: tc.name, arguments: tc.arguments });
-            const result = assertAndRecord({
-              questionId: q.id,
-              prompt: q.prompt,
-              runIndex: r,
-              finalText,
-              toolCalls,
-              assertionBlock: q.assertionBlock,
-            });
+            let result: RunResult;
+            if (isMultiTurn && cached.turns) {
+              // Replay per-turn cached results through the multi-turn assertions.
+              const conversation = {
+                turns: cached.turns.map(t => ({
+                  finalText: t.finalText,
+                  toolCalls: t.toolCalls,
+                  durationMs: 0,
+                  stepCount: 0,
+                })),
+                finalText: cached.finalText,
+                toolCalls: cached.toolCalls,
+                durationMs: 0,
+                stepCount: 0,
+              };
+              for (const tc of conversation.toolCalls)
+                allToolCalls.push({ name: tc.name, arguments: tc.arguments });
+              result = assertConversation({
+                questionId: q.id,
+                displayPrompt: q.prompt,
+                runIndex: r,
+                questionTurns: q.turns!,
+                conversation,
+              });
+            } else {
+              const { finalText, toolCalls } = cached;
+              for (const tc of toolCalls)
+                allToolCalls.push({ name: tc.name, arguments: tc.arguments });
+              result = assertAndRecord({
+                questionId: q.id,
+                prompt: q.prompt,
+                runIndex: r,
+                finalText,
+                toolCalls,
+                assertionBlock: q.assertionBlock,
+              });
+            }
             questionResults.push(result);
             allResults.push(result);
             cacheStats.hits++;
@@ -274,6 +309,8 @@ async function main(): Promise<void> {
             );
           }
         } else {
+          // First passing run's result, cached after the loop (per-turn for multi-turn).
+          let cacheCandidate: CachedRunResult | undefined;
           for (let r = 0; r < repetitions; r++) {
             try {
               let result: RunResult;
@@ -288,6 +325,16 @@ async function main(): Promise<void> {
                   questionTurns: q.turns!,
                   conversation,
                 });
+                if (result.passed && !cacheCandidate) {
+                  cacheCandidate = {
+                    finalText: conversation.finalText,
+                    toolCalls: conversation.toolCalls,
+                    turns: conversation.turns.map(t => ({
+                      finalText: t.finalText,
+                      toolCalls: t.toolCalls,
+                    })),
+                  };
+                }
               } else {
                 const runResult = await harness.runOne(q.prompt);
                 const { finalText, toolCalls } = runResult;
@@ -304,6 +351,9 @@ async function main(): Promise<void> {
                   tokenUsage: runResult.tokenUsage,
                   stepCount: runResult.stepCount,
                 });
+                if (result.passed && !cacheCandidate) {
+                  cacheCandidate = { finalText, toolCalls };
+                }
               }
               questionResults.push(result);
               allResults.push(result);
@@ -322,15 +372,9 @@ async function main(): Promise<void> {
           const qPassed = questionResults.filter(x => x.passed).length;
           const qTotal = questionResults.length;
           const questionPassRate = qTotal > 0 ? qPassed / qTotal : 0;
-          if (cacheableQ && questionPassRate >= minSuccessRate) {
-            const firstPassing = questionResults.find(x => x.passed);
-            if (firstPassing) {
-              await cacheSet(cacheDir, cacheKey, {
-                finalText: firstPassing.finalText,
-                toolCalls: firstPassing.toolCalls,
-              });
-              cacheStats.writes++;
-            }
+          if (cacheableQ && questionPassRate >= minSuccessRate && cacheCandidate) {
+            await cacheSet(cacheDir, cacheKey, cacheCandidate);
+            cacheStats.writes++;
           }
         }
 

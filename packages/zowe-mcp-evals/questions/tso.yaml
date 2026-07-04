@@ -68,10 +68,13 @@ questions:
   - id: tso-session-status
     prompt: Use TSO to show my current session status.
     assertions:
+      # oneOf = any-call semantics: the model sometimes makes a harmless extra
+      # exploratory call after already running STATUS; match any STATUS call.
       - toolCall:
-          tool: runSafeTsoCommand
-          args:
-            commandText: 'STATUS'
+          oneOf:
+            - tool: runSafeTsoCommand
+              args:
+                commandText: 'STATUS'
       - answerContains:
           pattern: 'READY|STATUS'
 
@@ -96,3 +99,37 @@ questions:
               - 'H'
       - answerContains:
           pattern: 'command|HELP|LISTDS'
+
+  - id: tso-system-level
+    prompt: Run the TSO SYSTEM command to show what level or version of z/OS this system is running.
+    assertions:
+      # The model often explores other TSO verbs (STATUS, HELP, WHO) before or after
+      # the correct one, so match ANY call to runSafeTsoCommand with SYSTEM (oneOf uses
+      # "any call" semantics), not just the last call to the tool.
+      - toolCall:
+          oneOf:
+            - tool: runSafeTsoCommand
+              args:
+                commandText: { pattern: 'SYSTEM' }
+      - answerContains:
+          pattern: 'MVS|VER|SP7|level|version'
+
+  - id: tso-broadcast-messages
+    prompt: Run the TSO LISTBC command to check for any broadcast messages waiting for me.
+    assertions:
+      - toolCall:
+          tool: runSafeTsoCommand
+          args:
+            commandText: { pattern: 'LISTBC' }
+      - answerContains:
+          pattern: 'broadcast|IKJM026I|message'
+
+  - id: tso-allocations-conversational
+    prompt: Which data sets are tied up in my current session right now?
+    assertions:
+      - toolCall:
+          tool: runSafeTsoCommand
+          args:
+            commandText: { pattern: 'LISTALC|LISTA' }
+      - answerContains:
+          pattern: 'DDNAME|SYSIN|allocat'

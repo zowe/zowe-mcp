@@ -198,7 +198,7 @@ iteration fits a 32K-token context.
 
 ### TSO
 
-- **Set** `tso` (run with `--set tso`): runSafeTsoCommand for LISTALC, LISTDS, WHO. Mock returns canned output. Default preset.
+- **Set** `tso` (run with `--set tso`): runSafeTsoCommand for LISTALC, LISTDS, LISTCAT, LISTBC, STATUS, TIME, HELP, WHO, and SYSTEM, including conversational phrasing variants. Mock returns canned output. Default preset.
 
 ### USS (UNIX System Services)
 

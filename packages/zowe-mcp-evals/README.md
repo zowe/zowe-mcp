@@ -166,13 +166,21 @@ assertions:
       pattern: "success|done"
 ```
 
-### readDataset pagination
+### Pagination (count vs iterate)
 
-- **Set** `read-pagination` (run with `--set read-pagination`): One question. Mock uses `--preset pagination`; USER.LARGE.SEQ has 2200 lines with a Star Wars character name on line 2100 (third chunk). The agent must page with readDataset (3 calls: 1000, 1000, 200 lines — startLine 1, 1001, 2001) and report the character name (LUKE). Works with any MCP client.
+Two sets separate the distinct skills, using the `--preset pagination` fixtures
+(USER.CATALOG 350 members, USER.PARTS 1251 with ZSPECIAL on the last page, USER.PEOPLE.*
+1000 data sets, USER.INVNTORY 2000 members, USER.LARGE.SEQ 1300 lines with LUKE on line
+1250). Sizes are varied (so a fix can't hardcode one number) and small enough that full
+iteration fits a 32K-token context.
 
-### Search pagination
-
-- **Set** `search-pagination` (run with `--set search-pagination`): One question. Mock uses `--preset pagination`; USER.INVNTORY has 2000 members. The agent must search for a string (e.g. "name"), page through results when `_result.hasMore` is true, and report how many members match.
+- **Set** `pagination-count` (run with `--set pagination-count`): "how many X?" questions.
+  The answer is `_result.totalAvailable`, returned on the first page — a good agent
+  reports it from one call and does NOT page everything. Tests count-reporting (using
+  `totalAvailable`, not the per-page `count`). Varied answers: 350 / 1251 / 1000 / 2000.
+- **Set** `pagination-iterate` (run with `--set pagination-iterate`): the answer lives on
+  a later page (LUKE on line 1250; ZSPECIAL on the last member page), so the agent must
+  genuinely page through results. Tests exhaustive iteration, independent of counting.
 
 ### Mutations (write and delete)
 

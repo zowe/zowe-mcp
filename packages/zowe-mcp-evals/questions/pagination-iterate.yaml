@@ -1,0 +1,38 @@
+# yaml-language-server: $schema=../schemas/evals-question-set.schema.json
+# Pagination ITERATE set: the answer lives on a LATER page, so the agent genuinely
+# must page through the results (it cannot shortcut via totalAvailable). This is the
+# distinct "fetch all the data" skill, kept separate from count-reporting
+# (see pagination-count).
+#
+# Fixtures are sized so that iterating everything stays within a 32K-token context:
+#   USER.LARGE.SEQ  — 1300 lines, "LUKE SKYWALKER" on line 1250 (2 read windows).
+#   USER.PARTS      — 1251 members, ZSPECIAL sorts last (on the 3rd list page).
+config:
+  name: pagination-iterate
+  description: Agent must page through all results to reach data on a later page
+  repetitions: 5
+  minSuccessRate: 0.8
+  mock:
+    initArgs: --preset pagination
+
+questions:
+  - id: read-all-find-star-wars
+    prompt: Read USER.LARGE.SEQ and tell me what Star Wars character name appears in it.
+    assertions:
+      # LUKE is on line 1250; with a 1000-line window the agent needs a second read.
+      - toolCall:
+          tool: readDataset
+          minCount: 2
+      - answerContains:
+          substring: 'LUKE'
+
+  - id: list-all-find-special-member
+    prompt: List all the members of USER.PARTS and tell me whether a member named ZSPECIAL exists.
+    assertions:
+      # ZSPECIAL sorts after the ITEM* members, so it only appears once the agent pages
+      # past the first result page.
+      - toolCall:
+          tool: listMembers
+          minCount: 2
+      - answerContains:
+          pattern: 'ZSPECIAL|yes|exists|found|present|does'

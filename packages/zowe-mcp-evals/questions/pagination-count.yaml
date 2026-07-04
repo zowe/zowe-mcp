@@ -1,0 +1,75 @@
+# yaml-language-server: $schema=../schemas/evals-question-set.schema.json
+# Pagination COUNT set: "how many X?" questions. The answer is _result.totalAvailable,
+# returned on the FIRST page — so a good agent reports the total from one call and does
+# NOT need to iterate every page. This tests count-reporting (does the model use
+# totalAvailable, not the per-page count) independently of exhaustive iteration
+# (see pagination-iterate for that skill).
+#
+# Answers are deliberately varied across data-set sizes (350 / 1000 / 1251 / 2000) so a
+# fix cannot hardcode a single expected number. Sizes come from the pagination preset:
+# USER.CATALOG (350 members), USER.PARTS (1251 members), USER.PEOPLE.* (1000 data sets),
+# USER.INVNTORY (2000 members).
+config:
+  name: pagination-count
+  description: Agent reports correct totals from _result.totalAvailable without iterating every page
+  repetitions: 5
+  minSuccessRate: 0.8
+  mock:
+    initArgs: --preset pagination
+
+questions:
+  - id: count-members-catalog
+    prompt: How many members are in the PDS USER.CATALOG?
+    assertions:
+      - toolCall:
+          tool: listMembers
+          args:
+            validDsn: 'USER.CATALOG'
+      - answerContains:
+          pattern: '350'
+
+  - id: count-members-parts
+    prompt: How many members does the PDS USER.PARTS contain?
+    assertions:
+      - toolCall:
+          tool: listMembers
+          args:
+            validDsn: 'USER.PARTS'
+      - answerContains:
+          pattern: '1[,.]?251'
+
+  - id: count-datasets-people
+    prompt: How many data sets are there under the high-level qualifier USER.PEOPLE?
+    assertions:
+      - toolCall:
+          tool: listDatasets
+          args:
+            dsnPattern:
+              - 'USER.PEOPLE.*'
+              - 'USER.PEOPLE.**'
+      - answerContains:
+          pattern: '1[,.]?000'
+
+  - id: count-members-inventory
+    prompt: How many members are in USER.INVNTORY?
+    assertions:
+      # 2000 members = 4 pages. A model that uses totalAvailable answers from page 1
+      # (one call); it does NOT need to page all 2000 (which would also risk
+      # overflowing a small context window).
+      - toolCall:
+          tool: listMembers
+          args:
+            validDsn: 'USER.INVNTORY'
+      - answerContains:
+          pattern: '2[,.]?000'
+
+  - id: count-search-matches-catalog
+    prompt: Search USER.CATALOG for the string "name" and tell me how many members contain it.
+    assertions:
+      - toolCall:
+          tool: searchInDataset
+          args:
+            validDsn: 'USER.CATALOG'
+            string: 'name'
+      - answerContains:
+          pattern: '350'

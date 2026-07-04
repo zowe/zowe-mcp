@@ -143,6 +143,27 @@ injection metric honest (and can lower scores); fix #2 changes the server instru
 which generalizes to any counting task. Data-set sizes and phrasings should be
 diversified next so improvements can't hardcode to "2000"/"1000".
 
+## Follow-ups implemented (pagination redesign)
+
+The three pagination follow-ups were then implemented together:
+
+1. **Split count vs iterate.** The old `pagination` / `read-pagination` /
+   `search-pagination` sets are replaced by `pagination-count` (how-many questions,
+   answerable from `totalAvailable` on the first page, no iteration) and
+   `pagination-iterate` (the answer is on a later page — LUKE on line 1250, ZSPECIAL on
+   the last member page — so genuine paging is required).
+2. **Diversify fixtures.** The `pagination` preset now seeds varied-size PDS —
+   `USER.CATALOG` (350), `USER.PARTS` (1251, with a distinctive ZSPECIAL member),
+   alongside `USER.PEOPLE.*` (1000) and `USER.INVNTORY` (2000, cleaned up from 2001).
+   Count answers are 350 / 1251 / 1000 / 2000, so a fix can't hardcode "2000".
+3. **Fit the context.** `USER.LARGE.SEQ` shrunk 2200 → 1300 lines and the iterate
+   fixtures are sized so full iteration stays within a 32K-token window.
+
+**Validation.** Both new sets pass 7/7 on gemini-3.5-flash, and — the key result —
+**35/35 on `qwen3.6-35b-a3b` at 32K context with zero "Context size exceeded" errors**,
+versus the old sets which flaked out on overflow. Fixture sizes are locked by an
+init-mock e2e test so the evals can't silently drift.
+
 ## Recommendation
 
 For a mainframe deployment, weaker local models (Gemma, Granite) both leak injections

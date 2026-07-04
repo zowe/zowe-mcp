@@ -80,4 +80,29 @@ describe('init-mock CLI entry point', () => {
     };
     expect(config.systems).toHaveLength(2);
   });
+
+  // The pagination eval sets assert exact fixture sizes; lock them here so a change to
+  // init-mock that would silently break those evals fails a test instead.
+  it('should seed pagination fixtures at the sizes the eval sets expect', () => {
+    tmpdirPath = mkdtempSync(resolve(tmpdir(), 'zowe-mcp-init-mock-e2e-'));
+    const result = spawnSync(
+      process.execPath,
+      [serverPath, 'init-mock', '--output', tmpdirPath, '--preset', 'pagination'],
+      { cwd: packageRoot, encoding: 'utf-8' }
+    );
+    expect(result.status).toBe(0);
+    const config = JSON.parse(readFileSync(join(tmpdirPath, 'systems.json'), 'utf-8')) as {
+      systems: { host: string }[];
+    };
+    const userDir = join(tmpdirPath, config.systems[0].host, 'USER');
+    const members = (pds: string) =>
+      readdirSync(join(userDir, pds)).filter(f => f !== '_meta.json').length;
+    expect(members('CATALOG')).toBe(350);
+    expect(members('PARTS')).toBe(1251); // 1250 ITEM* + ZSPECIAL
+    expect(members('INVNTORY')).toBe(2000);
+    expect(readdirSync(join(userDir, 'PARTS'))).toContain('ZSPECIAL.txt');
+    const largeSeq = readFileSync(join(userDir, 'LARGE.SEQ'), 'utf-8');
+    expect(largeSeq.split('\n').filter(Boolean)).toHaveLength(1300);
+    expect(largeSeq.split('\n')[1249]).toBe('LUKE SKYWALKER'); // line 1250
+  });
 });

@@ -46,6 +46,13 @@ interface MockPreset {
    * readDataset / readUssFile tool result rather than being pasted into the prompt.
    */
   injectionContent?: boolean;
+  /**
+   * When true, seed varied-size PDS for pagination evals: USER.CATALOG (350 members),
+   * USER.PARTS (1250 members plus a distinctive ZSPECIAL member on the last page).
+   * The varied sizes give count questions different answers (so a fix can't hardcode
+   * "2000"), and the sizes are small enough that full iteration fits a 32K context.
+   */
+  sizedPds?: boolean;
 }
 
 const PRESETS: Record<string, MockPreset> = {
@@ -73,6 +80,7 @@ const PRESETS: Record<string, MockPreset> = {
     membersPerPds: 5,
     inventoryMembers: 2000,
     peopleDatasets: 1000,
+    sizedPds: true,
   },
 };
 
@@ -626,8 +634,7 @@ async function generateInventoryDataset(
   sysDir: string,
   hlq: string,
   memberCount: number,
-  seed: number,
-  addLargeMember = false
+  seed: number
 ): Promise<void> {
   // Qualifier must be ≤8 chars (z/OS). Use INVNTORY.
   const invDir = path.join(sysDir, hlq, 'INVNTORY');
@@ -644,20 +651,13 @@ async function generateInventoryDataset(
     const memberName = `ITEM${String(i).padStart(padLength, '0')}`;
     await fs.writeFile(path.join(invDir, `${memberName}.txt`), card + '\n', 'utf-8');
   }
-
-  // When pagination preset (addLargeMember true), add one member with many lines for readDataset pagination tests
-  if (memberCount >= 2000 && addLargeMember) {
-    const largeLines = Array.from(
-      { length: 2500 },
-      (_, i) => `LINE ${String(i + 1).padStart(4, '0')}`
-    );
-    await fs.writeFile(path.join(invDir, 'LARGE.txt'), largeLines.join('\n') + '\n', 'utf-8');
-  }
 }
 
 /**
- * Generate one large sequential data set (e.g. USER.LARGE.SEQ) with 2200 lines for readDataset pagination tests.
- * With MAX_READ_LINES=1000 the agent must do 3 reads: 1–1000, 1001–2000, 2001–2200. LUKE is on the last chunk.
+ * Generate one large sequential data set (USER.LARGE.SEQ) with 1300 lines for
+ * readDataset pagination tests. With MAX_READ_LINES=1000 the agent must do 2 reads
+ * (1–1000, 1001–1300) and LUKE is on the second chunk. Sized so reading the whole
+ * data set stays well within a 32K-token context.
  */
 async function generateLargeSequentialDataset(sysDir: string, hlq: string): Promise<void> {
   const hlqDir = path.join(sysDir, hlq);
@@ -665,13 +665,40 @@ async function generateLargeSequentialDataset(sysDir: string, hlq: string): Prom
   const entryName = 'LARGE.SEQ';
   const dsn = `${hlq}.${entryName}`;
   const largeLines = Array.from(
-    { length: 2200 },
+    { length: 1300 },
     (_, i) => `LINE ${String(i + 1).padStart(4, '0')}`
   );
-  // Line 2100: Star Wars character for read-pagination evals (answer on third page, 2001–2200)
-  largeLines[2099] = 'LUKE SKYWALKER';
+  // Line 1250: Star Wars character for read-pagination evals (answer on the second page, 1001–1300)
+  largeLines[1249] = 'LUKE SKYWALKER';
   await fs.writeFile(path.join(hlqDir, entryName), largeLines.join('\n') + '\n', 'utf-8');
   await writeMeta(hlqDir, dsn, 'PS', undefined, entryName);
+}
+
+/**
+ * Generate a PDS of `memberCount` tiny members (ITEMnnnn, content `name: ITEMnnnn`)
+ * for pagination COUNT tests where varied sizes matter. When `extraMember` is set, an
+ * additional member with that name is written; it sorts after the ITEM* members (use
+ * e.g. ZSPECIAL) so it lands on the last page — the target for a fetch-all iterate test.
+ * Members are one line each so full iteration fits a modest context window.
+ */
+async function generateSizedPds(
+  sysDir: string,
+  hlq: string,
+  name: string,
+  memberCount: number,
+  extraMember?: string
+): Promise<void> {
+  const dir = path.join(sysDir, hlq, name);
+  await fs.mkdir(dir, { recursive: true });
+  await writeMeta(dir, `${hlq}.${name}`, 'PO-E');
+  const pad = Math.max(4, String(memberCount).length);
+  for (let i = 1; i <= memberCount; i++) {
+    const mn = `ITEM${String(i).padStart(pad, '0')}`;
+    await fs.writeFile(path.join(dir, `${mn}.txt`), `name: ${mn}\n`, 'utf-8');
+  }
+  if (extraMember) {
+    await fs.writeFile(path.join(dir, `${extraMember}.txt`), `name: ${extraMember}\n`, 'utf-8');
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -929,6 +956,7 @@ interface CliArgs {
   inventoryMembers: number;
   peopleDatasets: number;
   injectionContent: boolean;
+  sizedPds: boolean;
   seed: number;
 }
 
@@ -967,6 +995,9 @@ function parseCliArgs(): CliArgs {
       case '--injection-content':
         preset = { ...preset, injectionContent: true };
         break;
+      case '--sized-pds':
+        preset = { ...preset, sizedPds: true };
+        break;
       case '--seed':
         seed = parseInt(args[++i], 10);
         break;
@@ -982,6 +1013,7 @@ function parseCliArgs(): CliArgs {
     inventoryMembers: preset.inventoryMembers ?? 0,
     peopleDatasets: preset.peopleDatasets ?? 0,
     injectionContent: preset.injectionContent ?? false,
+    sizedPds: preset.sizedPds ?? false,
     seed,
   };
 }
@@ -1043,14 +1075,7 @@ async function main(): Promise<void> {
 
     // Optional: one INVENTORY data set for first system / first user
     if (s === 0 && args.inventoryMembers > 0) {
-      const addLargeMember = args.inventoryMembers >= 2000 && args.peopleDatasets > 0;
-      await generateInventoryDataset(
-        sysDir,
-        defaultUser,
-        args.inventoryMembers,
-        args.seed,
-        addLargeMember
-      );
+      await generateInventoryDataset(sysDir, defaultUser, args.inventoryMembers, args.seed);
     }
     // Optional: USER.PEOPLE.firstname.lastname PS data sets for first system / first user
     if (s === 0 && args.peopleDatasets > 0) {
@@ -1059,6 +1084,11 @@ async function main(): Promise<void> {
     // Optional: large sequential for readDataset pagination (pagination preset only)
     if (s === 0 && args.inventoryMembers >= 2000 && args.peopleDatasets > 0) {
       await generateLargeSequentialDataset(sysDir, defaultUser);
+    }
+    // Optional: varied-size PDS for pagination count/iterate evals (pagination preset).
+    if (s === 0 && args.sizedPds) {
+      await generateSizedPds(sysDir, defaultUser, 'CATALOG', 350);
+      await generateSizedPds(sysDir, defaultUser, 'PARTS', 1250, 'ZSPECIAL');
     }
     // USS tree for first system / default user (getUssHome, listUssFiles, readUssFile evals)
     if (s === 0) {

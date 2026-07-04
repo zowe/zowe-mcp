@@ -9,7 +9,9 @@
  *
  */
 
+import { createAnthropic } from '@ai-sdk/anthropic';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
+import { createOpenAI } from '@ai-sdk/openai';
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
@@ -145,6 +147,17 @@ function buildModel(evalsConfig: EvalsConfig): LanguageModel {
       name: 'lmstudio',
       baseURL: evalsConfig.baseUrl ?? 'http://localhost:1234/v1',
       apiKey: evalsConfig.apiKey ?? 'no key needed',
+    });
+    return provider(evalsConfig.serverModel) as unknown as LanguageModel;
+  }
+  if (evalsConfig.provider === 'anthropic') {
+    const provider = createAnthropic({ apiKey: evalsConfig.apiKey });
+    return provider(evalsConfig.serverModel) as unknown as LanguageModel;
+  }
+  if (evalsConfig.provider === 'openai') {
+    const provider = createOpenAI({
+      apiKey: evalsConfig.apiKey,
+      ...(evalsConfig.baseUrl ? { baseURL: evalsConfig.baseUrl } : {}),
     });
     return provider(evalsConfig.serverModel) as unknown as LanguageModel;
   }

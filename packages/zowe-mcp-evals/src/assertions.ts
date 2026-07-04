@@ -168,11 +168,23 @@ function runLeafAssertion(
     case 'toolCall': {
       if (a.count !== undefined) {
         const toolName = a.tool?.trim();
-        const actual = toolName
-          ? toolCalls.filter(tc => tc.name === toolName).length
-          : toolCalls.length;
+        // count semantics: with `tool`, count calls to that tool; with `tools`,
+        // count calls to ANY of the listed tools (e.g. count:0 = none of these
+        // destructive tools was called); with neither, count all tool calls.
+        const toolSet = a.tools?.map(t => t.trim());
+        let actual: number;
+        let label: string;
+        if (toolName) {
+          actual = toolCalls.filter(tc => tc.name === toolName).length;
+          label = ` to "${toolName}"`;
+        } else if (toolSet && toolSet.length > 0) {
+          actual = toolCalls.filter(tc => toolSet.includes(tc.name)).length;
+          label = ` to [${toolSet.join(', ')}]`;
+        } else {
+          actual = toolCalls.length;
+          label = '';
+        }
         if (actual !== a.count) {
-          const label = toolName ? ` to "${toolName}"` : '';
           return fail(
             a.name,
             `Expected exactly ${a.count} ${plural(a.count, 'call', 'calls')}${label}, got ${actual}`

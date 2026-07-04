@@ -14,12 +14,14 @@ import { existsSync, rmSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { plural } from 'zowe-mcp-common';
+import type { JudgeFn } from './assertions.js';
 import {
   buildCacheKey,
   type CachedRunResult,
   get as cacheGet,
   set as cacheSet,
   getToolsUnderTest,
+  usesAnswerJudge,
 } from './cache.js';
 import { getConfigDir, loadEvalsConfig } from './config.js';
 import {
@@ -33,10 +35,14 @@ import {
   resolveNativeServerArgs,
 } from './evals-utils.js';
 import { getSystemPrompt, initMockData, McpEvalHarness, prepareEvalWorkspace } from './harness.js';
+import { buildJudge } from './judge.js';
 import { listSetNames, loadAndValidateAllSets } from './load-questions.js';
 import { log } from './log.js';
 import { writeReport } from './report.js';
 import type { Question, QuestionSet, RunResult } from './types.js';
+
+/** Default judge model id (evals.config.json id), overridable via ZOWE_EVALS_JUDGE_MODEL. */
+const DEFAULT_JUDGE_MODEL_ID = 'gemini-3.5-flash';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -172,6 +178,29 @@ async function main(): Promise<void> {
     `Plan: ${totalQuestions} ${plural(totalQuestions, 'question', 'questions')}, ${totalRuns} total ${plural(totalRuns, 'run', 'runs')} across ${setNames.filter(s => !loadedSets.get(s)!.config.skip).length} ${plural(setNames.filter(s => !loadedSets.get(s)!.config.skip).length, 'set', 'sets')}`
   );
 
+  // Build the judge lazily: only when some question in this run actually uses
+  // answerJudge. Deterministic runs (no answerJudge) never need a judge model/key.
+  const needsJudge = setNames.some(setName => {
+    const qs = loadedSets.get(setName)!;
+    if (qs.config.skip) return false;
+    return filterQuestions(qs.questions, cli).some(
+      q => !q.skip && usesAnswerJudge(q.assertionBlock)
+    );
+  });
+  let judge: JudgeFn | undefined;
+  if (needsJudge) {
+    const judgeModelId = process.env.ZOWE_EVALS_JUDGE_MODEL ?? DEFAULT_JUDGE_MODEL_ID;
+    log.info('Loading judge model (answerJudge assertions present)', { judgeModelId });
+    try {
+      const judgeConfig = await loadEvalsConfig(judgeModelId);
+      judge = buildJudge(judgeConfig);
+      log.info('Judge model ready', { judgeModelId });
+    } catch (e) {
+      log.error(`Failed to load judge model "${judgeModelId}": ${errorMessage(e)}`);
+      process.exit(1);
+    }
+  }
+
   for (const setName of setNames) {
     const questionSet = loadedSets.get(setName)!;
     const config = questionSet.config;
@@ -279,25 +308,31 @@ async function main(): Promise<void> {
               };
               for (const tc of conversation.toolCalls)
                 allToolCalls.push({ name: tc.name, arguments: tc.arguments });
-              result = assertConversation({
-                questionId: q.id,
-                displayPrompt: q.prompt,
-                runIndex: r,
-                questionTurns: q.turns!,
-                conversation,
-              });
+              result = await assertConversation(
+                {
+                  questionId: q.id,
+                  displayPrompt: q.prompt,
+                  runIndex: r,
+                  questionTurns: q.turns!,
+                  conversation,
+                },
+                judge
+              );
             } else {
               const { finalText, toolCalls } = cached;
               for (const tc of toolCalls)
                 allToolCalls.push({ name: tc.name, arguments: tc.arguments });
-              result = assertAndRecord({
-                questionId: q.id,
-                prompt: q.prompt,
-                runIndex: r,
-                finalText,
-                toolCalls,
-                assertionBlock: q.assertionBlock,
-              });
+              result = await assertAndRecord(
+                {
+                  questionId: q.id,
+                  prompt: q.prompt,
+                  runIndex: r,
+                  finalText,
+                  toolCalls,
+                  assertionBlock: q.assertionBlock,
+                },
+                judge
+              );
             }
             questionResults.push(result);
             allResults.push(result);
@@ -318,13 +353,16 @@ async function main(): Promise<void> {
                 const conversation = await harness.runConversation(q.turns!.map(t => t.prompt));
                 for (const tc of conversation.toolCalls)
                   allToolCalls.push({ name: tc.name, arguments: tc.arguments });
-                result = assertConversation({
-                  questionId: q.id,
-                  displayPrompt: q.prompt,
-                  runIndex: r,
-                  questionTurns: q.turns!,
-                  conversation,
-                });
+                result = await assertConversation(
+                  {
+                    questionId: q.id,
+                    displayPrompt: q.prompt,
+                    runIndex: r,
+                    questionTurns: q.turns!,
+                    conversation,
+                  },
+                  judge
+                );
                 if (result.passed && !cacheCandidate) {
                   cacheCandidate = {
                     finalText: conversation.finalText,
@@ -340,17 +378,20 @@ async function main(): Promise<void> {
                 const { finalText, toolCalls } = runResult;
                 for (const tc of toolCalls)
                   allToolCalls.push({ name: tc.name, arguments: tc.arguments });
-                result = assertAndRecord({
-                  questionId: q.id,
-                  prompt: q.prompt,
-                  runIndex: r,
-                  finalText,
-                  toolCalls,
-                  assertionBlock: q.assertionBlock,
-                  durationMs: runResult.durationMs,
-                  tokenUsage: runResult.tokenUsage,
-                  stepCount: runResult.stepCount,
-                });
+                result = await assertAndRecord(
+                  {
+                    questionId: q.id,
+                    prompt: q.prompt,
+                    runIndex: r,
+                    finalText,
+                    toolCalls,
+                    assertionBlock: q.assertionBlock,
+                    durationMs: runResult.durationMs,
+                    tokenUsage: runResult.tokenUsage,
+                    stepCount: runResult.stepCount,
+                  },
+                  judge
+                );
                 if (result.passed && !cacheCandidate) {
                   cacheCandidate = { finalText, toolCalls };
                 }

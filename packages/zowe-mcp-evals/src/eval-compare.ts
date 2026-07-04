@@ -223,14 +223,17 @@ async function runSetForModel(
       if (cached) {
         for (let r = 0; r < repetitions; r++) {
           const { finalText, toolCalls } = cached;
-          const result = assertAndRecord({
-            questionId: q.id,
-            prompt: q.prompt,
-            runIndex: r,
-            finalText,
-            toolCalls,
-            assertionBlock: q.assertionBlock,
-          });
+          const result = await assertAndRecord(
+            {
+              questionId: q.id,
+              prompt: q.prompt,
+              runIndex: r,
+              finalText,
+              toolCalls,
+              assertionBlock: q.assertionBlock,
+            },
+            undefined
+          );
           questionResults.push(result);
           allResults.push(result);
           cache.stats.hits++;
@@ -247,17 +250,20 @@ async function runSetForModel(
           try {
             const runResult = await harness.runOne(q.prompt);
             const { finalText, toolCalls } = runResult;
-            const result = assertAndRecord({
-              questionId: q.id,
-              prompt: q.prompt,
-              runIndex: r,
-              finalText,
-              toolCalls,
-              assertionBlock: q.assertionBlock,
-              durationMs: runResult.durationMs,
-              tokenUsage: runResult.tokenUsage,
-              stepCount: runResult.stepCount,
-            });
+            const result = await assertAndRecord(
+              {
+                questionId: q.id,
+                prompt: q.prompt,
+                runIndex: r,
+                finalText,
+                toolCalls,
+                assertionBlock: q.assertionBlock,
+                durationMs: runResult.durationMs,
+                tokenUsage: runResult.tokenUsage,
+                stepCount: runResult.stepCount,
+              },
+              undefined
+            );
             questionResults.push(result);
             allResults.push(result);
             const icon = result.passed ? PASS : FAIL;

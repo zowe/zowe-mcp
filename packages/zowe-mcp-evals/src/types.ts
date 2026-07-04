@@ -254,8 +254,25 @@ export interface AssertAnswerContains {
   pattern?: string;
 }
 
+/**
+ * Assert that the final answer text satisfies a rubric, graded by a judge LLM.
+ * Requires a judge model to be configured (see {@link JudgeFn} in assertions.ts); when no
+ * judge is available this assertion fails with a clear message rather than being skipped.
+ */
+export interface AssertAnswerJudge {
+  type: 'answerJudge';
+  name?: string;
+  rubric: string;
+  /** Optional judge model id override (evals.config.json id). Reserved for future use. */
+  model?: string;
+}
+
 /** Leaf assertion (no nested allOf/anyOf). */
-export type Assertion = AssertToolCall | AssertToolCallOrder | AssertAnswerContains;
+export type Assertion =
+  | AssertToolCall
+  | AssertToolCallOrder
+  | AssertAnswerContains
+  | AssertAnswerJudge;
 
 /**
  * Composite: all nested items must pass (logical AND).

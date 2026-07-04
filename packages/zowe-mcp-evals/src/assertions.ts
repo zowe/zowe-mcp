@@ -14,6 +14,19 @@ import { normalizeDsnOrPattern, parseDsnAndMember } from './dsn-utils.js';
 import { getToolDsnParams } from './tool-dsn-registry.js';
 import type { Assertion, AssertionBlock, AssertionItem, ToolCallRecord } from './types.js';
 
+/** Input passed to a {@link JudgeFn} for grading an `answerJudge` assertion. */
+export interface JudgeInput {
+  rubric: string;
+  question: string;
+  answer: string;
+}
+
+/**
+ * Grades an answer against a rubric using a judge LLM. Returns pass/fail and an
+ * optional short reason (surfaced in the assertion failure message).
+ */
+export type JudgeFn = (input: JudgeInput) => Promise<{ passed: boolean; reason?: string }>;
+
 /**
  * Check if actual value matches expected. Supports:
  * - Array: actual must match any element (anyOf semantics).
@@ -127,21 +140,23 @@ function withName(name: string | undefined, msg: string): string {
 /**
  * Run a single assertion item (leaf or composite). Composites recurse.
  */
-function runAssertionItem(
+async function runAssertionItem(
   item: AssertionItem,
   toolCalls: ToolCallRecord[],
-  finalText: string
-): { passed: boolean; failedAssertion?: string } {
+  finalText: string,
+  question: string,
+  judge?: JudgeFn
+): Promise<{ passed: boolean; failedAssertion?: string }> {
   if ('allOf' in item && Array.isArray(item.allOf)) {
     for (const sub of item.allOf) {
-      const result = runAssertionItem(sub, toolCalls, finalText);
+      const result = await runAssertionItem(sub, toolCalls, finalText, question, judge);
       if (!result.passed) return result;
     }
     return { passed: true };
   }
   if ('anyOf' in item && Array.isArray(item.anyOf)) {
     for (const sub of item.anyOf) {
-      const result = runAssertionItem(sub, toolCalls, finalText);
+      const result = await runAssertionItem(sub, toolCalls, finalText, question, judge);
       if (result.passed) return { passed: true };
     }
     return {
@@ -149,7 +164,7 @@ function runAssertionItem(
       failedAssertion: 'anyOf: none of the alternatives passed',
     };
   }
-  return runLeafAssertion(item as Assertion, toolCalls, finalText);
+  return runLeafAssertion(item as Assertion, toolCalls, finalText, question, judge);
 }
 
 function fail(name: string | undefined, msg: string): { passed: false; failedAssertion: string } {
@@ -157,13 +172,15 @@ function fail(name: string | undefined, msg: string): { passed: false; failedAss
 }
 
 /**
- * Run leaf assertions (3 consolidated types).
+ * Run leaf assertions (4 consolidated types).
  */
-function runLeafAssertion(
+async function runLeafAssertion(
   a: Assertion,
   toolCalls: ToolCallRecord[],
-  finalText: string
-): { passed: boolean; failedAssertion?: string } {
+  finalText: string,
+  question: string,
+  judge?: JudgeFn
+): Promise<{ passed: boolean; failedAssertion?: string }> {
   switch (a.type) {
     case 'toolCall': {
       if (a.count !== undefined) {
@@ -322,6 +339,17 @@ function runLeafAssertion(
       break;
     }
 
+    case 'answerJudge': {
+      if (!judge) {
+        return fail(a.name, 'answerJudge requires a configured judge model');
+      }
+      const { passed, reason } = await judge({ rubric: a.rubric, question, answer: finalText });
+      if (!passed) {
+        return fail(a.name, `Judge failed rubric "${a.rubric}"${reason ? `: ${reason}` : ''}`);
+      }
+      break;
+    }
+
     default:
       return fail(undefined, `Unknown assertion type: ${String((a as { type: string }).type)}`);
   }
@@ -331,20 +359,22 @@ function runLeafAssertion(
 /**
  * Run an assertion block (mode all: every item must pass; mode any: at least one must pass).
  */
-function runAssertionBlock(
+async function runAssertionBlock(
   block: AssertionBlock,
   toolCalls: ToolCallRecord[],
-  finalText: string
-): { passed: boolean; failedAssertion?: string } {
+  finalText: string,
+  question: string,
+  judge?: JudgeFn
+): Promise<{ passed: boolean; failedAssertion?: string }> {
   if (block.mode === 'all') {
     for (const item of block.items) {
-      const result = runAssertionItem(item, toolCalls, finalText);
+      const result = await runAssertionItem(item, toolCalls, finalText, question, judge);
       if (!result.passed) return result;
     }
     return { passed: true };
   }
   for (const item of block.items) {
-    const result = runAssertionItem(item, toolCalls, finalText);
+    const result = await runAssertionItem(item, toolCalls, finalText, question, judge);
     if (result.passed) return { passed: true };
   }
   return {
@@ -355,11 +385,16 @@ function runAssertionBlock(
 
 /**
  * Run the question's assertion block. Returns passed and optional failure message.
+ * `question` is the user prompt (threaded through to `answerJudge` assertions as
+ * context for the judge). `judge`, when provided, grades `answerJudge` assertions;
+ * when omitted, any `answerJudge` assertion fails with a clear message.
  */
 export function runAssertions(
   block: AssertionBlock,
   toolCalls: ToolCallRecord[],
-  finalText: string
-): { passed: boolean; failedAssertion?: string } {
-  return runAssertionBlock(block, toolCalls, finalText);
+  finalText: string,
+  question: string,
+  judge?: JudgeFn
+): Promise<{ passed: boolean; failedAssertion?: string }> {
+  return runAssertionBlock(block, toolCalls, finalText, question, judge);
 }

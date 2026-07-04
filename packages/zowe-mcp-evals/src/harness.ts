@@ -133,7 +133,7 @@ export interface RunOneOptions {
   activeTools?: string[];
 }
 
-function buildModel(evalsConfig: EvalsConfig): LanguageModel {
+export function buildModel(evalsConfig: EvalsConfig): LanguageModel {
   if (evalsConfig.provider === 'vllm') {
     const provider = createOpenAICompatible({
       name: 'vllm',

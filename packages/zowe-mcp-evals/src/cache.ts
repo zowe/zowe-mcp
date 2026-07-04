@@ -69,6 +69,14 @@ function flattenAssertionItems(items: AssertionItem[]): Assertion[] {
 }
 
 /**
+ * True if the assertion block contains an `answerJudge` assertion anywhere (including
+ * nested inside allOf/anyOf). Used to decide whether a judge model must be loaded.
+ */
+export function usesAnswerJudge(block: AssertionBlock): boolean {
+  return flattenAssertionItems(block.items).some(a => a.type === 'answerJudge');
+}
+
+/**
  * Returns unique tool names from the assertion block (all leaf assertions that reference a tool).
  */
 export function getToolsUnderTest(block: AssertionBlock): string[] {

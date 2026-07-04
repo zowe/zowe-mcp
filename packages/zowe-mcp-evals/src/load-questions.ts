@@ -174,9 +174,19 @@ function parseAssertion(raw: unknown): Assertion {
     return { type: 'answerContains', name, substring, pattern };
   }
 
+  if (o.answerJudge !== undefined) {
+    const body = o.answerJudge as Record<string, unknown>;
+    if (!body || typeof body !== 'object') throw new Error('answerJudge value must be an object');
+    const rubric = body.rubric as string | undefined;
+    if (typeof rubric !== 'string' || !rubric)
+      throw new Error('answerJudge requires a rubric string');
+    const model = typeof body.model === 'string' ? body.model : undefined;
+    return { type: 'answerJudge', name, rubric, model };
+  }
+
   const keys = Object.keys(o).filter(k => k !== 'name');
   throw new Error(
-    `Unknown assertion key(s): ${keys.join(', ')}. Expected toolCall, toolCallOrder, or answerContains.`
+    `Unknown assertion key(s): ${keys.join(', ')}. Expected toolCall, toolCallOrder, answerContains, or answerJudge.`
   );
 }
 

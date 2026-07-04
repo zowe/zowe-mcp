@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://github.com/zowe/zowe-mcp/evals-question-set.schema.json",
   "title": "Zowe MCP Evals Question Set",
-  "description": "Schema for eval question set YAML files. Ansible-style assertions: each assertion is an object with a key (toolCall, toolCallOrder, answerContains) and an optional name.",
+  "description": "Schema for eval question set YAML files. Ansible-style assertions: each assertion is an object with a key (toolCall, toolCallOrder, answerContains, answerJudge) and an optional name.",
   "type": "object",
   "required": [],
   "anyOf": [{ "required": ["questions"] }, { "required": ["config"] }],
@@ -389,6 +389,22 @@
             "pattern": {
               "type": "string",
               "description": "Regex pattern that the final answer must match."
+            }
+          },
+          "additionalProperties": false
+        },
+        "answerJudge": {
+          "type": "object",
+          "description": "Assert final answer satisfies a rubric, graded semantically by a judge LLM. Requires a judge model to be configured for the eval run; fails with a clear message otherwise.",
+          "required": ["rubric"],
+          "properties": {
+            "rubric": {
+              "type": "string",
+              "description": "Grading criteria given to the judge LLM, e.g. 'The answer explains that X is a COBOL program that processes customer records.'"
+            },
+            "model": {
+              "type": "string",
+              "description": "Optional judge model id override (evals.config.json id). Reserved for future use."
             }
           },
           "additionalProperties": false

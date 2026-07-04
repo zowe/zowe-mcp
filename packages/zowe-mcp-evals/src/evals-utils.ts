@@ -10,6 +10,7 @@
  */
 
 import { isAbsolute, resolve } from 'node:path';
+import type { JudgeFn } from './assertions.js';
 import { runAssertions } from './assertions.js';
 import { getConfigDir } from './config.js';
 import type { AgentRunResult, ToolDefinition } from './harness.js';
@@ -79,11 +80,16 @@ interface AssertAndRecordInput {
 /**
  * Run assertions against a completed eval run and return a RunResult.
  */
-export function assertAndRecord(input: AssertAndRecordInput): RunResult {
-  const { passed, failedAssertion } = runAssertions(
+export async function assertAndRecord(
+  input: AssertAndRecordInput,
+  judge?: JudgeFn
+): Promise<RunResult> {
+  const { passed, failedAssertion } = await runAssertions(
     input.assertionBlock,
     input.toolCalls,
-    input.finalText
+    input.finalText,
+    input.prompt,
+    judge
   );
   return {
     questionId: input.questionId,
@@ -105,13 +111,16 @@ export function assertAndRecord(input: AssertAndRecordInput): RunResult {
  * turn passes; the first failing turn's message is prefixed with its turn number.
  * The returned RunResult carries cumulative tool calls and the last turn's final text.
  */
-export function assertConversation(input: {
-  questionId: string;
-  displayPrompt: string;
-  runIndex: number;
-  questionTurns: QuestionTurn[];
-  conversation: { turns: AgentRunResult[] } & AgentRunResult;
-}): RunResult {
+export async function assertConversation(
+  input: {
+    questionId: string;
+    displayPrompt: string;
+    runIndex: number;
+    questionTurns: QuestionTurn[];
+    conversation: { turns: AgentRunResult[] } & AgentRunResult;
+  },
+  judge?: JudgeFn
+): Promise<RunResult> {
   const base: RunResult = {
     questionId: input.questionId,
     prompt: input.displayPrompt,
@@ -128,13 +137,19 @@ export function assertConversation(input: {
     if (!turnRun) {
       return { ...base, passed: false, assertionFailed: `turn ${i + 1}: no agent response` };
     }
-    const { passed, failedAssertion } = runAssertions(
+    const { passed, failedAssertion } = await runAssertions(
       input.questionTurns[i].assertionBlock,
       turnRun.toolCalls,
-      turnRun.finalText
+      turnRun.finalText,
+      input.questionTurns[i].prompt,
+      judge
     );
     if (!passed) {
-      return { ...base, passed: false, assertionFailed: `turn ${i + 1}: ${failedAssertion ?? ''}` };
+      return {
+        ...base,
+        passed: false,
+        assertionFailed: `turn ${i + 1}: ${failedAssertion ?? ''}`,
+      };
     }
   }
   return base;

@@ -23,5 +23,9 @@ const processKey = randomBytes(32);
 
 export function passwordHash(password: string): string {
   if (password === '') return '<empty>';
+  // codeql[js/insufficient-password-hash]: keyed HMAC fingerprint for log correlation only,
+  // never stored or used to verify credentials. The random per-process key (never logged or
+  // persisted) means this cannot be dictionary/rainbow-table attacked without it — a stronger
+  // property than a slow keyless KDF (bcrypt/scrypt/PBKDF2) would give for this use case.
   return createHmac('sha256', processKey).update(password, 'utf8').digest('hex').slice(0, 16);
 }

@@ -344,9 +344,13 @@ async function main(): Promise<void> {
         'Native mode requires at least one system. Use --config <path> (JSON with "systems" array) or --system user@host (repeatable).'
       );
     }
+    const disableSshKey = ['1', 'true', 'yes'].includes(
+      (process.env.ZOWE_MCP_DISABLE_SSH_KEY ?? '').trim().toLowerCase()
+    );
     const nativeSetup = loadNative({
       systems,
       useEnvForPassword: true,
+      disableSshKey,
     });
     serverOptions = {
       backend: nativeSetup.backend,

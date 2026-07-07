@@ -12,6 +12,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   getStandalonePasswordFromEnv,
+  isEnvFlagSet,
   parseConnectionSpec,
   parseConnectionSpecs,
   parseZoweMcpCredentialsEnv,
@@ -115,6 +116,23 @@ describe('connection-spec', () => {
       expect(toKeyPassphraseEnvVarName('USERID', 'sys1.example.com')).toBe(
         'ZOWE_MCP_KEY_PASSPHRASE_USERID_SYS1_EXAMPLE_COM'
       );
+    });
+  });
+
+  describe('isEnvFlagSet', () => {
+    it('accepts 1, true, and yes case-insensitively', () => {
+      expect(isEnvFlagSet('1')).toBe(true);
+      expect(isEnvFlagSet('true')).toBe(true);
+      expect(isEnvFlagSet('TRUE')).toBe(true);
+      expect(isEnvFlagSet('Yes')).toBe(true);
+      expect(isEnvFlagSet('  yes  ')).toBe(true);
+    });
+    it('rejects unset, empty, and other values', () => {
+      expect(isEnvFlagSet(undefined)).toBe(false);
+      expect(isEnvFlagSet('')).toBe(false);
+      expect(isEnvFlagSet('0')).toBe(false);
+      expect(isEnvFlagSet('false')).toBe(false);
+      expect(isEnvFlagSet('no')).toBe(false);
     });
   });
 

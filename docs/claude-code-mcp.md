@@ -80,7 +80,7 @@ A ready-to-edit copy is at [`examples/claude-code-mcp.json`](examples/claude-cod
 - `--system USERID@zos.example.com` is the connection spec (replace `USERID` and the host).
 - Put **only server flags** in `args` — do **not** pass `npx`, `-y`, or `@zowe/mcp-server` when you used a real install.
 - If `zowe-mcp-server` is not on `PATH` (for example after a project-local install, or because Claude Code runs in a shell without your nvm Node), set `"command"` to the **absolute path** to the binary, e.g. `/Users/you/.nvm/versions/node/v24.15.0/bin/zowe-mcp-server`, or `./node_modules/.bin/zowe-mcp-server`.
-- **Do not commit real passwords.** See [Passwords](#3-give-the-server-a-password) below.
+- **Do not commit real passwords.** See [Authenticate to z/OS](#3-authenticate-to-zos) below.
 
 ### Option B — `claude mcp add` (CLI)
 

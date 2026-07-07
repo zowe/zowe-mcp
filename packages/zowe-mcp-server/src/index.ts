@@ -88,6 +88,7 @@ import {
 } from './zos/job-cards.js';
 import {
   formatNormalizedConnectionSpec,
+  isEnvFlagSet,
   parseConnectionSpec,
   resolveStandalonePassword,
   toPasswordEnvVarName,
@@ -1289,9 +1290,7 @@ async function main(): Promise<void> {
     const defaultResponseTimeout = 60;
     // SSH key auth is preferred (most secure) and on by default. Disable via ZOWE_MCP_DISABLE_SSH_KEY;
     // the VS Code extension sets this env var when its `zoweMCP.preferSshKey` setting is turned off.
-    const disableSshKey = ['1', 'true', 'yes'].includes(
-      (process.env.ZOWE_MCP_DISABLE_SSH_KEY ?? '').trim().toLowerCase()
-    );
+    const disableSshKey = isEnvFlagSet(process.env.ZOWE_MCP_DISABLE_SSH_KEY);
     const zowexOptionsRef = {
       current: {
         autoInstallZowex: parsed.zowexServerAutoInstall ?? true,

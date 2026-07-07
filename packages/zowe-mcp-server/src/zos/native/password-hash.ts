@@ -10,13 +10,18 @@
  */
 
 /**
- * Returns a short, non-reversible hash of a password for use in log messages.
+ * Returns a short, non-reversible fingerprint of a password for use in log messages.
  * Use this whenever logging context that involves a password (e.g. SSH auth)
  * so logs can be correlated without exposing the password.
+ *
+ * Keyed with a random, in-memory-only secret (not a plain hash of the password) so a
+ * log reader cannot dictionary/rainbow-table the fingerprint back to the password.
  */
-import { createHash } from 'node:crypto';
+import { createHmac, randomBytes } from 'node:crypto';
+
+const processKey = randomBytes(32);
 
 export function passwordHash(password: string): string {
   if (password === '') return '<empty>';
-  return createHash('sha256').update(password, 'utf8').digest('hex').slice(0, 16);
+  return createHmac('sha256', processKey).update(password, 'utf8').digest('hex').slice(0, 16);
 }

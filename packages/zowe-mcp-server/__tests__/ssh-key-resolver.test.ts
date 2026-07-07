@@ -14,6 +14,7 @@
  * ~/.ssh is read, and real generated keys (ssh2) for encryption detection.
  */
 
+import { join } from 'node:path';
 import ssh2 from 'ssh2';
 import { describe, expect, it, vi } from 'vitest';
 import type { ParsedConnectionSpec } from '../src/zos/native/connection-spec.js';
@@ -81,18 +82,19 @@ describe('getKeyPassphraseFromEnv', () => {
 
 describe('resolveSshKey', () => {
   it('prefers the explicit env override and expands ~', async () => {
+    const expandedPath = join('/home/u', 'keys/id');
     const result = await resolveSshKey(
       SPEC,
       deps({
         getEnv: name =>
           name === 'ZOWE_MCP_PRIVATE_KEY_USER_HOST_EXAMPLE_COM' ? '~/keys/id' : undefined,
         readKeyFile: p => {
-          expect(p).toBe('/home/u/keys/id');
+          expect(p).toBe(expandedPath);
           return unencrypted.private;
         },
       })
     );
-    expect(result).toEqual({ privateKeyPath: '/home/u/keys/id', encrypted: false });
+    expect(result).toEqual({ privateKeyPath: expandedPath, encrypted: false });
   });
 
   it('matches a ~/.ssh/config entry by Host alias', async () => {

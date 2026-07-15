@@ -119,9 +119,16 @@ Ideas inspired by [Gestell-AI/zowe-mcp](https://github.com/Gestell-AI/zowe-mcp) 
 
 ## Evals
 
-- **LLM-as-a-judge assertion**: Add an assertion type that uses a different (potentially stronger) model to judge whether the answer is correct, beyond simple pattern matching.
+- ✅ **LLM-as-a-judge assertion**: Added `answerJudge` assertion (`judge.ts`) — a judge-model grades free-text answer quality where `answerContains` is too rigid. See `semantic-quality.yaml`.
 - **Eval self-reflection step**: When an assertion fails, call the same or a stronger model to investigate why — suggest improvements to assertions, descriptions, or tools. Context: chat session, tool defs, model thinking, question, assertions, and error.
 - **Explicit tool calls for eval setup**: Add explicit tool calls for setup or data-fetching in assertions (similar to how Ansible can access results of commands), so evals can verify state before and after.
 - ✅ **Document eval-compare**: Documented in `packages/zowe-mcp-evals/README.md` — CLI options, examples, outputs (comparison report + scoreboard), typical workflow, and key findings.
 - ✅ **Case-insensitive pattern matching in eval assertions**: String tool args use case-insensitive substring match; `{ pattern, flags? }` on an arg value uses regex (default `flags: 'i'`). See `packages/zowe-mcp-evals/README.md` and `console.yaml`.
 - ✅ **`validDsn` assertion directive**: Add a special assertion directive for validating data set names in eval assertions, so questions don't need to enumerate all valid forms.
+- ✅ **Dataset expansion**: Grown 78 → 147 questions, 21 → 29 sets; added safety/refusal, prompt-injection (+ read-tier variant), multi-turn, error-recovery, natural-language, and host-profile preamble (`host-profile-claude-code`, `host-profile-copilot`) sets; rebalanced thin domains (search, uss, mutations, safety, tso); standardized comparison-set reps to 5. Full assessment and progress log in `notes/eval-assessment.md` (local/gitignored).
+- ✅ **Anthropic + OpenAI/Azure eval providers**: `EvalsProvider` now `vllm | gemini | lmstudio | anthropic | openai`; config resolves `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` (Azure via base-url variant).
+- **Run a first real Claude Sonnet + GPT sweep**: Providers are wired (above) but no sweep has been run yet — blocked on API keys. This is the missing enterprise-representative signal (see `notes/eval-assessment.md`).
+- **Provider prompt caching for the ~20K tool-context prefix**: Turn on provider-side prompt caching (Anthropic/OpenAI) so repeated Tier-A sweeps stay affordable (~5–8× input-token reduction). Not the same as the existing local `.evals-cache` result cache.
+- **Claude Code headless integration-smoke suite**: A small (~10–15 case) suite that runs the MCP server against `claude -p --output-format json` for end-to-end fidelity (real client + real system prompt + real orchestration), run pre-release/nightly rather than per-commit.
+- **CI core (~30 cases) + PR gate**: Define a small, cheap-model (Haiku/Flash/local) subset run on every PR, tied to tool-surface-change cadence rather than every commit.
+- **Real z/OS prompt-injection vectors**: Mock-only today; add live `getJobOutput`/console injection vectors once native test infra supports it.

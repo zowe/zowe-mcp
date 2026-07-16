@@ -159,7 +159,12 @@ export function buildModel(evalsConfig: EvalsConfig): LanguageModel {
       apiKey: evalsConfig.apiKey,
       ...(evalsConfig.baseUrl ? { baseURL: evalsConfig.baseUrl } : {}),
     });
-    return provider(evalsConfig.serverModel) as unknown as LanguageModel;
+    // Use the Chat Completions API (`/chat/completions`), not the default
+    // Responses API (`/responses`). Chat Completions is supported by real
+    // OpenAI, Azure OpenAI, and OpenAI-compatible endpoints (vLLM, LM Studio);
+    // the Responses API is not universally available on Azure / compatible
+    // servers, which is exactly what the configurable base URL targets.
+    return provider.chat(evalsConfig.serverModel) as unknown as LanguageModel;
   }
   const google = createGoogleGenerativeAI({ apiKey: evalsConfig.apiKey! });
   return google(evalsConfig.serverModel) as unknown as LanguageModel;

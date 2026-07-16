@@ -4,6 +4,7 @@
 config:
   name: jobs
   description: Agent must use listJobs or getJobStatus; requires native z/OS backend
+  skip: 'Requires a real z/OS native backend (native-config.json + live system); job tools are not implemented in mock mode. Run manually with a configured native-config.json: npm run evals -- --set jobs'
   repetitions: 1
   minSuccessRate: 0.8
   native:

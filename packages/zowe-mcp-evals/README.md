@@ -67,6 +67,7 @@ npm run evals -- --no-cache
 - **`--number <n>`** — Run only question index `n` (1-based). **`--number <start>-<end>`** — Run questions in range (e.g. `1-5`).
 - **`--id <id>`** — Run only questions whose id equals the given value. **`--id id1,id2`** — Multiple ids.
 - **`--filter <substring>`** — Run only questions whose id or prompt contains the substring (case-insensitive).
+- **`--repetitions <n>`** (alias **`--reps <n>`**) — Override each set's configured `repetitions` (e.g. `--reps 1` to run every question exactly once, useful for token/cost measurement sweeps).
 - **`--no-cache`** — Disable the development cache (see below). Use for CI or when you want every run to call the LLM.
 
 ### List models (providers in `evals.config.json`)

@@ -24,6 +24,7 @@ import {
   usesAnswerJudge,
 } from './cache.js';
 import { getConfigDir, loadEvalsConfig } from './config.js';
+import { estimateCostUsd } from './cost.js';
 import {
   assertAndRecord,
   assertConversation,
@@ -67,6 +68,7 @@ interface CliArgs {
   id?: string[];
   filter?: string;
   noCache?: boolean;
+  repetitions?: number;
 }
 
 interface CacheStats {
@@ -90,6 +92,9 @@ function parseArgs(): CliArgs {
       result.filter = args[++i];
     } else if (args[i] === '--no-cache') {
       result.noCache = true;
+    } else if ((args[i] === '--repetitions' || args[i] === '--reps') && i + 1 < args.length) {
+      const reps = parseInt(args[++i], 10);
+      if (!Number.isNaN(reps) && reps > 0) result.repetitions = reps;
     }
   }
   if (result.set.length === 0) result.set = ['all'];
@@ -170,7 +175,7 @@ async function main(): Promise<void> {
     if (qs.config.skip) continue;
     const count = filterQuestions(qs.questions, cli).filter(q => !q.skip).length;
     totalQuestions += count;
-    totalRuns += count * (qs.config.repetitions ?? 5);
+    totalRuns += count * (cli.repetitions ?? qs.config.repetitions ?? 5);
   }
   let questionIndex = 0;
 
@@ -211,7 +216,7 @@ async function main(): Promise<void> {
     }
 
     const questions = filterQuestions(questionSet.questions, cli);
-    const repetitions = config.repetitions ?? 5;
+    const repetitions = cli.repetitions ?? config.repetitions ?? 5;
     const minSuccessRate = config.minSuccessRate ?? 0.8;
     log.info('Set loaded', {
       setName,
@@ -444,6 +449,38 @@ async function main(): Promise<void> {
   const runsMsg = `Runs: ${passed}/${total} passed`;
   if (success) log.pass(runsMsg);
   else log.fail(runsMsg);
+
+  const resultsWithTokens = allResults.filter(r => r.tokenUsage != null);
+  if (resultsWithTokens.length > 0) {
+    const tokenTotals = resultsWithTokens.reduce(
+      (acc, r) => ({
+        input: acc.input + (r.tokenUsage?.input ?? 0),
+        output: acc.output + (r.tokenUsage?.output ?? 0),
+        total: acc.total + (r.tokenUsage?.total ?? 0),
+        cacheReadInputTokens: acc.cacheReadInputTokens + (r.tokenUsage?.cacheReadInputTokens ?? 0),
+        cacheCreationInputTokens:
+          acc.cacheCreationInputTokens + (r.tokenUsage?.cacheCreationInputTokens ?? 0),
+      }),
+      { input: 0, output: 0, total: 0, cacheReadInputTokens: 0, cacheCreationInputTokens: 0 }
+    );
+    if (
+      tokenTotals.input > 0 ||
+      tokenTotals.output > 0 ||
+      tokenTotals.cacheReadInputTokens > 0 ||
+      tokenTotals.cacheCreationInputTokens > 0
+    ) {
+      const cacheClause =
+        tokenTotals.cacheReadInputTokens > 0 || tokenTotals.cacheCreationInputTokens > 0
+          ? `, ${tokenTotals.cacheReadInputTokens} cache-read, ${tokenTotals.cacheCreationInputTokens} cache-write`
+          : '';
+      const cost = estimateCostUsd(tokenTotals, evalsConfig.serverModel);
+      const costClause = cost != null ? ` | Estimated cost: $${cost.toFixed(4)}` : '';
+      log.notice(
+        `Tokens: ${tokenTotals.input} in, ${tokenTotals.output} out${cacheClause}${costClause}`
+      );
+    }
+  }
+
   if (useCache) {
     const llmCalls = total - cacheStats.hits;
     log.notice(

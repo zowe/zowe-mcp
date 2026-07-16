@@ -15,7 +15,7 @@ import { createOpenAI } from '@ai-sdk/openai';
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
-import type { LanguageModel, ModelMessage } from 'ai';
+import type { LanguageModel, ModelMessage, StepResult, ToolSet } from 'ai';
 import { generateText, jsonSchema, stepCountIs, tool } from 'ai';
 import type { ChildProcess } from 'node:child_process';
 import { spawn, spawnSync } from 'node:child_process';
@@ -468,12 +468,22 @@ export class McpEvalHarness {
     if (!this.client) throw new Error('Harness not started');
     const { tools, toolCallRecords } = await this.buildAgentTools();
     const { model, systemPrompt } = this.prepareRun();
+    const isAnthropic = this.options.evalsConfig.provider === 'anthropic';
+    const messages: ModelMessage[] = [
+      {
+        role: 'system',
+        content: systemPrompt,
+        ...(isAnthropic
+          ? { providerOptions: { anthropic: { cacheControl: { type: 'ephemeral' } } } }
+          : {}),
+      },
+      { role: 'user', content: prompt },
+    ];
 
     const t0 = Date.now();
     const result = await generateText({
       model,
-      system: systemPrompt,
-      prompt,
+      messages,
       tools,
       ...(runOptions?.toolChoice != null ? { toolChoice: runOptions.toolChoice } : {}),
       ...(runOptions?.activeTools != null && runOptions.activeTools.length > 0
@@ -503,7 +513,7 @@ export class McpEvalHarness {
       finalText: result.text ?? '',
       toolCalls: toolCallRecords,
       durationMs,
-      tokenUsage: toTokenUsage(result.usage),
+      tokenUsage: toTokenUsage(result.totalUsage, sumCacheCreationInputTokens(result.steps)),
       stepCount: result.steps?.length ?? 0,
     };
   }
@@ -518,8 +528,17 @@ export class McpEvalHarness {
     if (!this.client) throw new Error('Harness not started');
     const { tools, toolCallRecords } = await this.buildAgentTools();
     const { model, systemPrompt } = this.prepareRun();
+    const isAnthropic = this.options.evalsConfig.provider === 'anthropic';
 
-    const messages: ModelMessage[] = [];
+    const messages: ModelMessage[] = [
+      {
+        role: 'system',
+        content: systemPrompt,
+        ...(isAnthropic
+          ? { providerOptions: { anthropic: { cacheControl: { type: 'ephemeral' } } } }
+          : {}),
+      },
+    ];
     const turns: AgentRunResult[] = [];
     const t0 = Date.now();
     for (const prompt of prompts) {
@@ -528,7 +547,6 @@ export class McpEvalHarness {
       messages.push({ role: 'user', content: prompt });
       const result = await generateText({
         model,
-        system: systemPrompt,
         messages,
         tools,
         stopWhen: stepCountIs(MAX_STEPS),
@@ -546,7 +564,7 @@ export class McpEvalHarness {
         finalText: result.text ?? '',
         toolCalls: toolCallRecords.slice(start),
         durationMs: Date.now() - turnT0,
-        tokenUsage: toTokenUsage(result.usage),
+        tokenUsage: toTokenUsage(result.totalUsage, sumCacheCreationInputTokens(result.steps)),
         stepCount: result.steps?.length ?? 0,
       });
     }
@@ -570,6 +588,12 @@ export class McpEvalHarness {
     const toolCallRecords: ToolCallRecord[] = [];
     const toolAliases = this.options.setConfig.toolAliases ?? {};
     const tools: Record<string, ReturnType<typeof tool>> = {};
+    // Cache the entire tool-definitions prefix by marking the last tool with
+    // cache_control (anthropic only): Anthropic renders tools → system → messages,
+    // so a breakpoint on the last tool caches all tool definitions before it.
+    const isAnthropic = this.options.evalsConfig.provider === 'anthropic';
+    const lastToolName =
+      isAnthropic && mcpTools.length > 0 ? mcpTools[mcpTools.length - 1].name : undefined;
     for (const t of mcpTools) {
       const name = t.name;
       const description = t.description ?? `Tool: ${name}`;
@@ -577,6 +601,9 @@ export class McpEvalHarness {
       tools[name] = tool({
         description,
         inputSchema: jsonSchema(schema),
+        ...(name === lastToolName
+          ? { providerOptions: { anthropic: { cacheControl: { type: 'ephemeral' } } } }
+          : {}),
         execute: async (args: unknown) => {
           const a = args as Record<string, unknown>;
           const result = await this.client!.callTool({ name, arguments: a });
@@ -618,14 +645,43 @@ interface StepFinishInfo {
   isContinued?: boolean;
 }
 
-/** Convert AI SDK usage to our TokenUsage (undefined when the provider omits usage). */
-function toTokenUsage(u: {
-  inputTokens?: number;
-  outputTokens?: number;
-  totalTokens?: number;
-}): TokenUsage | undefined {
+/**
+ * Sum cache-write (cache_creation_input_tokens) across all internal steps of a
+ * generateText() call. Anthropic-specific; a cache write typically happens on an
+ * early step (e.g. the first tool-call step, before the cache exists), so only the
+ * *last* step's providerMetadata (as exposed at the top level of the result) is not
+ * enough — every step must be summed.
+ */
+function sumCacheCreationInputTokens<TOOLS extends ToolSet>(
+  steps: readonly StepResult<TOOLS>[]
+): number {
+  return steps.reduce((sum, step) => {
+    const anthropic = step.providerMetadata?.anthropic as
+      | { cacheCreationInputTokens?: number | null }
+      | undefined;
+    return sum + (anthropic?.cacheCreationInputTokens ?? 0);
+  }, 0);
+}
+
+/** Convert AI SDK usage (+ summed cache-write tokens) to our TokenUsage (undefined when the provider omits usage). */
+function toTokenUsage(
+  u: {
+    inputTokens?: number;
+    outputTokens?: number;
+    totalTokens?: number;
+    cachedInputTokens?: number;
+  },
+  cacheCreationInputTokens: number
+): TokenUsage | undefined {
   return u
-    ? { input: u.inputTokens ?? 0, output: u.outputTokens ?? 0, total: u.totalTokens ?? 0 }
+    ? {
+        input: u.inputTokens ?? 0,
+        output: u.outputTokens ?? 0,
+        total: u.totalTokens ?? 0,
+        cacheReadInputTokens: u.cachedInputTokens,
+        cacheCreationInputTokens:
+          cacheCreationInputTokens > 0 ? cacheCreationInputTokens : undefined,
+      }
     : undefined;
 }
 
@@ -638,8 +694,12 @@ function sumTokenUsage(turns: AgentRunResult[]): TokenUsage | undefined {
       input: acc.input + (t.tokenUsage?.input ?? 0),
       output: acc.output + (t.tokenUsage?.output ?? 0),
       total: acc.total + (t.tokenUsage?.total ?? 0),
+      cacheReadInputTokens:
+        (acc.cacheReadInputTokens ?? 0) + (t.tokenUsage?.cacheReadInputTokens ?? 0),
+      cacheCreationInputTokens:
+        (acc.cacheCreationInputTokens ?? 0) + (t.tokenUsage?.cacheCreationInputTokens ?? 0),
     }),
-    { input: 0, output: 0, total: 0 }
+    { input: 0, output: 0, total: 0, cacheReadInputTokens: 0, cacheCreationInputTokens: 0 }
   );
 }
 

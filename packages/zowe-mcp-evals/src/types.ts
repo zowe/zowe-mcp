@@ -362,6 +362,10 @@ export interface TokenUsage {
   output: number;
   /** Total tokens (input + output). */
   total: number;
+  /** Anthropic prompt-cache read tokens (undefined when not reported / not applicable). */
+  cacheReadInputTokens?: number;
+  /** Anthropic prompt-cache write tokens (undefined when not reported / not applicable). */
+  cacheCreationInputTokens?: number;
 }
 
 /**

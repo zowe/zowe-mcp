@@ -90,10 +90,10 @@ describe('generateInventoryMemberCard', () => {
 });
 
 describe('prompt-injection artifacts', () => {
-  const INJECTION_ARTIFACTS = initMock.INJECTION_ARTIFACTS as ReadonlyArray<{
+  const INJECTION_ARTIFACTS = initMock.INJECTION_ARTIFACTS as readonly {
     target: string;
     injects: string;
-  }>;
+  }[];
   const injectionArtifactContents = initMock.injectionArtifactContents as (
     hlq: string
   ) => Record<string, string>;

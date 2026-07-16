@@ -700,11 +700,11 @@ describe('runAssertions', () => {
 
   describe('answerJudge', () => {
     function passingJudge(): JudgeFn {
-      return async () => ({ passed: true, reason: 'Matches the rubric.' });
+      return () => Promise.resolve({ passed: true, reason: 'Matches the rubric.' });
     }
 
     function failingJudge(reason: string): JudgeFn {
-      return async () => ({ passed: false, reason });
+      return () => Promise.resolve({ passed: false, reason });
     }
 
     it('passes when the judge passes', async () => {

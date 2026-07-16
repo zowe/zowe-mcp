@@ -49,25 +49,25 @@ The server provides **17** tools.
 
 UNIX System Services — navigate directories, read/write files, manage permissions and tags, run shell commands, and work with temporary files.
 
-| #  | Tool                                              | Description                                                                                                                                                    |
-|----|---------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| 1  | [`getUssHome`](#getusshome)                       | Return the current user's USS home directory for the active (or specified) system                                                                              |
-| 2  | [`changeUssDirectory`](#changeussdirectory)       | Set the USS current working directory for the active (or specified) system                                                                                     |
-| 3  | [`listUssFiles`](#listussfiles)                   | List files and directories in a USS path Results are paginated (default 500, max 1000 per page); follow the pagination instructions in the server instructions |
-| 4  | [`readUssFile`](#readussfile)                     | Read the content of a USS file Results may be line-windowed; follow the pagination instructions in the server instructions                                     |
-| 5  | [`writeUssFile`](#writeussfile)                   | Write or overwrite a USS file                                                                                                                                  |
-| 6  | [`createUssFile`](#createussfile)                 | Create a USS file or directory                                                                                                                                 |
-| 7  | [`deleteUssFile`](#deleteussfile)                 | Delete a USS file or directory                                                                                                                                 |
-| 8  | [`chmodUssFile`](#chmodussfile)                   | Change permissions of a USS file or directory                                                                                                                  |
-| 9  | [`chownUssFile`](#chownussfile)                   | Change owner of a USS file or directory                                                                                                                        |
-| 10 | [`chtagUssFile`](#chtagussfile)                   | Set the z/OS file tag (encoding/type) for a USS file or directory                                                                                              |
-| 11 | [`copyUssFile`](#copyussfile)                     | Copy a USS file or directory within the same z/OS system                                                                                                       |
-| 12 | [`runSafeUssCommand`](#runsafeusscommand)         | Run a Unix command on z/OS USS                                                                                                                                 |
-| 13 | [`getUssTempDir`](#getusstempdir)                 | Generate a unique USS temporary directory path as a subdirectory of the given base path (e.g. /tmp or the user home)                                           |
-| 14 | [`getUssTempPath`](#getusstemppath)               | Return a unique USS temporary file path under the given directory                                                                                              |
-| 15 | [`createTempUssDir`](#createtempussdir)           | Create a temporary USS directory                                                                                                                               |
-| 16 | [`createTempUssFile`](#createtempussfile)         | Create an empty temporary USS file at the given path, creating parent directories if needed                                                                    |
-| 17 | [`deleteUssTempUnderDir`](#deleteusstempunderdir) | Delete all files and directories under the given USS path (the path itself is removed)                                                                         |
+| #  | Tool                                              | Description                                                                                                          |
+|----|---------------------------------------------------|----------------------------------------------------------------------------------------------------------------------|
+| 1  | [`getUssHome`](#getusshome)                       | Return the current user's USS home directory for the active (or specified) system                                    |
+| 2  | [`changeUssDirectory`](#changeussdirectory)       | Set the USS current working directory for the active (or specified) system                                           |
+| 3  | [`listUssFiles`](#listussfiles)                   | List files and directories in a USS path (the z/OS UNIX equivalent of "ls")                                          |
+| 4  | [`readUssFile`](#readussfile)                     | Read the content of a USS file (the z/OS UNIX equivalent of "cat")                                                   |
+| 5  | [`writeUssFile`](#writeussfile)                   | Write or overwrite a USS file                                                                                        |
+| 6  | [`createUssFile`](#createussfile)                 | Create a USS file or directory                                                                                       |
+| 7  | [`deleteUssFile`](#deleteussfile)                 | Delete a USS file or directory                                                                                       |
+| 8  | [`chmodUssFile`](#chmodussfile)                   | Change permissions of a USS file or directory                                                                        |
+| 9  | [`chownUssFile`](#chownussfile)                   | Change owner of a USS file or directory                                                                              |
+| 10 | [`chtagUssFile`](#chtagussfile)                   | Set the z/OS file tag (encoding/type) for a USS file or directory                                                    |
+| 11 | [`copyUssFile`](#copyussfile)                     | Copy a USS file or directory within the same z/OS system                                                             |
+| 12 | [`runSafeUssCommand`](#runsafeusscommand)         | Run a Unix command on z/OS USS                                                                                       |
+| 13 | [`getUssTempDir`](#getusstempdir)                 | Generate a unique USS temporary directory path as a subdirectory of the given base path (e.g. /tmp or the user home) |
+| 14 | [`getUssTempPath`](#getusstemppath)               | Return a unique USS temporary file path under the given directory                                                    |
+| 15 | [`createTempUssDir`](#createtempussdir)           | Create a temporary USS directory                                                                                     |
+| 16 | [`createTempUssFile`](#createtempussfile)         | Create an empty temporary USS file at the given path, creating parent directories if needed                          |
+| 17 | [`deleteUssTempUnderDir`](#deleteusstempunderdir) | Delete all files and directories under the given USS path (the path itself is removed)                               |
 
 ## TSO
 
@@ -382,7 +382,7 @@ Output:
 
 > Read-only
 
-List data sets matching a DSLEVEL pattern. Results are paginated (default 500, max 1000 per page); follow the pagination instructions in the server instructions. Use the detail parameter to control response verbosity (minimal, basic, full). DSLEVEL pattern (dataset list pattern for dsnPattern). It is not the same as grep regex or Windows filename masks.
+List data sets matching a DSLEVEL pattern. Results are paginated (default 500, max 1000 per page); follow the pagination instructions in the server instructions. Use this whenever the user wants to see, list, or browse their data sets, files, or libraries (e.g. "what data sets do I have", "show my libraries", or a catalog search). Use the detail parameter to control response verbosity (minimal, basic, full). DSLEVEL pattern (dataset list pattern for dsnPattern). It is not the same as grep regex or Windows filename masks.
 
 Rules:
 - Pattern must not begin with a wildcard (first qualifier must be literal, e.g. USER or MY.HIGH.LEVEL).
@@ -417,8 +417,8 @@ Notes:
 
 | Parameter    | Type                           | Required | Description                                                                                                                                                                                                                                                                                                                       |
 |--------------|--------------------------------|----------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `dsnPattern` | `string`                       | Yes      | Fully qualified data set list pattern (e.g. USER.* or USER.**). Wildcards: * matches one qualifier, ** matches across qualifiers, % matches one character.                                                                                                                                                                        |
-| `system`     | `string`                       | No       | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system.                                                                                                                                                                                                               |
+| `dsnPattern` | `string`                       | Yes      | Fully qualified data set list pattern (e.g. USER.* or USER.**). Wildcards: * matches one qualifier, ** matches across qualifiers, % matches one character. To list ALL data sets under a high-level qualifier, use a trailing ** (e.g. USER.**); USER.* matches only the next single qualifier, not everything beneath it.        |
+| `system`     | `string`                       | No       | Optional. Target z/OS system (a host, or user@host when several connections exist). Omit it to use the active/default connection — you do not need to select or set a system first, and you should still call the tool when no system has been chosen yet. Specify it only to target a different configured system.               |
 | `volser`     | `string`                       | No       | Volume serial (VOLSER) to restrict the search to a specific DASD volume. Primarily used for uncataloged data sets that are not in the system catalog.                                                                                                                                                                             |
 | `offset`     | `integer`                      | No       | 0-based offset into the result set. Default: 0.                                                                                                                                                                                                                                                                                   |
 | `limit`      | `integer`                      | No       | Maximum number of items to return. Default: 500. Max: 1000.                                                                                                                                                                                                                                                                       |
@@ -582,13 +582,13 @@ List members of a PDS or PDS/E data set Results are paginated (default 500, max 
 
 #### Parameters
 
-| Parameter       | Type      | Required | Description                                                                                                         |
-|-----------------|-----------|----------|---------------------------------------------------------------------------------------------------------------------|
-| `dsn`           | `string`  | Yes      | Fully qualified data set name (e.g. USER.SRC.COBOL).                                                                |
-| `memberPattern` | `string`  | No       | Optional member name filter. Wildcards: * (zero or more characters), % (one character). E.g. "ABC*", "A%C".         |
-| `system`        | `string`  | No       | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system. |
-| `offset`        | `integer` | No       | 0-based offset into the result set. Default: 0.                                                                     |
-| `limit`         | `integer` | No       | Maximum number of items to return. Default: 500. Max: 1000.                                                         |
+| Parameter       | Type      | Required | Description                                                                                                                                                                                                                                                                                                         |
+|-----------------|-----------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `dsn`           | `string`  | Yes      | Fully qualified data set name (e.g. USER.SRC.COBOL).                                                                                                                                                                                                                                                                |
+| `memberPattern` | `string`  | No       | Optional member name filter. Wildcards: * (zero or more characters), % (one character). E.g. "ABC*", "A%C".                                                                                                                                                                                                         |
+| `system`        | `string`  | No       | Optional. Target z/OS system (a host, or user@host when several connections exist). Omit it to use the active/default connection — you do not need to select or set a system first, and you should still call the tool when no system has been chosen yet. Specify it only to target a different configured system. |
+| `offset`        | `integer` | No       | 0-based offset into the result set. Default: 0.                                                                                                                                                                                                                                                                     |
+| `limit`         | `integer` | No       | Maximum number of items to return. Default: 500. Max: 1000.                                                                                                                                                                                                                                                         |
 
 <a id="listmembers-output-schema"></a>
 
@@ -685,24 +685,24 @@ Output:
 
 > Read-only
 
-Search for a string in a sequential data set, PDS, or PDS/E (all members or one member). Results are paginated (default 500, max 1000 per page); follow the pagination instructions in the server instructions. Returns matching lines with line numbers and a summary. You may pass dsn as USER.LIB(MEM) and omit member. Options: caseSensitive (default false), cobol (search cols 7–72 only), ignoreSequenceNumbers (exclude cols 73–80, default true), doNotProcessComments, includeContextLines (±6 lines via LPSF)
+Search for a string in a sequential data set, PDS, or PDS/E (all members or one member). Results are paginated (default 500, max 1000 per page); follow the pagination instructions in the server instructions. Use this for "find / grep / search for TEXT in DSN" requests. Returns matching lines with line numbers and a summary. To search one member, either pass dsn as USER.LIB(MEM) (omit member) or set the member parameter. Options: caseSensitive (default false), cobol (search cols 7–72 only), ignoreSequenceNumbers (exclude cols 73–80, default true), doNotProcessComments, includeContextLines (±6 lines via LPSF)
 
 #### Parameters
 
-| Parameter               | Type       | Required | Description                                                                                                                                                                                                        |
-|-------------------------|------------|----------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `dsn`                   | `string`   | Yes      | Fully qualified data set name (e.g. USER.SRC.COBOL or SYS1.SAMPLIB).                                                                                                                                               |
-| `string`                | `string`   | Yes      | Search string (literal) to find in the data set or members.                                                                                                                                                        |
-| `system`                | `string`   | No       | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system.                                                                                                |
-| `encoding`              | `string`   | No       | Mainframe encoding (EBCDIC) for reading data set content. Overrides system and server default when set.                                                                                                            |
-| `member`                | `string`   | No       | For PDS or PDS/E only, limit search to this member (e.g. IEANTCOB). Omit to search all members or a sequential data set.                                                                                           |
-| `offset`                | `integer`  | No       | 0-based offset into the member list. Default: 0.                                                                                                                                                                   |
-| `limit`                 | `integer`  | No       | Number of members to return per page. Default: 500. Max: 1000.                                                                                                                                                     |
-| `caseSensitive`         | `boolean`  | No       | When true, match exact case. Default false (case-insensitive).                                                                                                                                                     |
-| `cobol`                 | `boolean`  | No       | When true, restrict search to columns 7–72 only (the COBOL program text area, skipping the line-number area in columns 1–6). Also called COBOL mode. Default: false.                                               |
-| `ignoreSequenceNumbers` | `boolean`  | No       | When true (default), exclude columns 73–80 from search. Columns 73–80 are the traditional card sequence-number field in fixed-length records. When false, search includes those columns as data.                   |
-| `doNotProcessComments`  | `string`[] | No       | Comment types to exclude from search: asterisk, cobolComment, fortran, cpp, pli, pascal, pcAssembly, ada (case-insensitive).                                                                                       |
-| `includeContextLines`   | `boolean`  | No       | When true, include ±6 lines of context (beforeContext/afterContext) around each match via SuperC LPSF. Only effective with the Zowe Remote SSH (zowex) backend; ignored by the fallback grep path. Default: false. |
+| Parameter               | Type       | Required | Description                                                                                                                                                                                                                                                                                                         |
+|-------------------------|------------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `dsn`                   | `string`   | Yes      | Fully qualified data set name (e.g. USER.SRC.COBOL or SYS1.SAMPLIB).                                                                                                                                                                                                                                                |
+| `string`                | `string`   | Yes      | Search string (literal) to find in the data set or members.                                                                                                                                                                                                                                                         |
+| `system`                | `string`   | No       | Optional. Target z/OS system (a host, or user@host when several connections exist). Omit it to use the active/default connection — you do not need to select or set a system first, and you should still call the tool when no system has been chosen yet. Specify it only to target a different configured system. |
+| `encoding`              | `string`   | No       | Mainframe encoding (EBCDIC) for reading data set content. Overrides system and server default when set.                                                                                                                                                                                                             |
+| `member`                | `string`   | No       | For PDS or PDS/E only, limit search to this member (e.g. IEANTCOB). Omit to search all members or a sequential data set.                                                                                                                                                                                            |
+| `offset`                | `integer`  | No       | 0-based offset into the member list. Default: 0.                                                                                                                                                                                                                                                                    |
+| `limit`                 | `integer`  | No       | Number of members to return per page. Default: 500. Max: 1000.                                                                                                                                                                                                                                                      |
+| `caseSensitive`         | `boolean`  | No       | When true, match exact case. Default false (case-insensitive).                                                                                                                                                                                                                                                      |
+| `cobol`                 | `boolean`  | No       | When true, restrict search to columns 7–72 only (the COBOL program text area, skipping the line-number area in columns 1–6). Also called COBOL mode. Default: false.                                                                                                                                                |
+| `ignoreSequenceNumbers` | `boolean`  | No       | When true (default), exclude columns 73–80 from search. Columns 73–80 are the traditional card sequence-number field in fixed-length records. When false, search includes those columns as data.                                                                                                                    |
+| `doNotProcessComments`  | `string`[] | No       | Comment types to exclude from search: asterisk, cobolComment, fortran, cpp, pli, pascal, pcAssembly, ada (case-insensitive).                                                                                                                                                                                        |
+| `includeContextLines`   | `boolean`  | No       | When true, include ±6 lines of context (beforeContext/afterContext) around each match via SuperC LPSF. Only effective with the Zowe Remote SSH (zowex) backend; ignored by the fallback grep path. Default: false.                                                                                                  |
 
 <a id="searchindataset-output-schema"></a>
 
@@ -873,10 +873,10 @@ Get detailed attributes of a data set: organization, record format, record lengt
 
 #### Parameters
 
-| Parameter | Type     | Required | Description                                                                                                         |
-|-----------|----------|----------|---------------------------------------------------------------------------------------------------------------------|
-| `dsn`     | `string` | Yes      | Fully qualified data set name (e.g. USER.SRC.COBOL).                                                                |
-| `system`  | `string` | No       | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system. |
+| Parameter | Type     | Required | Description                                                                                                                                                                                                                                                                                                         |
+|-----------|----------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `dsn`     | `string` | Yes      | Fully qualified data set name (e.g. USER.SRC.COBOL).                                                                                                                                                                                                                                                                |
+| `system`  | `string` | No       | Optional. Target z/OS system (a host, or user@host when several connections exist). Omit it to use the active/default connection — you do not need to select or set a system first, and you should still call the tool when no system has been chosen yet. Specify it only to target a different configured system. |
 
 <a id="getdatasetattributes-output-schema"></a>
 
@@ -952,14 +952,14 @@ Read the content of a sequential data set or PDS/E member. Results may be line-w
 
 #### Parameters
 
-| Parameter   | Type      | Required | Description                                                                                                                                                                                            |
-|-------------|-----------|----------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `dsn`       | `string`  | Yes      | Fully qualified data set name (e.g. USER.SRC.COBOL).                                                                                                                                                   |
-| `member`    | `string`  | No       | Member name for PDS or PDS/E data sets.                                                                                                                                                                |
-| `system`    | `string`  | No       | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system.                                                                                    |
-| `encoding`  | `string`  | No       | Mainframe encoding (EBCDIC) for this read. Overrides system and server default when set. Default: from system or MCP server default.                                                                   |
-| `startLine` | `integer` | No       | 1-based starting line number for random access — use this to jump directly to any line without reading from the beginning. Default: 1.                                                                 |
-| `lineCount` | `integer` | No       | Number of lines to return from startLine. Use with startLine to read an exact range (e.g. startLine: 20, lineCount: 10 for lines 20–29). Default: all remaining lines up to the auto-truncation limit. |
+| Parameter   | Type      | Required | Description                                                                                                                                                                                                                                                                                                         |
+|-------------|-----------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `dsn`       | `string`  | Yes      | Fully qualified data set name (e.g. USER.SRC.COBOL).                                                                                                                                                                                                                                                                |
+| `member`    | `string`  | No       | Member name for PDS or PDS/E data sets.                                                                                                                                                                                                                                                                             |
+| `system`    | `string`  | No       | Optional. Target z/OS system (a host, or user@host when several connections exist). Omit it to use the active/default connection — you do not need to select or set a system first, and you should still call the tool when no system has been chosen yet. Specify it only to target a different configured system. |
+| `encoding`  | `string`  | No       | Mainframe encoding (EBCDIC) for this read. Overrides system and server default when set. Default: from system or MCP server default.                                                                                                                                                                                |
+| `startLine` | `integer` | No       | 1-based starting line number for random access — use this to jump directly to any line without reading from the beginning. Default: 1.                                                                                                                                                                              |
+| `lineCount` | `integer` | No       | Number of lines to return from startLine. Use with startLine to read an exact range (e.g. startLine: 20, lineCount: 10 for lines 20–29). Default: all remaining lines up to the auto-truncation limit.                                                                                                              |
 
 <a id="readdataset-output-schema"></a>
 
@@ -1117,16 +1117,16 @@ Write UTF-8 content to a sequential data set or PDS/E member. When startLine and
 
 #### Parameters
 
-| Parameter   | Type       | Required | Description                                                                                                                                                                 |
-|-------------|------------|----------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `dsn`       | `string`   | Yes      | Fully qualified data set name (e.g. USER.SRC.COBOL).                                                                                                                        |
-| `lines`     | `string`[] | Yes      | UTF-8 content to write as an array of lines (one string per record).                                                                                                        |
-| `member`    | `string`   | No       | Member name for PDS or PDS/E data sets.                                                                                                                                     |
-| `system`    | `string`   | No       | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system.                                                         |
-| `etag`      | `string`   | No       | ETag from a previous readDataset call for optimistic locking.                                                                                                               |
-| `encoding`  | `string`   | No       | Mainframe encoding (EBCDIC) for this write. Overrides system and server default when set. Default: from system or MCP server default.                                       |
-| `startLine` | `number`   | No       | 1-based first line of the block to replace; use with endLine to replace a range (content line count can differ).                                                            |
-| `endLine`   | `number`   | No       | 1-based last line of the block to replace (inclusive). When provided with startLine, the replaced block can grow or shrink to match the number of lines in the lines array. |
+| Parameter   | Type       | Required | Description                                                                                                                                                                                                                                                                                                         |
+|-------------|------------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `dsn`       | `string`   | Yes      | Fully qualified data set name (e.g. USER.SRC.COBOL).                                                                                                                                                                                                                                                                |
+| `lines`     | `string`[] | Yes      | UTF-8 content to write as an array of lines (one string per record).                                                                                                                                                                                                                                                |
+| `member`    | `string`   | No       | Member name for PDS or PDS/E data sets.                                                                                                                                                                                                                                                                             |
+| `system`    | `string`   | No       | Optional. Target z/OS system (a host, or user@host when several connections exist). Omit it to use the active/default connection — you do not need to select or set a system first, and you should still call the tool when no system has been chosen yet. Specify it only to target a different configured system. |
+| `etag`      | `string`   | No       | ETag from a previous readDataset call for optimistic locking.                                                                                                                                                                                                                                                       |
+| `encoding`  | `string`   | No       | Mainframe encoding (EBCDIC) for this write. Overrides system and server default when set. Default: from system or MCP server default.                                                                                                                                                                               |
+| `startLine` | `number`   | No       | 1-based first line of the block to replace; use with endLine to replace a range (content line count can differ).                                                                                                                                                                                                    |
+| `endLine`   | `number`   | No       | 1-based last line of the block to replace (inclusive). When provided with startLine, the replaced block can grow or shrink to match the number of lines in the lines array.                                                                                                                                         |
 
 <a id="writedataset-output-schema"></a>
 
@@ -1150,21 +1150,21 @@ Create a new sequential or partitioned data set. Specify the type (PS/SEQUENTIAL
 
 #### Parameters
 
-| Parameter         | Type     | Required | Description                                                                                                                                                                                                                                          |
-|-------------------|----------|----------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `dsn`             | `string` | Yes      | Fully qualified data set name (e.g. USER.SRC.COBOL).                                                                                                                                                                                                 |
-| `type`            | `string` | Yes      | Data set organization type (DSORG): PS or SEQUENTIAL (Physical Sequential — a flat file), PO or PDS (Partitioned Data Set — a directory of members), PO-E or PDSE or LIBRARY (PDS/E — Partitioned Data Set Extended, recommended). Case-insensitive. |
-| `system`          | `string` | No       | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system.                                                                                                                                  |
-| `recfm`           | `string` | No       | Record Format (RECFM). Supported: F (Fixed), FB (Fixed Blocked), V (Variable), VB (Variable Blocked), U (Undefined), FBA, VBA. Default: FB. Case-insensitive.                                                                                        |
-| `lrecl`           | `number` | No       | Logical Record Length (LRECL) in bytes. Default: 80.                                                                                                                                                                                                 |
-| `blockSize`       | `number` | No       | Block Size (BLKSIZE) in bytes. Default: 27920.                                                                                                                                                                                                       |
-| `primarySpace`    | `number` | No       | Primary space allocation in tracks (the initial amount of disk space).                                                                                                                                                                               |
-| `secondarySpace`  | `number` | No       | Secondary space allocation in tracks (additional space allocated when primary is full).                                                                                                                                                              |
-| `dirblk`          | `number` | No       | Directory Blocks (DIRBLK) — number of 256-byte directory blocks (PDS only).                                                                                                                                                                          |
-| `volser`          | `string` | No       | Volume serial (VOLSER) to allocate the data set on (e.g. VOL001).                                                                                                                                                                                    |
-| `dataClass`       | `string` | No       | SMS Data Class for allocation (e.g. DCLAS01).                                                                                                                                                                                                        |
-| `storageClass`    | `string` | No       | SMS Storage Class for allocation (e.g. SCLAS01).                                                                                                                                                                                                     |
-| `managementClass` | `string` | No       | SMS Management Class for allocation (e.g. MCLAS01).                                                                                                                                                                                                  |
+| Parameter         | Type     | Required | Description                                                                                                                                                                                                                                                                                                         |
+|-------------------|----------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `dsn`             | `string` | Yes      | Fully qualified data set name (e.g. USER.SRC.COBOL).                                                                                                                                                                                                                                                                |
+| `type`            | `string` | Yes      | Data set organization type (DSORG): PS or SEQUENTIAL (Physical Sequential — a flat file), PO or PDS (Partitioned Data Set — a directory of members), PO-E or PDSE or LIBRARY (PDS/E — Partitioned Data Set Extended, recommended). Case-insensitive.                                                                |
+| `system`          | `string` | No       | Optional. Target z/OS system (a host, or user@host when several connections exist). Omit it to use the active/default connection — you do not need to select or set a system first, and you should still call the tool when no system has been chosen yet. Specify it only to target a different configured system. |
+| `recfm`           | `string` | No       | Record Format (RECFM). Supported: F (Fixed), FB (Fixed Blocked), V (Variable), VB (Variable Blocked), U (Undefined), FBA, VBA. Default: FB. Case-insensitive.                                                                                                                                                       |
+| `lrecl`           | `number` | No       | Logical Record Length (LRECL) in bytes. Default: 80.                                                                                                                                                                                                                                                                |
+| `blockSize`       | `number` | No       | Block Size (BLKSIZE) in bytes. Default: 27920.                                                                                                                                                                                                                                                                      |
+| `primarySpace`    | `number` | No       | Primary space allocation in tracks (the initial amount of disk space).                                                                                                                                                                                                                                              |
+| `secondarySpace`  | `number` | No       | Secondary space allocation in tracks (additional space allocated when primary is full).                                                                                                                                                                                                                             |
+| `dirblk`          | `number` | No       | Directory Blocks (DIRBLK) — number of 256-byte directory blocks (PDS only).                                                                                                                                                                                                                                         |
+| `volser`          | `string` | No       | Volume serial (VOLSER) to allocate the data set on (e.g. VOL001).                                                                                                                                                                                                                                                   |
+| `dataClass`       | `string` | No       | SMS Data Class for allocation (e.g. DCLAS01).                                                                                                                                                                                                                                                                       |
+| `storageClass`    | `string` | No       | SMS Storage Class for allocation (e.g. SCLAS01).                                                                                                                                                                                                                                                                    |
+| `managementClass` | `string` | No       | SMS Management Class for allocation (e.g. MCLAS01).                                                                                                                                                                                                                                                                 |
 
 <a id="createdataset-output-schema"></a>
 
@@ -1189,19 +1189,19 @@ Creates a new data set with a unique temporary name in a single call. Returns th
 
 #### Parameters
 
-| Parameter        | Type     | Required | Description                                                                                                                                                                                                                                          |
-|------------------|----------|----------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `type`           | `string` | Yes      | Data set organization type (DSORG): PS or SEQUENTIAL (Physical Sequential — a flat file), PO or PDS (Partitioned Data Set — a directory of members), PO-E or PDSE or LIBRARY (PDS/E — Partitioned Data Set Extended, recommended). Case-insensitive. |
-| `system`         | `string` | No       | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system.                                                                                                                                  |
-| `prefix`         | `string` | No       | HLQ for temp name (e.g. USER.TMP). Default: current user + .TMP.                                                                                                                                                                                     |
-| `suffix`         | `string` | No       | Optional suffix qualifier for the generated prefix.                                                                                                                                                                                                  |
-| `qualifier`      | `string` | No       | Last qualifier for the DSN (1–8 chars). If omitted, a unique qualifier is generated.                                                                                                                                                                 |
-| `recfm`          | `string` | No       | Record Format (RECFM). Supported: F (Fixed), FB (Fixed Blocked), V (Variable), VB (Variable Blocked), U (Undefined), FBA, VBA. Default: FB. Case-insensitive.                                                                                        |
-| `lrecl`          | `number` | No       | Logical Record Length (LRECL) in bytes. Default: 80.                                                                                                                                                                                                 |
-| `blockSize`      | `number` | No       | Block Size (BLKSIZE) in bytes. Default: 27920.                                                                                                                                                                                                       |
-| `primarySpace`   | `number` | No       | Primary space allocation in tracks (the initial amount of disk space).                                                                                                                                                                               |
-| `secondarySpace` | `number` | No       | Secondary space allocation in tracks (additional space allocated when primary is full).                                                                                                                                                              |
-| `dirblk`         | `number` | No       | Directory Blocks (DIRBLK) — number of 256-byte directory blocks (PDS only).                                                                                                                                                                          |
+| Parameter        | Type     | Required | Description                                                                                                                                                                                                                                                                                                         |
+|------------------|----------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `type`           | `string` | Yes      | Data set organization type (DSORG): PS or SEQUENTIAL (Physical Sequential — a flat file), PO or PDS (Partitioned Data Set — a directory of members), PO-E or PDSE or LIBRARY (PDS/E — Partitioned Data Set Extended, recommended). Case-insensitive.                                                                |
+| `system`         | `string` | No       | Optional. Target z/OS system (a host, or user@host when several connections exist). Omit it to use the active/default connection — you do not need to select or set a system first, and you should still call the tool when no system has been chosen yet. Specify it only to target a different configured system. |
+| `prefix`         | `string` | No       | HLQ for temp name (e.g. USER.TMP). Default: current user + .TMP.                                                                                                                                                                                                                                                    |
+| `suffix`         | `string` | No       | Optional suffix qualifier for the generated prefix.                                                                                                                                                                                                                                                                 |
+| `qualifier`      | `string` | No       | Last qualifier for the DSN (1–8 chars). If omitted, a unique qualifier is generated.                                                                                                                                                                                                                                |
+| `recfm`          | `string` | No       | Record Format (RECFM). Supported: F (Fixed), FB (Fixed Blocked), V (Variable), VB (Variable Blocked), U (Undefined), FBA, VBA. Default: FB. Case-insensitive.                                                                                                                                                       |
+| `lrecl`          | `number` | No       | Logical Record Length (LRECL) in bytes. Default: 80.                                                                                                                                                                                                                                                                |
+| `blockSize`      | `number` | No       | Block Size (BLKSIZE) in bytes. Default: 27920.                                                                                                                                                                                                                                                                      |
+| `primarySpace`   | `number` | No       | Primary space allocation in tracks (the initial amount of disk space).                                                                                                                                                                                                                                              |
+| `secondarySpace` | `number` | No       | Secondary space allocation in tracks (additional space allocated when primary is full).                                                                                                                                                                                                                             |
+| `dirblk`         | `number` | No       | Directory Blocks (DIRBLK) — number of 256-byte directory blocks (PDS only).                                                                                                                                                                                                                                         |
 
 <a id="createtempdataset-output-schema"></a>
 
@@ -1224,11 +1224,11 @@ Return a unique DSN prefix (HLQ) under which temporary data sets can be created.
 
 #### Parameters
 
-| Parameter | Type     | Required | Description                                                                                                         |
-|-----------|----------|----------|---------------------------------------------------------------------------------------------------------------------|
-| `prefix`  | `string` | No       | HLQ for temp names (e.g. USER.TMP). Default: current user on the target system + .TMP.                              |
-| `suffix`  | `string` | No       | Optional suffix qualifier (last part of the generated prefix).                                                      |
-| `system`  | `string` | No       | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system. |
+| Parameter | Type     | Required | Description                                                                                                                                                                                                                                                                                                         |
+|-----------|----------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `prefix`  | `string` | No       | HLQ for temp names (e.g. USER.TMP). Default: current user on the target system + .TMP.                                                                                                                                                                                                                              |
+| `suffix`  | `string` | No       | Optional suffix qualifier (last part of the generated prefix).                                                                                                                                                                                                                                                      |
+| `system`  | `string` | No       | Optional. Target z/OS system (a host, or user@host when several connections exist). Omit it to use the active/default connection — you do not need to select or set a system first, and you should still call the tool when no system has been chosen yet. Specify it only to target a different configured system. |
 
 <a id="gettempdatasetprefix-output-schema"></a>
 
@@ -1268,12 +1268,12 @@ Returns a single unique full temporary data set name (for one data set). The DSN
 
 #### Parameters
 
-| Parameter   | Type     | Required | Description                                                                                                         |
-|-------------|----------|----------|---------------------------------------------------------------------------------------------------------------------|
-| `prefix`    | `string` | No       | HLQ for temp names (e.g. USER.TMP). Default: current user on the target system + .TMP.                              |
-| `suffix`    | `string` | No       | Optional suffix qualifier for the generated prefix.                                                                 |
-| `qualifier` | `string` | No       | Last qualifier for the DSN (e.g. DATA, 1–8 chars). If omitted, a unique qualifier is generated.                     |
-| `system`    | `string` | No       | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system. |
+| Parameter   | Type     | Required | Description                                                                                                                                                                                                                                                                                                         |
+|-------------|----------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `prefix`    | `string` | No       | HLQ for temp names (e.g. USER.TMP). Default: current user on the target system + .TMP.                                                                                                                                                                                                                              |
+| `suffix`    | `string` | No       | Optional suffix qualifier for the generated prefix.                                                                                                                                                                                                                                                                 |
+| `qualifier` | `string` | No       | Last qualifier for the DSN (e.g. DATA, 1–8 chars). If omitted, a unique qualifier is generated.                                                                                                                                                                                                                     |
+| `system`    | `string` | No       | Optional. Target z/OS system (a host, or user@host when several connections exist). Omit it to use the active/default connection — you do not need to select or set a system first, and you should still call the tool when no system has been chosen yet. Specify it only to target a different configured system. |
 
 <a id="gettempdatasetname-output-schema"></a>
 
@@ -1312,13 +1312,13 @@ Copy a data set or PDS or PDS/E member within a single z/OS system. You may pass
 
 #### Parameters
 
-| Parameter      | Type     | Required | Description                                                                                                         |
-|----------------|----------|----------|---------------------------------------------------------------------------------------------------------------------|
-| `sourceDsn`    | `string` | Yes      | Fully qualified source data set name (e.g. USER.SRC.COBOL).                                                         |
-| `targetDsn`    | `string` | Yes      | Fully qualified target data set name (e.g. USER.SRC.BACKUP).                                                        |
-| `sourceMember` | `string` | No       | Source member name (for copying a single member).                                                                   |
-| `targetMember` | `string` | No       | Target member name (defaults to source member name).                                                                |
-| `system`       | `string` | No       | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system. |
+| Parameter      | Type     | Required | Description                                                                                                                                                                                                                                                                                                         |
+|----------------|----------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `sourceDsn`    | `string` | Yes      | Fully qualified source data set name (e.g. USER.SRC.COBOL).                                                                                                                                                                                                                                                         |
+| `targetDsn`    | `string` | Yes      | Fully qualified target data set name (e.g. USER.SRC.BACKUP).                                                                                                                                                                                                                                                        |
+| `sourceMember` | `string` | No       | Source member name (for copying a single member).                                                                                                                                                                                                                                                                   |
+| `targetMember` | `string` | No       | Target member name (defaults to source member name).                                                                                                                                                                                                                                                                |
+| `system`       | `string` | No       | Optional. Target z/OS system (a host, or user@host when several connections exist). Omit it to use the active/default connection — you do not need to select or set a system first, and you should still call the tool when no system has been chosen yet. Specify it only to target a different configured system. |
 
 <a id="copydataset-output-schema"></a>
 
@@ -1342,13 +1342,13 @@ Rename a data set or PDS or PDS/E member. You may pass dsn as USER.LIB(MEM) and 
 
 #### Parameters
 
-| Parameter   | Type     | Required | Description                                                                                                         |
-|-------------|----------|----------|---------------------------------------------------------------------------------------------------------------------|
-| `dsn`       | `string` | Yes      | Fully qualified data set name (e.g. USER.SRC.COBOL).                                                                |
-| `newDsn`    | `string` | Yes      | Fully qualified new data set name (e.g. USER.SRC.NEW).                                                              |
-| `member`    | `string` | No       | Current member name (for renaming a member within a PDS or PDS/E).                                                  |
-| `newMember` | `string` | No       | New member name.                                                                                                    |
-| `system`    | `string` | No       | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system. |
+| Parameter   | Type     | Required | Description                                                                                                                                                                                                                                                                                                         |
+|-------------|----------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `dsn`       | `string` | Yes      | Fully qualified data set name (e.g. USER.SRC.COBOL).                                                                                                                                                                                                                                                                |
+| `newDsn`    | `string` | Yes      | Fully qualified new data set name (e.g. USER.SRC.NEW).                                                                                                                                                                                                                                                              |
+| `member`    | `string` | No       | Current member name (for renaming a member within a PDS or PDS/E).                                                                                                                                                                                                                                                  |
+| `newMember` | `string` | No       | New member name.                                                                                                                                                                                                                                                                                                    |
+| `system`    | `string` | No       | Optional. Target z/OS system (a host, or user@host when several connections exist). Omit it to use the active/default connection — you do not need to select or set a system first, and you should still call the tool when no system has been chosen yet. Specify it only to target a different configured system. |
 
 <a id="renamedataset-output-schema"></a>
 
@@ -1373,11 +1373,11 @@ Delete a data set or a specific PDS or PDS/E member. You may pass dsn as USER.LI
 
 #### Parameters
 
-| Parameter | Type     | Required | Description                                                                                                         |
-|-----------|----------|----------|---------------------------------------------------------------------------------------------------------------------|
-| `dsn`     | `string` | Yes      | Fully qualified data set name (e.g. USER.SRC.COBOL).                                                                |
-| `member`  | `string` | No       | Member name to delete (if omitting, the entire data set is deleted).                                                |
-| `system`  | `string` | No       | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system. |
+| Parameter | Type     | Required | Description                                                                                                                                                                                                                                                                                                         |
+|-----------|----------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `dsn`     | `string` | Yes      | Fully qualified data set name (e.g. USER.SRC.COBOL).                                                                                                                                                                                                                                                                |
+| `member`  | `string` | No       | Member name to delete (if omitting, the entire data set is deleted).                                                                                                                                                                                                                                                |
+| `system`  | `string` | No       | Optional. Target z/OS system (a host, or user@host when several connections exist). Omit it to use the active/default connection — you do not need to select or set a system first, and you should still call the tool when no system has been chosen yet. Specify it only to target a different configured system. |
 
 <a id="deletedataset-output-schema"></a>
 
@@ -1401,10 +1401,10 @@ Delete all data sets whose names start with the given prefix (e.g. tempDsnPrefix
 
 #### Parameters
 
-| Parameter   | Type     | Required | Description                                                                                                                                                    |
-|-------------|----------|----------|----------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `dsnPrefix` | `string` | Yes      | Fully qualified prefix (e.g. USER.TMP.A1B2C3D4.E5F6G7H8). All data sets matching this prefix will be deleted. Must have at least 3 qualifiers and contain TMP. |
-| `system`    | `string` | No       | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system.                                            |
+| Parameter   | Type     | Required | Description                                                                                                                                                                                                                                                                                                         |
+|-------------|----------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `dsnPrefix` | `string` | Yes      | Fully qualified prefix (e.g. USER.TMP.A1B2C3D4.E5F6G7H8). All data sets matching this prefix will be deleted. Must have at least 3 qualifiers and contain TMP.                                                                                                                                                      |
+| `system`    | `string` | No       | Optional. Target z/OS system (a host, or user@host when several connections exist). Omit it to use the active/default connection — you do not need to select or set a system first, and you should still call the tool when no system has been chosen yet. Specify it only to target a different configured system. |
 
 <a id="deletedatasetsunderprefix-output-schema"></a>
 
@@ -1428,10 +1428,10 @@ Restore (recall) a migrated data set from the hierarchical storage manager (HSM/
 
 #### Parameters
 
-| Parameter | Type     | Required | Description                                                                                                         |
-|-----------|----------|----------|---------------------------------------------------------------------------------------------------------------------|
-| `dsn`     | `string` | Yes      | Fully qualified data set name (e.g. USER.ARCHIVE.DATA).                                                             |
-| `system`  | `string` | No       | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system. |
+| Parameter | Type     | Required | Description                                                                                                                                                                                                                                                                                                         |
+|-----------|----------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `dsn`     | `string` | Yes      | Fully qualified data set name (e.g. USER.ARCHIVE.DATA).                                                                                                                                                                                                                                                             |
+| `system`  | `string` | No       | Optional. Target z/OS system (a host, or user@host when several connections exist). Omit it to use the active/default connection — you do not need to select or set a system first, and you should still call the tool when no system has been chosen yet. Specify it only to target a different configured system. |
 
 <a id="restoredataset-output-schema"></a>
 
@@ -1455,9 +1455,9 @@ Return the current user's USS home directory for the active (or specified) syste
 
 #### Parameters
 
-| Parameter | Type     | Required | Description                                                                                                         |
-|-----------|----------|----------|---------------------------------------------------------------------------------------------------------------------|
-| `system`  | `string` | No       | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system. |
+| Parameter | Type     | Required | Description                                                                                                                                                                                                                                                                                                         |
+|-----------|----------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `system`  | `string` | No       | Optional. Target z/OS system (a host, or user@host when several connections exist). Omit it to use the active/default connection — you do not need to select or set a system first, and you should still call the tool when no system has been chosen yet. Specify it only to target a different configured system. |
 
 <a id="getusshome-output-schema"></a>
 
@@ -1501,10 +1501,10 @@ Set the USS current working directory for the active (or specified) system. Path
 
 #### Parameters
 
-| Parameter | Type     | Required | Description                                                                                                         |
-|-----------|----------|----------|---------------------------------------------------------------------------------------------------------------------|
-| `path`    | `string` | Yes      | Directory path to set as current working directory (absolute or relative to current cwd).                           |
-| `system`  | `string` | No       | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system. |
+| Parameter | Type     | Required | Description                                                                                                                                                                                                                                                                                                         |
+|-----------|----------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `path`    | `string` | Yes      | Directory path to set as current working directory (absolute or relative to current cwd).                                                                                                                                                                                                                           |
+| `system`  | `string` | No       | Optional. Target z/OS system (a host, or user@host when several connections exist). Omit it to use the active/default connection — you do not need to select or set a system first, and you should still call the tool when no system has been chosen yet. Specify it only to target a different configured system. |
 
 <a id="changeussdirectory-output-schema"></a>
 
@@ -1550,18 +1550,18 @@ Output:
 
 > Read-only
 
-List files and directories in a USS path Results are paginated (default 500, max 1000 per page); follow the pagination instructions in the server instructions.
+List files and directories in a USS path (the z/OS UNIX equivalent of "ls"). Results are paginated (default 500, max 1000 per page); follow the pagination instructions in the server instructions. Use for requests like "ls", "show the files in <dir>", or "what is in my home directory" (resolve the home directory with getUssHome when the user means "home").
 
 #### Parameters
 
-| Parameter       | Type      | Required | Description                                                                                                         |
-|-----------------|-----------|----------|---------------------------------------------------------------------------------------------------------------------|
-| `path`          | `string`  | Yes      | USS directory path: absolute (starts with /) or relative to current working directory (see getContext.ussCwd).      |
-| `system`        | `string`  | No       | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system. |
-| `includeHidden` | `boolean` | No       | Include hidden files (names starting with .). (default: `false`)                                                    |
-| `longFormat`    | `boolean` | No       | Return long format (mode, size, mtime, name). (default: `false`)                                                    |
-| `offset`        | `integer` | No       | 0-based offset. Default: 0.                                                                                         |
-| `limit`         | `integer` | No       | Max items per page. Default: 500. Max: 1000.                                                                        |
+| Parameter       | Type      | Required | Description                                                                                                                                                                                                                                                                                                         |
+|-----------------|-----------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `path`          | `string`  | Yes      | USS directory path: absolute (starts with /) or relative to current working directory (see getContext.ussCwd).                                                                                                                                                                                                      |
+| `system`        | `string`  | No       | Optional. Target z/OS system (a host, or user@host when several connections exist). Omit it to use the active/default connection — you do not need to select or set a system first, and you should still call the tool when no system has been chosen yet. Specify it only to target a different configured system. |
+| `includeHidden` | `boolean` | No       | Include hidden files (names starting with .). (default: `false`)                                                                                                                                                                                                                                                    |
+| `longFormat`    | `boolean` | No       | Return long format (mode, size, mtime, name). (default: `false`)                                                                                                                                                                                                                                                    |
+| `offset`        | `integer` | No       | 0-based offset. Default: 0.                                                                                                                                                                                                                                                                                         |
+| `limit`         | `integer` | No       | Max items per page. Default: 500. Max: 1000.                                                                                                                                                                                                                                                                        |
 
 <a id="listussfiles-output-schema"></a>
 
@@ -1664,17 +1664,17 @@ Output:
 
 > Read-only
 
-Read the content of a USS file Results may be line-windowed; follow the pagination instructions in the server instructions.
+Read the content of a USS file (the z/OS UNIX equivalent of "cat"). Results may be line-windowed; follow the pagination instructions in the server instructions. Use for "cat / open / show / read <file>".
 
 #### Parameters
 
-| Parameter   | Type      | Required | Description                                                                                                         |
-|-------------|-----------|----------|---------------------------------------------------------------------------------------------------------------------|
-| `path`      | `string`  | Yes      | USS file path: absolute (starts with /) or relative to current working directory (see getContext.ussCwd).           |
-| `system`    | `string`  | No       | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system. |
-| `encoding`  | `string`  | No       | Mainframe (EBCDIC) encoding for the file. Omit to use system default or file tag.                                   |
-| `startLine` | `integer` | No       | 1-based first line to return. Default: 1.                                                                           |
-| `lineCount` | `integer` | No       | Number of lines to return. Omit for default window size.                                                            |
+| Parameter   | Type      | Required | Description                                                                                                                                                                                                                                                                                                         |
+|-------------|-----------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `path`      | `string`  | Yes      | USS file path: absolute (starts with /) or relative to current working directory (see getContext.ussCwd).                                                                                                                                                                                                           |
+| `system`    | `string`  | No       | Optional. Target z/OS system (a host, or user@host when several connections exist). Omit it to use the active/default connection — you do not need to select or set a system first, and you should still call the tool when no system has been chosen yet. Specify it only to target a different configured system. |
+| `encoding`  | `string`  | No       | Mainframe (EBCDIC) encoding for the file. Omit to use system default or file tag.                                                                                                                                                                                                                                   |
+| `startLine` | `integer` | No       | 1-based first line to return. Default: 1.                                                                                                                                                                                                                                                                           |
+| `lineCount` | `integer` | No       | Number of lines to return. Omit for default window size.                                                                                                                                                                                                                                                            |
 
 <a id="readussfile-output-schema"></a>
 
@@ -1756,13 +1756,13 @@ Write or overwrite a USS file. Creates the file if it does not exist.
 
 #### Parameters
 
-| Parameter  | Type       | Required | Description                                                                                                         |
-|------------|------------|----------|---------------------------------------------------------------------------------------------------------------------|
-| `path`     | `string`   | Yes      | USS file path: absolute (starts with /) or relative to current working directory (see getContext.ussCwd).           |
-| `lines`    | `string`[] | Yes      | UTF-8 content to write as an array of lines (one string per line).                                                  |
-| `system`   | `string`   | No       | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system. |
-| `etag`     | `string`   | No       | ETag for optimistic locking.                                                                                        |
-| `encoding` | `string`   | No       | Mainframe encoding. Omit for default.                                                                               |
+| Parameter  | Type       | Required | Description                                                                                                                                                                                                                                                                                                         |
+|------------|------------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `path`     | `string`   | Yes      | USS file path: absolute (starts with /) or relative to current working directory (see getContext.ussCwd).                                                                                                                                                                                                           |
+| `lines`    | `string`[] | Yes      | UTF-8 content to write as an array of lines (one string per line).                                                                                                                                                                                                                                                  |
+| `system`   | `string`   | No       | Optional. Target z/OS system (a host, or user@host when several connections exist). Omit it to use the active/default connection — you do not need to select or set a system first, and you should still call the tool when no system has been chosen yet. Specify it only to target a different configured system. |
+| `etag`     | `string`   | No       | ETag for optimistic locking.                                                                                                                                                                                                                                                                                        |
+| `encoding` | `string`   | No       | Mainframe encoding. Omit for default.                                                                                                                                                                                                                                                                               |
 
 <a id="writeussfile-output-schema"></a>
 
@@ -1786,12 +1786,12 @@ Create a USS file or directory.
 
 #### Parameters
 
-| Parameter     | Type      | Required | Description                                                                                                         |
-|---------------|-----------|----------|---------------------------------------------------------------------------------------------------------------------|
-| `path`        | `string`  | Yes      | USS path to create: absolute or relative to current working directory (see getContext.ussCwd).                      |
-| `isDirectory` | `boolean` | Yes      | True to create a directory, false for a regular file.                                                               |
-| `system`      | `string`  | No       | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system. |
-| `permissions` | `string`  | No       | Octal permissions (e.g. 755).                                                                                       |
+| Parameter     | Type      | Required | Description                                                                                                                                                                                                                                                                                                         |
+|---------------|-----------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `path`        | `string`  | Yes      | USS path to create: absolute or relative to current working directory (see getContext.ussCwd).                                                                                                                                                                                                                      |
+| `isDirectory` | `boolean` | Yes      | True to create a directory, false for a regular file.                                                                                                                                                                                                                                                               |
+| `system`      | `string`  | No       | Optional. Target z/OS system (a host, or user@host when several connections exist). Omit it to use the active/default connection — you do not need to select or set a system first, and you should still call the tool when no system has been chosen yet. Specify it only to target a different configured system. |
+| `permissions` | `string`  | No       | Octal permissions (e.g. 755).                                                                                                                                                                                                                                                                                       |
 
 <a id="createussfile-output-schema"></a>
 
@@ -1814,11 +1814,11 @@ Delete a USS file or directory. Use recursive for directories.
 
 #### Parameters
 
-| Parameter   | Type      | Required | Description                                                                                                         |
-|-------------|-----------|----------|---------------------------------------------------------------------------------------------------------------------|
-| `path`      | `string`  | Yes      | USS path to delete: absolute or relative to current working directory (see getContext.ussCwd).                      |
-| `system`    | `string`  | No       | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system. |
-| `recursive` | `boolean` | No       | If true, delete directory and contents. (default: `false`)                                                          |
+| Parameter   | Type      | Required | Description                                                                                                                                                                                                                                                                                                         |
+|-------------|-----------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `path`      | `string`  | Yes      | USS path to delete: absolute or relative to current working directory (see getContext.ussCwd).                                                                                                                                                                                                                      |
+| `system`    | `string`  | No       | Optional. Target z/OS system (a host, or user@host when several connections exist). Omit it to use the active/default connection — you do not need to select or set a system first, and you should still call the tool when no system has been chosen yet. Specify it only to target a different configured system. |
+| `recursive` | `boolean` | No       | If true, delete directory and contents. (default: `false`)                                                                                                                                                                                                                                                          |
 
 <a id="deleteussfile-output-schema"></a>
 
@@ -1841,12 +1841,12 @@ Change permissions of a USS file or directory.
 
 #### Parameters
 
-| Parameter   | Type      | Required | Description                                                                                                         |
-|-------------|-----------|----------|---------------------------------------------------------------------------------------------------------------------|
-| `path`      | `string`  | Yes      | USS path: absolute or relative to current working directory (see getContext.ussCwd).                                |
-| `mode`      | `string`  | Yes      | Octal mode (e.g. 755).                                                                                              |
-| `system`    | `string`  | No       | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system. |
-| `recursive` | `boolean` | No       | Apply recursively. (default: `false`)                                                                               |
+| Parameter   | Type      | Required | Description                                                                                                                                                                                                                                                                                                         |
+|-------------|-----------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `path`      | `string`  | Yes      | USS path: absolute or relative to current working directory (see getContext.ussCwd).                                                                                                                                                                                                                                |
+| `mode`      | `string`  | Yes      | Octal mode (e.g. 755).                                                                                                                                                                                                                                                                                              |
+| `system`    | `string`  | No       | Optional. Target z/OS system (a host, or user@host when several connections exist). Omit it to use the active/default connection — you do not need to select or set a system first, and you should still call the tool when no system has been chosen yet. Specify it only to target a different configured system. |
+| `recursive` | `boolean` | No       | Apply recursively. (default: `false`)                                                                                                                                                                                                                                                                               |
 
 <a id="chmodussfile-output-schema"></a>
 
@@ -1868,12 +1868,12 @@ Change owner of a USS file or directory.
 
 #### Parameters
 
-| Parameter   | Type      | Required | Description                                                                                                         |
-|-------------|-----------|----------|---------------------------------------------------------------------------------------------------------------------|
-| `path`      | `string`  | Yes      | USS path: absolute or relative to current working directory (see getContext.ussCwd).                                |
-| `owner`     | `string`  | Yes      | New owner.                                                                                                          |
-| `system`    | `string`  | No       | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system. |
-| `recursive` | `boolean` | No       | Apply recursively. (default: `false`)                                                                               |
+| Parameter   | Type      | Required | Description                                                                                                                                                                                                                                                                                                         |
+|-------------|-----------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `path`      | `string`  | Yes      | USS path: absolute or relative to current working directory (see getContext.ussCwd).                                                                                                                                                                                                                                |
+| `owner`     | `string`  | Yes      | New owner.                                                                                                                                                                                                                                                                                                          |
+| `system`    | `string`  | No       | Optional. Target z/OS system (a host, or user@host when several connections exist). Omit it to use the active/default connection — you do not need to select or set a system first, and you should still call the tool when no system has been chosen yet. Specify it only to target a different configured system. |
+| `recursive` | `boolean` | No       | Apply recursively. (default: `false`)                                                                                                                                                                                                                                                                               |
 
 <a id="chownussfile-output-schema"></a>
 
@@ -1895,12 +1895,12 @@ Set the z/OS file tag (encoding/type) for a USS file or directory.
 
 #### Parameters
 
-| Parameter   | Type      | Required | Description                                                                                                                                                           |
-|-------------|-----------|----------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `path`      | `string`  | Yes      | USS path: absolute or relative to current working directory (see getContext.ussCwd).                                                                                  |
-| `tag`       | `string`  | Yes      | File tag value: a coded character set identifier (CCSID) name or number. Common values: ISO8859-1, IBM-1047 (EBCDIC), UTF-8, binary. Use "binary" for non-text files. |
-| `system`    | `string`  | No       | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system.                                                   |
-| `recursive` | `boolean` | No       | Apply recursively. (default: `false`)                                                                                                                                 |
+| Parameter   | Type      | Required | Description                                                                                                                                                                                                                                                                                                         |
+|-------------|-----------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `path`      | `string`  | Yes      | USS path: absolute or relative to current working directory (see getContext.ussCwd).                                                                                                                                                                                                                                |
+| `tag`       | `string`  | Yes      | File tag value: a coded character set identifier (CCSID) name or number. Common values: ISO8859-1, IBM-1047 (EBCDIC), UTF-8, binary. Use "binary" for non-text files.                                                                                                                                               |
+| `system`    | `string`  | No       | Optional. Target z/OS system (a host, or user@host when several connections exist). Omit it to use the active/default connection — you do not need to select or set a system first, and you should still call the tool when no system has been chosen yet. Specify it only to target a different configured system. |
+| `recursive` | `boolean` | No       | Apply recursively. (default: `false`)                                                                                                                                                                                                                                                                               |
 
 <a id="chtagussfile-output-schema"></a>
 
@@ -1922,15 +1922,15 @@ Copy a USS file or directory within the same z/OS system. For directories, set r
 
 #### Parameters
 
-| Parameter            | Type      | Required | Description                                                                                                         |
-|----------------------|-----------|----------|---------------------------------------------------------------------------------------------------------------------|
-| `sourcePath`         | `string`  | Yes      | Source USS path: absolute (starts with /) or relative to current working directory.                                 |
-| `targetPath`         | `string`  | Yes      | Destination USS path: absolute (starts with /) or relative to current working directory.                            |
-| `recursive`          | `boolean` | No       | Copy directories recursively. (default: `false`)                                                                    |
-| `followSymlinks`     | `boolean` | No       | Follow symlinks when copying recursively. (default: `false`)                                                        |
-| `preserveAttributes` | `boolean` | No       | Preserve permissions and ownership. (default: `false`)                                                              |
-| `force`              | `boolean` | No       | Replace files that cannot be opened (like cp -f). (default: `false`)                                                |
-| `system`             | `string`  | No       | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system. |
+| Parameter            | Type      | Required | Description                                                                                                                                                                                                                                                                                                         |
+|----------------------|-----------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `sourcePath`         | `string`  | Yes      | Source USS path: absolute (starts with /) or relative to current working directory.                                                                                                                                                                                                                                 |
+| `targetPath`         | `string`  | Yes      | Destination USS path: absolute (starts with /) or relative to current working directory.                                                                                                                                                                                                                            |
+| `recursive`          | `boolean` | No       | Copy directories recursively. (default: `false`)                                                                                                                                                                                                                                                                    |
+| `followSymlinks`     | `boolean` | No       | Follow symlinks when copying recursively. (default: `false`)                                                                                                                                                                                                                                                        |
+| `preserveAttributes` | `boolean` | No       | Preserve permissions and ownership. (default: `false`)                                                                                                                                                                                                                                                              |
+| `force`              | `boolean` | No       | Replace files that cannot be opened (like cp -f). (default: `false`)                                                                                                                                                                                                                                                |
+| `system`             | `string`  | No       | Optional. Target z/OS system (a host, or user@host when several connections exist). Omit it to use the active/default connection — you do not need to select or set a system first, and you should still call the tool when no system has been chosen yet. Specify it only to target a different configured system. |
 
 <a id="copyussfile-output-schema"></a>
 
@@ -1955,12 +1955,12 @@ Run a Unix command on z/OS USS. Results may be line-windowed; follow the paginat
 
 #### Parameters
 
-| Parameter     | Type      | Required | Description                                                                                                         |
-|---------------|-----------|----------|---------------------------------------------------------------------------------------------------------------------|
-| `commandText` | `string`  | Yes      | The Unix command line to execute (e.g. ls -la /tmp, whoami, pwd).                                                   |
-| `system`      | `string`  | No       | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system. |
-| `startLine`   | `integer` | No       | 1-based first line of output to return. Default: 1.                                                                 |
-| `lineCount`   | `integer` | No       | Number of lines to return. Omit for default window size.                                                            |
+| Parameter     | Type      | Required | Description                                                                                                                                                                                                                                                                                                         |
+|---------------|-----------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `commandText` | `string`  | Yes      | The Unix command line to execute (e.g. ls -la /tmp, whoami, pwd).                                                                                                                                                                                                                                                   |
+| `system`      | `string`  | No       | Optional. Target z/OS system (a host, or user@host when several connections exist). Omit it to use the active/default connection — you do not need to select or set a system first, and you should still call the tool when no system has been chosen yet. Specify it only to target a different configured system. |
+| `startLine`   | `integer` | No       | 1-based first line of output to return. Default: 1.                                                                                                                                                                                                                                                                 |
+| `lineCount`   | `integer` | No       | Number of lines to return. Omit for default window size.                                                                                                                                                                                                                                                            |
 
 <a id="runsafeusscommand-output-schema"></a>
 
@@ -2040,10 +2040,10 @@ Generate a unique USS temporary directory path as a subdirectory of the given ba
 
 #### Parameters
 
-| Parameter  | Type     | Required | Description                                                                                                         |
-|------------|----------|----------|---------------------------------------------------------------------------------------------------------------------|
-| `basePath` | `string` | Yes      | Base directory: absolute or relative to current working directory (see getContext.ussCwd).                          |
-| `system`   | `string` | No       | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system. |
+| Parameter  | Type     | Required | Description                                                                                                                                                                                                                                                                                                         |
+|------------|----------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `basePath` | `string` | Yes      | Base directory: absolute or relative to current working directory (see getContext.ussCwd).                                                                                                                                                                                                                          |
+| `system`   | `string` | No       | Optional. Target z/OS system (a host, or user@host when several connections exist). Omit it to use the active/default connection — you do not need to select or set a system first, and you should still call the tool when no system has been chosen yet. Specify it only to target a different configured system. |
 
 <a id="getusstempdir-output-schema"></a>
 
@@ -2066,11 +2066,11 @@ Return a unique USS temporary file path under the given directory. The path is v
 
 #### Parameters
 
-| Parameter | Type     | Required | Description                                                                                                         |
-|-----------|----------|----------|---------------------------------------------------------------------------------------------------------------------|
-| `dirPath` | `string` | Yes      | Parent directory: absolute or relative to current working directory (see getContext.ussCwd).                        |
-| `prefix`  | `string` | No       | Optional filename prefix.                                                                                           |
-| `system`  | `string` | No       | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system. |
+| Parameter | Type     | Required | Description                                                                                                                                                                                                                                                                                                         |
+|-----------|----------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `dirPath` | `string` | Yes      | Parent directory: absolute or relative to current working directory (see getContext.ussCwd).                                                                                                                                                                                                                        |
+| `prefix`  | `string` | No       | Optional filename prefix.                                                                                                                                                                                                                                                                                           |
+| `system`  | `string` | No       | Optional. Target z/OS system (a host, or user@host when several connections exist). Omit it to use the active/default connection — you do not need to select or set a system first, and you should still call the tool when no system has been chosen yet. Specify it only to target a different configured system. |
 
 <a id="getusstemppath-output-schema"></a>
 
@@ -2092,11 +2092,11 @@ Create a temporary USS directory. Typically use a path from getUssTempDir. Creat
 
 #### Parameters
 
-| Parameter     | Type     | Required | Description                                                                                                         |
-|---------------|----------|----------|---------------------------------------------------------------------------------------------------------------------|
-| `path`        | `string` | Yes      | USS directory path: absolute or relative to current working directory (see getContext.ussCwd).                      |
-| `system`      | `string` | No       | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system. |
-| `permissions` | `string` | No       | Octal permissions (e.g. 755).                                                                                       |
+| Parameter     | Type     | Required | Description                                                                                                                                                                                                                                                                                                         |
+|---------------|----------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `path`        | `string` | Yes      | USS directory path: absolute or relative to current working directory (see getContext.ussCwd).                                                                                                                                                                                                                      |
+| `system`      | `string` | No       | Optional. Target z/OS system (a host, or user@host when several connections exist). Omit it to use the active/default connection — you do not need to select or set a system first, and you should still call the tool when no system has been chosen yet. Specify it only to target a different configured system. |
+| `permissions` | `string` | No       | Octal permissions (e.g. 755).                                                                                                                                                                                                                                                                                       |
 
 <a id="createtempussdir-output-schema"></a>
 
@@ -2118,10 +2118,10 @@ Create an empty temporary USS file at the given path, creating parent directorie
 
 #### Parameters
 
-| Parameter | Type     | Required | Description                                                                                                         |
-|-----------|----------|----------|---------------------------------------------------------------------------------------------------------------------|
-| `path`    | `string` | Yes      | USS file path: absolute or relative to current working directory (see getContext.ussCwd).                           |
-| `system`  | `string` | No       | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system. |
+| Parameter | Type     | Required | Description                                                                                                                                                                                                                                                                                                         |
+|-----------|----------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `path`    | `string` | Yes      | USS file path: absolute or relative to current working directory (see getContext.ussCwd).                                                                                                                                                                                                                           |
+| `system`  | `string` | No       | Optional. Target z/OS system (a host, or user@host when several connections exist). Omit it to use the active/default connection — you do not need to select or set a system first, and you should still call the tool when no system has been chosen yet. Specify it only to target a different configured system. |
 
 <a id="createtempussfile-output-schema"></a>
 
@@ -2144,10 +2144,10 @@ Delete all files and directories under the given USS path (the path itself is re
 
 #### Parameters
 
-| Parameter | Type     | Required | Description                                                                                                                                  |
-|-----------|----------|----------|----------------------------------------------------------------------------------------------------------------------------------------------|
-| `path`    | `string` | Yes      | USS path to delete recursively: absolute or relative to current working directory (see getContext.ussCwd); must contain "tmp" and min depth. |
-| `system`  | `string` | No       | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system.                          |
+| Parameter | Type     | Required | Description                                                                                                                                                                                                                                                                                                         |
+|-----------|----------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `path`    | `string` | Yes      | USS path to delete recursively: absolute or relative to current working directory (see getContext.ussCwd); must contain "tmp" and min depth.                                                                                                                                                                        |
+| `system`  | `string` | No       | Optional. Target z/OS system (a host, or user@host when several connections exist). Omit it to use the active/default connection — you do not need to select or set a system first, and you should still call the tool when no system has been chosen yet. Specify it only to target a different configured system. |
 
 <a id="deleteusstempunderdir-output-schema"></a>
 
@@ -2171,12 +2171,12 @@ Run a TSO command on z/OS. Results may be line-windowed; follow the pagination i
 
 #### Parameters
 
-| Parameter     | Type      | Required | Description                                                                                                         |
-|---------------|-----------|----------|---------------------------------------------------------------------------------------------------------------------|
-| `commandText` | `string`  | Yes      | The TSO command to execute (e.g. LISTDS 'USER.DATA', LISTALC, LISTCAT, STATUS).                                     |
-| `system`      | `string`  | No       | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system. |
-| `startLine`   | `integer` | No       | 1-based first line of output to return. Default: 1.                                                                 |
-| `lineCount`   | `integer` | No       | Number of lines to return. Omit for default window size.                                                            |
+| Parameter     | Type      | Required | Description                                                                                                                                                                                                                                                                                                         |
+|---------------|-----------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `commandText` | `string`  | Yes      | The TSO command to execute (e.g. LISTDS 'USER.DATA', LISTALC, LISTCAT, STATUS).                                                                                                                                                                                                                                     |
+| `system`      | `string`  | No       | Optional. Target z/OS system (a host, or user@host when several connections exist). Omit it to use the active/default connection — you do not need to select or set a system first, and you should still call the tool when no system has been chosen yet. Specify it only to target a different configured system. |
+| `startLine`   | `integer` | No       | 1-based first line of output to return. Default: 1.                                                                                                                                                                                                                                                                 |
+| `lineCount`   | `integer` | No       | Number of lines to return. Omit for default window size.                                                                                                                                                                                                                                                            |
 
 <a id="runsafetsocommand-output-schema"></a>
 
@@ -2241,7 +2241,7 @@ Output:
 ```json
 // isError: true
 {
-  "error": "OSHELL runs arbitrary USS commands (fails with rc 255 in ZNP)."
+  "error": "This TSO command was BLOCKED by the z/OS MCP safety policy and was NOT run. OSHELL runs arbitrary USS commands (fails with rc 255 in ZNP). Do not retry it or explain how to run it; if it is genuinely required, advise the user to run it through an authorized channel (such as a 3270 session) under their own authority."
 }
 ```
 
@@ -2705,14 +2705,14 @@ Download a sequential data set or PDS/E member from z/OS to a file under the wor
 
 #### Parameters
 
-| Parameter   | Type      | Required | Description                                                                                                                                                  |
-|-------------|-----------|----------|--------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `dsn`       | `string`  | Yes      | Fully qualified data set name (e.g. USER.SRC.COBOL).                                                                                                         |
-| `member`    | `string`  | No       | Member name for PDS or PDS/E data sets.                                                                                                                      |
-| `localPath` | `string`  | Yes      | Destination file path: absolute, or relative to the first workspace root when using roots/fallback. Parent directories are created automatically if missing. |
-| `system`    | `string`  | No       | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system.                                          |
-| `encoding`  | `string`  | No       | Mainframe (EBCDIC) encoding for the read.                                                                                                                    |
-| `overwrite` | `boolean` | No       | Allow overwriting an existing local file (default false).                                                                                                    |
+| Parameter   | Type      | Required | Description                                                                                                                                                                                                                                                                                                         |
+|-------------|-----------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `dsn`       | `string`  | Yes      | Fully qualified data set name (e.g. USER.SRC.COBOL).                                                                                                                                                                                                                                                                |
+| `member`    | `string`  | No       | Member name for PDS or PDS/E data sets.                                                                                                                                                                                                                                                                             |
+| `localPath` | `string`  | Yes      | Destination file path: absolute, or relative to the first workspace root when using roots/fallback. Parent directories are created automatically if missing.                                                                                                                                                        |
+| `system`    | `string`  | No       | Optional. Target z/OS system (a host, or user@host when several connections exist). Omit it to use the active/default connection — you do not need to select or set a system first, and you should still call the tool when no system has been chosen yet. Specify it only to target a different configured system. |
+| `encoding`  | `string`  | No       | Mainframe (EBCDIC) encoding for the read.                                                                                                                                                                                                                                                                           |
+| `overwrite` | `boolean` | No       | Allow overwriting an existing local file (default false).                                                                                                                                                                                                                                                           |
 
 <a id="downloaddatasettofile-output-schema"></a>
 
@@ -2741,14 +2741,14 @@ Upload a UTF-8 text file from the workspace to a sequential data set or PDS/E me
 
 #### Parameters
 
-| Parameter   | Type     | Required | Description                                                                                                         |
-|-------------|----------|----------|---------------------------------------------------------------------------------------------------------------------|
-| `localPath` | `string` | Yes      | Source file path under an MCP root or configured workspace directory.                                               |
-| `dsn`       | `string` | Yes      | Fully qualified data set name.                                                                                      |
-| `member`    | `string` | No       | Member name for PDS or PDS/E data sets.                                                                             |
-| `system`    | `string` | No       | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system. |
-| `etag`      | `string` | No       | ETag from a previous read for optimistic locking.                                                                   |
-| `encoding`  | `string` | No       | Mainframe (EBCDIC) encoding for the write.                                                                          |
+| Parameter   | Type     | Required | Description                                                                                                                                                                                                                                                                                                         |
+|-------------|----------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `localPath` | `string` | Yes      | Source file path under an MCP root or configured workspace directory.                                                                                                                                                                                                                                               |
+| `dsn`       | `string` | Yes      | Fully qualified data set name.                                                                                                                                                                                                                                                                                      |
+| `member`    | `string` | No       | Member name for PDS or PDS/E data sets.                                                                                                                                                                                                                                                                             |
+| `system`    | `string` | No       | Optional. Target z/OS system (a host, or user@host when several connections exist). Omit it to use the active/default connection — you do not need to select or set a system first, and you should still call the tool when no system has been chosen yet. Specify it only to target a different configured system. |
+| `etag`      | `string` | No       | ETag from a previous read for optimistic locking.                                                                                                                                                                                                                                                                   |
+| `encoding`  | `string` | No       | Mainframe (EBCDIC) encoding for the write.                                                                                                                                                                                                                                                                          |
 
 <a id="uploadfiletodataset-output-schema"></a>
 
@@ -2769,13 +2769,13 @@ Download a z/OS USS file to a local workspace file as UTF-8 text. Path must be u
 
 #### Parameters
 
-| Parameter   | Type      | Required | Description                                                                                                            |
-|-------------|-----------|----------|------------------------------------------------------------------------------------------------------------------------|
-| `path`      | `string`  | Yes      | USS file path on z/OS (absolute or relative to USS cwd; see getContext).                                               |
-| `localPath` | `string`  | Yes      | Destination path under workspace roots or fallback directory. Parent directories are created automatically if missing. |
-| `system`    | `string`  | No       | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system.    |
-| `encoding`  | `string`  | No       | Mainframe encoding for the file read.                                                                                  |
-| `overwrite` | `boolean` | No       | Allow overwriting an existing local file (default false).                                                              |
+| Parameter   | Type      | Required | Description                                                                                                                                                                                                                                                                                                         |
+|-------------|-----------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `path`      | `string`  | Yes      | USS file path on z/OS (absolute or relative to USS cwd; see getContext).                                                                                                                                                                                                                                            |
+| `localPath` | `string`  | Yes      | Destination path under workspace roots or fallback directory. Parent directories are created automatically if missing.                                                                                                                                                                                              |
+| `system`    | `string`  | No       | Optional. Target z/OS system (a host, or user@host when several connections exist). Omit it to use the active/default connection — you do not need to select or set a system first, and you should still call the tool when no system has been chosen yet. Specify it only to target a different configured system. |
+| `encoding`  | `string`  | No       | Mainframe encoding for the file read.                                                                                                                                                                                                                                                                               |
+| `overwrite` | `boolean` | No       | Allow overwriting an existing local file (default false).                                                                                                                                                                                                                                                           |
 
 <a id="downloadussfiletofile-output-schema"></a>
 
@@ -2799,13 +2799,13 @@ Upload a UTF-8 workspace file to a z/OS USS path. Creates or overwrites the remo
 
 #### Parameters
 
-| Parameter   | Type     | Required | Description                                                                                                         |
-|-------------|----------|----------|---------------------------------------------------------------------------------------------------------------------|
-| `localPath` | `string` | Yes      | Source file under workspace roots or fallback directory.                                                            |
-| `path`      | `string` | Yes      | Target USS path on z/OS.                                                                                            |
-| `system`    | `string` | No       | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system. |
-| `etag`      | `string` | No       | ETag for optimistic locking.                                                                                        |
-| `encoding`  | `string` | No       | Mainframe encoding for the write.                                                                                   |
+| Parameter   | Type     | Required | Description                                                                                                                                                                                                                                                                                                         |
+|-------------|----------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `localPath` | `string` | Yes      | Source file under workspace roots or fallback directory.                                                                                                                                                                                                                                                            |
+| `path`      | `string` | Yes      | Target USS path on z/OS.                                                                                                                                                                                                                                                                                            |
+| `system`    | `string` | No       | Optional. Target z/OS system (a host, or user@host when several connections exist). Omit it to use the active/default connection — you do not need to select or set a system first, and you should still call the tool when no system has been chosen yet. Specify it only to target a different configured system. |
+| `etag`      | `string` | No       | ETag for optimistic locking.                                                                                                                                                                                                                                                                                        |
+| `encoding`  | `string` | No       | Mainframe encoding for the write.                                                                                                                                                                                                                                                                                   |
 
 <a id="uploadfiletoussfile-output-schema"></a>
 
@@ -2826,13 +2826,13 @@ Download one job spool file from z/OS to a local workspace file as UTF-8 text. U
 
 #### Parameters
 
-| Parameter   | Type      | Required | Description                                                                                                            |
-|-------------|-----------|----------|------------------------------------------------------------------------------------------------------------------------|
-| `jobId`     | `string`  | Yes      | Job ID (e.g. JOB00123).                                                                                                |
-| `jobFileId` | `integer` | Yes      | Spool file ID from listJobFiles.                                                                                       |
-| `localPath` | `string`  | Yes      | Destination path under workspace roots or fallback directory. Parent directories are created automatically if missing. |
-| `system`    | `string`  | No       | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system.    |
-| `overwrite` | `boolean` | No       | Allow overwriting an existing local file (default false).                                                              |
+| Parameter   | Type      | Required | Description                                                                                                                                                                                                                                                                                                         |
+|-------------|-----------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `jobId`     | `string`  | Yes      | Job ID (e.g. JOB00123).                                                                                                                                                                                                                                                                                             |
+| `jobFileId` | `integer` | Yes      | Spool file ID from listJobFiles.                                                                                                                                                                                                                                                                                    |
+| `localPath` | `string`  | Yes      | Destination path under workspace roots or fallback directory. Parent directories are created automatically if missing.                                                                                                                                                                                              |
+| `system`    | `string`  | No       | Optional. Target z/OS system (a host, or user@host when several connections exist). Omit it to use the active/default connection — you do not need to select or set a system first, and you should still call the tool when no system has been chosen yet. Specify it only to target a different configured system. |
+| `overwrite` | `boolean` | No       | Allow overwriting an existing local file (default false).                                                                                                                                                                                                                                                           |
 
 <a id="downloadjobfiletofile-output-schema"></a>
 

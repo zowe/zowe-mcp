@@ -265,11 +265,7 @@ describe('cache get/set', () => {
     const key = 'badturns00000001';
     const path = join(cacheDir, key + '.json');
     // finalText/toolCalls valid, but a turn is missing toolCalls.
-    writeFileSync(
-      path,
-      '{"finalText":"x","toolCalls":[],"turns":[{"finalText":"y"}]}',
-      'utf-8'
-    );
+    writeFileSync(path, '{"finalText":"x","toolCalls":[],"turns":[{"finalText":"y"}]}', 'utf-8');
     const got = await get(cacheDir, key);
     expect(got).toBeNull();
   });

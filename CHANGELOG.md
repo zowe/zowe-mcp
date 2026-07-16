@@ -14,4 +14,12 @@ don't warrant an entry (CI, chores, internal refactors, docs-only) can carry the
 
 ## [Unreleased]
 
-_Nothing yet._
+### Added
+
+- **SSH key authentication** for the native (Zowe Remote SSH / zowex) backend, preferred
+  over passwords and requiring no Zowe MCP configuration. Uses a `~/.ssh/config`
+  `IdentityFile` or a default `~/.ssh/id_*` key; falls back to the existing password flow
+  when no usable key is found or the key is rejected, so existing password users are
+  unaffected. Resolution order: SSH key → password env → Vault KV → interactive prompt.
+  New VS Code setting `zoweMCP.preferSshKey` (default on). See the README's
+  "Authentication (in order of preference)" section for details.

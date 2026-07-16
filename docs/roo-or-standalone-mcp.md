@@ -68,7 +68,28 @@ If `zowe-mcp-server` is not on `PATH`, set `"command"` to the **absolute path** 
 
 **Optional — `npx`:** only when you want npm to download/run the package each time; requires a registry that can resolve `@zowe/mcp-server`.
 
-## Passwords (standalone)
+## Authentication (standalone)
+
+The server authenticates in this order, falling back automatically:
+**SSH key → password env var → Vault KV → interactive prompt (when supported).**
+
+### Preferred: SSH key (most secure, zero-config)
+
+If you already use an SSH key to reach z/OS, the server uses it automatically from
+your existing `~/.ssh` setup (a `~/.ssh/config` `IdentityFile` for the host, or a
+default `~/.ssh/id_*` key) — no password env var needed. A private key, especially
+a passphrase-protected one, is safer than a password in an environment variable.
+
+```bash
+# Optional overrides (only if needed)
+export ZOWE_MCP_PRIVATE_KEY_USERID_ZOS_EXAMPLE_COM=~/.ssh/id_mainframe
+export ZOWE_MCP_KEY_PASSPHRASE_USERID_ZOS_EXAMPLE_COM='key passphrase'
+export ZOWE_MCP_DISABLE_SSH_KEY=1   # disable key auth, always use a password
+```
+
+ssh-agent keys are not supported in this release — only key files on disk.
+
+### Fallback: passwords
 
 Without the VS Code extension, passwords are not collected via the extension pipe. Use one or both of the following.
 

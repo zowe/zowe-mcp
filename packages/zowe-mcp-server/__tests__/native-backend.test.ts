@@ -341,6 +341,64 @@ describe('NativeBackend', () => {
       expect(options.onPasswordInvalid).toHaveBeenCalledWith(SPEC.user, SPEC.host, SPEC.port);
     });
 
+    it('on SSH key auth failure, falls back to password and retries once', async () => {
+      const fakeClient = createFakeClient();
+      const keyError = new Error('Permission denied (publickey)');
+      const getOrCreate = vi
+        .fn()
+        .mockRejectedValueOnce(keyError) // key attempt fails
+        .mockResolvedValueOnce(fakeClient); // password retry succeeds
+      const getCredentials = vi
+        .fn()
+        .mockResolvedValueOnce({
+          user: SPEC.user,
+          privateKeyPath: '/home/u/.ssh/id_ed25519',
+          authMethod: 'key',
+        })
+        .mockResolvedValueOnce({ user: SPEC.user, password: 'secret', authMethod: 'password' });
+      const markKeyFailed = vi.fn();
+      const evict = vi.fn();
+      const options = createOptions({
+        credentialProvider: { getCredentials, markInvalid: vi.fn(), markKeyFailed },
+        clientCache: { getOrCreate, evict, hasKey: vi.fn().mockReturnValue(false) },
+      });
+      const backend = new NativeBackend(options);
+
+      const result = await backend.listDatasets(SYSTEM_ID, 'USER.*');
+
+      expect(result).toHaveLength(1);
+      expect(markKeyFailed).toHaveBeenCalledWith(SPEC);
+      expect(evict).toHaveBeenCalledWith(SPEC);
+      expect(getCredentials).toHaveBeenCalledTimes(2);
+      expect(getOrCreate).toHaveBeenCalledTimes(2);
+      // Second connection attempt uses the password credentials.
+      expect(getOrCreate).toHaveBeenLastCalledWith(
+        SPEC,
+        { user: SPEC.user, password: 'secret', authMethod: 'password' },
+        undefined
+      );
+    });
+
+    it('does not fall back to password when password auth fails (no key in use)', async () => {
+      const getCredentials = vi
+        .fn()
+        .mockResolvedValue({ user: SPEC.user, password: 'secret', authMethod: 'password' });
+      const markKeyFailed = vi.fn();
+      const options = createOptions({
+        credentialProvider: { getCredentials, markInvalid: vi.fn(), markKeyFailed },
+        clientCache: {
+          getOrCreate: vi.fn().mockRejectedValue(new Error('Permission denied (publickey)')),
+          evict: vi.fn(),
+          hasKey: vi.fn().mockReturnValue(false),
+        },
+      });
+      const backend = new NativeBackend(options);
+
+      await expect(backend.listDatasets(SYSTEM_ID, 'USER.*')).rejects.toThrow();
+      expect(markKeyFailed).not.toHaveBeenCalled();
+      expect(getCredentials).toHaveBeenCalledTimes(1);
+    });
+
     it('classifies "All configured authentication methods failed" as invalid password', async () => {
       const authError = new Error('All configured authentication methods failed');
       const options = createOptions({

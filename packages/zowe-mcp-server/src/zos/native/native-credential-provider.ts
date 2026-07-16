@@ -30,6 +30,7 @@ import type { ParsedConnectionSpec } from './connection-spec.js';
 import { resolveStandalonePassword, toPasswordEnvVarName } from './connection-spec.js';
 import { passwordHash } from './password-hash.js';
 import { cacheKey } from './ssh-client-cache.js';
+import { getKeyPassphraseFromEnv, resolveSshKey } from './ssh-key-resolver.js';
 
 const log = getLogger().child('native.credentials');
 
@@ -78,6 +79,11 @@ export interface NativeCredentialProviderOptions {
   requestPasswordViaElicitation?: RequestPasswordViaElicitation;
   /** When set, called after returning credentials that came from elicitation, so the extension can persist the password. */
   onElicitedPasswordUsed?: OnElicitedPasswordUsed;
+  /**
+   * When true, never attempt SSH key authentication; always use the password flow.
+   * Standalone: set from ZOWE_MCP_DISABLE_SSH_KEY. VS Code: set when zoweMCP.preferSshKey is off.
+   */
+  disableSshKey?: boolean;
 }
 
 /**
@@ -96,6 +102,12 @@ export class NativeCredentialProvider implements CredentialProvider {
   private readonly elicitedStandaloneByKey = new Map<string, string>();
   /** In-flight password requests by key so concurrent getCredentials() for the same connection wait for the first request. */
   private readonly _passwordRequestByKey = new Map<string, Promise<string>>();
+  /**
+   * Connections whose SSH key authentication failed (or whose encrypted key had no usable
+   * passphrase). For these, skip key auth and go straight to password for the rest of the session.
+   * Set by {@link markKeyFailed}; cleared only on process exit.
+   */
+  private readonly keyFailedKeys = new Set<string>();
 
   constructor(private readonly options: NativeCredentialProviderOptions) {
     this._applySpecs(options.connectionSpecs);
@@ -132,6 +144,64 @@ export class NativeCredentialProvider implements CredentialProvider {
     if (this.options.useEnvForPassword) {
       this.elicitedStandaloneByKey.delete(key);
     }
+  }
+
+  /**
+   * Mark SSH key authentication as failed for a connection so subsequent getCredentials()
+   * calls skip the key and use the password flow. Called by the backend when a key-auth
+   * failure is detected so the password fallback takes over.
+   */
+  markKeyFailed(spec: ParsedConnectionSpec): void {
+    const key = cacheKey(spec);
+    if (!this.keyFailedKeys.has(key)) {
+      this.keyFailedKeys.add(key);
+      log.info(
+        'SSH key auth unavailable/failed; using password for this connection this session',
+        {
+          key,
+          host: spec.host,
+          port: spec.port,
+          user: spec.user,
+        }
+      );
+    }
+  }
+
+  /**
+   * Try to resolve SSH key credentials for a connection (preferred over password).
+   * Returns undefined when no usable key is found (caller falls back to password), e.g. no key
+   * file is present, or the key is encrypted and no passphrase is available.
+   */
+  private async tryResolveKeyCredentials(
+    spec: ParsedConnectionSpec
+  ): Promise<Credentials | undefined> {
+    const resolved = await resolveSshKey(spec);
+    if (!resolved) return undefined;
+
+    let keyPassphrase: string | undefined;
+    if (resolved.encrypted) {
+      keyPassphrase = getKeyPassphraseFromEnv(spec);
+      if (keyPassphrase === undefined) {
+        // Encrypted key with no available passphrase: cannot use it without prompting.
+        // Interactive passphrase elicitation is a follow-up; fall back to password for now.
+        log.info(
+          'SSH key is encrypted but no passphrase is configured; falling back to password',
+          {
+            host: spec.host,
+            port: spec.port,
+            user: spec.user,
+          }
+        );
+        return undefined;
+      }
+    }
+
+    return {
+      user: spec.user,
+      privateKeyPath: resolved.privateKeyPath,
+      keyPassphrase,
+      authMethod: 'key',
+    };
   }
 
   /**
@@ -243,6 +313,23 @@ export class NativeCredentialProvider implements CredentialProvider {
     }
 
     const key = cacheKey(spec);
+
+    // Prefer SSH key authentication (most secure, zero-config) over passwords. Skip when disabled
+    // or when key auth already failed for this connection this session. Falls through to the
+    // password flow when no usable key is found.
+    if (!this.options.disableSshKey && !this.keyFailedKeys.has(key)) {
+      const keyCredentials = await this.tryResolveKeyCredentials(spec);
+      if (keyCredentials) {
+        log.debug('Using SSH key authentication', {
+          key,
+          host: spec.host,
+          port: spec.port,
+          user: spec.user,
+        });
+        return keyCredentials;
+      }
+    }
+
     // Only block invalid credentials in standalone mode. When connected to the VS Code extension,
     // the extension can re-prompt and the password was already removed from the store in markInvalid().
     if (this.options.useEnvForPassword && this.invalidKeys.has(key)) {
@@ -373,7 +460,7 @@ export class NativeCredentialProvider implements CredentialProvider {
       }
     }
 
-    return { user: spec.user, password: password };
+    return { user: spec.user, password: password, authMethod: 'password' };
   }
 
   async listUsers(systemId: SystemId): Promise<string[]> {

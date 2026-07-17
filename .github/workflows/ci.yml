@@ -223,7 +223,7 @@ jobs:
           --outputFile.junit=test-results.junit.xml
 
       - name: Publish test results
-        uses: dorny/test-reporter@v2
+        uses: dorny/test-reporter@v3
         # Needs checks:write — skip for fork PRs (their token is read-only).
         if: ${{ !cancelled() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
         with:

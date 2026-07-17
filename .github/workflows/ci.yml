@@ -253,7 +253,7 @@ jobs:
       # VS Code extension tests (@vscode/test-cli downloads VS Code; needs a
       # display on Linux, hence xvfb-run). The download is cached.
       - name: Cache VS Code test download
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: packages/zowe-mcp-vscode/.vscode-test
           key: vscode-test-${{ runner.os }}-${{ hashFiles('packages/zowe-mcp-vscode/package.json') }}
@@ -364,7 +364,7 @@ jobs:
       # Cache the VS Code download here too (keyed per-OS) so Windows/macOS don't
       # re-fetch the editor every run — it was previously cached only on Linux.
       - name: Cache VS Code test download
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: packages/zowe-mcp-vscode/.vscode-test
           key: vscode-test-${{ runner.os }}-${{ hashFiles('packages/zowe-mcp-vscode/package.json') }}

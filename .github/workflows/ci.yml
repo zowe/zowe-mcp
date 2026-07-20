@@ -53,7 +53,7 @@ jobs:
     outputs:
       code: ${{ steps.filter.outputs.code }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - id: filter
@@ -107,9 +107,9 @@ jobs:
     timeout-minutes: 15
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version-file: '.nvmrc'
           cache: npm
@@ -155,7 +155,7 @@ jobs:
       - name: Upload ESLint SARIF
         # security-events:write is unavailable to fork-PR tokens — skip there.
         if: ${{ !cancelled() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: eslint-results.sarif
           category: eslint
@@ -170,9 +170,9 @@ jobs:
     timeout-minutes: 30
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version-file: '.nvmrc'
           cache: npm
@@ -223,7 +223,7 @@ jobs:
           --outputFile.junit=test-results.junit.xml
 
       - name: Publish test results
-        uses: dorny/test-reporter@v2
+        uses: dorny/test-reporter@v3
         # Needs checks:write — skip for fork PRs (their token is read-only).
         if: ${{ !cancelled() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
         with:
@@ -253,7 +253,7 @@ jobs:
       # VS Code extension tests (@vscode/test-cli downloads VS Code; needs a
       # display on Linux, hence xvfb-run). The download is cached.
       - name: Cache VS Code test download
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: packages/zowe-mcp-vscode/.vscode-test
           key: vscode-test-${{ runner.os }}-${{ hashFiles('packages/zowe-mcp-vscode/package.json') }}
@@ -335,9 +335,9 @@ jobs:
     timeout-minutes: 40
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version-file: '.nvmrc'
           cache: npm
@@ -364,7 +364,7 @@ jobs:
       # Cache the VS Code download here too (keyed per-OS) so Windows/macOS don't
       # re-fetch the editor every run — it was previously cached only on Linux.
       - name: Cache VS Code test download
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: packages/zowe-mcp-vscode/.vscode-test
           key: vscode-test-${{ runner.os }}-${{ hashFiles('packages/zowe-mcp-vscode/package.json') }}

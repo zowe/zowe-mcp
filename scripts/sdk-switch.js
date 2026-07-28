@@ -55,7 +55,7 @@ const PKG_NAME = '@zowe/zowex-for-zowe-sdk';
  * upstream repo and is independent of the npm package name above.
  */
 const ARTIFACT_NAME = 'zowex-sdk';
-const DEFAULT_VERSION = '0.6.0';
+const DEFAULT_VERSION = '0.6.1';
 const ARTIFACTORY_NPM = 'https://zowe.jfrog.io/artifactory/api/npm/npm-release/';
 /** Nightly SDK snapshots (repo path renamed from zowe-native-proto to zowex). */
 const ARTIFACTORY_SNAPSHOT_BASE =

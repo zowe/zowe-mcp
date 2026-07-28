@@ -16,9 +16,10 @@
  * z/OS system itself (not the MCP server's session):
  * - listApf: APF-authorized data sets
  * - listProclib: PROCLIB concatenation
+ * - listLinklist: link list (LNKLST) concatenation
  * - viewSyslog: the operations SYSLOG
  *
- * Backed by the Zowe Remote SSH SDK `client.system` RPCs (SDK 0.6.0+).
+ * Backed by the Zowe Remote SSH SDK `client.system` RPCs (SDK 0.6.0+; listLinklist requires 0.6.1+).
  */
 
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
@@ -52,6 +53,7 @@ import {
 import { ensureContext, errorResult } from '../tool-utils.js';
 import {
   listApfOutputSchema,
+  listLinklistOutputSchema,
   listProclibOutputSchema,
   viewSyslogOutputSchema,
 } from './system-output-schemas.js';
@@ -184,6 +186,57 @@ export function registerSystemTools(
           deps.responseCache,
           cacheKey,
           () => deps.backend.listProclib(systemId, userId, progressCb),
+          [scope]
+        );
+        const { data: page, meta } = paginateList(
+          result.items,
+          offset ?? 0,
+          limit ?? DEFAULT_LIST_LIMIT
+        );
+        const ctx = buildContext(systemId, {});
+        await progress.complete(`${meta.count} of ${meta.totalAvailable}`);
+        return wrapResponse(ctx, meta, { items: page }, getListMessages(meta));
+      } catch (err) {
+        await progress.complete((err as Error).message);
+        return errorResult((err as Error).message);
+      }
+    }
+  );
+
+  // -----------------------------------------------------------------------
+  // listLinklist
+  // -----------------------------------------------------------------------
+  server.registerTool(
+    'listLinklist',
+    {
+      outputSchema: listLinklistOutputSchema,
+      description: withPaginationNote(
+        'List the link list (LNKLST) concatenation on the z/OS system (the data sets searched for load modules, in order), each with its volume serial and APF-authorization status. ' +
+          'Use this to see which load libraries are in the system search order and which are APF-authorized.',
+        PAGINATION_NOTE_LIST
+      ),
+      _meta: { resourceEffectLevel: ResourceEffect.READ },
+      inputSchema: {
+        system: z.string().optional().describe(SYSTEM_PARAM_DESCRIPTION),
+        offset: offsetParam,
+        limit: limitParam,
+      },
+    },
+    async ({ system, offset, limit }, extra) => {
+      const progress = createToolProgress(extra, 'List link list concatenation');
+      await progress.start();
+      log.info('listLinklist called', { system });
+      try {
+        const { systemId, userId } = await resolveAndEnsure(system);
+        const progressCb = extra._meta?.progressToken
+          ? (msg: string) => void progress.step(msg)
+          : undefined;
+        const cacheKey = buildCacheKey('listLinklist', { systemId });
+        const scope = buildScopeSystem(systemId);
+        const result = await withCache(
+          deps.responseCache,
+          cacheKey,
+          () => deps.backend.listLinklist(systemId, userId, progressCb),
           [scope]
         );
         const { data: page, meta } = paginateList(

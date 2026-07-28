@@ -6,7 +6,7 @@ All notable changes to the Zowe MCP extension will be documented in this file.
 
 ## Recent Changes
 
-- **System tools**: A new group of system tools has been introduced to allow the user to list APF Authorized data sets, proclib data sets, and view system log information.
+- **System tools**: A new group of system tools has been introduced to allow the user to list APF Authorized data sets, link list data sets, proclib data sets, and view system log information.
 
 ## `0.9.0`
 

@@ -461,6 +461,22 @@ export interface ListProclibResult {
   items: string[];
 }
 
+/** A single link list (LNKLST) data set entry. */
+export interface LinklistDatasetEntry {
+  /** Data set name. */
+  dsname: string;
+  /** Volume serial the data set resides on (empty when SMS-managed / dynamic). */
+  volume: string;
+  /** Whether the data set is APF-authorized. */
+  apf: boolean;
+}
+
+/** Result of listing the link list (LNKLST) concatenation. */
+export interface ListLinklistResult {
+  /** Link list data sets (in concatenation order). */
+  items: LinklistDatasetEntry[];
+}
+
 /** Options for reading the z/OS SYSLOG. Date/time and secondsAgo are mutually exclusive. */
 export interface ViewSyslogOptions {
   /** Start date in yyyy-mm-dd. Mutually exclusive with secondsAgo. */
@@ -941,6 +957,18 @@ export interface ZosBackend {
     userId?: string,
     progress?: BackendProgressCallback
   ): Promise<ListProclibResult>;
+
+  /**
+   * List the link list (LNKLST) concatenation on the system.
+   *
+   * @param systemId - Target z/OS system.
+   * @param userId - Optional user ID (for backends that select a connection by user).
+   */
+  listLinklist(
+    systemId: SystemId,
+    userId?: string,
+    progress?: BackendProgressCallback
+  ): Promise<ListLinklistResult>;
 
   /**
    * Read the z/OS SYSLOG (operations log).

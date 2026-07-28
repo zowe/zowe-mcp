@@ -11,11 +11,12 @@
 
 /**
  * Integration tests for the z/OS system information tools (listApf, listProclib,
- * viewSyslog) against the filesystem mock backend (which returns canned data).
+ * listLinklist, viewSyslog) against the filesystem mock backend (which returns
+ * canned data).
  *
  * Verifies: tool registration + outputSchema, envelope shape, list pagination
- * (listApf/listProclib), syslog line-windowing (viewSyslog), and the
- * date/secondsAgo mutual-exclusivity guard.
+ * (listApf/listProclib/listLinklist), syslog line-windowing (viewSyslog), and
+ * the date/secondsAgo mutual-exclusivity guard.
  */
 
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
@@ -101,9 +102,9 @@ describe('System information tools with mock backend', () => {
     await server.close();
   });
 
-  it('registers listApf, listProclib, and viewSyslog with output schemas', async () => {
+  it('registers listApf, listProclib, listLinklist, and viewSyslog with output schemas', async () => {
     const { tools } = await client.listTools();
-    for (const name of ['listApf', 'listProclib', 'viewSyslog']) {
+    for (const name of ['listApf', 'listProclib', 'listLinklist', 'viewSyslog']) {
       const tool = tools.find(t => t.name === name);
       expect(tool, `tool ${name} should be registered`).toBeDefined();
       expect(tool!.outputSchema).toBeDefined();
@@ -156,6 +157,35 @@ describe('System information tools with mock backend', () => {
       expect(env.data.items).toContain('SYS1.PROCLIB');
       const meta = env._result as ListResultMeta;
       expect(meta.totalAvailable).toBe(env.data.items.length);
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // listLinklist
+  // -----------------------------------------------------------------------
+  describe('listLinklist', () => {
+    it('returns link list data sets with dsname, volume, and apf', async () => {
+      const result = await client.callTool({ name: 'listLinklist', arguments: {} });
+      const env = parseEnvelope<{ items: { dsname: string; volume: string; apf: boolean }[] }>(
+        result
+      );
+      expect(env._context.system).toBe(SYSTEM_HOST);
+      expect(env.data.items.length).toBeGreaterThan(0);
+      expect(env.data.items[0]).toHaveProperty('dsname');
+      expect(env.data.items[0]).toHaveProperty('volume');
+      expect(env.data.items[0]).toHaveProperty('apf');
+      expect(env.data.items.some(i => i.dsname === 'SYS1.LINKLIB')).toBe(true);
+      const meta = env._result as ListResultMeta;
+      expect(meta.totalAvailable).toBe(env.data.items.length);
+    });
+
+    it('paginates with offset and limit', async () => {
+      const result = await client.callTool({ name: 'listLinklist', arguments: { limit: 2 } });
+      const env = parseEnvelope<{ items: unknown[] }>(result);
+      const meta = env._result as ListResultMeta;
+      expect(env.data.items).toHaveLength(2);
+      expect(meta.count).toBe(2);
+      expect(meta.hasMore).toBe(true);
     });
   });
 

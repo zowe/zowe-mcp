@@ -81,15 +81,16 @@ Time Sharing Option — run TSO commands interactively on z/OS.
 
 ## System Information
 
-The server provides **3** tools.
+The server provides **4** tools.
 
-Read-only information about the z/OS system itself — APF-authorized data sets, the PROCLIB concatenation, and the operations SYSLOG.
+Read-only information about the z/OS system itself — APF-authorized data sets, the PROCLIB concatenation, the link list (LNKLST) concatenation, and the operations SYSLOG.
 
-| # | Tool                          | Description                                                                                                     |
-|---|-------------------------------|-----------------------------------------------------------------------------------------------------------------|
-| 1 | [`listApf`](#listapf)         | List the APF-authorized (Authorized Program Facility) data sets on the z/OS system, each with its volume serial |
-| 2 | [`listProclib`](#listproclib) | List the PROCLIB concatenation on the z/OS system (the data sets searched for JCL procedures, in order)         |
-| 3 | [`viewSyslog`](#viewsyslog)   | View the z/OS SYSLOG (the system operations log)                                                                |
+| # | Tool                            | Description                                                                                                                                                                |
+|---|---------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| 1 | [`listApf`](#listapf)           | List the APF-authorized (Authorized Program Facility) data sets on the z/OS system, each with its volume serial                                                            |
+| 2 | [`listProclib`](#listproclib)   | List the PROCLIB concatenation on the z/OS system (the data sets searched for JCL procedures, in order)                                                                    |
+| 3 | [`listLinklist`](#listlinklist) | List the link list (LNKLST) concatenation on the z/OS system (the data sets searched for load modules, in order), each with its volume serial and APF-authorization status |
+| 4 | [`viewSyslog`](#viewsyslog)     | View the z/OS SYSLOG (the system operations log)                                                                                                                           |
 
 ## Jobs
 
@@ -2401,6 +2402,78 @@ List the PROCLIB concatenation on the z/OS system (the data sets searched for JC
 
 ---
 
+### `listLinklist`
+
+> Read-only
+
+List the link list (LNKLST) concatenation on the z/OS system (the data sets searched for load modules, in order), each with its volume serial and APF-authorization status. Results are paginated (default 500, max 1000 per page); follow the pagination instructions in the server instructions. Use this to see which load libraries are in the system search order and which are APF-authorized.
+
+#### Parameters
+
+| Parameter | Type      | Required | Description                                                                                                         |
+|-----------|-----------|----------|---------------------------------------------------------------------------------------------------------------------|
+| `system`  | `string`  | No       | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system. |
+| `offset`  | `integer` | No       | 0-based index of the first item to return. Default: 0.                                                              |
+| `limit`   | `integer` | No       | Maximum items to return. Default: 500, max 1000.                                                                    |
+
+<a id="listlinklist-output-schema"></a>
+
+#### Output Schema
+
+| Field      | Type       | Required | Description                                                                                                            |
+|------------|------------|----------|------------------------------------------------------------------------------------------------------------------------|
+| `_context` | `object`   | Yes      | Resolution context: target z/OS system. *(same as [`runSafeTsoCommand`](#runsafetsocommand-output-schema))*            |
+| `_result`  | `object`   | Yes      | Pagination metadata: count, totalAvailable, offset, hasMore. *(same as [`listDatasets`](#listdatasets-output-schema))* |
+| `messages` | `string`[] | No       | Operational messages (e.g. pagination/line-window hints). Omitted when empty.                                          |
+| `data`     | `object`   | Yes      | *(same as [`listApf`](#listapf-output-schema))*                                                                        |
+
+#### Example Output
+
+```json
+{
+  "_context": {
+    "system": "mainframe-dev.example.com"
+  },
+  "_result": {
+    "count": 5,
+    "totalAvailable": 5,
+    "offset": 0,
+    "hasMore": false
+  },
+  "data": {
+    "items": [
+      {
+        "dsname": "SYS1.LINKLIB",
+        "volume": "RES001",
+        "apf": true
+      },
+      {
+        "dsname": "SYS1.CSSLIB",
+        "volume": "RES001",
+        "apf": true
+      },
+      {
+        "dsname": "CEE.SCEERUN",
+        "volume": "PRD002",
+        "apf": true
+      },
+      {
+        "dsname": "CEE.SCEERUN2",
+        "volume": "PRD002",
+        "apf": true
+      },
+      {
+        "dsname": "ISP.SISPLOAD",
+        "volume": "PRD005",
+        "apf": false
+      }
+    ]
+  }
+}
+```
+
+---
+
 ### `viewSyslog`
 
 > Read-only
@@ -3231,7 +3304,7 @@ See [Safety and security principles](mcp-safety-security-principles.md) for deta
 
 Read-only with client confirmation prompts for every read operation. Safest tier for exploration.
 
-**34** tools available.
+**35** tools available.
 
 | Tool                                              | Effect Level |
 |---------------------------------------------------|--------------|
@@ -3254,6 +3327,7 @@ Read-only with client confirmation prompts for every read operation. Safest tier
 | [`getUssTempPath`](#getusstemppath)               | read         |
 | [`listApf`](#listapf)                             | read         |
 | [`listProclib`](#listproclib)                     | read         |
+| [`listLinklist`](#listlinklist)                   | read         |
 | [`viewSyslog`](#viewsyslog)                       | read         |
 | [`getJobStatus`](#getjobstatus)                   | read         |
 | [`listJobFiles`](#listjobfiles)                   | read         |
@@ -3274,13 +3348,13 @@ Read-only with client confirmation prompts for every read operation. Safest tier
 
 Read-only with auto-approved reads. No confirmation prompts for read operations.
 
-**34** tools available.
+**35** tools available.
 
 ### `update`
 
 Adds tools that create, write, copy, rename, and modify resources.
 
-**52** tools available (18 new at this tier).
+**53** tools available (18 new at this tier).
 
 | Tool                                          | Effect Level |
 |-----------------------------------------------|--------------|
@@ -3307,7 +3381,7 @@ Adds tools that create, write, copy, rename, and modify resources.
 
 Adds tools that delete or cancel resources.
 
-**58** tools available (6 new at this tier).
+**59** tools available (6 new at this tier).
 
 | Tool                                                      | Effect Level |
 |-----------------------------------------------------------|--------------|
@@ -3322,7 +3396,7 @@ Adds tools that delete or cancel resources.
 
 Adds tools that execute commands and submit jobs. Full access to all operations.
 
-**65** tools available (7 new at this tier).
+**66** tools available (7 new at this tier).
 
 | Tool                                            | Effect Level |
 |-------------------------------------------------|--------------|

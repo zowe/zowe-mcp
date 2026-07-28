@@ -85,6 +85,29 @@ export const listProclibOutputSchema = envelopeSchema(
 );
 
 // ---------------------------------------------------------------------------
+// listLinklist
+// ---------------------------------------------------------------------------
+
+const linklistDatasetSchema = z.object({
+  dsname: z.string().describe('Link list data set name.'),
+  volume: z.string().describe('Volume serial (empty when SMS-managed / dynamic).'),
+  apf: z.boolean().describe('Whether the data set is APF-authorized.'),
+});
+
+const listLinklistDataSchema = z.object({
+  items: z
+    .array(linklistDatasetSchema)
+    .describe('Link list (LNKLST) data sets (in concatenation order) for this page.'),
+});
+
+export const listLinklistOutputSchema = envelopeSchema(
+  listLinklistDataSchema,
+  listResultMetaSchema,
+  'Pagination metadata: count, totalAvailable, offset, hasMore.',
+  'Link list concatenation list. data.items has dsname, volume, and apf; _result has pagination metadata.'
+);
+
+// ---------------------------------------------------------------------------
 // viewSyslog
 // ---------------------------------------------------------------------------
 

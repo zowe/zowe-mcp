@@ -35,6 +35,7 @@ import type {
   JobStatusResult,
   ListApfResult,
   ListJobsOptions,
+  ListLinklistResult,
   ListProclibResult,
   ListUssFilesOptions,
   MemberEntry,
@@ -196,7 +197,7 @@ interface NativeConsoleApi {
   issueCmd(req: { commandText: string; consoleName?: string }): Promise<{ data?: string }>;
 }
 
-/** Subset of ZSshClient.system we use (ZNP system RPCs — SDK 0.6.0+). */
+/** Subset of ZSshClient.system we use (ZNP system RPCs — SDK 0.6.0+; listLinklist requires 0.6.1+). */
 interface NativeSystemApi {
   listApf(req: Record<string, never>): Promise<{
     items?: { dsname: string; volume: string }[];
@@ -204,6 +205,10 @@ interface NativeSystemApi {
   }>;
   listProclib(req: Record<string, never>): Promise<{
     items?: string[];
+    returnedRows?: number;
+  }>;
+  listLinklist(req: Record<string, never>): Promise<{
+    items?: { dsname: string; volume: string; apf: boolean }[];
     returnedRows?: number;
   }>;
   viewSyslog(req: {
@@ -1638,6 +1643,29 @@ export class NativeBackend {
       },
       progress,
       { operation: 'listProclib', params: {} }
+    );
+  }
+
+  async listLinklist(
+    systemId: SystemId,
+    userId?: string,
+    progress?: BackendProgressCallback
+  ): Promise<ListLinklistResult> {
+    return this.withNativeClient(
+      systemId,
+      userId,
+      async client => {
+        const system = this.getSystem(client);
+        const response = await system.listLinklist({});
+        const items = (response.items ?? []).map(i => ({
+          dsname: sanitizeZowexString(i.dsname) ?? i.dsname,
+          volume: sanitizeZowexString(i.volume) ?? i.volume ?? '',
+          apf: i.apf ?? false,
+        }));
+        return { items };
+      },
+      progress,
+      { operation: 'listLinklist', params: {} }
     );
   }
 

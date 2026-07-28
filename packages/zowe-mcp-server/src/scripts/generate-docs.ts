@@ -823,6 +823,7 @@ function generateDefaultInputs(tools: ToolInfo[]): Record<string, Record<string,
     getUssHome: {},
     listApf: {},
     listProclib: {},
+    listLinklist: {},
     viewSyslog: {},
   };
 
@@ -973,8 +974,8 @@ async function main(): Promise<void> {
         {
           label: 'System Information',
           description:
-            'Read-only information about the z/OS system itself — APF-authorized data sets, the PROCLIB concatenation, and the operations SYSLOG.',
-          toolNames: ['listApf', 'listProclib', 'viewSyslog'],
+            'Read-only information about the z/OS system itself — APF-authorized data sets, the PROCLIB concatenation, the link list (LNKLST) concatenation, and the operations SYSLOG.',
+          toolNames: ['listApf', 'listProclib', 'listLinklist', 'viewSyslog'],
         },
         {
           label: 'Jobs',

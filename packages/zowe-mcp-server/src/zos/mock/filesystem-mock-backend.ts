@@ -47,6 +47,7 @@ import type {
   JobStatusResult,
   ListApfResult,
   ListJobsOptions,
+  ListLinklistResult,
   ListProclibResult,
   ListUssFilesOptions,
   MemberEntry,
@@ -1092,6 +1093,22 @@ export class FilesystemMockBackend implements ZosBackend {
   ): Promise<ListProclibResult> {
     return Promise.resolve({
       items: ['SYS1.PROCLIB', 'SYS1.IBM.PROCLIB', 'USER.PROCLIB', 'CPAC.PROCLIB', 'SYS2.PROCLIB'],
+    });
+  }
+
+  listLinklist(
+    _systemId: SystemId,
+    _userId?: string,
+    _progress?: BackendProgressCallback
+  ): Promise<ListLinklistResult> {
+    return Promise.resolve({
+      items: [
+        { dsname: 'SYS1.LINKLIB', volume: 'RES001', apf: true },
+        { dsname: 'SYS1.CSSLIB', volume: 'RES001', apf: true },
+        { dsname: 'CEE.SCEERUN', volume: 'PRD002', apf: true },
+        { dsname: 'CEE.SCEERUN2', volume: 'PRD002', apf: true },
+        { dsname: 'ISP.SISPLOAD', volume: 'PRD005', apf: false },
+      ],
     });
   }
 

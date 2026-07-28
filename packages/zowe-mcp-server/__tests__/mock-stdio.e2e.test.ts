@@ -33,7 +33,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const serverPath = resolve(__dirname, '..', 'dist', 'index.js');
 const packageRoot = resolve(__dirname, '..');
-const EXPECTED_TOOL_COUNT = 65; // core Zowe MCP tools (incl. system: listApf/listProclib/viewSyslog) + 7 vendor CLI plugin tools (db2 + profile add/remove)
+const EXPECTED_TOOL_COUNT = 66; // core Zowe MCP tools (incl. system: listApf/listProclib/listLinklist/viewSyslog) + 7 vendor CLI plugin tools (db2 + profile add/remove)
 
 /** Parsed tool result content. */
 interface ToolContent {

@@ -146,6 +146,8 @@ listApf:
 
 listProclib:
 
+listLinklist:
+
 viewSyslog:
 
 viewSyslog[last 3 lines]:

@@ -24,12 +24,19 @@ import { getCurrentMcpTool } from '../../mcp-tool-context.js';
 import { getLogger } from '../../server.js';
 import type {
   BackendProgressCallback,
+  CertActionResult,
+  ConnectCertificateOptions,
   CreateDatasetApplied,
   CreateDatasetOptions,
   CreateDatasetResult,
   CreateUssFileOptions,
   DatasetAttributes,
   DatasetEntry,
+  DeleteCertificateOptions,
+  ExportCertificateOptions,
+  ExportCertificateResult,
+  ImportCertificateOptions,
+  ImportCertificateResult,
   JobEntry,
   JobFileEntry,
   JobStatusResult,
@@ -42,9 +49,14 @@ import type {
   ReadDatasetResult,
   ReadJobFileResult,
   ReadUssFileResult,
+  RenameCertificateOptions,
   SearchInDatasetOptions,
   SearchInDatasetResult,
+  SetDefaultCertificateOptions,
+  ShowCertificateOptions,
+  ShowCertificateResult,
   SubmitJobResult,
+  TrustCertificateOptions,
   UssFileEntry,
   ViewSyslogOptions,
   ViewSyslogResult,
@@ -226,6 +238,97 @@ interface NativeSystemApi {
     returnedLines?: number;
     hasMore?: boolean;
   }>;
+}
+
+/** A non-fatal SAF warning/error code tuple attached to a certificate response (SDK 0.6.1+). */
+interface NativeSafReturns {
+  functionCode: number;
+  safReturnCode: number;
+  racfReturnCode: number;
+  racfReasonCode: number;
+}
+
+/** Fields common to certificate/key ring action responses (SDK 0.6.1+). */
+interface NativeCertCommandResponse {
+  warning?: string;
+  safReturns?: NativeSafReturns;
+  gskReturnCode?: number;
+}
+
+/** Subset of ZSshClient.certificates we use (ZNP certificate/key ring RPCs — SDK 0.6.1+). */
+interface NativeCertApi {
+  connectCertificate(req: {
+    owner: string;
+    keyring: string;
+    label: string;
+    fromRing?: string;
+    fromDatabase?: boolean;
+    usage?: string;
+    default?: boolean;
+  }): Promise<NativeCertCommandResponse>;
+  deleteCertificate(req: {
+    owner: string;
+    label: string;
+    keyring?: string;
+    database?: boolean;
+    skipRefresh?: boolean;
+  }): Promise<NativeCertCommandResponse>;
+  exportCertificate(req: {
+    owner: string;
+    keyring: string;
+    label: string;
+    format?: string;
+    file?: string;
+    password?: string;
+  }): Promise<
+    NativeCertCommandResponse & {
+      label: string;
+      owner: string;
+      keyring: string;
+      format: string;
+      file?: string;
+      bytesWritten?: number;
+      data?: string;
+    }
+  >;
+  importCertificate(req: {
+    owner: string;
+    keyring: string;
+    label: string;
+    usage: string;
+    file: string;
+    password: string;
+    skipRefresh?: boolean;
+  }): Promise<NativeCertCommandResponse & { label: string; owner: string; keyring: string }>;
+  showCertificate(req: { owner: string; keyring: string; label: string }): Promise<{
+    label: string;
+    owner: string;
+    usage: string;
+    status: string;
+    default: boolean;
+    keyType: number;
+    keySize: number;
+    serialNumber?: string;
+    notBefore?: string;
+    notAfter?: string;
+    recordId?: string;
+  }>;
+  setDefaultCertificate(req: {
+    owner: string;
+    keyring: string;
+    label: string;
+  }): Promise<NativeCertCommandResponse>;
+  trustCertificate(req: {
+    owner: string;
+    label: string;
+    status: string;
+  }): Promise<NativeCertCommandResponse>;
+  renameCertificate(req: {
+    owner: string;
+    label: string;
+    newLabel: string;
+  }): Promise<NativeCertCommandResponse>;
+  refreshDigtcert(req: Record<string, never>): Promise<NativeCertCommandResponse>;
 }
 
 /** Shape returned by UtilsApi.tools.parseSearchOutput (SDK 0.3.0+). */
@@ -1610,6 +1713,28 @@ export class NativeBackend {
     return (client as unknown as { system: NativeSystemApi }).system;
   }
 
+  private getCertificates(client: ZSshClient): NativeCertApi {
+    return (client as unknown as { certificates: NativeCertApi }).certificates;
+  }
+
+  /** Maps a certificate/key ring action response to our RACF-neutral CertActionResult. */
+  private mapCertActionResult(response: NativeCertCommandResponse): CertActionResult {
+    return {
+      ...(response.warning !== undefined && {
+        warning: sanitizeZowexString(response.warning) ?? response.warning,
+      }),
+      ...(response.safReturns !== undefined && {
+        safReturnCodes: {
+          functionCode: response.safReturns.functionCode,
+          safReturnCode: response.safReturns.safReturnCode,
+          productReturnCode: response.safReturns.racfReturnCode,
+          productReasonCode: response.safReturns.racfReasonCode,
+        },
+      }),
+      ...(response.gskReturnCode !== undefined && { gskReturnCode: response.gskReturnCode }),
+    };
+  }
+
   async runConsoleCommand(
     systemId: SystemId,
     commandText: string,
@@ -1743,6 +1868,276 @@ export class NativeBackend {
       },
       progress,
       { operation: 'viewSyslog', params: { ...(options ?? {}) } }
+    );
+  }
+
+  async connectCertificate(
+    systemId: SystemId,
+    options: ConnectCertificateOptions,
+    userId?: string,
+    progress?: BackendProgressCallback
+  ): Promise<CertActionResult> {
+    return this.withNativeClient(
+      systemId,
+      userId,
+      async client => {
+        const certificates = this.getCertificates(client);
+        const response = await certificates.connectCertificate({
+          owner: options.owner,
+          keyring: options.keyring,
+          label: options.label,
+          fromRing: options.fromRing,
+          fromDatabase: options.fromDatabase,
+          usage: options.usage,
+          default: options.isDefault,
+        });
+        return this.mapCertActionResult(response);
+      },
+      progress,
+      {
+        operation: 'connectCertificate',
+        params: {
+          owner: options.owner,
+          keyring: options.keyring,
+          label: options.label,
+          fromRing: options.fromRing,
+          fromDatabase: options.fromDatabase,
+        },
+      }
+    );
+  }
+
+  async deleteCertificate(
+    systemId: SystemId,
+    options: DeleteCertificateOptions,
+    userId?: string,
+    progress?: BackendProgressCallback
+  ): Promise<CertActionResult> {
+    return this.withNativeClient(
+      systemId,
+      userId,
+      async client => {
+        const certificates = this.getCertificates(client);
+        const response = await certificates.deleteCertificate({
+          owner: options.owner,
+          label: options.label,
+          keyring: options.keyring,
+          database: options.database,
+          skipRefresh: options.skipRefresh,
+        });
+        return this.mapCertActionResult(response);
+      },
+      progress,
+      {
+        operation: 'deleteCertificate',
+        params: { owner: options.owner, label: options.label, keyring: options.keyring },
+      }
+    );
+  }
+
+  async exportCertificate(
+    systemId: SystemId,
+    options: ExportCertificateOptions,
+    userId?: string,
+    progress?: BackendProgressCallback
+  ): Promise<ExportCertificateResult> {
+    return this.withNativeClient(
+      systemId,
+      userId,
+      async client => {
+        const certificates = this.getCertificates(client);
+        const response = await certificates.exportCertificate({
+          owner: options.owner,
+          keyring: options.keyring,
+          label: options.label,
+          format: options.format,
+          file: options.file,
+          password: options.password,
+        });
+        const format = sanitizeZowexString(response.format) ?? response.format;
+        return {
+          label: sanitizeZowexString(response.label) ?? response.label,
+          owner: sanitizeZowexString(response.owner) ?? response.owner,
+          keyring: sanitizeZowexString(response.keyring) ?? response.keyring,
+          format,
+          file: response.file !== undefined ? sanitizeZowexString(response.file) : undefined,
+          bytesWritten: response.bytesWritten,
+          data:
+            response.data !== undefined && format !== 'p12'
+              ? Buffer.from(response.data, 'base64').toString('utf-8')
+              : undefined,
+        };
+      },
+      progress
+    );
+  }
+
+  async importCertificate(
+    systemId: SystemId,
+    options: ImportCertificateOptions,
+    userId?: string,
+    progress?: BackendProgressCallback
+  ): Promise<ImportCertificateResult> {
+    return this.withNativeClient(
+      systemId,
+      userId,
+      async client => {
+        const certificates = this.getCertificates(client);
+        const response = await certificates.importCertificate({
+          owner: options.owner,
+          keyring: options.keyring,
+          label: options.label,
+          usage: options.usage,
+          file: options.file,
+          password: options.password,
+          skipRefresh: options.skipRefresh,
+        });
+        return {
+          ...this.mapCertActionResult(response),
+          label: sanitizeZowexString(response.label) ?? response.label,
+          owner: sanitizeZowexString(response.owner) ?? response.owner,
+          keyring: sanitizeZowexString(response.keyring) ?? response.keyring,
+        };
+      },
+      progress
+    );
+  }
+
+  async showCertificate(
+    systemId: SystemId,
+    options: ShowCertificateOptions,
+    userId?: string,
+    progress?: BackendProgressCallback
+  ): Promise<ShowCertificateResult> {
+    return this.withNativeClient(
+      systemId,
+      userId,
+      async client => {
+        const certificates = this.getCertificates(client);
+        const response = await certificates.showCertificate({
+          owner: options.owner,
+          keyring: options.keyring,
+          label: options.label,
+        });
+        return {
+          label: sanitizeZowexString(response.label) ?? response.label,
+          owner: sanitizeZowexString(response.owner) ?? response.owner,
+          usage: sanitizeZowexString(response.usage) ?? response.usage,
+          status: sanitizeZowexString(response.status) ?? response.status,
+          isDefault: response.default,
+          keyType: response.keyType,
+          keySize: response.keySize,
+          serialNumber:
+            response.serialNumber !== undefined
+              ? sanitizeZowexString(response.serialNumber)
+              : undefined,
+          notBefore: response.notBefore,
+          notAfter: response.notAfter,
+          recordId:
+            response.recordId !== undefined ? sanitizeZowexString(response.recordId) : undefined,
+        };
+      },
+      progress,
+      {
+        operation: 'showCertificate',
+        params: { owner: options.owner, keyring: options.keyring, label: options.label },
+      }
+    );
+  }
+
+  async setDefaultCertificate(
+    systemId: SystemId,
+    options: SetDefaultCertificateOptions,
+    userId?: string,
+    progress?: BackendProgressCallback
+  ): Promise<CertActionResult> {
+    return this.withNativeClient(
+      systemId,
+      userId,
+      async client => {
+        const certificates = this.getCertificates(client);
+        const response = await certificates.setDefaultCertificate({
+          owner: options.owner,
+          keyring: options.keyring,
+          label: options.label,
+        });
+        return this.mapCertActionResult(response);
+      },
+      progress,
+      {
+        operation: 'setDefaultCertificate',
+        params: { owner: options.owner, keyring: options.keyring, label: options.label },
+      }
+    );
+  }
+
+  async trustCertificate(
+    systemId: SystemId,
+    options: TrustCertificateOptions,
+    userId?: string,
+    progress?: BackendProgressCallback
+  ): Promise<CertActionResult> {
+    return this.withNativeClient(
+      systemId,
+      userId,
+      async client => {
+        const certificates = this.getCertificates(client);
+        const response = await certificates.trustCertificate({
+          owner: options.owner,
+          label: options.label,
+          status: options.status,
+        });
+        return this.mapCertActionResult(response);
+      },
+      progress,
+      {
+        operation: 'trustCertificate',
+        params: { owner: options.owner, label: options.label, status: options.status },
+      }
+    );
+  }
+
+  async renameCertificate(
+    systemId: SystemId,
+    options: RenameCertificateOptions,
+    userId?: string,
+    progress?: BackendProgressCallback
+  ): Promise<CertActionResult> {
+    return this.withNativeClient(
+      systemId,
+      userId,
+      async client => {
+        const certificates = this.getCertificates(client);
+        const response = await certificates.renameCertificate({
+          owner: options.owner,
+          label: options.label,
+          newLabel: options.newLabel,
+        });
+        return this.mapCertActionResult(response);
+      },
+      progress,
+      {
+        operation: 'renameCertificate',
+        params: { owner: options.owner, label: options.label, newLabel: options.newLabel },
+      }
+    );
+  }
+
+  async refreshCertificateClass(
+    systemId: SystemId,
+    userId?: string,
+    progress?: BackendProgressCallback
+  ): Promise<CertActionResult> {
+    return this.withNativeClient(
+      systemId,
+      userId,
+      async client => {
+        const certificates = this.getCertificates(client);
+        const response = await certificates.refreshDigtcert({});
+        return this.mapCertActionResult(response);
+      },
+      progress,
+      { operation: 'refreshCertificateClass', params: {} }
     );
   }
 

@@ -48,7 +48,11 @@ provides multiple layers of protection — use them together.
 3. **Dedicated z/OS credentials** — Use a dedicated SSH user with the minimum
    SAF / RACF authority needed. The z/OS security system is the ultimate
    enforcement boundary — even if the MCP layer or the AI model fails, SAF
-   ensures the agent cannot exceed its authority.
+   ensures the agent cannot exceed its authority. Prefer **SSH key
+   authentication** (ideally passphrase-protected) over passwords: a key — and
+   especially a passphrase-protected one — is more secure than a password in an
+   environment variable, which can leak via process listings, shell history, and
+   crash dumps. See [Native (SSH) backend](#native-ssh-backend).
 
 4. **Command safety gates** — TSO and USS command tools use pattern-based
    evaluation (block / elicit / allow) to catch dangerous commands before
@@ -282,7 +286,41 @@ Config file format:
 }
 ```
 
-Passwords are read from environment variables:
+#### Authentication (in order of preference)
+
+The server authenticates each connection in this order, automatically falling
+back to the next method when one is unavailable or fails:
+
+**SSH key → password env var → Vault KV → interactive prompt.**
+
+**1. SSH key (recommended, zero-config).** If you already use SSH keys to reach
+z/OS, the server uses them automatically — no Zowe MCP configuration and no
+password environment variables required. It leverages your existing workstation
+SSH setup:
+
+- A `Host` entry in `~/.ssh/config` whose alias or `HostName` matches, using its
+  `IdentityFile`; otherwise
+- the default identity files in `~/.ssh` (`id_ed25519`, `id_rsa`, `id_ecdsa`,
+  `id_dsa`).
+
+A private key — especially a passphrase-protected one — is more secure than a
+password in an environment variable. Optional overrides (rarely needed):
+
+```bash
+# Pin a specific key / passphrase for one connection (USER and HOST uppercase, dots → _)
+export ZOWE_MCP_PRIVATE_KEY_USERID_SYS1_EXAMPLE_COM=~/.ssh/id_mainframe
+export ZOWE_MCP_KEY_PASSPHRASE_USERID_SYS1_EXAMPLE_COM='key passphrase'   # only if the key is encrypted
+
+# Turn SSH key auth off and always use a password
+export ZOWE_MCP_DISABLE_SSH_KEY=1
+```
+
+> ssh-agent (`SSH_AUTH_SOCK`) is not used in this release — only key files on
+> disk are supported. An encrypted key needs its passphrase via
+> `ZOWE_MCP_KEY_PASSPHRASE_*`; otherwise the server falls back to a password.
+
+**2. Password (fallback).** When no usable key is found (or key auth fails),
+passwords are read from environment variables:
 `ZOWE_MCP_PASSWORD_<USER>_<HOST>` (user and host uppercase, dots in host
 replaced by `_`). Example for `USERID@sys1.example.com`:
 
@@ -291,6 +329,7 @@ export ZOWE_MCP_PASSWORD_USERID_SYS1_EXAMPLE_COM=password
 npx @zowe/mcp-server --stdio --native --system USERID@sys1.example.com
 ```
 
+You can also set `ZOWE_MCP_CREDENTIALS` (a JSON map of `user@host` to password).
 If a password is invalid, the server will not retry it for the rest of the
 process.
 
@@ -300,6 +339,11 @@ process.
 2. Set **Native connections** to an array of SSH connection specs, e.g.
    `["USERID@sys1.example.com"]`. Each entry is one connection (user@host or user@host:port); you can have multiple connections to the same z/OS system (e.g. different user IDs).
 3. Reload the window so the MCP server restarts with `--native`
+
+As in standalone mode, the server first tries **SSH key authentication** using
+your existing `~/.ssh` setup (most secure, zero-config) and only falls back to a
+password when no usable key is found or the key is rejected. Set
+`zoweMCP.preferSshKey` to `false` to disable key auth and always use a password.
 
 When the server needs a password it sends a request to the extension; the
 extension prompts (or reads from VS Code Secret Storage) and sends the password

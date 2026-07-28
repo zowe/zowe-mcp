@@ -47,7 +47,10 @@ export class MockCredentialProvider implements CredentialProvider {
       );
     }
 
-    return Promise.resolve({ user: cred.user, password: cred.password });
+    // The mock backend serves files from local disk and never opens an SSH
+    // connection, so it does no real authentication. Credentials are returned
+    // for interface compatibility only; SSH keys do not apply here.
+    return Promise.resolve({ user: cred.user, password: cred.password, authMethod: 'password' });
   }
 
   listUsers(systemId: SystemId): Promise<string[]> {

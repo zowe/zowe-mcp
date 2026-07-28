@@ -48,6 +48,8 @@ export interface LoadNativeOptions {
   requestPasswordViaElicitation?: NativeCredentialProviderOptions['requestPasswordViaElicitation'];
   /** When set, called when an elicited password is used so the extension can persist it. */
   onElicitedPasswordUsed?: NativeCredentialProviderOptions['onElicitedPasswordUsed'];
+  /** When true, never attempt SSH key authentication (standalone: ZOWE_MCP_DISABLE_SSH_KEY; VS Code: zoweMCP.preferSshKey off). */
+  disableSshKey?: boolean;
   /** VS Code only: callback when auth fails (sends password-invalid event). */
   onPasswordInvalid?: (user: string, host: string, port?: number) => void;
   /** When true (default), deploy the z/OS server via ZSshUtils.installServer when "Server not found" is detected. */
@@ -95,6 +97,7 @@ export function loadNative(options: LoadNativeOptions): NativeSetup {
     requestPasswordCallback: options.requestPasswordCallback,
     requestPasswordViaElicitation: options.requestPasswordViaElicitation,
     onElicitedPasswordUsed: options.onElicitedPasswordUsed,
+    disableSshKey: options.disableSshKey,
   });
 
   const clientCache = new SshClientCache(

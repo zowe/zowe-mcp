@@ -35,6 +35,8 @@ import * as path from 'node:path';
 import { getLogger } from '../../server.js';
 import type {
   BackendProgressCallback,
+  CertActionResult,
+  ConnectCertificateOptions,
   CreateDatasetApplied,
   CreateDatasetOptions,
   CreateDatasetResult,
@@ -42,6 +44,11 @@ import type {
   DatasetAttributes,
   DatasetEntry,
   DatasetOrg,
+  DeleteCertificateOptions,
+  ExportCertificateOptions,
+  ExportCertificateResult,
+  ImportCertificateOptions,
+  ImportCertificateResult,
   JobEntry,
   JobFileEntry,
   JobStatusResult,
@@ -55,9 +62,14 @@ import type {
   ReadJobFileResult,
   ReadUssFileResult,
   RecordFormat,
+  RenameCertificateOptions,
   SearchInDatasetOptions,
   SearchInDatasetResult,
+  SetDefaultCertificateOptions,
+  ShowCertificateOptions,
+  ShowCertificateResult,
   SubmitJobResult,
+  TrustCertificateOptions,
   UssFileEntry,
   ViewSyslogOptions,
   ViewSyslogResult,
@@ -1141,6 +1153,120 @@ export class FilesystemMockBackend implements ZosBackend {
       returnedLines: returned.length,
       hasMore: max < lines.length,
     });
+  }
+
+  connectCertificate(
+    _systemId: SystemId,
+    _options: ConnectCertificateOptions,
+    _userId?: string,
+    _progress?: BackendProgressCallback
+  ): Promise<CertActionResult> {
+    return Promise.resolve({});
+  }
+
+  deleteCertificate(
+    _systemId: SystemId,
+    _options: DeleteCertificateOptions,
+    _userId?: string,
+    _progress?: BackendProgressCallback
+  ): Promise<CertActionResult> {
+    return Promise.resolve({});
+  }
+
+  exportCertificate(
+    _systemId: SystemId,
+    options: ExportCertificateOptions,
+    _userId?: string,
+    _progress?: BackendProgressCallback
+  ): Promise<ExportCertificateResult> {
+    const format = options.format ?? 'pem';
+    const mockPem = '-----BEGIN CERTIFICATE-----\nMIIBmockCERTDATA==\n-----END CERTIFICATE-----\n';
+    if (options.file) {
+      return Promise.resolve({
+        label: options.label,
+        owner: options.owner,
+        keyring: options.keyring,
+        format,
+        file: options.file,
+        bytesWritten: format === 'p12' ? 1834 : mockPem.length,
+      });
+    }
+    return Promise.resolve({
+      label: options.label,
+      owner: options.owner,
+      keyring: options.keyring,
+      format,
+      data: mockPem,
+    });
+  }
+
+  importCertificate(
+    _systemId: SystemId,
+    options: ImportCertificateOptions,
+    _userId?: string,
+    _progress?: BackendProgressCallback
+  ): Promise<ImportCertificateResult> {
+    return Promise.resolve({
+      label: options.label,
+      owner: options.owner,
+      keyring: options.keyring,
+    });
+  }
+
+  showCertificate(
+    _systemId: SystemId,
+    options: ShowCertificateOptions,
+    _userId?: string,
+    _progress?: BackendProgressCallback
+  ): Promise<ShowCertificateResult> {
+    return Promise.resolve({
+      label: options.label,
+      owner: options.owner,
+      usage: 'PERSONAL',
+      status: 'TRUST',
+      isDefault: true,
+      keyType: 1,
+      keySize: 2048,
+      serialNumber: '01A2B3C4',
+      notBefore: '2025-01-01T00:00:00Z',
+      notAfter: '2027-01-01T00:00:00Z',
+      recordId: `${options.label}/01A2B3C4`,
+    });
+  }
+
+  setDefaultCertificate(
+    _systemId: SystemId,
+    _options: SetDefaultCertificateOptions,
+    _userId?: string,
+    _progress?: BackendProgressCallback
+  ): Promise<CertActionResult> {
+    return Promise.resolve({});
+  }
+
+  trustCertificate(
+    _systemId: SystemId,
+    _options: TrustCertificateOptions,
+    _userId?: string,
+    _progress?: BackendProgressCallback
+  ): Promise<CertActionResult> {
+    return Promise.resolve({});
+  }
+
+  renameCertificate(
+    _systemId: SystemId,
+    _options: RenameCertificateOptions,
+    _userId?: string,
+    _progress?: BackendProgressCallback
+  ): Promise<CertActionResult> {
+    return Promise.resolve({});
+  }
+
+  refreshCertificateClass(
+    _systemId: SystemId,
+    _userId?: string,
+    _progress?: BackendProgressCallback
+  ): Promise<CertActionResult> {
+    return Promise.resolve({});
   }
 
   getUssHome(

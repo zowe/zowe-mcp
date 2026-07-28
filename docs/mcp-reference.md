@@ -4,7 +4,7 @@
 
 > Auto-generated from the MCP server (v0.10.0-dev). Do not edit manually — run `npx @zowe/mcp-server generate-docs` to regenerate.
 
-This document describes all [Context](#context), [Data Sets](#data-sets), [USS](#uss), [TSO](#tso), [System Information](#system-information), [Jobs](#jobs), [Local Files](#local-files), [Other](#other), [db2 CLI Plugin Tools](#db2-cli-plugin-tools), [Tool Reference](#tool-reference), [Capability Tiers](#capability-tiers), [Prompts](#prompts), [Resource Templates](#resource-templates) provided by the Zowe MCP Server.
+This document describes all [Context](#context), [Data Sets](#data-sets), [USS](#uss), [TSO](#tso), [System Information](#system-information), [Certificates](#certificates), [Jobs](#jobs), [Local Files](#local-files), [Other](#other), [db2 CLI Plugin Tools](#db2-cli-plugin-tools), [Tool Reference](#tool-reference), [Capability Tiers](#capability-tiers), [Prompts](#prompts), [Resource Templates](#resource-templates) provided by the Zowe MCP Server.
 
 ## Context
 
@@ -91,6 +91,24 @@ Read-only information about the z/OS system itself — APF-authorized data sets,
 | 2 | [`listProclib`](#listproclib)   | List the PROCLIB concatenation on the z/OS system (the data sets searched for JCL procedures, in order)                                                                    |
 | 3 | [`listLinklist`](#listlinklist) | List the link list (LNKLST) concatenation on the z/OS system (the data sets searched for load modules, in order), each with its volume serial and APF-authorization status |
 | 4 | [`viewSyslog`](#viewsyslog)     | View the z/OS SYSLOG (the system operations log)                                                                                                                           |
+
+## Certificates
+
+The server provides **9** tools.
+
+Certificate and key ring operations on the z/OS security database (RACF, ACF2, or Top Secret via SAF) — show, connect, delete, export, import, set the ring default, change trust status, rename, and refresh the DIGTCERT class.
+
+| # | Tool                                                  | Description                                                                                                                                         |
+|---|-------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------|
+| 1 | [`showCertificate`](#showcertificate)                 | Show a certificate's owner, usage, trust status, default flag, key size, serial number, and validity dates                                          |
+| 2 | [`connectCertificate`](#connectcertificate)           | Connect a certificate to a key ring                                                                                                                 |
+| 3 | [`deleteCertificate`](#deletecertificate)             | Disconnect a certificate from a key ring, or delete it from the security database with database (which removes it entirely, not just from one ring) |
+| 4 | [`exportCertificate`](#exportcertificate)             | Export a certificate from a key ring in PEM (certificate only) or PKCS#12 (certificate plus private key) format                                     |
+| 5 | [`importCertificate`](#importcertificate)             | Import a certificate (and its private key, when present) into a key ring from a PKCS#12 file that already resides on z/OS                           |
+| 6 | [`setDefaultCertificate`](#setdefaultcertificate)     | Set a certificate that is already connected to a key ring as that ring's default certificate                                                        |
+| 7 | [`trustCertificate`](#trustcertificate)               | Change a certificate's trust status                                                                                                                 |
+| 8 | [`renameCertificate`](#renamecertificate)             | Change a certificate's label                                                                                                                        |
+| 9 | [`refreshCertificateClass`](#refreshcertificateclass) | Refresh the DIGTCERT class so that certificate and key ring changes take effect                                                                     |
 
 ## Jobs
 
@@ -218,6 +236,7 @@ Return the Zowe MCP server info (version, backend, components) and the current s
       "tso",
       "jobs",
       "system",
+      "certificates",
       "local-files"
     ],
     "backend": "mock",
@@ -2590,6 +2609,543 @@ Output:
 
 ---
 
+### `showCertificate`
+
+> Read-only
+
+Show a certificate's owner, usage, trust status, default flag, key size, serial number, and validity dates. Validity and serial come from decoding the certificate.
+
+#### Parameters
+
+| Parameter | Type     | Required | Description                                                                                                         |
+|-----------|----------|----------|---------------------------------------------------------------------------------------------------------------------|
+| `owner`   | `string` | Yes      | Certificate/key ring owner (user ID).                                                                               |
+| `keyring` | `string` | Yes      | Key ring name.                                                                                                      |
+| `label`   | `string` | Yes      | Certificate label.                                                                                                  |
+| `system`  | `string` | No       | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system. |
+
+<a id="showcertificate-output-schema"></a>
+
+#### Output Schema
+
+| Field                   | Type       | Required | Description                                                                                                 |
+|-------------------------|------------|----------|-------------------------------------------------------------------------------------------------------------|
+| `_context`              | `object`   | Yes      | Resolution context: target z/OS system. *(same as [`runSafeTsoCommand`](#runsafetsocommand-output-schema))* |
+| `messages`              | `string`[] | No       | Operational messages (e.g. a non-fatal SAF warning). Omitted when empty.                                    |
+| `data`                  | `object`   | Yes      |                                                                                                             |
+| &ensp;├─ `label`        | `string`   | Yes      | Certificate label.                                                                                          |
+| &ensp;├─ `owner`        | `string`   | Yes      | Owning user ID.                                                                                             |
+| &ensp;├─ `usage`        | `string`   | Yes      | Usage: PERSONAL, CERTAUTH, or OTHER.                                                                        |
+| &ensp;├─ `status`       | `string`   | Yes      | Trust status: TRUST, HIGHTRUST, NOTRUST, or UNKNOWN.                                                        |
+| &ensp;├─ `isDefault`    | `boolean`  | Yes      | Whether this certificate is the ring's default.                                                             |
+| &ensp;├─ `keyType`      | `number`   | Yes      | Private-key type code.                                                                                      |
+| &ensp;├─ `keySize`      | `number`   | Yes      | Private-key size in bits (0 if no private key).                                                             |
+| &ensp;├─ `serialNumber` | `string`   | No       | Certificate serial number (hex).                                                                            |
+| &ensp;├─ `notBefore`    | `string`   | No       | Validity start (ISO-8601).                                                                                  |
+| &ensp;├─ `notAfter`     | `string`   | No       | Validity end (ISO-8601).                                                                                    |
+| &ensp;└─ `recordId`     | `string`   | No       | Security-database record ID (serial + issuer identifier).                                                   |
+
+#### Example Output
+
+Input:
+
+```json
+{
+  "owner": "USER01",
+  "keyring": "RING02",
+  "label": "CERT03"
+}
+```
+
+Output:
+
+```json
+{
+  "_context": {
+    "system": "mainframe-dev.example.com"
+  },
+  "data": {
+    "label": "CERT03",
+    "owner": "USER01",
+    "usage": "PERSONAL",
+    "status": "TRUST",
+    "isDefault": true,
+    "keyType": 1,
+    "keySize": 2048,
+    "serialNumber": "01A2B3C4",
+    "notBefore": "2025-01-01T00:00:00Z",
+    "notAfter": "2027-01-01T00:00:00Z",
+    "recordId": "CERT03/01A2B3C4"
+  }
+}
+```
+
+---
+
+### `connectCertificate`
+
+
+Connect a certificate to a key ring. The underlying SAF call requires the certificate bytes, so the certificate is read from a ring it is already on (fromRing) or from the security database (fromDatabase) and reconnected to the target ring.
+
+#### Parameters
+
+| Parameter      | Type                     | Required | Description                                                                                                                   |
+|----------------|--------------------------|----------|-------------------------------------------------------------------------------------------------------------------------------|
+| `owner`        | `string`                 | Yes      | Certificate/key ring owner (user ID).                                                                                         |
+| `keyring`      | `string`                 | Yes      | Target key ring name.                                                                                                         |
+| `label`        | `string`                 | Yes      | Certificate label.                                                                                                            |
+| `fromRing`     | `string`                 | No       | Source key ring the certificate is already on. Mutually exclusive with fromDatabase; exactly one is required.                 |
+| `fromDatabase` | `boolean`                | No       | Read the certificate from the security database instead of a ring. Mutually exclusive with fromRing; exactly one is required. |
+| `usage`        | `PERSONAL` \| `CERTAUTH` | No       | Certificate usage (default: the certificate's current usage).                                                                 |
+| `default`      | `boolean`                | No       | Set this certificate as the target ring's default.                                                                            |
+| `system`       | `string`                 | No       | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system.           |
+
+<a id="connectcertificate-output-schema"></a>
+
+#### Output Schema
+
+| Field                     | Type       | Required | Description                                                                                                 |
+|---------------------------|------------|----------|-------------------------------------------------------------------------------------------------------------|
+| `_context`                | `object`   | Yes      | Resolution context: target z/OS system. *(same as [`runSafeTsoCommand`](#runsafetsocommand-output-schema))* |
+| `_result`                 | `object`   | Yes      | Result of a mutation. success is true. *(same as [`writeDataset`](#writedataset-output-schema))*            |
+| `messages`                | `string`[] | No       | Operational messages (e.g. a non-fatal SAF warning). Omitted when empty.                                    |
+| `data`                    | `object`   | Yes      |                                                                                                             |
+| &ensp;├─ `owner`          | `string`   | Yes      | Certificate owner (user ID).                                                                                |
+| &ensp;├─ `keyring`        | `string`   | Yes      | Target key ring name.                                                                                       |
+| &ensp;├─ `label`          | `string`   | Yes      | Certificate label.                                                                                          |
+| &ensp;├─ `warning`        | `string`   | No       | Human-readable note for a non-fatal warning, when one occurred.                                             |
+| &ensp;├─ `safReturnCodes` | `object`   | No       | SAF codes behind a warning or error, when a non-zero code was returned.                                     |
+| &ensp;└─ `gskReturnCode`  | `number`   | No       | System SSL / GSKCMS status code, when a GSK call failed.                                                    |
+
+#### Example Output
+
+Input:
+
+```json
+{
+  "owner": "USER01",
+  "keyring": "RING02",
+  "label": "CACERT",
+  "fromDatabase": true
+}
+```
+
+Output:
+
+```json
+{
+  "_context": {
+    "system": "mainframe-dev.example.com"
+  },
+  "_result": {
+    "success": true
+  },
+  "data": {
+    "owner": "USER01",
+    "keyring": "RING02",
+    "label": "CACERT"
+  }
+}
+```
+
+---
+
+### `deleteCertificate`
+
+> Destructive
+
+Disconnect a certificate from a key ring, or delete it from the security database with database (which removes it entirely, not just from one ring). When the security product reports that the DIGTCERT class must be refreshed for the change to take effect, the refresh is issued automatically unless skipRefresh is set.
+
+#### Parameters
+
+| Parameter     | Type      | Required | Description                                                                                                           |
+|---------------|-----------|----------|-----------------------------------------------------------------------------------------------------------------------|
+| `owner`       | `string`  | Yes      | Certificate/key ring owner (user ID).                                                                                 |
+| `label`       | `string`  | Yes      | Certificate label.                                                                                                    |
+| `keyring`     | `string`  | No       | Key ring to disconnect the certificate from. Mutually exclusive with database; exactly one is required.               |
+| `database`    | `boolean` | No       | Delete the certificate from the security database entirely. Mutually exclusive with keyring; exactly one is required. |
+| `skipRefresh` | `boolean` | No       | Do not automatically refresh the DIGTCERT class if the security product reports it is required.                       |
+| `system`      | `string`  | No       | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system.   |
+
+<a id="deletecertificate-output-schema"></a>
+
+#### Output Schema
+
+| Field                     | Type       | Required | Description                                                                                                 |
+|---------------------------|------------|----------|-------------------------------------------------------------------------------------------------------------|
+| `_context`                | `object`   | Yes      | Resolution context: target z/OS system. *(same as [`runSafeTsoCommand`](#runsafetsocommand-output-schema))* |
+| `_result`                 | `object`   | Yes      | Result of a mutation. success is true. *(same as [`writeDataset`](#writedataset-output-schema))*            |
+| `messages`                | `string`[] | No       | Operational messages (e.g. a non-fatal SAF warning). Omitted when empty.                                    |
+| `data`                    | `object`   | Yes      |                                                                                                             |
+| &ensp;├─ `owner`          | `string`   | Yes      | Certificate owner (user ID).                                                                                |
+| &ensp;├─ `label`          | `string`   | Yes      | Certificate label.                                                                                          |
+| &ensp;├─ `keyring`        | `string`   | No       | Key ring the certificate was disconnected from.                                                             |
+| &ensp;├─ `database`       | `boolean`  | No       | True when the certificate was deleted from the security database.                                           |
+| &ensp;├─ `warning`        | `string`   | No       | Human-readable note for a non-fatal warning, when one occurred.                                             |
+| &ensp;├─ `safReturnCodes` | `object`   | No       | SAF codes behind a warning or error, when a non-zero code was returned.                                     |
+| &ensp;└─ `gskReturnCode`  | `number`   | No       | System SSL / GSKCMS status code, when a GSK call failed.                                                    |
+
+---
+
+### `exportCertificate`
+
+
+Export a certificate from a key ring in PEM (certificate only) or PKCS#12 (certificate plus private key) format. With file, the certificate is written on z/OS; PEM without file is returned inline. The private key is only available in the p12 format, which requires file.
+
+#### Parameters
+
+| Parameter  | Type           | Required | Description                                                                                                         |
+|------------|----------------|----------|---------------------------------------------------------------------------------------------------------------------|
+| `owner`    | `string`       | Yes      | Certificate/key ring owner (user ID).                                                                               |
+| `keyring`  | `string`       | Yes      | Key ring name.                                                                                                      |
+| `label`    | `string`       | Yes      | Certificate label.                                                                                                  |
+| `format`   | `pem` \| `p12` | No       | Export format: "pem" (certificate) or "p12" (certificate + private key). Default "pem".                             |
+| `file`     | `string`       | No       | Output file path on z/OS. Required for p12; PEM is returned inline if omitted.                                      |
+| `password` | `string`       | No       | PKCS#12 passphrase (used with format p12).                                                                          |
+| `system`   | `string`       | No       | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system. |
+
+<a id="exportcertificate-output-schema"></a>
+
+#### Output Schema
+
+| Field                   | Type       | Required | Description                                                                                                 |
+|-------------------------|------------|----------|-------------------------------------------------------------------------------------------------------------|
+| `_context`              | `object`   | Yes      | Resolution context: target z/OS system. *(same as [`runSafeTsoCommand`](#runsafetsocommand-output-schema))* |
+| `messages`              | `string`[] | No       | Operational messages (e.g. a non-fatal SAF warning). Omitted when empty.                                    |
+| `data`                  | `object`   | Yes      |                                                                                                             |
+| &ensp;├─ `label`        | `string`   | Yes      | Certificate label.                                                                                          |
+| &ensp;├─ `owner`        | `string`   | Yes      | Key ring owner (user ID).                                                                                   |
+| &ensp;├─ `keyring`      | `string`   | Yes      | Key ring name.                                                                                              |
+| &ensp;├─ `format`       | `string`   | Yes      | Export format that was produced ("pem" or "p12").                                                           |
+| &ensp;├─ `file`         | `string`   | No       | Output file path, when written to disk on z/OS.                                                             |
+| &ensp;├─ `bytesWritten` | `number`   | No       | Number of bytes written to the output file.                                                                 |
+| &ensp;└─ `content`      | `string`   | No       | Exported certificate text (PEM), when not written to a file.                                                |
+
+#### Example Output
+
+Input:
+
+```json
+{
+  "owner": "USER01",
+  "keyring": "RING02",
+  "label": "CERT03"
+}
+```
+
+Output:
+
+```json
+{
+  "_context": {
+    "system": "mainframe-dev.example.com"
+  },
+  "data": {
+    "label": "CERT03",
+    "owner": "USER01",
+    "keyring": "RING02",
+    "format": "pem",
+    "content": "-----BEGIN CERTIFICATE-----\nMIIBmockCERTDATA==\n-----END CERTIFICATE-----\n"
+  }
+}
+```
+
+---
+
+### `importCertificate`
+
+
+Import a certificate (and its private key, when present) into a key ring from a PKCS#12 file that already resides on z/OS. If the certificate content already exists in the security database, the existing record is connected to the ring and keeps its original label.
+
+#### Parameters
+
+| Parameter     | Type                     | Required | Description                                                                                                         |
+|---------------|--------------------------|----------|---------------------------------------------------------------------------------------------------------------------|
+| `owner`       | `string`                 | Yes      | Certificate/key ring owner (user ID).                                                                               |
+| `keyring`     | `string`                 | Yes      | Key ring name.                                                                                                      |
+| `label`       | `string`                 | Yes      | Certificate label to assign (used only when the certificate is new to the security database).                       |
+| `usage`       | `PERSONAL` \| `CERTAUTH` | Yes      | Certificate usage.                                                                                                  |
+| `file`        | `string`                 | Yes      | Path to the source PKCS#12 file on z/OS.                                                                            |
+| `password`    | `string`                 | Yes      | PKCS#12 passphrase.                                                                                                 |
+| `skipRefresh` | `boolean`                | No       | Do not automatically refresh the DIGTCERT class if the security product reports it is required.                     |
+| `system`      | `string`                 | No       | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system. |
+
+<a id="importcertificate-output-schema"></a>
+
+#### Output Schema
+
+| Field                     | Type       | Required | Description                                                                                                 |
+|---------------------------|------------|----------|-------------------------------------------------------------------------------------------------------------|
+| `_context`                | `object`   | Yes      | Resolution context: target z/OS system. *(same as [`runSafeTsoCommand`](#runsafetsocommand-output-schema))* |
+| `_result`                 | `object`   | Yes      | Result of a mutation. success is true. *(same as [`writeDataset`](#writedataset-output-schema))*            |
+| `messages`                | `string`[] | No       | Operational messages (e.g. a non-fatal SAF warning). Omitted when empty.                                    |
+| `data`                    | `object`   | Yes      |                                                                                                             |
+| &ensp;├─ `label`          | `string`   | Yes      | Certificate label.                                                                                          |
+| &ensp;├─ `owner`          | `string`   | Yes      | Key ring owner (user ID).                                                                                   |
+| &ensp;├─ `keyring`        | `string`   | Yes      | Key ring name.                                                                                              |
+| &ensp;├─ `warning`        | `string`   | No       | Human-readable note for a non-fatal warning, when one occurred.                                             |
+| &ensp;├─ `safReturnCodes` | `object`   | No       | SAF codes behind a warning or error, when a non-zero code was returned.                                     |
+| &ensp;└─ `gskReturnCode`  | `number`   | No       | System SSL / GSKCMS status code, when a GSK call failed.                                                    |
+
+#### Example Output
+
+Input:
+
+```json
+{
+  "owner": "USER01",
+  "keyring": "RING02",
+  "label": "CERT03",
+  "usage": "PERSONAL",
+  "file": "/tmp/CERT03.p12",
+  "password": "secret"
+}
+```
+
+Output:
+
+```json
+{
+  "_context": {
+    "system": "mainframe-dev.example.com"
+  },
+  "_result": {
+    "success": true
+  },
+  "data": {
+    "label": "CERT03",
+    "owner": "USER01",
+    "keyring": "RING02"
+  }
+}
+```
+
+---
+
+### `setDefaultCertificate`
+
+
+Set a certificate that is already connected to a key ring as that ring's default certificate.
+
+#### Parameters
+
+| Parameter | Type     | Required | Description                                                                                                         |
+|-----------|----------|----------|---------------------------------------------------------------------------------------------------------------------|
+| `owner`   | `string` | Yes      | Certificate/key ring owner (user ID).                                                                               |
+| `keyring` | `string` | Yes      | Key ring name.                                                                                                      |
+| `label`   | `string` | Yes      | Certificate label.                                                                                                  |
+| `system`  | `string` | No       | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system. |
+
+<a id="setdefaultcertificate-output-schema"></a>
+
+#### Output Schema
+
+| Field      | Type       | Required | Description                                                                                                 |
+|------------|------------|----------|-------------------------------------------------------------------------------------------------------------|
+| `_context` | `object`   | Yes      | Resolution context: target z/OS system. *(same as [`runSafeTsoCommand`](#runsafetsocommand-output-schema))* |
+| `_result`  | `object`   | Yes      | Result of a mutation. success is true. *(same as [`writeDataset`](#writedataset-output-schema))*            |
+| `messages` | `string`[] | No       | Operational messages (e.g. a non-fatal SAF warning). Omitted when empty.                                    |
+| `data`     | `object`   | Yes      | *(same as [`connectCertificate`](#connectcertificate-output-schema))*                                       |
+
+#### Example Output
+
+Input:
+
+```json
+{
+  "owner": "USER01",
+  "keyring": "RING02",
+  "label": "CERT03"
+}
+```
+
+Output:
+
+```json
+{
+  "_context": {
+    "system": "mainframe-dev.example.com"
+  },
+  "_result": {
+    "success": true
+  },
+  "data": {
+    "owner": "USER01",
+    "keyring": "RING02",
+    "label": "CERT03"
+  }
+}
+```
+
+---
+
+### `trustCertificate`
+
+
+Change a certificate's trust status. A key ring is not required; the certificate is identified by owner and label. HIGHTRUST is honored only for CERTAUTH certificates.
+
+#### Parameters
+
+| Parameter | Type                                | Required | Description                                                                                                         |
+|-----------|-------------------------------------|----------|---------------------------------------------------------------------------------------------------------------------|
+| `owner`   | `string`                            | Yes      | Certificate/key ring owner (user ID).                                                                               |
+| `label`   | `string`                            | Yes      | Certificate label.                                                                                                  |
+| `status`  | `TRUST` \| `HIGHTRUST` \| `NOTRUST` | Yes      | The new trust status.                                                                                               |
+| `system`  | `string`                            | No       | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system. |
+
+<a id="trustcertificate-output-schema"></a>
+
+#### Output Schema
+
+| Field                     | Type       | Required | Description                                                                                                 |
+|---------------------------|------------|----------|-------------------------------------------------------------------------------------------------------------|
+| `_context`                | `object`   | Yes      | Resolution context: target z/OS system. *(same as [`runSafeTsoCommand`](#runsafetsocommand-output-schema))* |
+| `_result`                 | `object`   | Yes      | Result of a mutation. success is true. *(same as [`writeDataset`](#writedataset-output-schema))*            |
+| `messages`                | `string`[] | No       | Operational messages (e.g. a non-fatal SAF warning). Omitted when empty.                                    |
+| `data`                    | `object`   | Yes      |                                                                                                             |
+| &ensp;├─ `owner`          | `string`   | Yes      | Certificate owner (user ID).                                                                                |
+| &ensp;├─ `label`          | `string`   | Yes      | Certificate label.                                                                                          |
+| &ensp;├─ `status`         | `string`   | Yes      | New trust status: TRUST, HIGHTRUST, or NOTRUST.                                                             |
+| &ensp;├─ `warning`        | `string`   | No       | Human-readable note for a non-fatal warning, when one occurred.                                             |
+| &ensp;├─ `safReturnCodes` | `object`   | No       | SAF codes behind a warning or error, when a non-zero code was returned.                                     |
+| &ensp;└─ `gskReturnCode`  | `number`   | No       | System SSL / GSKCMS status code, when a GSK call failed.                                                    |
+
+#### Example Output
+
+Input:
+
+```json
+{
+  "owner": "USER01",
+  "label": "CERT03",
+  "status": "NOTRUST"
+}
+```
+
+Output:
+
+```json
+{
+  "_context": {
+    "system": "mainframe-dev.example.com"
+  },
+  "_result": {
+    "success": true
+  },
+  "data": {
+    "owner": "USER01",
+    "label": "CERT03",
+    "status": "NOTRUST"
+  }
+}
+```
+
+---
+
+### `renameCertificate`
+
+
+Change a certificate's label. A key ring is not required; the certificate is identified by owner and current label.
+
+#### Parameters
+
+| Parameter  | Type     | Required | Description                                                                                                         |
+|------------|----------|----------|---------------------------------------------------------------------------------------------------------------------|
+| `owner`    | `string` | Yes      | Certificate/key ring owner (user ID).                                                                               |
+| `label`    | `string` | Yes      | The current certificate label.                                                                                      |
+| `newLabel` | `string` | Yes      | The new certificate label.                                                                                          |
+| `system`   | `string` | No       | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system. |
+
+<a id="renamecertificate-output-schema"></a>
+
+#### Output Schema
+
+| Field                     | Type       | Required | Description                                                                                                 |
+|---------------------------|------------|----------|-------------------------------------------------------------------------------------------------------------|
+| `_context`                | `object`   | Yes      | Resolution context: target z/OS system. *(same as [`runSafeTsoCommand`](#runsafetsocommand-output-schema))* |
+| `_result`                 | `object`   | Yes      | Result of a mutation. success is true. *(same as [`writeDataset`](#writedataset-output-schema))*            |
+| `messages`                | `string`[] | No       | Operational messages (e.g. a non-fatal SAF warning). Omitted when empty.                                    |
+| `data`                    | `object`   | Yes      |                                                                                                             |
+| &ensp;├─ `owner`          | `string`   | Yes      | Certificate owner (user ID).                                                                                |
+| &ensp;├─ `label`          | `string`   | Yes      | Previous certificate label.                                                                                 |
+| &ensp;├─ `newLabel`       | `string`   | Yes      | New certificate label.                                                                                      |
+| &ensp;├─ `warning`        | `string`   | No       | Human-readable note for a non-fatal warning, when one occurred.                                             |
+| &ensp;├─ `safReturnCodes` | `object`   | No       | SAF codes behind a warning or error, when a non-zero code was returned.                                     |
+| &ensp;└─ `gskReturnCode`  | `number`   | No       | System SSL / GSKCMS status code, when a GSK call failed.                                                    |
+
+#### Example Output
+
+Input:
+
+```json
+{
+  "owner": "USER01",
+  "label": "OLDLABEL",
+  "newLabel": "NEWLABEL"
+}
+```
+
+Output:
+
+```json
+{
+  "_context": {
+    "system": "mainframe-dev.example.com"
+  },
+  "_result": {
+    "success": true
+  },
+  "data": {
+    "owner": "USER01",
+    "label": "OLDLABEL",
+    "newLabel": "NEWLABEL"
+  }
+}
+```
+
+---
+
+### `refreshCertificateClass`
+
+
+Refresh the DIGTCERT class so that certificate and key ring changes take effect.
+
+#### Parameters
+
+| Parameter | Type     | Required | Description                                                                                                         |
+|-----------|----------|----------|---------------------------------------------------------------------------------------------------------------------|
+| `system`  | `string` | No       | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system. |
+
+<a id="refreshcertificateclass-output-schema"></a>
+
+#### Output Schema
+
+| Field                     | Type       | Required | Description                                                                                                 |
+|---------------------------|------------|----------|-------------------------------------------------------------------------------------------------------------|
+| `_context`                | `object`   | Yes      | Resolution context: target z/OS system. *(same as [`runSafeTsoCommand`](#runsafetsocommand-output-schema))* |
+| `_result`                 | `object`   | Yes      | Result of a mutation. success is true. *(same as [`writeDataset`](#writedataset-output-schema))*            |
+| `messages`                | `string`[] | No       | Operational messages (e.g. a non-fatal SAF warning). Omitted when empty.                                    |
+| `data`                    | `object`   | Yes      |                                                                                                             |
+| &ensp;├─ `warning`        | `string`   | No       | Human-readable note for a non-fatal warning, when one occurred.                                             |
+| &ensp;├─ `safReturnCodes` | `object`   | No       | SAF codes behind a warning or error, when a non-zero code was returned.                                     |
+| &ensp;└─ `gskReturnCode`  | `number`   | No       | System SSL / GSKCMS status code, when a GSK call failed.                                                    |
+
+#### Example Output
+
+```json
+{
+  "_context": {
+    "system": "mainframe-dev.example.com"
+  },
+  "_result": {
+    "success": true
+  },
+  "data": {}
+}
+```
+
+---
+
 ### `submitJob`
 
 > Destructive
@@ -3304,7 +3860,7 @@ See [Safety and security principles](mcp-safety-security-principles.md) for deta
 
 Read-only with client confirmation prompts for every read operation. Safest tier for exploration.
 
-**35** tools available.
+**36** tools available.
 
 | Tool                                              | Effect Level |
 |---------------------------------------------------|--------------|
@@ -3329,6 +3885,7 @@ Read-only with client confirmation prompts for every read operation. Safest tier
 | [`listProclib`](#listproclib)                     | read         |
 | [`listLinklist`](#listlinklist)                   | read         |
 | [`viewSyslog`](#viewsyslog)                       | read         |
+| [`showCertificate`](#showcertificate)             | read         |
 | [`getJobStatus`](#getjobstatus)                   | read         |
 | [`listJobFiles`](#listjobfiles)                   | read         |
 | [`readJobFile`](#readjobfile)                     | read         |
@@ -3348,40 +3905,47 @@ Read-only with client confirmation prompts for every read operation. Safest tier
 
 Read-only with auto-approved reads. No confirmation prompts for read operations.
 
-**35** tools available.
+**36** tools available.
 
 ### `update`
 
 Adds tools that create, write, copy, rename, and modify resources.
 
-**53** tools available (18 new at this tier).
+**61** tools available (25 new at this tier).
 
-| Tool                                          | Effect Level |
-|-----------------------------------------------|--------------|
-| [`writeDataset`](#writedataset)               | update       |
-| [`createDataset`](#createdataset)             | update       |
-| [`createTempDataset`](#createtempdataset)     | update       |
-| [`copyDataset`](#copydataset)                 | update       |
-| [`renameDataset`](#renamedataset)             | update       |
-| [`restoreDataset`](#restoredataset)           | update       |
-| [`writeUssFile`](#writeussfile)               | update       |
-| [`createUssFile`](#createussfile)             | update       |
-| [`chmodUssFile`](#chmodussfile)               | update       |
-| [`chownUssFile`](#chownussfile)               | update       |
-| [`chtagUssFile`](#chtagussfile)               | update       |
-| [`copyUssFile`](#copyussfile)                 | update       |
-| [`createTempUssDir`](#createtempussdir)       | update       |
-| [`createTempUssFile`](#createtempussfile)     | update       |
-| [`holdJob`](#holdjob)                         | update       |
-| [`releaseJob`](#releasejob)                   | update       |
-| [`uploadFileToDataset`](#uploadfiletodataset) | update       |
-| [`uploadFileToUssFile`](#uploadfiletoussfile) | update       |
+| Tool                                                  | Effect Level |
+|-------------------------------------------------------|--------------|
+| [`writeDataset`](#writedataset)                       | update       |
+| [`createDataset`](#createdataset)                     | update       |
+| [`createTempDataset`](#createtempdataset)             | update       |
+| [`copyDataset`](#copydataset)                         | update       |
+| [`renameDataset`](#renamedataset)                     | update       |
+| [`restoreDataset`](#restoredataset)                   | update       |
+| [`writeUssFile`](#writeussfile)                       | update       |
+| [`createUssFile`](#createussfile)                     | update       |
+| [`chmodUssFile`](#chmodussfile)                       | update       |
+| [`chownUssFile`](#chownussfile)                       | update       |
+| [`chtagUssFile`](#chtagussfile)                       | update       |
+| [`copyUssFile`](#copyussfile)                         | update       |
+| [`createTempUssDir`](#createtempussdir)               | update       |
+| [`createTempUssFile`](#createtempussfile)             | update       |
+| [`connectCertificate`](#connectcertificate)           | update       |
+| [`exportCertificate`](#exportcertificate)             | update       |
+| [`importCertificate`](#importcertificate)             | update       |
+| [`setDefaultCertificate`](#setdefaultcertificate)     | update       |
+| [`trustCertificate`](#trustcertificate)               | update       |
+| [`renameCertificate`](#renamecertificate)             | update       |
+| [`refreshCertificateClass`](#refreshcertificateclass) | update       |
+| [`holdJob`](#holdjob)                                 | update       |
+| [`releaseJob`](#releasejob)                           | update       |
+| [`uploadFileToDataset`](#uploadfiletodataset)         | update       |
+| [`uploadFileToUssFile`](#uploadfiletoussfile)         | update       |
 
 ### `delete`
 
 Adds tools that delete or cancel resources.
 
-**59** tools available (6 new at this tier).
+**68** tools available (7 new at this tier).
 
 | Tool                                                      | Effect Level |
 |-----------------------------------------------------------|--------------|
@@ -3389,6 +3953,7 @@ Adds tools that delete or cancel resources.
 | [`deleteDatasetsUnderPrefix`](#deletedatasetsunderprefix) | delete       |
 | [`deleteUssFile`](#deleteussfile)                         | delete       |
 | [`deleteUssTempUnderDir`](#deleteusstempunderdir)         | delete       |
+| [`deleteCertificate`](#deletecertificate)                 | delete       |
 | [`cancelJob`](#canceljob)                                 | delete       |
 | [`deleteJob`](#deletejob)                                 | delete       |
 
@@ -3396,7 +3961,7 @@ Adds tools that delete or cancel resources.
 
 Adds tools that execute commands and submit jobs. Full access to all operations.
 
-**66** tools available (7 new at this tier).
+**75** tools available (7 new at this tier).
 
 | Tool                                            | Effect Level |
 |-------------------------------------------------|--------------|

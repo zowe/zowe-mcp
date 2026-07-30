@@ -47,8 +47,7 @@ describe('validateTsoCommand', () => {
     expect(validateTsoCommand('SUBMIT USER.JCL(JOBCARD)').action).toBe('elicit');
   });
 
-  it('returns block for always-dangerous commands (PASSWORD, CALL, ALTER, OSHELL non-pwd)', () => {
-    expect(validateTsoCommand('CALL LIB.LOAD(MEMBER)').action).toBe('block');
+  it('returns block for always-dangerous commands (PASSWORD, ALTER, OSHELL non-pwd)', () => {
     expect(validateTsoCommand('PASSWORD').action).toBe('block');
     expect(validateTsoCommand('PROFILE').action).toBe('block');
     expect(validateTsoCommand('ALTER ...').action).toBe('block');
@@ -67,6 +66,34 @@ describe('validateTsoCommand', () => {
     expect(validateTsoCommand('WHO').action).toBe('allow');
     expect(validateTsoCommand('TIME').action).toBe('allow');
     expect(validateTsoCommand('SYSTEM').action).toBe('allow');
+  });
+
+  it('returns elicit for CALL, EXEC/EX, and implicit % execs (arbitrary execution)', () => {
+    const call = validateTsoCommand('CALL LIB.LOAD(MEMBER)');
+    expect(call.action).toBe('elicit');
+    expect(call.pattern?.id).toBe('tso-call');
+    for (const cmd of [
+      "EXEC 'USER.REXX(MYEXEC)'",
+      "EX 'USER.CLIST(MYCLIST)'",
+      '%MYEXEC PARM',
+    ]) {
+      const r = validateTsoCommand(cmd);
+      expect(r.action).toBe('elicit');
+      expect(r.pattern?.id).toBe('tso-exec');
+    }
+  });
+
+  it('does not allow safe keywords appearing as operands of other commands', () => {
+    // EXEC with a safe word as member name must not match the safe list
+    expect(validateTsoCommand("EXEC 'USER.REXX(STATUS)'").action).toBe('elicit');
+    // Unknown verb with safe word operand falls through to elicit, not allow
+    expect(validateTsoCommand("SEND 'HI' USER(TIME)").action).toBe('elicit');
+    expect(validateTsoCommand('ALLOC DA(WHO.DATA) SHR').action).toBe('elicit');
+  });
+
+  it('returns allow for LISTUSER/LU (read-only RACF display)', () => {
+    expect(validateTsoCommand('LISTUSER').action).toBe('allow');
+    expect(validateTsoCommand('LU KELDA16 TSO').action).toBe('allow');
   });
 
   it('returns block for all OSHELL commands', () => {

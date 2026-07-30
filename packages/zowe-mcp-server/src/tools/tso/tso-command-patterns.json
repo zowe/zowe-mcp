@@ -6,11 +6,6 @@
       "pattern": "\\bPASS(?:WORD)?\\b"
     },
     {
-      "id": "tso-call",
-      "message": "CALL runs programs (arbitrary execution).",
-      "pattern": "\\bCALL\\b"
-    },
-    {
       "id": "tso-profile",
       "message": "PROFILE changes session settings.",
       "pattern": "\\bPROF(?:ILE)?\\b"
@@ -38,6 +33,16 @@
   ],
   "elicit": [
     {
+      "id": "tso-call",
+      "message": "CALL runs programs (arbitrary execution); user approval required.",
+      "pattern": "\\bCALL\\b"
+    },
+    {
+      "id": "tso-exec",
+      "message": "EXEC runs REXX execs or CLISTs (arbitrary execution); user approval required.",
+      "pattern": "^(EXEC|EX)\\b|^%"
+    },
+    {
       "id": "tso-delete",
       "message": "DELETE permanently removes data sets or members; user approval required.",
       "pattern": "\\b(DEL(?:ETE)?|DEL)\\b"
@@ -54,14 +59,15 @@
     }
   ],
   "safe": [
-    { "id": "tso-listds", "pattern": "\\b(LISTDS|LISTD)\\b" },
-    { "id": "tso-listalc", "pattern": "\\b(LISTALC|LISTA)\\b" },
-    { "id": "tso-listcat", "pattern": "\\b(LISTCAT|LISTC)\\b" },
-    { "id": "tso-listbc", "pattern": "\\bLISTBC\\b" },
-    { "id": "tso-status", "pattern": "\\bSTATUS\\b" },
-    { "id": "tso-help", "pattern": "\\b(HELP|H)\\b" },
-    { "id": "tso-who", "pattern": "\\bWHO\\b" },
-    { "id": "tso-time", "pattern": "\\bTIME\\b" },
-    { "id": "tso-system", "pattern": "\\bSYSTEM\\b" }
+    { "id": "tso-listds", "pattern": "^(LISTDS|LISTD)\\b" },
+    { "id": "tso-listalc", "pattern": "^(LISTALC|LISTA)\\b" },
+    { "id": "tso-listcat", "pattern": "^(LISTCAT|LISTC)\\b" },
+    { "id": "tso-listbc", "pattern": "^LISTBC\\b" },
+    { "id": "tso-listuser", "pattern": "^(LISTUSER|LU)\\b" },
+    { "id": "tso-status", "pattern": "^STATUS\\b" },
+    { "id": "tso-help", "pattern": "^(HELP|H)\\b" },
+    { "id": "tso-who", "pattern": "^WHO\\b" },
+    { "id": "tso-time", "pattern": "^TIME\\b" },
+    { "id": "tso-system", "pattern": "^SYSTEM\\b" }
   ]
 }

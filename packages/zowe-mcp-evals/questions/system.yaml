@@ -1,0 +1,57 @@
+# yaml-language-server: $schema=../schemas/evals-question-set.schema.json
+# z/OS system information evals: listApf, listProclib, listLinklist, viewSyslog
+# Mock preset "minimal" (one system, auto-activated) so questions test tool/argument
+# selection rather than multi-system disambiguation.
+config:
+  name: system
+  description: Agent must use listApf/listProclib/listLinklist/viewSyslog for z/OS system information
+  repetitions: 5
+  minSuccessRate: 0.8
+  mock:
+    initArgs: --preset minimal
+
+questions:
+  - id: list-apf-authorized
+    prompt: What data sets are APF-authorized on this z/OS system?
+    assertions:
+      - toolCall:
+          tool: listApf
+      - answerContains:
+          pattern: 'SYS1.LINKLIB|APF|authoriz'
+
+  - id: list-apf-jargon
+    prompt: Give me the APF authorization list so I can audit which load libraries can run privileged code.
+    assertions:
+      - toolCall:
+          tool: listApf
+
+  - id: list-proclib
+    prompt: What data sets make up the PROCLIB concatenation? I need to find where cataloged JCL procedures live.
+    assertions:
+      - toolCall:
+          tool: listProclib
+      - answerContains:
+          pattern: 'PROCLIB'
+
+  - id: list-linklist
+    prompt: Show me the LNKLST (link list) concatenation, including which of those libraries are APF-authorized.
+    assertions:
+      - toolCall:
+          tool: listLinklist
+      - answerContains:
+          pattern: 'LINKLIB|APF'
+
+  - id: view-syslog-basic
+    prompt: Show me the operations SYSLOG for this system.
+    assertions:
+      - toolCall:
+          tool: viewSyslog
+
+  - id: view-syslog-recent-limited
+    prompt: Show me the last 5 lines of the syslog starting from 3600 seconds ago.
+    assertions:
+      - toolCall:
+          tool: viewSyslog
+          args:
+            secondsAgo: 3600
+            lineCount: 5

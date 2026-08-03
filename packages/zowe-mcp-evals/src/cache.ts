@@ -84,7 +84,7 @@ function canonicalJson(obj: unknown): string {
   if (Array.isArray(obj)) {
     return '[' + obj.map(canonicalJson).join(',') + ']';
   }
-  const keys = Object.keys(obj as Record<string, unknown>).sort();
+  const keys = Object.keys(obj).sort();
   const pairs = keys.map(
     k => JSON.stringify(k) + ':' + canonicalJson((obj as Record<string, unknown>)[k])
   );

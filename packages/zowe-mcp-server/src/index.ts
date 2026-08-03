@@ -977,7 +977,7 @@ function setupExtensionEventHandlers(
 
       case 'cli-plugin-configuration-update': {
         if (opts.cliPluginStatesByPlugin) {
-          const { configuration } = event.data as { configuration: Record<string, unknown> };
+          const { configuration } = event.data;
           for (const [pluginName, profilesObj] of Object.entries(configuration)) {
             const state = opts.cliPluginStatesByPlugin.get(pluginName);
             if (!state || profilesObj === null || typeof profilesObj !== 'object') continue;
@@ -1153,11 +1153,9 @@ async function main(): Promise<void> {
   const baseSystemsRef: { current: string[] } = { current: [] };
   let getOrCreateTenantNativeSetup: ((sub: string) => NativeSetup) | undefined;
   let addTenantNativeConnectionHandler:
-    | ((tenantSub: string, spec: string) => Promise<void>)
-    | undefined;
+    ((tenantSub: string, spec: string) => Promise<void>) | undefined;
   let removeTenantNativeConnectionHandler:
-    | ((tenantSub: string, spec: string) => Promise<void>)
-    | undefined;
+    ((tenantSub: string, spec: string) => Promise<void>) | undefined;
 
   if (mockDir && zowex) {
     logger.error('Cannot use both --mock and --native/--zowex. Choose one.');
@@ -1672,7 +1670,7 @@ async function main(): Promise<void> {
           type: 'store-cli-plugin-profiles',
           data: {
             pluginName: pluginKey,
-            profilesFile: profilesFile as Record<string, unknown>,
+            profilesFile: profilesFile,
           },
           timestamp: Date.now(),
         });

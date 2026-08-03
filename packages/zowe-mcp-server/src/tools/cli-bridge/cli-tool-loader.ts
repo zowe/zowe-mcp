@@ -1219,12 +1219,7 @@ async function handleListPagination(
   const keyParams: Record<string, string | undefined> = {};
   for (const [k, v] of Object.entries(args)) {
     if (k !== 'offset' && k !== 'limit') {
-      keyParams[k] =
-        v === undefined
-          ? undefined
-          : v !== null && typeof v === 'object'
-            ? JSON.stringify(v)
-            : String(v as string | number | boolean | bigint);
+      keyParams[k] = v === undefined ? undefined : typeof v === 'string' ? v : JSON.stringify(v);
     }
   }
   const cacheKey = buildCacheKey(`cli:list:${toolDef.toolName}`, keyParams);
@@ -1340,10 +1335,7 @@ async function handleListPagination(
     hasMore: meta.hasMore,
   });
 
-  return wrapResponse(ctx, meta, page, messages) as {
-    content: { type: 'text'; text: string }[];
-    structuredContent: Record<string, unknown>;
-  };
+  return wrapResponse(ctx, meta, page, messages);
 }
 
 // ---------------------------------------------------------------------------
@@ -1388,12 +1380,7 @@ async function handleContentWindowing(
   const keyParams: Record<string, string | undefined> = {};
   for (const [k, v] of Object.entries(args)) {
     if (k !== 'startLine' && k !== 'lineCount') {
-      keyParams[k] =
-        v === undefined
-          ? undefined
-          : v !== null && typeof v === 'object'
-            ? JSON.stringify(v)
-            : String(v as string | number | boolean | bigint);
+      keyParams[k] = v === undefined ? undefined : typeof v === 'string' ? v : JSON.stringify(v);
     }
   }
   const cacheKey = buildCacheKey(`cli:content:${toolDef.toolName}`, keyParams);
@@ -1453,10 +1440,7 @@ async function handleContentWindowing(
     hasMore: meta.hasMore,
   });
 
-  return wrapResponse(ctx, meta, sanitized, messages) as {
-    content: { type: 'text'; text: string }[];
-    structuredContent: Record<string, unknown>;
-  };
+  return wrapResponse(ctx, meta, sanitized, messages);
 }
 
 // ---------------------------------------------------------------------------

@@ -13,7 +13,7 @@ import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
-import type { LanguageModel } from 'ai';
+import type { LanguageModel, ToolSet } from 'ai';
 import { generateText, jsonSchema, stepCountIs, tool } from 'ai';
 import type { ChildProcess } from 'node:child_process';
 import { spawn, spawnSync } from 'node:child_process';
@@ -74,7 +74,7 @@ function stepFinishPayload(result: {
       const t = tc as { toolName?: string; input?: unknown };
       return {
         tool: t.toolName,
-        args: t.input != null ? Object.keys(t.input as object) : [],
+        args: t.input != null ? Object.keys(t.input) : [],
       };
     }) ?? [];
   return {
@@ -132,7 +132,7 @@ function buildModel(evalsConfig: EvalsConfig): LanguageModel {
       baseURL: evalsConfig.baseUrl ?? 'http://localhost:8000/v1',
       apiKey: evalsConfig.apiKey ?? 'no key needed',
     });
-    return provider(evalsConfig.serverModel) as unknown as LanguageModel;
+    return provider(evalsConfig.serverModel);
   }
   if (evalsConfig.provider === 'lmstudio') {
     const provider = createOpenAICompatible({
@@ -140,10 +140,10 @@ function buildModel(evalsConfig: EvalsConfig): LanguageModel {
       baseURL: evalsConfig.baseUrl ?? 'http://localhost:1234/v1',
       apiKey: evalsConfig.apiKey ?? 'no key needed',
     });
-    return provider(evalsConfig.serverModel) as unknown as LanguageModel;
+    return provider(evalsConfig.serverModel);
   }
   const google = createGoogleGenerativeAI({ apiKey: evalsConfig.apiKey! });
-  return google(evalsConfig.serverModel) as unknown as LanguageModel;
+  return google(evalsConfig.serverModel);
 }
 
 export function getSystemPrompt(setConfig: SetConfig, serverInstructions?: string): string {
@@ -448,7 +448,7 @@ export class McpEvalHarness {
     const toolCallRecords: ToolCallRecord[] = [];
     const toolAliases = this.options.setConfig.toolAliases ?? {};
 
-    const tools: Record<string, ReturnType<typeof tool>> = {};
+    const tools: ToolSet = {};
     for (const t of mcpTools) {
       const name = t.name;
       const description = t.description ?? `Tool: ${name}`;
@@ -467,7 +467,7 @@ export class McpEvalHarness {
           toolCallRecords.push({ name: canonicalName, arguments: a, result: resultForReport });
           return text;
         },
-      }) as unknown as ReturnType<typeof tool>;
+      });
     }
 
     const model = buildModel(this.options.evalsConfig);

@@ -146,9 +146,9 @@ export async function verifyBearerJwt(
     throw new Error('No matching JWK for JWT');
   }
   const publicKey = createPublicKey({
-    key: jwk as unknown as import('node:crypto').JsonWebKey,
+    key: jwk,
     format: 'jwk',
-  });
+  } as unknown as Parameters<typeof createPublicKey>[0]);
   const data = Buffer.from(`${h64}.${p64}`, 'utf8');
   const sig = base64UrlDecodeToBuffer(s64);
   const ok = cryptoVerify('RSA-SHA256', data, publicKey, sig);

@@ -115,7 +115,7 @@ function localFileContext(
     resolvedLocalPath: resolved.absolutePath,
     rootUri: resolved.rootUri,
     rootsSource: resolved.source,
-  } as ResponseContext;
+  };
 }
 
 export function registerLocalFileTools(
@@ -191,7 +191,7 @@ export function registerLocalFileTools(
       resolvedLocalPath: localResolved.absolutePath,
       rootUri: localResolved.rootUri,
       rootsSource: localResolved.source,
-    } as ResponseContext;
+    };
   }
 
   server.registerTool(

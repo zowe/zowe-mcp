@@ -367,16 +367,16 @@
     "postinstall": "npm run download-api"
   },
   "dependencies": {
-    "@zowe/imperative": "^8.30.1",
+    "@zowe/imperative": "^8.34.0",
     "zowe-mcp-common": "*",
     "@zowe/mcp-server": "0.10.0-dev"
   },
   "devDependencies": {
-    "@types/node": "^22.0.0",
+    "@types/node": "^26.1.1",
     "@vscode/dts": "^0.4.1",
-    "@vscode/vsce": "^3.0.0",
-    "@vscode/test-cli": "^0.0.10",
-    "@vscode/test-electron": "^2.5.2",
+    "@vscode/vsce": "^3.9.2",
+    "@vscode/test-cli": "^0.0.15",
+    "@vscode/test-electron": "^3.1.0",
     "typescript": "^5.9.2"
   }
 }

@@ -147,7 +147,7 @@ export function invokeZoweCli(
     // ZOWE_OPT_PASSWORD in the caller env can never clobber it. Delivered via
     // env so it never appears in argv / ps output.
     ...(password !== undefined ? { ZOWE_OPT_PASSWORD: password } : {}),
-  } as Record<string, string>;
+  };
 
   const options: SpawnSyncOptions = {
     encoding: 'utf-8',

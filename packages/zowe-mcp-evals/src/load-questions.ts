@@ -10,7 +10,7 @@
  */
 
 import Ajv, { type ErrorObject, type ValidateFunction } from 'ajv';
-import yaml from 'js-yaml';
+import { load as yamlLoad } from 'js-yaml';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -304,7 +304,7 @@ function interpolateEnvVars(s: string): string {
 
 export function loadSetYaml(path: string): QuestionSet {
   const content = readFileSync(path, 'utf-8');
-  const data = yaml.load(content) as Record<string, unknown>;
+  const data = yamlLoad(content) as Record<string, unknown>;
 
   const validate = getSchemaValidator();
   if (!validate(data)) {

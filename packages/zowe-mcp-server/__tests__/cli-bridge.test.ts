@@ -322,13 +322,15 @@ describe.skipIf(!YAML_AVAILABLE)('loadPluginYaml', () => {
 // ---------------------------------------------------------------------------
 
 describe('resolveDescription', () => {
-  const makeTool = (descriptions: PluginToolDef['descriptions'], active?: string): PluginToolDef =>
-    ({
-      toolName: 'testTool',
-      zoweCommand: 'endevor list elements',
-      descriptions,
-      activeDescription: active,
-    }) as PluginToolDef;
+  const makeTool = (
+    descriptions: PluginToolDef['descriptions'],
+    active?: string
+  ): PluginToolDef => ({
+    toolName: 'testTool',
+    zoweCommand: 'endevor list elements',
+    descriptions,
+    activeDescription: active,
+  });
 
   it('returns optimized variant by default', () => {
     const tool = makeTool({ cli: 'CLI desc', optimized: 'Optimized desc' });

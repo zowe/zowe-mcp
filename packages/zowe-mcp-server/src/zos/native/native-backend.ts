@@ -626,7 +626,7 @@ export class NativeBackend {
       const additionalDetails = getAdditionalDetails(toThrow) ?? getAdditionalDetails(err);
       const code =
         toThrow && typeof toThrow === 'object' && 'code' in toThrow
-          ? String((toThrow as { code: unknown }).code)
+          ? String(toThrow.code)
           : undefined;
       const fullMsg = additionalDetails ? `${msg} | ${additionalDetails}` : msg;
       const { isConnectionError, isInvalidPassword, isPasswordExpired } = classifyNativeError(

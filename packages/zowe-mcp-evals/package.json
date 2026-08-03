@@ -22,20 +22,21 @@
   ],
   "license": "EPL-2.0",
   "dependencies": {
-    "zowe-mcp-common": "*",
-    "@ai-sdk/google": "^2.0.0",
-    "@ai-sdk/openai-compatible": "1.0.33",
-    "@modelcontextprotocol/sdk": "^1.26.0",
-    "ai": "^5.0.0",
-    "ajv": "^8.18.0",
-    "dotenv": "^16.6.1",
-    "js-yaml": "^4.1.0",
-    "markdown-table": "^3.0.4"
+    "@ai-sdk/google": "^4.0.24",
+    "@ai-sdk/openai-compatible": "3.0.14",
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "ai": "^7.0.37",
+    "ajv": "^8.20.0",
+    "dotenv": "^17.4.2",
+    "js-yaml": "^5.2.2",
+    "markdown-table": "^3.0.4",
+    "zowe-mcp-common": "*"
   },
   "devDependencies": {
     "@types/js-yaml": "^4.0.9",
-    "@types/node": "^22.0.0",
+    "@types/json-schema": "^7.0.15",
+    "@types/node": "^26.1.1",
     "typescript": "^5.9.2",
-    "vitest": "^3.2.4"
+    "vitest": "^4.1.10"
   }
 }

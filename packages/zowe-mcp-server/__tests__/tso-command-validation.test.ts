@@ -72,11 +72,7 @@ describe('validateTsoCommand', () => {
     const call = validateTsoCommand('CALL LIB.LOAD(MEMBER)');
     expect(call.action).toBe('elicit');
     expect(call.pattern?.id).toBe('tso-call');
-    for (const cmd of [
-      "EXEC 'USER.REXX(MYEXEC)'",
-      "EX 'USER.CLIST(MYCLIST)'",
-      '%MYEXEC PARM',
-    ]) {
+    for (const cmd of ["EXEC 'USER.REXX(MYEXEC)'", "EX 'USER.CLIST(MYCLIST)'", '%MYEXEC PARM']) {
       const r = validateTsoCommand(cmd);
       expect(r.action).toBe('elicit');
       expect(r.pattern?.id).toBe('tso-exec');

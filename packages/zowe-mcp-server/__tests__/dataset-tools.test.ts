@@ -706,7 +706,7 @@ describe('Dataset tools with mock backend', () => {
       }> & { _result: SearchResultMeta };
       expect(envelope._context).toBeDefined();
       expect(envelope._context.system).toBe(SYSTEM_HOST);
-      const meta = envelope._result as SearchResultMeta;
+      const meta = envelope._result;
       expect(meta).toBeDefined();
       expect(meta.count).toBe(1);
       expect(meta.totalAvailable).toBe(1);
@@ -729,7 +729,7 @@ describe('Dataset tools with mock backend', () => {
         members: { name: string; matches: { lineNumber: number; content: string }[] }[];
         summary: { linesFound: number; membersWithLines: number };
       }> & { _result: SearchResultMeta };
-      const meta = envelope._result as SearchResultMeta;
+      const meta = envelope._result;
       expect(meta.totalAvailable).toBe(2); // MAIN and UTIL
       expect(meta.linesFound).toBe(2);
       expect(envelope.data.members).toHaveLength(2);
@@ -744,7 +744,7 @@ describe('Dataset tools with mock backend', () => {
       const envelope1 = parseEnvelope(first) as ToolResponseEnvelope<{ members: unknown[] }> & {
         _result: SearchResultMeta;
       };
-      const meta1 = envelope1._result as SearchResultMeta;
+      const meta1 = envelope1._result;
       expect(meta1.hasMore).toBe(true);
       expect(meta1.count).toBe(1);
       expect(meta1.totalAvailable).toBe(2);
@@ -756,7 +756,7 @@ describe('Dataset tools with mock backend', () => {
       const envelope2 = parseEnvelope(second) as ToolResponseEnvelope<{ members: unknown[] }> & {
         _result: SearchResultMeta;
       };
-      const meta2 = envelope2._result as SearchResultMeta;
+      const meta2 = envelope2._result;
       expect(meta2.offset).toBe(1);
       expect(meta2.hasMore).toBe(false);
       expect(envelope2.data.members).toHaveLength(1);

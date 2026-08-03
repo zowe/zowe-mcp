@@ -156,7 +156,7 @@ describe('verifyBearerJwt', () => {
 
   it('throws when sub is missing', async () => {
     const { sub: _s, ...rest } = basePayload;
-    const token = sign(rest as Record<string, unknown>);
+    const token = sign(rest);
     await expect(
       verifyBearerJwt(token, { issuer: TEST_ISSUER, jwksUri: TEST_JWKS_URI })
     ).rejects.toThrow('missing sub');

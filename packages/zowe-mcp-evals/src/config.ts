@@ -66,7 +66,7 @@ function validateProvider(p: string): EvalsProvider {
       `evals.config.json: provider must be "vllm", "gemini", or "lmstudio", got "${p}"`
     );
   }
-  return p as EvalsProvider;
+  return p;
 }
 
 /** Default OpenAI-compat base URL for vLLM-style eval entries. */

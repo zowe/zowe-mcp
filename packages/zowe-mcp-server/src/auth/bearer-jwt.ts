@@ -39,6 +39,8 @@ interface CachedJwks {
 }
 
 const JWKS_TTL_MS = 300_000;
+/** Tolerated clock difference between this server and the IdP for exp/nbf checks. */
+const CLOCK_SKEW_SEC = 60;
 const jwksCache = new Map<string, CachedJwks>();
 
 function base64UrlDecodeToBuffer(s: string): Buffer {
@@ -114,12 +116,20 @@ export async function verifyBearerJwt(
     sub?: string;
     aud?: string | string[];
     exp?: number;
+    nbf?: number;
     email?: string;
   }>(p64);
 
   const nowSec = Math.floor(Date.now() / 1000);
-  if (payload.exp !== undefined && payload.exp < nowSec) {
+  if (typeof payload.exp !== 'number') {
+    // Tokens without an expiry would be valid forever (no revocation support).
+    throw new Error('JWT missing exp claim');
+  }
+  if (payload.exp < nowSec - CLOCK_SKEW_SEC) {
     throw new Error('JWT expired');
+  }
+  if (typeof payload.nbf === 'number' && payload.nbf > nowSec + CLOCK_SKEW_SEC) {
+    throw new Error('JWT not yet valid (nbf)');
   }
   if (payload.iss !== config.issuer) {
     throw new Error('JWT issuer mismatch');

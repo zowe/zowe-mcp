@@ -1383,7 +1383,7 @@ async function main(): Promise<void> {
       updateSystems: nativeSetup.updateSystems,
     };
     baseSystemsRef.current = systems;
-    if (zowex && tenantPersistenceDir && transport === 'http' && hasJwtAuthConfigured()) {
+    if (zowex && transport === 'http' && hasJwtAuthConfigured()) {
       const nativeLoadBase = {
         useEnvForPassword: !extensionConnected,
         passwordStore: nativePasswordStore,
@@ -1394,13 +1394,17 @@ async function main(): Promise<void> {
         zowexServerPath: parsed.zowexServerPath,
         responseTimeout: parsed.zowexResponseTimeout ?? defaultResponseTimeout,
       };
+      // Every OIDC subject gets its own NativeSetup (backend, SSH client cache and
+      // elicited-password cache) so one tenant can never reuse another tenant's
+      // authenticated SSH sessions or cached passwords. Persistence of per-tenant
+      // connections additionally requires ZOWE_MCP_TENANT_STORE_DIR.
       getOrCreateTenantNativeSetup = (sub: string): NativeSetup => {
         const key = tenantKeyFromSub(sub);
         const hit = tenantNativeCache.get(key);
         if (hit) {
           return hit;
         }
-        const fromFile = loadTenantSystems(tenantPersistenceDir, sub);
+        const fromFile = tenantPersistenceDir ? loadTenantSystems(tenantPersistenceDir, sub) : [];
         const merged = mergeConnectionStrings(baseSystemsRef.current, fromFile);
         const setup = loadNative({
           ...nativeLoadBase,
@@ -1408,6 +1412,18 @@ async function main(): Promise<void> {
         });
         tenantNativeCache.set(key, setup);
         return setup;
+      };
+    }
+    if (zowex && tenantPersistenceDir && transport === 'http' && hasJwtAuthConfigured()) {
+      const nativeLoadBase = {
+        useEnvForPassword: !extensionConnected,
+        passwordStore: nativePasswordStore,
+        ...extensionCallbacks,
+        ...standalonePasswordElicitation,
+        disableSshKey,
+        autoInstallZowex: parsed.zowexServerAutoInstall ?? true,
+        zowexServerPath: parsed.zowexServerPath,
+        responseTimeout: parsed.zowexResponseTimeout ?? defaultResponseTimeout,
       };
       addTenantNativeConnectionHandler = (tenantSub: string, spec: string): Promise<void> => {
         parseConnectionSpec(spec);
@@ -1484,7 +1500,8 @@ async function main(): Promise<void> {
       );
     } else if (!tenantPersistenceDir) {
       logger.notice(
-        'addZosConnection is not registered: set ZOWE_MCP_TENANT_STORE_DIR so per-user connections can be persisted (HTTP + JWT + native).'
+        'addZosConnection is not registered: set ZOWE_MCP_TENANT_STORE_DIR so per-user connections can be persisted (HTTP + JWT + native). ' +
+          'Per-tenant SSH session and credential isolation is still enforced in memory.'
       );
     } else if (addTenantNativeConnectionHandler && removeTenantNativeConnectionHandler) {
       logger.info(
@@ -1942,25 +1959,21 @@ async function main(): Promise<void> {
             }
           };
         }
-        if (
-          opts &&
-          tenant &&
-          tenantPersistenceDir &&
-          httpJwtAuth &&
-          getOrCreateTenantNativeSetup &&
-          addTenantNativeConnectionHandler &&
-          removeTenantNativeConnectionHandler
-        ) {
+        if (opts && tenant && httpJwtAuth && getOrCreateTenantNativeSetup) {
+          // Per-tenant backend/credential isolation applies whether or not a tenant
+          // store is configured; connection add/remove additionally needs persistence.
           const setup = getOrCreateTenantNativeSetup(tenant.sub);
           opts.backend = setup.backend;
           opts.systemRegistry = setup.systemRegistry;
           opts.credentialProvider = setup.credentialProvider;
-          opts.addTenantNativeConnection = async (spec: string) => {
-            await addTenantNativeConnectionHandler(tenant.sub, spec);
-          };
-          opts.removeTenantNativeConnection = async (spec: string) => {
-            await removeTenantNativeConnectionHandler(tenant.sub, spec);
-          };
+          if (addTenantNativeConnectionHandler && removeTenantNativeConnectionHandler) {
+            opts.addTenantNativeConnection = async (spec: string) => {
+              await addTenantNativeConnectionHandler(tenant.sub, spec);
+            };
+            opts.removeTenantNativeConnection = async (spec: string) => {
+              await removeTenantNativeConnectionHandler(tenant.sub, spec);
+            };
+          }
         }
         const result = createServer(opts);
         const server = getServer(result);

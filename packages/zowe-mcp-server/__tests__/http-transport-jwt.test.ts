@@ -15,13 +15,16 @@
 
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
-import { generateKeyPairSync, type JsonWebKey, type KeyObject } from 'node:crypto';
+import { generateKeyPairSync, type KeyObject } from 'node:crypto';
 import { get as httpGet } from 'node:http';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { __clearJwtJwksCacheForTests } from '../src/auth/bearer-jwt.js';
 import { createServer, getLogger, getServer } from '../src/server.js';
 import { startHttp } from '../src/transports/http.js';
 import { postMcpLocal, requestUrl, signJwt } from './helpers/jwt-test-utils.js';
+
+// @types/node 26 no longer exports JsonWebKey from node:crypto; a structural JWK type suffices here.
+type JsonWebKey = Record<string, unknown>;
 
 const TEST_ISSUER = 'https://idp.http-test.example.com';
 const TEST_JWKS_URI = 'https://idp.http-test.example.com/jwks.json';

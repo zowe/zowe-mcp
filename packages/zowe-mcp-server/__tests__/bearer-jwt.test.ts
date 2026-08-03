@@ -13,7 +13,7 @@
  * Unit tests for Bearer JWT verification (RS256 + JWKS) and env config.
  */
 
-import { generateKeyPairSync, type JsonWebKey, type KeyObject } from 'node:crypto';
+import { generateKeyPairSync, type KeyObject } from 'node:crypto';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   __clearJwtJwksCacheForTests,
@@ -22,6 +22,9 @@ import {
   verifyBearerJwt,
 } from '../src/auth/bearer-jwt.js';
 import { b64url, requestUrl, signJwt } from './helpers/jwt-test-utils.js';
+
+// @types/node 26 no longer exports JsonWebKey from node:crypto; a structural JWK type suffices here.
+type JsonWebKey = Record<string, unknown>;
 
 const TEST_ISSUER = 'https://idp.example.com';
 const TEST_JWKS_URI = 'https://idp.example.com/.well-known/jwks.json';

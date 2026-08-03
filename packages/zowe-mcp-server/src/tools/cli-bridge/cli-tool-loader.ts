@@ -52,7 +52,12 @@ import {
   withPaginationNote,
   wrapResponse,
 } from '../response.js';
-import { buildProfileArgs, invokeZoweCli } from './cli-invoker.js';
+import {
+  assertNotOptionShaped,
+  buildProfileArgs,
+  invokeZoweCli,
+  validateProfileField,
+} from './cli-invoker.js';
 import type {
   CliNamedProfile,
   CliPluginConfig,
@@ -605,9 +610,12 @@ export function buildCliArgs(
     if (value === undefined) continue;
 
     if (param.cliPositional) {
-      positionals.push(param.valueMap ? (param.valueMap[value] ?? value) : value);
+      const cliValue = param.valueMap ? (param.valueMap[value] ?? value) : value;
+      assertNotOptionShaped(param.name, cliValue);
+      positionals.push(cliValue);
     } else if (param.cliOption) {
       const cliValue = param.valueMap ? (param.valueMap[value] ?? value) : value;
+      assertNotOptionShaped(param.name, cliValue);
       options.push(`--${param.cliOption}`, cliValue);
     }
   }
@@ -761,6 +769,28 @@ function registerProfileMutationTools(
                   type: 'text' as const,
                   text: JSON.stringify({ error: `Missing required field "${field.name}".` }),
                 },
+              ],
+              isError: true,
+            };
+          }
+        }
+        // Validate values at creation time (same constraints buildProfileArgs enforces
+        // at invocation time), so a bad profile is rejected before it is persisted.
+        for (const field of typeDef.fields) {
+          const value = newProfile[field.name];
+          if (value === undefined || value === '') continue;
+          let validationError = validateProfileField(field.name, String(value), field);
+          if (validationError === null) {
+            try {
+              assertNotOptionShaped(field.name, String(value));
+            } catch (e) {
+              validationError = e instanceof Error ? e.message : String(e);
+            }
+          }
+          if (validationError !== null) {
+            return {
+              content: [
+                { type: 'text' as const, text: JSON.stringify({ error: validationError }) },
               ],
               isError: true,
             };
@@ -1715,7 +1745,16 @@ function registerPluginTool(
       }
 
       // --- 3. Build extra CLI args (location fields + tool-specific params) ---
-      const extraArgs = buildCliArgs(toolDef, args, effectiveContext, locationFields);
+      let extraArgs: string[];
+      try {
+        extraArgs = buildCliArgs(toolDef, args, effectiveContext, locationFields);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        return {
+          content: [{ type: 'text' as const, text: JSON.stringify({ error: msg }) }],
+          isError: true,
+        };
+      }
       toolLog.debug('Invoking zowe CLI', {
         command,
         extraArgs,

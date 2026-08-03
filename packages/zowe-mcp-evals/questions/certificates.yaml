@@ -64,6 +64,8 @@ questions:
             label: 'OldCert'
             database: true
 
+  # No format arg asserted: pem is the tool's documented default, so omitting it is correct
+  # and partial-match assertions cannot express "pem or absent" without also matching p12.
   - id: export-certificate-pem
     prompt: Export certificate 'WebServerCert' (owner CERTADM, key ring TCPIP.SERVER.RING) as a PEM file.
     assertions:
@@ -73,7 +75,6 @@ questions:
             owner: 'CERTADM'
             keyring: 'TCPIP.SERVER.RING'
             label: 'WebServerCert'
-            format: 'pem'
 
   - id: export-certificate-p12
     prompt: Export certificate 'WebServerCert' (owner CERTADM, ring TCPIP.SERVER.RING) as a PKCS#12 file to /u/certadm/webserver.p12 with passphrase 'secret123', including the private key.
@@ -136,3 +137,16 @@ questions:
     assertions:
       - toolCall:
           tool: refreshCertificateClass
+
+  # --- Data-interpretation case: model must read notAfter from the tool result.
+  - id: certificate-expiry-inference
+    prompt: When does the certificate 'WebServerCert' (owner CERTADM, key ring TCPIP.SERVER.RING) expire?
+    assertions:
+      - toolCall:
+          tool: showCertificate
+          args:
+            owner: 'CERTADM'
+            keyring: 'TCPIP.SERVER.RING'
+            label: 'WebServerCert'
+      - answerContains:
+          pattern: '2027'

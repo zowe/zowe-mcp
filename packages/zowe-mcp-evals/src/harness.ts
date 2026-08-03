@@ -93,6 +93,10 @@ const DEFAULT_SYSTEM_PROMPT =
 
 const MAX_STEPS = 10;
 
+// Gemini occasionally returns an empty candidate (0 output tokens, no tool calls, no text).
+// Such runs are provider pathology, not a model answer, so they are retried rather than scored.
+const EMPTY_RESPONSE_RETRIES = 2;
+
 export interface HarnessOptions {
   serverPath: string;
   evalsConfig: EvalsConfig;
@@ -480,42 +484,57 @@ export class McpEvalHarness {
     const systemPrompt = getSystemPrompt(this.options.setConfig, serverInstructions);
 
     const t0 = Date.now();
-    const result = await generateText({
-      model,
-      system: systemPrompt,
-      prompt,
-      tools,
-      ...(runOptions?.toolChoice != null ? { toolChoice: runOptions.toolChoice } : {}),
-      ...(runOptions?.activeTools != null && runOptions.activeTools.length > 0
-        ? { activeTools: runOptions.activeTools }
-        : {}),
-      stopWhen: stepCountIs(MAX_STEPS),
-      prepareStep(options) {
-        log.debug('AI SDK prepareStep (before request)', prepareStepPayload(options));
-        return {};
-      },
-      onStepFinish(stepResult: {
-        finishReason?: string;
-        usage?: unknown;
-        totalUsage?: unknown;
-        text?: string;
-        toolCalls?: unknown[];
-        toolResults?: unknown[];
-        isContinued?: boolean;
-      }) {
-        log.debug('AI SDK onStepFinish', stepFinishPayload(stepResult));
-      },
-    });
-    const durationMs = Date.now() - t0;
+    const totalAttempts = 1 + EMPTY_RESPONSE_RETRIES;
+    const attemptGeneration = async () => {
+      toolCallRecords.length = 0;
+      const attemptResult = await generateText({
+        model,
+        system: systemPrompt,
+        prompt,
+        tools,
+        ...(runOptions?.toolChoice != null ? { toolChoice: runOptions.toolChoice } : {}),
+        ...(runOptions?.activeTools != null && runOptions.activeTools.length > 0
+          ? { activeTools: runOptions.activeTools }
+          : {}),
+        stopWhen: stepCountIs(MAX_STEPS),
+        prepareStep(options) {
+          log.debug('AI SDK prepareStep (before request)', prepareStepPayload(options));
+          return {};
+        },
+        onStepFinish(stepResult: {
+          finishReason?: string;
+          usage?: unknown;
+          totalUsage?: unknown;
+          text?: string;
+          toolCalls?: unknown[];
+          toolResults?: unknown[];
+          isContinued?: boolean;
+        }) {
+          log.debug('AI SDK onStepFinish', stepFinishPayload(stepResult));
+        },
+      });
+      log.debug('AI SDK generateText result', {
+        finishReason: attemptResult.finishReason,
+        usage: attemptResult.usage,
+        totalUsage: attemptResult.totalUsage,
+        textPreview: attemptResult.text != null ? truncate(attemptResult.text) : undefined,
+        stepCount: attemptResult.steps?.length ?? 0,
+        reasoningPreview:
+          attemptResult.reasoningText != null ? truncate(attemptResult.reasoningText) : undefined,
+      });
+      return attemptResult;
+    };
+    const isEmptyResponse = (r: Awaited<ReturnType<typeof attemptGeneration>>): boolean =>
+      (toolCallRecords.length === 0 && (r.text ?? '').trim() === '') || r.finishReason === 'error';
 
-    log.debug('AI SDK generateText result', {
-      finishReason: result.finishReason,
-      usage: result.usage,
-      totalUsage: result.totalUsage,
-      textPreview: result.text != null ? truncate(result.text) : undefined,
-      stepCount: result.steps?.length ?? 0,
-      reasoningPreview: result.reasoningText != null ? truncate(result.reasoningText) : undefined,
-    });
+    let result = await attemptGeneration();
+    for (let attempt = 1; attempt < totalAttempts && isEmptyResponse(result); attempt++) {
+      log.warning(
+        `Empty model response (finishReason=${result.finishReason}), retrying (attempt ${attempt}/${totalAttempts})`
+      );
+      result = await attemptGeneration();
+    }
+    const durationMs = Date.now() - t0;
 
     const u = result.usage;
     const tokenUsage: TokenUsage | undefined = u

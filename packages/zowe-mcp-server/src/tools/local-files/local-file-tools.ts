@@ -45,8 +45,13 @@ import {
   uploadFileToDatasetOutputSchema,
   uploadFileToUssFileOutputSchema,
 } from './local-file-output-schemas.js';
+import { fileURLToPath } from 'node:url';
 import type { McpRoot } from './path-under-roots.js';
-import { LocalPathResolutionError, resolveLocalPathUnderRoots } from './path-under-roots.js';
+import {
+  assertRealpathStillInsideRoot,
+  LocalPathResolutionError,
+  resolveLocalPathUnderRoots,
+} from './path-under-roots.js';
 
 export interface LocalFileToolDeps {
   backend: ZosBackend;
@@ -98,12 +103,14 @@ async function resolveLocalPathForTool(
   localPath: string
 ): Promise<{ absolutePath: string; rootUri: string; source: 'mcp' | 'fallback' }> {
   const mcpRoots = await getMcpRoots(deps.mcpServer);
-  return resolveLocalPathUnderRoots({
+  const resolved = resolveLocalPathUnderRoots({
     mcpRoots,
     fallbackDirectories: deps.localFilesFallbackDirectories,
     localPath,
     allowFallbackForRelative: deps.localFilesFallbackDirectories.length > 0,
   });
+  assertRealpathStillInsideRoot(fileURLToPath(resolved.rootUri), resolved.absolutePath);
+  return resolved;
 }
 
 function localFileContext(

@@ -184,6 +184,8 @@ Using **different server names** avoids tool ID collisions and makes it obvious 
 
 If discovery or elicit links show the wrong scheme or hostname, fix **`ZOWE_MCP_OAUTH_RESOURCE`** and **`ZOWE_MCP_PUBLIC_BASE_URL`** first before changing application code.
 
+**TLS is mandatory for remote password elicitation.** The password form posts the user's z/OS password in the request body, so the server **refuses** URL-mode elicitation when `ZOWE_MCP_PUBLIC_BASE_URL` is a **non-loopback `http://`** URL (an error is logged and the elicitation falls back or fails). Loopback `http://127.0.0.1:…` (local development) is still allowed; remote deployments must set an `https://` public base URL with TLS terminated at the proxy.
+
 ## Future: Zowe API Mediation Layer (API ML) and OIDC
 
 **Not implemented today.** This repo documents **direct JWT validation** via **`ZOWE_MCP_JWT_ISSUER`** / **`ZOWE_MCP_JWKS_URI`** (and local dev with Keycloak in **`remote-dev-keycloak.md`**).

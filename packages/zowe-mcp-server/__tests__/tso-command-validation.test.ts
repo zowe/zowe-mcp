@@ -92,6 +92,44 @@ describe('validateTsoCommand', () => {
     expect(validateTsoCommand('LU KELDA16 TSO').action).toBe('allow');
   });
 
+  it('returns elicit with a specific warning for security administration commands', () => {
+    for (const cmd of [
+      // RACF
+      'ALTUSER VICTIM SPECIAL',
+      'ADDUSER NEWGUY NAME(TEMP)',
+      'PERMIT DATASET.* ID(X) ACCESS(READ)',
+      'RDEFINE FACILITY MY.RESOURCE',
+      'SETROPTS RACLIST(FACILITY) REFRESH',
+      'CONNECT USERX GROUP(SYS1)',
+      // Top Secret
+      'TSS ADDTO(USERX) DSNAME(A.B)',
+      // ACF2
+      'ACF',
+    ]) {
+      const r = validateTsoCommand(cmd);
+      expect(r.action).toBe('elicit');
+      expect(r.pattern?.id).toBe('tso-security-admin');
+    }
+  });
+
+  it('returns elicit with a specific warning for ALLOC/FREE and SEND', () => {
+    for (const cmd of ['ALLOC DA(X.Y) NEW', 'ALLOCATE DA(X.Y) SHR', 'FREE FILE(SYSUT1)']) {
+      const r = validateTsoCommand(cmd);
+      expect(r.action).toBe('elicit');
+      expect(r.pattern?.id).toBe('tso-alloc-free');
+    }
+    const send = validateTsoCommand("SEND 'HELLO' USER(OPER)");
+    expect(send.action).toBe('elicit');
+    expect(send.pattern?.id).toBe('tso-send');
+  });
+
+  it('does not misclassify commands that merely start with similar letters', () => {
+    // COPY starts with CO (CONNECT abbreviation) but has no word boundary — fallback elicit
+    const r = validateTsoCommand('COPY A B');
+    expect(r.action).toBe('elicit');
+    expect(r.pattern?.id).toBeUndefined();
+  });
+
   it('returns block for all OSHELL commands', () => {
     for (const cmd of [
       'OSHELL pwd',

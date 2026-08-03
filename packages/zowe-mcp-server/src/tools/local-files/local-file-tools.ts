@@ -17,6 +17,7 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import * as fs from 'node:fs/promises';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
 import { ResourceEffect } from '../../capability-level.js';
 import type { Logger } from '../../log.js';
@@ -45,7 +46,6 @@ import {
   uploadFileToDatasetOutputSchema,
   uploadFileToUssFileOutputSchema,
 } from './local-file-output-schemas.js';
-import { fileURLToPath } from 'node:url';
 import type { McpRoot } from './path-under-roots.js';
 import {
   assertRealpathStillInsideRoot,

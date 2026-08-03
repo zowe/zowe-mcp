@@ -195,9 +195,7 @@ export function assertRealpathStillInsideRoot(
       try {
         fs.realpathSync(resolvedFileAbsolute);
       } catch {
-        throw new LocalPathResolutionError(
-          'Path is a symbolic link with an unresolvable target.'
-        );
+        throw new LocalPathResolutionError('Path is a symbolic link with an unresolvable target.');
       }
     }
   } catch (e) {

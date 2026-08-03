@@ -38,6 +38,7 @@ Ideas inspired by [Gestell-AI/zowe-mcp](https://github.com/Gestell-AI/zowe-mcp) 
 ## Security / Infrastructure
 
 - **Pipe path security**: Review `/tmp` usage for named pipes — ensure the path is secure and the name is really unique (e.g. `/tmp/zowe-mcp-<workspaceId>.sock`).
+- **Move zowex SDK tarball out of git**: `resources/zowe-zowex-for-zowe-sdk-*.tgz` is a binary blob committed to the repo (PR feedback: it slows down every fetch/clone, and each version bump adds another copy to history forever). Distribute via an npm registry or GitHub release asset instead and fetch at install time (with checksum pinning for air-gapped installs); consider whether existing blobs warrant history cleanup (BFG/filter-repo) or Git LFS, coordinated with all forks/PRs since it rewrites history.
 
 ## Testing
 

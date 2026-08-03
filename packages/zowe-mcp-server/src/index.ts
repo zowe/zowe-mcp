@@ -1945,9 +1945,10 @@ async function main(): Promise<void> {
             serverRef,
             logger
           );
-          const basePersist = serverOptions?.persistJobCard;
+          // Tenant-elicited job cards persist only to the tenant's own store — never to
+          // the shared --config file, where they would become bootstrap defaults for
+          // every other tenant after a restart (cross-tenant JOB-statement injection).
           opts.persistJobCard = (spec: string, card: string) => {
-            basePersist?.(spec, card);
             if (tenantPersistenceDir) {
               try {
                 mergeTenantJobCard(tenantPersistenceDir, tenant.sub, spec, card);

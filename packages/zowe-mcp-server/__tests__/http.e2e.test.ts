@@ -21,6 +21,7 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { ChildProcess, fork } from 'node:child_process';
+import { request as httpRequest } from 'node:http';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -228,5 +229,79 @@ describe('Zowe MCP Server (HTTP-specific)', () => {
     await client.connect(transport);
     const { tools } = await client.listTools();
     expect(tools.length).toBeGreaterThan(0);
+  });
+
+  /** Sends a raw MCP initialize POST with arbitrary headers; returns the HTTP status. */
+  function rawMcpInitialize(
+    port: number,
+    headers: Record<string, string>
+  ): Promise<{ status: number }> {
+    return new Promise((resolve, reject) => {
+      const req = httpRequest(
+        {
+          host: '127.0.0.1',
+          port,
+          path: '/mcp',
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            accept: 'application/json, text/event-stream',
+            ...headers,
+          },
+        },
+        res => {
+          res.resume();
+          res.on('end', () => resolve({ status: res.statusCode ?? 0 }));
+        }
+      );
+      req.on('error', reject);
+      req.end(
+        JSON.stringify({
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'initialize',
+          params: {
+            protocolVersion: '2025-03-26',
+            capabilities: {},
+            clientInfo: { name: 'rebind-test', version: '0.0.0' },
+          },
+        })
+      );
+    });
+  }
+
+  it('binds 127.0.0.1 by default in no-auth mode', async () => {
+    const port = 15105;
+    serverProcess = await startHttpServer(port);
+    // Loopback requests work against the default no-auth bind.
+    const { status } = await rawMcpInitialize(port, { host: `127.0.0.1:${port}` });
+    expect(status).toBe(200);
+  });
+
+  it('rejects a cross-site Origin header in no-auth mode (DNS rebinding guard)', async () => {
+    const port = 15106;
+    serverProcess = await startHttpServer(port);
+    const { status } = await rawMcpInitialize(port, {
+      host: `127.0.0.1:${port}`,
+      origin: 'http://evil.example',
+    });
+    expect(status).toBe(403);
+  });
+
+  it('rejects a non-loopback Host header in no-auth mode (DNS rebinding guard)', async () => {
+    const port = 15107;
+    serverProcess = await startHttpServer(port);
+    const { status } = await rawMcpInitialize(port, { host: 'evil.example' });
+    expect(status).toBe(403);
+  });
+
+  it('accepts a loopback Origin header in no-auth mode', async () => {
+    const port = 15108;
+    serverProcess = await startHttpServer(port);
+    const { status } = await rawMcpInitialize(port, {
+      host: `127.0.0.1:${port}`,
+      origin: `http://127.0.0.1:${port}`,
+    });
+    expect(status).toBe(200);
   });
 });

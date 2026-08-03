@@ -179,6 +179,11 @@ interface ParsedArgs {
    * Without this flag the server refuses to start in unauthenticated HTTP mode.
    */
   httpAllowNoAuth?: boolean;
+  /**
+   * Bind address for the MCP HTTP listener (--http-host / ZOWE_MCP_HTTP_HOST).
+   * Unset: 127.0.0.1 in unauthenticated mode, all interfaces with JWT auth.
+   */
+  httpHost?: string;
 }
 
 /** One CLI plugin bridge entry (one --cli-plugin-yaml / --cli-plugin-connection-file pair). */
@@ -277,6 +282,9 @@ function applyEnvOverrides(parsed: ParsedArgs): void {
       process.env.ZOWE_MCP_HTTP_ALLOW_NO_AUTH === 'true')
   ) {
     parsed.httpAllowNoAuth = true;
+  }
+  if (!parsed.httpHost && process.env.ZOWE_MCP_HTTP_HOST?.trim()) {
+    parsed.httpHost = process.env.ZOWE_MCP_HTTP_HOST.trim();
   }
 }
 
@@ -557,6 +565,13 @@ function parseArgs(): ParsedArgs {
           'Required for local development and testing; never use on a shared or public host. ' +
           'Also settable via ZOWE_MCP_HTTP_ALLOW_NO_AUTH=1.',
       },
+      'http-host': {
+        type: 'string',
+        describe:
+          'Bind address for the MCP HTTP listener. Defaults to 127.0.0.1 when running ' +
+          'without JWT auth (--http-allow-no-auth) and to all interfaces with JWT auth. ' +
+          'Also settable via ZOWE_MCP_HTTP_HOST.',
+      },
     })
     .alias('h', 'help')
     .help();
@@ -632,6 +647,7 @@ function parseArgs(): ParsedArgs {
     }
   }
 
+  const httpHostArg = (argv['http-host'] as string | undefined)?.trim();
   const parsed: ParsedArgs = {
     transport: argv.http ? 'http' : 'stdio',
     port: (argv.port as number) ?? 7542,
@@ -653,6 +669,7 @@ function parseArgs(): ParsedArgs {
     cliPluginConfiguration,
     capabilityTier: parseCapabilityTier(argv['capability-tier'] as string | undefined),
     httpAllowNoAuth: Boolean(argv['http-allow-no-auth']),
+    httpHost: httpHostArg === undefined || httpHostArg === '' ? undefined : httpHostArg,
   };
   applyEnvOverrides(parsed);
   return parsed;
@@ -1841,6 +1858,7 @@ async function main(): Promise<void> {
     }
 
     // Enforce explicit opt-in when running HTTP without JWT authentication.
+    let httpBindHost = parsed.httpHost;
     if (!hasJwtAuthConfigured()) {
       if (!httpAllowNoAuth) {
         logger.error(
@@ -1850,6 +1868,16 @@ async function main(): Promise<void> {
             'allow unauthenticated access. Never use --http-allow-no-auth on a shared or public host.'
         );
         process.exit(1);
+      }
+      if (!httpBindHost) {
+        // Unauthenticated mode binds loopback only; exposing it further requires an
+        // explicit --http-host / ZOWE_MCP_HTTP_HOST.
+        httpBindHost = '127.0.0.1';
+      } else if (!['127.0.0.1', 'localhost', '::1', '[::1]'].includes(httpBindHost)) {
+        logger.warning(
+          `Unauthenticated HTTP is explicitly bound to non-loopback address ${httpBindHost}. ` +
+            'Every host that can reach this address has full access to all z/OS tools.'
+        );
       }
       logger.warning(
         'HTTP transport is running WITHOUT authentication ' +
@@ -1945,7 +1973,10 @@ async function main(): Promise<void> {
       },
       port,
       logger,
-      httpJwtAuth ? { jwtAuth: httpJwtAuth } : undefined
+      {
+        ...(httpJwtAuth ? { jwtAuth: httpJwtAuth } : {}),
+        ...(httpBindHost ? { host: httpBindHost } : {}),
+      }
     );
     if (!httpPublicBaseUrlRef.current) {
       httpPublicBaseUrlRef.current = `http://127.0.0.1:${httpHandle.port}`;

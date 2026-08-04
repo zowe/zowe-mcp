@@ -52,36 +52,32 @@ function envelopeSchema<T extends z.ZodType>(
 // ---------------------------------------------------------------------------
 
 const apfDatasetSchema = z.object({
-  dsname: z.string().describe('APF-authorized data set name.'),
-  volume: z.string().describe('Volume serial (empty when SMS-managed / dynamic).'),
+  dsn: z.string().describe('APF-authorized data set name.'),
+  volser: z.string().describe('Volume serial (empty when SMS-managed / dynamic).'),
 });
 
-const listApfDataSchema = z.object({
-  items: z.array(apfDatasetSchema).describe('APF-authorized data sets for this page.'),
-});
-
-export const listApfOutputSchema = envelopeSchema(
-  listApfDataSchema,
+export const listApfLibrariesOutputSchema = envelopeSchema(
+  z.array(apfDatasetSchema).describe('APF-authorized data sets for this page.'),
   listResultMetaSchema,
   'Pagination metadata: count, totalAvailable, offset, hasMore.',
-  'APF-authorized data set list. data.items has dsname and volume; _result has pagination metadata.'
+  'APF-authorized library list. data[] has one entry per data set (dsn, volser); _result has pagination metadata.'
 );
 
 // ---------------------------------------------------------------------------
 // listProclib
 // ---------------------------------------------------------------------------
 
-const listProclibDataSchema = z.object({
-  items: z
-    .array(z.string())
-    .describe('PROCLIB data set names (in concatenation order) for this page.'),
+const proclibDatasetSchema = z.object({
+  dsn: z.string().describe('PROCLIB data set name.'),
 });
 
 export const listProclibOutputSchema = envelopeSchema(
-  listProclibDataSchema,
+  z
+    .array(proclibDatasetSchema)
+    .describe('PROCLIB data sets (in concatenation order) for this page.'),
   listResultMetaSchema,
   'Pagination metadata: count, totalAvailable, offset, hasMore.',
-  'PROCLIB concatenation list. data.items has data set names; _result has pagination metadata.'
+  'PROCLIB concatenation list. data[] has one entry per data set (dsn); _result has pagination metadata.'
 );
 
 // ---------------------------------------------------------------------------
@@ -89,22 +85,18 @@ export const listProclibOutputSchema = envelopeSchema(
 // ---------------------------------------------------------------------------
 
 const linklistDatasetSchema = z.object({
-  dsname: z.string().describe('Link list data set name.'),
-  volume: z.string().describe('Volume serial (empty when SMS-managed / dynamic).'),
-  apf: z.boolean().describe('Whether the data set is APF-authorized.'),
-});
-
-const listLinklistDataSchema = z.object({
-  items: z
-    .array(linklistDatasetSchema)
-    .describe('Link list (LNKLST) data sets (in concatenation order) for this page.'),
+  dsn: z.string().describe('Link list data set name.'),
+  volser: z.string().describe('Volume serial (empty when SMS-managed / dynamic).'),
+  apfAuthorized: z.boolean().describe('Whether the data set is APF-authorized.'),
 });
 
 export const listLinklistOutputSchema = envelopeSchema(
-  listLinklistDataSchema,
+  z
+    .array(linklistDatasetSchema)
+    .describe('Link list (LNKLST) data sets (in concatenation order) for this page.'),
   listResultMetaSchema,
   'Pagination metadata: count, totalAvailable, offset, hasMore.',
-  'Link list concatenation list. data.items has dsname, volume, and apf; _result has pagination metadata.'
+  'Link list concatenation list. data[] has one entry per data set (dsn, volser, apfAuthorized); _result has pagination metadata.'
 );
 
 // ---------------------------------------------------------------------------

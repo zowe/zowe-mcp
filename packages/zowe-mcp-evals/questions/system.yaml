@@ -1,10 +1,10 @@
 # yaml-language-server: $schema=../schemas/evals-question-set.schema.json
-# z/OS system information evals: listApf, listProclib, listLinklist, viewSyslog
+# z/OS system information evals: listApfLibraries, listProclib, listLinklist, viewSyslog
 # Mock preset "minimal" (one system, auto-activated) so questions test tool/argument
 # selection rather than multi-system disambiguation.
 config:
   name: system
-  description: Agent must use listApf/listProclib/listLinklist/viewSyslog for z/OS system information
+  description: Agent must use listApfLibraries/listProclib/listLinklist/viewSyslog for z/OS system information
   repetitions: 5
   minSuccessRate: 0.8
   mock:
@@ -15,7 +15,7 @@ questions:
     prompt: What data sets are APF-authorized on this z/OS system?
     assertions:
       - toolCall:
-          tool: listApf
+          tool: listApfLibraries
       - answerContains:
           pattern: 'SYS1.LINKLIB|APF|authoriz'
 
@@ -23,7 +23,7 @@ questions:
     prompt: Give me the APF authorization list so I can audit which load libraries can run privileged code.
     assertions:
       - toolCall:
-          tool: listApf
+          tool: listApfLibraries
 
   - id: list-proclib
     prompt: What data sets make up the PROCLIB concatenation? I need to find where cataloged JCL procedures live.
@@ -85,7 +85,7 @@ questions:
     prompt: Is CEE.SCEERUN APF-authorized on this system?
     assertions:
       - toolCall:
-          tools: [listApf, listLinklist]
+          tools: [listApfLibraries, listLinklist]
       - answerContains:
           pattern: 'Yes|yes|authoriz'
 
@@ -101,7 +101,7 @@ questions:
     prompt: Fetch the second page of APF-authorized data sets, 5 per page.
     assertions:
       - toolCall:
-          tool: listApf
+          tool: listApfLibraries
           args:
             offset: 5
             limit: 5

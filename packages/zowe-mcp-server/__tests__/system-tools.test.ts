@@ -10,12 +10,12 @@
  */
 
 /**
- * Integration tests for the z/OS system information tools (listApf, listProclib,
+ * Integration tests for the z/OS system information tools (listApfLibraries, listProclib,
  * listLinklist, viewSyslog) against the filesystem mock backend (which returns
  * canned data).
  *
  * Verifies: tool registration + outputSchema, envelope shape, list pagination
- * (listApf/listProclib/listLinklist), syslog line-windowing (viewSyslog), and
+ * (listApfLibraries/listProclib/listLinklist), syslog line-windowing (viewSyslog), and
  * the date/secondsAgo mutual-exclusivity guard.
  */
 
@@ -32,6 +32,7 @@ import type {
   ReadResultMeta,
   ToolResponseEnvelope,
 } from '../src/tools/response.js';
+import { syslogWindowClockSkewWarning } from '../src/tools/system/system-tools.js';
 import type { CredentialProvider } from '../src/zos/credentials.js';
 import { FilesystemMockBackend } from '../src/zos/mock/filesystem-mock-backend.js';
 import { MockCredentialProvider } from '../src/zos/mock/mock-credential-provider.js';
@@ -102,9 +103,9 @@ describe('System information tools with mock backend', () => {
     await server.close();
   });
 
-  it('registers listApf, listProclib, listLinklist, and viewSyslog with output schemas', async () => {
+  it('registers listApfLibraries, listProclib, listLinklist, and viewSyslog with output schemas', async () => {
     const { tools } = await client.listTools();
-    for (const name of ['listApf', 'listProclib', 'listLinklist', 'viewSyslog']) {
+    for (const name of ['listApfLibraries', 'listProclib', 'listLinklist', 'viewSyslog']) {
       const tool = tools.find(t => t.name === name);
       expect(tool, `tool ${name} should be registered`).toBeDefined();
       expect(tool!.outputSchema).toBeDefined();
@@ -120,27 +121,27 @@ describe('System information tools with mock backend', () => {
   });
 
   // -----------------------------------------------------------------------
-  // listApf
+  // listApfLibraries
   // -----------------------------------------------------------------------
-  describe('listApf', () => {
-    it('returns APF data sets with dsname and volume', async () => {
-      const result = await client.callTool({ name: 'listApf', arguments: {} });
-      const env = parseEnvelope<{ items: { dsname: string; volume: string }[] }>(result);
+  describe('listApfLibraries', () => {
+    it('returns APF data sets with dsn and volser as data[]', async () => {
+      const result = await client.callTool({ name: 'listApfLibraries', arguments: {} });
+      const env = parseEnvelope<{ dsn: string; volser: string }[]>(result);
       expect(env._context.system).toBe(SYSTEM_HOST);
-      expect(env.data.items.length).toBeGreaterThan(0);
-      expect(env.data.items[0]).toHaveProperty('dsname');
-      expect(env.data.items[0]).toHaveProperty('volume');
-      expect(env.data.items.some(i => i.dsname === 'SYS1.LINKLIB')).toBe(true);
+      expect(env.data.length).toBeGreaterThan(0);
+      expect(env.data[0]).toHaveProperty('dsn');
+      expect(env.data[0]).toHaveProperty('volser');
+      expect(env.data.some(i => i.dsn === 'SYS1.LINKLIB')).toBe(true);
       const meta = env._result as ListResultMeta;
-      expect(meta.totalAvailable).toBe(env.data.items.length);
+      expect(meta.totalAvailable).toBe(env.data.length);
       expect(meta.hasMore).toBe(false);
     });
 
     it('paginates with offset and limit', async () => {
-      const result = await client.callTool({ name: 'listApf', arguments: { limit: 2 } });
-      const env = parseEnvelope<{ items: unknown[] }>(result);
+      const result = await client.callTool({ name: 'listApfLibraries', arguments: { limit: 2 } });
+      const env = parseEnvelope<unknown[]>(result);
       const meta = env._result as ListResultMeta;
-      expect(env.data.items).toHaveLength(2);
+      expect(env.data).toHaveLength(2);
       expect(meta.count).toBe(2);
       expect(meta.hasMore).toBe(true);
       expect(env.messages?.[0]).toMatch(/offset=2/);
@@ -151,12 +152,12 @@ describe('System information tools with mock backend', () => {
   // listProclib
   // -----------------------------------------------------------------------
   describe('listProclib', () => {
-    it('returns proclib data set names', async () => {
+    it('returns proclib data sets as data[] of { dsn } objects', async () => {
       const result = await client.callTool({ name: 'listProclib', arguments: {} });
-      const env = parseEnvelope<{ items: string[] }>(result);
-      expect(env.data.items).toContain('SYS1.PROCLIB');
+      const env = parseEnvelope<{ dsn: string }[]>(result);
+      expect(env.data.map(i => i.dsn)).toContain('SYS1.PROCLIB');
       const meta = env._result as ListResultMeta;
-      expect(meta.totalAvailable).toBe(env.data.items.length);
+      expect(meta.totalAvailable).toBe(env.data.length);
     });
   });
 
@@ -164,26 +165,24 @@ describe('System information tools with mock backend', () => {
   // listLinklist
   // -----------------------------------------------------------------------
   describe('listLinklist', () => {
-    it('returns link list data sets with dsname, volume, and apf', async () => {
+    it('returns link list data sets with dsn, volser, and apfAuthorized as data[]', async () => {
       const result = await client.callTool({ name: 'listLinklist', arguments: {} });
-      const env = parseEnvelope<{ items: { dsname: string; volume: string; apf: boolean }[] }>(
-        result
-      );
+      const env = parseEnvelope<{ dsn: string; volser: string; apfAuthorized: boolean }[]>(result);
       expect(env._context.system).toBe(SYSTEM_HOST);
-      expect(env.data.items.length).toBeGreaterThan(0);
-      expect(env.data.items[0]).toHaveProperty('dsname');
-      expect(env.data.items[0]).toHaveProperty('volume');
-      expect(env.data.items[0]).toHaveProperty('apf');
-      expect(env.data.items.some(i => i.dsname === 'SYS1.LINKLIB')).toBe(true);
+      expect(env.data.length).toBeGreaterThan(0);
+      expect(env.data[0]).toHaveProperty('dsn');
+      expect(env.data[0]).toHaveProperty('volser');
+      expect(env.data[0]).toHaveProperty('apfAuthorized');
+      expect(env.data.some(i => i.dsn === 'SYS1.LINKLIB')).toBe(true);
       const meta = env._result as ListResultMeta;
-      expect(meta.totalAvailable).toBe(env.data.items.length);
+      expect(meta.totalAvailable).toBe(env.data.length);
     });
 
     it('paginates with offset and limit', async () => {
       const result = await client.callTool({ name: 'listLinklist', arguments: { limit: 2 } });
-      const env = parseEnvelope<{ items: unknown[] }>(result);
+      const env = parseEnvelope<unknown[]>(result);
       const meta = env._result as ListResultMeta;
-      expect(env.data.items).toHaveLength(2);
+      expect(env.data).toHaveLength(2);
       expect(meta.count).toBe(2);
       expect(meta.hasMore).toBe(true);
     });
@@ -229,5 +228,29 @@ describe('System information tools with mock backend', () => {
       const content = result.content as { type: string; text: string }[];
       expect(content[0].text).toMatch(/not both/i);
     });
+  });
+});
+
+describe('syslogWindowClockSkewWarning', () => {
+  it('warns when the reported start is after the end', () => {
+    const msg = syslogWindowClockSkewWarning({
+      startDate: '2026-01-01',
+      startTime: '08:00:17',
+      endDate: '2026-01-01',
+      endTime: '04:10:17',
+    });
+    expect(msg).toMatch(/unreliable/);
+  });
+
+  it('stays silent for a consistent window or missing fields', () => {
+    expect(
+      syslogWindowClockSkewWarning({
+        startDate: '2026-01-01',
+        startTime: '04:00:00',
+        endDate: '2026-01-01',
+        endTime: '05:00:00',
+      })
+    ).toBeUndefined();
+    expect(syslogWindowClockSkewWarning({ startDate: '2026-01-01' })).toBeUndefined();
   });
 });

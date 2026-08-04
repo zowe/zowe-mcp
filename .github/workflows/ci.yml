@@ -131,6 +131,7 @@ jobs:
         run: npm run duplication
 
       - name: Build (common + server)
+        id: build-for-lint
         run: |
           npm run build -w packages/zowe-mcp-common
           npm run build -w @zowe/mcp-server
@@ -148,8 +149,10 @@ jobs:
       # the eslint cache the gate above just populated (--cache), so this second
       # pass is near-instant. Visibility-only: never fails the job, and runs even
       # if the gate failed (!cancelled) so the annotations show up when needed.
+      # Requires the build above: type-aware rules resolve @zowe/mcp-server/dist
+      # imports, and linting without those types reports spurious unsafe-any findings.
       - name: ESLint SARIF report
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && steps.build-for-lint.outcome == 'success' }}
         continue-on-error: true
         run: npm run lint:sarif
       - name: Upload ESLint SARIF

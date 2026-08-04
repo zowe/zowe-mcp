@@ -142,7 +142,7 @@ runSafeTsoCommand:
 runSafeTsoCommand[blocked command]:
   commandText: 'OSHELL rm -rf /'
 
-listApf:
+listApfLibraries:
 
 listProclib:
 

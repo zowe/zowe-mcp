@@ -821,7 +821,7 @@ function generateDefaultInputs(tools: ToolInfo[]): Record<string, Record<string,
     readUssFile: { path: '/etc/profile' },
     runSafeTsoCommand: { command: 'TIME' },
     getUssHome: {},
-    listApf: {},
+    listApfLibraries: {},
     listProclib: {},
     listLinklist: {},
     viewSyslog: {},
@@ -996,7 +996,7 @@ async function main(): Promise<void> {
           label: 'System Information',
           description:
             'Read-only information about the z/OS system itself — APF-authorized data sets, the PROCLIB concatenation, the link list (LNKLST) concatenation, and the operations SYSLOG.',
-          toolNames: ['listApf', 'listProclib', 'listLinklist', 'viewSyslog'],
+          toolNames: ['listApfLibraries', 'listProclib', 'listLinklist', 'viewSyslog'],
         },
         {
           label: 'Certificates',

@@ -85,12 +85,12 @@ The server provides **4** tools.
 
 Read-only information about the z/OS system itself — APF-authorized data sets, the PROCLIB concatenation, the link list (LNKLST) concatenation, and the operations SYSLOG.
 
-| # | Tool                            | Description                                                                                                                                                                |
-|---|---------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| 1 | [`listApf`](#listapf)           | List the APF-authorized (Authorized Program Facility) data sets on the z/OS system, each with its volume serial                                                            |
-| 2 | [`listProclib`](#listproclib)   | List the PROCLIB concatenation on the z/OS system (the data sets searched for JCL procedures, in order)                                                                    |
-| 3 | [`listLinklist`](#listlinklist) | List the link list (LNKLST) concatenation on the z/OS system (the data sets searched for load modules, in order), each with its volume serial and APF-authorization status |
-| 4 | [`viewSyslog`](#viewsyslog)     | View the z/OS SYSLOG (the system operations log)                                                                                                                           |
+| # | Tool                                    | Description                                                                                                                                                                |
+|---|-----------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| 1 | [`listApfLibraries`](#listapflibraries) | List the APF-authorized (Authorized Program Facility) data sets on the z/OS system, each with its volume serial                                                            |
+| 2 | [`listProclib`](#listproclib)           | List the PROCLIB concatenation on the z/OS system (the data sets searched for JCL procedures, in order)                                                                    |
+| 3 | [`listLinklist`](#listlinklist)         | List the link list (LNKLST) concatenation on the z/OS system (the data sets searched for load modules, in order), each with its volume serial and APF-authorization status |
+| 4 | [`viewSyslog`](#viewsyslog)             | View the z/OS SYSLOG (the system operations log)                                                                                                                           |
 
 ## Certificates
 
@@ -2280,7 +2280,7 @@ Output:
 
 ---
 
-### `listApf`
+### `listApfLibraries`
 
 > Read-only
 
@@ -2294,17 +2294,18 @@ List the APF-authorized (Authorized Program Facility) data sets on the z/OS syst
 | `offset`  | `integer` | No       | 0-based index of the first item to return. Default: 0.                                                              |
 | `limit`   | `integer` | No       | Maximum items to return. Default: 500, max 1000.                                                                    |
 
-<a id="listapf-output-schema"></a>
+<a id="listapflibraries-output-schema"></a>
 
 #### Output Schema
 
-| Field            | Type       | Required | Description                                                                                                            |
-|------------------|------------|----------|------------------------------------------------------------------------------------------------------------------------|
-| `_context`       | `object`   | Yes      | Resolution context: target z/OS system. *(same as [`runSafeTsoCommand`](#runsafetsocommand-output-schema))*            |
-| `_result`        | `object`   | Yes      | Pagination metadata: count, totalAvailable, offset, hasMore. *(same as [`listDatasets`](#listdatasets-output-schema))* |
-| `messages`       | `string`[] | No       | Operational messages (e.g. pagination/line-window hints). Omitted when empty.                                          |
-| `data`           | `object`   | Yes      |                                                                                                                        |
-| &ensp;└─ `items` | `object`[] | Yes      | APF-authorized data sets for this page.                                                                                |
+| Field             | Type       | Required | Description                                                                                                            |
+|-------------------|------------|----------|------------------------------------------------------------------------------------------------------------------------|
+| `_context`        | `object`   | Yes      | Resolution context: target z/OS system. *(same as [`runSafeTsoCommand`](#runsafetsocommand-output-schema))*            |
+| `_result`         | `object`   | Yes      | Pagination metadata: count, totalAvailable, offset, hasMore. *(same as [`listDatasets`](#listdatasets-output-schema))* |
+| `messages`        | `string`[] | No       | Operational messages (e.g. pagination/line-window hints). Omitted when empty.                                          |
+| `data`            | `object`[] | Yes      | APF-authorized data sets for this page.                                                                                |
+| &ensp;├─ `dsn`    | `string`   | Yes      | APF-authorized data set name.                                                                                          |
+| &ensp;└─ `volser` | `string`   | Yes      | Volume serial (empty when SMS-managed / dynamic).                                                                      |
 
 #### Example Output
 
@@ -2319,50 +2320,48 @@ List the APF-authorized (Authorized Program Facility) data sets on the z/OS syst
     "offset": 0,
     "hasMore": false
   },
-  "data": {
-    "items": [
-      {
-        "dsname": "SYS1.LINKLIB",
-        "volume": "RES001"
-      },
-      {
-        "dsname": "SYS1.LPALIB",
-        "volume": "RES001"
-      },
-      {
-        "dsname": "SYS1.SVCLIB",
-        "volume": "RES001"
-      },
-      {
-        "dsname": "SYS1.MIGLIB",
-        "volume": "RES001"
-      },
-      {
-        "dsname": "SYS1.CSSLIB",
-        "volume": "RES001"
-      },
-      {
-        "dsname": "CEE.SCEERUN",
-        "volume": "PRD002"
-      },
-      {
-        "dsname": "CEE.SCEERUN2",
-        "volume": "PRD002"
-      },
-      {
-        "dsname": "CSF.SCSFMOD0",
-        "volume": "PRD003"
-      },
-      {
-        "dsname": "TCPIP.SEZALOAD",
-        "volume": "PRD004"
-      },
-      {
-        "dsname": "ISP.SISPLOAD",
-        "volume": "PRD005"
-      }
-    ]
-  }
+  "data": [
+    {
+      "dsn": "SYS1.LINKLIB",
+      "volser": "RES001"
+    },
+    {
+      "dsn": "SYS1.LPALIB",
+      "volser": "RES001"
+    },
+    {
+      "dsn": "SYS1.SVCLIB",
+      "volser": "RES001"
+    },
+    {
+      "dsn": "SYS1.MIGLIB",
+      "volser": "RES001"
+    },
+    {
+      "dsn": "SYS1.CSSLIB",
+      "volser": "RES001"
+    },
+    {
+      "dsn": "CEE.SCEERUN",
+      "volser": "PRD002"
+    },
+    {
+      "dsn": "CEE.SCEERUN2",
+      "volser": "PRD002"
+    },
+    {
+      "dsn": "CSF.SCSFMOD0",
+      "volser": "PRD003"
+    },
+    {
+      "dsn": "TCPIP.SEZALOAD",
+      "volser": "PRD004"
+    },
+    {
+      "dsn": "ISP.SISPLOAD",
+      "volser": "PRD005"
+    }
+  ]
 }
 ```
 
@@ -2386,13 +2385,12 @@ List the PROCLIB concatenation on the z/OS system (the data sets searched for JC
 
 #### Output Schema
 
-| Field            | Type       | Required | Description                                                                                                            |
-|------------------|------------|----------|------------------------------------------------------------------------------------------------------------------------|
-| `_context`       | `object`   | Yes      | Resolution context: target z/OS system. *(same as [`runSafeTsoCommand`](#runsafetsocommand-output-schema))*            |
-| `_result`        | `object`   | Yes      | Pagination metadata: count, totalAvailable, offset, hasMore. *(same as [`listDatasets`](#listdatasets-output-schema))* |
-| `messages`       | `string`[] | No       | Operational messages (e.g. pagination/line-window hints). Omitted when empty.                                          |
-| `data`           | `object`   | Yes      |                                                                                                                        |
-| &ensp;└─ `items` | `string`[] | Yes      | PROCLIB data set names (in concatenation order) for this page.                                                         |
+| Field      | Type       | Required | Description                                                                                                             |
+|------------|------------|----------|-------------------------------------------------------------------------------------------------------------------------|
+| `_context` | `object`   | Yes      | Resolution context: target z/OS system. *(same as [`runSafeTsoCommand`](#runsafetsocommand-output-schema))*             |
+| `_result`  | `object`   | Yes      | Pagination metadata: count, totalAvailable, offset, hasMore. *(same as [`listDatasets`](#listdatasets-output-schema))*  |
+| `messages` | `string`[] | No       | Operational messages (e.g. pagination/line-window hints). Omitted when empty.                                           |
+| `data`     | `object`[] | Yes      | PROCLIB data sets (in concatenation order) for this page. *(same as [`restoreDataset`](#restoredataset-output-schema))* |
 
 #### Example Output
 
@@ -2407,15 +2405,23 @@ List the PROCLIB concatenation on the z/OS system (the data sets searched for JC
     "offset": 0,
     "hasMore": false
   },
-  "data": {
-    "items": [
-      "SYS1.PROCLIB",
-      "SYS1.IBM.PROCLIB",
-      "USER.PROCLIB",
-      "CPAC.PROCLIB",
-      "SYS2.PROCLIB"
-    ]
-  }
+  "data": [
+    {
+      "dsn": "SYS1.PROCLIB"
+    },
+    {
+      "dsn": "SYS1.IBM.PROCLIB"
+    },
+    {
+      "dsn": "USER.PROCLIB"
+    },
+    {
+      "dsn": "CPAC.PROCLIB"
+    },
+    {
+      "dsn": "SYS2.PROCLIB"
+    }
+  ]
 }
 ```
 
@@ -2439,12 +2445,15 @@ List the link list (LNKLST) concatenation on the z/OS system (the data sets sear
 
 #### Output Schema
 
-| Field      | Type       | Required | Description                                                                                                            |
-|------------|------------|----------|------------------------------------------------------------------------------------------------------------------------|
-| `_context` | `object`   | Yes      | Resolution context: target z/OS system. *(same as [`runSafeTsoCommand`](#runsafetsocommand-output-schema))*            |
-| `_result`  | `object`   | Yes      | Pagination metadata: count, totalAvailable, offset, hasMore. *(same as [`listDatasets`](#listdatasets-output-schema))* |
-| `messages` | `string`[] | No       | Operational messages (e.g. pagination/line-window hints). Omitted when empty.                                          |
-| `data`     | `object`   | Yes      | *(same as [`listApf`](#listapf-output-schema))*                                                                        |
+| Field                    | Type       | Required | Description                                                                                                            |
+|--------------------------|------------|----------|------------------------------------------------------------------------------------------------------------------------|
+| `_context`               | `object`   | Yes      | Resolution context: target z/OS system. *(same as [`runSafeTsoCommand`](#runsafetsocommand-output-schema))*            |
+| `_result`                | `object`   | Yes      | Pagination metadata: count, totalAvailable, offset, hasMore. *(same as [`listDatasets`](#listdatasets-output-schema))* |
+| `messages`               | `string`[] | No       | Operational messages (e.g. pagination/line-window hints). Omitted when empty.                                          |
+| `data`                   | `object`[] | Yes      | Link list (LNKLST) data sets (in concatenation order) for this page.                                                   |
+| &ensp;├─ `dsn`           | `string`   | Yes      | Link list data set name.                                                                                               |
+| &ensp;├─ `volser`        | `string`   | Yes      | Volume serial (empty when SMS-managed / dynamic).                                                                      |
+| &ensp;└─ `apfAuthorized` | `boolean`  | Yes      | Whether the data set is APF-authorized.                                                                                |
 
 #### Example Output
 
@@ -2459,35 +2468,33 @@ List the link list (LNKLST) concatenation on the z/OS system (the data sets sear
     "offset": 0,
     "hasMore": false
   },
-  "data": {
-    "items": [
-      {
-        "dsname": "SYS1.LINKLIB",
-        "volume": "RES001",
-        "apf": true
-      },
-      {
-        "dsname": "SYS1.CSSLIB",
-        "volume": "RES001",
-        "apf": true
-      },
-      {
-        "dsname": "CEE.SCEERUN",
-        "volume": "PRD002",
-        "apf": true
-      },
-      {
-        "dsname": "CEE.SCEERUN2",
-        "volume": "PRD002",
-        "apf": true
-      },
-      {
-        "dsname": "ISP.SISPLOAD",
-        "volume": "PRD005",
-        "apf": false
-      }
-    ]
-  }
+  "data": [
+    {
+      "dsn": "SYS1.LINKLIB",
+      "volser": "RES001",
+      "apfAuthorized": true
+    },
+    {
+      "dsn": "SYS1.CSSLIB",
+      "volser": "RES001",
+      "apfAuthorized": true
+    },
+    {
+      "dsn": "CEE.SCEERUN",
+      "volser": "PRD002",
+      "apfAuthorized": true
+    },
+    {
+      "dsn": "CEE.SCEERUN2",
+      "volser": "PRD002",
+      "apfAuthorized": true
+    },
+    {
+      "dsn": "ISP.SISPLOAD",
+      "volser": "PRD005",
+      "apfAuthorized": false
+    }
+  ]
 }
 ```
 
@@ -3881,7 +3888,7 @@ Read-only with client confirmation prompts for every read operation. Safest tier
 | [`readUssFile`](#readussfile)                     | read         |
 | [`getUssTempDir`](#getusstempdir)                 | read         |
 | [`getUssTempPath`](#getusstemppath)               | read         |
-| [`listApf`](#listapf)                             | read         |
+| [`listApfLibraries`](#listapflibraries)           | read         |
 | [`listProclib`](#listproclib)                     | read         |
 | [`listLinklist`](#listlinklist)                   | read         |
 | [`viewSyslog`](#viewsyslog)                       | read         |

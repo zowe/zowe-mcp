@@ -1775,7 +1775,7 @@ export class NativeBackend {
     );
   }
 
-  async listApf(
+  async listApfLibraries(
     systemId: SystemId,
     userId?: string,
     progress?: BackendProgressCallback
@@ -1787,13 +1787,13 @@ export class NativeBackend {
         const system = this.getSystem(client);
         const response = await system.listApf({});
         const items = (response.items ?? []).map(i => ({
-          dsname: sanitizeZowexString(i.dsname) ?? i.dsname,
-          volume: sanitizeZowexString(i.volume) ?? i.volume ?? '',
+          dsn: (sanitizeZowexString(i.dsname) ?? i.dsname).trim(),
+          volser: (sanitizeZowexString(i.volume) ?? i.volume ?? '').trim(),
         }));
         return { items };
       },
       progress,
-      { operation: 'listApf', params: {} }
+      { operation: 'listApfLibraries', params: {} }
     );
   }
 
@@ -1808,7 +1808,10 @@ export class NativeBackend {
       async client => {
         const system = this.getSystem(client);
         const response = await system.listProclib({});
-        const items = (response.items ?? []).map(i => sanitizeZowexString(i) ?? i);
+        // Entries come back space-padded from the RPC, unlike listApf/listLinklist.
+        const items = (response.items ?? []).map(i => ({
+          dsn: (sanitizeZowexString(i) ?? i).trim(),
+        }));
         return { items };
       },
       progress,
@@ -1828,9 +1831,9 @@ export class NativeBackend {
         const system = this.getSystem(client);
         const response = await system.listLinklist({});
         const items = (response.items ?? []).map(i => ({
-          dsname: sanitizeZowexString(i.dsname) ?? i.dsname,
-          volume: sanitizeZowexString(i.volume) ?? i.volume ?? '',
-          apf: i.apf ?? false,
+          dsn: (sanitizeZowexString(i.dsname) ?? i.dsname).trim(),
+          volser: (sanitizeZowexString(i.volume) ?? i.volume ?? '').trim(),
+          apfAuthorized: i.apf ?? false,
         }));
         return { items };
       },

@@ -1077,23 +1077,23 @@ export class FilesystemMockBackend implements ZosBackend {
     return Promise.resolve();
   }
 
-  listApf(
+  listApfLibraries(
     _systemId: SystemId,
     _userId?: string,
     _progress?: BackendProgressCallback
   ): Promise<ListApfResult> {
     return Promise.resolve({
       items: [
-        { dsname: 'SYS1.LINKLIB', volume: 'RES001' },
-        { dsname: 'SYS1.LPALIB', volume: 'RES001' },
-        { dsname: 'SYS1.SVCLIB', volume: 'RES001' },
-        { dsname: 'SYS1.MIGLIB', volume: 'RES001' },
-        { dsname: 'SYS1.CSSLIB', volume: 'RES001' },
-        { dsname: 'CEE.SCEERUN', volume: 'PRD002' },
-        { dsname: 'CEE.SCEERUN2', volume: 'PRD002' },
-        { dsname: 'CSF.SCSFMOD0', volume: 'PRD003' },
-        { dsname: 'TCPIP.SEZALOAD', volume: 'PRD004' },
-        { dsname: 'ISP.SISPLOAD', volume: 'PRD005' },
+        { dsn: 'SYS1.LINKLIB', volser: 'RES001' },
+        { dsn: 'SYS1.LPALIB', volser: 'RES001' },
+        { dsn: 'SYS1.SVCLIB', volser: 'RES001' },
+        { dsn: 'SYS1.MIGLIB', volser: 'RES001' },
+        { dsn: 'SYS1.CSSLIB', volser: 'RES001' },
+        { dsn: 'CEE.SCEERUN', volser: 'PRD002' },
+        { dsn: 'CEE.SCEERUN2', volser: 'PRD002' },
+        { dsn: 'CSF.SCSFMOD0', volser: 'PRD003' },
+        { dsn: 'TCPIP.SEZALOAD', volser: 'PRD004' },
+        { dsn: 'ISP.SISPLOAD', volser: 'PRD005' },
       ],
     });
   }
@@ -1104,7 +1104,13 @@ export class FilesystemMockBackend implements ZosBackend {
     _progress?: BackendProgressCallback
   ): Promise<ListProclibResult> {
     return Promise.resolve({
-      items: ['SYS1.PROCLIB', 'SYS1.IBM.PROCLIB', 'USER.PROCLIB', 'CPAC.PROCLIB', 'SYS2.PROCLIB'],
+      items: [
+        { dsn: 'SYS1.PROCLIB' },
+        { dsn: 'SYS1.IBM.PROCLIB' },
+        { dsn: 'USER.PROCLIB' },
+        { dsn: 'CPAC.PROCLIB' },
+        { dsn: 'SYS2.PROCLIB' },
+      ],
     });
   }
 
@@ -1115,11 +1121,11 @@ export class FilesystemMockBackend implements ZosBackend {
   ): Promise<ListLinklistResult> {
     return Promise.resolve({
       items: [
-        { dsname: 'SYS1.LINKLIB', volume: 'RES001', apf: true },
-        { dsname: 'SYS1.CSSLIB', volume: 'RES001', apf: true },
-        { dsname: 'CEE.SCEERUN', volume: 'PRD002', apf: true },
-        { dsname: 'CEE.SCEERUN2', volume: 'PRD002', apf: true },
-        { dsname: 'ISP.SISPLOAD', volume: 'PRD005', apf: false },
+        { dsn: 'SYS1.LINKLIB', volser: 'RES001', apfAuthorized: true },
+        { dsn: 'SYS1.CSSLIB', volser: 'RES001', apfAuthorized: true },
+        { dsn: 'CEE.SCEERUN', volser: 'PRD002', apfAuthorized: true },
+        { dsn: 'CEE.SCEERUN2', volser: 'PRD002', apfAuthorized: true },
+        { dsn: 'ISP.SISPLOAD', volser: 'PRD005', apfAuthorized: false },
       ],
     });
   }

@@ -444,9 +444,9 @@ export interface ListJobsOptions {
 /** A single APF-authorized data set entry. */
 export interface ApfDatasetEntry {
   /** Data set name. */
-  dsname: string;
+  dsn: string;
   /** Volume serial the data set resides on (empty when SMS-managed / dynamic). */
-  volume: string;
+  volser: string;
 }
 
 /** Result of listing APF-authorized data sets. */
@@ -455,20 +455,26 @@ export interface ListApfResult {
   items: ApfDatasetEntry[];
 }
 
+/** A single PROCLIB concatenation entry (the RPC provides no volume serial). */
+export interface ProclibDatasetEntry {
+  /** Data set name. */
+  dsn: string;
+}
+
 /** Result of listing the PROCLIB concatenation. */
 export interface ListProclibResult {
-  /** PROCLIB data set names (in concatenation order). */
-  items: string[];
+  /** PROCLIB data sets (in concatenation order). */
+  items: ProclibDatasetEntry[];
 }
 
 /** A single link list (LNKLST) data set entry. */
 export interface LinklistDatasetEntry {
   /** Data set name. */
-  dsname: string;
+  dsn: string;
   /** Volume serial the data set resides on (empty when SMS-managed / dynamic). */
-  volume: string;
+  volser: string;
   /** Whether the data set is APF-authorized. */
-  apf: boolean;
+  apfAuthorized: boolean;
 }
 
 /** Result of listing the link list (LNKLST) concatenation. */
@@ -1140,12 +1146,12 @@ export interface ZosBackend {
   // -------------------------------------------------------------------------
 
   /**
-   * List the APF-authorized data sets on the system.
+   * List the APF-authorized libraries (data sets) on the system.
    *
    * @param systemId - Target z/OS system.
    * @param userId - Optional user ID (for backends that select a connection by user).
    */
-  listApf(
+  listApfLibraries(
     systemId: SystemId,
     userId?: string,
     progress?: BackendProgressCallback

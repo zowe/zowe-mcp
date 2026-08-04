@@ -121,5 +121,3 @@ eslint-results.sarif
 
 # ESLint cache (--cache, used to speed the gate + SARIF passes)
 .eslintcache
-
-$HOME

@@ -19,8 +19,8 @@
 
 import { z } from 'zod';
 import {
-  baseContextSchema,
   mutationResultMetaSchema,
+  sharedEnvelopeSchema,
 } from '../datasets/dataset-output-schemas.js';
 
 // ---------------------------------------------------------------------------
@@ -32,20 +32,13 @@ function envelopeSchema<T extends z.ZodType>(
   resultSchema: z.ZodType | undefined,
   envelopeDescription: string
 ) {
-  const base = z.object({
-    _context: baseContextSchema,
-    messages: z
-      .array(z.string())
-      .optional()
-      .describe('Operational messages (e.g. a non-fatal SAF warning). Omitted when empty.'),
-    data: dataSchema,
+  return sharedEnvelopeSchema(dataSchema, {
+    resultSchema,
+    resultDescription: 'Result of a mutation. success is true.',
+    description: envelopeDescription,
+    messagesDescription:
+      'Operational messages (e.g. a non-fatal SAF warning). Omitted when empty.',
   });
-  if (resultSchema) {
-    return base
-      .extend({ _result: resultSchema.describe('Result of a mutation. success is true.') })
-      .describe(envelopeDescription);
-  }
-  return base.describe(envelopeDescription);
 }
 
 // ---------------------------------------------------------------------------

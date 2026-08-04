@@ -26,6 +26,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createServer, getServer } from '../src/server.js';
+import { refreshFailureWarning } from '../src/tools/certificates/certificate-tools.js';
 import type { ToolResponseEnvelope } from '../src/tools/response.js';
 import type { CredentialProvider } from '../src/zos/credentials.js';
 import { FilesystemMockBackend } from '../src/zos/mock/filesystem-mock-backend.js';
@@ -309,5 +310,22 @@ describe('Certificate / key ring tools with mock backend', () => {
       const env = parseEnvelope<Record<string, never>>(result);
       expect(env._result).toEqual({ success: true });
     });
+  });
+});
+
+describe('refreshFailureWarning (post-mutation refresh failure)', () => {
+  it('converts a refresh-only failure into a warning', () => {
+    const w = refreshFailureWarning(
+      new Error('IRRSDL64 REFRESH failed: SAF rc: 8, RACF rc: 8, RACF rsn: 92')
+    );
+    expect(w).toMatch(/change was applied/);
+    expect(w).toMatch(/refreshCertificateClass/);
+  });
+
+  it('passes through other errors', () => {
+    expect(refreshFailureWarning(new Error('IRRSDL64 DataRemove failed: SAF rc: 8'))).toBe(
+      undefined
+    );
+    expect(refreshFailureWarning('not found')).toBe(undefined);
   });
 });

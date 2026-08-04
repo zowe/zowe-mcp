@@ -19,13 +19,13 @@
 
 import { z } from 'zod';
 import {
-  baseContextSchema,
   listResultMetaSchema,
   readResultMetaSchema,
+  sharedEnvelopeSchema,
 } from '../datasets/dataset-output-schemas.js';
 
 // ---------------------------------------------------------------------------
-// Envelope helper
+// Envelope helper (delegates to the shared shape so families cannot diverge)
 // ---------------------------------------------------------------------------
 
 function envelopeSchema<T extends z.ZodType>(
@@ -34,17 +34,13 @@ function envelopeSchema<T extends z.ZodType>(
   resultDescription: string,
   envelopeDescription: string
 ) {
-  return z
-    .object({
-      _context: baseContextSchema,
-      messages: z
-        .array(z.string())
-        .optional()
-        .describe('Operational messages (e.g. pagination/line-window hints). Omitted when empty.'),
-      data: dataSchema,
-      _result: resultSchema.describe(resultDescription),
-    })
-    .describe(envelopeDescription);
+  return sharedEnvelopeSchema(dataSchema, {
+    resultSchema,
+    resultDescription,
+    description: envelopeDescription,
+    messagesDescription:
+      'Operational messages (e.g. pagination/line-window hints). Omitted when empty.',
+  });
 }
 
 // ---------------------------------------------------------------------------

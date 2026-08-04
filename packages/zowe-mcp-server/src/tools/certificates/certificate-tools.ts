@@ -28,7 +28,7 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { ResourceEffect } from '../../capability-level.js';
 import type { Logger } from '../../log.js';
-import type { CertActionResult, ZosBackend } from '../../zos/backend.js';
+import type { CertActionResult, ImportCertificateResult, ZosBackend } from '../../zos/backend.js';
 import type { CredentialProvider } from '../../zos/credentials.js';
 import { resolveSystemForTool, type SessionState } from '../../zos/session.js';
 import type { SystemRegistry } from '../../zos/system.js';
@@ -58,6 +58,22 @@ export interface CertificateToolDeps {
 const ownerParam = z.string().describe('Certificate/key ring owner (user ID).');
 const keyringParam = z.string().describe('Key ring name.');
 const labelParam = z.string().describe('Certificate label.');
+
+/**
+ * Detects the security product reporting that only the automatic post-action DIGTCERT
+ * refresh failed. The primary mutation (delete/import) has already committed at that
+ * point, so surfacing the whole call as failed would be a false failure signal —
+ * a caller could retry a destructive action that already went through.
+ * Exported for tests.
+ */
+export function refreshFailureWarning(err: unknown): string | undefined {
+  const msg = err instanceof Error ? err.message : String(err);
+  if (!/\bREFRESH failed\b/i.test(msg)) return undefined;
+  return (
+    `The certificate change was applied, but the automatic DIGTCERT class refresh failed (${msg}). ` +
+    'Run refreshCertificateClass so the change takes effect everywhere, or verify with showCertificate.'
+  );
+}
 
 /** Common trailing fields (warning/safReturnCodes/gskReturnCode) surfaced by every certificate action. */
 function certActionFields(result: CertActionResult) {
@@ -267,12 +283,19 @@ export function registerCertificateTools(
         const progressCb = extra._meta?.progressToken
           ? (msg: string) => void progress.step(msg)
           : undefined;
-        const result = await deps.backend.deleteCertificate(
-          systemId,
-          { owner, label, keyring, database, skipRefresh },
-          userId,
-          progressCb
-        );
+        let result: CertActionResult;
+        try {
+          result = await deps.backend.deleteCertificate(
+            systemId,
+            { owner, label, keyring, database, skipRefresh },
+            userId,
+            progressCb
+          );
+        } catch (err) {
+          const warning = refreshFailureWarning(err);
+          if (warning === undefined) throw err;
+          result = { warning };
+        }
         const ctx = buildContext(systemId, {});
         await progress.complete('deleted');
         const mutationMeta: MutationResultMeta = { success: true };
@@ -405,12 +428,19 @@ export function registerCertificateTools(
         const progressCb = extra._meta?.progressToken
           ? (msg: string) => void progress.step(msg)
           : undefined;
-        const result = await deps.backend.importCertificate(
-          systemId,
-          { owner, keyring, label, usage, file, password, skipRefresh },
-          userId,
-          progressCb
-        );
+        let result: ImportCertificateResult;
+        try {
+          result = await deps.backend.importCertificate(
+            systemId,
+            { owner, keyring, label, usage, file, password, skipRefresh },
+            userId,
+            progressCb
+          );
+        } catch (err) {
+          const warning = refreshFailureWarning(err);
+          if (warning === undefined) throw err;
+          result = { warning, label, owner, keyring };
+        }
         const ctx = buildContext(systemId, {});
         await progress.complete('imported');
         const mutationMeta: MutationResultMeta = { success: true };

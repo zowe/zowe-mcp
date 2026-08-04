@@ -79,6 +79,8 @@ Ideas inspired by [Gestell-AI/zowe-mcp](https://github.com/Gestell-AI/zowe-mcp) 
 
 ## Features / Components
 
+- **Certificate discovery tools (`listCertificates`, `listKeyRings`)**: every certificate tool requires an exact `owner`+`keyring`+`label` known upfront — an agent has no way to discover what exists before acting. The zowex-sdk already ships the RPC types (`listCertificates` with label/usage filters and pagination, `listRings` for a user's rings + connected certs, plus `createKeyring`/`deleteKeyring`/`countRing`); wrap the two list RPCs as read-only (`ResourceEffect.READ`) tools mirroring why `listApfLibraries`/`listLinklist`/`listProclib` exist for the system tools. (PR #45 review follow-up.)
+
 - ✅ **System parameter: accept FQDN or unqualified**: All tools that take a system parameter should accept both fully qualified hostnames (FQDN) or unqualified hostnames, consistent with `setSystem` behavior, so the agent can use either form.
 - ✅ **Jobs component**: Implement `jobs` tool component (submit job, list jobs, get job output, etc.) as in AGENTS.md; register in server when backend supports it.
 - **Job step results (CC per step)**: Check if there is a way to get condition codes (CC) for each job step to help focus on failed steps.

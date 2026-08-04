@@ -187,7 +187,7 @@ methods' entries, with a comment noting `listProclib` is the one that actually n
 Tested live against System B (real z/OS, native SSH/zowex backend). `listProclib`
 items come back padded with trailing spaces, e.g.:
 
-```
+```text
 "SYS1.PROCLIB                                "
 ```
 
@@ -216,7 +216,7 @@ Tested live against System B with `secondsAgo=600, maxLines=20`:
 that's supposed to run from start to end. Checked against the system's actual clocks over SSH
 at the time of the call:
 
-```
+```text
 $ ssh TESTUSER@System B 'date; tsocmd "TIME"'
 Tue Aug  4 08:10:37 2026                                    # USS/UTC
 TIME-04:10:37 AM. ... AUGUST 4,2026                         # TSO local
@@ -309,9 +309,11 @@ from there:
    all matched RACDCERT LIST; the ISO-8601 `notBefore`/`notAfter` conversion from the local RACF
    dates was correctly timezone-aware, for what it's worth — no issue there).
 3. `deleteCertificate` (`database: true`) — **returned a fatal error**:
+
    ```json
    {"error":"Error: IRRSDL64 REFRESH failed: SAF rc: 8, RACF rc: 8, RACF rsn: 92"}
    ```
+
    Checked via `RACDCERT ID(TESTUSER) LIST(LABEL('TEST-CERT-1'))` immediately after: *"No
    certificate information was found for user TESTUSER."* **The certificate was already deleted.**
    Only the automatic post-delete `SETROPTS REFRESH(DIGTCERT)` step failed — the primary

@@ -4945,6 +4945,1854 @@
       }
     },
     {
+      "name": "listApfLibraries",
+      "description": "List the APF-authorized (Authorized Program Facility) data sets on the z/OS system, each with its volume serial. Results are paginated (default 500, max 1000 per page); follow the pagination instructions in the server instructions. Use this to audit which load libraries are authorized to run privileged code.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "system": {
+            "description": "Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system.",
+            "type": "string"
+          },
+          "offset": {
+            "description": "0-based index of the first item to return. Default: 0.",
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "limit": {
+            "description": "Maximum items to return. Default: 500, max 1000.",
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000
+          }
+        },
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "_context": {
+            "type": "object",
+            "properties": {
+              "system": {
+                "type": "string",
+                "description": "Resolved z/OS system hostname (target of the operation)."
+              }
+            },
+            "required": [
+              "system"
+            ],
+            "additionalProperties": false,
+            "description": "Resolution context: target z/OS system."
+          },
+          "messages": {
+            "description": "Operational messages (e.g. pagination/line-window hints). Omitted when empty.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "dsn": {
+                  "type": "string",
+                  "description": "APF-authorized data set name."
+                },
+                "volser": {
+                  "type": "string",
+                  "description": "Volume serial (empty when SMS-managed / dynamic)."
+                }
+              },
+              "required": [
+                "dsn",
+                "volser"
+              ],
+              "additionalProperties": false
+            },
+            "description": "APF-authorized data sets for this page."
+          },
+          "_result": {
+            "type": "object",
+            "properties": {
+              "count": {
+                "type": "number",
+                "description": "Number of items returned in this page."
+              },
+              "totalAvailable": {
+                "type": "number",
+                "description": "Total matching items before pagination."
+              },
+              "offset": {
+                "type": "number",
+                "description": "0-based offset of the first item in this page."
+              },
+              "hasMore": {
+                "type": "boolean",
+                "description": "True if more items exist. Call the tool again with offset = offset + count and the same limit to fetch the next page."
+              }
+            },
+            "required": [
+              "count",
+              "totalAvailable",
+              "offset",
+              "hasMore"
+            ],
+            "additionalProperties": false,
+            "description": "Pagination metadata: count, totalAvailable, offset, hasMore."
+          }
+        },
+        "required": [
+          "_context",
+          "data",
+          "_result"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      },
+      "_meta": {
+        "resourceEffectLevel": 1
+      }
+    },
+    {
+      "name": "listProclib",
+      "description": "List the PROCLIB concatenation on the z/OS system (the data sets searched for JCL procedures, in order). Results are paginated (default 500, max 1000 per page); follow the pagination instructions in the server instructions. Use this to find where cataloged procedures and started-task JCL live.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "system": {
+            "description": "Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system.",
+            "type": "string"
+          },
+          "offset": {
+            "description": "0-based index of the first item to return. Default: 0.",
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "limit": {
+            "description": "Maximum items to return. Default: 500, max 1000.",
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000
+          }
+        },
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "_context": {
+            "type": "object",
+            "properties": {
+              "system": {
+                "type": "string",
+                "description": "Resolved z/OS system hostname (target of the operation)."
+              }
+            },
+            "required": [
+              "system"
+            ],
+            "additionalProperties": false,
+            "description": "Resolution context: target z/OS system."
+          },
+          "messages": {
+            "description": "Operational messages (e.g. pagination/line-window hints). Omitted when empty.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "dsn": {
+                  "type": "string",
+                  "description": "PROCLIB data set name."
+                }
+              },
+              "required": [
+                "dsn"
+              ],
+              "additionalProperties": false
+            },
+            "description": "PROCLIB data sets (in concatenation order) for this page."
+          },
+          "_result": {
+            "type": "object",
+            "properties": {
+              "count": {
+                "type": "number",
+                "description": "Number of items returned in this page."
+              },
+              "totalAvailable": {
+                "type": "number",
+                "description": "Total matching items before pagination."
+              },
+              "offset": {
+                "type": "number",
+                "description": "0-based offset of the first item in this page."
+              },
+              "hasMore": {
+                "type": "boolean",
+                "description": "True if more items exist. Call the tool again with offset = offset + count and the same limit to fetch the next page."
+              }
+            },
+            "required": [
+              "count",
+              "totalAvailable",
+              "offset",
+              "hasMore"
+            ],
+            "additionalProperties": false,
+            "description": "Pagination metadata: count, totalAvailable, offset, hasMore."
+          }
+        },
+        "required": [
+          "_context",
+          "data",
+          "_result"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      },
+      "_meta": {
+        "resourceEffectLevel": 1
+      }
+    },
+    {
+      "name": "listLinklist",
+      "description": "List the link list (LNKLST) concatenation on the z/OS system (the data sets searched for load modules, in order), each with its volume serial and APF-authorization status. Results are paginated (default 500, max 1000 per page); follow the pagination instructions in the server instructions. Use this to see which load libraries are in the system search order and which are APF-authorized.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "system": {
+            "description": "Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system.",
+            "type": "string"
+          },
+          "offset": {
+            "description": "0-based index of the first item to return. Default: 0.",
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "limit": {
+            "description": "Maximum items to return. Default: 500, max 1000.",
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000
+          }
+        },
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "_context": {
+            "type": "object",
+            "properties": {
+              "system": {
+                "type": "string",
+                "description": "Resolved z/OS system hostname (target of the operation)."
+              }
+            },
+            "required": [
+              "system"
+            ],
+            "additionalProperties": false,
+            "description": "Resolution context: target z/OS system."
+          },
+          "messages": {
+            "description": "Operational messages (e.g. pagination/line-window hints). Omitted when empty.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "dsn": {
+                  "type": "string",
+                  "description": "Link list data set name."
+                },
+                "volser": {
+                  "type": "string",
+                  "description": "Volume serial (empty when SMS-managed / dynamic)."
+                },
+                "apfAuthorized": {
+                  "type": "boolean",
+                  "description": "Whether the data set is APF-authorized."
+                }
+              },
+              "required": [
+                "dsn",
+                "volser",
+                "apfAuthorized"
+              ],
+              "additionalProperties": false
+            },
+            "description": "Link list (LNKLST) data sets (in concatenation order) for this page."
+          },
+          "_result": {
+            "type": "object",
+            "properties": {
+              "count": {
+                "type": "number",
+                "description": "Number of items returned in this page."
+              },
+              "totalAvailable": {
+                "type": "number",
+                "description": "Total matching items before pagination."
+              },
+              "offset": {
+                "type": "number",
+                "description": "0-based offset of the first item in this page."
+              },
+              "hasMore": {
+                "type": "boolean",
+                "description": "True if more items exist. Call the tool again with offset = offset + count and the same limit to fetch the next page."
+              }
+            },
+            "required": [
+              "count",
+              "totalAvailable",
+              "offset",
+              "hasMore"
+            ],
+            "additionalProperties": false,
+            "description": "Pagination metadata: count, totalAvailable, offset, hasMore."
+          }
+        },
+        "required": [
+          "_context",
+          "data",
+          "_result"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      },
+      "_meta": {
+        "resourceEffectLevel": 1
+      }
+    },
+    {
+      "name": "viewSyslog",
+      "description": "View the z/OS SYSLOG (the system operations log). Results may be line-windowed; follow the pagination instructions in the server instructions. Optionally start from a date and time, or from a relative offset (secondsAgo); limit how much the host reads with maxLines. Requesting the same window again without startLine and lineCount re-reads from the host.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "system": {
+            "description": "Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system.",
+            "type": "string"
+          },
+          "date": {
+            "description": "Start date in yyyy-mm-dd. Mutually exclusive with secondsAgo.",
+            "type": "string"
+          },
+          "time": {
+            "description": "Start time in hh:mm:ss. Use with date. Mutually exclusive with secondsAgo.",
+            "type": "string"
+          },
+          "secondsAgo": {
+            "description": "Start from (now - secondsAgo) on z/OS. Mutually exclusive with date/time.",
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "maxLines": {
+            "description": "Maximum syslog lines for the host to read.",
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "startLine": {
+            "description": "1-based first line of output to return. Default: 1.",
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "lineCount": {
+            "description": "Number of lines to return. Omit for default window size.",
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          }
+        },
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "_context": {
+            "type": "object",
+            "properties": {
+              "system": {
+                "type": "string",
+                "description": "Resolved z/OS system hostname (target of the operation)."
+              }
+            },
+            "required": [
+              "system"
+            ],
+            "additionalProperties": false,
+            "description": "Resolution context: target z/OS system."
+          },
+          "messages": {
+            "description": "Operational messages (e.g. pagination/line-window hints). Omitted when empty.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "lines": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "SYSLOG text (UTF-8) as an array of lines; may be a line window."
+              },
+              "mimeType": {
+                "type": "string",
+                "description": "Content type (e.g. text/plain)."
+              },
+              "startDate": {
+                "description": "Actual start date used for the read (yyyy-mm-dd).",
+                "type": "string"
+              },
+              "startTime": {
+                "description": "Actual start time used for the read (hh:mm:ss).",
+                "type": "string"
+              },
+              "endDate": {
+                "description": "Date of the last record returned (yyyy-mm-dd).",
+                "type": "string"
+              },
+              "endTime": {
+                "description": "Time of the last record returned (hh:mm:ss).",
+                "type": "string"
+              }
+            },
+            "required": [
+              "lines",
+              "mimeType"
+            ],
+            "additionalProperties": false
+          },
+          "_result": {
+            "type": "object",
+            "properties": {
+              "totalLines": {
+                "type": "number",
+                "description": "Total number of lines in the full content."
+              },
+              "startLine": {
+                "type": "number",
+                "description": "1-based line number of the first line returned in this window."
+              },
+              "returnedLines": {
+                "type": "number",
+                "description": "Number of lines in the returned window."
+              },
+              "contentLength": {
+                "type": "number",
+                "description": "Character count of the returned text."
+              },
+              "mimeType": {
+                "type": "string",
+                "description": "Inferred content type (e.g. text/plain, text/x-cobol, text/x-jcl). Used for display or syntax highlighting."
+              },
+              "hasMore": {
+                "type": "boolean",
+                "description": "True if more lines exist. Call the tool again with startLine and lineCount to fetch the next window."
+              }
+            },
+            "required": [
+              "totalLines",
+              "startLine",
+              "returnedLines",
+              "contentLength",
+              "mimeType",
+              "hasMore"
+            ],
+            "additionalProperties": false,
+            "description": "Line-window metadata: totalLines, startLine, returnedLines, hasMore."
+          }
+        },
+        "required": [
+          "_context",
+          "data",
+          "_result"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      },
+      "_meta": {
+        "resourceEffectLevel": 1
+      }
+    },
+    {
+      "name": "showCertificate",
+      "description": "Show a certificate's owner, usage, trust status, default flag, key size, serial number, and validity dates. Validity and serial come from decoding the certificate.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "owner": {
+            "type": "string",
+            "description": "Certificate/key ring owner (user ID)."
+          },
+          "keyring": {
+            "type": "string",
+            "description": "Key ring name."
+          },
+          "label": {
+            "type": "string",
+            "description": "Certificate label."
+          },
+          "system": {
+            "description": "Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "owner",
+          "keyring",
+          "label"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "_context": {
+            "type": "object",
+            "properties": {
+              "system": {
+                "type": "string",
+                "description": "Resolved z/OS system hostname (target of the operation)."
+              }
+            },
+            "required": [
+              "system"
+            ],
+            "additionalProperties": false,
+            "description": "Resolution context: target z/OS system."
+          },
+          "messages": {
+            "description": "Operational messages (e.g. a non-fatal SAF warning). Omitted when empty.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "label": {
+                "type": "string",
+                "description": "Certificate label."
+              },
+              "owner": {
+                "type": "string",
+                "description": "Owning user ID."
+              },
+              "usage": {
+                "type": "string",
+                "description": "Usage: PERSONAL, CERTAUTH, or OTHER."
+              },
+              "status": {
+                "type": "string",
+                "description": "Trust status: TRUST, HIGHTRUST, NOTRUST, or UNKNOWN."
+              },
+              "isDefault": {
+                "type": "boolean",
+                "description": "Whether this certificate is the ring's default."
+              },
+              "keyType": {
+                "type": "number",
+                "description": "Private-key type code."
+              },
+              "keySize": {
+                "type": "number",
+                "description": "Private-key size in bits (0 if no private key)."
+              },
+              "serialNumber": {
+                "description": "Certificate serial number (hex).",
+                "type": "string"
+              },
+              "notBefore": {
+                "description": "Validity start (ISO-8601).",
+                "type": "string"
+              },
+              "notAfter": {
+                "description": "Validity end (ISO-8601).",
+                "type": "string"
+              },
+              "recordId": {
+                "description": "Security-database record ID (serial + issuer identifier).",
+                "type": "string"
+              }
+            },
+            "required": [
+              "label",
+              "owner",
+              "usage",
+              "status",
+              "isDefault",
+              "keyType",
+              "keySize"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "_context",
+          "data"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false,
+        "description": "Detailed certificate information (no _result)."
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      },
+      "_meta": {
+        "resourceEffectLevel": 1
+      }
+    },
+    {
+      "name": "connectCertificate",
+      "description": "Connect a certificate to a key ring. The underlying SAF call requires the certificate bytes, so the certificate is read from a ring it is already on (fromRing) or from the security database (fromDatabase) and reconnected to the target ring.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "owner": {
+            "type": "string",
+            "description": "Certificate/key ring owner (user ID)."
+          },
+          "keyring": {
+            "type": "string",
+            "description": "Target key ring name."
+          },
+          "label": {
+            "type": "string",
+            "description": "Certificate label."
+          },
+          "fromRing": {
+            "description": "Source key ring the certificate is already on. Mutually exclusive with fromDatabase; exactly one is required.",
+            "type": "string"
+          },
+          "fromDatabase": {
+            "description": "Read the certificate from the security database instead of a ring. Mutually exclusive with fromRing; exactly one is required.",
+            "type": "boolean"
+          },
+          "usage": {
+            "description": "Certificate usage (default: the certificate's current usage).",
+            "type": "string",
+            "enum": [
+              "PERSONAL",
+              "CERTAUTH"
+            ]
+          },
+          "default": {
+            "description": "Set this certificate as the target ring's default.",
+            "type": "boolean"
+          },
+          "system": {
+            "description": "Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "owner",
+          "keyring",
+          "label"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "_context": {
+            "type": "object",
+            "properties": {
+              "system": {
+                "type": "string",
+                "description": "Resolved z/OS system hostname (target of the operation)."
+              }
+            },
+            "required": [
+              "system"
+            ],
+            "additionalProperties": false,
+            "description": "Resolution context: target z/OS system."
+          },
+          "messages": {
+            "description": "Operational messages (e.g. a non-fatal SAF warning). Omitted when empty.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "owner": {
+                "type": "string",
+                "description": "Certificate owner (user ID)."
+              },
+              "keyring": {
+                "type": "string",
+                "description": "Target key ring name."
+              },
+              "label": {
+                "type": "string",
+                "description": "Certificate label."
+              },
+              "warning": {
+                "description": "Human-readable note for a non-fatal warning, when one occurred.",
+                "type": "string"
+              },
+              "safReturnCodes": {
+                "description": "SAF codes behind a warning or error, when a non-zero code was returned.",
+                "type": "object",
+                "properties": {
+                  "functionCode": {
+                    "type": "number",
+                    "description": "R_datalib function code (e.g. 0x08 DataPut, 0x09 DataRemove)."
+                  },
+                  "safReturnCode": {
+                    "type": "number",
+                    "description": "SAF return code."
+                  },
+                  "productReturnCode": {
+                    "type": "number",
+                    "description": "Security product (RACF, ACF2, or Top Secret) return code."
+                  },
+                  "productReasonCode": {
+                    "type": "number",
+                    "description": "Security product (RACF, ACF2, or Top Secret) reason code."
+                  }
+                },
+                "required": [
+                  "functionCode",
+                  "safReturnCode",
+                  "productReturnCode",
+                  "productReasonCode"
+                ],
+                "additionalProperties": false
+              },
+              "gskReturnCode": {
+                "description": "System SSL / GSKCMS status code, when a GSK call failed.",
+                "type": "number"
+              }
+            },
+            "required": [
+              "owner",
+              "keyring",
+              "label"
+            ],
+            "additionalProperties": false
+          },
+          "_result": {
+            "type": "object",
+            "properties": {
+              "success": {
+                "type": "boolean",
+                "description": "True when the operation completed successfully."
+              }
+            },
+            "required": [
+              "success"
+            ],
+            "additionalProperties": false,
+            "description": "Result of a mutation. success is true."
+          }
+        },
+        "required": [
+          "_context",
+          "data",
+          "_result"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      },
+      "_meta": {
+        "resourceEffectLevel": 2
+      }
+    },
+    {
+      "name": "deleteCertificate",
+      "description": "Disconnect a certificate from a key ring, or delete it from the security database with database (which removes it entirely, not just from one ring). When the security product reports that the DIGTCERT class must be refreshed for the change to take effect, the refresh is issued automatically unless skipRefresh is set.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "owner": {
+            "type": "string",
+            "description": "Certificate/key ring owner (user ID)."
+          },
+          "label": {
+            "type": "string",
+            "description": "Certificate label."
+          },
+          "keyring": {
+            "description": "Key ring to disconnect the certificate from. Mutually exclusive with database; exactly one is required.",
+            "type": "string"
+          },
+          "database": {
+            "description": "Delete the certificate from the security database entirely. Mutually exclusive with keyring; exactly one is required.",
+            "type": "boolean"
+          },
+          "skipRefresh": {
+            "description": "Do not automatically refresh the DIGTCERT class if the security product reports it is required.",
+            "type": "boolean"
+          },
+          "system": {
+            "description": "Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "owner",
+          "label"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "_context": {
+            "type": "object",
+            "properties": {
+              "system": {
+                "type": "string",
+                "description": "Resolved z/OS system hostname (target of the operation)."
+              }
+            },
+            "required": [
+              "system"
+            ],
+            "additionalProperties": false,
+            "description": "Resolution context: target z/OS system."
+          },
+          "messages": {
+            "description": "Operational messages (e.g. a non-fatal SAF warning). Omitted when empty.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "owner": {
+                "type": "string",
+                "description": "Certificate owner (user ID)."
+              },
+              "label": {
+                "type": "string",
+                "description": "Certificate label."
+              },
+              "keyring": {
+                "description": "Key ring the certificate was disconnected from.",
+                "type": "string"
+              },
+              "database": {
+                "description": "True when the certificate was deleted from the security database.",
+                "type": "boolean"
+              },
+              "warning": {
+                "description": "Human-readable note for a non-fatal warning, when one occurred.",
+                "type": "string"
+              },
+              "safReturnCodes": {
+                "description": "SAF codes behind a warning or error, when a non-zero code was returned.",
+                "type": "object",
+                "properties": {
+                  "functionCode": {
+                    "type": "number",
+                    "description": "R_datalib function code (e.g. 0x08 DataPut, 0x09 DataRemove)."
+                  },
+                  "safReturnCode": {
+                    "type": "number",
+                    "description": "SAF return code."
+                  },
+                  "productReturnCode": {
+                    "type": "number",
+                    "description": "Security product (RACF, ACF2, or Top Secret) return code."
+                  },
+                  "productReasonCode": {
+                    "type": "number",
+                    "description": "Security product (RACF, ACF2, or Top Secret) reason code."
+                  }
+                },
+                "required": [
+                  "functionCode",
+                  "safReturnCode",
+                  "productReturnCode",
+                  "productReasonCode"
+                ],
+                "additionalProperties": false
+              },
+              "gskReturnCode": {
+                "description": "System SSL / GSKCMS status code, when a GSK call failed.",
+                "type": "number"
+              }
+            },
+            "required": [
+              "owner",
+              "label"
+            ],
+            "additionalProperties": false
+          },
+          "_result": {
+            "type": "object",
+            "properties": {
+              "success": {
+                "type": "boolean",
+                "description": "True when the operation completed successfully."
+              }
+            },
+            "required": [
+              "success"
+            ],
+            "additionalProperties": false,
+            "description": "Result of a mutation. success is true."
+          }
+        },
+        "required": [
+          "_context",
+          "data",
+          "_result"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      },
+      "_meta": {
+        "resourceEffectLevel": 3
+      }
+    },
+    {
+      "name": "exportCertificate",
+      "description": "Export a certificate from a key ring in PEM (certificate only) or PKCS#12 (certificate plus private key) format. With file, the certificate is written on z/OS; PEM without file is returned inline. The private key is only available in the p12 format, which requires file.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "owner": {
+            "type": "string",
+            "description": "Certificate/key ring owner (user ID)."
+          },
+          "keyring": {
+            "type": "string",
+            "description": "Key ring name."
+          },
+          "label": {
+            "type": "string",
+            "description": "Certificate label."
+          },
+          "format": {
+            "description": "Export format: \"pem\" (certificate) or \"p12\" (certificate + private key). Default \"pem\".",
+            "type": "string",
+            "enum": [
+              "pem",
+              "p12"
+            ]
+          },
+          "file": {
+            "description": "Output file path on z/OS. Required for p12; PEM is returned inline if omitted.",
+            "type": "string"
+          },
+          "password": {
+            "description": "PKCS#12 passphrase (used with format p12).",
+            "type": "string"
+          },
+          "system": {
+            "description": "Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "owner",
+          "keyring",
+          "label"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "_context": {
+            "type": "object",
+            "properties": {
+              "system": {
+                "type": "string",
+                "description": "Resolved z/OS system hostname (target of the operation)."
+              }
+            },
+            "required": [
+              "system"
+            ],
+            "additionalProperties": false,
+            "description": "Resolution context: target z/OS system."
+          },
+          "messages": {
+            "description": "Operational messages (e.g. a non-fatal SAF warning). Omitted when empty.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "label": {
+                "type": "string",
+                "description": "Certificate label."
+              },
+              "owner": {
+                "type": "string",
+                "description": "Key ring owner (user ID)."
+              },
+              "keyring": {
+                "type": "string",
+                "description": "Key ring name."
+              },
+              "format": {
+                "type": "string",
+                "description": "Export format that was produced (\"pem\" or \"p12\")."
+              },
+              "file": {
+                "description": "Output file path, when written to disk on z/OS.",
+                "type": "string"
+              },
+              "bytesWritten": {
+                "description": "Number of bytes written to the output file.",
+                "type": "number"
+              },
+              "content": {
+                "description": "Exported certificate text (PEM), when not written to a file.",
+                "type": "string"
+              }
+            },
+            "required": [
+              "label",
+              "owner",
+              "keyring",
+              "format"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "_context",
+          "data"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false,
+        "description": "Result of exporting a certificate. data has either file/bytesWritten or content, depending on whether file was given."
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      },
+      "_meta": {
+        "resourceEffectLevel": 2
+      }
+    },
+    {
+      "name": "importCertificate",
+      "description": "Import a certificate (and its private key, when present) into a key ring from a PKCS#12 file that already resides on z/OS. If the certificate content already exists in the security database, the existing record is connected to the ring and keeps its original label.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "owner": {
+            "type": "string",
+            "description": "Certificate/key ring owner (user ID)."
+          },
+          "keyring": {
+            "type": "string",
+            "description": "Key ring name."
+          },
+          "label": {
+            "type": "string",
+            "description": "Certificate label to assign (used only when the certificate is new to the security database)."
+          },
+          "usage": {
+            "type": "string",
+            "enum": [
+              "PERSONAL",
+              "CERTAUTH"
+            ],
+            "description": "Certificate usage."
+          },
+          "file": {
+            "type": "string",
+            "description": "Path to the source PKCS#12 file on z/OS."
+          },
+          "password": {
+            "type": "string",
+            "description": "PKCS#12 passphrase."
+          },
+          "skipRefresh": {
+            "description": "Do not automatically refresh the DIGTCERT class if the security product reports it is required.",
+            "type": "boolean"
+          },
+          "system": {
+            "description": "Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "owner",
+          "keyring",
+          "label",
+          "usage",
+          "file",
+          "password"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "_context": {
+            "type": "object",
+            "properties": {
+              "system": {
+                "type": "string",
+                "description": "Resolved z/OS system hostname (target of the operation)."
+              }
+            },
+            "required": [
+              "system"
+            ],
+            "additionalProperties": false,
+            "description": "Resolution context: target z/OS system."
+          },
+          "messages": {
+            "description": "Operational messages (e.g. a non-fatal SAF warning). Omitted when empty.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "label": {
+                "type": "string",
+                "description": "Certificate label."
+              },
+              "owner": {
+                "type": "string",
+                "description": "Key ring owner (user ID)."
+              },
+              "keyring": {
+                "type": "string",
+                "description": "Key ring name."
+              },
+              "warning": {
+                "description": "Human-readable note for a non-fatal warning, when one occurred.",
+                "type": "string"
+              },
+              "safReturnCodes": {
+                "description": "SAF codes behind a warning or error, when a non-zero code was returned.",
+                "type": "object",
+                "properties": {
+                  "functionCode": {
+                    "type": "number",
+                    "description": "R_datalib function code (e.g. 0x08 DataPut, 0x09 DataRemove)."
+                  },
+                  "safReturnCode": {
+                    "type": "number",
+                    "description": "SAF return code."
+                  },
+                  "productReturnCode": {
+                    "type": "number",
+                    "description": "Security product (RACF, ACF2, or Top Secret) return code."
+                  },
+                  "productReasonCode": {
+                    "type": "number",
+                    "description": "Security product (RACF, ACF2, or Top Secret) reason code."
+                  }
+                },
+                "required": [
+                  "functionCode",
+                  "safReturnCode",
+                  "productReturnCode",
+                  "productReasonCode"
+                ],
+                "additionalProperties": false
+              },
+              "gskReturnCode": {
+                "description": "System SSL / GSKCMS status code, when a GSK call failed.",
+                "type": "number"
+              }
+            },
+            "required": [
+              "label",
+              "owner",
+              "keyring"
+            ],
+            "additionalProperties": false
+          },
+          "_result": {
+            "type": "object",
+            "properties": {
+              "success": {
+                "type": "boolean",
+                "description": "True when the operation completed successfully."
+              }
+            },
+            "required": [
+              "success"
+            ],
+            "additionalProperties": false,
+            "description": "Result of a mutation. success is true."
+          }
+        },
+        "required": [
+          "_context",
+          "data",
+          "_result"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      },
+      "_meta": {
+        "resourceEffectLevel": 2
+      }
+    },
+    {
+      "name": "setDefaultCertificate",
+      "description": "Set a certificate that is already connected to a key ring as that ring's default certificate.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "owner": {
+            "type": "string",
+            "description": "Certificate/key ring owner (user ID)."
+          },
+          "keyring": {
+            "type": "string",
+            "description": "Key ring name."
+          },
+          "label": {
+            "type": "string",
+            "description": "Certificate label."
+          },
+          "system": {
+            "description": "Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "owner",
+          "keyring",
+          "label"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "_context": {
+            "type": "object",
+            "properties": {
+              "system": {
+                "type": "string",
+                "description": "Resolved z/OS system hostname (target of the operation)."
+              }
+            },
+            "required": [
+              "system"
+            ],
+            "additionalProperties": false,
+            "description": "Resolution context: target z/OS system."
+          },
+          "messages": {
+            "description": "Operational messages (e.g. a non-fatal SAF warning). Omitted when empty.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "owner": {
+                "type": "string",
+                "description": "Key ring owner (user ID)."
+              },
+              "keyring": {
+                "type": "string",
+                "description": "Key ring name."
+              },
+              "label": {
+                "type": "string",
+                "description": "Certificate label."
+              },
+              "warning": {
+                "description": "Human-readable note for a non-fatal warning, when one occurred.",
+                "type": "string"
+              },
+              "safReturnCodes": {
+                "description": "SAF codes behind a warning or error, when a non-zero code was returned.",
+                "type": "object",
+                "properties": {
+                  "functionCode": {
+                    "type": "number",
+                    "description": "R_datalib function code (e.g. 0x08 DataPut, 0x09 DataRemove)."
+                  },
+                  "safReturnCode": {
+                    "type": "number",
+                    "description": "SAF return code."
+                  },
+                  "productReturnCode": {
+                    "type": "number",
+                    "description": "Security product (RACF, ACF2, or Top Secret) return code."
+                  },
+                  "productReasonCode": {
+                    "type": "number",
+                    "description": "Security product (RACF, ACF2, or Top Secret) reason code."
+                  }
+                },
+                "required": [
+                  "functionCode",
+                  "safReturnCode",
+                  "productReturnCode",
+                  "productReasonCode"
+                ],
+                "additionalProperties": false
+              },
+              "gskReturnCode": {
+                "description": "System SSL / GSKCMS status code, when a GSK call failed.",
+                "type": "number"
+              }
+            },
+            "required": [
+              "owner",
+              "keyring",
+              "label"
+            ],
+            "additionalProperties": false
+          },
+          "_result": {
+            "type": "object",
+            "properties": {
+              "success": {
+                "type": "boolean",
+                "description": "True when the operation completed successfully."
+              }
+            },
+            "required": [
+              "success"
+            ],
+            "additionalProperties": false,
+            "description": "Result of a mutation. success is true."
+          }
+        },
+        "required": [
+          "_context",
+          "data",
+          "_result"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      },
+      "_meta": {
+        "resourceEffectLevel": 2
+      }
+    },
+    {
+      "name": "trustCertificate",
+      "description": "Change a certificate's trust status. A key ring is not required; the certificate is identified by owner and label. HIGHTRUST is honored only for CERTAUTH certificates.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "owner": {
+            "type": "string",
+            "description": "Certificate/key ring owner (user ID)."
+          },
+          "label": {
+            "type": "string",
+            "description": "Certificate label."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "TRUST",
+              "HIGHTRUST",
+              "NOTRUST"
+            ],
+            "description": "The new trust status."
+          },
+          "system": {
+            "description": "Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "owner",
+          "label",
+          "status"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "_context": {
+            "type": "object",
+            "properties": {
+              "system": {
+                "type": "string",
+                "description": "Resolved z/OS system hostname (target of the operation)."
+              }
+            },
+            "required": [
+              "system"
+            ],
+            "additionalProperties": false,
+            "description": "Resolution context: target z/OS system."
+          },
+          "messages": {
+            "description": "Operational messages (e.g. a non-fatal SAF warning). Omitted when empty.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "owner": {
+                "type": "string",
+                "description": "Certificate owner (user ID)."
+              },
+              "label": {
+                "type": "string",
+                "description": "Certificate label."
+              },
+              "status": {
+                "type": "string",
+                "description": "New trust status: TRUST, HIGHTRUST, or NOTRUST."
+              },
+              "warning": {
+                "description": "Human-readable note for a non-fatal warning, when one occurred.",
+                "type": "string"
+              },
+              "safReturnCodes": {
+                "description": "SAF codes behind a warning or error, when a non-zero code was returned.",
+                "type": "object",
+                "properties": {
+                  "functionCode": {
+                    "type": "number",
+                    "description": "R_datalib function code (e.g. 0x08 DataPut, 0x09 DataRemove)."
+                  },
+                  "safReturnCode": {
+                    "type": "number",
+                    "description": "SAF return code."
+                  },
+                  "productReturnCode": {
+                    "type": "number",
+                    "description": "Security product (RACF, ACF2, or Top Secret) return code."
+                  },
+                  "productReasonCode": {
+                    "type": "number",
+                    "description": "Security product (RACF, ACF2, or Top Secret) reason code."
+                  }
+                },
+                "required": [
+                  "functionCode",
+                  "safReturnCode",
+                  "productReturnCode",
+                  "productReasonCode"
+                ],
+                "additionalProperties": false
+              },
+              "gskReturnCode": {
+                "description": "System SSL / GSKCMS status code, when a GSK call failed.",
+                "type": "number"
+              }
+            },
+            "required": [
+              "owner",
+              "label",
+              "status"
+            ],
+            "additionalProperties": false
+          },
+          "_result": {
+            "type": "object",
+            "properties": {
+              "success": {
+                "type": "boolean",
+                "description": "True when the operation completed successfully."
+              }
+            },
+            "required": [
+              "success"
+            ],
+            "additionalProperties": false,
+            "description": "Result of a mutation. success is true."
+          }
+        },
+        "required": [
+          "_context",
+          "data",
+          "_result"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      },
+      "_meta": {
+        "resourceEffectLevel": 2
+      }
+    },
+    {
+      "name": "renameCertificate",
+      "description": "Change a certificate's label. A key ring is not required; the certificate is identified by owner and current label.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "owner": {
+            "type": "string",
+            "description": "Certificate/key ring owner (user ID)."
+          },
+          "label": {
+            "type": "string",
+            "description": "The current certificate label."
+          },
+          "newLabel": {
+            "type": "string",
+            "description": "The new certificate label."
+          },
+          "system": {
+            "description": "Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "owner",
+          "label",
+          "newLabel"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "_context": {
+            "type": "object",
+            "properties": {
+              "system": {
+                "type": "string",
+                "description": "Resolved z/OS system hostname (target of the operation)."
+              }
+            },
+            "required": [
+              "system"
+            ],
+            "additionalProperties": false,
+            "description": "Resolution context: target z/OS system."
+          },
+          "messages": {
+            "description": "Operational messages (e.g. a non-fatal SAF warning). Omitted when empty.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "owner": {
+                "type": "string",
+                "description": "Certificate owner (user ID)."
+              },
+              "label": {
+                "type": "string",
+                "description": "Previous certificate label."
+              },
+              "newLabel": {
+                "type": "string",
+                "description": "New certificate label."
+              },
+              "warning": {
+                "description": "Human-readable note for a non-fatal warning, when one occurred.",
+                "type": "string"
+              },
+              "safReturnCodes": {
+                "description": "SAF codes behind a warning or error, when a non-zero code was returned.",
+                "type": "object",
+                "properties": {
+                  "functionCode": {
+                    "type": "number",
+                    "description": "R_datalib function code (e.g. 0x08 DataPut, 0x09 DataRemove)."
+                  },
+                  "safReturnCode": {
+                    "type": "number",
+                    "description": "SAF return code."
+                  },
+                  "productReturnCode": {
+                    "type": "number",
+                    "description": "Security product (RACF, ACF2, or Top Secret) return code."
+                  },
+                  "productReasonCode": {
+                    "type": "number",
+                    "description": "Security product (RACF, ACF2, or Top Secret) reason code."
+                  }
+                },
+                "required": [
+                  "functionCode",
+                  "safReturnCode",
+                  "productReturnCode",
+                  "productReasonCode"
+                ],
+                "additionalProperties": false
+              },
+              "gskReturnCode": {
+                "description": "System SSL / GSKCMS status code, when a GSK call failed.",
+                "type": "number"
+              }
+            },
+            "required": [
+              "owner",
+              "label",
+              "newLabel"
+            ],
+            "additionalProperties": false
+          },
+          "_result": {
+            "type": "object",
+            "properties": {
+              "success": {
+                "type": "boolean",
+                "description": "True when the operation completed successfully."
+              }
+            },
+            "required": [
+              "success"
+            ],
+            "additionalProperties": false,
+            "description": "Result of a mutation. success is true."
+          }
+        },
+        "required": [
+          "_context",
+          "data",
+          "_result"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      },
+      "_meta": {
+        "resourceEffectLevel": 2
+      }
+    },
+    {
+      "name": "refreshCertificateClass",
+      "description": "Refresh the DIGTCERT class so that certificate and key ring changes take effect.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "system": {
+            "description": "Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system.",
+            "type": "string"
+          }
+        },
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "_context": {
+            "type": "object",
+            "properties": {
+              "system": {
+                "type": "string",
+                "description": "Resolved z/OS system hostname (target of the operation)."
+              }
+            },
+            "required": [
+              "system"
+            ],
+            "additionalProperties": false,
+            "description": "Resolution context: target z/OS system."
+          },
+          "messages": {
+            "description": "Operational messages (e.g. a non-fatal SAF warning). Omitted when empty.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "warning": {
+                "description": "Human-readable note for a non-fatal warning, when one occurred.",
+                "type": "string"
+              },
+              "safReturnCodes": {
+                "description": "SAF codes behind a warning or error, when a non-zero code was returned.",
+                "type": "object",
+                "properties": {
+                  "functionCode": {
+                    "type": "number",
+                    "description": "R_datalib function code (e.g. 0x08 DataPut, 0x09 DataRemove)."
+                  },
+                  "safReturnCode": {
+                    "type": "number",
+                    "description": "SAF return code."
+                  },
+                  "productReturnCode": {
+                    "type": "number",
+                    "description": "Security product (RACF, ACF2, or Top Secret) return code."
+                  },
+                  "productReasonCode": {
+                    "type": "number",
+                    "description": "Security product (RACF, ACF2, or Top Secret) reason code."
+                  }
+                },
+                "required": [
+                  "functionCode",
+                  "safReturnCode",
+                  "productReturnCode",
+                  "productReasonCode"
+                ],
+                "additionalProperties": false
+              },
+              "gskReturnCode": {
+                "description": "System SSL / GSKCMS status code, when a GSK call failed.",
+                "type": "number"
+              }
+            },
+            "additionalProperties": false
+          },
+          "_result": {
+            "type": "object",
+            "properties": {
+              "success": {
+                "type": "boolean",
+                "description": "True when the operation completed successfully."
+              }
+            },
+            "required": [
+              "success"
+            ],
+            "additionalProperties": false,
+            "description": "Result of a mutation. success is true."
+          }
+        },
+        "required": [
+          "_context",
+          "data",
+          "_result"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      },
+      "_meta": {
+        "resourceEffectLevel": 2
+      }
+    },
+    {
       "name": "submitJob",
       "description": "Submit JCL to the current (or specified) z/OS system. When JCL has no JOB statement, the server uses a configured template or prompts for a card. Stored templates may include literal substrings {jobname} (case-insensitive) and {programmer}, replaced from jobName and programmer before prepending; a full JOB line entered at prompt is used as literal text without substitution. To wait for the job to complete, set wait: true (and optionally timeoutSeconds); the tool will then return status and optional output info. Submitting runs work on z/OS—use with care.",
       "inputSchema": {

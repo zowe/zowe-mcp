@@ -16,6 +16,12 @@ don't warrant an entry (CI, chores, internal refactors, docs-only) can carry the
 
 ### Added
 
+- **MCP server card** (SEP-1649): new `server-card` CLI command writes a static
+  JSON listing of the server's tools, prompts, and resources
+  (`docs/mcp-server-card.json`, also via `npm run server-card`), and the HTTP
+  transport now serves the card at `/.well-known/mcp/server-card.json` so
+  clients can discover capabilities without opening an MCP session. The card
+  reflects the configured capability tier.
 - **SSH key authentication** for the native (Zowe Remote SSH / zowex) backend, preferred
   over passwords and requiring no Zowe MCP configuration. Uses a `~/.ssh/config`
   `IdentityFile` or a default `~/.ssh/id_*` key; falls back to the existing password flow

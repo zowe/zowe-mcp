@@ -15,7 +15,7 @@ import { createOpenAI } from '@ai-sdk/openai';
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
-import type { LanguageModel, LanguageModelUsage, ModelMessage, ToolSet } from 'ai';
+import type { Instructions, LanguageModel, LanguageModelUsage, ModelMessage, ToolSet } from 'ai';
 import { generateText, jsonSchema, stepCountIs, tool } from 'ai';
 import type { ChildProcess } from 'node:child_process';
 import { spawn, spawnSync } from 'node:child_process';
@@ -476,18 +476,8 @@ export class McpEvalHarness {
   async runOne(prompt: string, runOptions?: RunOneOptions): Promise<AgentRunResult> {
     if (!this.client) throw new Error('Harness not started');
     const { tools, toolCallRecords } = await this.buildAgentTools();
-    const { model, systemPrompt } = this.prepareRun();
-    const isAnthropic = this.options.evalsConfig.provider === 'anthropic';
-    const messages: ModelMessage[] = [
-      {
-        role: 'system',
-        content: systemPrompt,
-        ...(isAnthropic
-          ? { providerOptions: { anthropic: { cacheControl: { type: 'ephemeral' } } } }
-          : {}),
-      },
-      { role: 'user', content: prompt },
-    ];
+    const { model, instructions } = this.prepareRun();
+    const messages: ModelMessage[] = [{ role: 'user', content: prompt }];
 
     const t0 = Date.now();
     const totalAttempts = 1 + EMPTY_RESPONSE_RETRIES;
@@ -495,6 +485,7 @@ export class McpEvalHarness {
       toolCallRecords.length = 0;
       const attemptResult = await generateText({
         model,
+        instructions,
         messages,
         tools,
         ...(runOptions?.toolChoice != null ? { toolChoice: runOptions.toolChoice } : {}),
@@ -551,18 +542,9 @@ export class McpEvalHarness {
   async runConversation(prompts: string[]): Promise<ConversationRunResult> {
     if (!this.client) throw new Error('Harness not started');
     const { tools, toolCallRecords } = await this.buildAgentTools();
-    const { model, systemPrompt } = this.prepareRun();
-    const isAnthropic = this.options.evalsConfig.provider === 'anthropic';
+    const { model, instructions } = this.prepareRun();
 
-    const messages: ModelMessage[] = [
-      {
-        role: 'system',
-        content: systemPrompt,
-        ...(isAnthropic
-          ? { providerOptions: { anthropic: { cacheControl: { type: 'ephemeral' } } } }
-          : {}),
-      },
-    ];
+    const messages: ModelMessage[] = [];
     const turns: AgentRunResult[] = [];
     const t0 = Date.now();
     for (const prompt of prompts) {
@@ -571,6 +553,7 @@ export class McpEvalHarness {
       messages.push({ role: 'user', content: prompt });
       const result = await generateText({
         model,
+        instructions,
         messages,
         tools,
         stopWhen: stepCountIs(MAX_STEPS),
@@ -644,8 +627,14 @@ export class McpEvalHarness {
     return { tools, toolCallRecords };
   }
 
-  /** Build the model and system prompt for a run (logs server instructions once). */
-  private prepareRun(): { model: LanguageModel; systemPrompt: string } {
+  /**
+   * Build the model and `instructions` (AI SDK v7's top-level system-prompt option) for a
+   * run (logs server instructions once). System messages are no longer accepted inside
+   * `messages` in v7, so the system prompt travels via `instructions` instead; for Anthropic,
+   * `instructions` is passed as a `SystemModelMessage` object so the ephemeral cacheControl
+   * providerOptions can still be attached to it (needed for prompt caching).
+   */
+  private prepareRun(): { model: LanguageModel; instructions: Instructions } {
     const model = buildModel(this.options.evalsConfig);
     const serverInstructions = this.client!.getInstructions();
     log.info('Server instructions', {
@@ -654,7 +643,15 @@ export class McpEvalHarness {
       preview: serverInstructions?.slice(0, 100),
     });
     const systemPrompt = getSystemPrompt(this.options.setConfig, serverInstructions);
-    return { model, systemPrompt };
+    const isAnthropic = this.options.evalsConfig.provider === 'anthropic';
+    const instructions: Instructions = isAnthropic
+      ? {
+          role: 'system',
+          content: systemPrompt,
+          providerOptions: { anthropic: { cacheControl: { type: 'ephemeral' } } },
+        }
+      : systemPrompt;
+    return { model, instructions };
   }
 }
 

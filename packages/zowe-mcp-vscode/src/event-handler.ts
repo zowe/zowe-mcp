@@ -464,10 +464,7 @@ async function handleStoreCliPluginProfiles(
   options: NativeSecretsOptions
 ): Promise<void> {
   if (event.type !== 'store-cli-plugin-profiles') return;
-  const { pluginName, profilesFile } = event.data as {
-    pluginName: string;
-    profilesFile: Record<string, unknown>;
-  };
+  const { pluginName, profilesFile } = event.data;
   const config = vscode.workspace.getConfiguration('zoweMCP');
   const current = config.get<Record<string, unknown>>('cliPluginConfiguration', {}) ?? {};
   const updated = { ...current, [pluginName]: profilesFile };

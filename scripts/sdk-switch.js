@@ -13,7 +13,7 @@
  * Switch the zowex-sdk dependency (Zowe Remote SSH SDK; formerly zowe-native-proto-sdk).
  *
  * All modes download/copy the SDK tarball into resources/ with a versioned
- * filename (e.g. resources/zowex-sdk-0.4.0.tgz) and set the
+ * filename (e.g. resources/zowe-zowex-for-zowe-sdk-0.6.0.tgz) and set the
  * server's package.json dependency to file:../../resources/<filename>.
  *
  * Usage:
@@ -47,8 +47,15 @@ const serverPkgPath = path.join(repoRoot, 'packages', 'zowe-mcp-server', 'packag
 const resourcesDir = path.join(repoRoot, 'resources');
 /** GitHub repo for Zowe Remote SSH (zowex); formerly zowe/zowe-native-proto. */
 const ZOWEX_REPO = 'zowe/zowex';
-const PKG_NAME = 'zowex-sdk';
-const DEFAULT_VERSION = '0.4.0';
+/** npm package name of the SDK (renamed from `zowex-sdk` in 0.6.0). */
+const PKG_NAME = '@zowe/zowex-for-zowe-sdk';
+/**
+ * Name of the SDK artifact produced by the upstream zowe/zowex Build workflow
+ * and the Artifactory snapshot tarball prefix. This is controlled by the
+ * upstream repo and is independent of the npm package name above.
+ */
+const ARTIFACT_NAME = 'zowex-sdk';
+const DEFAULT_VERSION = '0.6.1';
 const ARTIFACTORY_NPM = 'https://zowe.jfrog.io/artifactory/api/npm/npm-release/';
 /** Nightly SDK snapshots (repo path renamed from zowe-native-proto to zowex). */
 const ARTIFACTORY_SNAPSHOT_BASE =
@@ -56,7 +63,7 @@ const ARTIFACTORY_SNAPSHOT_BASE =
 
 /** Canonical filename for the SDK tarball in resources/. */
 function sdkTgzFilename(version) {
-  return `zowex-sdk-${version}.tgz`;
+  return `zowe-zowex-for-zowe-sdk-${version}.tgz`;
 }
 
 // ---------------------------------------------------------------------------
@@ -97,9 +104,9 @@ function removeRootOverrides() {
   }
 }
 
-/** Lockfile path prefix for deps bundled inside the file-based zowex-sdk tarball. */
+/** Lockfile path prefix for deps bundled inside the file-based SDK tarball. */
 const NESTED_SDK_NODE_MODULES_PREFIX =
-  'packages/zowe-mcp-server/node_modules/zowex-sdk/node_modules/';
+  'packages/zowe-mcp-server/node_modules/@zowe/zowex-for-zowe-sdk/node_modules/';
 
 function removeSdkIntegrityFromLockfile() {
   const lockPath = path.join(repoRoot, 'package-lock.json');
@@ -214,7 +221,7 @@ function installSdkToResources(srcTgzPath, version, label) {
  */
 function findSdkArtifactFromRun(runId) {
   const artifactsJson = run(
-    `gh api repos/${ZOWEX_REPO}/actions/runs/${runId}/artifacts --jq '.artifacts[] | select(.name == "${PKG_NAME}") | .id'`
+    `gh api repos/${ZOWEX_REPO}/actions/runs/${runId}/artifacts --jq '.artifacts[] | select(.name == "${ARTIFACT_NAME}") | .id'`
   );
   if (!artifactsJson) {
     return null;
@@ -241,7 +248,9 @@ function downloadAndInstallGhArtifact(artifactId, label) {
   const tgzPath = path.join(tmpDir, tgz);
   const version = readVersionFromTgz(
     tgzPath,
-    tgz.replace(/^(zowex-sdk|zowe-native-proto-sdk)-/, '').replace(/\.tgz$/, '')
+    tgz
+      .replace(/^(zowe-zowex-for-zowe-sdk|zowex-sdk|zowe-native-proto-sdk)-/, '')
+      .replace(/\.tgz$/, '')
   );
 
   installSdkToResources(tgzPath, version, label);
@@ -323,7 +332,7 @@ function handleNightly() {
 function tryArtifactoryNightly() {
   try {
     const listJson = run(
-      `curl -sf "${ARTIFACTORY_SNAPSHOT_BASE}/" 2>/dev/null | grep -oE 'href="(zowex-sdk-[^"]+\\.tgz)"' | sed 's/href="//;s/"//' | sort | tail -1`
+      `curl -sf "${ARTIFACTORY_SNAPSHOT_BASE}/" 2>/dev/null | grep -oE 'href="((zowe-zowex-for-zowe-sdk|zowex-sdk)-[^"]+\\.tgz)"' | sed 's/href="//;s/"//' | sort | tail -1`
     );
 
     if (!listJson) return false;

@@ -89,6 +89,7 @@ import {
 } from './zos/job-cards.js';
 import {
   formatNormalizedConnectionSpec,
+  isEnvFlagSet,
   parseConnectionSpec,
   resolveStandalonePassword,
   toPasswordEnvVarName,
@@ -179,6 +180,11 @@ interface ParsedArgs {
    * Without this flag the server refuses to start in unauthenticated HTTP mode.
    */
   httpAllowNoAuth?: boolean;
+  /**
+   * Bind address for the MCP HTTP listener (--http-host / ZOWE_MCP_HTTP_HOST).
+   * Unset: 127.0.0.1 in unauthenticated mode, all interfaces with JWT auth.
+   */
+  httpHost?: string;
 }
 
 /** One CLI plugin bridge entry (one --cli-plugin-yaml / --cli-plugin-connection-file pair). */
@@ -277,6 +283,9 @@ function applyEnvOverrides(parsed: ParsedArgs): void {
       process.env.ZOWE_MCP_HTTP_ALLOW_NO_AUTH === 'true')
   ) {
     parsed.httpAllowNoAuth = true;
+  }
+  if (!parsed.httpHost && process.env.ZOWE_MCP_HTTP_HOST?.trim()) {
+    parsed.httpHost = process.env.ZOWE_MCP_HTTP_HOST.trim();
   }
 }
 
@@ -579,6 +588,13 @@ function parseArgs(): ParsedArgs {
           'Required for local development and testing; never use on a shared or public host. ' +
           'Also settable via ZOWE_MCP_HTTP_ALLOW_NO_AUTH=1.',
       },
+      'http-host': {
+        type: 'string',
+        describe:
+          'Bind address for the MCP HTTP listener. Defaults to 127.0.0.1 when running ' +
+          'without JWT auth (--http-allow-no-auth) and to all interfaces with JWT auth. ' +
+          'Also settable via ZOWE_MCP_HTTP_HOST.',
+      },
     })
     .alias('h', 'help')
     .help();
@@ -654,6 +670,7 @@ function parseArgs(): ParsedArgs {
     }
   }
 
+  const httpHostArg = (argv['http-host'] as string | undefined)?.trim();
   const parsed: ParsedArgs = {
     transport: argv.http ? 'http' : 'stdio',
     port: (argv.port as number) ?? 7542,
@@ -675,6 +692,7 @@ function parseArgs(): ParsedArgs {
     cliPluginConfiguration,
     capabilityTier: parseCapabilityTier(argv['capability-tier'] as string | undefined),
     httpAllowNoAuth: Boolean(argv['http-allow-no-auth']),
+    httpHost: httpHostArg === undefined || httpHostArg === '' ? undefined : httpHostArg,
   };
   applyEnvOverrides(parsed);
   return parsed;
@@ -999,7 +1017,7 @@ function setupExtensionEventHandlers(
 
       case 'cli-plugin-configuration-update': {
         if (opts.cliPluginStatesByPlugin) {
-          const { configuration } = event.data as { configuration: Record<string, unknown> };
+          const { configuration } = event.data;
           for (const [pluginName, profilesObj] of Object.entries(configuration)) {
             const state = opts.cliPluginStatesByPlugin.get(pluginName);
             if (!state || profilesObj === null || typeof profilesObj !== 'object') continue;
@@ -1180,11 +1198,9 @@ async function main(): Promise<void> {
   const baseSystemsRef: { current: string[] } = { current: [] };
   let getOrCreateTenantNativeSetup: ((sub: string) => NativeSetup) | undefined;
   let addTenantNativeConnectionHandler:
-    | ((tenantSub: string, spec: string) => Promise<void>)
-    | undefined;
+    ((tenantSub: string, spec: string) => Promise<void>) | undefined;
   let removeTenantNativeConnectionHandler:
-    | ((tenantSub: string, spec: string) => Promise<void>)
-    | undefined;
+    ((tenantSub: string, spec: string) => Promise<void>) | undefined;
 
   if (mockDir && zowex) {
     logger.error('Cannot use both --mock and --native/--zowex. Choose one.');
@@ -1315,6 +1331,9 @@ async function main(): Promise<void> {
     serverRef = { current: null };
     const defaultNativeServerPath = '~/.zowe-server';
     const defaultResponseTimeout = 60;
+    // SSH key auth is preferred (most secure) and on by default. Disable via ZOWE_MCP_DISABLE_SSH_KEY;
+    // the VS Code extension sets this env var when its `zoweMCP.preferSshKey` setting is turned off.
+    const disableSshKey = isEnvFlagSet(process.env.ZOWE_MCP_DISABLE_SSH_KEY);
     const zowexOptionsRef = {
       current: {
         autoInstallZowex: parsed.zowexServerAutoInstall ?? true,
@@ -1346,6 +1365,7 @@ async function main(): Promise<void> {
       passwordStore: nativePasswordStore,
       ...extensionCallbacks,
       ...standalonePasswordElicitation,
+      disableSshKey,
       autoInstallZowex: parsed.zowexServerAutoInstall ?? true,
       zowexServerPath: parsed.zowexServerPath,
       responseTimeout: parsed.zowexResponseTimeout ?? defaultResponseTimeout,
@@ -1391,23 +1411,28 @@ async function main(): Promise<void> {
       updateSystems: nativeSetup.updateSystems,
     };
     baseSystemsRef.current = systems;
-    if (zowex && tenantPersistenceDir && transport === 'http' && hasJwtAuthConfigured()) {
+    if (zowex && transport === 'http' && hasJwtAuthConfigured()) {
       const nativeLoadBase = {
         useEnvForPassword: !extensionConnected,
         passwordStore: nativePasswordStore,
         ...extensionCallbacks,
         ...standalonePasswordElicitation,
+        disableSshKey,
         autoInstallZowex: parsed.zowexServerAutoInstall ?? true,
         zowexServerPath: parsed.zowexServerPath,
         responseTimeout: parsed.zowexResponseTimeout ?? defaultResponseTimeout,
       };
+      // Every OIDC subject gets its own NativeSetup (backend, SSH client cache and
+      // elicited-password cache) so one tenant can never reuse another tenant's
+      // authenticated SSH sessions or cached passwords. Persistence of per-tenant
+      // connections additionally requires ZOWE_MCP_TENANT_STORE_DIR.
       getOrCreateTenantNativeSetup = (sub: string): NativeSetup => {
         const key = tenantKeyFromSub(sub);
         const hit = tenantNativeCache.get(key);
         if (hit) {
           return hit;
         }
-        const fromFile = loadTenantSystems(tenantPersistenceDir, sub);
+        const fromFile = tenantPersistenceDir ? loadTenantSystems(tenantPersistenceDir, sub) : [];
         const merged = mergeConnectionStrings(baseSystemsRef.current, fromFile);
         const setup = loadNative({
           ...nativeLoadBase,
@@ -1415,6 +1440,18 @@ async function main(): Promise<void> {
         });
         tenantNativeCache.set(key, setup);
         return setup;
+      };
+    }
+    if (zowex && tenantPersistenceDir && transport === 'http' && hasJwtAuthConfigured()) {
+      const nativeLoadBase = {
+        useEnvForPassword: !extensionConnected,
+        passwordStore: nativePasswordStore,
+        ...extensionCallbacks,
+        ...standalonePasswordElicitation,
+        disableSshKey,
+        autoInstallZowex: parsed.zowexServerAutoInstall ?? true,
+        zowexServerPath: parsed.zowexServerPath,
+        responseTimeout: parsed.zowexResponseTimeout ?? defaultResponseTimeout,
       };
       addTenantNativeConnectionHandler = (tenantSub: string, spec: string): Promise<void> => {
         parseConnectionSpec(spec);
@@ -1491,7 +1528,8 @@ async function main(): Promise<void> {
       );
     } else if (!tenantPersistenceDir) {
       logger.notice(
-        'addZosConnection is not registered: set ZOWE_MCP_TENANT_STORE_DIR so per-user connections can be persisted (HTTP + JWT + native).'
+        'addZosConnection is not registered: set ZOWE_MCP_TENANT_STORE_DIR so per-user connections can be persisted (HTTP + JWT + native). ' +
+          'Per-tenant SSH session and credential isolation is still enforced in memory.'
       );
     } else if (addTenantNativeConnectionHandler && removeTenantNativeConnectionHandler) {
       logger.info(
@@ -1694,7 +1732,7 @@ async function main(): Promise<void> {
           type: 'store-cli-plugin-profiles',
           data: {
             pluginName: pluginKey,
-            profilesFile: profilesFile as Record<string, unknown>,
+            profilesFile: profilesFile,
           },
           timestamp: Date.now(),
         });
@@ -1865,6 +1903,7 @@ async function main(): Promise<void> {
     }
 
     // Enforce explicit opt-in when running HTTP without JWT authentication.
+    let httpBindHost = parsed.httpHost;
     if (!hasJwtAuthConfigured()) {
       if (!httpAllowNoAuth) {
         logger.error(
@@ -1874,6 +1913,16 @@ async function main(): Promise<void> {
             'allow unauthenticated access. Never use --http-allow-no-auth on a shared or public host.'
         );
         process.exit(1);
+      }
+      if (!httpBindHost) {
+        // Unauthenticated mode binds loopback only; exposing it further requires an
+        // explicit --http-host / ZOWE_MCP_HTTP_HOST.
+        httpBindHost = '127.0.0.1';
+      } else if (!['127.0.0.1', 'localhost', '::1', '[::1]'].includes(httpBindHost)) {
+        logger.warning(
+          `Unauthenticated HTTP is explicitly bound to non-loopback address ${httpBindHost}. ` +
+            'Every host that can reach this address has full access to all z/OS tools.'
+        );
       }
       logger.warning(
         'HTTP transport is running WITHOUT authentication ' +
@@ -1951,9 +2000,10 @@ async function main(): Promise<void> {
             serverRef,
             logger
           );
-          const basePersist = serverOptions?.persistJobCard;
+          // Tenant-elicited job cards persist only to the tenant's own store — never to
+          // the shared --config file, where they would become bootstrap defaults for
+          // every other tenant after a restart (cross-tenant JOB-statement injection).
           opts.persistJobCard = (spec: string, card: string) => {
-            basePersist?.(spec, card);
             if (tenantPersistenceDir) {
               try {
                 mergeTenantJobCard(tenantPersistenceDir, tenant.sub, spec, card);
@@ -1965,25 +2015,21 @@ async function main(): Promise<void> {
             }
           };
         }
-        if (
-          opts &&
-          tenant &&
-          tenantPersistenceDir &&
-          httpJwtAuth &&
-          getOrCreateTenantNativeSetup &&
-          addTenantNativeConnectionHandler &&
-          removeTenantNativeConnectionHandler
-        ) {
+        if (opts && tenant && httpJwtAuth && getOrCreateTenantNativeSetup) {
+          // Per-tenant backend/credential isolation applies whether or not a tenant
+          // store is configured; connection add/remove additionally needs persistence.
           const setup = getOrCreateTenantNativeSetup(tenant.sub);
           opts.backend = setup.backend;
           opts.systemRegistry = setup.systemRegistry;
           opts.credentialProvider = setup.credentialProvider;
-          opts.addTenantNativeConnection = async (spec: string) => {
-            await addTenantNativeConnectionHandler(tenant.sub, spec);
-          };
-          opts.removeTenantNativeConnection = async (spec: string) => {
-            await removeTenantNativeConnectionHandler(tenant.sub, spec);
-          };
+          if (addTenantNativeConnectionHandler && removeTenantNativeConnectionHandler) {
+            opts.addTenantNativeConnection = async (spec: string) => {
+              await addTenantNativeConnectionHandler(tenant.sub, spec);
+            };
+            opts.removeTenantNativeConnection = async (spec: string) => {
+              await removeTenantNativeConnectionHandler(tenant.sub, spec);
+            };
+          }
         }
         const result = createServer(opts);
         const server = getServer(result);
@@ -1996,7 +2042,11 @@ async function main(): Promise<void> {
       },
       port,
       logger,
-      { jwtAuth: httpJwtAuth, serverCard: httpServerCard }
+      {
+        ...(httpJwtAuth ? { jwtAuth: httpJwtAuth } : {}),
+        ...(httpBindHost ? { host: httpBindHost } : {}),
+        ...(httpServerCard ? { serverCard: httpServerCard } : {}),
+      }
     );
     if (!httpPublicBaseUrlRef.current) {
       httpPublicBaseUrlRef.current = `http://127.0.0.1:${httpHandle.port}`;

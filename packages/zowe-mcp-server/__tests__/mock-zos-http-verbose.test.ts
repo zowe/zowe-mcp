@@ -28,12 +28,12 @@ import { disposeMockZos, spawnMockZos, type SpawnedMockZos } from './helpers/spa
 async function captureStderr<T>(fn: () => Promise<T>): Promise<{ value: T; output: string }> {
   const chunks: string[] = [];
   const orig = process.stderr.write.bind(process.stderr);
-  process.stderr.write = ((chunk: unknown, ...rest: unknown[]) => {
+  process.stderr.write = (chunk: unknown, ...rest: unknown[]) => {
     chunks.push(
       typeof chunk === 'string' ? chunk : Buffer.isBuffer(chunk) ? chunk.toString('utf8') : ''
     );
     return (orig as unknown as (...a: unknown[]) => boolean)(chunk, ...rest);
-  }) as typeof process.stderr.write;
+  };
   try {
     const value = await fn();
     return { value, output: chunks.join('') };

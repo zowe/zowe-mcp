@@ -111,10 +111,25 @@ export function buildProfileArgs(profile: CliNamedProfile, fields: ProfileFieldD
       if (err !== null) {
         throw new Error(err);
       }
+      assertNotOptionShaped(field.name, strValue);
       args.push(`--${field.cliOption}`, strValue);
     }
   }
   return args;
+}
+
+/**
+ * Rejects option-shaped values so caller-controlled input cannot inject Zowe CLI flags
+ * (e.g. a "host" of `--reject-unauthorized false`). Values are appended verbatim to the
+ * spawned argv, and yargs would otherwise parse a leading-dash value as an option.
+ * Negative numbers are allowed (legitimate numeric arguments).
+ */
+export function assertNotOptionShaped(name: string, value: string): void {
+  if (value.startsWith('-') && !/^-\d+(\.\d+)?$/.test(value)) {
+    throw new Error(
+      `Value for "${name}" must not begin with "-" (it would be parsed as a CLI option).`
+    );
+  }
 }
 
 /**
@@ -147,7 +162,7 @@ export function invokeZoweCli(
     // ZOWE_OPT_PASSWORD in the caller env can never clobber it. Delivered via
     // env so it never appears in argv / ps output.
     ...(password !== undefined ? { ZOWE_OPT_PASSWORD: password } : {}),
-  } as Record<string, string>;
+  };
 
   const options: SpawnSyncOptions = {
     encoding: 'utf-8',

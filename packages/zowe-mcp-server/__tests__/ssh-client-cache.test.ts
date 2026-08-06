@@ -19,7 +19,7 @@ import type { ParsedConnectionSpec } from '../src/zos/native/connection-spec.js'
 import { SshClientCache, isZowexServerNotFoundError } from '../src/zos/native/ssh-client-cache.js';
 
 const SPEC: ParsedConnectionSpec = { user: 'USER', host: 'host.example.com', port: 22 };
-const CREDS: Credentials = { user: 'USER', password: 'secret' };
+const CREDS: Credentials = { user: 'USER', password: 'secret', authMethod: 'password' };
 
 describe('isZowexServerNotFoundError', () => {
   it('returns true for "Server not found" message', () => {
@@ -61,7 +61,7 @@ const createMock = vi.hoisted(() => vi.fn());
 const installServerMock = vi.hoisted(() => vi.fn().mockResolvedValue(true));
 const checkIfOutdatedMock = vi.hoisted(() => vi.fn().mockResolvedValue(false));
 
-vi.mock('zowex-sdk', () => ({
+vi.mock('@zowe/zowex-for-zowe-sdk', () => ({
   /** Re-exported from @zowe/zos-uss-for-zowe-sdk; production constructs before ZSshClient.create. */
   SshSession: class MockSshSession {
     constructor(_opts: unknown) {

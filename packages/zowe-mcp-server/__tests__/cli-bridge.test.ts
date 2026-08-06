@@ -322,13 +322,15 @@ describe.skipIf(!YAML_AVAILABLE)('loadPluginYaml', () => {
 // ---------------------------------------------------------------------------
 
 describe('resolveDescription', () => {
-  const makeTool = (descriptions: PluginToolDef['descriptions'], active?: string): PluginToolDef =>
-    ({
-      toolName: 'testTool',
-      zoweCommand: 'endevor list elements',
-      descriptions,
-      activeDescription: active,
-    }) as PluginToolDef;
+  const makeTool = (
+    descriptions: PluginToolDef['descriptions'],
+    active?: string
+  ): PluginToolDef => ({
+    toolName: 'testTool',
+    zoweCommand: 'endevor list elements',
+    descriptions,
+    activeDescription: active,
+  });
 
   it('returns optimized variant by default', () => {
     const tool = makeTool({ cli: 'CLI desc', optimized: 'Optimized desc' });
@@ -827,6 +829,45 @@ describe('valueMap — buildToolInputSchema and buildCliArgs', () => {
       const args = buildCliArgs(toolWithValueMap, {}, {}, []);
       expect(args).not.toContain('--search-in');
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Option injection — caller values must not be parseable as Zowe CLI flags
+// ---------------------------------------------------------------------------
+
+describe('buildCliArgs / buildProfileArgs option-shaped value rejection', () => {
+  const freeformTool: PluginToolDef = {
+    toolName: 'testQueryTool',
+    zoweCommand: 'db2 execute sql',
+    descriptions: { cli: 'Test tool' },
+    params: [
+      { name: 'query', cliOption: 'query', description: 'SQL to run' },
+      { name: 'table', cliPositional: true, description: 'Table name' },
+    ],
+  };
+
+  it('rejects an option value beginning with --', () => {
+    expect(() =>
+      buildCliArgs(freeformTool, { query: '--reject-unauthorized false' }, {}, [])
+    ).toThrow('must not begin with "-"');
+  });
+
+  it('rejects a positional value beginning with -', () => {
+    expect(() => buildCliArgs(freeformTool, { table: '--host evil.example' }, {}, [])).toThrow(
+      'must not begin with "-"'
+    );
+  });
+
+  it('allows negative numeric values', () => {
+    const args = buildCliArgs(freeformTool, { query: '-42' }, {}, []);
+    expect(args).toContain('-42');
+  });
+
+  it('rejects option-shaped profile field values in buildProfileArgs', () => {
+    const fields: ProfileFieldDef[] = [{ name: 'host', cliOption: 'host' }];
+    const profile: CliNamedProfile = { id: 'x', host: '--reject-unauthorized' };
+    expect(() => buildProfileArgs(profile, fields)).toThrow('must not begin with "-"');
   });
 });
 

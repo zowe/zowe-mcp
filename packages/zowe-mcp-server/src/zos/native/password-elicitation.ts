@@ -56,6 +56,22 @@ function supportsUrlElicitation(
   return elicitation?.url !== undefined;
 }
 
+/** True when an http:// base URL points at this host only (password form stays off the wire). Exported for tests. */
+export function isLoopbackHttpUrl(base: string): boolean {
+  try {
+    const { hostname } = new URL(base);
+    return (
+      hostname === '127.0.0.1' ||
+      hostname === 'localhost' ||
+      hostname === '::1' ||
+      hostname === '[::1]' ||
+      hostname.startsWith('127.')
+    );
+  } catch {
+    return false;
+  }
+}
+
 async function tryFormElicit(
   mcpServer: McpServer,
   user: string,
@@ -127,6 +143,17 @@ async function tryUrlElicit(
   if (!base.startsWith('http://') && !base.startsWith('https://')) {
     log.warning(
       'URL password elicitation skipped: set ZOWE_MCP_PUBLIC_BASE_URL (or HTTP listen URL after start) to an absolute http(s) URL'
+    );
+    return undefined;
+  }
+  if (base.startsWith('http://') && !isLoopbackHttpUrl(base)) {
+    // The form posts the user's z/OS password in the request body; over cleartext
+    // HTTP to a non-loopback address it is readable by any on-path observer.
+    log.error(
+      'URL password elicitation refused: ZOWE_MCP_PUBLIC_BASE_URL is a non-loopback http:// URL. ' +
+        'Passwords must not be submitted over cleartext HTTP — terminate TLS in front of the ' +
+        'server and set an https:// public base URL.',
+      { base }
     );
     return undefined;
   }

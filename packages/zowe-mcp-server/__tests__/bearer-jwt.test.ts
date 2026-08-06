@@ -13,7 +13,7 @@
  * Unit tests for Bearer JWT verification (RS256 + JWKS) and env config.
  */
 
-import { generateKeyPairSync, type JsonWebKey, type KeyObject } from 'node:crypto';
+import { generateKeyPairSync, type KeyObject } from 'node:crypto';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   __clearJwtJwksCacheForTests,
@@ -22,6 +22,9 @@ import {
   verifyBearerJwt,
 } from '../src/auth/bearer-jwt.js';
 import { b64url, requestUrl, signJwt } from './helpers/jwt-test-utils.js';
+
+// @types/node 26 no longer exports JsonWebKey from node:crypto; a structural JWK type suffices here.
+type JsonWebKey = Record<string, unknown>;
 
 const TEST_ISSUER = 'https://idp.example.com';
 const TEST_JWKS_URI = 'https://idp.example.com/.well-known/jwks.json';
@@ -139,10 +142,37 @@ describe('verifyBearerJwt', () => {
   });
 
   it('throws on expired JWT', async () => {
-    const token = sign({ ...basePayload, exp: Math.floor(Date.now() / 1000) - 10 });
+    const token = sign({ ...basePayload, exp: Math.floor(Date.now() / 1000) - 120 });
     await expect(
       verifyBearerJwt(token, { issuer: TEST_ISSUER, jwksUri: TEST_JWKS_URI })
     ).rejects.toThrow('expired');
+  });
+
+  it('accepts a JWT expired within the clock-skew tolerance', async () => {
+    const token = sign({ ...basePayload, exp: Math.floor(Date.now() / 1000) - 10 });
+    const claims = await verifyBearerJwt(token, { issuer: TEST_ISSUER, jwksUri: TEST_JWKS_URI });
+    expect(claims.sub).toBe('user-42');
+  });
+
+  it('throws when exp claim is missing', async () => {
+    const { exp: _exp, ...noExp } = basePayload;
+    const token = sign(noExp);
+    await expect(
+      verifyBearerJwt(token, { issuer: TEST_ISSUER, jwksUri: TEST_JWKS_URI })
+    ).rejects.toThrow('missing exp');
+  });
+
+  it('throws when nbf is in the future', async () => {
+    const token = sign({ ...basePayload, nbf: Math.floor(Date.now() / 1000) + 3600 });
+    await expect(
+      verifyBearerJwt(token, { issuer: TEST_ISSUER, jwksUri: TEST_JWKS_URI })
+    ).rejects.toThrow('not yet valid');
+  });
+
+  it('accepts nbf within the clock-skew tolerance', async () => {
+    const token = sign({ ...basePayload, nbf: Math.floor(Date.now() / 1000) + 10 });
+    const claims = await verifyBearerJwt(token, { issuer: TEST_ISSUER, jwksUri: TEST_JWKS_URI });
+    expect(claims.sub).toBe('user-42');
   });
 
   it('throws when signature does not match', async () => {
@@ -156,7 +186,7 @@ describe('verifyBearerJwt', () => {
 
   it('throws when sub is missing', async () => {
     const { sub: _s, ...rest } = basePayload;
-    const token = sign(rest as Record<string, unknown>);
+    const token = sign(rest);
     await expect(
       verifyBearerJwt(token, { issuer: TEST_ISSUER, jwksUri: TEST_JWKS_URI })
     ).rejects.toThrow('missing sub');

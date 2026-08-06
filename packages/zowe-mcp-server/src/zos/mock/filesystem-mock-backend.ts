@@ -35,6 +35,8 @@ import * as path from 'node:path';
 import { getLogger } from '../../server.js';
 import type {
   BackendProgressCallback,
+  CertActionResult,
+  ConnectCertificateOptions,
   CreateDatasetApplied,
   CreateDatasetOptions,
   CreateDatasetResult,
@@ -42,20 +44,35 @@ import type {
   DatasetAttributes,
   DatasetEntry,
   DatasetOrg,
+  DeleteCertificateOptions,
+  ExportCertificateOptions,
+  ExportCertificateResult,
+  ImportCertificateOptions,
+  ImportCertificateResult,
   JobEntry,
   JobFileEntry,
   JobStatusResult,
+  ListApfResult,
   ListJobsOptions,
+  ListLinklistResult,
+  ListProclibResult,
   ListUssFilesOptions,
   MemberEntry,
   ReadDatasetResult,
   ReadJobFileResult,
   ReadUssFileResult,
   RecordFormat,
+  RenameCertificateOptions,
   SearchInDatasetOptions,
   SearchInDatasetResult,
+  SetDefaultCertificateOptions,
+  ShowCertificateOptions,
+  ShowCertificateResult,
   SubmitJobResult,
+  TrustCertificateOptions,
   UssFileEntry,
+  ViewSyslogOptions,
+  ViewSyslogResult,
   WriteDatasetResult,
   WriteUssFileResult,
   ZosBackend,
@@ -1058,6 +1075,204 @@ export class FilesystemMockBackend implements ZosBackend {
     _progress?: BackendProgressCallback
   ): Promise<void> {
     return Promise.resolve();
+  }
+
+  listApfLibraries(
+    _systemId: SystemId,
+    _userId?: string,
+    _progress?: BackendProgressCallback
+  ): Promise<ListApfResult> {
+    return Promise.resolve({
+      items: [
+        { dsn: 'SYS1.LINKLIB', volser: 'RES001' },
+        { dsn: 'SYS1.LPALIB', volser: 'RES001' },
+        { dsn: 'SYS1.SVCLIB', volser: 'RES001' },
+        { dsn: 'SYS1.MIGLIB', volser: 'RES001' },
+        { dsn: 'SYS1.CSSLIB', volser: 'RES001' },
+        { dsn: 'CEE.SCEERUN', volser: 'PRD002' },
+        { dsn: 'CEE.SCEERUN2', volser: 'PRD002' },
+        { dsn: 'CSF.SCSFMOD0', volser: 'PRD003' },
+        { dsn: 'TCPIP.SEZALOAD', volser: 'PRD004' },
+        { dsn: 'ISP.SISPLOAD', volser: 'PRD005' },
+      ],
+    });
+  }
+
+  listProclib(
+    _systemId: SystemId,
+    _userId?: string,
+    _progress?: BackendProgressCallback
+  ): Promise<ListProclibResult> {
+    return Promise.resolve({
+      items: [
+        { dsn: 'SYS1.PROCLIB' },
+        { dsn: 'SYS1.IBM.PROCLIB' },
+        { dsn: 'USER.PROCLIB' },
+        { dsn: 'CPAC.PROCLIB' },
+        { dsn: 'SYS2.PROCLIB' },
+      ],
+    });
+  }
+
+  listLinklist(
+    _systemId: SystemId,
+    _userId?: string,
+    _progress?: BackendProgressCallback
+  ): Promise<ListLinklistResult> {
+    return Promise.resolve({
+      items: [
+        { dsn: 'SYS1.LINKLIB', volser: 'RES001', apfAuthorized: true },
+        { dsn: 'SYS1.CSSLIB', volser: 'RES001', apfAuthorized: true },
+        { dsn: 'CEE.SCEERUN', volser: 'PRD002', apfAuthorized: true },
+        { dsn: 'CEE.SCEERUN2', volser: 'PRD002', apfAuthorized: true },
+        { dsn: 'ISP.SISPLOAD', volser: 'PRD005', apfAuthorized: false },
+      ],
+    });
+  }
+
+  viewSyslog(
+    _systemId: SystemId,
+    options?: ViewSyslogOptions,
+    _userId?: string,
+    _progress?: BackendProgressCallback
+  ): Promise<ViewSyslogResult> {
+    const lines = [
+      'IEE042I SYSTEM LOG DATA SET INITIALIZED',
+      'IEF196I IEF237I JES2 ALLOCATED TO SYSLOG',
+      'IEA989I SLIP TRAP ID=X33E MATCHED.',
+      '$HASP373 MOCKJOB STARTED - INIT 1 - CLASS A - SYS MOCK1',
+      'IEF403I MOCKJOB - STARTED - TIME=12.00.01',
+      'IEF404I MOCKJOB - ENDED - TIME=12.00.05',
+      '$HASP395 MOCKJOB ENDED - RC=0000',
+      'IEE163I MODE= RD',
+      'IEE612I CN=MOCK01   DEVNUM=0700 SYS=MOCK1',
+      'BPXP018I THREAD TAKEN OFF (mock syslog line)',
+    ];
+    const max = options?.maxLines && options.maxLines > 0 ? options.maxLines : lines.length;
+    const returned = lines.slice(0, max);
+    return Promise.resolve({
+      text: returned.join('\n'),
+      startDate: options?.date ?? '2026-06-29',
+      startTime: options?.time ?? '12:00:00',
+      endDate: '2026-06-29',
+      endTime: '12:00:05',
+      returnedLines: returned.length,
+      hasMore: max < lines.length,
+    });
+  }
+
+  connectCertificate(
+    _systemId: SystemId,
+    _options: ConnectCertificateOptions,
+    _userId?: string,
+    _progress?: BackendProgressCallback
+  ): Promise<CertActionResult> {
+    return Promise.resolve({});
+  }
+
+  deleteCertificate(
+    _systemId: SystemId,
+    _options: DeleteCertificateOptions,
+    _userId?: string,
+    _progress?: BackendProgressCallback
+  ): Promise<CertActionResult> {
+    return Promise.resolve({});
+  }
+
+  exportCertificate(
+    _systemId: SystemId,
+    options: ExportCertificateOptions,
+    _userId?: string,
+    _progress?: BackendProgressCallback
+  ): Promise<ExportCertificateResult> {
+    const format = options.format ?? 'pem';
+    const mockPem = '-----BEGIN CERTIFICATE-----\nMIIBmockCERTDATA==\n-----END CERTIFICATE-----\n';
+    if (options.file) {
+      return Promise.resolve({
+        label: options.label,
+        owner: options.owner,
+        keyring: options.keyring,
+        format,
+        file: options.file,
+        bytesWritten: format === 'p12' ? 1834 : mockPem.length,
+      });
+    }
+    return Promise.resolve({
+      label: options.label,
+      owner: options.owner,
+      keyring: options.keyring,
+      format,
+      data: mockPem,
+    });
+  }
+
+  importCertificate(
+    _systemId: SystemId,
+    options: ImportCertificateOptions,
+    _userId?: string,
+    _progress?: BackendProgressCallback
+  ): Promise<ImportCertificateResult> {
+    return Promise.resolve({
+      label: options.label,
+      owner: options.owner,
+      keyring: options.keyring,
+    });
+  }
+
+  showCertificate(
+    _systemId: SystemId,
+    options: ShowCertificateOptions,
+    _userId?: string,
+    _progress?: BackendProgressCallback
+  ): Promise<ShowCertificateResult> {
+    return Promise.resolve({
+      label: options.label,
+      owner: options.owner,
+      usage: 'PERSONAL',
+      status: 'TRUST',
+      isDefault: true,
+      keyType: 1,
+      keySize: 2048,
+      serialNumber: '01A2B3C4',
+      notBefore: '2025-01-01T00:00:00Z',
+      notAfter: '2027-01-01T00:00:00Z',
+      recordId: `${options.label}/01A2B3C4`,
+    });
+  }
+
+  setDefaultCertificate(
+    _systemId: SystemId,
+    _options: SetDefaultCertificateOptions,
+    _userId?: string,
+    _progress?: BackendProgressCallback
+  ): Promise<CertActionResult> {
+    return Promise.resolve({});
+  }
+
+  trustCertificate(
+    _systemId: SystemId,
+    _options: TrustCertificateOptions,
+    _userId?: string,
+    _progress?: BackendProgressCallback
+  ): Promise<CertActionResult> {
+    return Promise.resolve({});
+  }
+
+  renameCertificate(
+    _systemId: SystemId,
+    _options: RenameCertificateOptions,
+    _userId?: string,
+    _progress?: BackendProgressCallback
+  ): Promise<CertActionResult> {
+    return Promise.resolve({});
+  }
+
+  refreshCertificateClass(
+    _systemId: SystemId,
+    _userId?: string,
+    _progress?: BackendProgressCallback
+  ): Promise<CertActionResult> {
+    return Promise.resolve({});
   }
 
   getUssHome(

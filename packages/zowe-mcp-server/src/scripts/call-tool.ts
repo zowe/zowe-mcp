@@ -65,6 +65,7 @@ import {
 import type { CliPluginProfilesFile } from '../tools/cli-bridge/types.js';
 import { loadMock } from '../zos/mock/load-mock.js';
 import {
+  isEnvFlagSet,
   parseConnectionSpec,
   resolveStandalonePassword,
   toPasswordEnvVarName,
@@ -344,9 +345,11 @@ async function main(): Promise<void> {
         'Native mode requires at least one system. Use --config <path> (JSON with "systems" array) or --system user@host (repeatable).'
       );
     }
+    const disableSshKey = isEnvFlagSet(process.env.ZOWE_MCP_DISABLE_SSH_KEY);
     const nativeSetup = loadNative({
       systems,
       useEnvForPassword: true,
+      disableSshKey,
     });
     serverOptions = {
       backend: nativeSetup.backend,

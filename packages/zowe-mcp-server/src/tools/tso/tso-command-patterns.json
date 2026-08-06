@@ -6,11 +6,6 @@
       "pattern": "\\bPASS(?:WORD)?\\b"
     },
     {
-      "id": "tso-call",
-      "message": "CALL runs programs (arbitrary execution).",
-      "pattern": "\\bCALL\\b"
-    },
-    {
       "id": "tso-profile",
       "message": "PROFILE changes session settings.",
       "pattern": "\\bPROF(?:ILE)?\\b"
@@ -38,6 +33,31 @@
   ],
   "elicit": [
     {
+      "id": "tso-call",
+      "message": "CALL runs programs (arbitrary execution); user approval required.",
+      "pattern": "\\bCALL\\b"
+    },
+    {
+      "id": "tso-security-admin",
+      "message": "Security administration commands (RACF verbs such as ALTUSER/PERMIT/RDEFINE/SETROPTS, ACF2 via ACF, Top Secret via TSS) change the security database; user approval required.",
+      "pattern": "^(ALTUSER|ALU|ADDUSER|AU|DELUSER|DU|PERMIT|PE|RDEFINE|RDEF|RALTER|RALT|RDELETE|RDEL|ADDSD|AD|ALTDSD|ALD|DELDSD|DD|ADDGROUP|AG|ALTGROUP|ALG|DELGROUP|DG|CONNECT|CO|REMOVE|RE|SETROPTS|SETR|TSS|ACF)\\b"
+    },
+    {
+      "id": "tso-alloc-free",
+      "message": "ALLOC/FREE change data set allocations for the session; user approval required.",
+      "pattern": "^(ALLOC(?:ATE)?|FREE)\\b"
+    },
+    {
+      "id": "tso-send",
+      "message": "SEND transmits messages to other users or the operator; user approval required.",
+      "pattern": "^(SEND|SE)\\b"
+    },
+    {
+      "id": "tso-exec",
+      "message": "EXEC runs REXX execs or CLISTs (arbitrary execution); user approval required.",
+      "pattern": "^(EXEC|EX)\\b|^%"
+    },
+    {
       "id": "tso-delete",
       "message": "DELETE permanently removes data sets or members; user approval required.",
       "pattern": "\\b(DEL(?:ETE)?|DEL)\\b"
@@ -54,14 +74,15 @@
     }
   ],
   "safe": [
-    { "id": "tso-listds", "pattern": "\\b(LISTDS|LISTD)\\b" },
-    { "id": "tso-listalc", "pattern": "\\b(LISTALC|LISTA)\\b" },
-    { "id": "tso-listcat", "pattern": "\\b(LISTCAT|LISTC)\\b" },
-    { "id": "tso-listbc", "pattern": "\\bLISTBC\\b" },
-    { "id": "tso-status", "pattern": "\\bSTATUS\\b" },
-    { "id": "tso-help", "pattern": "\\b(HELP|H)\\b" },
-    { "id": "tso-who", "pattern": "\\bWHO\\b" },
-    { "id": "tso-time", "pattern": "\\bTIME\\b" },
-    { "id": "tso-system", "pattern": "\\bSYSTEM\\b" }
+    { "id": "tso-listds", "pattern": "^(LISTDS|LISTD)\\b" },
+    { "id": "tso-listalc", "pattern": "^(LISTALC|LISTA)\\b" },
+    { "id": "tso-listcat", "pattern": "^(LISTCAT|LISTC)\\b" },
+    { "id": "tso-listbc", "pattern": "^LISTBC\\b" },
+    { "id": "tso-listuser", "pattern": "^(LISTUSER|LU)\\b" },
+    { "id": "tso-status", "pattern": "^STATUS\\b" },
+    { "id": "tso-help", "pattern": "^(HELP|H)\\b" },
+    { "id": "tso-who", "pattern": "^WHO\\b" },
+    { "id": "tso-time", "pattern": "^TIME\\b" },
+    { "id": "tso-system", "pattern": "^SYSTEM\\b" }
   ]
 }

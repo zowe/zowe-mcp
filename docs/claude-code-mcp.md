@@ -80,7 +80,7 @@ A ready-to-edit copy is at [`examples/claude-code-mcp.json`](examples/claude-cod
 - `--system USERID@zos.example.com` is the connection spec (replace `USERID` and the host).
 - Put **only server flags** in `args` — do **not** pass `npx`, `-y`, or `@zowe/mcp-server` when you used a real install.
 - If `zowe-mcp-server` is not on `PATH` (for example after a project-local install, or because Claude Code runs in a shell without your nvm Node), set `"command"` to the **absolute path** to the binary, e.g. `/Users/you/.nvm/versions/node/v24.15.0/bin/zowe-mcp-server`, or `./node_modules/.bin/zowe-mcp-server`.
-- **Do not commit real passwords.** See [Passwords](#3-give-the-server-a-password) below.
+- **Do not commit real passwords.** See [Authenticate to z/OS](#3-authenticate-to-zos) below.
 
 ### Option B — `claude mcp add` (CLI)
 
@@ -109,11 +109,38 @@ claude mcp add-json zowe --scope project '{
 }'
 ```
 
-## 3. Give the server a password
+## 3. Authenticate to z/OS
 
-The server needs the z/OS password to open the SSH session. Claude Code has no built-in “prompt for password” pipe, so you supply it via an environment variable. Two equivalent options:
+The server authenticates each connection in this order, falling back automatically:
+**SSH key → password env var → Vault KV.**
 
-### Option 1 — Per-connection env var (simplest)
+### Preferred — SSH key (most secure, zero-config)
+
+If you already reach z/OS with an SSH key, you don't need to set any password env
+var: the server automatically uses your existing `~/.ssh` setup — a matching
+`Host` entry's `IdentityFile` in `~/.ssh/config`, or a default `~/.ssh/id_*` key.
+A private key (ideally passphrase-protected) is more secure than a password in an
+environment variable, which can leak via process listings, shell history, and
+crash dumps.
+
+If your key is encrypted, supply its passphrase (the server cannot prompt under
+Claude Code), or pin a specific key:
+
+```bash
+export ZOWE_MCP_KEY_PASSPHRASE_USERID_ZOS_EXAMPLE_COM='key passphrase'
+export ZOWE_MCP_PRIVATE_KEY_USERID_ZOS_EXAMPLE_COM=~/.ssh/id_mainframe   # optional override
+```
+
+Set `ZOWE_MCP_DISABLE_SSH_KEY=1` to skip key auth and always use a password.
+ssh-agent keys are not supported in this release — only key files on disk.
+
+### Fallback — password
+
+When no usable key is found, the server needs the z/OS password to open the SSH
+session. Claude Code has no built-in “prompt for password” pipe, so you supply it
+via an environment variable. Two equivalent options:
+
+#### Option 1 — Per-connection env var (simplest)
 
 **Format:** `ZOWE_MCP_PASSWORD_<USER>_<HOST>`
 
@@ -124,7 +151,7 @@ Example: `USERID@zos.example.com` → `ZOWE_MCP_PASSWORD_USERID_ZOS_EXAMPLE_COM`
 
 Set it in `.mcp.json` `env` (as shown above), or export it in your shell so it is inherited by Claude Code.
 
-### Option 2 — Single JSON env var `ZOWE_MCP_CREDENTIALS`
+#### Option 2 — Single JSON env var `ZOWE_MCP_CREDENTIALS`
 
 A single environment variable whose value is a JSON object keyed by `user@host` (or `user@host:port`):
 

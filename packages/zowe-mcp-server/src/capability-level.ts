@@ -257,7 +257,9 @@ export function buildCapabilityInstructions(
       'Update/create z/OS resources (requires tier "update" or higher) — examples:',
       '  writeDataset, createDataset, copyDataset, renameDataset, restoreDataset,',
       '  writeUssFile, createUssFile, copyUssFile, chmodUssFile, chownUssFile, chtagUssFile,',
-      '  uploadFileToDataset, uploadFileToUssFile, holdJob, releaseJob',
+      '  uploadFileToDataset, uploadFileToUssFile, holdJob, releaseJob,',
+      '  connectCertificate, importCertificate, exportCertificate, setDefaultCertificate,',
+      '  trustCertificate, renameCertificate, refreshCertificateClass',
       ''
     );
   }
@@ -265,7 +267,7 @@ export function buildCapabilityInstructions(
   if (maxLevel < ResourceEffect.DELETE) {
     lines.push(
       'Delete z/OS resources (requires tier "delete" or higher) — examples:',
-      '  deleteDataset, deleteDatasetsUnderPrefix, deleteUssFile, cancelJob, deleteJob',
+      '  deleteDataset, deleteDatasetsUnderPrefix, deleteUssFile, cancelJob, deleteJob, deleteCertificate',
       ''
     );
   }

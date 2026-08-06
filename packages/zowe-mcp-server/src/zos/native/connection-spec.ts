@@ -34,15 +34,40 @@ export function toHostNormalized(host: string): string {
 }
 
 /**
- * Returns the environment variable name for a password in standalone mode.
- * Format: ZOWE_MCP_PASSWORD_<USER>_<HOST> with USER uppercase and HOST with dots replaced by _.
+ * Returns the `<USER>_<HOST>` suffix shared by all standalone-mode env var names:
+ * USER uppercase, HOST with dots replaced by _, both restricted to [A-Z0-9_].
  */
-export function toPasswordEnvVarName(user: string, host: string): string {
+function toEnvVarSuffix(user: string, host: string): string {
   const userPart = user.toUpperCase().replace(/[^A-Z0-9]/g, '_');
   const hostPart = toHostNormalized(host)
     .toUpperCase()
     .replace(/[^A-Z0-9_]/g, '_');
-  return `ZOWE_MCP_PASSWORD_${userPart}_${hostPart}`;
+  return `${userPart}_${hostPart}`;
+}
+
+/**
+ * Returns the environment variable name for a password in standalone mode.
+ * Format: ZOWE_MCP_PASSWORD_<USER>_<HOST> with USER uppercase and HOST with dots replaced by _.
+ */
+export function toPasswordEnvVarName(user: string, host: string): string {
+  return `ZOWE_MCP_PASSWORD_${toEnvVarSuffix(user, host)}`;
+}
+
+/**
+ * Returns the environment variable name for an explicit SSH private key path (standalone mode).
+ * Format: ZOWE_MCP_PRIVATE_KEY_<USER>_<HOST> (USER uppercase, HOST with dots replaced by _).
+ * Optional override — when unset, the resolver auto-detects ~/.ssh/config and default ~/.ssh/id_* keys.
+ */
+export function toPrivateKeyEnvVarName(user: string, host: string): string {
+  return `ZOWE_MCP_PRIVATE_KEY_${toEnvVarSuffix(user, host)}`;
+}
+
+/**
+ * Returns the environment variable name for an SSH private key passphrase (standalone mode).
+ * Format: ZOWE_MCP_KEY_PASSPHRASE_<USER>_<HOST> (USER uppercase, HOST with dots replaced by _).
+ */
+export function toKeyPassphraseEnvVarName(user: string, host: string): string {
+  return `ZOWE_MCP_KEY_PASSPHRASE_${toEnvVarSuffix(user, host)}`;
 }
 
 /**
@@ -52,6 +77,14 @@ export function toPasswordEnvVarName(user: string, host: string): string {
  */
 export function toSecretStorageKey(user: string, host: string): string {
   return `zowe.ssh.password.${user.toUpperCase()}.${toHostNormalized(host)}`;
+}
+
+/**
+ * Truthy values accepted for boolean-flag env vars (e.g. `ZOWE_MCP_DISABLE_SSH_KEY`).
+ * Case-insensitive; add new accepted spellings here so every caller picks them up.
+ */
+export function isEnvFlagSet(value: string | undefined): boolean {
+  return ['1', 'true', 'yes'].includes((value ?? '').trim().toLowerCase());
 }
 
 /**

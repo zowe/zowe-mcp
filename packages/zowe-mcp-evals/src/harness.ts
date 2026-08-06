@@ -13,7 +13,7 @@ import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
-import type { LanguageModel } from 'ai';
+import type { LanguageModel, ToolSet } from 'ai';
 import { generateText, jsonSchema, stepCountIs, tool } from 'ai';
 import type { ChildProcess } from 'node:child_process';
 import { spawn, spawnSync } from 'node:child_process';
@@ -74,7 +74,7 @@ function stepFinishPayload(result: {
       const t = tc as { toolName?: string; input?: unknown };
       return {
         tool: t.toolName,
-        args: t.input != null ? Object.keys(t.input as object) : [],
+        args: t.input != null ? Object.keys(t.input) : [],
       };
     }) ?? [];
   return {
@@ -92,6 +92,10 @@ const DEFAULT_SYSTEM_PROMPT =
   'You are an assistant with access to z/OS data set tools. Use the provided tools to answer the user. ';
 
 const MAX_STEPS = 10;
+
+// Gemini occasionally returns an empty candidate (0 output tokens, no tool calls, no text).
+// Such runs are provider pathology, not a model answer, so they are retried rather than scored.
+const EMPTY_RESPONSE_RETRIES = 2;
 
 export interface HarnessOptions {
   serverPath: string;
@@ -132,7 +136,7 @@ function buildModel(evalsConfig: EvalsConfig): LanguageModel {
       baseURL: evalsConfig.baseUrl ?? 'http://localhost:8000/v1',
       apiKey: evalsConfig.apiKey ?? 'no key needed',
     });
-    return provider(evalsConfig.serverModel) as unknown as LanguageModel;
+    return provider(evalsConfig.serverModel);
   }
   if (evalsConfig.provider === 'lmstudio') {
     const provider = createOpenAICompatible({
@@ -140,10 +144,10 @@ function buildModel(evalsConfig: EvalsConfig): LanguageModel {
       baseURL: evalsConfig.baseUrl ?? 'http://localhost:1234/v1',
       apiKey: evalsConfig.apiKey ?? 'no key needed',
     });
-    return provider(evalsConfig.serverModel) as unknown as LanguageModel;
+    return provider(evalsConfig.serverModel);
   }
   const google = createGoogleGenerativeAI({ apiKey: evalsConfig.apiKey! });
-  return google(evalsConfig.serverModel) as unknown as LanguageModel;
+  return google(evalsConfig.serverModel);
 }
 
 export function getSystemPrompt(setConfig: SetConfig, serverInstructions?: string): string {
@@ -448,7 +452,7 @@ export class McpEvalHarness {
     const toolCallRecords: ToolCallRecord[] = [];
     const toolAliases = this.options.setConfig.toolAliases ?? {};
 
-    const tools: Record<string, ReturnType<typeof tool>> = {};
+    const tools: ToolSet = {};
     for (const t of mcpTools) {
       const name = t.name;
       const description = t.description ?? `Tool: ${name}`;
@@ -467,7 +471,7 @@ export class McpEvalHarness {
           toolCallRecords.push({ name: canonicalName, arguments: a, result: resultForReport });
           return text;
         },
-      }) as unknown as ReturnType<typeof tool>;
+      });
     }
 
     const model = buildModel(this.options.evalsConfig);
@@ -480,42 +484,57 @@ export class McpEvalHarness {
     const systemPrompt = getSystemPrompt(this.options.setConfig, serverInstructions);
 
     const t0 = Date.now();
-    const result = await generateText({
-      model,
-      system: systemPrompt,
-      prompt,
-      tools,
-      ...(runOptions?.toolChoice != null ? { toolChoice: runOptions.toolChoice } : {}),
-      ...(runOptions?.activeTools != null && runOptions.activeTools.length > 0
-        ? { activeTools: runOptions.activeTools }
-        : {}),
-      stopWhen: stepCountIs(MAX_STEPS),
-      prepareStep(options) {
-        log.debug('AI SDK prepareStep (before request)', prepareStepPayload(options));
-        return {};
-      },
-      onStepFinish(stepResult: {
-        finishReason?: string;
-        usage?: unknown;
-        totalUsage?: unknown;
-        text?: string;
-        toolCalls?: unknown[];
-        toolResults?: unknown[];
-        isContinued?: boolean;
-      }) {
-        log.debug('AI SDK onStepFinish', stepFinishPayload(stepResult));
-      },
-    });
-    const durationMs = Date.now() - t0;
+    const totalAttempts = 1 + EMPTY_RESPONSE_RETRIES;
+    const attemptGeneration = async () => {
+      toolCallRecords.length = 0;
+      const attemptResult = await generateText({
+        model,
+        system: systemPrompt,
+        prompt,
+        tools,
+        ...(runOptions?.toolChoice != null ? { toolChoice: runOptions.toolChoice } : {}),
+        ...(runOptions?.activeTools != null && runOptions.activeTools.length > 0
+          ? { activeTools: runOptions.activeTools }
+          : {}),
+        stopWhen: stepCountIs(MAX_STEPS),
+        prepareStep(options) {
+          log.debug('AI SDK prepareStep (before request)', prepareStepPayload(options));
+          return {};
+        },
+        onStepFinish(stepResult: {
+          finishReason?: string;
+          usage?: unknown;
+          totalUsage?: unknown;
+          text?: string;
+          toolCalls?: unknown[];
+          toolResults?: unknown[];
+          isContinued?: boolean;
+        }) {
+          log.debug('AI SDK onStepFinish', stepFinishPayload(stepResult));
+        },
+      });
+      log.debug('AI SDK generateText result', {
+        finishReason: attemptResult.finishReason,
+        usage: attemptResult.usage,
+        totalUsage: attemptResult.totalUsage,
+        textPreview: attemptResult.text != null ? truncate(attemptResult.text) : undefined,
+        stepCount: attemptResult.steps?.length ?? 0,
+        reasoningPreview:
+          attemptResult.reasoningText != null ? truncate(attemptResult.reasoningText) : undefined,
+      });
+      return attemptResult;
+    };
+    const isEmptyResponse = (r: Awaited<ReturnType<typeof attemptGeneration>>): boolean =>
+      (toolCallRecords.length === 0 && (r.text ?? '').trim() === '') || r.finishReason === 'error';
 
-    log.debug('AI SDK generateText result', {
-      finishReason: result.finishReason,
-      usage: result.usage,
-      totalUsage: result.totalUsage,
-      textPreview: result.text != null ? truncate(result.text) : undefined,
-      stepCount: result.steps?.length ?? 0,
-      reasoningPreview: result.reasoningText != null ? truncate(result.reasoningText) : undefined,
-    });
+    let result = await attemptGeneration();
+    for (let attempt = 1; attempt < totalAttempts && isEmptyResponse(result); attempt++) {
+      log.warning(
+        `Empty model response (finishReason=${result.finishReason}), retrying (attempt ${attempt}/${totalAttempts})`
+      );
+      result = await attemptGeneration();
+    }
+    const durationMs = Date.now() - t0;
 
     const u = result.usage;
     const tokenUsage: TokenUsage | undefined = u

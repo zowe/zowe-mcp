@@ -438,6 +438,287 @@ export interface ListJobsOptions {
 }
 
 // ---------------------------------------------------------------------------
+// System information types
+// ---------------------------------------------------------------------------
+
+/** A single APF-authorized data set entry. */
+export interface ApfDatasetEntry {
+  /** Data set name. */
+  dsn: string;
+  /** Volume serial the data set resides on (empty when SMS-managed / dynamic). */
+  volser: string;
+}
+
+/** Result of listing APF-authorized data sets. */
+export interface ListApfResult {
+  /** APF-authorized data sets. */
+  items: ApfDatasetEntry[];
+}
+
+/** A single PROCLIB concatenation entry (the RPC provides no volume serial). */
+export interface ProclibDatasetEntry {
+  /** Data set name. */
+  dsn: string;
+}
+
+/** Result of listing the PROCLIB concatenation. */
+export interface ListProclibResult {
+  /** PROCLIB data sets (in concatenation order). */
+  items: ProclibDatasetEntry[];
+}
+
+/** A single link list (LNKLST) data set entry. */
+export interface LinklistDatasetEntry {
+  /** Data set name. */
+  dsn: string;
+  /** Volume serial the data set resides on (empty when SMS-managed / dynamic). */
+  volser: string;
+  /** Whether the data set is APF-authorized. */
+  apfAuthorized: boolean;
+}
+
+/** Result of listing the link list (LNKLST) concatenation. */
+export interface ListLinklistResult {
+  /** Link list data sets (in concatenation order). */
+  items: LinklistDatasetEntry[];
+}
+
+/** Options for reading the z/OS SYSLOG. Date/time and secondsAgo are mutually exclusive. */
+export interface ViewSyslogOptions {
+  /** Start date in yyyy-mm-dd. Mutually exclusive with secondsAgo. */
+  date?: string;
+  /** Start time in hh:mm:ss. Mutually exclusive with secondsAgo. */
+  time?: string;
+  /** Relative offset: start from (now - secondsAgo) on z/OS. Mutually exclusive with date/time. */
+  secondsAgo?: number;
+  /** Maximum syslog lines to read from the host. */
+  maxLines?: number;
+}
+
+/** Result of reading the z/OS SYSLOG. */
+export interface ViewSyslogResult {
+  /** Raw syslog text (UTF-8), newline-separated lines. */
+  text: string;
+  /** Actual start date used for the read (yyyy-mm-dd). */
+  startDate?: string;
+  /** Actual start time used for the read (hh:mm:ss). */
+  startTime?: string;
+  /** Date of the last record returned (yyyy-mm-dd). */
+  endDate?: string;
+  /** Time of the last record returned (hh:mm:ss). */
+  endTime?: string;
+  /** Number of lines returned by the host. */
+  returnedLines?: number;
+  /** True when the syslog had more lines than maxLines and the host truncated the read. */
+  hasMore?: boolean;
+}
+
+// ---------------------------------------------------------------------------
+// Certificate / key ring types
+//
+// These operations act on the z/OS security database (RACF, ACF2, or Top
+// Secret) via the standard SAF interface (R_datalib) — the terminology below
+// is intentionally product-neutral rather than RACF-specific.
+// ---------------------------------------------------------------------------
+
+/** Certificate usage. */
+export type CertificateUsage = 'PERSONAL' | 'CERTAUTH';
+
+/** Certificate trust status. */
+export type CertificateTrustStatus = 'TRUST' | 'HIGHTRUST' | 'NOTRUST';
+
+/**
+ * The exact SAF return/reason codes behind a warning or error, preserved
+ * alongside the natural-language message. These come from the underlying
+ * R_datalib call and apply the same way regardless of security product
+ * (RACF, ACF2, or Top Secret).
+ */
+export interface SafReturnCodes {
+  /** R_datalib function code (e.g. 0x08 DataPut, 0x09 DataRemove). */
+  functionCode: number;
+  /** SAF return code. */
+  safReturnCode: number;
+  /** Security product return code. */
+  productReturnCode: number;
+  /** Security product reason code. */
+  productReasonCode: number;
+}
+
+/**
+ * Result of a certificate/key ring action that has no other data to return.
+ * `success` may be true alongside a non-fatal `warning` (e.g. a duplicate
+ * label was ignored).
+ */
+export interface CertActionResult {
+  /** Human-readable note for a non-fatal warning, when one occurred. */
+  warning?: string;
+  /** SAF codes behind a warning or error, when a non-zero code was returned. */
+  safReturnCodes?: SafReturnCodes;
+  /** System SSL / GSKCMS status code, when a GSK call failed. */
+  gskReturnCode?: number;
+}
+
+/** Options for connecting a certificate to a key ring. */
+export interface ConnectCertificateOptions {
+  /** Certificate owner (user ID). */
+  owner: string;
+  /** Target key ring name. */
+  keyring: string;
+  /** Certificate label. */
+  label: string;
+  /** Source key ring the certificate is already on (its bytes are read from here). Mutually exclusive with `fromDatabase`. */
+  fromRing?: string;
+  /** Read the certificate from the security database instead of a specific ring (use when the certificate is not connected to any ring). Mutually exclusive with `fromRing`. */
+  fromDatabase?: boolean;
+  /** Certificate usage (default: the certificate's current usage). */
+  usage?: CertificateUsage;
+  /** Set this certificate as the target ring's default. */
+  isDefault?: boolean;
+}
+
+/** Options for deleting/disconnecting a certificate. */
+export interface DeleteCertificateOptions {
+  /** Certificate owner (user ID). */
+  owner: string;
+  /** Certificate label. */
+  label: string;
+  /** Key ring to disconnect the certificate from. Omit and set `database: true` to delete the certificate from the security database instead. */
+  keyring?: string;
+  /** Delete the certificate from the security database (removes it entirely, not just from one ring). Mutually exclusive with `keyring`. */
+  database?: boolean;
+  /** Do not automatically refresh the DIGTCERT class if the security product reports it is required for the change to take effect (default is to refresh). */
+  skipRefresh?: boolean;
+}
+
+/** Options for exporting a certificate from a key ring. */
+export interface ExportCertificateOptions {
+  /** Key ring owner (user ID). */
+  owner: string;
+  /** Key ring name. */
+  keyring: string;
+  /** Certificate label. */
+  label: string;
+  /** Export format: "pem" (certificate) or "p12" (certificate + private key). Default "pem". */
+  format?: string;
+  /** Output file path on z/OS (required for "p12"; "pem" is returned inline when omitted). */
+  file?: string;
+  /** PKCS#12 passphrase (used with format "p12"). */
+  password?: string;
+}
+
+/** Result of exporting a certificate. */
+export interface ExportCertificateResult {
+  /** Certificate label. */
+  label: string;
+  /** Key ring owner (user ID). */
+  owner: string;
+  /** Key ring name. */
+  keyring: string;
+  /** Export format that was produced ("pem" or "p12"). */
+  format: string;
+  /** Output file path, when written to disk on z/OS. */
+  file?: string;
+  /** Number of bytes written to the output file. */
+  bytesWritten?: number;
+  /** Exported certificate text (PEM), when not written to a file. */
+  data?: string;
+}
+
+/** Options for importing a certificate into a key ring from a PKCS#12 file already on z/OS. */
+export interface ImportCertificateOptions {
+  /** Key ring owner (user ID). */
+  owner: string;
+  /** Key ring name. */
+  keyring: string;
+  /** Certificate label to assign (used only when the certificate is new to the security database). */
+  label: string;
+  /** Certificate usage. */
+  usage: CertificateUsage;
+  /** Path to the source PKCS#12 file on z/OS. */
+  file: string;
+  /** PKCS#12 passphrase. */
+  password: string;
+  /** Do not automatically refresh the DIGTCERT class if the security product reports it is required (default is to refresh). */
+  skipRefresh?: boolean;
+}
+
+/** Result of importing a certificate. */
+export interface ImportCertificateResult extends CertActionResult {
+  /** Certificate label. */
+  label: string;
+  /** Key ring owner (user ID). */
+  owner: string;
+  /** Key ring name. */
+  keyring: string;
+}
+
+/** Options for showing detailed certificate information. */
+export interface ShowCertificateOptions {
+  /** Key ring owner (user ID). */
+  owner: string;
+  /** Key ring name. */
+  keyring: string;
+  /** Certificate label. */
+  label: string;
+}
+
+/** Detailed certificate information. */
+export interface ShowCertificateResult {
+  /** Certificate label. */
+  label: string;
+  /** Owning user ID. */
+  owner: string;
+  /** Usage: PERSONAL, CERTAUTH, or OTHER. */
+  usage: string;
+  /** Trust status: TRUST, HIGHTRUST, NOTRUST, or UNKNOWN. */
+  status: string;
+  /** Whether this certificate is the ring's default. */
+  isDefault: boolean;
+  /** Private-key type code. */
+  keyType: number;
+  /** Private-key size in bits (0 if no private key). */
+  keySize: number;
+  /** Certificate serial number (hex), from decoding the certificate. */
+  serialNumber?: string;
+  /** Validity start (ISO-8601), from decoding the certificate. */
+  notBefore?: string;
+  /** Validity end (ISO-8601), from decoding the certificate. */
+  notAfter?: string;
+  /** Security-database record ID (serial + issuer identifier). */
+  recordId?: string;
+}
+
+/** Options for setting a certificate as a key ring's default. */
+export interface SetDefaultCertificateOptions {
+  /** Key ring owner (user ID). */
+  owner: string;
+  /** Key ring name. */
+  keyring: string;
+  /** Certificate label. */
+  label: string;
+}
+
+/** Options for changing a certificate's trust status. */
+export interface TrustCertificateOptions {
+  /** Certificate owner (user ID). */
+  owner: string;
+  /** Certificate label. */
+  label: string;
+  /** New trust status. HIGHTRUST is honored only for CERTAUTH certificates. */
+  status: CertificateTrustStatus;
+}
+
+/** Options for renaming a certificate's label. */
+export interface RenameCertificateOptions {
+  /** Certificate owner (user ID). */
+  owner: string;
+  /** Current certificate label. */
+  label: string;
+  /** New certificate label. */
+  newLabel: string;
+}
+
+// ---------------------------------------------------------------------------
 // Backend interface
 // ---------------------------------------------------------------------------
 
@@ -859,6 +1140,189 @@ export interface ZosBackend {
     dsn: string,
     progress?: BackendProgressCallback
   ): Promise<void>;
+
+  // -------------------------------------------------------------------------
+  // System information operations (read-only)
+  // -------------------------------------------------------------------------
+
+  /**
+   * List the APF-authorized libraries (data sets) on the system.
+   *
+   * @param systemId - Target z/OS system.
+   * @param userId - Optional user ID (for backends that select a connection by user).
+   */
+  listApfLibraries(
+    systemId: SystemId,
+    userId?: string,
+    progress?: BackendProgressCallback
+  ): Promise<ListApfResult>;
+
+  /**
+   * List the PROCLIB concatenation on the system.
+   *
+   * @param systemId - Target z/OS system.
+   * @param userId - Optional user ID (for backends that select a connection by user).
+   */
+  listProclib(
+    systemId: SystemId,
+    userId?: string,
+    progress?: BackendProgressCallback
+  ): Promise<ListProclibResult>;
+
+  /**
+   * List the link list (LNKLST) concatenation on the system.
+   *
+   * @param systemId - Target z/OS system.
+   * @param userId - Optional user ID (for backends that select a connection by user).
+   */
+  listLinklist(
+    systemId: SystemId,
+    userId?: string,
+    progress?: BackendProgressCallback
+  ): Promise<ListLinklistResult>;
+
+  /**
+   * Read the z/OS SYSLOG (operations log).
+   *
+   * @param systemId - Target z/OS system.
+   * @param options - Start window (date/time or secondsAgo) and maxLines.
+   * @param userId - Optional user ID (for backends that select a connection by user).
+   */
+  viewSyslog(
+    systemId: SystemId,
+    options?: ViewSyslogOptions,
+    userId?: string,
+    progress?: BackendProgressCallback
+  ): Promise<ViewSyslogResult>;
+
+  // -------------------------------------------------------------------------
+  // Certificate / key ring operations (security database: RACF, ACF2, or Top
+  // Secret via SAF)
+  // -------------------------------------------------------------------------
+
+  /**
+   * Connect a certificate to a key ring, reading its bytes from another ring
+   * (`fromRing`) or the security database (`fromDatabase`).
+   *
+   * @param systemId - Target z/OS system.
+   * @param options - Owner, target keyring, label, and source (fromRing or fromDatabase).
+   */
+  connectCertificate(
+    systemId: SystemId,
+    options: ConnectCertificateOptions,
+    userId?: string,
+    progress?: BackendProgressCallback
+  ): Promise<CertActionResult>;
+
+  /**
+   * Disconnect a certificate from a key ring, or delete it from the security
+   * database entirely (`options.database`).
+   *
+   * @param systemId - Target z/OS system.
+   * @param options - Owner, label, and keyring or database.
+   */
+  deleteCertificate(
+    systemId: SystemId,
+    options: DeleteCertificateOptions,
+    userId?: string,
+    progress?: BackendProgressCallback
+  ): Promise<CertActionResult>;
+
+  /**
+   * Export a certificate from a key ring as PEM (certificate only) or PKCS#12
+   * (certificate plus private key).
+   *
+   * @param systemId - Target z/OS system.
+   * @param options - Owner, keyring, label, format, and optional output file/password.
+   */
+  exportCertificate(
+    systemId: SystemId,
+    options: ExportCertificateOptions,
+    userId?: string,
+    progress?: BackendProgressCallback
+  ): Promise<ExportCertificateResult>;
+
+  /**
+   * Import a certificate (and its private key, when present) into a key ring
+   * from a PKCS#12 file that already resides on z/OS.
+   *
+   * @param systemId - Target z/OS system.
+   * @param options - Owner, keyring, label, usage, source file, and password.
+   */
+  importCertificate(
+    systemId: SystemId,
+    options: ImportCertificateOptions,
+    userId?: string,
+    progress?: BackendProgressCallback
+  ): Promise<ImportCertificateResult>;
+
+  /**
+   * Show detailed information for a certificate in a key ring: owner, usage,
+   * trust status, default flag, key size, serial number, and validity dates.
+   *
+   * @param systemId - Target z/OS system.
+   * @param options - Owner, keyring, and label.
+   */
+  showCertificate(
+    systemId: SystemId,
+    options: ShowCertificateOptions,
+    userId?: string,
+    progress?: BackendProgressCallback
+  ): Promise<ShowCertificateResult>;
+
+  /**
+   * Set a certificate that is already connected to a key ring as that ring's
+   * default certificate.
+   *
+   * @param systemId - Target z/OS system.
+   * @param options - Owner, keyring, and label.
+   */
+  setDefaultCertificate(
+    systemId: SystemId,
+    options: SetDefaultCertificateOptions,
+    userId?: string,
+    progress?: BackendProgressCallback
+  ): Promise<CertActionResult>;
+
+  /**
+   * Change a certificate's trust status. A key ring is not required; the
+   * certificate is identified by owner and label.
+   *
+   * @param systemId - Target z/OS system.
+   * @param options - Owner, label, and new trust status.
+   */
+  trustCertificate(
+    systemId: SystemId,
+    options: TrustCertificateOptions,
+    userId?: string,
+    progress?: BackendProgressCallback
+  ): Promise<CertActionResult>;
+
+  /**
+   * Change a certificate's label. A key ring is not required; the
+   * certificate is identified by owner and current label.
+   *
+   * @param systemId - Target z/OS system.
+   * @param options - Owner, current label, and new label.
+   */
+  renameCertificate(
+    systemId: SystemId,
+    options: RenameCertificateOptions,
+    userId?: string,
+    progress?: BackendProgressCallback
+  ): Promise<CertActionResult>;
+
+  /**
+   * Refresh the DIGTCERT class so that certificate and key ring changes take effect.
+   *
+   * @param systemId - Target z/OS system.
+   * @param userId - Optional user ID (for backends that select a connection by user).
+   */
+  refreshCertificateClass(
+    systemId: SystemId,
+    userId?: string,
+    progress?: BackendProgressCallback
+  ): Promise<CertActionResult>;
 
   /**
    * Get the USS home directory path for a user on the system.

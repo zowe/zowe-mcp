@@ -223,9 +223,34 @@ The MCP server's `--config` file. For one mocked system on port 4022:
 
 Save as `~/native-mock.json` or anywhere convenient.
 
-### 2. Provide the password via env var
+### 2. Authenticate
 
-The MCP server's connection-spec layer reads passwords from
+The MCP server tries **SSH key auth first**, then a password. The mock host
+accepts both.
+
+**SSH key (preferred, exercises the key-auth path end-to-end).** Add the public
+key to the mock user's `authorizedKeys` in `users.json`, then point the server at
+a matching private key:
+
+```jsonc
+// <mockDir>/_ssh/users.json
+{
+  "users": [
+    { "username": "USER1", "password": "password", "systemId": "sys1",
+      "authorizedKeys": ["ssh-ed25519 AAAA... your test key"] }
+  ]
+}
+```
+
+```bash
+# Use a default ~/.ssh key, a ~/.ssh/config IdentityFile, or pin one explicitly:
+export ZOWE_MCP_PRIVATE_KEY_USER1_127_0_0_1=~/.ssh/id_mock
+```
+
+To test the **key→password fallback**, leave `authorizedKeys` empty (or use a key
+the mock doesn't trust): key auth fails and the server falls back to the password.
+
+**Password.** The connection-spec layer reads passwords from
 `ZOWE_MCP_PASSWORD_<USER>_<HOST_NORMALIZED>`. Port is **not** in the env-var
 name. For `USER1@127.0.0.1:4022`:
 
@@ -238,6 +263,8 @@ Alternatively, JSON map:
 ```bash
 export ZOWE_MCP_CREDENTIALS='{"USER1@127.0.0.1:4022":"password"}'
 ```
+
+(Set `ZOWE_MCP_DISABLE_SSH_KEY=1` to skip key auth entirely.)
 
 ### 3. Start the MCP server in stdio mode
 

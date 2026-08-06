@@ -33,8 +33,7 @@ export interface AuthWarning {
 }
 
 export type AuthResult =
-  | { ok: true; user: MockUser; warning?: AuthWarning }
-  | { ok: false; reason: AuthFailReason };
+  { ok: true; user: MockUser; warning?: AuthWarning } | { ok: false; reason: AuthFailReason };
 
 /**
  * Resolve a (username, password) pair against the mock catalog, mirroring the

@@ -53,7 +53,7 @@ jobs:
     outputs:
       code: ${{ steps.filter.outputs.code }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - id: filter
@@ -107,9 +107,9 @@ jobs:
     timeout-minutes: 15
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version-file: '.nvmrc'
           cache: npm
@@ -131,6 +131,7 @@ jobs:
         run: npm run duplication
 
       - name: Build (common + server)
+        id: build-for-lint
         run: |
           npm run build -w packages/zowe-mcp-common
           npm run build -w @zowe/mcp-server
@@ -148,14 +149,16 @@ jobs:
       # the eslint cache the gate above just populated (--cache), so this second
       # pass is near-instant. Visibility-only: never fails the job, and runs even
       # if the gate failed (!cancelled) so the annotations show up when needed.
+      # Requires the build above: type-aware rules resolve @zowe/mcp-server/dist
+      # imports, and linting without those types reports spurious unsafe-any findings.
       - name: ESLint SARIF report
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && steps.build-for-lint.outcome == 'success' }}
         continue-on-error: true
         run: npm run lint:sarif
       - name: Upload ESLint SARIF
         # security-events:write is unavailable to fork-PR tokens — skip there.
         if: ${{ !cancelled() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4.37.5
         with:
           sarif_file: eslint-results.sarif
           category: eslint
@@ -170,18 +173,18 @@ jobs:
     timeout-minutes: 30
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version-file: '.nvmrc'
           cache: npm
 
       # Default path (push / PR / dispatch with fallback): install strictly from
-      # the committed lockfile, which already pins the fallback zowex-sdk. Use
-      # --ignore-scripts because the prebuilt zowex-sdk tarball ships no build
-      # step and other deps' install scripts are not needed here (VS Code API
-      # types are fetched explicitly below).
+      # the committed lockfile, which already pins the fallback SDK
+      # (@zowe/zowex-for-zowe-sdk). Use --ignore-scripts because the prebuilt SDK
+      # tarball ships no build step and other deps' install scripts are not
+      # needed here (VS Code API types are fetched explicitly below).
       - name: Install dependencies (npm ci)
         if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.sdk-mode != 'fallback') }}
         run: npm ci --ignore-scripts
@@ -189,7 +192,7 @@ jobs:
       # Custom SDK source (manual dispatch only): sdk-switch rewrites the server
       # dependency to the chosen tarball and runs its own install, so npm ci is
       # skipped on this path.
-      - name: Switch zowex-sdk and install (custom SDK mode)
+      - name: Switch SDK and install (custom SDK mode)
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.sdk-mode != 'fallback' }}
         env:
           GH_TOKEN: ${{ github.token }}
@@ -223,7 +226,7 @@ jobs:
           --outputFile.junit=test-results.junit.xml
 
       - name: Publish test results
-        uses: dorny/test-reporter@v2
+        uses: dorny/test-reporter@v3
         # Needs checks:write — skip for fork PRs (their token is read-only).
         if: ${{ !cancelled() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
         with:
@@ -253,7 +256,7 @@ jobs:
       # VS Code extension tests (@vscode/test-cli downloads VS Code; needs a
       # display on Linux, hence xvfb-run). The download is cached.
       - name: Cache VS Code test download
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: packages/zowe-mcp-vscode/.vscode-test
           key: vscode-test-${{ runner.os }}-${{ hashFiles('packages/zowe-mcp-vscode/package.json') }}
@@ -335,9 +338,9 @@ jobs:
     timeout-minutes: 40
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version-file: '.nvmrc'
           cache: npm
@@ -364,7 +367,7 @@ jobs:
       # Cache the VS Code download here too (keyed per-OS) so Windows/macOS don't
       # re-fetch the editor every run — it was previously cached only on Linux.
       - name: Cache VS Code test download
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: packages/zowe-mcp-vscode/.vscode-test
           key: vscode-test-${{ runner.os }}-${{ hashFiles('packages/zowe-mcp-vscode/package.json') }}

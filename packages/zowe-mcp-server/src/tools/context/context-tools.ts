@@ -105,6 +105,8 @@ export function registerContextTools(
         'uss',
         'tso',
         'jobs',
+        'system',
+        'certificates',
         'local-files',
       ]
     : ['context'];

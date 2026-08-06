@@ -36,11 +36,13 @@ import { installMcpServerInvocationContext } from './mcp-tool-context.js';
 import { registerDatasetPrompts } from './prompts/dataset-prompts.js';
 import { registerImprovementPrompts } from './prompts/improvement-prompts.js';
 import { registerDatasetResources } from './resources/dataset-resources.js';
+import { registerCertificateTools } from './tools/certificates/certificate-tools.js';
 import { registerContextTools } from './tools/context/context-tools.js';
 // import { registerConsoleTools } from './tools/console/console-tools.js';
 import { registerDatasetTools } from './tools/datasets/dataset-tools.js';
 import { registerJobTools } from './tools/jobs/jobs-tools.js';
 import { registerLocalFileTools } from './tools/local-files/local-file-tools.js';
+import { registerSystemTools } from './tools/system/system-tools.js';
 import { registerTsoTools } from './tools/tso/tso-tools.js';
 import { registerUssTools } from './tools/uss/uss-tools.js';
 import { registerZoweExplorerTools } from './tools/zowe-explorer/open-in-editor.js';
@@ -470,6 +472,27 @@ export function createServer(options?: CreateServerOptions): CreateServerResult 
         credentialProvider,
         responseCache: responseCache ?? undefined,
         mcpServer: server,
+      },
+      logger
+    );
+    registerSystemTools(
+      server,
+      {
+        backend,
+        systemRegistry,
+        sessionState,
+        credentialProvider,
+        responseCache: responseCache ?? undefined,
+      },
+      logger
+    );
+    registerCertificateTools(
+      server,
+      {
+        backend,
+        systemRegistry,
+        sessionState,
+        credentialProvider,
       },
       logger
     );

@@ -196,6 +196,13 @@
           "markdownDescription": "When `true`, automatically install the Zowe Remote SSH z/OS server when \"Server not found\" is detected. Changes apply to future connections.",
           "order": 4
         },
+        "zoweMCP.preferSshKey": {
+          "type": "boolean",
+          "default": true,
+          "description": "When true (default), authenticate to z/OS with an SSH key from your existing ~/.ssh setup (~/.ssh/config IdentityFile or default id_* keys) before prompting for a password. Set to false to always use a password. Changing this requires reloading the window.",
+          "markdownDescription": "When `true` (default), authenticate to z/OS with an **SSH key** from your existing `~/.ssh` setup (`~/.ssh/config` `IdentityFile` or default `id_*` keys) before prompting for a password — the most secure, zero-config option. Set to `false` to always use a password. Changing this requires **Developer: Reload Window**.",
+          "order": 5
+        },
         "zoweMCP.installZoweNativeServerAutomatically": {
           "type": "boolean",
           "default": true,
@@ -360,16 +367,16 @@
     "postinstall": "npm run download-api"
   },
   "dependencies": {
-    "@zowe/imperative": "^8.30.1",
+    "@zowe/imperative": "^8.34.0",
     "zowe-mcp-common": "*",
     "@zowe/mcp-server": "0.10.0-dev"
   },
   "devDependencies": {
-    "@types/node": "^22.0.0",
+    "@types/node": "^26.1.1",
     "@vscode/dts": "^0.4.1",
-    "@vscode/vsce": "^3.0.0",
-    "@vscode/test-cli": "^0.0.10",
-    "@vscode/test-electron": "^2.5.2",
+    "@vscode/vsce": "^3.9.2",
+    "@vscode/test-cli": "^0.0.15",
+    "@vscode/test-electron": "^3.1.0",
     "typescript": "^5.9.2"
   }
 }

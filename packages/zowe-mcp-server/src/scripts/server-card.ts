@@ -11,11 +11,14 @@
 
 /**
  * Exports the Zowe MCP Server capabilities as a JSON file in MCP Server Card format,
- * aligned with SEP-1649 (.well-known/mcp/server-card.json).
+ * aligned with SEP-2127 (draft) (`GET /mcp/server-card`).
  *
- * The output contains static listings of tools, prompts, resources, and resource
- * templates. Zowe-specific metadata (capabilityTier) is placed in the _meta extension
- * namespace using the MCP registry convention.
+ * SEP-2127 deliberately excludes tool/prompt/resource listings from the Server Card
+ * itself — they remain subject to runtime listing via the protocol's list methods —
+ * so this CLI's static listings of tools, prompts, and resource templates are placed
+ * in the `_meta` extension namespace alongside Zowe-specific metadata (capabilityTier),
+ * using the MCP registry convention. This vendor extension exists only in this file's
+ * output, never in the card served over HTTP.
  *
  * Usage:
  *   npx @zowe/mcp-server server-card [--output <path>] [--capability-tier <tier>]
@@ -29,7 +32,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { type CapabilityTier, TIER_NAMES } from '../capability-level.js';
 import { Logger } from '../log.js';
-import { buildServerCard } from '../server-card.js';
+import { buildServerCard, SERVER_CARD_NAME } from '../server-card.js';
 
 const log = new Logger({ name: 'server-card' });
 
@@ -82,11 +85,13 @@ async function main(): Promise<void> {
       'Do not edit manually — run `npx @zowe/mcp-server server-card` to regenerate.'
   );
 
+  const docsExtras = card._meta?.[SERVER_CARD_NAME] as
+    | { tools?: unknown[]; prompts?: unknown[]; resourceTemplates?: unknown[] }
+    | undefined;
   log.info('Collected MCP capabilities', {
-    tools: card.tools.length,
-    prompts: card.prompts.length,
-    resources: card.resources.length,
-    resourceTemplates: card.resourceTemplates.length,
+    tools: docsExtras?.tools?.length ?? 0,
+    prompts: docsExtras?.prompts?.length ?? 0,
+    resourceTemplates: docsExtras?.resourceTemplates?.length ?? 0,
   });
 
   const outputDir = dirname(output);

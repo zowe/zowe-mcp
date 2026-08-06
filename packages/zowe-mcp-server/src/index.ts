@@ -43,7 +43,11 @@ import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
 import { loadJwtAuthConfigFromEnv, type TenantJwtClaims } from './auth/bearer-jwt.js';
 import { getOrCreateTenantCliPluginStates, tenantKeyFromSub } from './auth/tenant-resources.js';
-import { parseCapabilityTier, type CapabilityTier } from './capability-level.js';
+import {
+  parseCapabilityTier,
+  resolveCapabilityTier,
+  type CapabilityTier,
+} from './capability-level.js';
 import type {
   CeedumpCollectedEventData,
   OpenDatasetInEditorEventData,
@@ -60,7 +64,7 @@ import {
   removeTenantSystem,
   tenantStoreDirFromEnv,
 } from './persistence/tenant-connections-store.js';
-import { buildServerCard, type McpServerCard } from './server-card.js';
+import { assembleServerCard, type ServerCard } from './server-card.js';
 import type { CreateServerOptions, CreateServerResult, ZoweExplorerCallbacks } from './server.js';
 import { createServer, getLogger, getServer, SERVER_VERSION } from './server.js';
 import {
@@ -1932,32 +1936,15 @@ async function main(): Promise<void> {
       );
     }
 
-    // Build server card for /.well-known/mcp/server-card.json.
-    // Uses a lightweight in-memory probe with a minimal mock backend — tool
-    // registration is backend-independent, so the card accurately reflects
-    // which tools are available at the configured capabilityTier.
-    let httpServerCard: McpServerCard | undefined;
-    try {
-      const indexJsPath = resolve(__dirname, 'index.js');
-      const capabilityTier =
-        serverOptions?.capabilityTier ??
-        (process.env.ZOWE_MCP_CAPABILITY_TIER as
-          | Parameters<typeof buildServerCard>[1]
-          | undefined) ??
-        'read-strict';
-      httpServerCard = await buildServerCard(indexJsPath, capabilityTier);
-      logger.info('MCP server card built', {
-        tools: httpServerCard.tools.length,
-        capabilityTier,
-      });
-    } catch (e) {
-      logger.warning(
-        'Failed to build MCP server card — /.well-known/mcp/server-card.json will not be served',
-        {
-          error: e instanceof Error ? e.message : String(e),
-        }
-      );
-    }
+    // Build the identity-only server card for GET /mcp/server-card (SEP-2127 draft).
+    // No probe subprocess: tool/prompt/resource listings are intentionally excluded from
+    // the card served over HTTP (see server-card.ts); remotes are filled in lazily by the
+    // HTTP transport itself once it knows the public base URL.
+    const httpCapabilityTier = resolveCapabilityTier({
+      option: serverOptions?.capabilityTier,
+      env: process.env.ZOWE_MCP_CAPABILITY_TIER,
+    });
+    const httpServerCard: ServerCard = assembleServerCard({ capabilityTier: httpCapabilityTier });
 
     const httpHandle = await startHttp(
       (tenant?: TenantJwtClaims) => {
@@ -2045,7 +2032,8 @@ async function main(): Promise<void> {
       {
         ...(httpJwtAuth ? { jwtAuth: httpJwtAuth } : {}),
         ...(httpBindHost ? { host: httpBindHost } : {}),
-        ...(httpServerCard ? { serverCard: httpServerCard } : {}),
+        serverCard: httpServerCard,
+        getPublicBaseUrl: () => httpPublicBaseUrlRef.current,
       }
     );
     if (!httpPublicBaseUrlRef.current) {

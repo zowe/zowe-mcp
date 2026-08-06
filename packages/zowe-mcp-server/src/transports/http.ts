@@ -25,11 +25,11 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
 import express, { type Request, type Response } from 'express';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import type { JwtAuthConfig, TenantJwtClaims } from '../auth/bearer-jwt.js';
 import { extractBearerToken, verifyBearerJwt } from '../auth/bearer-jwt.js';
 import type { Logger } from '../log.js';
-import type { McpServerCard } from '../server-card.js';
+import { buildServerCardRemote, type ServerCard } from '../server-card.js';
 import { registerPasswordUrlElicitRoutes } from './http-password-elicit.js';
 
 /** OIDC discovery document subset (we only read registration_endpoint). */
@@ -79,8 +79,14 @@ export type HttpServerFactory = (tenant?: TenantJwtClaims) => McpServer;
 export interface StartHttpOptions {
   /** When set, requires `Authorization: Bearer` on every /mcp request and binds sessions to `sub`. */
   jwtAuth?: JwtAuthConfig;
-  /** When set, serves this document at `/.well-known/mcp/server-card.json`. */
-  serverCard?: McpServerCard;
+  /** When set, served at `GET /mcp/server-card` (SEP-2127 draft). */
+  serverCard?: ServerCard;
+  /**
+   * Returns the server's public base URL (e.g. `https://mcp.example.com`), used to fill in
+   * the `remotes[0].url` of the served server card. When absent (or returns an empty/
+   * whitespace string), the served card falls back to a `{baseUrl}` template variable.
+   */
+  getPublicBaseUrl?: () => string;
   /**
    * Address to bind the listener to. Callers should default this to 127.0.0.1 when running
    * without authentication so unauthenticated MCP is not exposed beyond the local host.
@@ -190,18 +196,41 @@ export async function startHttp(
   }
 
   // -----------------------------------------------------------------------
-  // GET /.well-known/mcp/server-card.json — MCP Server Card (SEP-1649)
+  // GET /mcp/server-card — MCP Server Card (SEP-2127 draft)
   // -----------------------------------------------------------------------
   if (options?.serverCard) {
-    const cardJson = JSON.stringify(options.serverCard, null, 2);
-    const serverCardPaths = ['/.well-known/mcp/server-card.json', '/.well-known/mcp/server-card'];
-    app.get(serverCardPaths, (_req: Request, res: Response) => {
-      res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    const baseServerCard = options.serverCard;
+    let cardBody: string | undefined;
+    let cardEtag: string | undefined;
+    const buildCard = (): { body: string; etag: string } => {
+      if (cardBody !== undefined && cardEtag !== undefined) {
+        return { body: cardBody, etag: cardEtag };
+      }
+      const baseUrlTrimmed = options.getPublicBaseUrl?.().trim();
+      const remote = buildServerCardRemote(baseUrlTrimmed === '' ? undefined : baseUrlTrimmed);
+      const card: ServerCard = { ...baseServerCard, remotes: [remote] };
+      const body = JSON.stringify(card, null, 2);
+      const etag = `"${createHash('sha256').update(body, 'utf-8').digest('hex')}"`;
+      cardBody = body;
+      cardEtag = etag;
+      return { body, etag };
+    };
+    app.get('/mcp/server-card', (req: Request, res: Response) => {
+      const { body, etag } = buildCard();
+      res.setHeader('Content-Type', 'application/mcp-server-card+json; charset=utf-8');
       res.setHeader('Access-Control-Allow-Origin', '*');
-      res.setHeader('Cache-Control', 'public, max-age=300');
-      res.status(200).send(cardJson);
+      res.setHeader('Access-Control-Allow-Methods', 'GET');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, If-None-Match');
+      res.setHeader('Access-Control-Expose-Headers', 'ETag');
+      res.setHeader('Cache-Control', 'public, max-age=3600');
+      res.setHeader('ETag', etag);
+      if (req.headers['if-none-match'] === etag) {
+        res.status(304).end();
+        return;
+      }
+      res.status(200).send(body);
     });
-    log.info('MCP server card route enabled', { path: serverCardPaths[0] });
+    log.info('MCP server card route enabled', { path: '/mcp/server-card' });
   }
 
   /** Map of active session ID → transport and optional JWT subject. */

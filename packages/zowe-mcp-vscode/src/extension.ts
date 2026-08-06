@@ -508,6 +508,11 @@ export async function buildServerConfig(
   const zoweExplorerAvailable = zeExt != null;
   const firstFolder = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
   const env: Record<string, string> = {
+    // command is process.execPath (the editor's Electron binary); without this the
+    // spawned process boots as a GUI Electron app and Chromium consumes the server's
+    // CLI flags. VS Code's MCP host inherits it from the extension host, but Cursor's
+    // shared MCP process spawns with a clean environment, so it must be explicit.
+    ELECTRON_RUN_AS_NODE: '1',
     MCP_DISCOVERY_DIR: discoveryDir,
     WORKSPACE_ID: workspaceId,
   };

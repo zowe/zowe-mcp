@@ -15,7 +15,7 @@
  */
 export function getAdditionalDetails(err: unknown): string | undefined {
   if (err && typeof err === 'object' && 'additionalDetails' in err) {
-    const details = (err as { additionalDetails: unknown }).additionalDetails;
+    const details = err.additionalDetails;
     if (typeof details === 'string' && details.trim().length > 0) {
       return details.trim();
     }

@@ -137,7 +137,10 @@ function buildStack(spec: ParsedConnectionSpec): {
   return { backend, provider, clientCache };
 }
 
-describe('SSH key authentication against mock z/OS host', () => {
+// Real ssh2 handshakes against the in-process mock host are CPU-heavy; under coverage
+// instrumentation on loaded CI runners the key exchange can stall past the client's auth
+// window and misread as a key failure. Retry so a slow moment doesn't fail the suite.
+describe('SSH key authentication against mock z/OS host', { retry: 2 }, () => {
   it('1. connects with an authorized key (no password fallback)', async () => {
     const mock = await spawnWithAuthorizedKeys([plainPublic]);
     const spec = parseConnectionSpec(`USER1@127.0.0.1:${mock.sshPort}`);

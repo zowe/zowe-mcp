@@ -1,0 +1,152 @@
+# yaml-language-server: $schema=../schemas/evals-question-set.schema.json
+# z/OS certificate/key ring evals: showCertificate, connectCertificate, deleteCertificate,
+# exportCertificate, importCertificate, setDefaultCertificate, trustCertificate, renameCertificate,
+# refreshCertificateClass. Mock preset "minimal" (one system, auto-activated) so questions test
+# tool/argument selection rather than multi-system disambiguation.
+config:
+  name: certificates
+  description: Agent must map certificate/key ring requests to the correct certificate tool and arguments
+  repetitions: 5
+  minSuccessRate: 0.8
+  mock:
+    initArgs: --preset minimal
+
+questions:
+  - id: show-certificate
+    prompt: Show me details about the certificate labeled 'WebServerCert', owned by CERTADM, in key ring TCPIP.SERVER.RING.
+    assertions:
+      - toolCall:
+          tool: showCertificate
+          args:
+            owner: 'CERTADM'
+            keyring: 'TCPIP.SERVER.RING'
+            label: 'WebServerCert'
+
+  - id: connect-certificate-from-database
+    prompt: Connect the certificate 'WebServerCert' (owned by CERTADM) to key ring TCPIP.SERVER.RING, using the copy that's already in the security database.
+    assertions:
+      - toolCall:
+          tool: connectCertificate
+          args:
+            owner: 'CERTADM'
+            keyring: 'TCPIP.SERVER.RING'
+            label: 'WebServerCert'
+            fromDatabase: true
+
+  - id: connect-certificate-from-ring
+    prompt: Copy certificate 'WebServerCert' (owned by CERTADM) from key ring OLD.RING onto key ring NEW.RING.
+    assertions:
+      - toolCall:
+          tool: connectCertificate
+          args:
+            owner: 'CERTADM'
+            keyring: 'NEW.RING'
+            label: 'WebServerCert'
+            fromRing: 'OLD.RING'
+
+  - id: delete-certificate-disconnect
+    prompt: Disconnect certificate 'OldCert' (owned by CERTADM) from key ring TCPIP.SERVER.RING, but don't delete it from the security database entirely.
+    assertions:
+      - toolCall:
+          tool: deleteCertificate
+          args:
+            owner: 'CERTADM'
+            label: 'OldCert'
+            keyring: 'TCPIP.SERVER.RING'
+
+  - id: delete-certificate-from-database
+    prompt: Permanently delete certificate 'OldCert' (owned by CERTADM) from the security database.
+    assertions:
+      - toolCall:
+          tool: deleteCertificate
+          args:
+            owner: 'CERTADM'
+            label: 'OldCert'
+            database: true
+
+  # No format arg asserted: pem is the tool's documented default, so omitting it is correct
+  # and partial-match assertions cannot express "pem or absent" without also matching p12.
+  - id: export-certificate-pem
+    prompt: Export certificate 'WebServerCert' (owner CERTADM, key ring TCPIP.SERVER.RING) as a PEM file.
+    assertions:
+      - toolCall:
+          tool: exportCertificate
+          args:
+            owner: 'CERTADM'
+            keyring: 'TCPIP.SERVER.RING'
+            label: 'WebServerCert'
+
+  - id: export-certificate-p12
+    prompt: Export certificate 'WebServerCert' (owner CERTADM, ring TCPIP.SERVER.RING) as a PKCS#12 file to /u/certadm/webserver.p12 with passphrase 'secret123', including the private key.
+    assertions:
+      - toolCall:
+          tool: exportCertificate
+          args:
+            owner: 'CERTADM'
+            keyring: 'TCPIP.SERVER.RING'
+            label: 'WebServerCert'
+            format: 'p12'
+            file: '/u/certadm/webserver.p12'
+            password: 'secret123'
+
+  - id: import-certificate
+    prompt: Import the PKCS#12 file /u/certadm/newcert.p12 (passphrase 'importpw') into key ring TCPIP.SERVER.RING as a personal-use certificate labeled 'NewCert', owned by CERTADM.
+    assertions:
+      - toolCall:
+          tool: importCertificate
+          args:
+            owner: 'CERTADM'
+            keyring: 'TCPIP.SERVER.RING'
+            label: 'NewCert'
+            usage: 'PERSONAL'
+            file: '/u/certadm/newcert.p12'
+            password: 'importpw'
+
+  - id: set-default-certificate
+    prompt: Make certificate 'WebServerCert' (owned by CERTADM) the default certificate for key ring TCPIP.SERVER.RING.
+    assertions:
+      - toolCall:
+          tool: setDefaultCertificate
+          args:
+            owner: 'CERTADM'
+            keyring: 'TCPIP.SERVER.RING'
+            label: 'WebServerCert'
+
+  - id: trust-certificate-hightrust
+    prompt: Set the trust status of CERTAUTH certificate 'RootCA' (owned by CERTADM) to HIGHTRUST.
+    assertions:
+      - toolCall:
+          tool: trustCertificate
+          args:
+            owner: 'CERTADM'
+            label: 'RootCA'
+            status: 'HIGHTRUST'
+
+  - id: rename-certificate
+    prompt: Rename certificate 'OldLabel' (owned by CERTADM) to 'NewLabel'.
+    assertions:
+      - toolCall:
+          tool: renameCertificate
+          args:
+            owner: 'CERTADM'
+            label: 'OldLabel'
+            newLabel: 'NewLabel'
+
+  - id: refresh-certificate-class
+    prompt: Refresh the DIGTCERT class so recent certificate changes take effect.
+    assertions:
+      - toolCall:
+          tool: refreshCertificateClass
+
+  # --- Data-interpretation case: model must read notAfter from the tool result.
+  - id: certificate-expiry-inference
+    prompt: When does the certificate 'WebServerCert' (owner CERTADM, key ring TCPIP.SERVER.RING) expire?
+    assertions:
+      - toolCall:
+          tool: showCertificate
+          args:
+            owner: 'CERTADM'
+            keyring: 'TCPIP.SERVER.RING'
+            label: 'WebServerCert'
+      - answerContains:
+          pattern: '2027'

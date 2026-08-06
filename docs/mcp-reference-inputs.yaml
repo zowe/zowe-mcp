@@ -142,6 +142,61 @@ runSafeTsoCommand:
 runSafeTsoCommand[blocked command]:
   commandText: 'OSHELL rm -rf /'
 
+listApfLibraries:
+
+listProclib:
+
+listLinklist:
+
+viewSyslog:
+
+viewSyslog[last 3 lines]:
+  maxLines: 3
+
+showCertificate:
+  owner: 'USER01'
+  keyring: 'RING02'
+  label: 'CERT03'
+
+connectCertificate:
+  owner: 'USER01'
+  keyring: 'RING02'
+  label: 'CACERT'
+  fromDatabase: true
+
+exportCertificate:
+  owner: 'USER01'
+  keyring: 'RING02'
+  label: 'CERT03'
+
+importCertificate:
+  owner: 'USER01'
+  keyring: 'RING02'
+  label: 'CERT03'
+  usage: 'PERSONAL'
+  file: '/tmp/CERT03.p12'
+  password: 'secret'
+
+setDefaultCertificate:
+  owner: 'USER01'
+  keyring: 'RING02'
+  label: 'CERT03'
+
+trustCertificate:
+  owner: 'USER01'
+  label: 'CERT03'
+  status: 'NOTRUST'
+
+renameCertificate:
+  owner: 'USER01'
+  label: 'OLDLABEL'
+  newLabel: 'NEWLABEL'
+
+deleteCertificate:
+  skip: true
+
+refreshCertificateClass:
+
 submitJob:
   skip: true
 

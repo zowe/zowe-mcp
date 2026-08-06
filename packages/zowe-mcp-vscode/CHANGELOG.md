@@ -4,6 +4,11 @@
 
 All notable changes to the Zowe MCP extension will be documented in this file.
 
+## Recent Changes
+
+- **System tools**: A new group of system tools has been introduced to allow the user to list APF Authorized data sets, link list data sets, proclib data sets, and view system log information.  [#45](https://github.com/zowe/zowe-mcp/pull/45)
+- **Certificate tools**: A new group of certificate and key ring tools has been introduced to show, connect, delete, export, import, set the ring default, change trust status, rename, and refresh certificates on the z/OS security database (RACF, ACF2, or Top Secret). [#45](https://github.com/zowe/zowe-mcp/pull/45)
+
 ## `0.9.0`
 
 ### New features and enhancements

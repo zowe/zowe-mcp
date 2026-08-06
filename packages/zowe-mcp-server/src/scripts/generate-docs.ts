@@ -821,6 +821,31 @@ function generateDefaultInputs(tools: ToolInfo[]): Record<string, Record<string,
     readUssFile: { path: '/etc/profile' },
     runSafeTsoCommand: { command: 'TIME' },
     getUssHome: {},
+    listApfLibraries: {},
+    listProclib: {},
+    listLinklist: {},
+    viewSyslog: {},
+    showCertificate: { owner: 'USER01', keyring: 'RING02', label: 'CERT03' },
+    connectCertificate: {
+      owner: 'USER01',
+      keyring: 'RING02',
+      label: 'CACERT',
+      fromDatabase: true,
+    },
+    exportCertificate: { owner: 'USER01', keyring: 'RING02', label: 'CERT03' },
+    importCertificate: {
+      owner: 'USER01',
+      keyring: 'RING02',
+      label: 'CERT03',
+      usage: 'PERSONAL',
+      file: '/tmp/CERT03.p12',
+      password: 'secret',
+    },
+    setDefaultCertificate: { owner: 'USER01', keyring: 'RING02', label: 'CERT03' },
+    trustCertificate: { owner: 'USER01', label: 'CERT03', status: 'NOTRUST' },
+    renameCertificate: { owner: 'USER01', label: 'OLDLABEL', newLabel: 'NEWLABEL' },
+    deleteCertificate: { skip: true },
+    refreshCertificateClass: {},
   };
 
   for (const [name, args] of Object.entries(knownInputs)) {
@@ -966,6 +991,28 @@ async function main(): Promise<void> {
           label: 'TSO',
           description: 'Time Sharing Option — run TSO commands interactively on z/OS.',
           toolNames: ['runSafeTsoCommand'],
+        },
+        {
+          label: 'System Information',
+          description:
+            'Read-only information about the z/OS system itself — APF-authorized data sets, the PROCLIB concatenation, the link list (LNKLST) concatenation, and the operations SYSLOG.',
+          toolNames: ['listApfLibraries', 'listProclib', 'listLinklist', 'viewSyslog'],
+        },
+        {
+          label: 'Certificates',
+          description:
+            'Certificate and key ring operations on the z/OS security database (RACF, ACF2, or Top Secret via SAF) — show, connect, delete, export, import, set the ring default, change trust status, rename, and refresh the DIGTCERT class.',
+          toolNames: [
+            'showCertificate',
+            'connectCertificate',
+            'deleteCertificate',
+            'exportCertificate',
+            'importCertificate',
+            'setDefaultCertificate',
+            'trustCertificate',
+            'renameCertificate',
+            'refreshCertificateClass',
+          ],
         },
         {
           label: 'Jobs',

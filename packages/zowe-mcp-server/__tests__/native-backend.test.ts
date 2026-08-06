@@ -118,7 +118,7 @@ function fakeParseSearchOutput(output: string) {
   };
 }
 
-vi.mock('zowex-sdk', async importOriginal => {
+vi.mock('@zowe/zowex-for-zowe-sdk', async importOriginal => {
   const actual = await importOriginal<Record<string, unknown>>();
   if (!actual.UtilsApi) {
     return {

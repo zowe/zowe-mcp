@@ -594,8 +594,7 @@ describe.skipIf(!shouldRunNativeStdioE2E)(
         const result = await client.callTool({ name: 'getUssHome', arguments: {} });
         const text = getResultText(result);
         const parsed = JSON.parse(text) as
-          | { _context: { system: string }; data: { path: string } }
-          | { error: string };
+          { _context: { system: string }; data: { path: string } } | { error: string };
         if ('error' in parsed && parsed.error) {
           throw new Error(`getUssHome failed: ${parsed.error}`);
         }

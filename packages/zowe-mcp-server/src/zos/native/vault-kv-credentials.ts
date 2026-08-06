@@ -67,7 +67,7 @@ async function fetchVaultJson(): Promise<Record<string, unknown> | undefined> {
     return inner.data as Record<string, unknown>;
   }
   if (inner && typeof inner === 'object' && !('data' in inner)) {
-    return inner as Record<string, unknown>;
+    return inner;
   }
   return undefined;
 }

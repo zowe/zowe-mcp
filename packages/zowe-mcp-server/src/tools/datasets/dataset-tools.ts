@@ -1289,7 +1289,7 @@ export function registerDatasetTools(
           resolvedDsn,
           {
             type: canonicalType,
-            recfm: recfm as CreateDatasetOptions['recfm'],
+            recfm: recfm,
             lrecl,
             blksz: blockSize,
             primary: primarySpace,
@@ -1463,7 +1463,7 @@ export function registerDatasetTools(
           dsn,
           {
             type: canonicalType,
-            recfm: recfm as CreateDatasetOptions['recfm'],
+            recfm: recfm,
             lrecl,
             blksz: blockSize,
             primary: primarySpace,

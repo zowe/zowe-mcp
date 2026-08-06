@@ -20,6 +20,34 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { Logger } from './log.js';
 import { runWithMcpTool } from './mcp-tool-context.js';
 
+/** Input keys whose values are never logged (matched case-insensitively as substrings). */
+const SECRET_KEY_FRAGMENTS = ['password', 'passphrase', 'secret', 'token', 'credential'];
+
+const REDACTED = '«redacted»';
+
+function isSecretKey(key: string): boolean {
+  const lower = key.toLowerCase();
+  return SECRET_KEY_FRAGMENTS.some(fragment => lower.includes(fragment));
+}
+
+/**
+ * Returns a copy of `value` with secret-named keys replaced by a placeholder,
+ * recursing into plain objects and arrays. Exported for tests.
+ */
+export function redactSecretsForLogging(value: unknown, depth = 0): unknown {
+  if (depth > 4 || value === null || typeof value !== 'object') {
+    return value;
+  }
+  if (Array.isArray(value)) {
+    return value.map(v => redactSecretsForLogging(v, depth + 1));
+  }
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+    out[k] = isSecretKey(k) && v !== undefined ? REDACTED : redactSecretsForLogging(v, depth + 1);
+  }
+  return out;
+}
+
 /**
  * Installs tool-call logging on the given server by replacing registerTool
  * with a wrapper that logs each call (tool name, backend, full input),
@@ -49,7 +77,9 @@ export function installToolCallLogging(
         toolLog.info('Tool call', {
           tool: name,
           backend: backendKind,
-          input,
+          // Secret-carrying params (e.g. certificate export/import passwords) must not
+          // reach the log sink or the VS Code extension pipe.
+          input: redactSecretsForLogging(input),
         });
         let result: Awaited<ReturnType<typeof cb>>;
         try {

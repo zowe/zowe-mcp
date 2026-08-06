@@ -78,6 +78,16 @@ export type HttpServerFactory = (tenant?: TenantJwtClaims) => McpServer;
 export interface StartHttpOptions {
   /** When set, requires `Authorization: Bearer` on every /mcp request and binds sessions to `sub`. */
   jwtAuth?: JwtAuthConfig;
+  /**
+   * Address to bind the listener to. Callers should default this to 127.0.0.1 when running
+   * without authentication so unauthenticated MCP is not exposed beyond the local host.
+   */
+  host?: string;
+  /**
+   * Extra Host/Origin values accepted by the DNS-rebinding guard (in addition to the ones
+   * derived from `host` and the actual port). Only used when `jwtAuth` is not set.
+   */
+  extraAllowedHosts?: string[];
 }
 
 /** Handle returned by {@link startHttp} so tests (or embedding) can shut down the listener. */
@@ -114,6 +124,17 @@ export async function startHttp(
 ): Promise<HttpTransportHandle> {
   const log = logger.child('http');
   const jwtAuth = options?.jwtAuth;
+  const bindHostTrimmed = options?.host?.trim();
+  const bindHost =
+    bindHostTrimmed === undefined || bindHostTrimmed === '' ? undefined : bindHostTrimmed;
+  const loopbackNames = ['127.0.0.1', 'localhost', '::1', '[::1]'];
+  const loopbackBind = bindHost === undefined || loopbackNames.includes(bindHost);
+  // Without JWT auth the only barrier is network reachability, so guard the transport
+  // against DNS-rebinding / browser-driven access (MCP Streamable HTTP spec requires
+  // Origin validation). Populated with the actual port once the listener is up.
+  const dnsRebindingGuard = !jwtAuth;
+  const allowedHosts: string[] = [];
+  const allowedOrigins: string[] = [];
   const app = express();
   app.use(express.json());
   app.use(express.urlencoded({ extended: false }));
@@ -241,6 +262,15 @@ export async function startHttp(
             sessions[sid] = { transport, sub: boundSub };
             log.info('MCP session initialized', { mcpSessionId: sid, tenantSub: boundSub });
           },
+          ...(dnsRebindingGuard
+            ? {
+                enableDnsRebindingProtection: true,
+                // Host allowlist only makes sense when bound to loopback; an explicit
+                // non-loopback bind is reachable under names we cannot enumerate.
+                ...(loopbackBind ? { allowedHosts } : {}),
+                allowedOrigins,
+              }
+            : {}),
         });
 
         transport.onclose = () => {
@@ -321,11 +351,30 @@ export async function startHttp(
   });
 
   return new Promise<HttpTransportHandle>((resolve, reject) => {
-    const httpServer = app.listen(port, () => {
+    const onListening = (): void => {
       const addr = httpServer.address();
       const actualPort =
         typeof addr === 'object' && addr !== null && 'port' in addr ? addr.port : port;
-      log.info(`Zowe MCP Server (HTTP) listening on port ${actualPort}`);
+      if (dnsRebindingGuard) {
+        const hostNames = new Set(loopbackNames);
+        if (bindHost !== undefined) {
+          hostNames.add(bindHost);
+        }
+        for (const name of hostNames) {
+          allowedHosts.push(name, `${name}:${String(actualPort)}`);
+          allowedOrigins.push(`http://${name}:${String(actualPort)}`);
+        }
+        for (const extra of options?.extraAllowedHosts ?? []) {
+          allowedHosts.push(extra);
+          allowedOrigins.push(`http://${extra}`, `https://${extra}`);
+        }
+        log.info('DNS-rebinding protection enabled for unauthenticated HTTP', {
+          hostAllowlist: loopbackBind,
+        });
+      }
+      log.info(
+        `Zowe MCP Server (HTTP) listening on ${bindHost ?? 'all interfaces'}:${String(actualPort)}`
+      );
       resolve({
         port: actualPort,
         close: () =>
@@ -333,7 +382,11 @@ export async function startHttp(
             httpServer.close(err => (err ? rej(err) : res()));
           }),
       });
-    });
+    };
+    const httpServer =
+      bindHost !== undefined
+        ? app.listen(port, bindHost, onListening)
+        : app.listen(port, onListening);
     httpServer.on('error', reject);
   });
 }

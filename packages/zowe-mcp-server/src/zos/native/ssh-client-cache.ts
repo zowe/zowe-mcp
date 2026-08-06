@@ -16,8 +16,8 @@
  * should evict the entry so the next request can retry with new credentials.
  */
 
+import { SshSession, ZSshClient, ZSshUtils } from '@zowe/zowex-for-zowe-sdk';
 import { basename } from 'node:path';
-import { SshSession, ZSshClient, ZSshUtils } from 'zowex-sdk';
 import { getLogger } from '../../server.js';
 import type { Credentials } from '../credentials.js';
 import type { ParsedConnectionSpec } from './connection-spec.js';
@@ -223,10 +223,7 @@ export class SshClientCache {
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       const additionalDetails = getAdditionalDetails(err);
-      const code =
-        err && typeof err === 'object' && 'code' in err
-          ? String((err as { code: unknown }).code)
-          : undefined;
+      const code = err && typeof err === 'object' && 'code' in err ? String(err.code) : undefined;
       log.info('SSH connection failed', {
         key,
         host: spec.host,
@@ -273,7 +270,7 @@ export class SshClientCache {
         const installDetails = getAdditionalDetails(installErr);
         const installCode =
           installErr && typeof installErr === 'object' && 'code' in installErr
-            ? String((installErr as { code: unknown }).code)
+            ? String(installErr.code)
             : undefined;
         log.info('zowex z/OS server install or retry failed', {
           key,

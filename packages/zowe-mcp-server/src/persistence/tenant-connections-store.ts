@@ -62,7 +62,7 @@ export function loadTenantConnectionsFile(
   }
   try {
     const buf = readFileSync(path);
-    const raw = decryptTenantFileToUtf8(buf);
+    const raw = decryptTenantFileToUtf8(buf, storeDir);
     const data = JSON.parse(raw) as TenantConnectionsFile;
     if (!data || !Array.isArray(data.systems)) {
       return null;
@@ -78,7 +78,8 @@ function writeTenantConnectionsFile(
   sub: string,
   payload: TenantConnectionsFile
 ): void {
-  mkdirSync(storeDir, { recursive: true });
+  // Owner-only permissions: files hold connection specs (user@host) and job cards.
+  mkdirSync(storeDir, { recursive: true, mode: 0o700 });
   const path = tenantFilePath(storeDir, sub);
   const outPayload: TenantConnectionsFile = {
     ...payload,
@@ -87,8 +88,8 @@ function writeTenantConnectionsFile(
   };
   const tmp = `${path}.${process.pid}.${Date.now()}.tmp`;
   const body = `${JSON.stringify(outPayload, null, 2)}\n`;
-  const out = encryptTenantJsonUtf8(body);
-  writeFileSync(tmp, out);
+  const out = encryptTenantJsonUtf8(body, storeDir);
+  writeFileSync(tmp, out, { mode: 0o600 });
   renameSync(tmp, path);
 }
 

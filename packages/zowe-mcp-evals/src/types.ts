@@ -269,10 +269,7 @@ export interface AssertAnswerJudge {
 
 /** Leaf assertion (no nested allOf/anyOf). */
 export type Assertion =
-  | AssertToolCall
-  | AssertToolCallOrder
-  | AssertAnswerContains
-  | AssertAnswerJudge;
+  AssertToolCall | AssertToolCallOrder | AssertAnswerContains | AssertAnswerJudge;
 
 /**
  * Composite: all nested items must pass (logical AND).

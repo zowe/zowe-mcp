@@ -52,7 +52,12 @@ import {
   withPaginationNote,
   wrapResponse,
 } from '../response.js';
-import { buildProfileArgs, invokeZoweCli } from './cli-invoker.js';
+import {
+  assertNotOptionShaped,
+  buildProfileArgs,
+  invokeZoweCli,
+  validateProfileField,
+} from './cli-invoker.js';
 import type {
   CliNamedProfile,
   CliPluginConfig,
@@ -605,9 +610,12 @@ export function buildCliArgs(
     if (value === undefined) continue;
 
     if (param.cliPositional) {
-      positionals.push(param.valueMap ? (param.valueMap[value] ?? value) : value);
+      const cliValue = param.valueMap ? (param.valueMap[value] ?? value) : value;
+      assertNotOptionShaped(param.name, cliValue);
+      positionals.push(cliValue);
     } else if (param.cliOption) {
       const cliValue = param.valueMap ? (param.valueMap[value] ?? value) : value;
+      assertNotOptionShaped(param.name, cliValue);
       options.push(`--${param.cliOption}`, cliValue);
     }
   }
@@ -761,6 +769,28 @@ function registerProfileMutationTools(
                   type: 'text' as const,
                   text: JSON.stringify({ error: `Missing required field "${field.name}".` }),
                 },
+              ],
+              isError: true,
+            };
+          }
+        }
+        // Validate values at creation time (same constraints buildProfileArgs enforces
+        // at invocation time), so a bad profile is rejected before it is persisted.
+        for (const field of typeDef.fields) {
+          const value = newProfile[field.name];
+          if (value === undefined || value === '') continue;
+          let validationError = validateProfileField(field.name, String(value), field);
+          if (validationError === null) {
+            try {
+              assertNotOptionShaped(field.name, String(value));
+            } catch (e) {
+              validationError = e instanceof Error ? e.message : String(e);
+            }
+          }
+          if (validationError !== null) {
+            return {
+              content: [
+                { type: 'text' as const, text: JSON.stringify({ error: validationError }) },
               ],
               isError: true,
             };
@@ -1219,12 +1249,7 @@ async function handleListPagination(
   const keyParams: Record<string, string | undefined> = {};
   for (const [k, v] of Object.entries(args)) {
     if (k !== 'offset' && k !== 'limit') {
-      keyParams[k] =
-        v === undefined
-          ? undefined
-          : v !== null && typeof v === 'object'
-            ? JSON.stringify(v)
-            : String(v as string | number | boolean | bigint);
+      keyParams[k] = v === undefined ? undefined : typeof v === 'string' ? v : JSON.stringify(v);
     }
   }
   const cacheKey = buildCacheKey(`cli:list:${toolDef.toolName}`, keyParams);
@@ -1340,10 +1365,7 @@ async function handleListPagination(
     hasMore: meta.hasMore,
   });
 
-  return wrapResponse(ctx, meta, page, messages) as {
-    content: { type: 'text'; text: string }[];
-    structuredContent: Record<string, unknown>;
-  };
+  return wrapResponse(ctx, meta, page, messages);
 }
 
 // ---------------------------------------------------------------------------
@@ -1388,12 +1410,7 @@ async function handleContentWindowing(
   const keyParams: Record<string, string | undefined> = {};
   for (const [k, v] of Object.entries(args)) {
     if (k !== 'startLine' && k !== 'lineCount') {
-      keyParams[k] =
-        v === undefined
-          ? undefined
-          : v !== null && typeof v === 'object'
-            ? JSON.stringify(v)
-            : String(v as string | number | boolean | bigint);
+      keyParams[k] = v === undefined ? undefined : typeof v === 'string' ? v : JSON.stringify(v);
     }
   }
   const cacheKey = buildCacheKey(`cli:content:${toolDef.toolName}`, keyParams);
@@ -1453,10 +1470,7 @@ async function handleContentWindowing(
     hasMore: meta.hasMore,
   });
 
-  return wrapResponse(ctx, meta, sanitized, messages) as {
-    content: { type: 'text'; text: string }[];
-    structuredContent: Record<string, unknown>;
-  };
+  return wrapResponse(ctx, meta, sanitized, messages);
 }
 
 // ---------------------------------------------------------------------------
@@ -1731,7 +1745,16 @@ function registerPluginTool(
       }
 
       // --- 3. Build extra CLI args (location fields + tool-specific params) ---
-      const extraArgs = buildCliArgs(toolDef, args, effectiveContext, locationFields);
+      let extraArgs: string[];
+      try {
+        extraArgs = buildCliArgs(toolDef, args, effectiveContext, locationFields);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        return {
+          content: [{ type: 'text' as const, text: JSON.stringify({ error: msg }) }],
+          isError: true,
+        };
+      }
       toolLog.debug('Invoking zowe CLI', {
         command,
         extraArgs,

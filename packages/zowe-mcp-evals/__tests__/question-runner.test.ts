@@ -82,15 +82,14 @@ describe('runQuestion', () => {
         },
       ],
     };
-    const runConversation = vi.fn(
-      (): Promise<ConversationRunResult> =>
-        Promise.resolve({
-          finalText: 'no match here',
-          toolCalls: [],
-          durationMs: 2,
-          stepCount: 2,
-          turns: [fakeAgentRunResult('ok1 here'), fakeAgentRunResult('no match here')],
-        })
+    const runConversation = vi.fn((): Promise<ConversationRunResult> =>
+      Promise.resolve({
+        finalText: 'no match here',
+        toolCalls: [],
+        durationMs: 2,
+        stepCount: 2,
+        turns: [fakeAgentRunResult('ok1 here'), fakeAgentRunResult('no match here')],
+      })
     );
     const harness = fakeHarness({ runOne: vi.fn(), runConversation });
 
@@ -118,15 +117,14 @@ describe('runQuestion', () => {
         },
       ],
     };
-    const runConversation = vi.fn(
-      (): Promise<ConversationRunResult> =>
-        Promise.resolve({
-          finalText: 'ok2 done',
-          toolCalls: [],
-          durationMs: 2,
-          stepCount: 2,
-          turns: [fakeAgentRunResult('ok1 here'), fakeAgentRunResult('ok2 done')],
-        })
+    const runConversation = vi.fn((): Promise<ConversationRunResult> =>
+      Promise.resolve({
+        finalText: 'ok2 done',
+        toolCalls: [],
+        durationMs: 2,
+        stepCount: 2,
+        turns: [fakeAgentRunResult('ok1 here'), fakeAgentRunResult('ok2 done')],
+      })
     );
     const harness = fakeHarness({ runConversation });
 

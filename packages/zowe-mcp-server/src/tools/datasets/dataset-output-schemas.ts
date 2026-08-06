@@ -368,31 +368,68 @@ const deleteDatasetsUnderPrefixDataSchema = z.object({
 // Envelope helpers: _context, messages, data, optional _result
 // ---------------------------------------------------------------------------
 
+/** Options for {@link sharedEnvelopeSchema}. */
+export interface EnvelopeSchemaOptions {
+  /** Schema for the `_result` metadata field; omitted → no `_result` in the envelope. */
+  resultSchema?: z.ZodType;
+  /** Description for the `_result` field. */
+  resultDescription?: string;
+  /** Description for the `messages` field. */
+  messagesDescription?: string;
+  /** Description of the whole envelope object. */
+  description?: string;
+  /** Context schema (defaults to {@link baseContextSchema}). */
+  contextSchema?: z.ZodType;
+}
+
+/**
+ * The one shared envelope shape (`_context` / optional `messages` / `data` / optional
+ * `_result`) for every tool family's output schemas. Tool-family schema files must build
+ * their envelopes through this helper (directly or via a thin local wrapper) rather than
+ * hand-rolling the object, so the shape cannot silently diverge between families —
+ * e.g. `data` is always the payload itself, never a `{ items }` wrapper.
+ */
+export function sharedEnvelopeSchema<T extends z.ZodType>(
+  dataSchema: T,
+  options: EnvelopeSchemaOptions = {}
+) {
+  const base = z
+    .object({
+      _context: options.contextSchema ?? baseContextSchema,
+      messages: z
+        .array(z.string())
+        .optional()
+        .describe(
+          options.messagesDescription ??
+            'Operational messages (e.g. pagination hints). Omitted when empty.'
+        ),
+      data: dataSchema,
+    })
+    .describe(
+      options.description ?? 'Tool response envelope: context, optional messages, and payload.'
+    );
+  if (options.resultSchema) {
+    return base.extend({
+      _result: options.resultSchema.describe(
+        options.resultDescription ?? 'Result metadata (pagination, line window, or success).'
+      ),
+    });
+  }
+  return base;
+}
+
 function envelopeSchema<T extends z.ZodType>(
   dataSchema: T,
   resultSchema?: z.ZodType,
   envelopeDescription?: string
 ) {
-  const base = z
-    .object({
-      _context: datasetContextSchema,
-      messages: z
-        .array(z.string())
-        .optional()
-        .describe(
-          'Operational messages: pagination hints (e.g. call again with offset/limit), resolution notes, or allocation messages. Omitted when empty.'
-        ),
-      data: dataSchema,
-    })
-    .describe(
-      envelopeDescription ?? 'Tool response envelope: context, optional messages, and payload.'
-    );
-  if (resultSchema) {
-    return base.extend({
-      _result: resultSchema.describe('Result metadata (pagination, line window, or success).'),
-    });
-  }
-  return base;
+  return sharedEnvelopeSchema(dataSchema, {
+    contextSchema: datasetContextSchema,
+    messagesDescription:
+      'Operational messages: pagination hints (e.g. call again with offset/limit), resolution notes, or allocation messages. Omitted when empty.',
+    resultSchema,
+    description: envelopeDescription,
+  });
 }
 
 // ---------------------------------------------------------------------------

@@ -33,14 +33,7 @@ import type { ExtensionClient } from './extension-client.js';
  * ordered from most verbose (debug) to most severe (emergency).
  */
 export type LogLevel =
-  | 'debug'
-  | 'info'
-  | 'notice'
-  | 'warning'
-  | 'error'
-  | 'critical'
-  | 'alert'
-  | 'emergency';
+  'debug' | 'info' | 'notice' | 'warning' | 'error' | 'critical' | 'alert' | 'emergency';
 
 /** Numeric severity for each level (higher = more severe). */
 const LOG_LEVEL_SEVERITY: Record<LogLevel, number> = {

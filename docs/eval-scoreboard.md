@@ -336,3 +336,9 @@ Automatically updated by `npm run eval-compare`.
 | 2026-05-30 | top3-local-remote-cloud   | qwen3                 | Qwen3-30B-A3B-Thinking-2507-FP8 | description-quality      | 11        | 100.0%    | 55     | 55    | bde1e95 | 7abe4ebf  | reps=5   |
 | 2026-05-30 | top3-local-remote-cloud   | gemini-2.5-flash      | gemini-2.5-flash                | naming-stress            | 18        | 73.3%     | 66     | 90    | bde1e95 | 7abe4ebf  | reps=5   |
 | 2026-05-30 | top3-local-remote-cloud   | gemini-2.5-flash      | gemini-2.5-flash                | description-quality      | 11        | 83.6%     | 46     | 55    | bde1e95 | 7abe4ebf  | reps=5   |
+| 2026-07-31 | baseline                  | gemini-2.5-flash      | gemini-2.5-flash                | system                   | 6         | 70.0%     | 21     | 30    | 3d7caa4 |           |          |
+| 2026-07-31 | baseline                  | gemini-2.5-flash      | gemini-2.5-flash                | certificates             | 12        | 70.0%     | 42     | 60    | 3d7caa4 |           |          |
+| 2026-07-31 | after-system-certs        | gemini-2.5-flash      | gemini-2.5-flash                | naming-stress            | 18        | 87.8%     | 158    | 180   | 3d7caa4 | 6fbf5f33  |          |
+| 2026-07-31 | after-system-certs        | gemini-2.5-flash      | gemini-2.5-flash                | description-quality      | 11        | 83.6%     | 92     | 110   | 3d7caa4 | 6fbf5f33  |          |
+| 2026-08-03 | rebaseline-empty-retry    | gemini-2.5-flash      | gemini-2.5-flash                | system                   | 11        | 94.5%     | 52     | 55    | ef42148 | 0bf7403b  |          |
+| 2026-08-03 | rebaseline-empty-retry    | gemini-2.5-flash      | gemini-2.5-flash                | certificates             | 13        | 93.8%     | 61     | 65    | ef42148 | 0bf7403b  |          |

@@ -15,7 +15,7 @@ import { createOpenAI } from '@ai-sdk/openai';
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
-import type { LanguageModel, ModelMessage, StepResult, ToolSet } from 'ai';
+import type { LanguageModel, LanguageModelUsage, ModelMessage, ToolSet } from 'ai';
 import { generateText, jsonSchema, stepCountIs, tool } from 'ai';
 import type { ChildProcess } from 'node:child_process';
 import { spawn, spawnSync } from 'node:child_process';
@@ -76,7 +76,7 @@ function stepFinishPayload(result: {
       const t = tc as { toolName?: string; input?: unknown };
       return {
         tool: t.toolName,
-        args: t.input != null ? Object.keys(t.input as object) : [],
+        args: t.input != null ? Object.keys(t.input) : [],
       };
     }) ?? [];
   return {
@@ -94,6 +94,10 @@ const DEFAULT_SYSTEM_PROMPT =
   'You are an assistant with access to z/OS data set tools. Use the provided tools to answer the user. ';
 
 const MAX_STEPS = 10;
+
+// Gemini occasionally returns an empty candidate (0 output tokens, no tool calls, no text).
+// Such runs are provider pathology, not a model answer, so they are retried rather than scored.
+const EMPTY_RESPONSE_RETRIES = 2;
 
 export interface HarnessOptions {
   serverPath: string;
@@ -140,7 +144,7 @@ export function buildModel(evalsConfig: EvalsConfig): LanguageModel {
       baseURL: evalsConfig.baseUrl ?? 'http://localhost:8000/v1',
       apiKey: evalsConfig.apiKey ?? 'no key needed',
     });
-    return provider(evalsConfig.serverModel) as unknown as LanguageModel;
+    return provider(evalsConfig.serverModel);
   }
   if (evalsConfig.provider === 'lmstudio') {
     const provider = createOpenAICompatible({
@@ -148,11 +152,11 @@ export function buildModel(evalsConfig: EvalsConfig): LanguageModel {
       baseURL: evalsConfig.baseUrl ?? 'http://localhost:1234/v1',
       apiKey: evalsConfig.apiKey ?? 'no key needed',
     });
-    return provider(evalsConfig.serverModel) as unknown as LanguageModel;
+    return provider(evalsConfig.serverModel);
   }
   if (evalsConfig.provider === 'anthropic') {
     const provider = createAnthropic({ apiKey: evalsConfig.apiKey });
-    return provider(evalsConfig.serverModel) as unknown as LanguageModel;
+    return provider(evalsConfig.serverModel);
   }
   if (evalsConfig.provider === 'openai') {
     const provider = createOpenAI({
@@ -164,10 +168,10 @@ export function buildModel(evalsConfig: EvalsConfig): LanguageModel {
     // OpenAI, Azure OpenAI, and OpenAI-compatible endpoints (vLLM, LM Studio);
     // the Responses API is not universally available on Azure / compatible
     // servers, which is exactly what the configurable base URL targets.
-    return provider.chat(evalsConfig.serverModel) as unknown as LanguageModel;
+    return provider.chat(evalsConfig.serverModel);
   }
   const google = createGoogleGenerativeAI({ apiKey: evalsConfig.apiKey! });
-  return google(evalsConfig.serverModel) as unknown as LanguageModel;
+  return google(evalsConfig.serverModel);
 }
 
 export function getSystemPrompt(setConfig: SetConfig, serverInstructions?: string): string {
@@ -486,39 +490,54 @@ export class McpEvalHarness {
     ];
 
     const t0 = Date.now();
-    const result = await generateText({
-      model,
-      messages,
-      tools,
-      ...(runOptions?.toolChoice != null ? { toolChoice: runOptions.toolChoice } : {}),
-      ...(runOptions?.activeTools != null && runOptions.activeTools.length > 0
-        ? { activeTools: runOptions.activeTools }
-        : {}),
-      stopWhen: stepCountIs(MAX_STEPS),
-      prepareStep(options) {
-        log.debug('AI SDK prepareStep (before request)', prepareStepPayload(options));
-        return {};
-      },
-      onStepFinish(stepResult: StepFinishInfo) {
-        log.debug('AI SDK onStepFinish', stepFinishPayload(stepResult));
-      },
-    });
-    const durationMs = Date.now() - t0;
+    const totalAttempts = 1 + EMPTY_RESPONSE_RETRIES;
+    const attemptGeneration = async () => {
+      toolCallRecords.length = 0;
+      const attemptResult = await generateText({
+        model,
+        messages,
+        tools,
+        ...(runOptions?.toolChoice != null ? { toolChoice: runOptions.toolChoice } : {}),
+        ...(runOptions?.activeTools != null && runOptions.activeTools.length > 0
+          ? { activeTools: runOptions.activeTools }
+          : {}),
+        stopWhen: stepCountIs(MAX_STEPS),
+        prepareStep(options) {
+          log.debug('AI SDK prepareStep (before request)', prepareStepPayload(options));
+          return {};
+        },
+        onStepFinish(stepResult: StepFinishInfo) {
+          log.debug('AI SDK onStepFinish', stepFinishPayload(stepResult));
+        },
+      });
+      log.debug('AI SDK generateText result', {
+        finishReason: attemptResult.finishReason,
+        usage: attemptResult.usage,
+        totalUsage: attemptResult.totalUsage,
+        textPreview: attemptResult.text != null ? truncate(attemptResult.text) : undefined,
+        stepCount: attemptResult.steps?.length ?? 0,
+        reasoningPreview:
+          attemptResult.reasoningText != null ? truncate(attemptResult.reasoningText) : undefined,
+      });
+      return attemptResult;
+    };
+    const isEmptyResponse = (r: Awaited<ReturnType<typeof attemptGeneration>>): boolean =>
+      (toolCallRecords.length === 0 && (r.text ?? '').trim() === '') || r.finishReason === 'error';
 
-    log.debug('AI SDK generateText result', {
-      finishReason: result.finishReason,
-      usage: result.usage,
-      totalUsage: result.totalUsage,
-      textPreview: result.text != null ? truncate(result.text) : undefined,
-      stepCount: result.steps?.length ?? 0,
-      reasoningPreview: result.reasoningText != null ? truncate(result.reasoningText) : undefined,
-    });
+    let result = await attemptGeneration();
+    for (let attempt = 1; attempt < totalAttempts && isEmptyResponse(result); attempt++) {
+      log.warning(
+        `Empty model response (finishReason=${result.finishReason}), retrying (attempt ${attempt}/${totalAttempts})`
+      );
+      result = await attemptGeneration();
+    }
+    const durationMs = Date.now() - t0;
 
     return {
       finalText: result.text ?? '',
       toolCalls: toolCallRecords,
       durationMs,
-      tokenUsage: toTokenUsage(result.totalUsage, sumCacheCreationInputTokens(result.steps)),
+      tokenUsage: toTokenUsage(result.usage),
       stepCount: result.steps?.length ?? 0,
     };
   }
@@ -569,7 +588,7 @@ export class McpEvalHarness {
         finalText: result.text ?? '',
         toolCalls: toolCallRecords.slice(start),
         durationMs: Date.now() - turnT0,
-        tokenUsage: toTokenUsage(result.totalUsage, sumCacheCreationInputTokens(result.steps)),
+        tokenUsage: toTokenUsage(result.usage),
         stepCount: result.steps?.length ?? 0,
       });
     }
@@ -586,13 +605,13 @@ export class McpEvalHarness {
 
   /** Build the AI SDK tool set that proxies to the MCP client, recording each call. */
   private async buildAgentTools(): Promise<{
-    tools: Record<string, ReturnType<typeof tool>>;
+    tools: ToolSet;
     toolCallRecords: ToolCallRecord[];
   }> {
     const { tools: mcpTools } = await this.client!.listTools();
     const toolCallRecords: ToolCallRecord[] = [];
     const toolAliases = this.options.setConfig.toolAliases ?? {};
-    const tools: Record<string, ReturnType<typeof tool>> = {};
+    const tools: ToolSet = {};
     // Cache the entire tool-definitions prefix by marking the last tool with
     // cache_control (anthropic only): Anthropic renders tools → system → messages,
     // so a breakpoint on the last tool caches all tool definitions before it.
@@ -620,7 +639,7 @@ export class McpEvalHarness {
           toolCallRecords.push({ name: canonicalName, arguments: a, result: resultForReport });
           return text;
         },
-      }) as unknown as ReturnType<typeof tool>;
+      });
     }
     return { tools, toolCallRecords };
   }
@@ -651,41 +670,21 @@ interface StepFinishInfo {
 }
 
 /**
- * Sum cache-write (cache_creation_input_tokens) across all internal steps of a
- * generateText() call. Anthropic-specific; a cache write typically happens on an
- * early step (e.g. the first tool-call step, before the cache exists), so only the
- * *last* step's providerMetadata (as exposed at the top level of the result) is not
- * enough — every step must be summed.
+ * Convert AI SDK v7 usage to our TokenUsage (undefined when the provider omits usage).
+ *
+ * In AI SDK v7, `result.usage` already reflects the total across all agentic steps
+ * (the previously separate `totalUsage` is now equivalent and deprecated), and cache
+ * read/write token counts are provider-agnostic fields on `inputTokenDetails` rather
+ * than something that must be summed by hand from per-step `providerMetadata`.
  */
-function sumCacheCreationInputTokens<TOOLS extends ToolSet>(
-  steps: readonly StepResult<TOOLS>[]
-): number {
-  return steps.reduce((sum, step) => {
-    const anthropic = step.providerMetadata?.anthropic as
-      | { cacheCreationInputTokens?: number | null }
-      | undefined;
-    return sum + (anthropic?.cacheCreationInputTokens ?? 0);
-  }, 0);
-}
-
-/** Convert AI SDK usage (+ summed cache-write tokens) to our TokenUsage (undefined when the provider omits usage). */
-function toTokenUsage(
-  u: {
-    inputTokens?: number;
-    outputTokens?: number;
-    totalTokens?: number;
-    cachedInputTokens?: number;
-  },
-  cacheCreationInputTokens: number
-): TokenUsage | undefined {
+function toTokenUsage(u: LanguageModelUsage | undefined): TokenUsage | undefined {
   return u
     ? {
         input: u.inputTokens ?? 0,
         output: u.outputTokens ?? 0,
         total: u.totalTokens ?? 0,
-        cacheReadInputTokens: u.cachedInputTokens,
-        cacheCreationInputTokens:
-          cacheCreationInputTokens > 0 ? cacheCreationInputTokens : undefined,
+        cacheReadInputTokens: u.inputTokenDetails?.cacheReadTokens,
+        cacheCreationInputTokens: u.inputTokenDetails?.cacheWriteTokens,
       }
     : undefined;
 }

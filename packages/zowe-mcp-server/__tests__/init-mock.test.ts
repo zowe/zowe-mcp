@@ -15,15 +15,12 @@
  * Verifies YAML card structure (seven keys, non-empty values) and deterministic output with seed.
  */
 
-import type { Faker } from '@faker-js/faker';
 import { fakerEN } from '@faker-js/faker';
 import { describe, expect, it } from 'vitest';
 import * as initMock from '../src/scripts/init-mock.js';
 
-const generateInventoryMemberCard = initMock.generateInventoryMemberCard as (
-  faker: Faker
-) => string;
-const yamlValue = initMock.yamlValue as (s: string) => string;
+const generateInventoryMemberCard = initMock.generateInventoryMemberCard;
+const yamlValue = initMock.yamlValue;
 
 const REQUIRED_KEYS = ['name', 'description', 'category', 'price', 'material', 'product', 'upc'];
 

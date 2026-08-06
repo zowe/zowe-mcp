@@ -171,23 +171,58 @@ function pathToFileUriString(dir: string): string {
 }
 
 /**
- * Optional realpath hardening: returns resolved path only if still under the same root directory.
+ * Realpath hardening: throws unless the path (after following symlinks) still lies under the
+ * root directory (also realpath'd). For paths that do not exist yet (e.g. download targets),
+ * the deepest existing ancestor is resolved and the remaining components are re-joined, so a
+ * symlinked parent directory cannot smuggle the write outside the root. A dangling symlink is
+ * rejected outright: reads fail anyway and writes would follow it to an unvalidated location.
  */
 export function assertRealpathStillInsideRoot(
   rootDirAbsolute: string,
   resolvedFileAbsolute: string
 ): void {
   let realRoot: string;
-  let realFile: string;
   try {
     realRoot = fs.realpathSync(rootDirAbsolute);
-    realFile = fs.realpathSync(resolvedFileAbsolute);
   } catch {
-    return;
-  }
-  if (!isPathInsideDirectory(realRoot, realFile)) {
     throw new LocalPathResolutionError(
-      'Path resolves outside the allowed directory (symlink escape).'
+      'Allowed root directory does not exist or cannot be resolved.'
     );
+  }
+
+  try {
+    if (fs.lstatSync(resolvedFileAbsolute).isSymbolicLink()) {
+      try {
+        fs.realpathSync(resolvedFileAbsolute);
+      } catch {
+        throw new LocalPathResolutionError('Path is a symbolic link with an unresolvable target.');
+      }
+    }
+  } catch (e) {
+    if (e instanceof LocalPathResolutionError) throw e;
+    // Path does not exist yet — validated via its deepest existing ancestor below.
+  }
+
+  let existing = resolvedFileAbsolute;
+  const suffix: string[] = [];
+  for (;;) {
+    try {
+      const real = fs.realpathSync(existing);
+      const realFile = suffix.length > 0 ? path.join(real, ...suffix) : real;
+      if (!isPathInsideDirectory(realRoot, realFile)) {
+        throw new LocalPathResolutionError(
+          'Path resolves outside the allowed directory (symlink escape).'
+        );
+      }
+      return;
+    } catch (e) {
+      if (e instanceof LocalPathResolutionError) throw e;
+      const parent = path.dirname(existing);
+      if (parent === existing) {
+        throw new LocalPathResolutionError('Path cannot be resolved against the filesystem.');
+      }
+      suffix.unshift(path.basename(existing));
+      existing = parent;
+    }
   }
 }

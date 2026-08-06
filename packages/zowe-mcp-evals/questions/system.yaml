@@ -1,0 +1,107 @@
+# yaml-language-server: $schema=../schemas/evals-question-set.schema.json
+# z/OS system information evals: listApfLibraries, listProclib, listLinklist, viewSyslog
+# Mock preset "minimal" (one system, auto-activated) so questions test tool/argument
+# selection rather than multi-system disambiguation.
+config:
+  name: system
+  description: Agent must use listApfLibraries/listProclib/listLinklist/viewSyslog for z/OS system information
+  repetitions: 5
+  minSuccessRate: 0.8
+  mock:
+    initArgs: --preset minimal
+
+questions:
+  - id: list-apf-authorized
+    prompt: What data sets are APF-authorized on this z/OS system?
+    assertions:
+      - toolCall:
+          tool: listApfLibraries
+      - answerContains:
+          pattern: 'SYS1.LINKLIB|APF|authoriz'
+
+  - id: list-apf-jargon
+    prompt: Give me the APF authorization list so I can audit which load libraries can run privileged code.
+    assertions:
+      - toolCall:
+          tool: listApfLibraries
+
+  - id: list-proclib
+    prompt: What data sets make up the PROCLIB concatenation? I need to find where cataloged JCL procedures live.
+    assertions:
+      - toolCall:
+          tool: listProclib
+      - answerContains:
+          pattern: 'PROCLIB'
+
+  - id: list-linklist
+    prompt: Show me the LNKLST (link list) concatenation, including which of those libraries are APF-authorized.
+    assertions:
+      - toolCall:
+          tool: listLinklist
+      - answerContains:
+          pattern: 'LINKLIB|APF'
+
+  - id: view-syslog-basic
+    prompt: Show me the operations SYSLOG for this system.
+    assertions:
+      - toolCall:
+          tool: viewSyslog
+
+  # "5 lines starting from" (not "last 5 lines"): lineCount/maxLines both window from the
+  # start of the read, so asking for the tail is something the tool cannot do — models that
+  # notice this refuse instead of calling the tool. Either limiting argument is correct.
+  - id: view-syslog-recent-limited
+    prompt: Show me 5 lines of the syslog starting from 3600 seconds ago.
+    assertions:
+      - toolCall:
+          oneOf:
+            - tool: viewSyslog
+              args:
+                secondsAgo: 3600
+                lineCount: 5
+            - tool: viewSyslog
+              args:
+                secondsAgo: 3600
+                maxLines: 5
+
+  # --- Disambiguation / negative cases -------------------------------------
+  # NOTE: the harness has no "tool NOT called" assertion (the loader requires
+  # tool/tools/oneOf on every toolCall), so these rely on the wrong-tool answer
+  # failing the positive assertion. A notCalled assertion would strengthen them.
+
+  - id: linklist-load-module-search
+    prompt: In what order does z/OS search system libraries for load modules?
+    assertions:
+      - toolCall:
+          tool: listLinklist
+
+  - id: proclib-concept-mapping
+    prompt: Which libraries does JES search for cataloged JCL procedures when it runs jobs?
+    assertions:
+      - toolCall:
+          tool: listProclib
+
+  - id: apf-membership-check
+    prompt: Is CEE.SCEERUN APF-authorized on this system?
+    assertions:
+      - toolCall:
+          tools: [listApfLibraries, listLinklist]
+      - answerContains:
+          pattern: 'Yes|yes|authoriz'
+
+  - id: linklist-non-apf
+    prompt: Which link list data sets are NOT APF-authorized?
+    assertions:
+      - toolCall:
+          tool: listLinklist
+      - answerContains:
+          pattern: 'ISP.SISPLOAD'
+
+  - id: apf-pagination
+    prompt: Fetch the second page of APF-authorized data sets, 5 per page.
+    assertions:
+      - toolCall:
+          tool: listApfLibraries
+          args:
+            offset: 5
+            limit: 5

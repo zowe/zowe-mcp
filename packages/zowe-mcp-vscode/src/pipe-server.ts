@@ -319,7 +319,7 @@ function sendInitialConnections(): void {
       type: 'connections-update',
       data: { connections },
       timestamp: Date.now(),
-    } as ExtensionToServerEvent);
+    });
   }
 }
 
@@ -340,7 +340,7 @@ function sendInitialZowexOptions(): void {
       responseTimeout: responseTimeout > 0 ? responseTimeout : undefined,
     },
     timestamp: Date.now(),
-  } as ExtensionToServerEvent);
+  });
 }
 
 /**
@@ -385,7 +385,7 @@ export function sendEncodingOptionsUpdateEvent(): void {
       defaultMainframeUssEncoding: defaultMainframeUssEncoding?.trim() || undefined,
     },
     timestamp: Date.now(),
-  } as ExtensionToServerEvent);
+  });
 }
 
 /**
@@ -410,7 +410,7 @@ function sendInitialJobCards(): void {
     type: 'job-cards-update',
     data: { jobCards: valid },
     timestamp: Date.now(),
-  } as ExtensionToServerEvent);
+  });
 }
 
 /**
@@ -476,5 +476,5 @@ export function sendZoweExplorerUpdateEvent(available: boolean): void {
     type: 'zowe-explorer-update',
     data: { available },
     timestamp: Date.now(),
-  } as ExtensionToServerEvent);
+  });
 }

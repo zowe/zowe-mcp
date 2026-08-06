@@ -153,7 +153,7 @@ function handleLogout(req: Request, res: Response, deps: AuthenticateRouteDeps):
     const entry = deps.tokens.resolve(token);
     if (entry) {
       stampAuth(req, {
-        user: { username: entry.username, systemId: '' } as MockUser,
+        user: { username: entry.username, systemId: '' },
         username: entry.username,
         systemId: '',
       });

@@ -27,11 +27,11 @@
  * is not used because the zowex-sdk `buildSshConfig` does not wire it up.
  */
 
+import { SshConfigUtils } from '@zowe/zowex-for-zowe-sdk';
 import { readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import * as path from 'node:path';
 import ssh2 from 'ssh2';
-import { SshConfigUtils } from 'zowex-sdk';
 import { getLogger } from '../../server.js';
 import type { ParsedConnectionSpec } from './connection-spec.js';
 import { toKeyPassphraseEnvVarName, toPrivateKeyEnvVarName } from './connection-spec.js';

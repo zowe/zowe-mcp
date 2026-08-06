@@ -103,6 +103,12 @@ export function resolveSystemForTool(
       const specs = sysInfo?.connectionSpecs;
       if (specs && specs.length > 0) {
         // Resolve via the first connection spec (user@host) for a userId too.
+        // Safe recursion: this only ever recurses one level deep. specs[0] is a
+        // non-empty "user@host" connection spec, so the recursive call takes the
+        // explicit-system branch below (system defined and non-empty), resolves,
+        // and returns without ever re-entering this defaulting path. specs[0]
+        // (first configured connection) is used for the same reason as hosts[0]
+        // above: a deterministic "first configured" default.
         return resolveSystemForTool(systemRegistry, sessionState, specs[0]);
       }
       return { systemId: hosts[0] };

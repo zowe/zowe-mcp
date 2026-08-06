@@ -216,6 +216,15 @@ async function runLeafAssertion(
               `Expected tool "${toolName}" with args matching ${JSON.stringify(a.args)}, got ${JSON.stringify(last.arguments)}`
             );
           }
+        } else if (toolSet && toolSet.length > 0 && a.args) {
+          const matching = toolCalls.filter(tc => toolSet.includes(tc.name));
+          const last = matching[matching.length - 1];
+          if (last && !argsMatch(a.args, last.arguments, last.name)) {
+            return fail(
+              a.name,
+              `Expected a call to one of [${toolSet.join(', ')}] with args matching ${JSON.stringify(a.args)}, got ${JSON.stringify(last.arguments)}`
+            );
+          }
         }
         break;
       }

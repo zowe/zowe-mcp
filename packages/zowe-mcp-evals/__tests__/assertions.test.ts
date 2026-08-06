@@ -270,6 +270,51 @@ describe('runAssertions', () => {
       expect(result.passed).toBe(false);
       expect(result.failedAssertion).toContain('exactly 0');
     });
+
+    // args applies to the `tools` (list) form the same way it applies to `tool`:
+    // checked against the last call to any of the listed tools.
+    it('passes with tools set + count + matching args on the last matching call', async () => {
+      const assertions: Assertion[] = [
+        {
+          type: 'toolCall',
+          tools: ['createTempDataset', 'writeDataset'],
+          count: 1,
+          args: { type: 'PS' },
+        },
+      ];
+      const toolCalls: ToolCallRecord[] = [tc('createTempDataset', { type: 'PS' })];
+      expect(await runAssertions(block(assertions), toolCalls, '', '')).toEqual({ passed: true });
+    });
+
+    it('fails with tools set + count + non-matching args with a clear message', async () => {
+      const assertions: Assertion[] = [
+        {
+          type: 'toolCall',
+          tools: ['createTempDataset', 'writeDataset'],
+          count: 1,
+          args: { type: 'PS' },
+        },
+      ];
+      const toolCalls: ToolCallRecord[] = [tc('createTempDataset', { type: 'PDS' })];
+      const result = await runAssertions(block(assertions), toolCalls, '', '');
+      expect(result.passed).toBe(false);
+      expect(result.failedAssertion).toContain(
+        'Expected a call to one of [createTempDataset, writeDataset] with args matching'
+      );
+    });
+
+    it('passes with tools set + count 0 and args set when no calls were made (args irrelevant)', async () => {
+      const assertions: Assertion[] = [
+        {
+          type: 'toolCall',
+          tools: ['deleteDataset', 'writeDataset'],
+          count: 0,
+          args: { dsn: 'USER.SRC.COBOL' },
+        },
+      ];
+      const toolCalls: ToolCallRecord[] = [tc('readDataset')];
+      expect(await runAssertions(block(assertions), toolCalls, '', '')).toEqual({ passed: true });
+    });
   });
 
   describe('toolCall with minCount (was minToolCalls)', () => {

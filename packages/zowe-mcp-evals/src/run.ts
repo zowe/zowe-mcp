@@ -15,51 +15,20 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { plural } from 'zowe-mcp-common';
 import type { JudgeFn } from './assertions.js';
-import {
-  buildCacheKey,
-  type CachedRunResult,
-  get as cacheGet,
-  set as cacheSet,
-  getToolsUnderTest,
-  usesAnswerJudge,
-} from './cache.js';
+import { usesAnswerJudge } from './cache.js';
 import { getConfigDir, loadEvalsConfig } from './config.js';
 import { estimateCostUsd } from './cost.js';
-import {
-  assertAndRecord,
-  assertConversation,
-  buildToolDefsSubset,
-  errorMessage,
-  FAIL,
-  makeFailedRunResult,
-  PASS,
-  resolveNativeServerArgs,
-} from './evals-utils.js';
+import { errorMessage, FAIL, PASS, resolveNativeServerArgs } from './evals-utils.js';
 import { getSystemPrompt, initMockData, McpEvalHarness, prepareEvalWorkspace } from './harness.js';
-import { buildJudge } from './judge.js';
 import { listSetNames, loadAndValidateAllSets } from './load-questions.js';
 import { log } from './log.js';
+import { maybeBuildJudge, runQuestion } from './question-runner.js';
 import { writeReport } from './report.js';
 import type { Question, QuestionSet, RunResult } from './types.js';
-
-/** Default judge model id (evals.config.json id), overridable via ZOWE_EVALS_JUDGE_MODEL. */
-const DEFAULT_JUDGE_MODEL_ID = 'gemini-3.5-flash';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const SERVER_PATH = resolve(__dirname, '..', '..', 'zowe-mcp-server', 'dist', 'index.js');
-
-function logRunOutcome(result: RunResult, label: string, suffix: string): void {
-  const icon = result.passed ? PASS : FAIL;
-  const detail = result.passed ? suffix : ` ${result.assertionFailed ?? 'assertion failed'}`;
-  const msg = `${label} ${icon}${detail}`;
-  if (result.passed) log.pass(msg);
-  else log.fail(msg);
-  const answerPreview =
-    result.finalText.length > 300 ? result.finalText.slice(0, 300) + '…' : result.finalText;
-  log.info('  Answer:');
-  for (const line of answerPreview.trim().split(/\n/)) log.info(`    ${line}`);
-}
 
 interface CliArgs {
   set: string[];
@@ -192,19 +161,7 @@ async function main(): Promise<void> {
       q => !q.skip && usesAnswerJudge(q.assertionBlock)
     );
   });
-  let judge: JudgeFn | undefined;
-  if (needsJudge) {
-    const judgeModelId = process.env.ZOWE_EVALS_JUDGE_MODEL ?? DEFAULT_JUDGE_MODEL_ID;
-    log.info('Loading judge model (answerJudge assertions present)', { judgeModelId });
-    try {
-      const judgeConfig = await loadEvalsConfig(judgeModelId);
-      judge = buildJudge(judgeConfig);
-      log.info('Judge model ready', { judgeModelId });
-    } catch (e) {
-      log.error(`Failed to load judge model "${judgeModelId}": ${errorMessage(e)}`);
-      process.exit(1);
-    }
-  }
+  const judge: JudgeFn | undefined = await maybeBuildJudge(needsJudge);
 
   for (const setName of setNames) {
     const questionSet = loadedSets.get(setName)!;
@@ -262,26 +219,7 @@ async function main(): Promise<void> {
           log.notice(`Skipping question "${q.id}": ${q.skip}`);
           continue;
         }
-        const questionResults: RunResult[] = [];
         const isMultiTurn = Array.isArray(q.turns) && q.turns.length > 0;
-        const cacheableQ = useCache;
-        const toolNames = getToolsUnderTest(q.assertionBlock);
-        const toolDefs = buildToolDefsSubset(toolDefinitions, toolNames);
-        // Multi-turn questions key on all turn prompts joined, so two conversations
-        // that share a first turn but differ later get distinct cache entries.
-        const cachePrompt = isMultiTurn
-          ? q.turns!.map(t => t.prompt).join('\n<<turn>>\n')
-          : q.prompt;
-        const cacheKey = cacheableQ
-          ? buildCacheKey({
-              systemPrompt: getSystemPrompt(config, serverInstructions),
-              prompt: cachePrompt,
-              toolDefs,
-              modelId: evalsConfig.modelId,
-            })
-          : '';
-
-        const cached = cacheableQ ? await cacheGet(cacheDir, cacheKey) : null;
 
         questionIndex++;
         const progress = `[${questionIndex.toString()}/${totalQuestions.toString()}]`;
@@ -294,135 +232,23 @@ async function main(): Promise<void> {
           for (const line of q.prompt.trim().split(/\n/)) log.info(`  ${line}`);
         }
 
-        if (cached) {
-          for (let r = 0; r < repetitions; r++) {
-            let result: RunResult;
-            if (isMultiTurn && cached.turns) {
-              // Replay per-turn cached results through the multi-turn assertions.
-              const conversation = {
-                turns: cached.turns.map(t => ({
-                  finalText: t.finalText,
-                  toolCalls: t.toolCalls,
-                  durationMs: 0,
-                  stepCount: 0,
-                })),
-                finalText: cached.finalText,
-                toolCalls: cached.toolCalls,
-                durationMs: 0,
-                stepCount: 0,
-              };
-              for (const tc of conversation.toolCalls)
-                allToolCalls.push({ name: tc.name, arguments: tc.arguments });
-              result = await assertConversation(
-                {
-                  questionId: q.id,
-                  displayPrompt: q.prompt,
-                  runIndex: r,
-                  questionTurns: q.turns!,
-                  conversation,
-                },
-                judge
-              );
-            } else {
-              const { finalText, toolCalls } = cached;
-              for (const tc of toolCalls)
-                allToolCalls.push({ name: tc.name, arguments: tc.arguments });
-              result = await assertAndRecord(
-                {
-                  questionId: q.id,
-                  prompt: q.prompt,
-                  runIndex: r,
-                  finalText,
-                  toolCalls,
-                  assertionBlock: q.assertionBlock,
-                },
-                judge
-              );
-            }
-            questionResults.push(result);
-            allResults.push(result);
-            cacheStats.hits++;
-            logRunOutcome(
-              result,
-              `Running ${setName}/${q.id} (${r + 1}/${repetitions})`,
-              ' cache hit'
-            );
-          }
-        } else {
-          // First passing run's result, cached after the loop (per-turn for multi-turn).
-          let cacheCandidate: CachedRunResult | undefined;
-          for (let r = 0; r < repetitions; r++) {
-            try {
-              let result: RunResult;
-              if (isMultiTurn) {
-                const conversation = await harness.runConversation(q.turns!.map(t => t.prompt));
-                for (const tc of conversation.toolCalls)
-                  allToolCalls.push({ name: tc.name, arguments: tc.arguments });
-                result = await assertConversation(
-                  {
-                    questionId: q.id,
-                    displayPrompt: q.prompt,
-                    runIndex: r,
-                    questionTurns: q.turns!,
-                    conversation,
-                  },
-                  judge
-                );
-                if (result.passed && !cacheCandidate) {
-                  cacheCandidate = {
-                    finalText: conversation.finalText,
-                    toolCalls: conversation.toolCalls,
-                    turns: conversation.turns.map(t => ({
-                      finalText: t.finalText,
-                      toolCalls: t.toolCalls,
-                    })),
-                  };
-                }
-              } else {
-                const runResult = await harness.runOne(q.prompt);
-                const { finalText, toolCalls } = runResult;
-                for (const tc of toolCalls)
-                  allToolCalls.push({ name: tc.name, arguments: tc.arguments });
-                result = await assertAndRecord(
-                  {
-                    questionId: q.id,
-                    prompt: q.prompt,
-                    runIndex: r,
-                    finalText,
-                    toolCalls,
-                    assertionBlock: q.assertionBlock,
-                    durationMs: runResult.durationMs,
-                    tokenUsage: runResult.tokenUsage,
-                    stepCount: runResult.stepCount,
-                  },
-                  judge
-                );
-                if (result.passed && !cacheCandidate) {
-                  cacheCandidate = { finalText, toolCalls };
-                }
-              }
-              questionResults.push(result);
-              allResults.push(result);
-              logRunOutcome(result, `Running ${setName}/${q.id} (${r + 1}/${repetitions})`, '');
-            } catch (err) {
-              const msg = errorMessage(err);
-              const failedResult = makeFailedRunResult(q.id, q.prompt, r, msg);
-              allResults.push(failedResult);
-              questionResults.push(failedResult);
-              log.fail(`Running ${setName}/${q.id} (${r + 1}/${repetitions}) ${FAIL} ${msg}`);
-              log.info('  Answer: (error)');
-              for (const line of msg.trim().split(/\n/)) log.info(`    ${line}`);
-              log.info(`    ${msg}`);
-            }
-          }
-          const qPassed = questionResults.filter(x => x.passed).length;
-          const qTotal = questionResults.length;
-          const questionPassRate = qTotal > 0 ? qPassed / qTotal : 0;
-          if (cacheableQ && questionPassRate >= minSuccessRate && cacheCandidate) {
-            await cacheSet(cacheDir, cacheKey, cacheCandidate);
-            cacheStats.writes++;
-          }
-        }
+        const questionResults = await runQuestion(q, {
+          harness,
+          judge,
+          cache: { enabled: useCache, dir: cacheDir, stats: cacheStats },
+          systemPrompt: getSystemPrompt(config, serverInstructions),
+          toolDefinitions,
+          modelId: evalsConfig.modelId,
+          repetitions,
+          minSuccessRate,
+          runLabel: r => `Running ${setName}/${q.id} (${r + 1}/${repetitions})`,
+          verboseAnswers: true,
+          onToolCalls: toolCalls => {
+            for (const tc of toolCalls)
+              allToolCalls.push({ name: tc.name, arguments: tc.arguments });
+          },
+        });
+        allResults.push(...questionResults);
 
         const qPassed = questionResults.filter(x => x.passed).length;
         const qTotal = questionResults.length;

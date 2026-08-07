@@ -32,13 +32,21 @@ export interface RpcChannelCtx {
 
 export function startRpcChannel(channel: ssh2.ServerChannel, ctx: RpcChannelCtx): void {
   const checksums = loadChecksums();
+  const version = loadServerVersion();
   // Readiness — must be first line on stdout. zowex-sdk parses any JSON received on
   // either stdout or stderr; emit on stdout to avoid noise on stderr.
-  const ready = { status: 'ready', data: { checksums } };
+  //
+  // `version` is required as of zowex-sdk 0.7.1: ZSshClient stores this as
+  // `mServerInfo.version` (see ZSshClient.js's `getServerStatus`/`serverVersion`
+  // getter), and ZSshUtils.checkIfOutdated() treats a missing/invalid version as
+  // outdated by default — which would otherwise trigger a redeploy on every
+  // connection. `checksums` is kept for backward compat with older SDKs that
+  // still key off it.
+  const ready = { status: 'ready', data: { checksums, version } };
   channel.write(JSON.stringify(ready) + '\n');
   ctx.log(
     'info',
-    `RPC ready user=${ctx.user.username} checksums=${Object.keys(checksums).length}`
+    `RPC ready user=${ctx.user.username} checksums=${Object.keys(checksums).length} version=${version}`
   );
 
   const dispatch = createDispatcher(
@@ -96,6 +104,66 @@ function loadChecksums(): Record<string, string> {
   // unreadable. Any non-empty map is fine — the client only triggers redeploy on
   // mismatch with its OWN locally-known checksum file, which may also be missing.
   return { zowex: 'mock-stable-checksum' };
+}
+
+/**
+ * Resolve the version string the running `@zowe/zowex-for-zowe-sdk` expects the
+ * remote `zowex server` to report, so `ZSshUtils.checkIfOutdated()` (which
+ * compares against `ZSshConstants.BUNDLED_SSH_SERVER_VERSION`) never sees the
+ * mock as outdated. Resolved dynamically — like {@link loadChecksums} — so a
+ * future SDK bump doesn't require touching the mock.
+ *
+ * Preference order:
+ *   1. `@zowe/zowex-for-zowe-sdk/package.json`'s `version` field (the package
+ *      version tracks `BUNDLED_SSH_SERVER_VERSION` 1:1 — both come from the
+ *      same release).
+ *   2. `@zowe/zowex-for-zowe-sdk/lib/ZSshConstants.js`'s
+ *      `BUNDLED_SSH_SERVER_VERSION` export, parsed textually (the module is
+ *      CommonJS; this file is ESM, so a regex avoids a `createRequire` just for
+ *      one constant).
+ *   3. A stable fallback version so the client doesn't repeatedly redeploy when
+ *      the SDK's files are unreadable — better to run a slightly-stale mock
+ *      than hang forever.
+ */
+function loadServerVersion(): string {
+  for (const dir of candidateSdkDirs()) {
+    try {
+      const pkgRaw = fs.readFileSync(path.join(dir, 'package.json'), 'utf-8');
+      const pkg = JSON.parse(pkgRaw) as { version?: string };
+      if (pkg.version) return pkg.version;
+    } catch {
+      /* try next */
+    }
+    try {
+      const constantsRaw = fs.readFileSync(path.join(dir, 'lib', 'ZSshConstants.js'), 'utf-8');
+      const m = /BUNDLED_SSH_SERVER_VERSION\s*=\s*["']([^"']+)["']/.exec(constantsRaw);
+      if (m) return m[1];
+    } catch {
+      /* try next */
+    }
+  }
+  return '0.0.0';
+}
+
+/**
+ * Candidate `@zowe/zowex-for-zowe-sdk` package directories, walking upward
+ * from this compiled file's location through `node_modules` (mirrors
+ * {@link loadChecksums}'s resolution, generalized to the scoped package name).
+ */
+function candidateSdkDirs(): string[] {
+  const candidates: string[] = [];
+  try {
+    let dir = path.dirname(new URL(import.meta.url).pathname);
+    for (let i = 0; i < 8; i++) {
+      candidates.push(path.join(dir, 'node_modules', '@zowe', 'zowex-for-zowe-sdk'));
+      const parent = path.dirname(dir);
+      if (parent === dir) break;
+      dir = parent;
+    }
+  } catch {
+    /* not URL-resolvable; skip */
+  }
+  return candidates;
 }
 
 function parseChecksums(raw: string): Record<string, string> {

@@ -346,26 +346,30 @@ function handleClient(client: ssh2.Connection, ctx: ClientCtx): void {
 
     client.on('session', accept => {
       const session = accept();
+      // ssh2 only hands back a real, protocol-parsing `SFTP` instance (the one
+      // that emits OPEN/WRITE/CLOSE/etc.) when a listener is registered on the
+      // session's dedicated `'sftp'` event. If no `'sftp'` listener exists, it
+      // falls back to routing `subsystem sftp` requests through the generic
+      // `'subsystem'` event as a plain `Channel` — raw bytes, no SFTP wire
+      // parsing — which silently stalls any real SFTP client (fastPut, etc.)
+      // waiting on a VERSION response that never arrives. Listen on `'sftp'`
+      // directly so `accept()` yields the real `SFTPWrapper` that
+      // attachSftpServer's OPEN/WRITE/CLOSE handlers expect.
+      session.on('sftp', (accept2, reject2) => {
+        ctx.log('debug', 'sftp subsystem requested');
+        attachSftpServer(
+          accept2,
+          () => {
+            reject2();
+            return false;
+          },
+          ctx.log,
+          ctx.mockDir
+        );
+      });
       session.on('subsystem', (accept2, reject2, info) => {
-        if (info.name === 'sftp') {
-          ctx.log('debug', 'sftp subsystem requested');
-          // ssh2's subsystem `accept2` callback yields an SFTPWrapper for the
-          // 'sftp' subsystem, but its typing is the generic `accept` signature;
-          // cast through `unknown` because attachSftpServer expects the SFTP
-          // accept factory.
-          const sftpAccept = accept2 as unknown as () => ssh2.SFTPWrapper;
-          attachSftpServer(
-            sftpAccept,
-            () => {
-              reject2();
-              return false;
-            },
-            ctx.log,
-            ctx.mockDir
-          );
-        } else {
-          reject2();
-        }
+        ctx.log('debug', `unsupported subsystem requested: ${info.name}`);
+        reject2();
       });
       session.on('exec', (accept2, _reject2, info) => {
         const channel = accept2();

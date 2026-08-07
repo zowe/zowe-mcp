@@ -19,8 +19,8 @@
 
 import { SshSession } from '@zowe/zos-uss-for-zowe-sdk';
 import { generateKeyPairSync } from 'node:crypto';
-import { Server } from 'ssh2';
 import type { Connection, ExecInfo, ServerChannel, Session } from 'ssh2';
+import { Server } from 'ssh2';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
   isZowexTruncatedModuleError,

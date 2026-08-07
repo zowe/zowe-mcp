@@ -505,10 +505,18 @@ describe('NativeBackend', () => {
           'CSV028I ABENDE06-0040'
       );
       const onCeedumpCollected = vi.fn();
+      const markInvalid = vi.fn();
+      const onPasswordInvalid = vi.fn();
+      const evict = vi.fn();
       const options = createOptions({
+        credentialProvider: {
+          getCredentials: vi.fn().mockResolvedValue({ user: SPEC.user, password: 'secret' }),
+          markInvalid,
+        },
+        onPasswordInvalid,
         clientCache: {
           getOrCreate: vi.fn().mockRejectedValue(truncatedError),
-          evict: vi.fn(),
+          evict,
           hasKey: vi.fn().mockReturnValue(true),
         },
       });
@@ -518,9 +526,9 @@ describe('NativeBackend', () => {
         /truncated or corrupted/
       );
 
-      expect(options.credentialProvider.markInvalid).not.toHaveBeenCalled();
-      expect(options.onPasswordInvalid).not.toHaveBeenCalled();
-      expect(options.clientCache.evict).toHaveBeenCalledWith(SPEC);
+      expect(markInvalid).not.toHaveBeenCalled();
+      expect(onPasswordInvalid).not.toHaveBeenCalled();
+      expect(evict).toHaveBeenCalledWith(SPEC);
       expect(onCeedumpCollected).not.toHaveBeenCalled();
     });
 

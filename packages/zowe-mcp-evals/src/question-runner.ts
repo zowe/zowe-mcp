@@ -225,7 +225,6 @@ export async function runQuestion(q: Question, ctx: QuestionRunContext): Promise
       log.fail(`${ctx.runLabel(r)} ${FAIL} ${msg}`);
       log.info('  Answer: (error)');
       for (const line of msg.trim().split(/\n/)) log.info(`    ${line}`);
-      log.info(`    ${msg}`);
     }
   }
 

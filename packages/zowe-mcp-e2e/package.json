@@ -1,0 +1,24 @@
+{
+  "name": "zowe-mcp-e2e",
+  "version": "0.10.0-dev",
+  "description": "Deterministic fake LLM server for VS Code Copilot Chat BYOK end-to-end testing",
+  "private": true,
+  "type": "module",
+  "main": "dist/fake-model-server.js",
+  "types": "dist/fake-model-server.d.ts",
+  "bin": {
+    "fake-model-server": "dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "license": "EPL-2.0",
+  "devDependencies": {
+    "@types/node": "^26.1.1",
+    "typescript": "^5.9.2",
+    "vitest": "^4.1.10"
+  }
+}

@@ -2288,11 +2288,11 @@ List the APF-authorized (Authorized Program Facility) data sets on the z/OS syst
 
 #### Parameters
 
-| Parameter | Type      | Required | Description                                                                                                         |
-|-----------|-----------|----------|---------------------------------------------------------------------------------------------------------------------|
-| `system`  | `string`  | No       | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system. |
-| `offset`  | `integer` | No       | 0-based index of the first item to return. Default: 0.                                                              |
-| `limit`   | `integer` | No       | Maximum items to return. Default: 500, max 1000.                                                                    |
+| Parameter | Type      | Required | Description                                                                                                                                                                                                                                                                                                         |
+|-----------|-----------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `system`  | `string`  | No       | Optional. Target z/OS system (a host, or user@host when several connections exist). Omit it to use the active/default connection — you do not need to select or set a system first, and you should still call the tool when no system has been chosen yet. Specify it only to target a different configured system. |
+| `offset`  | `integer` | No       | 0-based index of the first item to return. Default: 0.                                                                                                                                                                                                                                                              |
+| `limit`   | `integer` | No       | Maximum items to return. Default: 500, max 1000.                                                                                                                                                                                                                                                                    |
 
 <a id="listapflibraries-output-schema"></a>
 
@@ -2375,11 +2375,11 @@ List the PROCLIB concatenation on the z/OS system (the data sets searched for JC
 
 #### Parameters
 
-| Parameter | Type      | Required | Description                                                                                                         |
-|-----------|-----------|----------|---------------------------------------------------------------------------------------------------------------------|
-| `system`  | `string`  | No       | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system. |
-| `offset`  | `integer` | No       | 0-based index of the first item to return. Default: 0.                                                              |
-| `limit`   | `integer` | No       | Maximum items to return. Default: 500, max 1000.                                                                    |
+| Parameter | Type      | Required | Description                                                                                                                                                                                                                                                                                                         |
+|-----------|-----------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `system`  | `string`  | No       | Optional. Target z/OS system (a host, or user@host when several connections exist). Omit it to use the active/default connection — you do not need to select or set a system first, and you should still call the tool when no system has been chosen yet. Specify it only to target a different configured system. |
+| `offset`  | `integer` | No       | 0-based index of the first item to return. Default: 0.                                                                                                                                                                                                                                                              |
+| `limit`   | `integer` | No       | Maximum items to return. Default: 500, max 1000.                                                                                                                                                                                                                                                                    |
 
 <a id="listproclib-output-schema"></a>
 
@@ -2435,11 +2435,11 @@ List the link list (LNKLST) concatenation on the z/OS system (the data sets sear
 
 #### Parameters
 
-| Parameter | Type      | Required | Description                                                                                                         |
-|-----------|-----------|----------|---------------------------------------------------------------------------------------------------------------------|
-| `system`  | `string`  | No       | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system. |
-| `offset`  | `integer` | No       | 0-based index of the first item to return. Default: 0.                                                              |
-| `limit`   | `integer` | No       | Maximum items to return. Default: 500, max 1000.                                                                    |
+| Parameter | Type      | Required | Description                                                                                                                                                                                                                                                                                                         |
+|-----------|-----------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `system`  | `string`  | No       | Optional. Target z/OS system (a host, or user@host when several connections exist). Omit it to use the active/default connection — you do not need to select or set a system first, and you should still call the tool when no system has been chosen yet. Specify it only to target a different configured system. |
+| `offset`  | `integer` | No       | 0-based index of the first item to return. Default: 0.                                                                                                                                                                                                                                                              |
+| `limit`   | `integer` | No       | Maximum items to return. Default: 500, max 1000.                                                                                                                                                                                                                                                                    |
 
 <a id="listlinklist-output-schema"></a>
 
@@ -2508,15 +2508,15 @@ View the z/OS SYSLOG (the system operations log). Results may be line-windowed; 
 
 #### Parameters
 
-| Parameter    | Type      | Required | Description                                                                                                         |
-|--------------|-----------|----------|---------------------------------------------------------------------------------------------------------------------|
-| `system`     | `string`  | No       | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system. |
-| `date`       | `string`  | No       | Start date in yyyy-mm-dd. Mutually exclusive with secondsAgo.                                                       |
-| `time`       | `string`  | No       | Start time in hh:mm:ss. Use with date. Mutually exclusive with secondsAgo.                                          |
-| `secondsAgo` | `integer` | No       | Start from (now - secondsAgo) on z/OS. Mutually exclusive with date/time.                                           |
-| `maxLines`   | `integer` | No       | Maximum syslog lines for the host to read.                                                                          |
-| `startLine`  | `integer` | No       | 1-based first line of output to return. Default: 1.                                                                 |
-| `lineCount`  | `integer` | No       | Number of lines to return. Omit for default window size.                                                            |
+| Parameter    | Type      | Required | Description                                                                                                                                                                                                                                                                                                         |
+|--------------|-----------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `system`     | `string`  | No       | Optional. Target z/OS system (a host, or user@host when several connections exist). Omit it to use the active/default connection — you do not need to select or set a system first, and you should still call the tool when no system has been chosen yet. Specify it only to target a different configured system. |
+| `date`       | `string`  | No       | Start date in yyyy-mm-dd. Mutually exclusive with secondsAgo.                                                                                                                                                                                                                                                       |
+| `time`       | `string`  | No       | Start time in hh:mm:ss. Use with date. Mutually exclusive with secondsAgo.                                                                                                                                                                                                                                          |
+| `secondsAgo` | `integer` | No       | Start from (now - secondsAgo) on z/OS. Mutually exclusive with date/time.                                                                                                                                                                                                                                           |
+| `maxLines`   | `integer` | No       | Maximum syslog lines for the host to read.                                                                                                                                                                                                                                                                          |
+| `startLine`  | `integer` | No       | 1-based first line of output to return. Default: 1.                                                                                                                                                                                                                                                                 |
+| `lineCount`  | `integer` | No       | Number of lines to return. Omit for default window size.                                                                                                                                                                                                                                                            |
 
 <a id="viewsyslog-output-schema"></a>
 
@@ -2624,12 +2624,12 @@ Show a certificate's owner, usage, trust status, default flag, key size, serial 
 
 #### Parameters
 
-| Parameter | Type     | Required | Description                                                                                                         |
-|-----------|----------|----------|---------------------------------------------------------------------------------------------------------------------|
-| `owner`   | `string` | Yes      | Certificate/key ring owner (user ID).                                                                               |
-| `keyring` | `string` | Yes      | Key ring name.                                                                                                      |
-| `label`   | `string` | Yes      | Certificate label.                                                                                                  |
-| `system`  | `string` | No       | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system. |
+| Parameter | Type     | Required | Description                                                                                                                                                                                                                                                                                                         |
+|-----------|----------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `owner`   | `string` | Yes      | Certificate/key ring owner (user ID).                                                                                                                                                                                                                                                                               |
+| `keyring` | `string` | Yes      | Key ring name.                                                                                                                                                                                                                                                                                                      |
+| `label`   | `string` | Yes      | Certificate label.                                                                                                                                                                                                                                                                                                  |
+| `system`  | `string` | No       | Optional. Target z/OS system (a host, or user@host when several connections exist). Omit it to use the active/default connection — you do not need to select or set a system first, and you should still call the tool when no system has been chosen yet. Specify it only to target a different configured system. |
 
 <a id="showcertificate-output-schema"></a>
 
@@ -2696,16 +2696,16 @@ Connect a certificate to a key ring. The underlying SAF call requires the certif
 
 #### Parameters
 
-| Parameter      | Type                     | Required | Description                                                                                                                   |
-|----------------|--------------------------|----------|-------------------------------------------------------------------------------------------------------------------------------|
-| `owner`        | `string`                 | Yes      | Certificate/key ring owner (user ID).                                                                                         |
-| `keyring`      | `string`                 | Yes      | Target key ring name.                                                                                                         |
-| `label`        | `string`                 | Yes      | Certificate label.                                                                                                            |
-| `fromRing`     | `string`                 | No       | Source key ring the certificate is already on. Mutually exclusive with fromDatabase; exactly one is required.                 |
-| `fromDatabase` | `boolean`                | No       | Read the certificate from the security database instead of a ring. Mutually exclusive with fromRing; exactly one is required. |
-| `usage`        | `PERSONAL` \| `CERTAUTH` | No       | Certificate usage (default: the certificate's current usage).                                                                 |
-| `default`      | `boolean`                | No       | Set this certificate as the target ring's default.                                                                            |
-| `system`       | `string`                 | No       | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system.           |
+| Parameter      | Type                     | Required | Description                                                                                                                                                                                                                                                                                                         |
+|----------------|--------------------------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `owner`        | `string`                 | Yes      | Certificate/key ring owner (user ID).                                                                                                                                                                                                                                                                               |
+| `keyring`      | `string`                 | Yes      | Target key ring name.                                                                                                                                                                                                                                                                                               |
+| `label`        | `string`                 | Yes      | Certificate label.                                                                                                                                                                                                                                                                                                  |
+| `fromRing`     | `string`                 | No       | Source key ring the certificate is already on. Mutually exclusive with fromDatabase; exactly one is required.                                                                                                                                                                                                       |
+| `fromDatabase` | `boolean`                | No       | Read the certificate from the security database instead of a ring. Mutually exclusive with fromRing; exactly one is required.                                                                                                                                                                                       |
+| `usage`        | `PERSONAL` \| `CERTAUTH` | No       | Certificate usage (default: the certificate's current usage).                                                                                                                                                                                                                                                       |
+| `default`      | `boolean`                | No       | Set this certificate as the target ring's default.                                                                                                                                                                                                                                                                  |
+| `system`       | `string`                 | No       | Optional. Target z/OS system (a host, or user@host when several connections exist). Omit it to use the active/default connection — you do not need to select or set a system first, and you should still call the tool when no system has been chosen yet. Specify it only to target a different configured system. |
 
 <a id="connectcertificate-output-schema"></a>
 
@@ -2765,14 +2765,14 @@ Disconnect a certificate from a key ring, or delete it from the security databas
 
 #### Parameters
 
-| Parameter     | Type      | Required | Description                                                                                                           |
-|---------------|-----------|----------|-----------------------------------------------------------------------------------------------------------------------|
-| `owner`       | `string`  | Yes      | Certificate/key ring owner (user ID).                                                                                 |
-| `label`       | `string`  | Yes      | Certificate label.                                                                                                    |
-| `keyring`     | `string`  | No       | Key ring to disconnect the certificate from. Mutually exclusive with database; exactly one is required.               |
-| `database`    | `boolean` | No       | Delete the certificate from the security database entirely. Mutually exclusive with keyring; exactly one is required. |
-| `skipRefresh` | `boolean` | No       | Do not automatically refresh the DIGTCERT class if the security product reports it is required.                       |
-| `system`      | `string`  | No       | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system.   |
+| Parameter     | Type      | Required | Description                                                                                                                                                                                                                                                                                                         |
+|---------------|-----------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `owner`       | `string`  | Yes      | Certificate/key ring owner (user ID).                                                                                                                                                                                                                                                                               |
+| `label`       | `string`  | Yes      | Certificate label.                                                                                                                                                                                                                                                                                                  |
+| `keyring`     | `string`  | No       | Key ring to disconnect the certificate from. Mutually exclusive with database; exactly one is required.                                                                                                                                                                                                             |
+| `database`    | `boolean` | No       | Delete the certificate from the security database entirely. Mutually exclusive with keyring; exactly one is required.                                                                                                                                                                                               |
+| `skipRefresh` | `boolean` | No       | Do not automatically refresh the DIGTCERT class if the security product reports it is required.                                                                                                                                                                                                                     |
+| `system`      | `string`  | No       | Optional. Target z/OS system (a host, or user@host when several connections exist). Omit it to use the active/default connection — you do not need to select or set a system first, and you should still call the tool when no system has been chosen yet. Specify it only to target a different configured system. |
 
 <a id="deletecertificate-output-schema"></a>
 
@@ -2801,15 +2801,15 @@ Export a certificate from a key ring in PEM (certificate only) or PKCS#12 (certi
 
 #### Parameters
 
-| Parameter  | Type           | Required | Description                                                                                                         |
-|------------|----------------|----------|---------------------------------------------------------------------------------------------------------------------|
-| `owner`    | `string`       | Yes      | Certificate/key ring owner (user ID).                                                                               |
-| `keyring`  | `string`       | Yes      | Key ring name.                                                                                                      |
-| `label`    | `string`       | Yes      | Certificate label.                                                                                                  |
-| `format`   | `pem` \| `p12` | No       | Export format: "pem" (certificate) or "p12" (certificate + private key). Default "pem".                             |
-| `file`     | `string`       | No       | Output file path on z/OS. Required for p12; PEM is returned inline if omitted.                                      |
-| `password` | `string`       | No       | PKCS#12 passphrase (used with format p12).                                                                          |
-| `system`   | `string`       | No       | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system. |
+| Parameter  | Type           | Required | Description                                                                                                                                                                                                                                                                                                         |
+|------------|----------------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `owner`    | `string`       | Yes      | Certificate/key ring owner (user ID).                                                                                                                                                                                                                                                                               |
+| `keyring`  | `string`       | Yes      | Key ring name.                                                                                                                                                                                                                                                                                                      |
+| `label`    | `string`       | Yes      | Certificate label.                                                                                                                                                                                                                                                                                                  |
+| `format`   | `pem` \| `p12` | No       | Export format: "pem" (certificate) or "p12" (certificate + private key). Default "pem".                                                                                                                                                                                                                             |
+| `file`     | `string`       | No       | Output file path on z/OS. Required for p12; PEM is returned inline if omitted.                                                                                                                                                                                                                                      |
+| `password` | `string`       | No       | PKCS#12 passphrase (used with format p12).                                                                                                                                                                                                                                                                          |
+| `system`   | `string`       | No       | Optional. Target z/OS system (a host, or user@host when several connections exist). Omit it to use the active/default connection — you do not need to select or set a system first, and you should still call the tool when no system has been chosen yet. Specify it only to target a different configured system. |
 
 <a id="exportcertificate-output-schema"></a>
 
@@ -2866,16 +2866,16 @@ Import a certificate (and its private key, when present) into a key ring from a 
 
 #### Parameters
 
-| Parameter     | Type                     | Required | Description                                                                                                         |
-|---------------|--------------------------|----------|---------------------------------------------------------------------------------------------------------------------|
-| `owner`       | `string`                 | Yes      | Certificate/key ring owner (user ID).                                                                               |
-| `keyring`     | `string`                 | Yes      | Key ring name.                                                                                                      |
-| `label`       | `string`                 | Yes      | Certificate label to assign (used only when the certificate is new to the security database).                       |
-| `usage`       | `PERSONAL` \| `CERTAUTH` | Yes      | Certificate usage.                                                                                                  |
-| `file`        | `string`                 | Yes      | Path to the source PKCS#12 file on z/OS.                                                                            |
-| `password`    | `string`                 | Yes      | PKCS#12 passphrase.                                                                                                 |
-| `skipRefresh` | `boolean`                | No       | Do not automatically refresh the DIGTCERT class if the security product reports it is required.                     |
-| `system`      | `string`                 | No       | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system. |
+| Parameter     | Type                     | Required | Description                                                                                                                                                                                                                                                                                                         |
+|---------------|--------------------------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `owner`       | `string`                 | Yes      | Certificate/key ring owner (user ID).                                                                                                                                                                                                                                                                               |
+| `keyring`     | `string`                 | Yes      | Key ring name.                                                                                                                                                                                                                                                                                                      |
+| `label`       | `string`                 | Yes      | Certificate label to assign (used only when the certificate is new to the security database).                                                                                                                                                                                                                       |
+| `usage`       | `PERSONAL` \| `CERTAUTH` | Yes      | Certificate usage.                                                                                                                                                                                                                                                                                                  |
+| `file`        | `string`                 | Yes      | Path to the source PKCS#12 file on z/OS.                                                                                                                                                                                                                                                                            |
+| `password`    | `string`                 | Yes      | PKCS#12 passphrase.                                                                                                                                                                                                                                                                                                 |
+| `skipRefresh` | `boolean`                | No       | Do not automatically refresh the DIGTCERT class if the security product reports it is required.                                                                                                                                                                                                                     |
+| `system`      | `string`                 | No       | Optional. Target z/OS system (a host, or user@host when several connections exist). Omit it to use the active/default connection — you do not need to select or set a system first, and you should still call the tool when no system has been chosen yet. Specify it only to target a different configured system. |
 
 <a id="importcertificate-output-schema"></a>
 
@@ -2936,12 +2936,12 @@ Set a certificate that is already connected to a key ring as that ring's default
 
 #### Parameters
 
-| Parameter | Type     | Required | Description                                                                                                         |
-|-----------|----------|----------|---------------------------------------------------------------------------------------------------------------------|
-| `owner`   | `string` | Yes      | Certificate/key ring owner (user ID).                                                                               |
-| `keyring` | `string` | Yes      | Key ring name.                                                                                                      |
-| `label`   | `string` | Yes      | Certificate label.                                                                                                  |
-| `system`  | `string` | No       | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system. |
+| Parameter | Type     | Required | Description                                                                                                                                                                                                                                                                                                         |
+|-----------|----------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `owner`   | `string` | Yes      | Certificate/key ring owner (user ID).                                                                                                                                                                                                                                                                               |
+| `keyring` | `string` | Yes      | Key ring name.                                                                                                                                                                                                                                                                                                      |
+| `label`   | `string` | Yes      | Certificate label.                                                                                                                                                                                                                                                                                                  |
+| `system`  | `string` | No       | Optional. Target z/OS system (a host, or user@host when several connections exist). Omit it to use the active/default connection — you do not need to select or set a system first, and you should still call the tool when no system has been chosen yet. Specify it only to target a different configured system. |
 
 <a id="setdefaultcertificate-output-schema"></a>
 
@@ -2993,12 +2993,12 @@ Change a certificate's trust status. A key ring is not required; the certificate
 
 #### Parameters
 
-| Parameter | Type                                | Required | Description                                                                                                         |
-|-----------|-------------------------------------|----------|---------------------------------------------------------------------------------------------------------------------|
-| `owner`   | `string`                            | Yes      | Certificate/key ring owner (user ID).                                                                               |
-| `label`   | `string`                            | Yes      | Certificate label.                                                                                                  |
-| `status`  | `TRUST` \| `HIGHTRUST` \| `NOTRUST` | Yes      | The new trust status.                                                                                               |
-| `system`  | `string`                            | No       | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system. |
+| Parameter | Type                                | Required | Description                                                                                                                                                                                                                                                                                                         |
+|-----------|-------------------------------------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `owner`   | `string`                            | Yes      | Certificate/key ring owner (user ID).                                                                                                                                                                                                                                                                               |
+| `label`   | `string`                            | Yes      | Certificate label.                                                                                                                                                                                                                                                                                                  |
+| `status`  | `TRUST` \| `HIGHTRUST` \| `NOTRUST` | Yes      | The new trust status.                                                                                                                                                                                                                                                                                               |
+| `system`  | `string`                            | No       | Optional. Target z/OS system (a host, or user@host when several connections exist). Omit it to use the active/default connection — you do not need to select or set a system first, and you should still call the tool when no system has been chosen yet. Specify it only to target a different configured system. |
 
 <a id="trustcertificate-output-schema"></a>
 
@@ -3056,12 +3056,12 @@ Change a certificate's label. A key ring is not required; the certificate is ide
 
 #### Parameters
 
-| Parameter  | Type     | Required | Description                                                                                                         |
-|------------|----------|----------|---------------------------------------------------------------------------------------------------------------------|
-| `owner`    | `string` | Yes      | Certificate/key ring owner (user ID).                                                                               |
-| `label`    | `string` | Yes      | The current certificate label.                                                                                      |
-| `newLabel` | `string` | Yes      | The new certificate label.                                                                                          |
-| `system`   | `string` | No       | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system. |
+| Parameter  | Type     | Required | Description                                                                                                                                                                                                                                                                                                         |
+|------------|----------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `owner`    | `string` | Yes      | Certificate/key ring owner (user ID).                                                                                                                                                                                                                                                                               |
+| `label`    | `string` | Yes      | The current certificate label.                                                                                                                                                                                                                                                                                      |
+| `newLabel` | `string` | Yes      | The new certificate label.                                                                                                                                                                                                                                                                                          |
+| `system`   | `string` | No       | Optional. Target z/OS system (a host, or user@host when several connections exist). Omit it to use the active/default connection — you do not need to select or set a system first, and you should still call the tool when no system has been chosen yet. Specify it only to target a different configured system. |
 
 <a id="renamecertificate-output-schema"></a>
 
@@ -3119,9 +3119,9 @@ Refresh the DIGTCERT class so that certificate and key ring changes take effect.
 
 #### Parameters
 
-| Parameter | Type     | Required | Description                                                                                                         |
-|-----------|----------|----------|---------------------------------------------------------------------------------------------------------------------|
-| `system`  | `string` | No       | Target z/OS system: host or connection spec (user@host) when multiple connections exist. Defaults to active system. |
+| Parameter | Type     | Required | Description                                                                                                                                                                                                                                                                                                         |
+|-----------|----------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `system`  | `string` | No       | Optional. Target z/OS system (a host, or user@host when several connections exist). Omit it to use the active/default connection — you do not need to select or set a system first, and you should still call the tool when no system has been chosen yet. Specify it only to target a different configured system. |
 
 <a id="refreshcertificateclass-output-schema"></a>
 

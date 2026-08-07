@@ -499,6 +499,31 @@ describe('NativeBackend', () => {
       expect(options.onPasswordInvalid).not.toHaveBeenCalled();
     });
 
+    it('classifies SE06/truncated-module error distinctly: evicts, does not markInvalid, does not collect CEEDUMP', async () => {
+      const truncatedError = new Error(
+        'IEW4006I FETCH FOR UNIX SYSTEM SERVICES MODULE FAILED BECAUSE MODULE HAS BEEN TRUNCATED. ' +
+          'CSV028I ABENDE06-0040'
+      );
+      const onCeedumpCollected = vi.fn();
+      const options = createOptions({
+        clientCache: {
+          getOrCreate: vi.fn().mockRejectedValue(truncatedError),
+          evict: vi.fn(),
+          hasKey: vi.fn().mockReturnValue(true),
+        },
+      });
+      const backend = new NativeBackend({ ...options, onCeedumpCollected });
+
+      await expect(backend.listDatasets(SYSTEM_ID, 'USER.*')).rejects.toThrow(
+        /truncated or corrupted/
+      );
+
+      expect(options.credentialProvider.markInvalid).not.toHaveBeenCalled();
+      expect(options.onPasswordInvalid).not.toHaveBeenCalled();
+      expect(options.clientCache.evict).toHaveBeenCalledWith(SPEC);
+      expect(onCeedumpCollected).not.toHaveBeenCalled();
+    });
+
     it('includes additionalDetails from SDK ImperativeError in thrown error', async () => {
       const sdkError = Object.assign(
         new Error('Error starting Zowe server: ~/.zowe-server/zowex server'),

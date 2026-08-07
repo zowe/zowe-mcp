@@ -39,3 +39,20 @@ don't warrant an entry (CI, chores, internal refactors, docs-only) can carry the
   defense-in-depth measure against prompt injection carried through mainframe
   content. Set `ZOWE_MCP_DATA_MARKING=0` to omit the directive (used for A/B
   evals of its effect on injection resistance).
+- **Existing `zowex` on `$PATH` is now preferred over deploying a private copy.**
+  When the native (Zowe Remote SSH) backend needs to install its server, it now
+  checks the user's `$PATH` first (e.g. an admin-managed system-wide install)
+  and uses that if it's executable, connecting to it directly instead of
+  uploading a new copy. Falls back to the normal deploy if nothing usable is
+  found on `$PATH` or connecting to it fails.
+
+### Fixed
+
+- **Zowe Remote SSH server deploy could silently corrupt when the deploy
+  directory ran out of space**, producing a cryptic z/OS SE06 abend
+  (`IEW4006I ... MODULE HAS BEEN TRUNCATED`) the next time zowex ran, instead
+  of a clear error at deploy time. Deploy now probes for real, writable space
+  before uploading — a `df` free-space check is not reliable on zFS, which can
+  auto-grow — and smoke-tests the binary immediately after install. A detected
+  truncation now triggers an automatic redeploy with an actionable message
+  instead of an opaque abend.

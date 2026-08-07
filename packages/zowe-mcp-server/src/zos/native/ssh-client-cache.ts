@@ -17,12 +17,17 @@
  */
 
 import { SshSession, ZSshClient, ZSshUtils } from '@zowe/zowex-for-zowe-sdk';
-import { basename } from 'node:path';
+import { basename, posix } from 'node:path';
 import { getLogger } from '../../server.js';
 import type { Credentials } from '../credentials.js';
 import type { ParsedConnectionSpec } from './connection-spec.js';
 import { passwordHash } from './password-hash.js';
 import { formatErrorWithDetails, getAdditionalDetails } from './sdk-error-details.js';
+import {
+  isZowexTruncatedModuleError,
+  probeDeploySpace,
+  verifyZowexBinary,
+} from './zowex-deploy-check.js';
 
 const log = getLogger().child('native.ssh');
 
@@ -66,6 +71,34 @@ export function isZowexServerNotFoundError(err: unknown): boolean {
     msg.includes('FSUM7351') ||
     msg.includes('Error starting Zowe server')
   );
+}
+
+/**
+ * Returns true if the error indicates the deployed zowex binary is truncated/corrupted
+ * (z/OS SE06 abend, e.g. IEW4006I "MODULE HAS BEEN TRUNCATED"), most commonly caused by
+ * a previous deploy running out of space partway through the upload or pax extraction.
+ * Treated like "server not found": autoInstallZowex triggers a redeploy.
+ */
+export function isZowexTruncatedServerError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err);
+  if (isZowexTruncatedModuleError(msg)) return true;
+  const details = getAdditionalDetails(err);
+  return details != null && isZowexTruncatedModuleError(details);
+}
+
+/**
+ * Installs the zowex z/OS server, guarding against zFS's ability to auto-grow (which makes
+ * a `df` free-space check meaningless): probes for real, writable space before uploading,
+ * and smoke-tests the deployed binary afterward so a truncated install fails fast here
+ * instead of surfacing later as a cryptic SE06 abend.
+ */
+async function deployZowexServer(session: SshSession, serverPath: string): Promise<boolean> {
+  await probeDeploySpace(session, serverPath);
+  const installed = await ZSshUtils.installServer(session, serverPath);
+  if (installed) {
+    await verifyZowexBinary(session, serverPath);
+  }
+  return installed;
 }
 
 /** Default zowex-sdk response timeout in seconds (used when not configured). */
@@ -115,6 +148,19 @@ export class SshClientCache {
   private options(): ZowexClientOptions {
     if (this.getOptions) return this.getOptions();
     return this.staticOptions!;
+  }
+
+  /** Caches a newly-created client under `key` and logs it. */
+  private cache(key: string, client: ZSshClient, spec: ParsedConnectionSpec): ZSshClient {
+    this.clients.set(key, client);
+    log.debug('SSH client: connected and cached', {
+      key,
+      host: spec.host,
+      port: spec.port,
+      user: spec.user,
+      cacheSize: this.clients.size,
+    });
+    return client;
   }
 
   /**
@@ -207,7 +253,7 @@ export class SshClientCache {
         });
         progress?.(`Updating Zowe Remote SSH server on ${spec.host}`);
         client.dispose();
-        const redeployed = await ZSshUtils.installServer(session, opts.serverPath);
+        const redeployed = await deployZowexServer(session, opts.serverPath);
         if (!redeployed) {
           log.warning('zowex redeploy returned false, proceeding with reconnect anyway', {
             host: spec.host,
@@ -224,6 +270,8 @@ export class SshClientCache {
       const msg = err instanceof Error ? err.message : String(err);
       const additionalDetails = getAdditionalDetails(err);
       const code = err && typeof err === 'object' && 'code' in err ? String(err.code) : undefined;
+      const notFound = isZowexServerNotFoundError(err);
+      const truncated = isZowexTruncatedServerError(err);
       log.info('SSH connection failed', {
         key,
         host: spec.host,
@@ -233,19 +281,50 @@ export class SshClientCache {
         errorMessage: msg,
         additionalDetails,
         errorCode: code,
+        truncatedModuleDetected: truncated,
       });
-      if (!isZowexServerNotFoundError(err) || !opts.autoInstallZowex) {
+      if ((!notFound && !truncated) || !opts.autoInstallZowex) {
         if (additionalDetails) {
           throw new Error(formatErrorWithDetails(msg, additionalDetails));
         }
         throw err;
       }
+
+      // Before deploying our own copy (and taking on the disk-space risk that comes with
+      // it), check whether a working zowex is already on the user's $PATH — e.g. an
+      // admin-managed system-wide install — and use that instead.
+      const onPath = await ZSshUtils.detectServerOnPath(session).catch(() => undefined);
+      if (onPath?.serverPath && onPath.hasExecutePermission) {
+        const pathServerDir = posix.dirname(onPath.serverPath);
+        log.info('zowex found on PATH; using it instead of deploying', {
+          key,
+          host: spec.host,
+          port: spec.port,
+          user: spec.user,
+          pathServerPath: onPath.serverPath,
+          version: onPath.version,
+        });
+        progress?.(`Using existing Zowe Remote SSH server on ${spec.host} (found on PATH)`);
+        try {
+          client = await ZSshClient.create(session, { ...createOpts, serverPath: pathServerDir });
+          return this.cache(key, client, spec);
+        } catch (pathErr) {
+          log.info('Connecting via PATH-detected zowex failed; falling back to deploy', {
+            key,
+            host: spec.host,
+            port: spec.port,
+            errorMessage: pathErr instanceof Error ? pathErr.message : String(pathErr),
+          });
+        }
+      }
+
       progress?.(`Deploying Zowe Remote SSH server to ${spec.host}`);
       log.info('Installing Zowe Remote SSH server on host (retry after install)', {
         host: spec.host,
         port: spec.port,
         user: spec.user,
         serverPath: opts.serverPath,
+        reason: truncated ? 'truncated-module' : 'server-not-found',
       });
       const installTimeoutSec = (opts.responseTimeout ?? DEFAULT_ZOWEX_RESPONSE_TIMEOUT_SEC) * 2;
       const createOptsAfterInstall = {
@@ -253,7 +332,7 @@ export class SshClientCache {
         responseTimeout: installTimeoutSec,
       };
       try {
-        const installed = await ZSshUtils.installServer(session, opts.serverPath);
+        const installed = await deployZowexServer(session, opts.serverPath);
         if (!installed) {
           throw new Error(
             `ZSshUtils.installServer returned false — server deployment to ${opts.serverPath} on ${spec.host} did not complete successfully`
@@ -288,15 +367,7 @@ export class SshClientCache {
       }
     }
 
-    this.clients.set(key, client);
-    log.debug('SSH client: connected and cached', {
-      key,
-      host: spec.host,
-      port: spec.port,
-      user: spec.user,
-      cacheSize: this.clients.size,
-    });
-    return client;
+    return this.cache(key, client, spec);
   }
 
   /** Returns true if a client for the given key is already cached (no connect/install needed). */

@@ -73,9 +73,13 @@ jobs:
         run: |
           node -e "
             const { downloadAndUnzipVSCode } = require('@vscode/test-electron');
+            const path = require('path');
+            const fs = require('fs');
             downloadAndUnzipVSCode('1.126.0').then(p => {
-              console.log('VS Code executable:', p);
-              require('fs').appendFileSync(process.env.GITHUB_OUTPUT, 'app=' + p + '\n');
+              const cli = path.join(path.dirname(p), 'bin', 'code');
+              console.log('VS Code executable:', p, 'CLI:', cli);
+              fs.accessSync(cli, fs.constants.X_OK);
+              fs.appendFileSync(process.env.GITHUB_OUTPUT, 'app=' + p + '\n' + 'cli=' + cli + '\n');
             });
           "
 
@@ -91,7 +95,10 @@ jobs:
         working-directory: packages/zowe-mcp-e2e
         env:
           VSCODE_E2E_APP: ${{ steps.vscode.outputs.app }}
-          VSCODE_E2E_CLI: ${{ steps.vscode.outputs.app }}
+          # bin/code (launcher script), NOT the Electron binary: the `chat`
+          # subcommand is delegated by the script to the bundled Rust CLI;
+          # the Electron binary would treat "chat <prompt>" as paths to open.
+          VSCODE_E2E_CLI: ${{ steps.vscode.outputs.cli }}
           VSCODE_E2E_KEEP_SCRATCH: '1'
         run: xvfb-run -a npm run e2e
 
@@ -101,7 +108,6 @@ jobs:
           mkdir -p e2e-artifacts
           cp -r "${TMPDIR:-/tmp}/zowe-mcp-e2e" e2e-artifacts/ 2>/dev/null || true
           cp -r /tmp/zme2e e2e-artifacts/ 2>/dev/null || true
-          find e2e-artifacts -name '*.vscdb*' -delete 2>/dev/null || true
 
       - name: Upload failure artifacts
         if: failure()

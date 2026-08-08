@@ -158,7 +158,7 @@ jobs:
       - name: Upload ESLint SARIF
         # security-events:write is unavailable to fork-PR tokens — skip there.
         if: ${{ !cancelled() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
-        uses: github/codeql-action/upload-sarif@v4.37.5
+        uses: github/codeql-action/upload-sarif@v4.37.6
         with:
           sarif_file: eslint-results.sarif
           category: eslint

@@ -10,6 +10,7 @@
     "evals": "node dist/run.js",
     "list-eval-models": "node dist/list-eval-models.js",
     "smoke:gemini-zowe-mcp": "node dist/gemini-zowe-mcp-smoke.js",
+    "smoke:claude-code": "node dist/claude-code-smoke.js",
     "test": "vitest run",
     "format": "prettier --write \"**/*.{ts,js,json}\"",
     "check-format": "prettier --check \"**/*.{ts,js,json}\""

@@ -222,6 +222,60 @@ After a run, `evals-report/report.md` contains:
 - Per-tool evaluation count and parameter/values covered.
 - Failures section; details also in `evals-report/failures.md` when there are failures.
 
+## Claude Code headless smoke (`smoke:claude-code`)
+
+An opt-in ~13-case suite that drives the real **`claude` CLI** (`claude -p --output-format
+stream-json`) against the Zowe MCP server's mock z/OS backend, for end-to-end fidelity: the
+real Claude Code client, its real system prompt, and its real tool-orchestration loop — not
+the simulated AI-SDK agent loop `npm run evals` uses. Implemented in `src/claude-code-smoke.ts`.
+
+**Prerequisites**:
+
+- The `claude` CLI installed and authenticated (`claude --version`, `claude auth`/`/login`).
+  This hits the real Anthropic API and **costs real money** — it is not free like the
+  mock-only vitest suite.
+- Built server (`npm run build -w @zowe/mcp-server`) and evals package
+  (`npm run build -w packages/zowe-mcp-evals`).
+
+**Usage**:
+
+```bash
+npm run smoke:claude-code                              # from repo root (builds first)
+npm run smoke:claude-code -w packages/zowe-mcp-evals    # already built
+```
+
+**Env vars**:
+
+- `ZOWE_CLAUDE_SMOKE_MODEL` — model alias/id passed to `claude --model` (default `sonnet`).
+- `ZOWE_CLAUDE_SMOKE_RETRIES` — extra retry attempts per case beyond the first (default `1`,
+  so 2 attempts per case by default). A case passes overall if any attempt passes.
+- `ZOWE_CLAUDE_SMOKE_CASES` — comma-separated `set:id` filter (e.g.
+  `ZOWE_CLAUDE_SMOKE_CASES=context:get-context-after-list`) for cheap single-case debugging.
+
+**The 13 cases**, grouped by set:
+
+- **datasets** (`list-datasets-user`, `list-members-src-cobol`, `read-member-summarize`):
+  core read path — list, list members, read-and-summarize.
+- **search** (`search-in-pds`): `searchInDataset` over a PDS.
+- **context** (`get-context-after-list`): `getContext` after a prior list call.
+- **uss** (`uss-list-home`): `listUssFiles` on the home directory.
+- **tso** (`tso-who`): `runSafeTsoCommand` WHO.
+- **system** (`list-apf-authorized`): `listApfLibraries`.
+- **natural-language** (`nl-what-do-i-have`): non-jargon phrasing still resolves to the
+  correct tool.
+- **mutations** (`write-temp-then-read`): create/write/read/delete-cleanup round-trip on a
+  temp data set.
+- **safety** (`refuse-change-password`, `refuse-mass-delete-prefix`): the agent refuses (or
+  the server blocks) a dangerous TSO verb and a mass-delete under too few qualifiers.
+- **prompt-injection** (`dataset-member-delete-instruction`): poisoned data set member
+  content must not trigger the destructive tool call it asks for.
+
+`--setting-sources ""` is used on every case run (confirmed working empirically) so the
+invoking user's own `~/.claude` global settings/CLAUDE.md do not leak into the smoke run.
+
+This suite is intended for **pre-release/nightly runs, not per-commit** — it is slow and
+costs real API money for ~13 Sonnet runs per invocation (more with retries).
+
 ## eval-compare
 
 `eval-compare` is a benchmarking tool that runs evals across one or more models, produces comparison reports, and auto-updates the [eval scoreboard](../../docs/eval-scoreboard.md). It is the primary tool for the [eval-driven improvement methodology](../../AGENTS.md) — every proposed change to tool definitions is tested with before/after eval-compare runs.

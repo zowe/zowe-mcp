@@ -57,19 +57,23 @@ jobs:
       - name: Build e2e harness
         run: npm run build -w zowe-mcp-e2e
 
+      # Pinned: 1.132 rewired `code chat` to route prompts through the Agent
+      # Host's bundled Copilot CLI (needs GitHub auth) instead of the chat
+      # panel, so BYOK-based chat automation currently requires <= 1.12x. The
+      # harness README documents the migration path for newer versions.
       - name: Cache VS Code download
         uses: actions/cache@v6
         with:
           path: packages/zowe-mcp-vscode/.vscode-test
-          key: vscode-e2e-${{ runner.os }}-${{ hashFiles('packages/zowe-mcp-vscode/package.json') }}
+          key: vscode-e2e-1.126.0-${{ runner.os }}
 
-      - name: Download VS Code (stable)
+      - name: Download VS Code (pinned)
         id: vscode
         working-directory: packages/zowe-mcp-vscode
         run: |
           node -e "
             const { downloadAndUnzipVSCode } = require('@vscode/test-electron');
-            downloadAndUnzipVSCode('stable').then(p => {
+            downloadAndUnzipVSCode('1.126.0').then(p => {
               console.log('VS Code executable:', p);
               require('fs').appendFileSync(process.env.GITHUB_OUTPUT, 'app=' + p + '\n');
             });

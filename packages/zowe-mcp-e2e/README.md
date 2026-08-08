@@ -142,6 +142,17 @@ it can't be found by profile-directory pattern matching.
 
 ## Known gotchas (found empirically, worth reading before debugging a failure)
 
+- **VS Code 1.132+ breaks the `code chat` route.** Starting with 1.132,
+  `code chat` submits the prompt through the new Agent Host (`agenthost.log`
+  shows `Registering agent provider: copilotcli` and the bundled
+  `@github/copilot-*` CLI being started), which requires GitHub auth and does
+  not use BYOK panel models; the panel session file is created but stays
+  empty (`requests: []`), and `GitHub.copilot-chat` shows as disabled. The
+  harness is verified against 1.126 (CI pins that version). Migration path
+  for newer versions: submit the prompt into the chat panel input with
+  Playwright (keyboard) instead of `code chat`, keeping the rest of the
+  harness (activation, session-file assertions) unchanged.
+
 - **Fake server's `/api/version` must report a version VS Code accepts.**
   The Ollama BYOK provider rejects any server reporting below `0.6.4`
   ("Ollama server version ... is not supported"). A suffixed version string

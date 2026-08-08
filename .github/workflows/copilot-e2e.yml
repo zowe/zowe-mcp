@@ -102,18 +102,24 @@ jobs:
           VSCODE_E2E_KEEP_SCRATCH: '1'
         run: xvfb-run -a npm run e2e
 
-      - name: Collect scratch logs and screenshots
-        if: failure()
+      # On success only the screenshots are uploaded (always useful — they
+      # show the rendered chat response); on failure the full scratch dirs
+      # (VS Code logs, session jsonl, state) come along for diagnosis.
+      - name: Collect logs and screenshots
+        if: always()
         run: |
           mkdir -p e2e-artifacts
-          cp -r "${TMPDIR:-/tmp}/zowe-mcp-e2e" e2e-artifacts/ 2>/dev/null || true
-          cp -r /tmp/zme2e e2e-artifacts/ 2>/dev/null || true
+          cp -r packages/zowe-mcp-e2e/e2e-screenshots e2e-artifacts/ 2>/dev/null || true
+          if [ "${{ job.status }}" != "success" ]; then
+            cp -r "${TMPDIR:-/tmp}/zowe-mcp-e2e" e2e-artifacts/ 2>/dev/null || true
+            cp -r /tmp/zme2e e2e-artifacts/ 2>/dev/null || true
+          fi
 
-      - name: Upload failure artifacts
-        if: failure()
+      - name: Upload artifacts
+        if: always()
         uses: actions/upload-artifact@v6
         with:
-          name: copilot-e2e-failure
+          name: copilot-e2e-artifacts
           path: e2e-artifacts
           retention-days: 7
           if-no-files-found: ignore

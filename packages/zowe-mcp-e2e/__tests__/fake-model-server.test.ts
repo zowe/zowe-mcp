@@ -147,7 +147,7 @@ describe('fake-model-server', () => {
       choices: { message: { content: string }; finish_reason: string }[];
     };
     expect(second.choices[0].finish_reason).toBe('stop');
-    expect(second.choices[0].message.content.startsWith('E2E-SENTINEL-OK')).toBe(true);
+    expect(second.choices[0].message.content).toContain('E2E-SENTINEL-OK');
     expect(second.choices[0].message.content).toContain('USER1.DATA1');
   });
 
@@ -283,7 +283,7 @@ describe('fake-model-server', () => {
     };
     expect(body.done).toBe(true);
     expect(body.done_reason).toBe('stop');
-    expect(body.message.content.startsWith('E2E-SENTINEL-OK')).toBe(true);
+    expect(body.message.content).toContain('E2E-SENTINEL-OK');
     expect(body.message.content).toContain('USER1.DATA1');
   });
 

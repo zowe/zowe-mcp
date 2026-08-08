@@ -254,11 +254,39 @@ export function killProfileProcesses(profile: PortableProfile): void {
 }
 
 /** Kills any lingering processes for this profile and (by default) deletes the scratch directory. */
+/**
+ * Directory (inside the package, gitignored) where each profile's
+ * screenshots are copied before scratch cleanup, so the final-response
+ * shots survive every run — not just VSCODE_E2E_KEEP_SCRATCH ones.
+ */
+const SCREENSHOTS_OUT_DIR = path.resolve(
+  path.dirname(new URL(import.meta.url).pathname),
+  '..',
+  'e2e-screenshots'
+);
+
+function preserveScreenshots(profile: PortableProfile): void {
+  try {
+    const shots = fs
+      .readdirSync(profile.dir)
+      .filter(f => f.startsWith('shot-') && f.endsWith('.png'));
+    if (shots.length === 0) return;
+    const dest = path.join(SCREENSHOTS_OUT_DIR, path.basename(profile.dir));
+    fs.mkdirSync(dest, { recursive: true });
+    for (const f of shots) {
+      fs.copyFileSync(path.join(profile.dir, f), path.join(dest, f));
+    }
+  } catch {
+    // Preserving screenshots must never fail cleanup.
+  }
+}
+
 export function cleanupPortableProfile(
   profile: PortableProfile,
   opts: { removeDir?: boolean } = { removeDir: true }
 ): void {
   killProfileProcesses(profile);
+  preserveScreenshots(profile);
   // VSCODE_E2E_KEEP_SCRATCH=1 preserves scratch dirs (screenshots, VS Code
   // logs, session files) so CI can upload them as failure artifacts.
   if (opts.removeDir !== false && !process.env.VSCODE_E2E_KEEP_SCRATCH) {

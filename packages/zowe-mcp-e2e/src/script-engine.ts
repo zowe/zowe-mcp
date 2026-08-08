@@ -117,6 +117,22 @@ function digest(content: string): string {
   return content.length > DIGEST_MAX_LENGTH ? content.slice(0, DIGEST_MAX_LENGTH) : content;
 }
 
+/**
+ * Renders the scripted final answer like a human-sounding model reply while
+ * staying machine-assertable: dataset names (any `"dsn": "..."` values found
+ * in the tool result) become an English sentence, followed by the sentinel
+ * and a truncated raw echo of the tool result on its own line, which is what
+ * the e2e assertions match against (`E2E-SENTINEL-OK` + dataset names).
+ */
+function renderOkReply(resultContent: string): string {
+  const dsns = [...resultContent.matchAll(/"dsn"\s*:\s*"([^"]+)"/g)].map(m => m[1]);
+  const summary =
+    dsns.length > 0
+      ? `I found ${String(dsns.length)} data sets: ${dsns.join(', ')}.`
+      : 'Here is the tool result.';
+  return `${summary}\n\n${SENTINEL_OK_PREFIX} ${digest(resultContent)}`;
+}
+
 let toolCallCounter = 0;
 
 function nextToolCallId(clock: () => number): string {
@@ -160,7 +176,7 @@ export function decideResponse(
 
   if (hasToolResult) {
     const resultContent = lastToolResultContent(messages);
-    return { kind: 'text', content: `${SENTINEL_OK_PREFIX} ${digest(resultContent)}` };
+    return { kind: 'text', content: renderOkReply(resultContent) };
   }
 
   return { kind: 'text', content: SENTINEL_PONG };

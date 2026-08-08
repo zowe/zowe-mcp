@@ -173,7 +173,7 @@ describe('fake-model-server', () => {
       .map(chunk => chunk.slice('data: '.length));
 
     expect(dataLines[dataLines.length - 1]).toBe('[DONE]');
-    const events = dataLines.slice(0, -1).map(line => JSON.parse(line)) as {
+    const events = dataLines.slice(0, -1).map(line => JSON.parse(line) as unknown) as {
       object: string;
       choices: {
         delta: {
@@ -229,7 +229,7 @@ describe('fake-model-server', () => {
       .split('\n')
       .map(line => line.trim())
       .filter(line => line.length > 0)
-      .map(line => JSON.parse(line)) as {
+      .map(line => JSON.parse(line) as unknown) as {
       model: string;
       done: boolean;
       done_reason?: string;

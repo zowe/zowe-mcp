@@ -1,0 +1,96 @@
+# End-to-end test of the VS Code extension driven through real Copilot Chat.
+#
+# A from-scratch portable VS Code profile gets the Zowe MCP extension installed
+# from a freshly built .vsix, a BYOK "model" is registered (a deterministic
+# fake server speaking the Ollama API — no real LLM, no GitHub sign-in), and a
+# chat prompt makes the model call a Zowe MCP tool backed by a mock z/OS
+# system (both the filesystem mock and the mock z/OS SSH host). Assertions
+# read the persisted chat session JSONL. See packages/zowe-mcp-e2e/README.md.
+#
+# Kept out of the required ci-ok gate on purpose while the suite builds a
+# stability track record.
+name: Copilot Chat E2E
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [feature/copilot-byok-e2e]
+  pull_request:
+    paths:
+      - 'packages/zowe-mcp-e2e/**'
+      - 'packages/zowe-mcp-vscode/**'
+      - 'packages/zowe-mcp-server/src/mock-host/**'
+      - '.github/workflows/copilot-e2e.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: copilot-e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  copilot-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: '.nvmrc'
+          cache: npm
+
+      # package-lock.json intentionally lags this branch (it is entangled with
+      # unrelated in-flight dependency work), so use npm install rather than ci.
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build MCP server
+        run: npm run build -w @zowe/mcp-server
+
+      - name: Build extension .vsix
+        run: npm run package -w zowe-mcp-vscode
+
+      - name: Build e2e harness
+        run: npm run build -w zowe-mcp-e2e
+
+      - name: Cache VS Code download
+        uses: actions/cache@v6
+        with:
+          path: packages/zowe-mcp-vscode/.vscode-test
+          key: vscode-e2e-${{ runner.os }}-${{ hashFiles('packages/zowe-mcp-vscode/package.json') }}
+
+      - name: Download VS Code (stable)
+        id: vscode
+        working-directory: packages/zowe-mcp-vscode
+        run: |
+          node -e "
+            const { downloadAndUnzipVSCode } = require('@vscode/test-electron');
+            downloadAndUnzipVSCode('stable').then(p => {
+              console.log('VS Code executable:', p);
+              require('fs').appendFileSync(process.env.GITHUB_OUTPUT, 'app=' + p + '\n');
+            });
+          "
+
+      - name: Run Copilot Chat e2e (fake model, S1-S3)
+        working-directory: packages/zowe-mcp-e2e
+        env:
+          VSCODE_E2E_APP: ${{ steps.vscode.outputs.app }}
+        run: xvfb-run -a npm run e2e
+
+      - name: Collect scratch logs and screenshots
+        if: failure()
+        run: |
+          mkdir -p e2e-artifacts
+          cp -r /tmp/zme2e e2e-artifacts/ 2>/dev/null || true
+          find e2e-artifacts -name '*.vscdb*' -delete 2>/dev/null || true
+
+      - name: Upload failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: copilot-e2e-failure
+          path: e2e-artifacts
+          retention-days: 7
+          if-no-files-found: ignore

@@ -75,7 +75,7 @@ export function buildArguments(
   schema: JsonSchemaObject | undefined,
   options: ScriptEngineOptions
 ): Record<string, unknown> {
-  if (!schema || !schema.properties) {
+  if (!schema?.properties) {
     return {};
   }
   const required = schema.required ?? [];

@@ -40,9 +40,16 @@ export function buildOllamaTagsResponse(modelId: string, clock: () => number) {
   };
 }
 
-/** GET /api/version response body. */
+/**
+ * GET /api/version response body. VS Code's Ollama BYOK provider rejects
+ * servers below a minimum version (observed: refuses anything < 0.6.4 with
+ * "Ollama server version ... is not supported"), so this must report a
+ * plain, comparable-as-newer version — no suffix (a suffix like
+ * "-fake-e2e" defeats the extension's semver-ish parsing and gets treated
+ * as older than 0.6.4 regardless of the numeric part).
+ */
 export function buildOllamaVersionResponse() {
-  return { version: '0.4.0-fake-e2e' };
+  return { version: '0.9.9' };
 }
 
 /**

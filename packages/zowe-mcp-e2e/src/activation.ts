@@ -113,9 +113,7 @@ export async function triggerCopilotChatActivation(
   // activated). Wait for the workbench, then retry until the Language Models
   // editor is actually visible.
   await page.locator('.monaco-workbench').waitFor({ state: 'visible', timeout: 60_000 });
-  const opened = page
-    .locator('.quick-input-widget, .monaco-editor')
-    .first(); // presence used only as a readiness hint before first attempt
+  const opened = page.locator('.quick-input-widget, .monaco-editor').first(); // presence used only as a readiness hint before first attempt
   await opened.waitFor({ state: 'attached', timeout: 30_000 }).catch(() => undefined);
 
   const editorMarker = page.getByText('Install Model Providers', { exact: false }).first();

@@ -23,6 +23,12 @@ don't warrant an entry (CI, chores, internal refactors, docs-only) can carry the
   unaffected. Resolution order: SSH key → password env → Vault KV → interactive prompt.
   New VS Code setting `zoweMCP.preferSshKey` (default on). See the README's
   "Authentication (in order of preference)" section for details.
+- **Claude Code headless smoke suite** (`npm run smoke:claude-code`): an opt-in 13-case
+  integration smoke that drives the real `claude` CLI (`claude -p --output-format
+  stream-json`) against the MCP server with mock z/OS data — the real client, its real
+  system prompt, and its real tool-orchestration loop. Reuses existing eval questions and
+  assertions; intended for pre-release/nightly runs, not per-commit. See
+  [`packages/zowe-mcp-evals/README.md`](packages/zowe-mcp-evals/README.md).
 
 ### Changed
 

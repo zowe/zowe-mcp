@@ -15,7 +15,7 @@
  * `<portable>/user-data/User/globalStorage/emptyWindowChatSessions/<uuid>.jsonl`.
  *
  * Session file format (reverse-engineered empirically — VS Code 1.126):
- *   - Each line is a JSON object `{ kind: 0 | 1, ... }`.
+ *   - Each line is a JSON object `{ kind: 0 | 1 | 2, ... }`.
  *   - `kind: 0` is a full snapshot: `{ kind: 0, v: <ChatSessionState> }`.
  *   - `kind: 1` is an incremental patch: `{ kind: 1, k: (string|number)[], v: unknown }`,
  *     meaning "set the value at this key-path (relative to the kind:0 base
@@ -101,7 +101,10 @@ export function parseSessionFile(filePath: string): ParsedChatSession {
     }
     if (entry.kind === 0) {
       base = entry.v as Record<string, unknown>;
-    } else if (entry.kind === 1 && base && entry.k) {
+    } else if ((entry.kind === 1 || entry.kind === 2) && base && entry.k) {
+      // kind:1 and kind:2 both carry { k: path, v: value } set-style patches
+      // (kind:2 observed on Linux carrying full-array replacements, e.g. the
+      // final requests[0].response array including the tool invocation).
       applyPatch(base, entry.k, entry.v);
     }
   }

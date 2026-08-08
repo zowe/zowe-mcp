@@ -107,15 +107,45 @@ export async function triggerCopilotChatActivation(
   page: Page
 ): Promise<void> {
   await screenshot(profile, page, 'before-activation');
-  await page.keyboard.press('F1');
-  await page.waitForTimeout(300);
-  await page.keyboard.type('Manage Language Models');
-  await page.waitForTimeout(500);
-  await page.keyboard.press('Enter');
-  // Give the extension host time to activate and the BYOK provider time to
-  // fetch /api/tags from the configured endpoint.
+  // On a cold CI runner the workbench can take much longer than locally to
+  // accept keyboard input; a fire-and-forget palette invocation silently
+  // no-ops (observed: chat panel still on its welcome state, extension never
+  // activated). Wait for the workbench, then retry until the Language Models
+  // editor is actually visible.
+  await page.locator('.monaco-workbench').waitFor({ state: 'visible', timeout: 60_000 });
+  const opened = page
+    .locator('.quick-input-widget, .monaco-editor')
+    .first(); // presence used only as a readiness hint before first attempt
+  await opened.waitFor({ state: 'attached', timeout: 30_000 }).catch(() => undefined);
+
+  const editorMarker = page.getByText('Install Model Providers', { exact: false }).first();
+  let activated = false;
+  for (let attempt = 1; attempt <= 5 && !activated; attempt++) {
+    await page.keyboard.press('F1');
+    await page.waitForTimeout(750);
+    await page.keyboard.type('Manage Language Models', { delay: 30 });
+    await page.waitForTimeout(750);
+    await page.keyboard.press('Enter');
+    // Poll for the Language Models editor; its appearance implies the
+    // onLanguageModelChatProvider activation fired and the BYOK provider is
+    // fetching /api/tags from the configured endpoint.
+    try {
+      await editorMarker.waitFor({ state: 'visible', timeout: 15_000 });
+      activated = true;
+    } catch {
+      await screenshot(profile, page, `manage-models-retry-${String(attempt)}`);
+      await page.keyboard.press('Escape');
+      await page.waitForTimeout(1000);
+    }
+  }
+  // Give the BYOK provider time to finish fetching and registering models.
   await page.waitForTimeout(6000);
   await screenshot(profile, page, 'after-manage-models');
+  if (!activated) {
+    throw new Error(
+      'Language Models editor did not open after 5 command-palette attempts — copilot-chat activation trigger failed'
+    );
+  }
   await page.keyboard.press('Escape');
   await page.waitForTimeout(500);
 }

@@ -65,6 +65,11 @@ const OLLAMA_URL = process.env.ZOWE_E2E_OLLAMA_URL ?? 'http://localhost:11434';
 const OLLAMA_MODEL = process.env.ZOWE_E2E_OLLAMA_MODEL ?? 'phi4-mini:latest';
 const RUN_OLLAMA = process.env.ZOWE_E2E_OLLAMA === '1';
 
+/** Escapes all regex metacharacters (backslash first) so a value can be embedded literally in a RegExp. */
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 const SUITE_TIMEOUT_MS = 300_000;
 
 describe.skipIf(!RUN_OLLAMA)('Copilot Chat BYOK e2e (real Ollama model)', () => {
@@ -101,7 +106,7 @@ describe.skipIf(!RUN_OLLAMA)('Copilot Chat BYOK e2e (real Ollama model)', () => 
       const picked = await pinChatModel(
         profile,
         page,
-        new RegExp(`^${OLLAMA_MODEL.replace(/\./g, '\\.')}`, 'i')
+        new RegExp(`^${escapeRegExp(OLLAMA_MODEL)}`, 'i')
       );
       expect(picked, `could not find/pin model "${OLLAMA_MODEL}" in the picker`).toBe(true);
 

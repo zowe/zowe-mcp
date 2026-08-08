@@ -242,9 +242,16 @@ export async function startFakeModelServer(
 
       writeJson(res, 404, { error: { message: `not found: ${method} ${route}` } });
     } catch (err) {
-      writeJson(res, 500, {
-        error: { message: err instanceof Error ? err.message : String(err) },
+      const detail = err instanceof Error ? (err.stack ?? err.message) : String(err);
+      console.error(`[fake-model-server] unhandled error for ${method} ${route}:\n${detail}`);
+      log({
+        direction: 'response',
+        surface: url.pathname.startsWith('/api') ? 'ollama' : 'openai',
+        route,
+        streaming: false,
+        body: { error: detail },
       });
+      writeJson(res, 500, { error: { message: 'internal server error' } });
     }
   }
 

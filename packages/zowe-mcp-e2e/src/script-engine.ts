@@ -79,7 +79,7 @@ export function buildArguments(
     return {};
   }
   const required = schema.required ?? [];
-  const args: Record<string, unknown> = {};
+  const args: Record<string, unknown> = Object.create(null) as Record<string, unknown>;
   for (const key of required) {
     args[key] = valueForProperty(key, schema.properties[key], options);
   }

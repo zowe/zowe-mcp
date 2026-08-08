@@ -21,6 +21,11 @@ interface CliArgs {
   datasetPattern?: string;
 }
 
+/** Escapes all regex metacharacters (backslash first) so a value can be embedded literally in a RegExp. */
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 function parseArgs(argv: string[]): CliArgs {
   const args: CliArgs = {};
   for (let i = 0; i < argv.length; i += 1) {
@@ -68,7 +73,7 @@ async function main(): Promise<void> {
     host: args.host,
     modelId: args.modelId,
     logFile: args.logFile,
-    toolPattern: args.toolPattern ? new RegExp(args.toolPattern, 'i') : undefined,
+    toolPattern: args.toolPattern ? new RegExp(escapeRegExp(args.toolPattern), 'i') : undefined,
     datasetPattern: args.datasetPattern,
   });
 

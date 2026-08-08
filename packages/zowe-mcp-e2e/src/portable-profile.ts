@@ -21,7 +21,6 @@
  */
 
 import { spawnSync } from 'node:child_process';
-import { randomUUID } from 'node:crypto';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
@@ -177,11 +176,12 @@ function shortestTmpRoot(): string {
 export function createPortableProfile(
   options: CreatePortableProfileOptions = {}
 ): PortableProfile {
-  // A short random id (not a full UUID) keeps the total path comfortably
-  // under the ~103-usable-byte sockaddr_un limit even after VS Code appends
-  // its own subpaths (see shortestTmpRoot doc comment).
-  const shortId = randomUUID().split('-')[0];
-  const root = options.scratchRoot ?? path.join(shortestTmpRoot(), 'zme2e', shortId);
+  // mkdtempSync: atomic, unpredictable suffix, created with 0700 perms — avoids a
+  // predictable scratch-dir name in a world-writable tmp root. Keep the prefix short:
+  // see shortestTmpRoot's doc comment for why total path length matters (VS Code's
+  // IPC Unix socket sun_path has a 104-byte cap) — mkdtemp appends 6 random chars to
+  // the prefix, comfortably within budget.
+  const root = options.scratchRoot ?? fs.mkdtempSync(path.join(shortestTmpRoot(), 'zme2e-'));
   assertUnderTmp(root);
 
   const userDataDir = path.join(root, 'user-data');

@@ -378,5 +378,5 @@ On startup the CLI prints a single JSON line to stdout —
 `{"port":..., "url":"..."}` — so a shell harness can pick up the assigned
 port even when `--port` is omitted (random ephemeral port). Shuts down
 cleanly on `SIGINT`/`SIGTERM`. Flags: `--port`, `--host`, `--model-id`,
-`--log-file`, `--tool-pattern` (a RegExp source, case-insensitive),
+`--log-file`, `--tool-pattern` (a case-insensitive literal substring match),
 `--dataset-pattern`.

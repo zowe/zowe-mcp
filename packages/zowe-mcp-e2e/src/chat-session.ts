@@ -288,21 +288,19 @@ export async function waitForChatSession(
     lastSeenFiles = entries;
     for (const name of entries) {
       const full = path.join(dir, name);
-      let stat: fs.Stats;
+      let fd: number | undefined;
       try {
-        stat = fs.statSync(full);
+        fd = fs.openSync(full, 'r');
+        const stat = fs.fstatSync(fd);
+        if (stat.mtime < options.newerThan) continue;
+        const content = fs.readFileSync(fd, 'utf8');
+        if (content.includes(options.containsText)) {
+          return parseSessionFile(full);
+        }
       } catch {
         continue;
-      }
-      if (stat.mtime < options.newerThan) continue;
-      let content: string;
-      try {
-        content = fs.readFileSync(full, 'utf8');
-      } catch {
-        continue;
-      }
-      if (content.includes(options.containsText)) {
-        return parseSessionFile(full);
+      } finally {
+        if (fd !== undefined) fs.closeSync(fd);
       }
     }
     await new Promise(r => setTimeout(r, intervalMs));

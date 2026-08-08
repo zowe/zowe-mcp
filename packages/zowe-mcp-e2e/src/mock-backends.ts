@@ -124,6 +124,18 @@ export function authorizeSshKeyForUser(
   fs.writeFileSync(usersPath, JSON.stringify(parsed, null, 2));
 }
 
+/** Reads a file if it exists, returning `fallback` on ENOENT (avoids a check-then-read TOCTOU). */
+function readFileIfExists(filePath: string, fallback: string): string {
+  try {
+    return fs.readFileSync(filePath, 'utf8');
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+      return fallback;
+    }
+    throw err;
+  }
+}
+
 /**
  * Starts the mock z/OS SSH daemon (`mock-zos start`) as a detached child
  * process on an ephemeral port, after seeding fixtures with `gen-fixtures`.
@@ -188,7 +200,7 @@ export async function startMockZosDaemon(opts: {
   let host: string | undefined;
   let port: number | undefined;
   while (Date.now() < deadline) {
-    const content = fs.existsSync(logPath) ? fs.readFileSync(logPath, 'utf8') : '';
+    const content = readFileIfExists(logPath, '');
     const m = /SSH\s+listening on ([\d.]+):(\d+)/.exec(content);
     if (m) {
       host = m[1];
@@ -203,7 +215,7 @@ export async function startMockZosDaemon(opts: {
   if (!host || !port) {
     child.kill('SIGKILL');
     throw new Error(
-      `Timed out after ${String(timeoutMs)}ms waiting for mock-zos SSH listener.\nLog:\n${fs.existsSync(logPath) ? fs.readFileSync(logPath, 'utf8') : '(no log)'}`
+      `Timed out after ${String(timeoutMs)}ms waiting for mock-zos SSH listener.\nLog:\n${readFileIfExists(logPath, '(no log)')}`
     );
   }
 

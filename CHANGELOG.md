@@ -16,6 +16,18 @@ don't warrant an entry (CI, chores, internal refactors, docs-only) can carry the
 
 ### Added
 
+- **End-to-end Copilot Chat testing** (`packages/zowe-mcp-e2e`): a scripted
+  harness that drives a from-scratch, isolated VS Code instance with the built
+  extension installed, a BYOK model configured with no GitHub sign-in (VS Code
+  1.122+), and real Copilot agent-mode tool calls flowing through the MCP
+  server into a mock z/OS backend — including the full native SSH path against
+  the mock z/OS host. A deterministic fake LLM (Ollama/OpenAI-compatible)
+  makes the suite hermetic for CI (`copilot-e2e` workflow); an env-gated
+  variant runs against a real local Ollama model. Screenshots of the rendered
+  chat response are preserved on every run.
+- **Native-backend coverage against the mock z/OS host over MCP stdio**
+  (`native-mock-zos-stdio.e2e.test.ts`): the production zowex/ssh2 path is now
+  exercised in the default test run without requiring a real LPAR.
 - **SSH key authentication** for the native (Zowe Remote SSH / zowex) backend, preferred
   over passwords and requiring no Zowe MCP configuration. Uses a `~/.ssh/config`
   `IdentityFile` or a default `~/.ssh/id_*` key; falls back to the existing password flow
@@ -23,6 +35,14 @@ don't warrant an entry (CI, chores, internal refactors, docs-only) can carry the
   unaffected. Resolution order: SSH key → password env → Vault KV → interactive prompt.
   New VS Code setting `zoweMCP.preferSshKey` (default on). See the README's
   "Authentication (in order of preference)" section for details.
+
+### Fixed
+
+- **Mock z/OS host compatibility with zowex SDK 0.7.1**: the RPC ready payload
+  now reports a server `version` (resolved dynamically from the installed SDK),
+  the SFTP subsystem uses ssh2's dedicated `'sftp'` event (previously the
+  `server.pax.Z` install/redeploy handshake hung forever), and the exec router
+  recognizes `cd '<dir>' ; pax ...` command wrapping.
 
 ### Changed
 

@@ -145,6 +145,14 @@ export interface RunChatOptions {
   extraEnv?: Record<string, string>;
   /** Max time to wait for `code chat` itself to return, ms. */
   spawnTimeoutMs?: number;
+  /**
+   * Pass `-r` (reuse the last active window) instead of `-n` (new window).
+   * Use when a Playwright-launched VS Code instance for this profile is
+   * still running: the prompt lands in that window, so the caller can
+   * screenshot the rendered response, and the CLI wrapper returns quickly
+   * instead of becoming the app process (Linux cold-start behavior).
+   */
+  reuseWindow?: boolean;
 }
 
 /**
@@ -203,7 +211,8 @@ export async function runChatPrompt(
   let lingeringPid: number | undefined;
   const result = await new Promise<{ stdout: string; stderr: string; code: number | null }>(
     (resolve, reject) => {
-      const child = spawn(codeBin, ['chat', '-m', options.mode, '-n', options.prompt], {
+      const windowFlag = options.reuseWindow ? '-r' : '-n';
+      const child = spawn(codeBin, ['chat', '-m', options.mode, windowFlag, options.prompt], {
         env,
       });
       let stdout = '';

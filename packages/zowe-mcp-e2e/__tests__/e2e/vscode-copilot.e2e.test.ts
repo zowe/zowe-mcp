@@ -31,7 +31,12 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
-import { closeVsCode, launchVsCode, triggerCopilotChatActivation } from '../../src/activation.js';
+import {
+  closeVsCode,
+  launchVsCode,
+  screenshot,
+  triggerCopilotChatActivation,
+} from '../../src/activation.js';
 import {
   killChatCliProcesses,
   runChatPrompt,
@@ -112,12 +117,14 @@ describe('Copilot Chat BYOK e2e (FAKE model)', () => {
 
       const { app, page } = await launchVsCode(profile);
       await triggerCopilotChatActivation(profile, page);
-      await closeVsCode(app);
 
+      // Reuse the still-open Playwright window (-r): the prompt lands there,
+      // so the rendered response can be screenshotted after the assertion.
       const before = new Date();
       const result = await runChatPrompt(profile, {
         mode: 'ask',
         prompt: 'Reply with exactly the word PONG',
+        reuseWindow: true,
       });
       resources.detachedChatPids = result.detachedPids;
 
@@ -126,6 +133,8 @@ describe('Copilot Chat BYOK e2e (FAKE model)', () => {
         containsText: 'E2E-SENTINEL-PONG',
         timeoutMs: 150_000,
       });
+      await screenshot(profile, page, 'final-response');
+      await closeVsCode(app);
 
       const req = session.requests.find(r => r.responseText.includes('E2E-SENTINEL-PONG'));
       expect(req).toBeDefined();
@@ -158,12 +167,12 @@ describe('Copilot Chat BYOK e2e (FAKE model)', () => {
 
       const { app, page } = await launchVsCode(profile);
       await triggerCopilotChatActivation(profile, page);
-      await closeVsCode(app);
 
       const before = new Date();
       const result = await runChatPrompt(profile, {
         mode: 'agent',
         prompt: 'List my datasets',
+        reuseWindow: true,
       });
       resources.detachedChatPids = result.detachedPids;
 
@@ -172,6 +181,8 @@ describe('Copilot Chat BYOK e2e (FAKE model)', () => {
         containsText: 'E2E-SENTINEL-OK',
         timeoutMs: 150_000,
       });
+      await screenshot(profile, page, 'final-response');
+      await closeVsCode(app);
 
       const req = session.requests.find(r => r.responseText.includes('E2E-SENTINEL-OK'));
       expect(req).toBeDefined();
@@ -222,12 +233,12 @@ describe('Copilot Chat BYOK e2e (FAKE model)', () => {
 
       const { app, page } = await launchVsCode(profile);
       await triggerCopilotChatActivation(profile, page);
-      await closeVsCode(app);
 
       const before = new Date();
       const result = await runChatPrompt(profile, {
         mode: 'agent',
         prompt: 'List my datasets',
+        reuseWindow: true,
       });
       resources.detachedChatPids = result.detachedPids;
 
@@ -236,6 +247,8 @@ describe('Copilot Chat BYOK e2e (FAKE model)', () => {
         containsText: 'E2E-SENTINEL-OK',
         timeoutMs: 150_000,
       });
+      await screenshot(profile, page, 'final-response');
+      await closeVsCode(app);
 
       const req = session.requests.find(r => r.responseText.includes('E2E-SENTINEL-OK'));
       expect(req).toBeDefined();

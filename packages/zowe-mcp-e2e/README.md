@@ -39,7 +39,7 @@ both:
 
 ## Architecture
 
-```
+```text
  __tests__/e2e/vscode-copilot.e2e.test.ts         (S1, S2, S3 — FAKE model)
  __tests__/e2e/vscode-copilot-ollama.e2e.test.ts  (S4 — real Ollama, env-gated)
         │
@@ -270,6 +270,7 @@ it can't be found by profile-directory pattern matching.
   messages like "Optimizing tool selection"), and — the interesting one —
   **`toolInvocationSerialized`** for an actual MCP tool call, e.g. (from a
   real S2 run, `mcp_zowe-mcp-serv_listDatasets`):
+
   ```jsonc
   {
     "kind": "toolInvocationSerialized",
@@ -292,6 +293,7 @@ it can't be found by profile-directory pattern matching.
     }
   }
   ```
+
   `resultDetails.input`/`.output` is the ground truth for what the model
   actually sent the tool and what came back — more reliable to assert on
   than trying to parse the model's prose reply, if a scenario needs to

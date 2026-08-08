@@ -79,6 +79,7 @@ jobs:
         working-directory: packages/zowe-mcp-e2e
         env:
           VSCODE_E2E_APP: ${{ steps.vscode.outputs.app }}
+          VSCODE_E2E_CLI: ${{ steps.vscode.outputs.app }}
         run: xvfb-run -a npm run e2e
 
       - name: Collect scratch logs and screenshots

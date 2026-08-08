@@ -58,6 +58,27 @@ const DEFAULT_SETTINGS: Record<string, unknown> = {
   'github.copilot.chat.tools.defaultToolsGrouped': false,
   'chat.tools.defaultToolsGrouped': false,
   'chat.advanced.tools.defaultToolsGrouped': false,
+  // VS Code 1.132+ ships an "Agent Host" (separate process hosting the
+  // Copilot CLI / Claude / Codex harnesses). `code chat` still routes to the
+  // classic chat panel by default, but the deciding settings
+  // (`chat.defaultToCopilotHarness`, `chat.editor.localAgent.enabled`, and
+  // `chat.agentHost.enabled` itself) are all experiment-controlled
+  // (`experiment: {mode: "startup"}`), so a server-side A/B flip could move
+  // prompts into agent-host sessions — which hard-require a GitHub sign-in
+  // (BYOK there is gated off by default and still auth-walled upstream,
+  // microsoft/vscode#329667). Pin the whole subsystem off for determinism.
+  // Unknown on <= 1.131 and silently ignored there.
+  'chat.agentHost.enabled': false,
+  // Copilot Chat 0.60.0 (VS Code 1.132) routes several side-flows
+  // (inline-chat progress messages, intent detection, tool-arg fetching)
+  // through a "utility model". Without a GitHub sign-in there is none, and
+  // those flows error ("No utility model is configured for
+  // 'copilot-utility-small' while the selected main agent model is BYOK").
+  // The main chat turn does not need this, but redirecting utility calls to
+  // the BYOK main model keeps the side-flows working and the logs clean.
+  // NB: the BARE key — it is read via `getNonExtensionConfig`, NOT under the
+  // `github.copilot.` prefix despite living in the Copilot extension.
+  'chat.byokUtilityModelDefault': 'mainAgent',
 };
 
 export interface CreatePortableProfileOptions {

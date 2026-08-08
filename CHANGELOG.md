@@ -16,6 +16,20 @@ don't warrant an entry (CI, chores, internal refactors, docs-only) can carry the
 
 ### Added
 
+- **Copilot Chat e2e: VS Code 1.132 compatibility.** The apparent 1.132
+  "Agent Host breaks `code chat`" regression was root-caused to the fake
+  model server advertising `context_length: 4096`, which the bundled Copilot
+  Chat 0.60.0 turns into a zero prompt-token budget (input budget =
+  `context_length − min(4096, context_length/2)`), silently killing every
+  turn. The fake server now advertises 32768; e2e profiles additionally pin
+  `chat.agentHost.enabled: false` (the classic-panel routing is
+  experiment-controlled) and seed `chat.byokUtilityModelDefault: mainAgent`
+  for 0.60.0's BYOK utility-model side-flows. S1–S3 pass unmodified on
+  1.132.0 (and still on 1.126); the CI pin moves to 1.132.0. Full
+  investigation notes (Agent Host routing internals, MCP-forwarding into
+  agent sessions, and a working Playwright panel-typing fallback) in
+  `docs/vscode-132-agent-host-investigation.md`.
+
 - **End-to-end Copilot Chat testing** (`packages/zowe-mcp-e2e`): a scripted
   harness that drives a from-scratch, isolated VS Code instance with the built
   extension installed, a BYOK model configured with no GitHub sign-in (VS Code

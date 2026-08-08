@@ -16,7 +16,8 @@ Two things live in this package:
 ## Why
 
 VS Code (1.122+) lets users register BYOK chat model providers. Historically
-via a `chatLanguageModels.json` file; empirically (VS Code 1.126, this repo)
+via a `chatLanguageModels.json` file; empirically (verified on VS Code 1.126
+and 1.132, this repo)
 the reliable mechanism is the (formally "deprecated" but functionally load-
 bearing) setting `github.copilot.chat.byok.ollamaEndpoint`, which the
 extension auto-migrates into a real BYOK provider registration on
@@ -142,16 +143,41 @@ it can't be found by profile-directory pattern matching.
 
 ## Known gotchas (found empirically, worth reading before debugging a failure)
 
-- **VS Code 1.132+ breaks the `code chat` route.** Starting with 1.132,
-  `code chat` submits the prompt through the new Agent Host (`agenthost.log`
-  shows `Registering agent provider: copilotcli` and the bundled
-  `@github/copilot-*` CLI being started), which requires GitHub auth and does
-  not use BYOK panel models; the panel session file is created but stays
-  empty (`requests: []`), and `GitHub.copilot-chat` shows as disabled. The
-  harness is verified against 1.126 (CI pins that version). Migration path
-  for newer versions: submit the prompt into the chat panel input with
-  Playwright (keyboard) instead of `code chat`, keeping the rest of the
-  harness (activation, session-file assertions) unchanged.
+- **VS Code 1.132's apparent "`code chat` breakage" was NOT the Agent Host —
+  it was a zero prompt-token budget.** The bundled Copilot Chat 0.60.0
+  computes the Ollama BYOK budget as
+  `maxInputTokens = context_length - min(4096, context_length/2)`; a model
+  advertising `context_length: 4096` (this fake server, originally) gets
+  `maxInputTokens: 0`, the prompt renderer prunes *every* message to fit,
+  and each turn dies in ~130 ms with only a `mcpServersStarting` response
+  part and **no errorDetails** — the underlying
+  `Invalid request: no messages.` throw is visible only at `--log trace`.
+  Fixed by advertising `context_length: 32768` (`src/ollama-api.ts`); with
+  that one change S1-S3 pass unmodified on 1.132.0. The Agent Host
+  (`agenthost.log` showing `Registering agent provider: copilotcli` and the
+  bundled `@github/copilot-*` CLI starting) boots on *every* 1.132 launch and
+  is a red herring: `code chat` still routes to the classic panel because
+  `chat.editor.localAgent.enabled` defaults to true. Since the deciding
+  settings are experiment-controlled, `portable-profile.ts` seeds
+  `"chat.agentHost.enabled": false` to pin the classic route. Full
+  investigation (routing internals, Agent Host↔MCP forwarding, a working
+  Playwright panel-typing fallback in
+  `__tests__/e2e/vscode-132-experiments.e2e.test.ts`):
+  [`docs/vscode-132-agent-host-investigation.md`](../../docs/vscode-132-agent-host-investigation.md).
+
+- **Copilot Chat 0.60.0 (VS Code 1.132) side-flows need a "utility model"
+  when the main model is BYOK.** Inline-chat progress messages, intent
+  detection, and tool-arg fetching request a `copilot-utility-small`
+  endpoint; with no GitHub sign-in that errors (`No utility model is
+  configured for 'copilot-utility-small' while the selected main agent model
+  is BYOK`). Not fatal to the main turn, but `portable-profile.ts` seeds the
+  BARE key `"chat.byokUtilityModelDefault": "mainAgent"` (it is read via
+  `getNonExtensionConfig`, not under the `github.copilot.` prefix) to route
+  utility calls to the BYOK model.
+
+- **1.132 renamed the macOS app binary** from `Contents/MacOS/Electron` to
+  `Contents/MacOS/Code`; `activation.ts` probes both for the default
+  `VSCODE_E2E_APP`.
 
 - **Fake server's `/api/version` must report a version VS Code accepts.**
   The Ollama BYOK provider rejects any server reporting below `0.6.4`

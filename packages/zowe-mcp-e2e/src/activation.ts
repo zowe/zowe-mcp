@@ -33,6 +33,7 @@
  * diagnosable after the fact.
  */
 
+import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { _electron as electron, type ElectronApplication, type Page } from 'playwright';
 import type { PortableProfile } from './portable-profile.js';
@@ -46,10 +47,20 @@ export interface LaunchOptions {
   extraEnv?: Record<string, string>;
 }
 
-const DEFAULT_MACOS_APP = '/Applications/Visual Studio Code.app/Contents/MacOS/Electron';
+// VS Code renamed the macOS app binary from `Electron` to `Code` in 1.132 —
+// probe both so the default works across versions.
+const DEFAULT_MACOS_APP_CANDIDATES = [
+  '/Applications/Visual Studio Code.app/Contents/MacOS/Electron',
+  '/Applications/Visual Studio Code.app/Contents/MacOS/Code',
+];
 
 function resolveExecutablePath(opts: LaunchOptions): string {
-  return opts.executablePath ?? process.env.VSCODE_E2E_APP ?? DEFAULT_MACOS_APP;
+  return (
+    opts.executablePath ??
+    process.env.VSCODE_E2E_APP ??
+    DEFAULT_MACOS_APP_CANDIDATES.find(p => fs.existsSync(p)) ??
+    DEFAULT_MACOS_APP_CANDIDATES[0]
+  );
 }
 
 let screenshotCounter = 0;

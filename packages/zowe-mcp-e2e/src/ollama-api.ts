@@ -62,7 +62,7 @@ export function buildOllamaVersionResponse() {
 export function buildOllamaShowResponse(modelId: string, clock: () => number) {
   return {
     modelfile: `# Fake E2E model\nFROM ${modelId}`,
-    parameters: 'num_ctx 4096',
+    parameters: 'num_ctx 32768',
     template: '{{ .Prompt }}',
     modified_at: isoNow(clock),
     details: {
@@ -77,7 +77,14 @@ export function buildOllamaShowResponse(modelId: string, clock: () => number) {
       'general.architecture': 'fake',
       'general.parameter_count': 1_000_000_000,
       'general.basename': modelId,
-      'fake.context_length': 4096,
+      // Copilot Chat 0.60.0 (VS Code 1.132) computes the BYOK Ollama
+      // prompt budget as `context_length - maxOutputTokens` where
+      // maxOutputTokens is min(4096, context_length/2). A context_length
+      // of exactly 4096 therefore yields maxInputTokens = 0, the prompt
+      // renderer prunes every message to fit the zero budget, and every
+      // turn dies instantly with "Invalid request: no messages." — keep
+      // this comfortably above 4096.
+      'fake.context_length': 32768,
       'fake.embedding_length': 4096,
       'fake.attention.head_count': 32,
     },

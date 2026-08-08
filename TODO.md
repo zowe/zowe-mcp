@@ -42,6 +42,7 @@ Ideas inspired by [Gestell-AI/zowe-mcp](https://github.com/Gestell-AI/zowe-mcp) 
 
 ## Testing
 
+- **Copilot e2e: multi-version VS Code matrix**: Run the `copilot-e2e` suite against more than one VS Code version (e.g. the pinned version + latest stable, possibly Insiders) as a CI matrix, so BYOK/chat regressions like the 1.132 `context_length` budget change (see [docs/vscode-132-agent-host-investigation.md](docs/vscode-132-agent-host-investigation.md)) are caught when a new stable ships instead of at the next manual bump. Needs a cache key per version and a policy for which failures are blocking (pinned = required, latest = informational). Not now — revisit once the workflow has a longer green track record on 1.132.
 - **Copilot resources and prompts**: Test how the current resources and prompts work in GitHub Copilot.
 - **Windows**: Test on Windows — mainly the named pipe behavior. Test on Linux and headless Linux.
 - **Other AI assistants**: Test with Cline/Roo (VS Code) and with Claude Desktop / Claude Code.

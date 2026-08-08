@@ -75,6 +75,14 @@ jobs:
             });
           "
 
+      # Electron refuses to start if the bundled SUID sandbox helper isn't
+      # root-owned with mode 4755 (the tarball can't preserve that).
+      - name: Fix chrome-sandbox permissions
+        run: |
+          d="$(dirname "${{ steps.vscode.outputs.app }}")"
+          sudo chown root:root "$d/chrome-sandbox"
+          sudo chmod 4755 "$d/chrome-sandbox"
+
       - name: Run Copilot Chat e2e (fake model, S1-S3)
         working-directory: packages/zowe-mcp-e2e
         env:

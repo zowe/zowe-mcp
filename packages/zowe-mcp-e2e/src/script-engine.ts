@@ -79,11 +79,12 @@ export function buildArguments(
     return {};
   }
   const required = schema.required ?? [];
-  const args: Record<string, unknown> = Object.create(null) as Record<string, unknown>;
-  for (const key of required) {
-    args[key] = valueForProperty(key, schema.properties[key], options);
-  }
-  return args;
+  // Built via entries + Object.fromEntries (never a direct `obj[key] = ...`
+  // write with a schema-supplied key), with prototype-polluting names dropped.
+  const entries: [string, unknown][] = required
+    .filter(key => key !== '__proto__' && key !== 'constructor' && key !== 'prototype')
+    .map(key => [key, valueForProperty(key, schema.properties?.[key], options)]);
+  return Object.fromEntries(entries);
 }
 
 /** Find the first tool whose name contains/matches `pattern`. */

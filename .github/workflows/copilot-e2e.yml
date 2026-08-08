@@ -88,6 +88,7 @@ jobs:
         env:
           VSCODE_E2E_APP: ${{ steps.vscode.outputs.app }}
           VSCODE_E2E_CLI: ${{ steps.vscode.outputs.app }}
+          VSCODE_E2E_KEEP_SCRATCH: '1'
         run: xvfb-run -a npm run e2e
 
       - name: Collect scratch logs and screenshots

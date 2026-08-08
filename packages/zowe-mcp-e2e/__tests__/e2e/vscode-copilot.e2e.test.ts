@@ -88,7 +88,9 @@ describe('Copilot Chat BYOK e2e (FAKE model)', () => {
       // startMockZosDaemon's mockDir is a bare os.tmpdir() mkdtemp, not a
       // PortableProfile — clean it up here too, otherwise it leaks a temp
       // dir (fixtures + throwaway SSH key) per run.
-      fs.rmSync(resources.mockZos.mockDir, { recursive: true, force: true });
+      if (!process.env.VSCODE_E2E_KEEP_SCRATCH) {
+        fs.rmSync(resources.mockZos.mockDir, { recursive: true, force: true });
+      }
     }
     killChatCliProcesses(resources.detachedChatPids);
     if (resources.profile) {

@@ -259,7 +259,9 @@ export function cleanupPortableProfile(
   opts: { removeDir?: boolean } = { removeDir: true }
 ): void {
   killProfileProcesses(profile);
-  if (opts.removeDir !== false) {
+  // VSCODE_E2E_KEEP_SCRATCH=1 preserves scratch dirs (screenshots, VS Code
+  // logs, session files) so CI can upload them as failure artifacts.
+  if (opts.removeDir !== false && !process.env.VSCODE_E2E_KEEP_SCRATCH) {
     assertUnderTmp(profile.dir);
     fs.rmSync(profile.dir, { recursive: true, force: true });
   }

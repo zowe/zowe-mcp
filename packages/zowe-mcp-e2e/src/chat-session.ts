@@ -197,6 +197,7 @@ export async function runChatPrompt(
   const env = { ...profile.env, ...(options.extraEnv ?? {}) };
   const beforePids = new Set(listChatCliPids());
 
+  let lingeringPid: number | undefined;
   const result = await new Promise<{ stdout: string; stderr: string; code: number | null }>(
     (resolve, reject) => {
       const child = spawn(codeBin, ['chat', '-m', options.mode, '-n', options.prompt], {
@@ -207,10 +208,14 @@ export async function runChatPrompt(
       child.stdout?.on('data', (d: Buffer) => (stdout += d.toString()));
       child.stderr?.on('data', (d: Buffer) => (stderr += d.toString()));
       const timeout = setTimeout(() => {
-        child.kill('SIGKILL');
-        reject(
-          new Error(`code chat timed out after ${String(options.spawnTimeoutMs ?? 30_000)}ms`)
-        );
+        // Platform difference: on macOS the CLI wrapper forwards the prompt and
+        // exits quickly, but on a cold start (notably Linux) the wrapper *is*
+        // the Electron app process and stays alive until the window closes.
+        // The prompt has been submitted either way, so a still-running child is
+        // not a failure — leave it alive to answer the prompt (the session-file
+        // poll decides success) and let cleanup kill it by pid.
+        lingeringPid = child.pid;
+        resolve({ stdout, stderr, code: null });
       }, options.spawnTimeoutMs ?? 30_000);
       child.on('exit', code => {
         clearTimeout(timeout);
@@ -227,6 +232,9 @@ export async function runChatPrompt(
   await new Promise(r => setTimeout(r, 500));
   const afterPids = listChatCliPids();
   const detachedPids = afterPids.filter(p => !beforePids.has(p));
+  if (lingeringPid !== undefined && !detachedPids.includes(lingeringPid)) {
+    detachedPids.push(lingeringPid);
+  }
   return { ...result, detachedPids };
 }
 

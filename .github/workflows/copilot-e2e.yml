@@ -94,6 +94,7 @@ jobs:
         if: failure()
         run: |
           mkdir -p e2e-artifacts
+          cp -r "${TMPDIR:-/tmp}/zowe-mcp-e2e" e2e-artifacts/ 2>/dev/null || true
           cp -r /tmp/zme2e e2e-artifacts/ 2>/dev/null || true
           find e2e-artifacts -name '*.vscdb*' -delete 2>/dev/null || true
 

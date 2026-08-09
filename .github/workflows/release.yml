@@ -1,0 +1,180 @@
+name: Release
+
+# Builds and publishes a GitHub Release when a reviewed release PR merges to
+# main (see docs/release-process.md for the full pipeline). The version in
+# packages/zowe-mcp-vscode/package.json is the trigger: a `-dev` suffix means
+# "nothing to release yet", so every publishing step is skipped (mirrors
+# Zowe Explorer's -SNAPSHOT guard). A push with a version whose tag already
+# exists is also skipped, so pushes to main between a release and the
+# follow-up dev-bump merge cannot re-release. workflow_dispatch with
+# dry-run builds and packages everything (artifacts uploaded for
+# inspection) without touching Octorelease, tags, or releases.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: 'Dry run: build and package only, publish nothing'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+  pull-requests: write
+
+# Only one release at a time; never cancel a release in progress.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+env:
+  NODE_OPTIONS: --max_old_space_size=4096
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      # Decide the mode before setting up Node so a routine `-dev` push to
+      # main exits in seconds instead of paying for a full npm ci. The
+      # runner ships a system Node, so this doesn't need setup-node first.
+      #   publish — clean, untagged version on a real run: release it
+      #   dry-run — workflow_dispatch with dry-run: build/package rehearsal
+      #             (works even on a -dev version; skips Octorelease)
+      #   skip    — -dev version or tag already exists
+      - name: Determine version and release mode
+        id: version
+        env:
+          DRY_RUN: ${{ github.event.inputs.dry-run }}
+        run: |
+          VERSION=$(node -p "require('./packages/zowe-mcp-vscode/package.json').version")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+          if [[ "$VERSION" == *-* && "$VERSION" != *-dev ]]; then
+            echo "is-prerelease=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "is-prerelease=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          # github.event.inputs.* is a string ("true"/"false") even for a
+          # typed boolean input, and unset (empty) on push events.
+          if [[ "$DRY_RUN" == "true" ]]; then
+            MODE=dry-run
+          elif [[ "$VERSION" == *-dev ]]; then
+            MODE=skip
+            echo "Version $VERSION is a development version — nothing to release."
+          elif git rev-parse -q --verify "refs/tags/v$VERSION" > /dev/null; then
+            MODE=skip
+            echo "Tag v$VERSION already exists — this version is already released."
+          else
+            MODE=publish
+          fi
+          echo "mode=$MODE" >> "$GITHUB_OUTPUT"
+          echo "Mode: $MODE (version $VERSION)"
+
+      - uses: actions/setup-node@v7
+        if: steps.version.outputs.mode != 'skip'
+        with:
+          node-version-file: '.nvmrc'
+          cache: npm
+
+      - name: Install dependencies (npm ci)
+        if: steps.version.outputs.mode != 'skip'
+        run: npm ci --ignore-scripts
+
+      # Notes need no build, so extract them before the (slower)
+      # build/package/publish stage. In publish mode this fails the job if
+      # the changelog has no section for this version — a release PR that
+      # forgot the changelog rollover must not release. Written outside the
+      # workspace so it can never leak into the dev-bump commit.
+      - name: Extract release notes
+        if: steps.version.outputs.mode == 'publish'
+        run: node scripts/extract-release-notes.js "${{ steps.version.outputs.version }}" > "$RUNNER_TEMP/release-notes.md"
+
+      # Dry run: exercise the full build/package path (including the airgap
+      # smoke test) directly, without Octorelease, and keep the artifacts.
+      - name: Build and package (dry run)
+        if: steps.version.outputs.mode == 'dry-run'
+        run: |
+          node scripts/extract-release-notes.js "${{ steps.version.outputs.version }}" > "$RUNNER_TEMP/release-notes.md" \
+            || echo "No changelog section for ${{ steps.version.outputs.version }} — fine for a dry run."
+          npm run ci:package-release
+
+      - name: Upload dry-run artifacts
+        if: steps.version.outputs.mode == 'dry-run'
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-dry-run
+          path: dist/
+          if-no-files-found: error
+
+      # The exec plugin's publishCmd (npm run ci:package-release) does the
+      # build + packaging; the github plugin then creates the vX.Y.Z tag and
+      # a DRAFT release with the assets (publishRelease is off in
+      # release.config.js — the next step publishes it).
+      - name: Run Octorelease
+        if: steps.version.outputs.mode == 'publish'
+        uses: zowe-actions/octorelease@e0672bf28f74f36219713afe75915ea2dc7bf85b # v1
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
+      # Set the human-reviewed notes on the draft, then publish it — one
+      # atomic edit. Doing notes-before-publish means a failure here leaves
+      # a draft (nothing user-visible), and it stays compatible with
+      # GitHub's immutable releases, which lock a release once published.
+      # The prerelease flag is derived from the version string (-rc.N etc.)
+      # rather than left to Octorelease.
+      - name: Publish release with notes
+        if: steps.version.outputs.mode == 'publish'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          args=(--notes-file "$RUNNER_TEMP/release-notes.md" --draft=false)
+          if [ "${{ steps.version.outputs.is-prerelease }}" = "true" ]; then
+            args+=(--prerelease)
+          fi
+          gh release edit "v${{ steps.version.outputs.version }}" "${args[@]}"
+
+      # After a real (non-prerelease) release, open a PR bumping main to the
+      # next -dev version so development can continue. Skipped for
+      # prereleases (an -rc.N rehearsal is still heading to the same final
+      # version). Idempotent: if the branch already exists (e.g. a re-run),
+      # skip instead of failing. Only the version files are staged — the
+      # build may leave other changes in the tree.
+      - name: Open development-version bump PR
+        if: steps.version.outputs.mode == 'publish' && steps.version.outputs.is-prerelease == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          VERSION="${{ steps.version.outputs.version }}"
+          IFS=. read -r major minor _patch <<< "$VERSION"
+          NEXT_VERSION="${major}.$((minor + 1)).0-dev"
+          BRANCH="chore/set-dev-version-${NEXT_VERSION}"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          if git ls-remote --exit-code --heads origin "$BRANCH" > /dev/null 2>&1; then
+            echo "Branch $BRANCH already exists on origin — skipping (likely a re-run)."
+            exit 0
+          fi
+
+          git checkout -b "$BRANCH"
+          node scripts/set-version.js "$NEXT_VERSION"
+          git add -u -- package.json packages/*/package.json packages/zowe-mcp-server/server.json
+          git commit -s -m "chore: set development version to ${NEXT_VERSION}"
+          git push "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git" "HEAD:refs/heads/${BRANCH}"
+
+          gh pr create --base main --head "$BRANCH" \
+            --title "chore: set development version to ${NEXT_VERSION}" \
+            --body "Automated post-release version bump after v${VERSION}. Sets the development version to ${NEXT_VERSION} so main is ready for the next development cycle. Please also sync this onto \`develop\`."

@@ -100,6 +100,7 @@ Ideas inspired by [Gestell-AI/zowe-mcp](https://github.com/Gestell-AI/zowe-mcp) 
 
 ## Documentation & Maintenance
 
+- ✅ **CI-driven release pipeline (phase 1)**: Releases are now built and published by CI ([`.github/workflows/release.yml`](.github/workflows/release.yml) + [Octorelease](https://github.com/zowe-actions/octorelease)) from a reviewed release PR instead of a developer's laptop. See [docs/release-process.md](docs/release-process.md). Later phases (npm, VS Code Marketplace/Open VSX, MCP registry publish, `ZOWE_ROBOT_TOKEN` hardening) are documented there but not yet implemented.
 - **MCP SDK v2**: MCP SDK v1.x is stable and SDK `main` is v2 pre-alpha. When v2 is stable, evaluate migration and update dependencies.
 - ✅ **Mock config hot-reload**: Resolved by the `zoweMCP.backend` dropdown setting — users switch between native and mock via a single setting with auto-migration and prompt-on-select. A window reload is still required but the UX is clear.
 - ✅ **Format tables in generated doc**: The `generate-docs` script now formats all Markdown tables consistently using `markdown-table-prettify` (via the `markdown-table-formatter` devDependency).

@@ -26,6 +26,10 @@ don't warrant an entry (CI, chores, internal refactors, docs-only) can carry the
 
 ### Changed
 
+- **Releases are now built and published by CI** via a reviewed release PR —
+  see [docs/release-process.md](docs/release-process.md). The manual
+  `release-vsix` script has been replaced by `ci:package-release`
+  (build/package only; CI owns tagging and publishing).
 - **Session default: first configured system instead of an error.** When a tool
   is called with no `system` parameter and no active system, the server now
   defaults to the first configured connection instead of erroring, so the first

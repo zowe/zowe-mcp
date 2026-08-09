@@ -157,12 +157,25 @@ npm run check-format  # Same checks without modifying files
 
 ## Releases and CI artifacts
 
-To publish a VSIX to GitHub Releases from your machine (no GitHub Actions):
-run `npm run release-vsix` (tag defaults to `v` + extension version) or
-`npm run release-vsix -- v0.1.0`. Or run `./scripts/release-vsix.sh [TAG]`
-directly. Requires [GitHub CLI](https://cli.github.com/) (`gh`) and
-`gh auth login`. Builds the extension, creates/updates the release for the
-tag, and uploads the VSIX.
+Releases are built and published by CI from a reviewed release PR — see
+[docs/release-process.md](docs/release-process.md) for the full pipeline,
+rehearsal paths (dry run / `-rc.N` prerelease), and the one-time repo
+settings checklist. In short: the `/prepare-release` Cursor command drafts a
+release PR (version bump, changelog rollover, regenerated docs); merging
+that PR to `main` is the approval —
+[`.github/workflows/release.yml`](.github/workflows/release.yml) then
+builds, packages, tags, and publishes the GitHub Release via
+[Octorelease](https://github.com/zowe-actions/octorelease), and opens the
+follow-up "set development version" PR.
+
+To build the same release assets locally (no publishing):
+
+```bash
+npm run ci:package-release   # ./scripts/package-release.sh
+```
+
+This builds the extension and server, packages the VSIX and npm tarball,
+runs the airgap install smoke test, and collects the assets into `dist/`.
 
 ### CI artifacts
 

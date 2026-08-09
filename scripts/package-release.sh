@@ -10,43 +10,35 @@
 #
 
 #
-# Build the Zowe MCP VS Code extension and create a GitHub Release with:
-#   - VSIX (zowe-mcp-vscode-<VERSION>.vsix)
-#   - npm pack of @zowe/mcp-server (zowe-mcp-server-<VERSION>.tgz; same as npm run pack:server)
+# Build and package the release assets for the Zowe MCP VS Code extension
+# and MCP server:
+#   - VSIX (dist/zowe-mcp-vscode-<VERSION>.vsix)
+#   - npm pack of @zowe/mcp-server (dist/zowe-mcp-server-<VERSION>.tgz)
 #   - docs/mcp-reference.md
 #   - presentations/zowe-mcp/zowe-mcp-slides.pdf
 #
-# Requires: npm, gh (GitHub CLI), and gh auth login.
+# Invoked by CI as the Octorelease exec plugin's publish command (see
+# release.config.js and .github/workflows/release.yml — `npm run
+# ci:package-release`). Tagging, pushing, and creating the GitHub Release are
+# CI's job now (Octorelease's github plugin); this script only builds and
+# collects assets into dist/. Also usable locally for dry runs.
 #
 # Usage:
-#   ./scripts/release-vsix.sh [TAG]
+#   ./scripts/package-release.sh
 #
-# If TAG is omitted, uses v<VERSION> from packages/zowe-mcp-vscode/package.json
-# (e.g. v0.1.0). The tag is created from the current HEAD and pushed; then
-# a release is created and the assets are uploaded.
-#
-# Examples:
-#   ./scripts/release-vsix.sh           # use version from package.json
-#   ./scripts/release-vsix.sh v0.1.0    # explicit tag
+# Uses the version from packages/zowe-mcp-vscode/package.json.
 
 set -e
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO_ROOT"
 
-# Resolve tag
-if [ -n "$1" ]; then
-  TAG="$1"
-  VERSION="${TAG#v}"
-else
-  VERSION=$(node -p "require('./packages/zowe-mcp-vscode/package.json').version")
-  TAG="v${VERSION}"
-fi
+VERSION=$(node -p "require('./packages/zowe-mcp-vscode/package.json').version")
 
 # Sync version in all package.json so VSIX and builds use the same version
 node scripts/set-version.js "$VERSION"
 
-echo "Building and packaging extension for tag: $TAG"
+echo "Building and packaging release assets for version: $VERSION"
 
 # Build all (server + extension)
 npm run build
@@ -74,6 +66,10 @@ if [ ! -f "$SERVER_TGZ" ]; then
 fi
 echo "Server npm pack: $SERVER_TGZ"
 
+# Airgap install smoke test against the tarball just packed (existing-tarball
+# variant of test:airgap — it locates zowe-mcp-server-*.tgz at the repo root).
+npm run test:airgap
+
 MCP_REFERENCE="$REPO_ROOT/docs/mcp-reference.md"
 SLIDES_PDF="$REPO_ROOT/presentations/zowe-mcp/zowe-mcp-slides.pdf"
 for f in "$MCP_REFERENCE" "$SLIDES_PDF"; do
@@ -86,22 +82,14 @@ done
 echo "Docs: $MCP_REFERENCE"
 echo "Slides: $SLIDES_PDF"
 
-# Create and push tag if it doesn't exist
-if ! git rev-parse "$TAG" > /dev/null 2>&1; then
-  echo "Creating tag $TAG from current HEAD..."
-  git tag "$TAG"
-  echo "Pushing tag $TAG..."
-  git push origin "$TAG"
-fi
+# Collect the final artifacts into dist/ at the repo root, wiping stale
+# contents first so a re-run never leaves an old version's files behind.
+DIST_DIR="$REPO_ROOT/dist"
+rm -rf "$DIST_DIR"
+mkdir -p "$DIST_DIR"
+cp "$VSIX" "$DIST_DIR/"
+cp "$SERVER_TGZ" "$DIST_DIR/"
+rm -f "$SERVER_TGZ"
 
-# Create release with all assets or upload to existing release
-RELEASE_ASSETS=("$VSIX" "$SERVER_TGZ" "$MCP_REFERENCE" "$SLIDES_PDF")
-if gh release view "$TAG" > /dev/null 2>&1; then
-  echo "Release $TAG already exists; uploading assets..."
-  gh release upload "$TAG" "${RELEASE_ASSETS[@]}" --clobber
-else
-  echo "Creating GitHub Release and uploading assets..."
-  gh release create "$TAG" "${RELEASE_ASSETS[@]}" --generate-notes
-fi
-
-echo "Done. Release: $(gh release view "$TAG" --json url -q .url)"
+echo "Release assets collected in $DIST_DIR:"
+ls -la "$DIST_DIR"

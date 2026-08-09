@@ -69,9 +69,17 @@ for (const p of packagePaths) {
 }
 
 // MCP registry manifest: top-level version and every packages[].version.
+// Read directly (rather than existsSync + readFileSync) to avoid a
+// check-then-use race between the existence check and the read.
 const serverJsonPath = path.join(repoRoot, 'packages', 'zowe-mcp-server', 'server.json');
-if (fs.existsSync(serverJsonPath)) {
-  const serverJson = JSON.parse(fs.readFileSync(serverJsonPath, 'utf8'));
+let serverJsonRaw;
+try {
+  serverJsonRaw = fs.readFileSync(serverJsonPath, 'utf8');
+} catch (err) {
+  if (err.code !== 'ENOENT') throw err;
+}
+if (serverJsonRaw !== undefined) {
+  const serverJson = JSON.parse(serverJsonRaw);
   let changed = false;
   if (serverJson.version !== undefined) {
     serverJson.version = version;

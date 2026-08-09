@@ -12,9 +12,7 @@ name: Release
 
 on:
   push:
-    # TEMP (revert before merge): ci/release-automation added to exercise the
-    # dry-run path in CI while the workflow isn't on main yet.
-    branches: [main, ci/release-automation]
+    branches: [main]
   workflow_dispatch:
     inputs:
       dry-run:

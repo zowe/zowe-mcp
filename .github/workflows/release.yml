@@ -96,6 +96,12 @@ jobs:
         if: steps.version.outputs.mode != 'skip'
         run: npm ci --ignore-scripts
 
+      # --ignore-scripts suppresses the install script that fetches the VS
+      # Code API typings, so fetch them explicitly (same as ci.yml).
+      - name: Download VS Code API types
+        if: steps.version.outputs.mode != 'skip'
+        run: npm run download-api -w packages/zowe-mcp-vscode
+
       # Notes need no build, so extract them before the (slower)
       # build/package/publish stage. In publish mode this fails the job if
       # the changelog has no section for this version — a release PR that

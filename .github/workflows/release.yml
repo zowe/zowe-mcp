@@ -12,7 +12,9 @@ name: Release
 
 on:
   push:
-    branches: [main]
+    # TEMP (revert before merge): ci/release-automation added to exercise the
+    # dry-run path in CI while the workflow isn't on main yet.
+    branches: [main, ci/release-automation]
   workflow_dispatch:
     inputs:
       dry-run:
@@ -67,7 +69,10 @@ jobs:
 
           # github.event.inputs.* is a string ("true"/"false") even for a
           # typed boolean input, and unset (empty) on push events.
-          if [[ "$DRY_RUN" == "true" ]]; then
+          # Publishing is only ever allowed from main; any run on another
+          # ref (e.g. workflow_dispatch against a branch) is forced into
+          # dry-run mode as a safety net.
+          if [[ "$DRY_RUN" == "true" || "$GITHUB_REF_NAME" != "main" ]]; then
             MODE=dry-run
           elif [[ "$VERSION" == *-dev ]]; then
             MODE=skip

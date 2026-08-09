@@ -72,7 +72,9 @@ Two ways to exercise the pipeline without cutting a real release:
    smoke test) and best-effort notes extraction, uploads the `dist/`
    contents as a workflow artifact for inspection, and never touches
    Octorelease, tags, or releases. It works even while the version is
-   `-dev`, on any branch that has the workflow file.
+   `-dev`, on any branch that has the workflow file — and as a safety net,
+   any run on a ref other than `main` is forced into dry-run mode
+   regardless of inputs.
 2. **Prerelease rehearsal (recommended before the first real release).**
    Run `/prepare-release` targeting a prerelease version, e.g. `0.10.0-rc.1`.
    The `-dev` guard only skips versions ending in `-dev`, so an `-rc.N`

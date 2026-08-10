@@ -36,6 +36,7 @@ export default tseslint.config(
           'packages/zowe-mcp-server/tsconfig.eslint.json',
           'packages/zowe-mcp-vscode/tsconfig.eslint.json',
           'packages/zowe-mcp-evals/tsconfig.eslint.json',
+          'packages/zowe-mcp-e2e/tsconfig.eslint.json',
         ],
         tsconfigRootDir: import.meta.dirname,
       },

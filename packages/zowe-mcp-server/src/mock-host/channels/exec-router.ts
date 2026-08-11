@@ -10,9 +10,11 @@
  */
 
 /**
- * Routes incoming SSH `exec` commands. Three classes of command are recognized:
+ * Routes incoming SSH `exec` commands. Four classes of command are recognized:
  *
  *   1. `<path>/zowex server [args]`   →  start the JSON-RPC dispatcher on this channel
+ *   1b. `<path>/zowex -v`             →  post-deploy smoke test (verifyZowexBinary):
+ *      report a fake version line and exit 0
  *   2. `cat > /tmp/zrs-pipe-*`        →  client is uploading bytes for a PUT streaming RPC
  *      `cat /tmp/zrs-pipe-*`          →  client is downloading bytes for a GET streaming RPC
  *   3. anything else (e.g. `pax -rzf server.pax.Z`, `mkdir -p`, `ls -la /u/USER`)
@@ -25,7 +27,7 @@ import ssh2 from 'ssh2';
 import type { MockHostStore } from '../store.js';
 import type { MockUser } from '../users.js';
 import { newShellSession, runLine } from '../uss-shell/interpreter.js';
-import { startRpcChannel } from './rpc-channel.js';
+import { loadServerVersion, startRpcChannel } from './rpc-channel.js';
 import {
   appendReceiveChunk,
   failReceive,
@@ -44,6 +46,12 @@ export interface ExecRouterCtx {
 }
 
 const ZOWEX_RE = /(?:^|\/)zowex\s+server\b/;
+// zowex-deploy-check.ts's verifyZowexBinary runs `<path>/zowex -v` right after a deploy
+// to confirm the binary isn't a truncated program object (see issue #47). The real binary
+// prints a version line and exits 0; without this case the command falls through to the
+// USS shell interpreter, which has no `zowex` builtin and returns FSUM7351 (rc=127) —
+// making every mock-backed deploy look like it failed to start.
+const ZOWEX_VERSION_RE = /(?:^|\/)zowex\s+-v\b/;
 const CAT_WRITE_RE = /^cat\s*>\s*(\/tmp\/zrs-pipe-\S+)\s*$/;
 const CAT_READ_RE = /^cat\s+(\/tmp\/zrs-pipe-\S+)\s*$/;
 // zowex-sdk 0.7.1's ZSshUtils.installServer extracts the PAX archive via
@@ -76,6 +84,16 @@ export function handleExec(
       systemId: ctx.systemId,
       log: ctx.log,
     });
+    return;
+  }
+
+  // 1b. zowex -v → post-deploy smoke test → report a version line, rc=0
+  if (ZOWEX_VERSION_RE.test(cmd)) {
+    const version = loadServerVersion();
+    ctx.log('info', `EXEC zowex -v (no-op) → rc=0 version=${version}`);
+    channel.write(`zowex ${version}\n`);
+    channel.exit(0);
+    channel.end();
     return;
   }
 

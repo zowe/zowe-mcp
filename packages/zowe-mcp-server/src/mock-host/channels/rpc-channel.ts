@@ -125,7 +125,7 @@ function loadChecksums(): Record<string, string> {
  *      the SDK's files are unreadable — better to run a slightly-stale mock
  *      than hang forever.
  */
-function loadServerVersion(): string {
+export function loadServerVersion(): string {
   for (const dir of candidateSdkDirs()) {
     try {
       const pkgRaw = fs.readFileSync(path.join(dir, 'package.json'), 'utf-8');

@@ -77,6 +77,7 @@ import {
   takeAbendSnippet,
 } from './stderr-abend-capture.js';
 import { logZowexRpcResponse, requireMethods, sanitizeZowexString } from './zowex-debug.js';
+import { isZowexTruncatedModuleError } from './zowex-deploy-check.js';
 
 const log = getLogger().child('native');
 
@@ -634,6 +635,7 @@ export class NativeBackend {
         code
       );
       const abendDetected = isAbendError(fullMsg);
+      const truncatedModuleDetected = isZowexTruncatedModuleError(fullMsg);
       const zowexOperation = operationContext?.operation ?? 'unknown';
       const mcpTool = getCurrentMcpTool() ?? 'unknown';
 
@@ -652,8 +654,14 @@ export class NativeBackend {
         isInvalidPassword,
         isPasswordExpired,
         abendDetected,
+        truncatedModuleDetected,
       });
-      if (abendDetected) {
+      if (truncatedModuleDetected) {
+        log.notice(
+          `Zowe Remote SSH server binary on z/OS appears truncated/corrupted during operation '${zowexOperation}' (MCP tool: '${mcpTool}') — this usually happens when the deploy directory ran out of space during a previous install. Connection evicted; the next request will attempt to redeploy automatically. Details: ${sanitizeAbendMessage(fullMsg)}`,
+          { systemId, host: spec.host, user: spec.user, zowexOperation, mcpTool }
+        );
+      } else if (abendDetected) {
         log.notice(
           `Zowe Remote SSH server on z/OS abended during Zowe Remote SSH operation '${zowexOperation}' (MCP tool: '${mcpTool}'). ${abendReason}. Connection evicted; next request will use a new connection. Set ZOWE_MCP_CEEDUMP_SAVE_DIR to collect CEEDUMPs. Please report via GitHub issues: ${ZOWEX_ISSUES_URL}`,
           { systemId, host: spec.host, user: spec.user, zowexOperation, mcpTool, abendReason }
@@ -677,13 +685,15 @@ export class NativeBackend {
         this.options.credentialProvider.markInvalid(spec);
         this.options.clientCache.evict(spec);
         this.options.onPasswordInvalid?.(spec.user, spec.host, spec.port);
-      } else if (isConnectionError) {
+      } else if (isConnectionError || truncatedModuleDetected) {
         this.options.clientCache.evict(spec);
         log.info(
           'Native connection evicted due to backend/connection error; lock released — next request will use a new connection',
           { key, systemId, host: spec.host, user: spec.user }
         );
-        if (abendDetected) {
+        // A truncated module fails at z/OS load time, before zowex's runtime is up, so no
+        // CEEDUMP is produced for it — only collect one for a genuine runtime abend.
+        if (abendDetected && !truncatedModuleDetected) {
           void this.collectCeedumpAfterAbend(
             spec,
             systemId,
@@ -693,6 +703,15 @@ export class NativeBackend {
             mcpTool
           );
         }
+      }
+      if (truncatedModuleDetected) {
+        throw new Error(
+          `The Zowe Remote SSH server binary on z/OS appears to be truncated or corrupted — this usually ` +
+            `happens when the deploy directory ran out of space during a previous install. The connection ` +
+            `has been reset; retrying this request should trigger an automatic redeploy. If it keeps ` +
+            `failing, free up space in the deploy directory (or its zFS filesystem) and try again. ` +
+            `Details: ${sanitizeAbendMessage(fullMsg)}`
+        );
       }
       if (abendDetected) {
         const userMessage = `An unexpected internal error occurred in Zowe Remote SSH (z/OS). Details: ${abendReason}. Please report via GitHub issues: ${ZOWEX_ISSUES_URL}`;

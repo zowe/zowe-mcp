@@ -1,5 +1,19 @@
 # E2E Copilot Demo Test Plan
 
+> **Status update (2026-08-08): implemented — differently than planned below.**
+> A working, fully scripted Copilot Chat e2e harness now lives in
+> `packages/zowe-mcp-e2e` (see its README). The two premises that shaped this
+> plan no longer hold: BYOK works with **no GitHub sign-in** since VS Code
+> 1.122 (so no auth persistence problem exists), and chat/copilot-chat ships
+> built into VS Code core. The harness therefore uses a **from-scratch
+> portable profile per run** (`VSCODE_PORTABLE`) instead of the persistent
+> profile proposed here, drives the one-time BYOK activation with Playwright
+> Electron, submits prompts headlessly via `code chat`, and asserts on the
+> persisted chat-session JSONL. A deterministic fake model server makes it
+> CI-viable (`.github/workflows/copilot-e2e.yml`); a real local Ollama model
+> is an env-gated variant. The rest of this document is kept for historical
+> context.
+
 ## Goal
 
 Create an end-to-end test that drives a real VS Code instance with GitHub

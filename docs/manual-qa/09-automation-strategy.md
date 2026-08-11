@@ -1,5 +1,17 @@
 # 09 — Why Copilot UI is manual (and what we automate instead)
 
+> **Status update (2026-08-08):** the two hardest blockers below are obsolete,
+> and Copilot Chat e2e **is now automated** in `packages/zowe-mcp-e2e`
+> (fake-model CI mode + real-Ollama local mode; see its README and
+> `.github/workflows/copilot-e2e.yml`). Specifically: **Authentication** — BYOK
+> requires no GitHub account since VS Code 1.122, so there is no OAuth/2FA/CI
+> secret problem; **BYOK/Manage Models** — the `github.copilot.chat.byok.ollamaEndpoint`
+> setting plus one scripted command-palette invocation configures models with
+> no settings-UI flow. First-run/trust prompts and selector churn remain real
+> concerns and are handled in the harness (seeded settings/state, keyboard-only
+> driving, screenshots on failure). The manual procedures below stay valuable
+> for exploratory QA and for flows the harness does not cover.
+
 ## Objective
 
 **GitHub Copilot Chat** and related VS Code UI (**Manage Models**, **MCP: List Servers**, trust dialogs) are verified with the **numbered manual procedures** ([00](00-prerequisites.md)–[08](08-failure-and-recovery.md)) and optional **profile checkpoints**. This document explains **why** those flows are **not** automated in this repository, and what **is** automated for confidence before manual Copilot checks.

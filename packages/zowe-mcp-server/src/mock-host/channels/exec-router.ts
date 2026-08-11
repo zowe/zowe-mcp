@@ -46,7 +46,17 @@ export interface ExecRouterCtx {
 const ZOWEX_RE = /(?:^|\/)zowex\s+server\b/;
 const CAT_WRITE_RE = /^cat\s*>\s*(\/tmp\/zrs-pipe-\S+)\s*$/;
 const CAT_READ_RE = /^cat\s+(\/tmp\/zrs-pipe-\S+)\s*$/;
-const PAX_RE = /^pax\s+-rzf\s+server\.pax\.Z\s*$/;
+// zowex-sdk 0.7.1's ZSshUtils.installServer extracts the PAX archive via
+// `ssh.execCommand('pax -rzf server.pax.Z', { cwd: remoteDir })`. node-ssh
+// (see node_modules/node-ssh/lib/cjs/index.js execCommand) implements `cwd` by
+// prefixing the command with `cd <shell-escaped dir> ; `, so the string this
+// mock actually receives on the wire looks like
+// `cd '~/.zowe-server' ; pax -rzf server.pax.Z`, not the bare `pax` command.
+// Match an optional leading `cd <dir> ;` wrapper, and tolerate a path prefix
+// on the archive name (in case a future SDK version passes a full remote path
+// instead of relying on `cwd`).
+const CD_WRAPPER_RE = /^cd\s+(?:'[^']*'|"[^"]*"|\S+)\s*;\s*/;
+const PAX_RE = /^pax\s+-rzf\s+(?:\S*\/)?server\.pax\.Z\s*$/;
 const SILENT_OK_RE = /^(mkdir|rm)\s+/;
 
 export function handleExec(
@@ -111,8 +121,12 @@ export function handleExec(
     return;
   }
 
-  // 3a. pax -rzf server.pax.Z → silent success (we don't actually extract)
-  if (PAX_RE.test(cmd)) {
+  // 3a. pax -rzf server.pax.Z → silent success (we don't actually extract).
+  // Strip a `cd <dir> ; ` wrapper first — node-ssh's execCommand({ cwd })
+  // (used by ZSshUtils.installServer's extraction step) prefixes the real
+  // command with one instead of sending `pax` bare.
+  const unwrapped = cmd.replace(CD_WRAPPER_RE, '');
+  if (PAX_RE.test(unwrapped)) {
     ctx.log('info', `EXEC pax extract (no-op) → rc=0`);
     channel.exit(0);
     channel.end();
@@ -120,7 +134,7 @@ export function handleExec(
   }
 
   // 3b. mkdir -p / rm -rf for the zowex install dance → silent success
-  if (SILENT_OK_RE.test(cmd) && !isShellCommand(cmd)) {
+  if (SILENT_OK_RE.test(unwrapped) && !isShellCommand(unwrapped)) {
     ctx.log('debug', `EXEC install-dance command (no-op) → rc=0`);
     channel.exit(0);
     channel.end();

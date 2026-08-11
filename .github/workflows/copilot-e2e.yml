@@ -1,0 +1,127 @@
+# End-to-end test of the VS Code extension driven through real Copilot Chat.
+#
+# A from-scratch portable VS Code profile gets the Zowe MCP extension installed
+# from a freshly built .vsix, a BYOK "model" is registered (a deterministic
+# fake server speaking the Ollama API — no real LLM, no GitHub sign-in), and a
+# chat prompt makes the model call a Zowe MCP tool backed by a mock z/OS
+# system (both the filesystem mock and the mock z/OS SSH host). Assertions
+# read the persisted chat session JSONL. See packages/zowe-mcp-e2e/README.md.
+#
+# Kept out of the required ci-ok gate on purpose while the suite builds a
+# stability track record.
+name: Copilot Chat E2E
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [feature/copilot-byok-e2e]
+  pull_request:
+    paths:
+      - 'packages/zowe-mcp-e2e/**'
+      - 'packages/zowe-mcp-vscode/**'
+      - 'packages/zowe-mcp-server/src/mock-host/**'
+      - '.github/workflows/copilot-e2e.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: copilot-e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  copilot-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: '.nvmrc'
+          cache: npm
+
+      # package-lock.json intentionally lags this branch (it is entangled with
+      # unrelated in-flight dependency work), so use npm install rather than ci.
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build MCP server
+        run: |
+          npm run build -w packages/zowe-mcp-common
+          npm run build -w @zowe/mcp-server
+
+      - name: Build extension .vsix
+        run: npm run package -w zowe-mcp-vscode
+
+      - name: Build e2e harness
+        run: npm run build -w zowe-mcp-e2e
+
+      # Pinned to a version the harness is verified against; bump
+      # deliberately (and update the cache key below) after a local run of
+      # S1-S3 against the new version. 1.132's apparent BYOK breakage was
+      # root-caused to a fake-server context_length issue and fixed — see
+      # docs/vscode-132-agent-host-investigation.md and the harness README's
+      # "Known gotchas".
+      - name: Cache VS Code download
+        uses: actions/cache@v6
+        with:
+          path: packages/zowe-mcp-vscode/.vscode-test
+          key: vscode-e2e-1.132.0-${{ runner.os }}
+
+      - name: Download VS Code (pinned)
+        id: vscode
+        working-directory: packages/zowe-mcp-vscode
+        run: |
+          node -e "
+            const { downloadAndUnzipVSCode } = require('@vscode/test-electron');
+            const path = require('path');
+            const fs = require('fs');
+            downloadAndUnzipVSCode('1.132.0').then(p => {
+              const cli = path.join(path.dirname(p), 'bin', 'code');
+              console.log('VS Code executable:', p, 'CLI:', cli);
+              fs.accessSync(cli, fs.constants.X_OK);
+              fs.appendFileSync(process.env.GITHUB_OUTPUT, 'app=' + p + '\n' + 'cli=' + cli + '\n');
+            });
+          "
+
+      # Electron refuses to start if the bundled SUID sandbox helper isn't
+      # root-owned with mode 4755 (the tarball can't preserve that).
+      - name: Fix chrome-sandbox permissions
+        run: |
+          d="$(dirname "${{ steps.vscode.outputs.app }}")"
+          sudo chown root:root "$d/chrome-sandbox"
+          sudo chmod 4755 "$d/chrome-sandbox"
+
+      - name: Run Copilot Chat e2e (fake model, S1-S3)
+        working-directory: packages/zowe-mcp-e2e
+        env:
+          VSCODE_E2E_APP: ${{ steps.vscode.outputs.app }}
+          # bin/code (launcher script), NOT the Electron binary: the `chat`
+          # subcommand is delegated by the script to the bundled Rust CLI;
+          # the Electron binary would treat "chat <prompt>" as paths to open.
+          VSCODE_E2E_CLI: ${{ steps.vscode.outputs.cli }}
+          VSCODE_E2E_KEEP_SCRATCH: '1'
+        run: xvfb-run -a npm run e2e
+
+      # On success only the screenshots are uploaded (always useful — they
+      # show the rendered chat response); on failure the full scratch dirs
+      # (VS Code logs, session jsonl, state) come along for diagnosis.
+      - name: Collect logs and screenshots
+        if: always()
+        run: |
+          mkdir -p e2e-artifacts
+          cp -r packages/zowe-mcp-e2e/e2e-screenshots e2e-artifacts/ 2>/dev/null || true
+          if [ "${{ job.status }}" != "success" ]; then
+            cp -r "${TMPDIR:-/tmp}/zowe-mcp-e2e" e2e-artifacts/ 2>/dev/null || true
+            cp -r /tmp/zme2e e2e-artifacts/ 2>/dev/null || true
+          fi
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: copilot-e2e-artifacts
+          path: e2e-artifacts
+          retention-days: 7
+          if-no-files-found: ignore

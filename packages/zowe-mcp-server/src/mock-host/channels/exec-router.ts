@@ -87,11 +87,13 @@ export function handleExec(
     return;
   }
 
-  // 1b. zowex -v → post-deploy smoke test → report a version line, rc=0
+  // 1b. zowex -v → post-deploy smoke test → report a version line, rc=0.
+  // Real zowex prints the bare version (e.g. "0.6.1+1c4859ed"), no "zowex " prefix
+  // (confirmed against a real z/OS system).
   if (ZOWEX_VERSION_RE.test(cmd)) {
     const version = loadServerVersion();
     ctx.log('info', `EXEC zowex -v (no-op) → rc=0 version=${version}`);
-    channel.write(`zowex ${version}\n`);
+    channel.write(`${version}\n`);
     channel.exit(0);
     channel.end();
     return;

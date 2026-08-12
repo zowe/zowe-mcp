@@ -58,6 +58,19 @@ don't warrant an entry (CI, chores, internal refactors, docs-only) can carry the
 
 ### Fixed
 
+- **Certificate tools reported empty SAF return codes.** zowex#1079 renamed the
+  SDK's `SafReturns.racfReturnCode`/`racfReasonCode` to
+  `esmReturnCode`/`esmReasonCode` (vendor-neutral, since the codes apply to ACF2
+  and Top Secret too). The native backend still read the old names, so
+  `safReturnCodes.productReturnCode` and `productReasonCode` came back
+  `undefined` on every certificate action that carried SAF codes. The backend now
+  sources these types from the SDK rather than mirroring them by hand, so a
+  future upstream rename fails the build instead of silently emptying the field.
+
+- **`exportCertificate` accepted `format: "p12"` without a passphrase**, which
+  the z/OS side then rejected with an opaque error. The tool now validates it up
+  front and says which parameter is missing.
+
 - **Mock z/OS host compatibility with zowex SDK 0.7.1**: the RPC ready payload
   now reports a server `version` (resolved dynamically from the installed SDK),
   the SFTP subsystem uses ssh2's dedicated `'sftp'` event (previously the
@@ -65,6 +78,16 @@ don't warrant an entry (CI, chores, internal refactors, docs-only) can carry the
   recognizes `cd '<dir>' ; pax ...` command wrapping.
 
 ### Changed
+
+- **The zowex SDK tarball is no longer committed to the repository.**
+  `resources/zowex-pin.json` records the exact build (URL, SHA-256, datestamp,
+  upstream commit) and `scripts/sdk-switch.js pin` stages it on demand,
+  verifying the checksum. Regular CI builds against that pin; the nightly
+  workflow keeps floating on the newest upstream build and opens a pin-bump PR
+  when it passes. Release artifacts now include the SDK tarball itself plus a
+  `zowex-provenance.json`, so a published version stays reproducible after
+  upstream prunes its nightly snapshots (~6 weeks). The `sdk-switch.js fallback`
+  mode is gone — `pin` replaces it.
 
 - **Releases are now built and published by CI** via a reviewed release PR —
   see [docs/release-process.md](docs/release-process.md). The manual

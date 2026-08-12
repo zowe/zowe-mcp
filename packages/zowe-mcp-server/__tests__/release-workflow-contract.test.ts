@@ -52,7 +52,7 @@ function loadReleaseSteps(): WorkflowStep[] {
 function findStep(steps: WorkflowStep[], name: string): WorkflowStep {
   const step = steps.find(s => s.name === name);
   expect(step, `release job must have a step named "${name}"`).toBeDefined();
-  return step as WorkflowStep;
+  return step!;
 }
 
 describe('release workflow contract', () => {

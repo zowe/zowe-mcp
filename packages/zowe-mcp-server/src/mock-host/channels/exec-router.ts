@@ -13,8 +13,8 @@
  * Routes incoming SSH `exec` commands. Four classes of command are recognized:
  *
  *   1. `<path>/zowex server [args]`   →  start the JSON-RPC dispatcher on this channel
- *   1b. `<path>/zowex -v`             →  post-deploy smoke test (verifyZowexBinary):
- *      report a fake version line and exit 0
+ *   1b. `<path>/zowex -v|--version`   →  post-deploy smoke test (verifyZowexBinary /
+ *      ZSshUtils.verifyServerBinary): report a fake version line and exit 0
  *   2. `cat > /tmp/zrs-pipe-*`        →  client is uploading bytes for a PUT streaming RPC
  *      `cat /tmp/zrs-pipe-*`          →  client is downloading bytes for a GET streaming RPC
  *   3. anything else (e.g. `pax -rzf server.pax.Z`, `mkdir -p`, `ls -la /u/USER`)
@@ -46,12 +46,15 @@ export interface ExecRouterCtx {
 }
 
 const ZOWEX_RE = /(?:^|\/)zowex\s+server\b/;
-// zowex-deploy-check.ts's verifyZowexBinary runs `<path>/zowex -v` right after a deploy
-// to confirm the binary isn't a truncated program object (see issue #47). The real binary
-// prints a version line and exits 0; without this case the command falls through to the
-// USS shell interpreter, which has no `zowex` builtin and returns FSUM7351 (rc=127) —
-// making every mock-backed deploy look like it failed to start.
-const ZOWEX_VERSION_RE = /(?:^|\/)zowex\s+-v\b/;
+// Two callers run the freshly deployed binary to confirm it loads, with different flags:
+//   - zowex-deploy-check.ts's verifyZowexBinary uses `<path>/zowex -v` (see issue #47)
+//   - zowex-sdk 0.7.1's ZSshUtils.verifyServerBinary uses `./zowex --version`, cwd-wrapped
+// The real binary prints a version line and exits 0 for both. Without matching *both* spellings
+// the command falls through to the USS shell interpreter, which has no `zowex` builtin and
+// returns FSUM7351 (rc=127) — making every mock-backed deploy look like it failed to start.
+// Not start-anchored on purpose: `./zowex` matches via the `/` alternative, which also covers
+// the `cd '<dir>' ; ` prefix node-ssh adds for `execCommand(..., { cwd })`.
+const ZOWEX_VERSION_RE = /(?:^|\/)zowex\s+(?:-v|--version)\b/;
 const CAT_WRITE_RE = /^cat\s*>\s*(\/tmp\/zrs-pipe-\S+)\s*$/;
 const CAT_READ_RE = /^cat\s+(\/tmp\/zrs-pipe-\S+)\s*$/;
 // zowex-sdk 0.7.1's ZSshUtils.installServer extracts the PAX archive via
@@ -87,12 +90,12 @@ export function handleExec(
     return;
   }
 
-  // 1b. zowex -v → post-deploy smoke test → report a version line, rc=0.
+  // 1b. zowex -v / --version → post-deploy smoke test → report a version line, rc=0.
   // Real zowex prints the bare version (e.g. "0.6.1+1c4859ed"), no "zowex " prefix
   // (confirmed against a real z/OS system).
   if (ZOWEX_VERSION_RE.test(cmd)) {
     const version = loadServerVersion();
-    ctx.log('info', `EXEC zowex -v (no-op) → rc=0 version=${version}`);
+    ctx.log('info', `EXEC zowex version check (no-op) → rc=0 version=${version}`);
     channel.write(`${version}\n`);
     channel.exit(0);
     channel.end();

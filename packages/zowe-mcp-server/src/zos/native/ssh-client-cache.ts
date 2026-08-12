@@ -244,7 +244,7 @@ export class SshClientCache {
         port: spec.port,
       });
 
-      const outdated = await ZSshUtils.checkIfOutdated(client.serverChecksums);
+      const outdated = ZSshUtils.checkIfOutdated(client.serverVersion);
       if (outdated && opts.autoInstallZowex) {
         log.info('zowex z/OS server is outdated, redeploying', {
           key,

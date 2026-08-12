@@ -91,5 +91,10 @@ cp "$VSIX" "$DIST_DIR/"
 cp "$SERVER_TGZ" "$DIST_DIR/"
 rm -f "$SERVER_TGZ"
 
+# Archive the zowex SDK build this release was compiled against, plus a provenance record.
+# Upstream nightly snapshots are pruned after ~6 weeks, so without this a released version's
+# exact SDK becomes unobtainable.
+node "$REPO_ROOT/scripts/archive-zowex-sdk.js" "$DIST_DIR"
+
 echo "Release assets collected in $DIST_DIR:"
 ls -la "$DIST_DIR"

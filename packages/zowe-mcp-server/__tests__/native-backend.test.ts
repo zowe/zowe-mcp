@@ -16,6 +16,7 @@
  */
 /* eslint-disable @typescript-eslint/unbound-method -- expect(mock.method).toHaveBeenCalledWith is safe in tests */
 
+import type { certificates as ZowexCerts } from '@zowe/zowex-for-zowe-sdk';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ParsedConnectionSpec } from '../src/zos/native/connection-spec.js';
 import type { NativeBackendOptions } from '../src/zos/native/native-backend.js';
@@ -159,6 +160,15 @@ function createFakeClient(overrides?: {
     string: string;
     parms?: string;
   }) => Promise<{ data?: string }>;
+  /**
+   * Stub for `client.certificates.trustCertificate`. Typed with the SDK's own response type so a
+   * field rename upstream breaks this fixture at compile time, not just at runtime.
+   */
+  trustCertificate?: (req: {
+    owner: string;
+    label: string;
+    status: string;
+  }) => Promise<ZowexCerts.CertCommandResponse>;
 }) {
   const defaultReadDataset = (req: { dsname: string }) => {
     void req;
@@ -193,6 +203,10 @@ function createFakeClient(overrides?: {
 
   if (overrides?.toolSearch) {
     client.tool = { search: overrides.toolSearch };
+  }
+
+  if (overrides?.trustCertificate) {
+    client.certificates = { trustCertificate: overrides.trustCertificate };
   }
 
   return client;
@@ -858,6 +872,108 @@ describe('NativeBackend', () => {
 
       expect(result.members).toHaveLength(0);
       expect(result.summary.linesFound).toBe(0);
+    });
+  });
+
+  /**
+   * Regression coverage for `mapCertActionResult`.
+   *
+   * zowex#1079 renamed `SafReturns.racfReturnCode`/`racfReasonCode` to `esmReturnCode`/`esmReasonCode`.
+   * Because the SDK's certificate API was reached through an `as unknown as` cast and mirrored by
+   * hand-written interfaces, the stale field names still compiled and the whole suite still passed —
+   * the mapping just produced `undefined` at runtime. Nothing exercised `safReturns` at all.
+   *
+   * These tests pin the mapping from the SDK's ESM-neutral field names onto our vendor-neutral
+   * `productReturnCode`/`productReasonCode`, and the fixtures are typed with the SDK's own
+   * `CertCommandResponse` so a future rename breaks the build here too.
+   */
+  describe('certificate SAF return codes', () => {
+    const TRUST_OPTIONS = { owner: 'USER01', label: 'CERT01', status: 'NOTRUST' } as const;
+
+    it('maps SDK esmReturnCode/esmReasonCode onto product return/reason codes', async () => {
+      const response: ZowexCerts.CertCommandResponse = {
+        success: true,
+        warning: 'certificate already exists in the ESM database; the supplied label was ignored',
+        safReturns: {
+          functionCode: 0x08,
+          safReturnCode: 8,
+          esmReturnCode: 4,
+          esmReasonCode: 12,
+        },
+        gskReturnCode: 3,
+      };
+      const backend = createBackendWithClient({
+        trustCertificate: () => Promise.resolve(response),
+      });
+
+      const result = await backend.trustCertificate(SYSTEM_ID, TRUST_OPTIONS);
+
+      expect(result.safReturnCodes).toEqual({
+        functionCode: 0x08,
+        safReturnCode: 8,
+        productReturnCode: 4,
+        productReasonCode: 12,
+      });
+      expect(result.warning).toBe(
+        'certificate already exists in the ESM database; the supplied label was ignored'
+      );
+      expect(result.gskReturnCode).toBe(3);
+    });
+
+    it('distinguishes productReturnCode from productReasonCode', async () => {
+      const backend = createBackendWithClient({
+        trustCertificate: () =>
+          Promise.resolve({
+            success: true,
+            safReturns: {
+              functionCode: 0x09,
+              safReturnCode: 0,
+              esmReturnCode: 1,
+              esmReasonCode: 2,
+            },
+          }),
+      });
+
+      const result = await backend.trustCertificate(SYSTEM_ID, TRUST_OPTIONS);
+
+      expect(result.safReturnCodes?.productReturnCode).toBe(1);
+      expect(result.safReturnCodes?.productReasonCode).toBe(2);
+    });
+
+    it('omits safReturnCodes entirely when the SDK reports no SAF codes', async () => {
+      const backend = createBackendWithClient({
+        trustCertificate: () => Promise.resolve({ success: true }),
+      });
+
+      const result = await backend.trustCertificate(SYSTEM_ID, TRUST_OPTIONS);
+
+      expect(result).not.toHaveProperty('safReturnCodes');
+      expect(result).not.toHaveProperty('warning');
+      expect(result).not.toHaveProperty('gskReturnCode');
+    });
+
+    it('maps a zero SAF code rather than dropping it as falsy', async () => {
+      const backend = createBackendWithClient({
+        trustCertificate: () =>
+          Promise.resolve({
+            success: true,
+            safReturns: {
+              functionCode: 0,
+              safReturnCode: 0,
+              esmReturnCode: 0,
+              esmReasonCode: 0,
+            },
+          }),
+      });
+
+      const result = await backend.trustCertificate(SYSTEM_ID, TRUST_OPTIONS);
+
+      expect(result.safReturnCodes).toEqual({
+        functionCode: 0,
+        safReturnCode: 0,
+        productReturnCode: 0,
+        productReasonCode: 0,
+      });
     });
   });
 });

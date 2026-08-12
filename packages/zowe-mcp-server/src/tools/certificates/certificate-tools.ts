@@ -21,7 +21,10 @@
  * - setDefaultCertificate, trustCertificate, renameCertificate: change certificate attributes
  * - refreshCertificateClass: refresh the DIGTCERT class so changes take effect
  *
- * Backed by the Zowe Remote SSH SDK `client.certificates` RPCs (SDK 0.6.1+).
+ * Backed by the Zowe Remote SSH SDK `client.certificates` RPCs, added in
+ * zowex PR #1079 and expected in the first zowex release after 0.7.1. On a
+ * server at 0.7.1 or older, every certificate method responds with a
+ * JSON-RPC -32601 (Unrecognized command) error.
  */
 
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
@@ -340,7 +343,10 @@ export function registerCertificateTools(
           .describe(
             'Output file path on z/OS. Required for p12; PEM is returned inline if omitted.'
           ),
-        password: z.string().optional().describe('PKCS#12 passphrase (used with format p12).'),
+        password: z
+          .string()
+          .optional()
+          .describe('PKCS#12 passphrase. Required when format is "p12".'),
         system: z.string().optional().describe(SYSTEM_PARAM_DESCRIPTION),
       },
     },
@@ -351,6 +357,11 @@ export function registerCertificateTools(
       try {
         if ((format ?? 'pem') === 'p12' && !file) {
           const msg = 'file is required when format is "p12".';
+          await progress.complete(msg);
+          return errorResult(msg);
+        }
+        if ((format ?? 'pem') === 'p12' && !password) {
+          const msg = 'password is required when format is "p12".';
           await progress.complete(msg);
           return errorResult(msg);
         }

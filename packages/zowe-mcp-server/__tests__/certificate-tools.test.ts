@@ -15,7 +15,8 @@
  *
  * Verifies: tool registration + outputSchema, envelope shape, and the
  * mutually-exclusive-parameter guards (connectCertificate fromRing/fromDatabase,
- * deleteCertificate keyring/database, exportCertificate format p12 requires file).
+ * deleteCertificate keyring/database, exportCertificate format p12 requires file
+ * and password).
  */
 
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
@@ -221,6 +222,22 @@ describe('Certificate / key ring tools with mock backend', () => {
       expect(result.isError).toBe(true);
       const content = result.content as { type: string; text: string }[];
       expect(content[0].text).toMatch(/file is required/i);
+    });
+
+    it('rejects p12 format without a password', async () => {
+      const result = await client.callTool({
+        name: 'exportCertificate',
+        arguments: {
+          owner: 'USER01',
+          keyring: 'RING02',
+          label: 'CERT03',
+          format: 'p12',
+          file: '/tmp/CERT03.p12',
+        },
+      });
+      expect(result.isError).toBe(true);
+      const content = result.content as { type: string; text: string }[];
+      expect(content[0].text).toMatch(/password is required/i);
     });
 
     it('returns inline content for pem without a file', async () => {

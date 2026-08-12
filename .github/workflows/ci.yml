@@ -6,12 +6,12 @@ on:
   workflow_dispatch:
     inputs:
       sdk-mode:
-        description: 'SDK source (fallback, nightly, release, pr, branch)'
+        description: 'SDK source (pin, nightly, release, pr, branch)'
         required: false
-        default: 'fallback'
+        default: 'pin'
         type: choice
         options:
-          - fallback
+          - pin
           - nightly
           - release
           - pr
@@ -114,6 +114,12 @@ jobs:
           node-version-file: '.nvmrc'
           cache: npm
 
+      # The zowex SDK tarball is not committed. Stage the exact build named by
+      # resources/zowex-pin.json (SHA-256 verified) so the file: dependency in the
+      # lockfile resolves before npm ci runs.
+      - name: Stage pinned zowex SDK
+        run: node scripts/sdk-switch.js pin --no-install
+
       - name: Install dependencies (npm ci)
         run: npm ci --ignore-scripts
 
@@ -180,20 +186,24 @@ jobs:
           node-version-file: '.nvmrc'
           cache: npm
 
-      # Default path (push / PR / dispatch with fallback): install strictly from
-      # the committed lockfile, which already pins the fallback SDK
-      # (@zowe/zowex-for-zowe-sdk). Use --ignore-scripts because the prebuilt SDK
-      # tarball ships no build step and other deps' install scripts are not
+      # Default path (push / PR / dispatch with pin): stage the exact zowex build named
+      # by resources/zowex-pin.json (SHA-256 verified; the tarball itself is not committed),
+      # then install strictly from the committed lockfile. Use --ignore-scripts because the
+      # prebuilt SDK tarball ships no build step and other deps' install scripts are not
       # needed here (VS Code API types are fetched explicitly below).
+      - name: Stage pinned zowex SDK
+        if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.sdk-mode != 'pin') }}
+        run: node scripts/sdk-switch.js pin --no-install
+
       - name: Install dependencies (npm ci)
-        if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.sdk-mode != 'fallback') }}
+        if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.sdk-mode != 'pin') }}
         run: npm ci --ignore-scripts
 
       # Custom SDK source (manual dispatch only): sdk-switch rewrites the server
       # dependency to the chosen tarball and runs its own install, so npm ci is
       # skipped on this path.
       - name: Switch SDK and install (custom SDK mode)
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.sdk-mode != 'fallback' }}
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.sdk-mode != 'pin' }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: node scripts/sdk-switch.js ${{ inputs.sdk-mode }} ${{ inputs.sdk-arg }}
@@ -344,6 +354,10 @@ jobs:
         with:
           node-version-file: '.nvmrc'
           cache: npm
+
+      # The zowex SDK tarball is not committed; stage the pinned build before npm ci.
+      - name: Stage pinned zowex SDK
+        run: node scripts/sdk-switch.js pin --no-install
 
       - name: Install dependencies (npm ci)
         run: npm ci --ignore-scripts

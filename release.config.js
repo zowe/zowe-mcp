@@ -33,7 +33,10 @@ module.exports = {
       {
         assets: [
           'dist/*.vsix',
+          // Matches both the @zowe/mcp-server pack and the archived zowex SDK build
+          // (see scripts/archive-zowex-sdk.js).
           'dist/*.tgz',
+          'dist/zowex-provenance.json',
           'docs/mcp-reference.md',
           'presentations/zowe-mcp/zowe-mcp-slides.pdf',
         ],

@@ -44,7 +44,7 @@
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@zowe/imperative": "^8.34.0",
     "@zowe/zos-uss-for-zowe-sdk": "^8.34.0",
-    "@zowe/zowex-for-zowe-sdk": "file:../../resources/zowe-zowex-for-zowe-sdk-0.6.1.tgz",
+    "@zowe/zowex-for-zowe-sdk": "file:../../resources/zowe-zowex-for-zowe-sdk-0.7.1-2026-08-12-083747.tgz",
     "express": "^5.1.0",
     "hardstop-patterns": "^1.0.0",
     "js-yaml": "^5.2.2",

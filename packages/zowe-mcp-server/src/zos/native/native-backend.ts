@@ -15,7 +15,11 @@
  * Implements listDatasets, listMembers, and readDataset; other methods throw "not implemented".
  */
 
-import { ZSshUtils, type ZSshClient } from '@zowe/zowex-for-zowe-sdk';
+import {
+  ZSshUtils,
+  type ZSshClient,
+  type certificates as ZowexCerts,
+} from '@zowe/zowex-for-zowe-sdk';
 import { dump as yamlDump } from 'js-yaml';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
@@ -241,96 +245,16 @@ interface NativeSystemApi {
   }>;
 }
 
-/** A non-fatal SAF warning/error code tuple attached to a certificate response (SDK 0.6.1+). */
-interface NativeSafReturns {
-  functionCode: number;
-  safReturnCode: number;
-  racfReturnCode: number;
-  racfReasonCode: number;
-}
-
-/** Fields common to certificate/key ring action responses (SDK 0.6.1+). */
-interface NativeCertCommandResponse {
-  warning?: string;
-  safReturns?: NativeSafReturns;
-  gskReturnCode?: number;
-}
-
-/** Subset of ZSshClient.certificates we use (ZNP certificate/key ring RPCs — SDK 0.6.1+). */
-interface NativeCertApi {
-  connectCertificate(req: {
-    owner: string;
-    keyring: string;
-    label: string;
-    fromRing?: string;
-    fromDatabase?: boolean;
-    usage?: string;
-    default?: boolean;
-  }): Promise<NativeCertCommandResponse>;
-  deleteCertificate(req: {
-    owner: string;
-    label: string;
-    keyring?: string;
-    database?: boolean;
-    skipRefresh?: boolean;
-  }): Promise<NativeCertCommandResponse>;
-  exportCertificate(req: {
-    owner: string;
-    keyring: string;
-    label: string;
-    format?: string;
-    file?: string;
-    password?: string;
-  }): Promise<
-    NativeCertCommandResponse & {
-      label: string;
-      owner: string;
-      keyring: string;
-      format: string;
-      file?: string;
-      bytesWritten?: number;
-      data?: string;
-    }
-  >;
-  importCertificate(req: {
-    owner: string;
-    keyring: string;
-    label: string;
-    usage: string;
-    file: string;
-    password: string;
-    skipRefresh?: boolean;
-  }): Promise<NativeCertCommandResponse & { label: string; owner: string; keyring: string }>;
-  showCertificate(req: { owner: string; keyring: string; label: string }): Promise<{
-    label: string;
-    owner: string;
-    usage: string;
-    status: string;
-    default: boolean;
-    keyType: number;
-    keySize: number;
-    serialNumber?: string;
-    notBefore?: string;
-    notAfter?: string;
-    recordId?: string;
-  }>;
-  setDefaultCertificate(req: {
-    owner: string;
-    keyring: string;
-    label: string;
-  }): Promise<NativeCertCommandResponse>;
-  trustCertificate(req: {
-    owner: string;
-    label: string;
-    status: string;
-  }): Promise<NativeCertCommandResponse>;
-  renameCertificate(req: {
-    owner: string;
-    label: string;
-    newLabel: string;
-  }): Promise<NativeCertCommandResponse>;
-  refreshDigtcert(req: Record<string, never>): Promise<NativeCertCommandResponse>;
-}
+/**
+ * The certificate/key ring RPC surface (zowex#1079), taken straight from the SDK's
+ * `RpcClientApi.certificates` rather than mirrored by hand.
+ *
+ * Sourcing these types upstream is deliberate: a hand-written mirror lets an upstream field rename
+ * compile cleanly and silently yield `undefined` at runtime, which is exactly what zowex#1079's
+ * `racfReturnCode`/`racfReasonCode` → `esmReturnCode`/`esmReasonCode` rename did. Referencing the
+ * SDK types means the next such rename fails the build here instead.
+ */
+type NativeCertApi = ZSshClient['certificates'];
 
 /** Shape returned by UtilsApi.tools.parseSearchOutput (SDK 0.3.0+). */
 interface ZowexParsedSearchResult {
@@ -1733,11 +1657,11 @@ export class NativeBackend {
   }
 
   private getCertificates(client: ZSshClient): NativeCertApi {
-    return (client as unknown as { certificates: NativeCertApi }).certificates;
+    return client.certificates;
   }
 
   /** Maps a certificate/key ring action response to our RACF-neutral CertActionResult. */
-  private mapCertActionResult(response: NativeCertCommandResponse): CertActionResult {
+  private mapCertActionResult(response: ZowexCerts.CertCommandResponse): CertActionResult {
     return {
       ...(response.warning !== undefined && {
         warning: sanitizeZowexString(response.warning) ?? response.warning,
@@ -1746,8 +1670,8 @@ export class NativeBackend {
         safReturnCodes: {
           functionCode: response.safReturns.functionCode,
           safReturnCode: response.safReturns.safReturnCode,
-          productReturnCode: response.safReturns.racfReturnCode,
-          productReasonCode: response.safReturns.racfReasonCode,
+          productReturnCode: response.safReturns.esmReturnCode,
+          productReasonCode: response.safReturns.esmReasonCode,
         },
       }),
       ...(response.gskReturnCode !== undefined && { gskReturnCode: response.gskReturnCode }),

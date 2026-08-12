@@ -90,6 +90,13 @@ jobs:
           node-version-file: '.nvmrc'
           cache: npm
 
+      # The zowex SDK tarball is not committed. Stage the exact build named by
+      # resources/zowex-pin.json (SHA-256 verified) so the file: dependency in the
+      # lockfile resolves before npm ci runs.
+      - name: Stage pinned zowex SDK
+        if: steps.version.outputs.mode != 'skip'
+        run: node scripts/sdk-switch.js pin --no-install
+
       - name: Install dependencies (npm ci)
         if: steps.version.outputs.mode != 'skip'
         run: npm ci --ignore-scripts

@@ -1,0 +1,26 @@
+{
+  "$comment": [
+    "Pinned zowex SDK build used by regular CI (push/PR) and by `node scripts/sdk-switch.js pin`.",
+    "The tarball itself is NOT committed - it is staged into resources/ on demand and gitignored.",
+    "This file is the reproducibility record: url + sha256 identify the exact bytes, and upstream",
+    "records which zowe/zowex commit and Release run produced them.",
+    "To move the pin forward: `node scripts/sdk-switch.js nightly --write-pin`, then commit the",
+    "resulting changes to this file, packages/zowe-mcp-server/package.json and package-lock.json.",
+    "Nightly snapshots are pruned upstream after roughly six weeks; refresh the pin before then or",
+    "CI will start failing to fetch it."
+  ],
+  "package": "@zowe/zowex-for-zowe-sdk",
+  "version": "0.7.1",
+  "train": "Nightly",
+  "datestamp": "2026-08-12-083747",
+  "filename": "zowe-zowex-for-zowe-sdk-0.7.1-2026-08-12-083747.tgz",
+  "url": "https://zowe.jfrog.io/artifactory/libs-snapshot-local/org/zowe/zowex/SDK/Nightly/zowe-zowex-for-zowe-sdk-0.7.1-2026-08-12-083747.tgz",
+  "sha256": "85c280e111b10496fc3a91206b7dd2195dc2944f3c47bb93b12a116aaac3f1b2",
+  "upstream": {
+    "repo": "zowe/zowex",
+    "commit": "bc70d2e8448ccb046824ea8250c7629319bcacc5",
+    "releaseRunId": "31579094329",
+    "note": "Merge commit of zowex#1079 (Migrate keyring-utilities to zowex) - first nightly with the certificate/key ring RPCs."
+  },
+  "pinnedAt": "2026-08-12"
+}

@@ -137,11 +137,21 @@ jobs:
       # build + packaging; the github plugin then creates the vX.Y.Z tag and
       # a DRAFT release with the assets (publishRelease is off in
       # release.config.js — the next step publishes it).
+      #
+      # new-version is passed explicitly: without it, Octorelease derives the
+      # version from `git describe` on v* tags, and no release tag is an
+      # ancestor of main (the pre-#30 history holds them all), so it falls
+      # back to 0.0.0 — the v0.10.0-rc.1 rehearsal produced a draft tagged
+      # v0.0.0 and the publish step then failed with "release not found".
+      # The release PR already carries the reviewed version in package.json;
+      # this step must release exactly that, never an inferred one.
       - name: Run Octorelease
         if: steps.version.outputs.mode == 'publish'
         uses: zowe-actions/octorelease@e0672bf28f74f36219713afe75915ea2dc7bf85b # v1
         env:
           GITHUB_TOKEN: ${{ github.token }}
+        with:
+          new-version: ${{ steps.version.outputs.version }}
 
       # Set the human-reviewed notes on the draft, then publish it — one
       # atomic edit. Doing notes-before-publish means a failure here leaves

@@ -3,7 +3,7 @@
   "name": "io.github.zowe/zowe-mcp-server",
   "title": "Zowe MCP Server",
   "description": "MCP server providing AI tools for z/OS — data sets, jobs, and USS via SSH or mock filesystem.",
-  "version": "0.8.0",
+  "version": "0.10.0-rc.1",
   "repository": {
     "url": "https://github.com/zowe/zowe-mcp",
     "source": "github"
@@ -13,7 +13,7 @@
     {
       "registryType": "npm",
       "identifier": "@zowe/mcp-server",
-      "version": "0.8.0",
+      "version": "0.10.0-rc.1",
       "transport": {
         "type": "stdio"
       },

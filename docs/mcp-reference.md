@@ -2,7 +2,7 @@
 
 # Zowe MCP Server Reference
 
-> Auto-generated from the MCP server (v0.10.0-dev). Do not edit manually — run `npx @zowe/mcp-server generate-docs` to regenerate.
+> Auto-generated from the MCP server (v0.10.0-rc.1). Do not edit manually — run `npx @zowe/mcp-server generate-docs` to regenerate.
 
 This document describes all [Context](#context), [Data Sets](#data-sets), [USS](#uss), [TSO](#tso), [System Information](#system-information), [Certificates](#certificates), [Jobs](#jobs), [Local Files](#local-files), [Other](#other), [db2 CLI Plugin Tools](#db2-cli-plugin-tools), [Tool Reference](#tool-reference), [Capability Tiers](#capability-tiers), [Prompts](#prompts), [Resource Templates](#resource-templates) provided by the Zowe MCP Server.
 
@@ -225,7 +225,7 @@ Return the Zowe MCP server info (version, backend, components) and the current s
 {
   "server": {
     "name": "Zowe MCP Server",
-    "version": "0.10.0-dev",
+    "version": "0.10.0-rc.1",
     "description": "MCP server providing tools for z/OS systems including data sets, jobs, and UNIX System Services",
     "components": [
       "context",

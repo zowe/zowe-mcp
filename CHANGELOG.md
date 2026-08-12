@@ -14,6 +14,8 @@ don't warrant an entry (CI, chores, internal refactors, docs-only) can carry the
 
 ## [Unreleased]
 
+## [0.10.0-rc.1] - 2026-08-12
+
 ### Added
 
 - **Copilot Chat e2e: VS Code 1.132 compatibility.** The apparent 1.132

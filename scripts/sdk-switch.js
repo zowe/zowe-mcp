@@ -593,20 +593,42 @@ function handleLocal(inputPath) {
 // Mode: pin  (and --write-pin support for nightly)
 // ---------------------------------------------------------------------------
 
+/** SHA-256 of a buffer, lowercase hex. */
+function sha256Buffer(buf) {
+  return crypto.createHash('sha256').update(buf).digest('hex');
+}
+
 /** SHA-256 of a file, lowercase hex. */
 function sha256File(filePath) {
-  return crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex');
+  return sha256Buffer(fs.readFileSync(filePath));
+}
+
+/**
+ * Read a file, returning `undefined` when it does not exist.
+ *
+ * Read-and-catch rather than `existsSync` followed by `readFileSync`: the two-step form is a
+ * check-then-use race (CodeQL js/file-system-race), and this repo has already had to fix one
+ * of those — see the server.json version update in the release scripts.
+ */
+function readFileIfExists(filePath) {
+  try {
+    return fs.readFileSync(filePath);
+  } catch (err) {
+    if (err.code === 'ENOENT') return undefined;
+    throw err;
+  }
 }
 
 function readPin() {
-  if (!fs.existsSync(PIN_PATH)) {
+  const raw = readFileIfExists(PIN_PATH);
+  if (raw === undefined) {
     console.error(
       'No pin file at %s. Create one with: sdk-switch.js nightly --write-pin',
       PIN_PATH
     );
     process.exit(1);
   }
-  return JSON.parse(fs.readFileSync(PIN_PATH, 'utf8'));
+  return JSON.parse(raw.toString('utf8'));
 }
 
 /**
@@ -620,9 +642,9 @@ function handlePin({ skipInstall } = {}) {
   const pin = readPin();
   const dest = path.join(resourcesDir, pin.filename);
 
-  if (fs.existsSync(dest)) {
-    const existing = sha256File(dest);
-    if (existing === pin.sha256) {
+  const stagedBytes = readFileIfExists(dest);
+  if (stagedBytes !== undefined) {
+    if (sha256Buffer(stagedBytes) === pin.sha256) {
       console.log('Pinned SDK already staged: %s', dest);
       installSdkToResources(dest, pin.version, `pin ${pin.datestamp}`, {
         filename: pin.filename,
@@ -634,9 +656,8 @@ function handlePin({ skipInstall } = {}) {
     console.log('Staged copy has unexpected checksum, re-downloading...');
   }
 
-  if (!fs.existsSync(resourcesDir)) {
-    fs.mkdirSync(resourcesDir, { recursive: true });
-  }
+  // mkdir -p is idempotent, so no existence check (and no check-then-use race).
+  fs.mkdirSync(resourcesDir, { recursive: true });
 
   console.log('Downloading pinned SDK %s...', pin.filename);
   const tmpDir = path.join(repoRoot, '.sdk-download-tmp');
@@ -683,7 +704,8 @@ function handlePin({ skipInstall } = {}) {
  * file is meant to be committed alongside the package.json/package-lock.json changes.
  */
 function writePin({ tgzPath, filename, url, version, datestamp }) {
-  const existing = fs.existsSync(PIN_PATH) ? JSON.parse(fs.readFileSync(PIN_PATH, 'utf8')) : {};
+  const existingRaw = readFileIfExists(PIN_PATH);
+  const existing = existingRaw === undefined ? {} : JSON.parse(existingRaw.toString('utf8'));
   const pin = {
     ...existing,
     package: PKG_NAME,

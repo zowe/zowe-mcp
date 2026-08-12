@@ -33,8 +33,23 @@ const repoRoot = path.resolve(__dirname, '..');
 const pinPath = path.join(repoRoot, 'resources', 'zowex-pin.json');
 const distDir = path.resolve(process.argv[2] || path.join(repoRoot, 'dist'));
 
-function sha256File(filePath) {
-  return crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex');
+function sha256Buffer(buf) {
+  return crypto.createHash('sha256').update(buf).digest('hex');
+}
+
+/**
+ * Read a file, returning `undefined` when it does not exist.
+ *
+ * Read-and-catch rather than `existsSync` followed by `readFileSync`: the two-step form is a
+ * check-then-use race (CodeQL js/file-system-race).
+ */
+function readFileIfExists(filePath) {
+  try {
+    return fs.readFileSync(filePath);
+  } catch (err) {
+    if (err.code === 'ENOENT') return undefined;
+    throw err;
+  }
 }
 
 function fail(msg) {
@@ -51,8 +66,8 @@ function serverPaxSha256(tgzPath) {
   const tmpDir = fs.mkdtempSync(path.join(require('os').tmpdir(), 'zowex-pax-'));
   try {
     execSync(`tar -xzf "${tgzPath}" -C "${tmpDir}" package/bin/server.pax.Z`, { stdio: 'ignore' });
-    const pax = path.join(tmpDir, 'package', 'bin', 'server.pax.Z');
-    return fs.existsSync(pax) ? sha256File(pax) : null;
+    const pax = readFileIfExists(path.join(tmpDir, 'package', 'bin', 'server.pax.Z'));
+    return pax === undefined ? null : sha256Buffer(pax);
   } catch {
     return null;
   } finally {
@@ -68,11 +83,13 @@ function gitCommit() {
   }
 }
 
-if (!fs.existsSync(pinPath)) fail(`no pin file at ${pinPath}`);
-const pin = JSON.parse(fs.readFileSync(pinPath, 'utf8'));
+const pinRaw = readFileIfExists(pinPath);
+if (pinRaw === undefined) fail(`no pin file at ${pinPath}`);
+const pin = JSON.parse(pinRaw.toString('utf8'));
 
 const staged = path.join(repoRoot, 'resources', pin.filename);
-if (!fs.existsSync(staged)) {
+const stagedBytes = readFileIfExists(staged);
+if (stagedBytes === undefined) {
   fail(
     `pinned SDK is not staged at ${staged}.\n` +
       '  Run `node scripts/sdk-switch.js pin` first (CI does this before installing).'
@@ -80,16 +97,18 @@ if (!fs.existsSync(staged)) {
 }
 
 // Re-verify rather than trust: this is the copy being published, and a release asset that does
-// not match its own recorded sha256 would be worse than no asset at all.
-const actual = sha256File(staged);
+// not match its own recorded sha256 would be worse than no asset at all. Hashing the bytes we
+// already read (not re-reading the path) also means the check and the copy cannot disagree.
+const actual = sha256Buffer(stagedBytes);
 if (actual !== pin.sha256) {
   fail(
     `staged SDK checksum does not match the pin.\n  expected ${pin.sha256}\n  actual   ${actual}`
   );
 }
 
-if (!fs.existsSync(distDir)) fs.mkdirSync(distDir, { recursive: true });
-fs.copyFileSync(staged, path.join(distDir, pin.filename));
+// mkdir -p is idempotent, so no existence check (and no check-then-use race).
+fs.mkdirSync(distDir, { recursive: true });
+fs.writeFileSync(path.join(distDir, pin.filename), stagedBytes);
 
 const serverPkg = JSON.parse(
   fs.readFileSync(path.join(repoRoot, 'packages', 'zowe-mcp-server', 'package.json'), 'utf8')

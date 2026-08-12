@@ -88,6 +88,9 @@ zosmf-instances.json
 .sdk-download-tmp/
 .sdk-version-tmp/
 
+# Scratch output from the playwright-cli tooling (console logs, page snapshots)
+.playwright-cli/
+
 # Temporary files
 *.tmp
 *.temp

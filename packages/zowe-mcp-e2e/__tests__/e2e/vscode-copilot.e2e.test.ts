@@ -29,7 +29,6 @@
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
   closeVsCode,
@@ -52,6 +51,7 @@ import {
   cleanupPortableProfile,
   createPortableProfile,
   installExtension,
+  resolveVsixPath,
   type PortableProfile,
 } from '../../src/portable-profile.js';
 import {
@@ -61,15 +61,7 @@ import {
   zoweNativeMockZosSettings,
 } from '../../src/vscode-settings.js';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const VSIX_PATH = path.resolve(
-  __dirname,
-  '..',
-  '..',
-  '..',
-  'zowe-mcp-vscode',
-  'zowe-mcp-vscode-0.10.0-dev.vsix'
-);
+const VSIX_PATH = resolveVsixPath();
 
 const SUITE_TIMEOUT_MS = 240_000;
 

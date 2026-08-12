@@ -24,6 +24,7 @@ import { spawnSync } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 /** Settings every profile gets unless explicitly overridden. */
 const DEFAULT_SETTINGS: Record<string, unknown> = {
@@ -237,6 +238,25 @@ export function updateSettings(profile: PortableProfile, patch: Record<string, u
     unknown
   >;
   fs.writeFileSync(profile.settingsPath, JSON.stringify({ ...current, ...patch }, null, 2));
+}
+
+/**
+ * Absolute path to the built extension .vsix.
+ *
+ * The version is read from the extension's package.json rather than hardcoded: `npm run package`
+ * names the file after the current version, so a release branch (e.g. 0.10.0-rc.1) produces a
+ * different filename than a development one. Hardcoding `-dev` here meant every release PR
+ * failed this suite with "vsix not found".
+ */
+export function resolveVsixPath(): string {
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  // src/ and dist/ are both one level under the package root, so '..', '..' reaches packages/.
+  const extensionDir = path.resolve(here, '..', '..', 'zowe-mcp-vscode');
+  const pkg = JSON.parse(fs.readFileSync(path.join(extensionDir, 'package.json'), 'utf8')) as {
+    name: string;
+    version: string;
+  };
+  return path.join(extensionDir, `${pkg.name}-${pkg.version}.vsix`);
 }
 
 /**

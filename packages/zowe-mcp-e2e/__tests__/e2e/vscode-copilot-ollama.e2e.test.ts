@@ -29,7 +29,6 @@
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
   closeVsCode,
@@ -48,18 +47,11 @@ import {
   createPortableProfile,
   installExtension,
   type PortableProfile,
+  resolveVsixPath,
 } from '../../src/portable-profile.js';
 import { byokOllamaSettings, zoweFilesystemMockSettings } from '../../src/vscode-settings.js';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const VSIX_PATH = path.resolve(
-  __dirname,
-  '..',
-  '..',
-  '..',
-  'zowe-mcp-vscode',
-  'zowe-mcp-vscode-0.10.0-dev.vsix'
-);
+const VSIX_PATH = resolveVsixPath();
 
 const OLLAMA_URL = process.env.ZOWE_E2E_OLLAMA_URL ?? 'http://localhost:11434';
 const OLLAMA_MODEL = process.env.ZOWE_E2E_OLLAMA_MODEL ?? 'phi4-mini:latest';

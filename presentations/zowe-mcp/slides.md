@@ -846,12 +846,12 @@ Every tool change is validated with **before/after AI evaluation runs**.
 1. Define **question sets** in YAML — natural language questions with assertions
 2. Run evals across **multiple LLM models**
 3. Compare pass rates — keep improvements, revert regressions
-4. Track results in **scoreboard** (`docs/eval-scoreboard.md`)
+4. Track results in the **eval scoreboard**
 
 ### <carbon-category class="inline text-[#3162ac]" /> Question Sets — 147 questions
 
-- **naming-stress** — CLI phrasing, z/OS jargon, ISPF vocabulary
-- **description-quality** — pagination, search options, attributes
+- **naming-stress** — CLI phrasing, z/OS jargon
+- **description-quality** — pagination, attributes
 - **system** / **certificates** / **multi-turn** — new in 0.10.0
 - **mutations** · **sms-allocation** · **pagination** · **search**
 
@@ -875,7 +875,7 @@ Every tool change is validated with **before/after AI evaluation runs**.
 - **Parameter descriptions** matter more than parameter names for LLMs
 - **Expanding z/OS jargon** in descriptions improved pass rates by +9.1%
 - 16 models benchmarked — `qwen3.6-35b-a3b` scores **100%** on the newest sets (system, certificates, multi-turn); `gemini-2.5-flash` ~94%
-- Opt-in **Claude Code smoke suite** drives the real `claude` CLI end to end
+- **Claude Code smoke suite** drives the real `claude` CLI end to end
 
 </div>
 </div>

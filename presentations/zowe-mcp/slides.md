@@ -743,14 +743,6 @@ When multiple tools request the same credential simultaneously, only one prompt 
 - **"Clear Stored Password"** command in VS Code palette
 - Shared secret key convention: `zowe.ssh.password.${user}.${host}`
 
-### Connection Types
-
-| Mode | Credential Source |
-|------|------------------|
-| VS Code | SecretStorage + pipe prompt |
-| Standalone | Environment variables |
-| Mock | `systems.json` credentials |
-
 </div>
 </div>
 
@@ -798,16 +790,21 @@ When multiple tools request the same credential simultaneously, only one prompt 
 ### <carbon-terminal class="inline text-[#3162ac]" /> Standalone Server
 
 ```bash
-# One-time install from the packed tarball
-# (`@zowe/mcp-server` is not yet on a public npm registry).
-npm install -g ./zowe-mcp-server-<version>.tgz
+# One-time install from the packed
+# tarball (not yet on a public
+# npm registry).
+npm install -g \
+  ./zowe-mcp-server-<version>.tgz
 
-zowe-mcp-server init-mock --output ./mock-data
-zowe-mcp-server --stdio --mock ./mock-data
+zowe-mcp-server init-mock \
+  --output ./mock-data
+zowe-mcp-server --stdio \
+  --mock ./mock-data
 ```
 
 ```bash
-zowe-mcp-server --stdio --zowex --system user@host
+zowe-mcp-server --stdio \
+  --zowex --system user@host
 ```
 
 </div>
@@ -816,7 +813,7 @@ zowe-mcp-server --stdio --zowex --system user@host
 ### <carbon-play class="inline text-[#3162ac]" /> Quick Tool Testing
 
 ```bash
-# From a clone of this repo (npm workspaces).
+# From a clone of this repo.
 npx @zowe/mcp-server call-tool \
   --mock=./mock-data \
   listDatasets \

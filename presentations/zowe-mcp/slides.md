@@ -874,8 +874,8 @@ Every tool change is validated with **before/after AI evaluation runs**.
 
 - **Parameter descriptions** matter more than parameter names for LLMs
 - **Expanding z/OS jargon** in descriptions improved pass rates by +9.1%
-- 16 models benchmarked — `qwen3.6-35b-a3b` scores **100%** on the newest sets (system, certificates, multi-turn); `gemini-2.5-flash` ~94%
-- **Claude Code smoke suite** drives the real `claude` CLI end to end
+- 16 models benchmarked — `qwen3.6-35b-a3b` scores **100%**; `gemini-2.5-flash` ~94%
+- **Claude Code smoke suite** drives the real `claude` CLI
 
 </div>
 </div>

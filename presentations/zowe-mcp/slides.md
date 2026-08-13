@@ -76,7 +76,7 @@ An **MCP server** and **VS Code extension** that gives AI assistants direct, str
   <carbon-machine-learning class="inline text-[#3162ac]" /> <strong class="text-[#1b375f]">Built with AI:</strong> Not a single line of Zowe MCP was written manually — every line was coded with <strong>frontier AI models in VS Code</strong>, guided and reviewed by architects at Broadcom with experience building MCP servers and AI applications and strong mainframe background.
 </div>
 
-<div class="grid grid-cols-4 gap-4 mt-8">
+<div class="grid grid-cols-4 gap-4 mt-3">
   <div class="text-center p-4 bg-[#f3f4f4] rounded-lg border-t-4 border-[#3162ac]">
     <carbon-assembly-cluster class="text-2xl text-[#3162ac] mb-1" />
     <div class="text-4xl font-extrabold text-[#3162ac]">9</div>
@@ -99,7 +99,7 @@ An **MCP server** and **VS Code extension** that gives AI assistants direct, str
   </div>
 </div>
 
-<div class="mt-8 grid grid-cols-3 gap-4 text-sm">
+<div class="mt-3 grid grid-cols-3 gap-4 text-sm">
   <div class="p-3 bg-[#f3f4f4] rounded-lg border-l-4 border-[#16825d]">
     <div class="font-bold text-[#1b375f] mb-1"><carbon-terminal class="inline text-[#16825d]" /> Standalone Server</div>
     <div class="text-[#6d7176]"><code>zowe-mcp-server --stdio</code> (npm package <code>@zowe/mcp-server</code>) — works with any MCP client</div>
@@ -110,7 +110,7 @@ An **MCP server** and **VS Code extension** that gives AI assistants direct, str
   </div>
   <div class="p-3 bg-[#f3f4f4] rounded-lg border-l-4 border-[#16825d]">
     <div class="font-bold text-[#1b375f] mb-1"><carbon-cloud class="inline text-[#16825d]" /> Remote HTTP Streamable</div>
-    <div class="text-[#6d7176]"><strong>Shared</strong> team server — HTTPS <code>/mcp</code>, optional Bearer JWT, MCP registry <code>remotes</code>. Covered at the <strong>end of this deck</strong>.</div>
+    <div class="text-[#6d7176]"><strong>Shared</strong> team server — HTTPS <code>/mcp</code>, Bearer JWT, registry <code>remotes</code> — see end of deck.</div>
   </div>
 </div>
 
@@ -211,7 +211,7 @@ flowchart TD
 
   subgraph Server ["Zowe MCP Server"]
     direction LR
-    Tools["59 Tools divided into 7&nbsp;Components"]
+    Tools["75 Tools divided into 9&nbsp;Components"]
     Cache["Response Cache"]
     Tools --> ZosBackendInterface
     ZosBackendInterface["ZosBackend Interface"]
@@ -608,7 +608,7 @@ Top Secret** — with SAF return codes surfaced on every action.
 ### <carbon-settings class="inline text-[#3162ac]" /> Configuration
 
 - **VS Code** — `zoweMCP.zowexConnections` setting
-- **Standalone** — `--config systems.json` or `--system user@host`
+- **Standalone** — `--config systems.json` or `--system`
 - **Mock** — `systems.json` in mock data directory
 
 </div>
@@ -1092,7 +1092,7 @@ Adapt an **existing** Zowe CLI plugin without new TypeScript: one **metadata pip
 | **Contains** | Every group, command, positional, option, alias, CLI description | `plugin`, `profiles`, `tools[]`, `zoweCommand`, pagination, error behavior |
 | **Used for** | `$.endevor.list.elements.description` style **JSON references** | Runtime: bridge builds `zowe … --rfj` and wraps JSON |
 
-<div class="mt-4 grid grid-cols-2 gap-4 text-sm">
+<div class="mt-2 grid grid-cols-2 gap-4 text-sm">
 <div class="p-3 bg-[#f3f4f4] rounded-lg border-l-4 border-[#3162ac]">
 
 <div class="font-bold text-[#1b375f] mb-1">Bridge vs Zowe Remote SSH (zowex)</div>
@@ -1106,7 +1106,7 @@ Adapt an **existing** Zowe CLI plugin without new TypeScript: one **metadata pip
 <div class="font-bold text-[#1b375f] mb-1">Profiles in tools YAML</div>
 
 - **Connection** — reach the service (host, port, protocol, …)
-- **Location** — domain context (e.g. env/stage or Db2 `database`); often `perToolOverride: true`
+- **Location** — domain context (env/stage, Db2 `database`)
 - Auto tools: `listConnections` / `setConnection`, `listLocations` / `setLocation`
 
 </div>
@@ -1165,7 +1165,7 @@ class: text-sm
 
 ::left::
 
-<div class="text-xs leading-snug pr-2 max-h-[62vh] overflow-y-auto">
+<div class="text-xs leading-snug pr-2 max-h-[80vh] overflow-y-auto">
 
 <p class="mb-2 text-[#6d7176]"><strong class="text-[#1b375f]">Streamable HTTP</strong> on <code>/mcp</code> — multi-session MCP over HTTPS.<br/>
 </p>
@@ -1183,8 +1183,8 @@ class: text-sm
 
 <ul class="list-disc pl-4 space-y-1 text-[#6d7176]">
 <li>Tenant data keyed by OIDC <code>sub</code>; not shared secrets alone.</li>
-<li>Mainframe SSH passwords stay separate — env, vault, or elicitation. The access token does not replace SAF or SSH credentials.</li>
-<li>TLS usually at a reverse proxy; set public base URL env vars so OAuth and password-elicit URLs match the browser.</li>
+<li>SSH passwords stay separate (env, vault, elicitation) — the token never replaces SAF/SSH credentials.</li>
+<li>TLS at the reverse proxy; set public base-URL env vars so OAuth URLs match the browser.</li>
 </ul>
 
 </div>

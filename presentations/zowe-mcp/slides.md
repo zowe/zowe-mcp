@@ -4,7 +4,7 @@ title: 'Zowe MCP: AI-Powered z/OS Access'
 info: |
   Zowe MCP — Model Context Protocol server and VS Code extension
   that gives AI assistants direct access to z/OS systems.
-  Last updated: April 2026
+  Last updated: August 2026
 class: text-center
 colorSchema: light
 drawings:
@@ -12,7 +12,7 @@ drawings:
 transition: slide-left
 mdc: true
 ---
-<!-- Last reviewed: 2026-04 — End-of-deck slides: shared HTTP OAuth topology, MCP registries; docs/remote-http-mcp-registry.md. CLI Bridge: docs/how-to-add-cli-plugin.md -->
+<!-- Last reviewed: 2026-08 — End-of-deck slides: shared HTTP OAuth topology, MCP registries; docs/remote-http-mcp-registry.md. CLI Bridge: docs/how-to-add-cli-plugin.md -->
 
 <!-- Slide 1: Title -->
 
@@ -20,7 +20,7 @@ mdc: true
   <img src="/zowe-logo.svg" class="w-48 mb-6 drop-shadow-lg" alt="Zowe" />
   <h1 class="!text-5xl !font-extrabold !text-white !border-none !mb-4">Zowe MCP</h1>
   <p class="text-2xl !text-white/90 font-light">AI-Powered z/OS Access via Model Context Protocol</p>
-  <p class="text-sm !text-white/50 mt-6">Last updated: April 2026</p>
+  <p class="text-sm !text-white/50 mt-6">Last updated: August 2026</p>
 </div>
 
 <style>
@@ -1266,8 +1266,7 @@ An <strong class="text-[#1b375f]">MCP registry</strong> is a <strong class="text
 
 - **z/OSMF backend** — REST API alternative to SSH
 - **OAuth / MFA support** — enterprise authentication via Zowe API Mediation Layer (API ML)
-- **Console commands** — z/OS operator console (code ready, waiting for zowex server support)
-- **More prompts or skills* — JCL generation, COBOL analysis, batch job templates
+- **More prompts or skills** — JCL generation, batch job templates
 - **Resource subscriptions** — real-time data set change notifications
 
 </div>

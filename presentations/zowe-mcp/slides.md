@@ -79,12 +79,12 @@ An **MCP server** and **VS Code extension** that gives AI assistants direct, str
 <div class="grid grid-cols-4 gap-4 mt-8">
   <div class="text-center p-4 bg-[#f3f4f4] rounded-lg border-t-4 border-[#3162ac]">
     <carbon-assembly-cluster class="text-2xl text-[#3162ac] mb-1" />
-    <div class="text-4xl font-extrabold text-[#3162ac]">7</div>
+    <div class="text-4xl font-extrabold text-[#3162ac]">9</div>
     <div class="text-sm text-[#6d7176] mt-1">Components</div>
   </div>
   <div class="text-center p-4 bg-[#f3f4f4] rounded-lg border-t-4 border-[#3162ac]">
     <carbon-tool-box class="text-2xl text-[#3162ac] mb-1" />
-    <div class="text-4xl font-extrabold text-[#3162ac]">59</div>
+    <div class="text-4xl font-extrabold text-[#3162ac]">75</div>
     <div class="text-sm text-[#6d7176] mt-1">Tools</div>
   </div>
   <div class="text-center p-4 bg-[#f3f4f4] rounded-lg border-t-4 border-[#3162ac]">
@@ -235,7 +235,7 @@ flowchart TD
 
 <div class="grid grid-cols-4 gap-3 mt-4">
   <div class="col-span-4 text-center p-3 bg-[#1b375f] text-white rounded-lg font-bold text-lg">
-    Zowe MCP Server — 59 tools
+    Zowe MCP Server — 75 tools
   </div>
   <div class="p-3 bg-[#f3f4f4] rounded-lg border-t-3 border-[#3162ac] text-center">
     <carbon-data-base class="text-xl text-[#3162ac]" />
@@ -252,23 +252,29 @@ flowchart TD
   <div class="p-3 bg-[#f3f4f4] rounded-lg border-t-3 border-[#3162ac] text-center">
     <carbon-task class="text-xl text-[#3162ac]" />
     <div class="font-bold text-[#1b375f]">jobs</div>
-    <div class="text-2xl font-extrabold text-[#3162ac]">15</div>
+    <div class="text-2xl font-extrabold text-[#3162ac]">14</div>
     <div class="text-xs text-[#6d7176] mt-1">submit · status · output<br/>cancel · hold · release · delete</div>
   </div>
   <div class="p-3 bg-[#f3f4f4] rounded-lg border-t-3 border-[#3162ac] text-center">
     <carbon-settings class="text-xl text-[#3162ac]" />
-    <div class="font-bold text-[#1b375f]">context</div>
-    <div class="text-2xl font-extrabold text-[#3162ac]">3</div>
-    <div class="text-xs text-[#6d7176] mt-1">listSystems · setSystem<br/>getContext</div>
+    <div class="font-bold text-[#1b375f]">certificates</div>
+    <div class="text-2xl font-extrabold text-[#3162ac]">9</div>
+    <div class="text-xs text-[#6d7176] mt-1">show · connect · import · export<br/>trust · rename · default · refresh</div>
   </div>
 </div>
 
-<div class="grid grid-cols-3 gap-3 mt-3">
+<div class="grid grid-cols-5 gap-3 mt-3">
   <div class="p-3 bg-[#f3f4f4] rounded-lg border-t-3 border-[#3975d0] text-center">
-    <carbon-application class="text-xl text-[#3975d0]" />
-    <div class="font-bold text-[#1b375f]">zowe-explorer</div>
-    <div class="text-xl font-extrabold text-[#3975d0]">3</div>
-    <div class="text-xs text-[#6d7176]">open dataset · USS file · job in editor</div>
+    <carbon-bare-metal-server class="text-xl text-[#3975d0]" />
+    <div class="font-bold text-[#1b375f]">system</div>
+    <div class="text-xl font-extrabold text-[#3975d0]">4</div>
+    <div class="text-xs text-[#6d7176]">APF · linklist · proclib · syslog</div>
+  </div>
+  <div class="p-3 bg-[#f3f4f4] rounded-lg border-t-3 border-[#3975d0] text-center">
+    <carbon-settings class="text-xl text-[#3975d0]" />
+    <div class="font-bold text-[#1b375f]">context</div>
+    <div class="text-xl font-extrabold text-[#3975d0]">4</div>
+    <div class="text-xs text-[#6d7176]">getContext · listSystems<br/>setSystem · addZosConnection</div>
   </div>
   <div class="p-3 bg-[#f3f4f4] rounded-lg border-t-3 border-[#3975d0] text-center">
     <carbon-terminal class="text-xl text-[#3975d0]" />
@@ -281,6 +287,12 @@ flowchart TD
     <div class="font-bold text-[#1b375f]">local-files</div>
     <div class="text-xl font-extrabold text-[#3975d0]">5</div>
     <div class="text-xs text-[#6d7176]">download · upload · dataset · USS · job</div>
+  </div>
+  <div class="p-3 bg-[#f3f4f4] rounded-lg border-t-3 border-[#3975d0] text-center">
+    <carbon-application class="text-xl text-[#3975d0]" />
+    <div class="font-bold text-[#1b375f]">zowe-explorer</div>
+    <div class="text-xl font-extrabold text-[#3975d0]">3</div>
+    <div class="text-xs text-[#6d7176]">open dataset · USS file · job in editor</div>
   </div>
 </div>
 
@@ -454,7 +466,7 @@ An **additional channel** alongside stdio for deeper VS Code integration
 
 <!-- Slide 13: Jobs -->
 
-# <carbon-task class="inline text-[#3162ac]" /> Job Operations — 15 Tools
+# <carbon-task class="inline text-[#3162ac]" /> Job Operations — 14 Tools
 
 <div class="grid grid-cols-2 gap-6">
 <div>
@@ -523,6 +535,42 @@ Same safety model for Unix commands:
 ### How Elicitation Works
 
 When a command needs approval, the server asks the MCP client to prompt the user — the AI cannot bypass this.
+
+</div>
+</div>
+
+---
+
+<!-- Slide 14b: System & Certificate Tools (new in 0.10.0) -->
+
+# <carbon-security class="inline text-[#3162ac]" /> System & Certificate Tools <span class="text-sm font-normal text-[#16825d]">new in 0.10.0</span>
+
+<div class="grid grid-cols-2 gap-6">
+<div>
+
+### <carbon-bare-metal-server class="inline text-[#3162ac]" /> System Information — 4 Tools
+
+- **listApfLibraries** — APF-authorized data sets
+- **listLinklist** — link list data sets
+- **listProclib** — PROCLIB concatenation
+- **viewSyslog** — system log, line-windowed reads
+
+Read-only visibility an AI assistant needs to answer
+"is this library authorized?" or "what happened on the
+system at 14:02?" without operator access.
+
+</div>
+<div>
+
+### <carbon-certificate class="inline text-[#3162ac]" /> Certificates & Key Rings — 9 Tools
+
+- **showCertificate** / **exportCertificate** (PEM, PKCS#12)
+- **importCertificate** / **connectCertificate** / **deleteCertificate**
+- **trustCertificate** / **setDefaultCertificate** / **renameCertificate**
+- **refreshCertificateClass** — make DIGTCERT changes take effect
+
+Works against the z/OS security database — **RACF, ACF2, or
+Top Secret** — with SAF return codes surfaced on every action.
 
 </div>
 </div>
@@ -682,6 +730,12 @@ When multiple tools request the same credential simultaneously, only one prompt 
 </div>
 <div>
 
+### <carbon-password class="inline text-[#16825d]" /> SSH Key Authentication <span class="text-xs font-normal text-[#16825d]">new in 0.10.0</span>
+
+- **Private keys preferred over passwords** — explicit key, `~/.ssh/config`, then default key locations
+- Automatic **fallback to the password flow** when no usable key is found
+- Encrypted keys: passphrase via env var (`ssh-agent` support planned)
+
 ### <carbon-security class="inline text-[#3162ac]" /> Security Features
 
 - Passwords **never stored in plain text** — VS Code SecretStorage (OS keychain)
@@ -797,13 +851,12 @@ Every tool change is validated with **before/after AI evaluation runs**.
 3. Compare pass rates — keep improvements, revert regressions
 4. Track results in **scoreboard** (`docs/eval-scoreboard.md`)
 
-### <carbon-category class="inline text-[#3162ac]" /> Question Set Types
+### <carbon-category class="inline text-[#3162ac]" /> Question Sets — 147 questions
 
 - **naming-stress** — CLI phrasing, z/OS jargon, ISPF vocabulary
 - **description-quality** — pagination, search options, attributes
-- **sms-allocation** — SMS parameters, JCL-style allocation
-- **mutations** — write/delete flows
-- **pagination** / **search** — correctness of multi-page results
+- **system** / **certificates** / **multi-turn** — new in 0.10.0
+- **mutations** · **sms-allocation** · **pagination** · **search**
 
 </div>
 <div>
@@ -824,7 +877,8 @@ Every tool change is validated with **before/after AI evaluation runs**.
 
 - **Parameter descriptions** matter more than parameter names for LLMs
 - **Expanding z/OS jargon** in descriptions improved pass rates by +9.1%
-- Pagination awareness remains a challenge
+- 16 models benchmarked — `qwen3.6-35b-a3b` scores **100%** on the newest sets (system, certificates, multi-turn); `gemini-2.5-flash` ~94%
+- Opt-in **Claude Code smoke suite** drives the real `claude` CLI end to end
 
 </div>
 </div>
@@ -1221,7 +1275,7 @@ An <strong class="text-[#1b375f]">MCP registry</strong> is a <strong class="text
 
 ### <carbon-collaborate class="inline text-[#3162ac]" /> Get Involved
 
-- **GitHub** — [github.com/zowe/zowe-mcp](https://github.com/zowe/zowe-mcp) - _coming soon_
+- **GitHub** — [github.com/zowe/zowe-mcp](https://github.com/zowe/zowe-mcp) — issues and PRs welcome
 - **npm** and **VS Code Marketplace** — not available yet
 - **Zowe Slack** — `#zowe-mcp` channel - _coming soon_
 

@@ -24,7 +24,7 @@ release PR to main:  set-version to X.Y.Z (strip -dev), roll changelog headers,
 ## Roles
 
 - **AI prepares.** The `/prepare-release` Cursor command
-  ([`.cursor/commands/prepare-release.md`](../.cursor/commands/prepare-release.md))
+  ([`docs/prepare-release.md`](prepare-release.md); `/prepare-release` in Cursor is a thin pointer to it)
   runs the test suite, suggests the next version, drafts the user-facing
   changelog, and — after explicit human approval of the changelog — bumps
   the version, rolls both CHANGELOGs, regenerates docs, and opens a PR to
@@ -81,8 +81,14 @@ Two ways to exercise the pipeline without cutting a real release:
    release PR goes through the identical pipeline end to end — reviewed PR,
    CI build, tag, assets, notes. The workflow marks any version with a
    prerelease component (`-rc.N` etc.) as a GitHub **Pre-release** (never
-   "latest"). Delete the rc release/tag afterwards if desired, then repeat
-   with the clean version.
+   "latest"). Two aftermath tasks the rc.1 rehearsal surfaced
+   (zowe-mcp#66, finding 3): `main` is left sitting on the `-rc.N`
+   version — the automated dev-bump PR is deliberately skipped for
+   prereleases — so the follow-up release PR (to the clean version, or
+   back to `-dev`) is what moves `main` forward; and delete the rc
+   release/tag afterwards if desired, then repeat with the clean version.
+   Keep a single changelog section when the clean version follows an rc:
+   retitle the rc heading rather than stacking a second entry.
 
 ## One-time repo settings checklist
 
@@ -91,14 +97,27 @@ pipeline):
 
 - [ ] Make the `changelog` check (`.github/workflows/changelog.yml`)
       **required** on `main` branch protection (it is advisory today).
-- [ ] Add a tag ruleset protecting `v*` so only GitHub Actions (via the
-      release workflow's `GITHUB_TOKEN`) can create release tags.
+- [ ] Protect `v*` tags with a ruleset — but **do not enable "Restrict
+      creations"** until CI can bypass it. The rc.1 rehearsal proved
+      (zowe-mcp#66, finding 8) that in this org the workflow's
+      `GITHUB_TOKEN` cannot be exempted: it evaluates as the GitHub
+      Actions **App** (Integration), a `github-actions[bot]` *User*
+      bypass never matches, and adding the app fails with 422 because the
+      org has no installation record for the built-in Actions
+      integration. Until an org admin resolves that (or a
+      `ZOWE_ROBOT_TOKEN` user exists to tag as — phase 5), restrict only
+      **updates + deletions**: tags stay immutable once created, which is
+      the enforceable subset today.
 - [ ] Enable **immutable releases** for the repository.
 - [ ] Enable **"Allow GitHub Actions to create and approve pull
       requests"** (repo Settings → Actions → General) — required for the
       post-release dev-bump PR step.
-- [ ] Delete the stray `v0.10.0-dev` tag — it sits first in `git
-      describe`'s match order and is an anomaly, not a real release tag.
+- [x] Delete the stray `v0.10.0-dev` tag — done (2026-08-12). Note that
+      `git describe` on `main` still finds no release tag at all: `v0.8.0`
+      and `v0.9.0` live on the pre-#30 promoted history and are not
+      ancestors of `main`. This is why `release.yml` passes `new-version`
+      to Octorelease explicitly — anything else that assumes describable
+      tags on `main` will hit the same wall.
 
 ## Later phases (not implemented yet)
 

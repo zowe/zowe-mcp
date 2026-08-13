@@ -81,6 +81,15 @@ describe('release workflow contract', () => {
     expect(publish.run).toContain('gh release edit "v${{ steps.version.outputs.version }}"');
   });
 
+  it('sets an explicit release title', () => {
+    // Octorelease creates the draft untitled; with a null name GitHub renders the tag's
+    // commit subject as the title (v0.10.0-rc.1 showed up titled with the #67 commit
+    // message). The publish step must pass --title with the v-prefixed version.
+    const publish = findStep(steps, 'Publish release with notes');
+
+    expect(publish.run).toContain('--title "v${{ steps.version.outputs.version }}"');
+  });
+
   it('stages the pinned zowex SDK before npm ci', () => {
     // The SDK tarball is not committed (#64); npm ci fails ENOENT on a cold cache when the
     // file: target is missing, so the staging step must come first.

@@ -14,7 +14,7 @@ don't warrant an entry (CI, chores, internal refactors, docs-only) can carry the
 
 ## [Unreleased]
 
-## [0.10.0-rc.1] - 2026-08-12
+## [0.10.0] - 2026-08-13
 
 ### Added
 
@@ -59,6 +59,14 @@ don't warrant an entry (CI, chores, internal refactors, docs-only) can carry the
   [`packages/zowe-mcp-evals/README.md`](packages/zowe-mcp-evals/README.md).
 
 ### Fixed
+
+- **Release pipeline hardening from the v0.10.0-rc.1 rehearsal** (findings in
+  [#66](https://github.com/zowe/zowe-mcp/issues/66)): the version is passed to
+  Octorelease explicitly instead of being inferred from `git describe` (which
+  yielded `v0.0.0` — no release tag is an ancestor of `main`), the published
+  release gets an explicit title, `set-version.js` now syncs
+  `package-lock.json`, and release PRs validate the release-notes heading in CI
+  instead of failing the publish after the merge.
 
 - **Certificate tools reported empty SAF return codes.** zowex#1079 renamed the
   SDK's `SafReturns.racfReturnCode`/`racfReasonCode` to

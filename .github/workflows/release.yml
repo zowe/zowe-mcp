@@ -164,7 +164,11 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          args=(--notes-file "$RUNNER_TEMP/release-notes.md" --draft=false)
+          # --title is explicit: Octorelease creates the draft untitled, and a null
+          # name makes GitHub render the tag's commit subject as the title
+          # (zowe-mcp#66, finding 9).
+          args=(--title "v${{ steps.version.outputs.version }}")
+          args+=(--notes-file "$RUNNER_TEMP/release-notes.md" --draft=false)
           if [ "${{ steps.version.outputs.is-prerelease }}" = "true" ]; then
             args+=(--prerelease)
           fi
@@ -197,7 +201,8 @@ jobs:
 
           git checkout -b "$BRANCH"
           node scripts/set-version.js "$NEXT_VERSION"
-          git add -u -- package.json packages/*/package.json packages/zowe-mcp-server/server.json
+          # set-version.js also syncs package-lock.json (zowe-mcp#66 finding 1), so stage it too.
+          git add -u -- package.json package-lock.json packages/*/package.json packages/zowe-mcp-server/server.json
           git commit -s -m "chore: set development version to ${NEXT_VERSION}"
           git push "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git" "HEAD:refs/heads/${BRANCH}"
 

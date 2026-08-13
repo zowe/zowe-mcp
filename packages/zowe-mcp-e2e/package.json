@@ -1,6 +1,6 @@
 {
   "name": "zowe-mcp-e2e",
-  "version": "0.10.0-rc.1",
+  "version": "0.10.0",
   "description": "Deterministic fake LLM server for VS Code Copilot Chat BYOK end-to-end testing",
   "private": true,
   "type": "module",

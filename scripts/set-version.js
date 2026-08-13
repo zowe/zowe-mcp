@@ -98,3 +98,14 @@ if (serverJsonRaw !== undefined) {
     console.log('Updated version to %s: %s', version, path.relative(repoRoot, serverJsonPath));
   }
 }
+
+// Sync package-lock.json with the new workspace versions. Without this, `npm ci`
+// (which every CI lane and the release workflow run) fails with "lock file's
+// <pkg>@<old> does not satisfy <pkg>@<new>" — the v0.10.0-rc.1 release PR hit
+// exactly that and needed a manual `npm install` (zowe-mcp#66, finding 1).
+// --package-lock-only rewrites the lockfile without touching node_modules.
+console.log('Syncing package-lock.json (npm install --package-lock-only)...');
+require('child_process').execSync('npm install --package-lock-only --ignore-scripts', {
+  cwd: repoRoot,
+  stdio: 'inherit',
+});

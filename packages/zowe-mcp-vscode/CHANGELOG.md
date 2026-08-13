@@ -6,7 +6,7 @@ All notable changes to the Zowe MCP extension will be documented in this file.
 
 ## Recent Changes
 
-## `0.10.0-rc.1`
+## `0.10.0`
 
 ### New features and enhancements
 

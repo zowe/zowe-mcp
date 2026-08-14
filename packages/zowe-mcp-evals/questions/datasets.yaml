@@ -3,7 +3,7 @@
 config:
   name: datasets
   description: List data sets and basic context
-  repetitions: 2
+  repetitions: 5
   minSuccessRate: 0.8
   mock:
     initArgs: --preset default
@@ -56,3 +56,33 @@ questions:
             validDsn: 'USER.SRC.COBOL(CUSTFILE)'
       - answerContains:
           pattern: 'CUSTFILE|PROGRAM-ID'
+
+  - id: list-members-copybook
+    prompt: List the members of the copybook library USER.SRC.COPYBOOK.
+    assertions:
+      - toolCall:
+          tool: listMembers
+          args:
+            validDsn: 'USER.SRC.COPYBOOK'
+      - answerContains:
+          pattern: 'CUSTREC|ACCTFMT|ERRCODES'
+
+  - id: list-members-jcl
+    prompt: What members are in the JCL library USER.JCL.CNTL?
+    assertions:
+      - toolCall:
+          tool: listMembers
+          args:
+            validDsn: 'USER.JCL.CNTL'
+      - answerContains:
+          pattern: 'COMPILE|LINKJOB|RUNJOB'
+
+  - id: read-sequential-data-input
+    prompt: Read the sequential data set USER.DATA.INPUT and tell me what kind of records it holds.
+    assertions:
+      - toolCall:
+          tool: readDataset
+          args:
+            validDsn: 'USER.DATA.INPUT'
+      - answerContains:
+          pattern: 'CUSTOMER|SMITH|customer|record'

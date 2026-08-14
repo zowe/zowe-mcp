@@ -6,8 +6,24 @@ All notable changes to the Zowe MCP extension will be documented in this file.
 
 ## Recent Changes
 
-- **System tools**: A new group of system tools has been introduced to allow the user to list APF Authorized data sets, link list data sets, proclib data sets, and view system log information.  [#45](https://github.com/zowe/zowe-mcp/pull/45)
+## `0.10.0-rc.1`
+
+### New features and enhancements
+
+- **System tools**: A new group of system tools has been introduced to allow the user to list APF Authorized data sets, link list data sets, proclib data sets, and view system log information. [#45](https://github.com/zowe/zowe-mcp/pull/45)
 - **Certificate tools**: A new group of certificate and key ring tools has been introduced to show, connect, delete, export, import, set the ring default, change trust status, rename, and refresh certificates on the z/OS security database (RACF, ACF2, or Top Secret). [#45](https://github.com/zowe/zowe-mcp/pull/45)
+- **SSH key authentication**: The Zowe Remote SSH backend can now authenticate with an SSH private key, preferred over a password, falling back to password automatically when no usable key is found. [#44](https://github.com/zowe/zowe-mcp/pull/44)
+- **A system is selected automatically**: When no system has been chosen and exactly one is configured, tools now use it instead of returning an error.
+- **Existing `zowex` on `$PATH` is preferred**: If the z/OS server binary is already installed and on the path, it is used instead of deploying a private copy. [#56](https://github.com/zowe/zowe-mcp/pull/56)
+
+### Bug fixes
+
+- **Server deploy could silently corrupt when the deploy directory ran out of space**, surfacing much later as a confusing load failure. Space is now checked before deploying, and a truncated binary is detected and redeployed automatically. [#56](https://github.com/zowe/zowe-mcp/pull/56)
+
+### Other
+
+- **Data trust boundary**: Server instructions now tell the assistant to treat z/OS content as data, not instructions, reducing prompt-injection risk from mainframe file contents.
+- **Model evaluation suite expanded** (78 → 147 questions), adding coverage for the new system and certificate tools and for multi-turn conversations, support for Anthropic and OpenAI providers, and an opt-in Claude Code integration smoke that drives the real `claude` CLI against the server. On the newest tool sets, `qwen3.6-35b-a3b` scored 100% (system 55/55, certificates 65/65, multi-turn 20/20 across five repetitions each) and `gemini-2.5-flash` was close behind at ~94%. Running the suite against a model is a good way to judge how well it drives the Zowe MCP tools — see the [eval scoreboard](https://github.com/zowe/zowe-mcp/blob/main/docs/eval-scoreboard.md). [#48](https://github.com/zowe/zowe-mcp/pull/48), [#58](https://github.com/zowe/zowe-mcp/pull/58)
 
 ## `0.9.0`
 

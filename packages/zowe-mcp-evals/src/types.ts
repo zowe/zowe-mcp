@@ -16,6 +16,14 @@
 export interface SetMockConfig {
   /** Extra arguments for init-mock, one string (split on whitespace when passing). */
   initArgs: string;
+  /**
+   * Capability tier the mock server registers tools at (--capability-tier).
+   * Defaults to 'full' (all tools) when omitted. Set to 'read'/'read-strict' to
+   * exclude mutating/destructive tools — used by injection variants that verify the
+   * deterministic least-privilege control (a destructive tool the model can't call
+   * because it was never registered).
+   */
+  capabilityTier?: string;
 }
 
 /**
@@ -246,8 +254,22 @@ export interface AssertAnswerContains {
   pattern?: string;
 }
 
+/**
+ * Assert that the final answer text satisfies a rubric, graded by a judge LLM.
+ * Requires a judge model to be configured (see {@link JudgeFn} in assertions.ts); when no
+ * judge is available this assertion fails with a clear message rather than being skipped.
+ */
+export interface AssertAnswerJudge {
+  type: 'answerJudge';
+  name?: string;
+  rubric: string;
+  /** Optional judge model id override (evals.config.json id). Reserved for future use. */
+  model?: string;
+}
+
 /** Leaf assertion (no nested allOf/anyOf). */
-export type Assertion = AssertToolCall | AssertToolCallOrder | AssertAnswerContains;
+export type Assertion =
+  AssertToolCall | AssertToolCallOrder | AssertAnswerContains | AssertAnswerJudge;
 
 /**
  * Composite: all nested items must pass (logical AND).
@@ -279,7 +301,22 @@ export interface AssertionBlock {
 }
 
 /**
- * One question in a set.
+ * One turn of a multi-turn question: a user prompt plus the assertions checked
+ * against that turn's own tool calls and final answer text.
+ */
+export interface QuestionTurn {
+  prompt: string;
+  /** Assertions for this turn (empty block = no assertions, e.g. a setup turn). */
+  assertionBlock: AssertionBlock;
+}
+
+/**
+ * One question in a set. Single-turn questions have `prompt` + `assertionBlock`.
+ * Multi-turn questions additionally set `turns`; the runner drives each turn through
+ * the agent with a shared, accumulating conversation and asserts per turn. For a
+ * multi-turn question, `prompt` is the first turn's prompt (for display) and
+ * `assertionBlock` is the union of all turns' items (used only for tool-under-test
+ * discovery, not for pass/fail — that is per turn).
  */
 export interface Question {
   id: string;
@@ -288,6 +325,8 @@ export interface Question {
   preset?: 'default' | 'inventory';
   /** Normalized assertion block (all items must pass when mode is 'all'; any item must pass when mode is 'any'). */
   assertionBlock: AssertionBlock;
+  /** When set, this is a multi-turn question; each turn is run in sequence in one conversation. */
+  turns?: QuestionTurn[];
   /** When set, this question is skipped with this reason. */
   skip?: string;
 }
@@ -320,6 +359,10 @@ export interface TokenUsage {
   output: number;
   /** Total tokens (input + output). */
   total: number;
+  /** Anthropic prompt-cache read tokens (undefined when not reported / not applicable). */
+  cacheReadInputTokens?: number;
+  /** Anthropic prompt-cache write tokens (undefined when not reported / not applicable). */
+  cacheCreationInputTokens?: number;
 }
 
 /**

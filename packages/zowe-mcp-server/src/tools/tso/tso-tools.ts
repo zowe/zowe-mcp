@@ -26,6 +26,7 @@ import type { ResponseCache } from '../../zos/response-cache.js';
 import { buildCacheKey, buildScopeSystem, withCache } from '../../zos/response-cache.js';
 import { resolveSystemForTool, type SessionState } from '../../zos/session.js';
 import type { SystemRegistry } from '../../zos/system.js';
+import { formatBlockedCommandMessage } from '../command-safety.js';
 import { createToolProgress } from '../progress.js';
 import {
   buildContext,
@@ -100,9 +101,8 @@ export function registerTsoTools(server: McpServer, deps: TsoToolDeps, logger: L
       try {
         const validation = validateTsoCommand(commandText);
         if (validation.action === 'block') {
-          const msg =
-            validation.pattern?.message ?? 'This TSO command is not allowed for security reasons.';
-          await progress.complete(msg);
+          const msg = formatBlockedCommandMessage('TSO', validation.pattern?.message);
+          await progress.complete('blocked');
           return errorResult(msg);
         }
         if (validation.action === 'elicit') {

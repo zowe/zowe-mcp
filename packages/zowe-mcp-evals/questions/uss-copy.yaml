@@ -3,7 +3,7 @@
 config:
   name: uss-copy
   description: Agent must use copyUssFile to copy USS files and directories
-  repetitions: 2
+  repetitions: 5
   minSuccessRate: 0.8
   mock:
     initArgs: --preset minimal

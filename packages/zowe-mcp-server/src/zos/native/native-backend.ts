@@ -15,7 +15,11 @@
  * Implements listDatasets, listMembers, and readDataset; other methods throw "not implemented".
  */
 
-import { ZSshUtils, type ZSshClient } from '@zowe/zowex-for-zowe-sdk';
+import {
+  ZSshUtils,
+  type ZSshClient,
+  type certificates as ZowexCerts,
+} from '@zowe/zowex-for-zowe-sdk';
 import { dump as yamlDump } from 'js-yaml';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
@@ -77,6 +81,7 @@ import {
   takeAbendSnippet,
 } from './stderr-abend-capture.js';
 import { logZowexRpcResponse, requireMethods, sanitizeZowexString } from './zowex-debug.js';
+import { isZowexTruncatedModuleError } from './zowex-deploy-check.js';
 
 const log = getLogger().child('native');
 
@@ -251,96 +256,16 @@ interface NativeSystemApi {
   }>;
 }
 
-/** A non-fatal SAF warning/error code tuple attached to a certificate response (SDK 0.6.1+). */
-interface NativeSafReturns {
-  functionCode: number;
-  safReturnCode: number;
-  racfReturnCode: number;
-  racfReasonCode: number;
-}
-
-/** Fields common to certificate/key ring action responses (SDK 0.6.1+). */
-interface NativeCertCommandResponse {
-  warning?: string;
-  safReturns?: NativeSafReturns;
-  gskReturnCode?: number;
-}
-
-/** Subset of ZSshClient.certificates we use (ZNP certificate/key ring RPCs — SDK 0.6.1+). */
-interface NativeCertApi {
-  connectCertificate(req: {
-    owner: string;
-    keyring: string;
-    label: string;
-    fromRing?: string;
-    fromDatabase?: boolean;
-    usage?: string;
-    default?: boolean;
-  }): Promise<NativeCertCommandResponse>;
-  deleteCertificate(req: {
-    owner: string;
-    label: string;
-    keyring?: string;
-    database?: boolean;
-    skipRefresh?: boolean;
-  }): Promise<NativeCertCommandResponse>;
-  exportCertificate(req: {
-    owner: string;
-    keyring: string;
-    label: string;
-    format?: string;
-    file?: string;
-    password?: string;
-  }): Promise<
-    NativeCertCommandResponse & {
-      label: string;
-      owner: string;
-      keyring: string;
-      format: string;
-      file?: string;
-      bytesWritten?: number;
-      data?: string;
-    }
-  >;
-  importCertificate(req: {
-    owner: string;
-    keyring: string;
-    label: string;
-    usage: string;
-    file: string;
-    password: string;
-    skipRefresh?: boolean;
-  }): Promise<NativeCertCommandResponse & { label: string; owner: string; keyring: string }>;
-  showCertificate(req: { owner: string; keyring: string; label: string }): Promise<{
-    label: string;
-    owner: string;
-    usage: string;
-    status: string;
-    default: boolean;
-    keyType: number;
-    keySize: number;
-    serialNumber?: string;
-    notBefore?: string;
-    notAfter?: string;
-    recordId?: string;
-  }>;
-  setDefaultCertificate(req: {
-    owner: string;
-    keyring: string;
-    label: string;
-  }): Promise<NativeCertCommandResponse>;
-  trustCertificate(req: {
-    owner: string;
-    label: string;
-    status: string;
-  }): Promise<NativeCertCommandResponse>;
-  renameCertificate(req: {
-    owner: string;
-    label: string;
-    newLabel: string;
-  }): Promise<NativeCertCommandResponse>;
-  refreshDigtcert(req: Record<string, never>): Promise<NativeCertCommandResponse>;
-}
+/**
+ * The certificate/key ring RPC surface (zowex#1079), taken straight from the SDK's
+ * `RpcClientApi.certificates` rather than mirrored by hand.
+ *
+ * Sourcing these types upstream is deliberate: a hand-written mirror lets an upstream field rename
+ * compile cleanly and silently yield `undefined` at runtime, which is exactly what zowex#1079's
+ * `racfReturnCode`/`racfReasonCode` → `esmReturnCode`/`esmReasonCode` rename did. Referencing the
+ * SDK types means the next such rename fails the build here instead.
+ */
+type NativeCertApi = ZSshClient['certificates'];
 
 /** Shape returned by UtilsApi.tools.parseSearchOutput (SDK 0.3.0+). */
 interface ZowexParsedSearchResult {
@@ -674,6 +599,7 @@ export class NativeBackend {
         code
       );
       const abendDetected = isAbendError(fullMsg);
+      const truncatedModuleDetected = isZowexTruncatedModuleError(fullMsg);
       const zowexOperation = operationContext?.operation ?? 'unknown';
       const mcpTool = getCurrentMcpTool() ?? 'unknown';
 
@@ -692,8 +618,14 @@ export class NativeBackend {
         isInvalidPassword,
         isPasswordExpired,
         abendDetected,
+        truncatedModuleDetected,
       });
-      if (abendDetected) {
+      if (truncatedModuleDetected) {
+        log.notice(
+          `Zowe Remote SSH server binary on z/OS appears truncated/corrupted during operation '${zowexOperation}' (MCP tool: '${mcpTool}') — this usually happens when the deploy directory ran out of space during a previous install. Connection evicted; the next request will attempt to redeploy automatically. Details: ${sanitizeAbendMessage(fullMsg)}`,
+          { systemId, host: spec.host, user: spec.user, zowexOperation, mcpTool }
+        );
+      } else if (abendDetected) {
         log.notice(
           `Zowe Remote SSH server on z/OS abended during Zowe Remote SSH operation '${zowexOperation}' (MCP tool: '${mcpTool}'). ${abendReason}. Connection evicted; next request will use a new connection. Set ZOWE_MCP_CEEDUMP_SAVE_DIR to collect CEEDUMPs. Please report via GitHub issues: ${ZOWEX_ISSUES_URL}`,
           { systemId, host: spec.host, user: spec.user, zowexOperation, mcpTool, abendReason }
@@ -717,13 +649,15 @@ export class NativeBackend {
         this.options.credentialProvider.markInvalid(spec);
         this.options.clientCache.evict(spec);
         this.options.onPasswordInvalid?.(spec.user, spec.host, spec.port);
-      } else if (isConnectionError) {
+      } else if (isConnectionError || truncatedModuleDetected) {
         this.options.clientCache.evict(spec);
         log.info(
           'Native connection evicted due to backend/connection error; lock released — next request will use a new connection',
           { key, systemId, host: spec.host, user: spec.user }
         );
-        if (abendDetected) {
+        // A truncated module fails at z/OS load time, before zowex's runtime is up, so no
+        // CEEDUMP is produced for it — only collect one for a genuine runtime abend.
+        if (abendDetected && !truncatedModuleDetected) {
           void this.collectCeedumpAfterAbend(
             spec,
             systemId,
@@ -733,6 +667,15 @@ export class NativeBackend {
             mcpTool
           );
         }
+      }
+      if (truncatedModuleDetected) {
+        throw new Error(
+          `The Zowe Remote SSH server binary on z/OS appears to be truncated or corrupted — this usually ` +
+            `happens when the deploy directory ran out of space during a previous install. The connection ` +
+            `has been reset; retrying this request should trigger an automatic redeploy. If it keeps ` +
+            `failing, free up space in the deploy directory (or its zFS filesystem) and try again. ` +
+            `Details: ${sanitizeAbendMessage(fullMsg)}`
+        );
       }
       if (abendDetected) {
         const userMessage = `An unexpected internal error occurred in Zowe Remote SSH (z/OS). Details: ${abendReason}. Please report via GitHub issues: ${ZOWEX_ISSUES_URL}`;
@@ -1756,11 +1699,11 @@ export class NativeBackend {
   }
 
   private getCertificates(client: ZSshClient): NativeCertApi {
-    return (client as unknown as { certificates: NativeCertApi }).certificates;
+    return client.certificates;
   }
 
   /** Maps a certificate/key ring action response to our RACF-neutral CertActionResult. */
-  private mapCertActionResult(response: NativeCertCommandResponse): CertActionResult {
+  private mapCertActionResult(response: ZowexCerts.CertCommandResponse): CertActionResult {
     return {
       ...(response.warning !== undefined && {
         warning: sanitizeZowexString(response.warning) ?? response.warning,
@@ -1769,8 +1712,8 @@ export class NativeBackend {
         safReturnCodes: {
           functionCode: response.safReturns.functionCode,
           safReturnCode: response.safReturns.safReturnCode,
-          productReturnCode: response.safReturns.racfReturnCode,
-          productReasonCode: response.safReturns.racfReasonCode,
+          productReturnCode: response.safReturns.esmReturnCode,
+          productReasonCode: response.safReturns.esmReasonCode,
         },
       }),
       ...(response.gskReturnCode !== undefined && { gskReturnCode: response.gskReturnCode }),

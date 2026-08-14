@@ -240,4 +240,33 @@ describe('cache get/set', () => {
     const got = await get(cacheDir, key);
     expect(got).toBeNull();
   });
+
+  it('round-trips a multi-turn entry with per-turn results', async () => {
+    const key = 'multiturn00000001';
+    const value: CachedRunResult = {
+      finalText: 'Done.',
+      toolCalls: [
+        { name: 'listMembers', arguments: { dsn: 'USER.SRC.COBOL' } },
+        { name: 'readDataset', arguments: { dsn: 'USER.SRC.COBOL(CUSTFILE)' } },
+      ],
+      turns: [
+        { finalText: 'Members: ...', toolCalls: [{ name: 'listMembers', arguments: {} }] },
+        { finalText: 'Done.', toolCalls: [{ name: 'readDataset', arguments: {} }] },
+      ],
+    };
+    await set(cacheDir, key, value);
+    const got = await get(cacheDir, key);
+    expect(got?.turns).toHaveLength(2);
+    expect(got!.turns![0].toolCalls[0].name).toBe('listMembers');
+    expect(got!.turns![1].toolCalls[0].name).toBe('readDataset');
+  });
+
+  it('returns null when the turns breakdown is malformed', async () => {
+    const key = 'badturns00000001';
+    const path = join(cacheDir, key + '.json');
+    // finalText/toolCalls valid, but a turn is missing toolCalls.
+    writeFileSync(path, '{"finalText":"x","toolCalls":[],"turns":[{"finalText":"y"}]}', 'utf-8');
+    const got = await get(cacheDir, key);
+    expect(got).toBeNull();
+  });
 });

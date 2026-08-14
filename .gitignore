@@ -35,6 +35,12 @@ packages/zowe-mcp-vscode/vscode.proposed.*.d.ts
 !.vscode/settings.json
 .idea/
 
+# Claude Code local config and worktrees
+.claude/
+
+# Local working notes
+notes/
+
 # OS
 .DS_Store
 Thumbs.db
@@ -64,9 +70,10 @@ test-results.junit.xml
 
 # Output of 'npm pack' (repo root only)
 *.tgz
-# Committed SDK baseline(s) in resources/ are tracked despite *.tgz rule
-!resources/zowe-zowex-for-zowe-sdk-*.tgz
-!resources/znp-sdk-fallback.tgz
+# The rule above deliberately has no `!resources/...tgz` exception: zowex SDK tarballs are
+# NOT committed. They are staged into resources/ on demand by scripts/sdk-switch.js — CI uses
+# `pin` mode, which fetches the build named by resources/zowex-pin.json and verifies its
+# SHA-256. Each is ~3 MB and six are already in history; do not add an exception back.
 
 # z/OSMF OpenAPI specs downloaded from a live server: IBM-owned, must never be committed
 # (obtain locally via `npm run zosmf:download-specs`)
@@ -80,6 +87,9 @@ zosmf-instances.json
 # SDK switch temporary directories
 .sdk-download-tmp/
 .sdk-version-tmp/
+
+# Scratch output from the playwright-cli tooling (console logs, page snapshots)
+.playwright-cli/
 
 # Temporary files
 *.tmp

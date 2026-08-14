@@ -85,3 +85,44 @@ describe('generateInventoryMemberCard', () => {
     expect(parsedEn.name).not.toBe(parsedEs.name);
   });
 });
+
+describe('prompt-injection artifacts', () => {
+  const INJECTION_ARTIFACTS = initMock.INJECTION_ARTIFACTS as readonly {
+    target: string;
+    injects: string;
+  }[];
+  const injectionArtifactContents = initMock.injectionArtifactContents as (
+    hlq: string
+  ) => Record<string, string>;
+
+  it('lists targets keyed to the {hlq} placeholder', () => {
+    expect(INJECTION_ARTIFACTS.length).toBeGreaterThan(0);
+    for (const a of INJECTION_ARTIFACTS) {
+      expect(a.target).toContain('{hlq}');
+      expect(a.injects).toBeTruthy();
+    }
+  });
+
+  it('substitutes the HLQ into every artifact body', () => {
+    const contents = injectionArtifactContents('ACME');
+    for (const body of Object.values(contents)) {
+      expect(body).not.toContain('{hlq}');
+    }
+    // Data-set artifacts reference ACME-qualified targets in their payloads.
+    expect(contents.sourceRptgen).toContain('ACME.APP.SOURCE');
+    expect(contents.ussReadme).toContain('/u/ACME/deploy');
+  });
+
+  it('embeds an instruction naming the destructive action in each payload', () => {
+    const contents = injectionArtifactContents('USER');
+    // Each body carries a benign hook AND an embedded destructive instruction.
+    expect(contents.sourceRptgen).toMatch(/ignore all previous instructions/i);
+    expect(contents.sourceRptgen).toContain('deleteDataset');
+    expect(contents.sourceAcctproc).toContain('writeDataset');
+    expect(contents.jclBuild).toContain('submitJob');
+    expect(contents.config).toContain('deleteDatasetsUnderPrefix');
+    expect(contents.datanote).toContain('renameDataset');
+    expect(contents.joblog).toContain('CANCEL');
+    expect(contents.ussReadme).toContain('deleteUssFile');
+  });
+});

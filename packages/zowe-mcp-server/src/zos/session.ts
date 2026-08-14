@@ -82,13 +82,43 @@ export function resolveSystemForTool(
 ): ResolvedSystem {
   if (system === undefined || system === '') {
     const active = sessionState.getActiveSystem();
-    if (active === undefined) {
-      throw new Error(
-        'No active z/OS system. Use setSystem to select a system, or pass the "system" parameter explicitly.'
-      );
+    if (active !== undefined) {
+      const ctx = sessionState.getContext(active);
+      return { systemId: active, userId: ctx?.userId };
     }
-    const ctx = sessionState.getContext(active);
-    return { systemId: active, userId: ctx?.userId };
+    // No active system. Default to the first configured connection so the first
+    // tool call "just works" instead of failing — weaker models otherwise hit the
+    // error and give up rather than calling setSystem. The response context reports
+    // which system was used; call setSystem to target a different one.
+    //
+    // Opt out for multi-environment deployments where silently defaulting could
+    // target the wrong system (e.g. dev vs prod): set
+    // ZOWE_MCP_REQUIRE_EXPLICIT_SYSTEM=1 to require an explicit selection.
+    const requireExplicit = ['1', 'true', 'yes'].includes(
+      (process.env.ZOWE_MCP_REQUIRE_EXPLICIT_SYSTEM ?? '').trim().toLowerCase()
+    );
+    const hosts = systemRegistry.list();
+    if (!requireExplicit && hosts.length > 0) {
+      const sysInfo = systemRegistry.getOrResolve(hosts[0]);
+      const specs = sysInfo?.connectionSpecs;
+      if (specs && specs.length > 0) {
+        // Resolve via the first connection spec (user@host) for a userId too.
+        // Safe recursion: this only ever recurses one level deep. specs[0] is a
+        // non-empty "user@host" connection spec, so the recursive call takes the
+        // explicit-system branch below (system defined and non-empty), resolves,
+        // and returns without ever re-entering this defaulting path. specs[0]
+        // (first configured connection) is used for the same reason as hosts[0]
+        // above: a deterministic "first configured" default.
+        return resolveSystemForTool(systemRegistry, sessionState, specs[0]);
+      }
+      return { systemId: hosts[0] };
+    }
+    throw new Error(
+      'No active z/OS system. ' +
+        systemNotFoundHint(systemRegistry) +
+        ' To proceed: call setSystem with one of them (or pass the "system" parameter to this tool), then retry this operation. ' +
+        'If exactly one system is available, select it and continue — do not ask the user to pick.'
+    );
   }
 
   const trimmed = system.trim();

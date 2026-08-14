@@ -14,38 +14,21 @@ import { existsSync, rmSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { plural } from 'zowe-mcp-common';
-import { buildCacheKey, get as cacheGet, set as cacheSet, getToolsUnderTest } from './cache.js';
+import type { JudgeFn } from './assertions.js';
+import { usesAnswerJudge } from './cache.js';
 import { getConfigDir, loadEvalsConfig } from './config.js';
-import {
-  assertAndRecord,
-  buildToolDefsSubset,
-  errorMessage,
-  FAIL,
-  makeFailedRunResult,
-  PASS,
-  resolveNativeServerArgs,
-} from './evals-utils.js';
+import { estimateCostUsd } from './cost.js';
+import { errorMessage, FAIL, PASS, resolveNativeServerArgs } from './evals-utils.js';
 import { getSystemPrompt, initMockData, McpEvalHarness, prepareEvalWorkspace } from './harness.js';
 import { listSetNames, loadAndValidateAllSets } from './load-questions.js';
 import { log } from './log.js';
+import { maybeBuildJudge, runQuestion } from './question-runner.js';
 import { writeReport } from './report.js';
 import type { Question, QuestionSet, RunResult } from './types.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const SERVER_PATH = resolve(__dirname, '..', '..', 'zowe-mcp-server', 'dist', 'index.js');
-
-function logRunOutcome(result: RunResult, label: string, suffix: string): void {
-  const icon = result.passed ? PASS : FAIL;
-  const detail = result.passed ? suffix : ` ${result.assertionFailed ?? 'assertion failed'}`;
-  const msg = `${label} ${icon}${detail}`;
-  if (result.passed) log.pass(msg);
-  else log.fail(msg);
-  const answerPreview =
-    result.finalText.length > 300 ? result.finalText.slice(0, 300) + '…' : result.finalText;
-  log.info('  Answer:');
-  for (const line of answerPreview.trim().split(/\n/)) log.info(`    ${line}`);
-}
 
 interface CliArgs {
   set: string[];
@@ -54,6 +37,7 @@ interface CliArgs {
   id?: string[];
   filter?: string;
   noCache?: boolean;
+  repetitions?: number;
 }
 
 interface CacheStats {
@@ -77,6 +61,9 @@ function parseArgs(): CliArgs {
       result.filter = args[++i];
     } else if (args[i] === '--no-cache') {
       result.noCache = true;
+    } else if ((args[i] === '--repetitions' || args[i] === '--reps') && i + 1 < args.length) {
+      const reps = parseInt(args[++i], 10);
+      if (!Number.isNaN(reps) && reps > 0) result.repetitions = reps;
     }
   }
   if (result.set.length === 0) result.set = ['all'];
@@ -157,13 +144,24 @@ async function main(): Promise<void> {
     if (qs.config.skip) continue;
     const count = filterQuestions(qs.questions, cli).filter(q => !q.skip).length;
     totalQuestions += count;
-    totalRuns += count * (qs.config.repetitions ?? 5);
+    totalRuns += count * (cli.repetitions ?? qs.config.repetitions ?? 5);
   }
   let questionIndex = 0;
 
   log.info(
     `Plan: ${totalQuestions} ${plural(totalQuestions, 'question', 'questions')}, ${totalRuns} total ${plural(totalRuns, 'run', 'runs')} across ${setNames.filter(s => !loadedSets.get(s)!.config.skip).length} ${plural(setNames.filter(s => !loadedSets.get(s)!.config.skip).length, 'set', 'sets')}`
   );
+
+  // Build the judge lazily: only when some question in this run actually uses
+  // answerJudge. Deterministic runs (no answerJudge) never need a judge model/key.
+  const needsJudge = setNames.some(setName => {
+    const qs = loadedSets.get(setName)!;
+    if (qs.config.skip) return false;
+    return filterQuestions(qs.questions, cli).some(
+      q => !q.skip && usesAnswerJudge(q.assertionBlock)
+    );
+  });
+  const judge: JudgeFn | undefined = await maybeBuildJudge(needsJudge);
 
   for (const setName of setNames) {
     const questionSet = loadedSets.get(setName)!;
@@ -175,7 +173,7 @@ async function main(): Promise<void> {
     }
 
     const questions = filterQuestions(questionSet.questions, cli);
-    const repetitions = config.repetitions ?? 5;
+    const repetitions = cli.repetitions ?? config.repetitions ?? 5;
     const minSuccessRate = config.minSuccessRate ?? 0.8;
     log.info('Set loaded', {
       setName,
@@ -221,93 +219,36 @@ async function main(): Promise<void> {
           log.notice(`Skipping question "${q.id}": ${q.skip}`);
           continue;
         }
-        const questionResults: RunResult[] = [];
-        const toolNames = getToolsUnderTest(q.assertionBlock);
-        const toolDefs = buildToolDefsSubset(toolDefinitions, toolNames);
-        const cacheKey = useCache
-          ? buildCacheKey({
-              systemPrompt: getSystemPrompt(config, serverInstructions),
-              prompt: q.prompt,
-              toolDefs,
-              modelId: evalsConfig.modelId,
-            })
-          : '';
-
-        const cached = useCache ? await cacheGet(cacheDir, cacheKey) : null;
+        const isMultiTurn = Array.isArray(q.turns) && q.turns.length > 0;
 
         questionIndex++;
         const progress = `[${questionIndex.toString()}/${totalQuestions.toString()}]`;
         log.info(`${progress} ${setName}/${q.id}:`);
-        for (const line of q.prompt.trim().split(/\n/)) log.info(`  ${line}`);
+        if (isMultiTurn) {
+          q.turns!.forEach((t, i) => {
+            log.info(`  turn ${i + 1}: ${t.prompt}`);
+          });
+        } else {
+          for (const line of q.prompt.trim().split(/\n/)) log.info(`  ${line}`);
+        }
 
-        if (cached) {
-          for (let r = 0; r < repetitions; r++) {
-            const { finalText, toolCalls } = cached;
+        const questionResults = await runQuestion(q, {
+          harness,
+          judge,
+          cache: { enabled: useCache, dir: cacheDir, stats: cacheStats },
+          systemPrompt: getSystemPrompt(config, serverInstructions),
+          toolDefinitions,
+          modelId: evalsConfig.modelId,
+          repetitions,
+          minSuccessRate,
+          runLabel: r => `Running ${setName}/${q.id} (${r + 1}/${repetitions})`,
+          verboseAnswers: true,
+          onToolCalls: toolCalls => {
             for (const tc of toolCalls)
               allToolCalls.push({ name: tc.name, arguments: tc.arguments });
-            const result = assertAndRecord({
-              questionId: q.id,
-              prompt: q.prompt,
-              runIndex: r,
-              finalText,
-              toolCalls,
-              assertionBlock: q.assertionBlock,
-            });
-            questionResults.push(result);
-            allResults.push(result);
-            cacheStats.hits++;
-            logRunOutcome(
-              result,
-              `Running ${setName}/${q.id} (${r + 1}/${repetitions})`,
-              ' cache hit'
-            );
-          }
-        } else {
-          for (let r = 0; r < repetitions; r++) {
-            try {
-              const runResult = await harness.runOne(q.prompt);
-              const { finalText, toolCalls } = runResult;
-              for (const tc of toolCalls)
-                allToolCalls.push({ name: tc.name, arguments: tc.arguments });
-              const result = assertAndRecord({
-                questionId: q.id,
-                prompt: q.prompt,
-                runIndex: r,
-                finalText,
-                toolCalls,
-                assertionBlock: q.assertionBlock,
-                durationMs: runResult.durationMs,
-                tokenUsage: runResult.tokenUsage,
-                stepCount: runResult.stepCount,
-              });
-              questionResults.push(result);
-              allResults.push(result);
-              logRunOutcome(result, `Running ${setName}/${q.id} (${r + 1}/${repetitions})`, '');
-            } catch (err) {
-              const msg = errorMessage(err);
-              const failedResult = makeFailedRunResult(q.id, q.prompt, r, msg);
-              allResults.push(failedResult);
-              questionResults.push(failedResult);
-              log.fail(`Running ${setName}/${q.id} (${r + 1}/${repetitions}) ${FAIL} ${msg}`);
-              log.info('  Answer: (error)');
-              for (const line of msg.trim().split(/\n/)) log.info(`    ${line}`);
-              log.info(`    ${msg}`);
-            }
-          }
-          const qPassed = questionResults.filter(x => x.passed).length;
-          const qTotal = questionResults.length;
-          const questionPassRate = qTotal > 0 ? qPassed / qTotal : 0;
-          if (useCache && questionPassRate >= minSuccessRate) {
-            const firstPassing = questionResults.find(x => x.passed);
-            if (firstPassing) {
-              await cacheSet(cacheDir, cacheKey, {
-                finalText: firstPassing.finalText,
-                toolCalls: firstPassing.toolCalls,
-              });
-              cacheStats.writes++;
-            }
-          }
-        }
+          },
+        });
+        allResults.push(...questionResults);
 
         const qPassed = questionResults.filter(x => x.passed).length;
         const qTotal = questionResults.length;
@@ -334,6 +275,38 @@ async function main(): Promise<void> {
   const runsMsg = `Runs: ${passed}/${total} passed`;
   if (success) log.pass(runsMsg);
   else log.fail(runsMsg);
+
+  const resultsWithTokens = allResults.filter(r => r.tokenUsage != null);
+  if (resultsWithTokens.length > 0) {
+    const tokenTotals = resultsWithTokens.reduce(
+      (acc, r) => ({
+        input: acc.input + (r.tokenUsage?.input ?? 0),
+        output: acc.output + (r.tokenUsage?.output ?? 0),
+        total: acc.total + (r.tokenUsage?.total ?? 0),
+        cacheReadInputTokens: acc.cacheReadInputTokens + (r.tokenUsage?.cacheReadInputTokens ?? 0),
+        cacheCreationInputTokens:
+          acc.cacheCreationInputTokens + (r.tokenUsage?.cacheCreationInputTokens ?? 0),
+      }),
+      { input: 0, output: 0, total: 0, cacheReadInputTokens: 0, cacheCreationInputTokens: 0 }
+    );
+    if (
+      tokenTotals.input > 0 ||
+      tokenTotals.output > 0 ||
+      tokenTotals.cacheReadInputTokens > 0 ||
+      tokenTotals.cacheCreationInputTokens > 0
+    ) {
+      const cacheClause =
+        tokenTotals.cacheReadInputTokens > 0 || tokenTotals.cacheCreationInputTokens > 0
+          ? `, ${tokenTotals.cacheReadInputTokens} cache-read, ${tokenTotals.cacheCreationInputTokens} cache-write`
+          : '';
+      const cost = estimateCostUsd(tokenTotals, evalsConfig.serverModel);
+      const costClause = cost != null ? ` | Estimated cost: $${cost.toFixed(4)}` : '';
+      log.notice(
+        `Tokens: ${tokenTotals.input} in, ${tokenTotals.output} out${cacheClause}${costClause}`
+      );
+    }
+  }
+
   if (useCache) {
     const llmCalls = total - cacheStats.hits;
     log.notice(

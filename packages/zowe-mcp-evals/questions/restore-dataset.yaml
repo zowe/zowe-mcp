@@ -3,6 +3,7 @@
 config:
   name: restore-dataset
   description: Agent must use restoreDataset to recall a migrated data set
+  skip: 'Requires a real z/OS native backend (native-config.json + live system) with HSM recall; restoreDataset is not available in mock mode. Run manually with a configured native-config.json: npm run evals -- --set restore-dataset'
   repetitions: 1
   minSuccessRate: 0.8
   native:

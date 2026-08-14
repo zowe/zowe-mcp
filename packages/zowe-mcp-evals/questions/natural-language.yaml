@@ -1,0 +1,82 @@
+# yaml-language-server: $schema=../schemas/evals-question-set.schema.json
+# Natural-language evals: everyday, non-jargon phrasings a real user would type.
+# These measure whether tool/parameter DESCRIPTIONS let a model map natural intent
+# to the right tool + arguments — independent of the exact wording used in the
+# descriptions (do not copy description phrasing into these prompts). Assertions
+# check tool selection (the behavior we care about), not description-specific text.
+config:
+  name: natural-language
+  description: Everyday phrasings map to the right tool and arguments (no z/OS jargon)
+  repetitions: 5
+  minSuccessRate: 0.8
+  mock:
+    # Single-system fixture: this set tests natural-prompt -> tool selection, not
+    # multi-system disambiguation. minimal = one connection, auto-activated at
+    # startup (so "I haven't picked a system, use whatever I'm connected to" works).
+    initArgs: --preset minimal
+
+questions:
+  - id: nl-what-do-i-have
+    prompt: I just connected. Show me everything I've got under the USER high-level qualifier.
+    assertions:
+      - toolCall:
+          tool: listDatasets
+          args:
+            validDsn: 'USER.**'
+
+  - id: nl-open-the-cobol-source
+    prompt: Open the COBOL source library USER.SRC.COBOL and show me what's inside.
+    assertions:
+      - toolCall:
+          tool: listMembers
+          args:
+            validDsn: 'USER.SRC.COBOL'
+
+  - id: nl-show-me-a-program
+    prompt: Pull up the CUSTFILE program from USER.SRC.COBOL so I can read it.
+    assertions:
+      - toolCall:
+          tool: readDataset
+          args:
+            validDsn: 'USER.SRC.COBOL(CUSTFILE)'
+
+  - id: nl-grep-for-text
+    prompt: Where is the word DIVISION used anywhere in USER.SRC.COBOL?
+    assertions:
+      - toolCall:
+          tool: searchInDataset
+          args:
+            validDsn: 'USER.SRC.COBOL'
+            string: 'DIVISION'
+
+  - id: nl-look-at-a-chunk
+    prompt: For data set USER.DATA.INPUT, just show me ten lines starting at line 3.
+    assertions:
+      - toolCall:
+          tool: readDataset
+          args:
+            validDsn: 'USER.DATA.INPUT'
+            startLine: 3
+            lineCount: 10
+
+  - id: nl-no-system-selected
+    prompt: List my data sets. (I haven't picked a system yet — just use whatever I'm connected to.)
+    assertions:
+      - toolCall:
+          tool: listDatasets
+
+  - id: nl-uss-home
+    prompt: Where do my Unix files live on the mainframe?
+    assertions:
+      - toolCall:
+          tool: getUssHome
+
+  - id: nl-uss-cat-file
+    prompt: Show me what's inside file.txt in my mainframe Unix home directory.
+    assertions:
+      - toolCall:
+          tool: readUssFile
+          args:
+            path:
+              - 'file.txt'
+              - '/u/USER/file.txt'

@@ -14,11 +14,11 @@ questions:
     assertions:
       - name: create temp, write, read, cleanup
         toolCallOrder:
-          - tool: createTempDataset
-            args:
-              type:
-                - 'PS'
-                - 'SEQUENTIAL'
+          # Accept either create tool (createTempDataset, or createDataset under a
+          # fetched temp prefix) — both are valid and both clean up via the prefix.
+          - tools:
+              - createTempDataset
+              - createDataset
           - tool: writeDataset
             args:
               lines: ['Evals write test']
@@ -46,3 +46,52 @@ questions:
           - tool: deleteDatasetsUnderPrefix
       - answerContains:
           pattern: 'success|deleted|complete|done|cleaned|removed|finished|successfully'
+
+  - id: write-multiline-temp-read
+    prompt: Create a temporary sequential data set, write these three lines to it - "LINE ONE", "LINE TWO", "LINE THREE" - then read it back and tell me what the second line is. Finally delete all data sets under that temp prefix.
+    assertions:
+      - name: create temp, write three lines, read, cleanup
+        toolCallOrder:
+          - tools:
+              - createTempDataset
+              - createDataset
+          - tool: writeDataset
+            args:
+              lines: ['LINE ONE', 'LINE TWO', 'LINE THREE']
+          - tool: readDataset
+          - tool: deleteDatasetsUnderPrefix
+      - answerContains:
+          pattern: 'LINE TWO|second line is.*TWO|TWO'
+
+  - id: create-pds-two-members-list-cleanup
+    prompt: Create a temporary PDS, add two members MEMA and MEMB (each with the single line "hello"), then list the members of that PDS, and finally delete all data sets under that temp prefix.
+    assertions:
+      # Step 1 accepts either create tool: the agent may allocate the PDS with
+      # createTempDataset, or with createDataset under a temp prefix it fetched from
+      # getTempDatasetPrefix. Both are valid and both clean up via the temp prefix.
+      - name: create temp PDS, write two members, list, cleanup
+        toolCallOrder:
+          - tools:
+              - createTempDataset
+              - createDataset
+          - tool: writeDataset
+          - tool: writeDataset
+          - tool: listMembers
+          - tool: deleteDatasetsUnderPrefix
+      - answerContains:
+          pattern: 'MEMA|MEMB|member|deleted|success'
+
+  - id: delete-one-member-keep-other-cleanup
+    prompt: Create a temporary PDS, add members KEEPME and DROPME (each containing "x"), then delete only member DROPME with deleteDataset, and finally delete all data sets under that temp prefix.
+    assertions:
+      - name: create temp PDS, two members, delete one, cleanup
+        toolCallOrder:
+          - tools:
+              - createTempDataset
+              - createDataset
+          - tool: writeDataset
+          - tool: writeDataset
+          - tool: deleteDataset
+          - tool: deleteDatasetsUnderPrefix
+      - answerContains:
+          pattern: 'KEEPME|DROPME|member|deleted|removed|success'

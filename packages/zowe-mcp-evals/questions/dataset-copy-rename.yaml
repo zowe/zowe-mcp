@@ -3,7 +3,7 @@
 config:
   name: dataset-copy-rename
   description: Agent must copy/rename data sets and clean up temp prefix
-  repetitions: 2
+  repetitions: 5
   minSuccessRate: 0.8
   mock:
     initArgs: --preset minimal

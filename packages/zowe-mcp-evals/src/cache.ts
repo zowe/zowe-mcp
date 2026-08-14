@@ -21,10 +21,22 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { Assertion, AssertionBlock, AssertionItem, ToolCallRecord } from './types.js';
 
-/** Result shape stored in cache and returned by harness.runOne(). */
+/** One cached turn of a multi-turn conversation. */
+export interface CachedTurn {
+  finalText: string;
+  toolCalls: ToolCallRecord[];
+}
+
+/**
+ * Result shape stored in cache and returned by harness.runOne().
+ * For a multi-turn question, `turns` holds the per-turn breakdown (so per-turn
+ * assertions can be replayed on a cache hit) and `finalText`/`toolCalls` are the
+ * cumulative values (last turn's text; all turns' tool calls).
+ */
 export interface CachedRunResult {
   finalText: string;
   toolCalls: ToolCallRecord[];
+  turns?: CachedTurn[];
 }
 
 /** Payload used to build a stable cache key. */
@@ -54,6 +66,14 @@ function flattenAssertionItems(items: AssertionItem[]): Assertion[] {
     }
   }
   return out;
+}
+
+/**
+ * True if the assertion block contains an `answerJudge` assertion anywhere (including
+ * nested inside allOf/anyOf). Used to decide whether a judge model must be loaded.
+ */
+export function usesAnswerJudge(block: AssertionBlock): boolean {
+  return flattenAssertionItems(block.items).some(a => a.type === 'answerJudge');
 }
 
 /**
@@ -124,10 +144,25 @@ export async function get(cacheDir: string, key: string): Promise<CachedRunResul
       return null;
     }
     const parsed = data as CachedRunResult;
-    return {
+    const result: CachedRunResult = {
       finalText: parsed.finalText,
       toolCalls: parsed.toolCalls,
     };
+    // Multi-turn entries carry a per-turn breakdown. If present it must be well-formed
+    // (each turn has finalText + toolCalls); a malformed breakdown is a cache miss
+    // rather than a mis-replay.
+    if (parsed.turns !== undefined) {
+      if (
+        !Array.isArray(parsed.turns) ||
+        !parsed.turns.every(
+          t => t && typeof t.finalText === 'string' && Array.isArray(t.toolCalls)
+        )
+      ) {
+        return null;
+      }
+      result.turns = parsed.turns.map(t => ({ finalText: t.finalText, toolCalls: t.toolCalls }));
+    }
+    return result;
   } catch {
     return null;
   }

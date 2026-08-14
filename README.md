@@ -58,10 +58,18 @@ provides multiple layers of protection — use them together.
    evaluation (block / elicit / allow) to catch dangerous commands before
    execution.
 
-5. **Mock mode for learning** — Use the mock backend for exploration and
+5. **Data trust boundary** — Server instructions mark all tool-result content
+   (data set/USS contents, job output, search results, console output) as
+   untrusted data, so the model treats it as data to read rather than
+   instructions to follow — a defense-in-depth layer against prompt injection
+   carried through mainframe content. Enabled by default; set
+   `ZOWE_MCP_DATA_MARKING=0` to omit it (used to A/B evaluate the directive's
+   effect on injection resistance).
+
+6. **Mock mode for learning** — Use the mock backend for exploration and
    CI — no real z/OS resources are at risk.
 
-6. **Safety is not security** — Client hints, confirmation dialogs, and
+7. **Safety is not security** — Client hints, confirmation dialogs, and
    command gates reduce *accidents*. Only z/OS access controls (SAF, USS
    ACLs, scheduler exits) and credential management *enforce* real
    boundaries.
@@ -285,6 +293,14 @@ Config file format:
   ]
 }
 ```
+
+When multiple systems are configured and a tool is called with no `system`
+parameter and no active system yet, the server defaults to the first
+configured connection (rather than erroring) and reports which system it used
+in the response context; call `setSystem` to target a different one. Set
+`ZOWE_MCP_REQUIRE_EXPLICIT_SYSTEM=1` to require an explicit system instead —
+recommended for multi-environment deployments (e.g. dev vs prod) where
+silently defaulting could target the wrong system.
 
 #### Authentication (in order of preference)
 

@@ -3,7 +3,7 @@
 config:
   name: uss
   description: Agent must use getUssHome, listUssFiles, readUssFile
-  repetitions: 2
+  repetitions: 5
   minSuccessRate: 0.8
   mock:
     initArgs: --preset minimal
@@ -40,12 +40,12 @@ questions:
   - id: uss-write-temp-read-cleanup
     prompt: Create a temporary file under a temp directory in my USS home, write "USS eval test" to it, read it back, then delete all temp files under that temp directory.
     assertions:
-      - name: getUssTempDir then create/write/read/cleanup
+      # Focus on the essential lifecycle: write a temp USS file, read it back, clean
+      # up. The temp-dir plumbing (getUssTempDir / getUssTempPath / createTempUssDir /
+      # createTempUssFile) varies by model and order, so it is not asserted — requiring
+      # a specific first step made this brittle without testing anything meaningful.
+      - name: write temp USS file, read back, clean up
         toolCallOrder:
-          - tool: getUssTempDir
-          - tools:
-              - createTempUssFile
-              - getUssTempPath
           - tool: writeUssFile
             args:
               lines: ['USS eval test']
@@ -55,3 +55,47 @@ questions:
               - deleteUssFile
       - answerContains:
           substring: 'USS eval test'
+
+  - id: uss-read-abs-path
+    prompt: Show me the contents of /u/USER/file.txt.
+    assertions:
+      # Absolute path given explicitly — agent should read exactly that path.
+      - toolCall:
+          tool: readUssFile
+          args:
+            path:
+              - '/u/USER/file.txt'
+              - 'file.txt'
+      - answerContains:
+          substring: 'USS mock'
+
+  - id: uss-list-subdir
+    prompt: List what is inside the subdir directory in my USS home.
+    assertions:
+      # subdir exists under /u/USER; agent should list that path at some point (it may
+      # also list the home root first to discover subdir, so match ANY listUssFiles
+      # call on subdir rather than only the last one).
+      - toolCall:
+          oneOf:
+            - tool: listUssFiles
+              args:
+                path:
+                  pattern: 'subdir'
+
+  - id: uss-home-then-list
+    prompt: Find my USS home directory and then list what is in it.
+    assertions:
+      - name: resolve home, then list it
+        toolCallOrder:
+          - tool: getUssHome
+          - tool: listUssFiles
+      - answerContains:
+          pattern: 'file.txt|subdir|directory|file'
+
+  - id: uss-count-home-entries
+    prompt: How many entries are in my USS home directory?
+    assertions:
+      - toolCall:
+          tool: listUssFiles
+      - answerContains:
+          pattern: '2|two|file.txt|subdir'

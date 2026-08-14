@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://github.com/zowe/zowe-mcp/evals-question-set.schema.json",
   "title": "Zowe MCP Evals Question Set",
-  "description": "Schema for eval question set YAML files. Ansible-style assertions: each assertion is an object with a key (toolCall, toolCallOrder, answerContains) and an optional name.",
+  "description": "Schema for eval question set YAML files. Ansible-style assertions: each assertion is an object with a key (toolCall, toolCallOrder, answerContains, answerJudge) and an optional name.",
   "type": "object",
   "required": [],
   "anyOf": [{ "required": ["questions"] }, { "required": ["config"] }],
@@ -39,6 +39,11 @@
             "initArgs": {
               "type": "string",
               "description": "Arguments passed to init-mock (after --output <dir>). Typical: '--preset default' or '--preset pagination'."
+            },
+            "capabilityTier": {
+              "type": "string",
+              "enum": ["read-strict", "read", "update", "delete", "full"],
+              "description": "Capability tier the mock server registers tools at (--capability-tier). Defaults to 'full'. Set to 'read' to exclude mutating/destructive tools (used by injection variants that verify the deterministic least-privilege control)."
             }
           },
           "required": ["initArgs"],
@@ -199,8 +204,18 @@
       "minItems": 1,
       "items": {
         "type": "object",
-        "required": ["id", "prompt", "assertions"],
-        "description": "A single eval question: the prompt sent to the agent and the assertions checked against tool calls and final answer.",
+        "required": ["id"],
+        "description": "A single eval question. Single-turn: prompt + assertions. Multi-turn: a turns array (each turn is a prompt with its own assertions), run in one accumulating conversation.",
+        "oneOf": [
+          {
+            "required": ["prompt", "assertions"],
+            "not": { "required": ["turns"] }
+          },
+          {
+            "required": ["turns"],
+            "not": { "anyOf": [{ "required": ["prompt"] }, { "required": ["assertions"] }] }
+          }
+        ],
         "properties": {
           "id": {
             "type": "string",
@@ -208,7 +223,7 @@
           },
           "prompt": {
             "type": "string",
-            "description": "The user prompt sent to the AI agent."
+            "description": "The user prompt sent to the AI agent (single-turn questions)."
           },
           "preset": {
             "type": "string",
@@ -219,39 +234,23 @@
             "type": "string",
             "description": "When set, this question is skipped with this reason shown in the log."
           },
-          "assertions": {
-            "description": "Assertions block. An array (all must pass), or an object with allOf/anyOf.",
-            "oneOf": [
-              {
-                "type": "array",
-                "minItems": 1,
-                "items": { "$ref": "#/$defs/AssertionItem" }
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "allOf": {
-                    "type": "array",
-                    "minItems": 1,
-                    "items": { "$ref": "#/$defs/AssertionItem" }
-                  }
+          "assertions": { "$ref": "#/$defs/Assertions" },
+          "turns": {
+            "type": "array",
+            "minItems": 1,
+            "description": "Multi-turn conversation. Each turn is a user prompt plus assertions checked against that turn's own tool calls and final answer. Turns share one accumulating conversation, so a later turn can refer to earlier results (context carryover).",
+            "items": {
+              "type": "object",
+              "required": ["prompt"],
+              "additionalProperties": false,
+              "properties": {
+                "prompt": {
+                  "type": "string",
+                  "description": "The user prompt for this turn."
                 },
-                "required": ["allOf"],
-                "additionalProperties": false
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "anyOf": {
-                    "type": "array",
-                    "minItems": 1,
-                    "items": { "$ref": "#/$defs/AssertionItem" }
-                  }
-                },
-                "required": ["anyOf"],
-                "additionalProperties": false
+                "assertions": { "$ref": "#/$defs/Assertions" }
               }
-            ]
+            }
           }
         },
         "additionalProperties": false
@@ -260,6 +259,40 @@
   },
   "additionalProperties": false,
   "$defs": {
+    "Assertions": {
+      "description": "Assertions block. An array (all must pass), or an object with allOf/anyOf.",
+      "oneOf": [
+        {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/AssertionItem" }
+        },
+        {
+          "type": "object",
+          "properties": {
+            "allOf": {
+              "type": "array",
+              "minItems": 1,
+              "items": { "$ref": "#/$defs/AssertionItem" }
+            }
+          },
+          "required": ["allOf"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "anyOf": {
+              "type": "array",
+              "minItems": 1,
+              "items": { "$ref": "#/$defs/AssertionItem" }
+            }
+          },
+          "required": ["anyOf"],
+          "additionalProperties": false
+        }
+      ]
+    },
     "AssertionItem": {
       "type": "object",
       "description": "One assertion item: leaf assertion (toolCall, toolCallOrder, answerContains) or composite (allOf/anyOf). Exactly one assertion key must be present.",
@@ -305,8 +338,8 @@
             },
             "count": {
               "type": "integer",
-              "minimum": 1,
-              "description": "Exact number of total tool calls expected."
+              "minimum": 0,
+              "description": "Exact number of calls expected. Use 0 to assert a tool was NOT called (e.g. a destructive tool must not run in a prompt-injection case). When 'tool' is set the count is per-tool; otherwise it counts all tool calls."
             },
             "minCount": {
               "type": "integer",
@@ -356,6 +389,22 @@
             "pattern": {
               "type": "string",
               "description": "Regex pattern that the final answer must match."
+            }
+          },
+          "additionalProperties": false
+        },
+        "answerJudge": {
+          "type": "object",
+          "description": "Assert final answer satisfies a rubric, graded semantically by a judge LLM. Requires a judge model to be configured for the eval run; fails with a clear message otherwise.",
+          "required": ["rubric"],
+          "properties": {
+            "rubric": {
+              "type": "string",
+              "description": "Grading criteria given to the judge LLM, e.g. 'The answer explains that X is a COBOL program that processes customer records.'"
+            },
+            "model": {
+              "type": "string",
+              "description": "Optional judge model id override (evals.config.json id). Reserved for future use."
             }
           },
           "additionalProperties": false

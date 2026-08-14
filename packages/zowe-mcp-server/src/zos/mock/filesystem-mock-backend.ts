@@ -1000,9 +1000,14 @@ export class FilesystemMockBackend implements ZosBackend {
     if (verb === 'STATUS') {
       return Promise.resolve(`STATUS mock output\nREADY`);
     }
+    if (verb === 'LISTBC') {
+      return Promise.resolve(
+        `LISTBC mock output\n-- Broadcast messages (mock) --\nUSER=${_userId ?? 'mockuser'}\nSYSTEM MESSAGES FOR JUL 04,2026\nIKJM026I MOCK SYSTEM WILL BE UNAVAILABLE FOR MAINTENANCE THIS WEEKEND`
+      );
+    }
     if (verb === 'HELP' || verb === 'H') {
       return Promise.resolve(
-        `HELP mock output\nTSO commands (mock): LISTDS, LISTALC, LISTCAT, STATUS, WHO`
+        `HELP mock output\nTSO commands (mock): LISTDS, LISTALC, LISTCAT, LISTBC, STATUS, WHO, SYSTEM`
       );
     }
     if (verb === 'WHO') {

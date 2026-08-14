@@ -20,9 +20,17 @@
  *   node scripts/sdk-switch.js release [version]
  *     Latest (or specific) release from Zowe Artifactory npm registry.
  *
- *   node scripts/sdk-switch.js nightly
+ *   node scripts/sdk-switch.js nightly [--write-pin]
  *     Latest nightly SDK from Artifactory libs-snapshot-local.
  *     Falls back to the latest successful Build workflow on main.
+ *     With --write-pin, records what it resolved into resources/zowex-pin.json so the
+ *     result can be committed as the new CI pin.
+ *
+ *   node scripts/sdk-switch.js pin [--no-install]
+ *     Downloads the exact build named by resources/zowex-pin.json and verifies its SHA-256.
+ *     This is what regular CI uses: the tarball is staged into resources/ (gitignored) rather
+ *     than committed. --no-install stages without running npm install, for callers that
+ *     follow up with `npm ci`.
  *
  *   node scripts/sdk-switch.js pr <pr-number>
  *     Downloads the SDK artifact from the PR's Build workflow run.
@@ -34,12 +42,11 @@
  *     Uses a local .tgz file or a zowex repo directory (clone of https://github.com/zowe/zowex).
  *     If a directory is given, looks for a pre-built .tgz in dist/.
  *
- *   node scripts/sdk-switch.js fallback
- *     Uses the committed baseline in resources/ (for CI and when nightly is unavailable).
  */
 
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const { execSync } = require('child_process');
 
 const repoRoot = path.resolve(__dirname, '..');
@@ -55,11 +62,17 @@ const PKG_NAME = '@zowe/zowex-for-zowe-sdk';
  * upstream repo and is independent of the npm package name above.
  */
 const ARTIFACT_NAME = 'zowex-sdk';
-const DEFAULT_VERSION = '0.6.1';
 const ARTIFACTORY_NPM = 'https://zowe.jfrog.io/artifactory/api/npm/npm-release/';
 /** Nightly SDK snapshots (repo path renamed from zowe-native-proto to zowex). */
 const ARTIFACTORY_SNAPSHOT_BASE =
   'https://zowe.jfrog.io/artifactory/libs-snapshot-local/org/zowe/zowex/SDK/Nightly';
+
+/**
+ * Committed pin describing the exact nightly regular CI builds against. The tarball it names is
+ * staged into resources/ on demand and is gitignored, so the pin (not a 3 MB blob) is what travels
+ * in git. See resources/zowex-pin.json for the field documentation.
+ */
+const PIN_PATH = path.join(repoRoot, 'resources', 'zowex-pin.json');
 
 /** Canonical filename for the SDK tarball in resources/. */
 function sdkTgzFilename(version) {
@@ -191,15 +204,25 @@ function readVersionFromTgz(tgzPath, fallback) {
 }
 
 /**
- * Copy a tgz to resources/ with a versioned filename and set the dependency.
- * Returns the destination path.
+ * Copy a tarball into resources/ and point the server dependency at it.
+ *
+ * @param {object} [opts]
+ * @param {string} [opts.filename] Exact destination filename (defaults to the version-derived name).
+ *   Used by `pin` mode, where the filename is dictated by the committed pin rather than the version.
+ * @param {boolean} [opts.skipInstall] Stage the tarball and rewrite package.json but do not run
+ *   `npm install`. Used by CI, which stages the pinned tarball and then runs `npm ci` itself.
+ * @param {boolean} [opts.preserveIntegrity] Keep the SDK's integrity hash in package-lock.json.
+ *   The other modes strip it because their tarball contents move under a reused filename, which
+ *   would make `npm ci` fail on a stale hash. `pin` mode is the opposite case: the pin fixes the
+ *   bytes by SHA-256, so keeping the hash lets npm verify them too, and stops a local `pin` run
+ *   from showing up as a spurious package-lock.json diff.
  */
-function installSdkToResources(srcTgzPath, version, label) {
+function installSdkToResources(srcTgzPath, version, label, opts = {}) {
   if (!fs.existsSync(resourcesDir)) {
     fs.mkdirSync(resourcesDir, { recursive: true });
   }
 
-  const filename = sdkTgzFilename(version);
+  const filename = opts.filename ?? sdkTgzFilename(version);
   const dest = path.join(resourcesDir, filename);
 
   if (path.resolve(srcTgzPath) !== path.resolve(dest)) {
@@ -210,8 +233,14 @@ function installSdkToResources(srcTgzPath, version, label) {
   const relPath = `file:../../resources/${filename}`;
   removeRootOverrides();
   setDependency(relPath);
+  if (opts.skipInstall) {
+    console.log('\nSDK staged from %s (install skipped): %s', label, dest);
+    return dest;
+  }
   npmInstall();
-  removeSdkIntegrityFromLockfile();
+  if (!opts.preserveIntegrity) {
+    removeSdkIntegrityFromLockfile();
+  }
   console.log('\nSDK switched to %s: %s', label, dest);
   return dest;
 }
@@ -320,16 +349,23 @@ function handleRelease(version) {
 // Mode: nightly
 // ---------------------------------------------------------------------------
 
-function handleNightly() {
+function handleNightly({ writePin: shouldWritePin } = {}) {
   console.log('Looking for latest nightly SDK on Artifactory...');
 
-  if (tryArtifactoryNightly()) return;
+  if (tryArtifactoryNightly({ shouldWritePin })) return;
 
+  if (shouldWritePin) {
+    console.error(
+      'Could not resolve a nightly from Artifactory, so there is nothing to pin.\n' +
+        'Re-run without --write-pin to fall back to the latest main build artifact.'
+    );
+    process.exit(1);
+  }
   console.log('No nightly SDK found on Artifactory, falling back to GitHub Actions (main)...');
   handleBranch('main');
 }
 
-function tryArtifactoryNightly() {
+function tryArtifactoryNightly({ shouldWritePin } = {}) {
   try {
     const listJson = run(
       `curl -sf "${ARTIFACTORY_SNAPSHOT_BASE}/" 2>/dev/null | grep -oE 'href="((zowe-zowex-for-zowe-sdk|zowex-sdk)-[^"]+\\.tgz)"' | sed 's/href="//;s/"//' | sort | tail -1`
@@ -360,8 +396,18 @@ function tryArtifactoryNightly() {
     const version = readVersionFromTgz(tmpDest, 'nightly');
     const datestamp = tgzName.match(/(\d{4}-\d{2}-\d{2}-\d{6})/);
     const versionLabel = datestamp ? `${version}-nightly-${datestamp[1]}` : version;
+    const filename = sdkTgzFilename(versionLabel);
 
     installSdkToResources(tmpDest, versionLabel, `nightly (Artifactory)`);
+    if (shouldWritePin) {
+      writePin({
+        tgzPath: path.join(resourcesDir, filename),
+        filename,
+        url,
+        version,
+        datestamp: datestamp ? datestamp[1] : null,
+      });
+    }
     fs.rmSync(tmpDir, { recursive: true, force: true });
     return true;
   } catch {
@@ -479,28 +525,6 @@ function handleBranch(branchName) {
 }
 
 // ---------------------------------------------------------------------------
-// Mode: fallback
-// ---------------------------------------------------------------------------
-
-function handleFallback() {
-  const baselineTgz = path.join(resourcesDir, sdkTgzFilename(DEFAULT_VERSION));
-  const legacyFallback = path.join(resourcesDir, 'znp-sdk-fallback.tgz');
-
-  let tgzPath;
-  if (fs.existsSync(baselineTgz)) {
-    tgzPath = baselineTgz;
-  } else if (fs.existsSync(legacyFallback)) {
-    tgzPath = legacyFallback;
-  } else {
-    console.error('Fallback SDK not found. Expected: %s or %s', baselineTgz, legacyFallback);
-    process.exit(1);
-  }
-
-  const version = readVersionFromTgz(tgzPath, DEFAULT_VERSION);
-  installSdkToResources(tgzPath, version, 'fallback');
-}
-
-// ---------------------------------------------------------------------------
 // Mode: local <path>
 // ---------------------------------------------------------------------------
 
@@ -566,45 +590,224 @@ function handleLocal(inputPath) {
 }
 
 // ---------------------------------------------------------------------------
+// Mode: pin  (and --write-pin support for nightly)
+// ---------------------------------------------------------------------------
+
+/** SHA-256 of a buffer, lowercase hex. */
+function sha256Buffer(buf) {
+  return crypto.createHash('sha256').update(buf).digest('hex');
+}
+
+/** SHA-256 of a file, lowercase hex. */
+function sha256File(filePath) {
+  return sha256Buffer(fs.readFileSync(filePath));
+}
+
+/**
+ * Read a file, returning `undefined` when it does not exist.
+ *
+ * Read-and-catch rather than `existsSync` followed by `readFileSync`: the two-step form is a
+ * check-then-use race (CodeQL js/file-system-race), and this repo has already had to fix one
+ * of those — see the server.json version update in the release scripts.
+ */
+function readFileIfExists(filePath) {
+  try {
+    return fs.readFileSync(filePath);
+  } catch (err) {
+    if (err.code === 'ENOENT') return undefined;
+    throw err;
+  }
+}
+
+function readPin() {
+  const raw = readFileIfExists(PIN_PATH);
+  if (raw === undefined) {
+    console.error(
+      'No pin file at %s. Create one with: sdk-switch.js nightly --write-pin',
+      PIN_PATH
+    );
+    process.exit(1);
+  }
+  return JSON.parse(raw.toString('utf8'));
+}
+
+/**
+ * Stage the exact tarball named by resources/zowex-pin.json.
+ *
+ * Reuses an already-staged copy when its SHA-256 matches, so repeat local runs do not re-download.
+ * A checksum mismatch is fatal rather than a silent re-fetch: the pin names immutable bytes, so a
+ * mismatch means either local tampering or an upstream artifact that was replaced in place.
+ */
+function handlePin({ skipInstall } = {}) {
+  const pin = readPin();
+  const dest = path.join(resourcesDir, pin.filename);
+
+  const stagedBytes = readFileIfExists(dest);
+  if (stagedBytes !== undefined) {
+    if (sha256Buffer(stagedBytes) === pin.sha256) {
+      console.log('Pinned SDK already staged: %s', dest);
+      installSdkToResources(dest, pin.version, `pin ${pin.datestamp}`, {
+        filename: pin.filename,
+        skipInstall,
+        preserveIntegrity: true,
+      });
+      return;
+    }
+    console.log('Staged copy has unexpected checksum, re-downloading...');
+  }
+
+  // mkdir -p is idempotent, so no existence check (and no check-then-use race).
+  fs.mkdirSync(resourcesDir, { recursive: true });
+
+  console.log('Downloading pinned SDK %s...', pin.filename);
+  const tmpDir = path.join(repoRoot, '.sdk-download-tmp');
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+  fs.mkdirSync(tmpDir, { recursive: true });
+  const tmpDest = path.join(tmpDir, pin.filename);
+
+  try {
+    run(`curl -sfL -o "${tmpDest}" "${pin.url}"`);
+  } catch {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+    console.error(
+      'Failed to download the pinned SDK:\n  %s\n' +
+        'Nightly snapshots are pruned upstream after roughly six weeks. If this pin has aged out, ' +
+        'refresh it with: node scripts/sdk-switch.js nightly --write-pin',
+      pin.url
+    );
+    process.exit(1);
+  }
+
+  const actual = sha256File(tmpDest);
+  if (actual !== pin.sha256) {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+    console.error(
+      'Checksum mismatch for %s\n  expected %s\n  actual   %s',
+      pin.filename,
+      pin.sha256,
+      actual
+    );
+    process.exit(1);
+  }
+  console.log('Checksum verified: %s', actual);
+
+  installSdkToResources(tmpDest, pin.version, `pin ${pin.datestamp}`, {
+    filename: pin.filename,
+    skipInstall,
+    preserveIntegrity: true,
+  });
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+}
+
+/**
+ * Record a just-resolved nightly as the new pin. Called by `nightly --write-pin`; the resulting
+ * file is meant to be committed alongside the package.json/package-lock.json changes.
+ */
+function writePin({ tgzPath, filename, url, version, datestamp }) {
+  const existingRaw = readFileIfExists(PIN_PATH);
+  const existing = existingRaw === undefined ? {} : JSON.parse(existingRaw.toString('utf8'));
+  const pin = {
+    ...existing,
+    package: PKG_NAME,
+    version,
+    train: 'Nightly',
+    datestamp: datestamp ?? null,
+    filename,
+    url,
+    sha256: sha256File(tgzPath),
+    pinnedAt: new Date().toISOString().slice(0, 10),
+  };
+
+  // The upstream commit cannot be derived from the tarball, so it is carried in explicitly.
+  // The nightly workflow resolves it from zowe/zowex and passes it through the environment;
+  // an interactive run without these set gets a placeholder rather than a stale inherited value.
+  pin.upstream = resolveUpstream();
+
+  fs.writeFileSync(PIN_PATH, JSON.stringify(pin, null, 2) + '\n', 'utf8');
+  console.log('\nWrote pin: %s', PIN_PATH);
+  console.log('  sha256 %s', pin.sha256);
+  if (!pin.upstream.commit) {
+    console.log(
+      '  NOTE: no upstream commit recorded (set ZOWEX_UPSTREAM_COMMIT, or fill in the\n' +
+        '  "upstream" block by hand before committing).'
+    );
+  }
+}
+
+/**
+ * Build the pin's `upstream` provenance block. Prefers explicit environment values (set by CI);
+ * otherwise tries the zowe/zowex main HEAD via `gh`, which is the commit the nightly is built
+ * from. Returns nulls rather than guessing when neither is available.
+ */
+function resolveUpstream() {
+  const fromEnv = process.env.ZOWEX_UPSTREAM_COMMIT;
+  if (fromEnv) {
+    return {
+      repo: ZOWEX_REPO,
+      commit: fromEnv,
+      releaseRunId: process.env.ZOWEX_UPSTREAM_RUN_ID ?? null,
+    };
+  }
+  try {
+    const sha = run(`gh api repos/${ZOWEX_REPO}/commits/main --jq .sha`);
+    if (/^[0-9a-f]{40}$/.test(sha)) {
+      return {
+        repo: ZOWEX_REPO,
+        commit: sha,
+        releaseRunId: null,
+        note: 'Resolved from zowe/zowex main HEAD at pin time, not from the build itself — treat as approximate.',
+      };
+    }
+  } catch {
+    // gh unavailable or unauthenticated — fall through.
+  }
+  return { repo: ZOWEX_REPO, commit: null, releaseRunId: null };
+}
+
+// ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
 
 const [, , mode, ...rest] = process.argv;
+const flags = new Set(rest.filter(a => a.startsWith('--')));
+const positional = rest.filter(a => !a.startsWith('--'));
 
 function main() {
   switch (mode) {
     case 'release':
-      handleRelease(rest[0]);
+      handleRelease(positional[0]);
       break;
     case 'nightly':
-      handleNightly();
+      handleNightly({ writePin: flags.has('--write-pin') });
+      break;
+    case 'pin':
+      handlePin({ skipInstall: flags.has('--no-install') });
       break;
     case 'pr':
-      handlePr(rest[0]);
+      handlePr(positional[0]);
       break;
     case 'branch':
-      handleBranch(rest[0]);
-      break;
-    case 'fallback':
-      handleFallback();
+      handleBranch(positional[0]);
       break;
     case 'local':
-      handleLocal(rest[0]);
+      handleLocal(positional[0]);
       break;
     default:
       console.error('Usage:');
       console.error(
         '  node scripts/sdk-switch.js release [version]    Latest (or specific) release from Artifactory'
       );
-      console.error('  node scripts/sdk-switch.js nightly              Latest nightly build');
+      console.error(
+        '  node scripts/sdk-switch.js nightly [--write-pin]  Latest nightly build (optionally re-pin)'
+      );
+      console.error(
+        '  node scripts/sdk-switch.js pin [--no-install]  Exact build from resources/zowex-pin.json'
+      );
       console.error(
         '  node scripts/sdk-switch.js pr <pr-number>       SDK from a specific PR build'
       );
       console.error(
         '  node scripts/sdk-switch.js branch <branch>      Latest successful build for a branch'
-      );
-      console.error(
-        '  node scripts/sdk-switch.js fallback             In-repo fallback (resources/)'
       );
       console.error(
         '  node scripts/sdk-switch.js local <path>         Local .tgz file or ZNP repo directory'

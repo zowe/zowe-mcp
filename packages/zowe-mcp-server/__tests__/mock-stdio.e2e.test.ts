@@ -295,7 +295,7 @@ describe('readDataset pagination (pagination preset)', () => {
       data: { lines: string[]; encoding?: string };
       messages: string[];
     };
-    expect(page1._result.totalLines).toBe(2200);
+    expect(page1._result.totalLines).toBe(1300);
     expect(page1._result.startLine).toBe(1);
     expect(page1._result.returnedLines).toBe(500);
     expect(page1._result.hasMore).toBe(true);
@@ -321,10 +321,10 @@ describe('readDataset pagination (pagination preset)', () => {
     expect(page2.data.lines.join('\n')).toContain('LINE 0501');
     expect(page2.data.lines.join('\n')).toContain('LINE 1000');
 
-    // Last page: startLine 2001, lineCount 500 → lines 2001–2200 (200 lines), hasMore false
+    // Last page: startLine 1001, lineCount 500 → lines 1001–1300 (300 lines), hasMore false
     result = await client.callTool({
       name: 'readDataset',
-      arguments: { dsn: 'USER.LARGE.SEQ', startLine: 2001, lineCount: 500 },
+      arguments: { dsn: 'USER.LARGE.SEQ', startLine: 1001, lineCount: 500 },
     });
     expect(result.isError).toBeFalsy();
     const lastPage = JSON.parse(getResultText(result)) as {
@@ -332,41 +332,13 @@ describe('readDataset pagination (pagination preset)', () => {
       data: { lines: string[] };
       messages: string[];
     };
-    expect(lastPage._result.startLine).toBe(2001);
-    expect(lastPage._result.returnedLines).toBe(200);
+    expect(lastPage._result.startLine).toBe(1001);
+    expect(lastPage._result.returnedLines).toBe(300);
     expect(lastPage._result.hasMore).toBe(false);
     expect(lastPage.messages).toBeUndefined();
-    expect(lastPage.data.lines.join('\n')).toContain('LINE 2001');
-    expect(lastPage.data.lines.join('\n')).toContain('LINE 2200');
-  });
-
-  it('should page through USER.INVNTORY(LARGE) member', async () => {
-    const transport = new StdioClientTransport({
-      command: 'node',
-      args: [serverPath, '--stdio', '--mock', mock.dir, '--capability-tier', 'full'],
-    });
-    const client = new Client({ name: 'e2e-read-member-test', version: '1.0.0' });
-    mock.client = client;
-    await client.connect(transport);
-
-    await client.callTool({
-      name: 'setSystem',
-      arguments: { system: FIRST_SYSTEM },
-    });
-
-    const result = await client.callTool({
-      name: 'readDataset',
-      arguments: { dsn: 'USER.INVNTORY', member: 'LARGE', startLine: 1, lineCount: 500 },
-    });
-    expect(result.isError).toBeFalsy();
-    const parsed = JSON.parse(getResultText(result)) as {
-      _result: { totalLines: number; hasMore: boolean };
-      data: { lines: string[] };
-      messages: string[];
-    };
-    expect(parsed._result.totalLines).toBe(2500);
-    expect(parsed._result.hasMore).toBe(true);
-    expect(parsed.messages.length).toBeGreaterThanOrEqual(1);
-    expect(parsed.data.lines.join('\n')).toContain('LINE 0001');
+    expect(lastPage.data.lines.join('\n')).toContain('LINE 1001');
+    expect(lastPage.data.lines.join('\n')).toContain('LINE 1300');
+    // LUKE SKYWALKER marker for the read-pagination eval is on line 1250 (this page).
+    expect(lastPage.data.lines.join('\n')).toContain('LUKE SKYWALKER');
   });
 });

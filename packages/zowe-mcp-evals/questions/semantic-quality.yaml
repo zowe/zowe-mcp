@@ -1,0 +1,77 @@
+# yaml-language-server: $schema=../schemas/evals-question-set.schema.json
+# Semantic quality evals: unlike the regex-based answerContains assertions used
+# elsewhere, these questions grade the model's final answer with an LLM judge
+# (answerJudge) against a rubric. This catches answers that are correct in
+# substance but phrased in ways a fixed substring/regex would miss (e.g. paraphrasing
+# "processes customer records" as "handles customer data").
+#
+# Each question also keeps a deterministic toolCall assertion so a pass still proves
+# the right data was actually read, not just that the model said something plausible.
+#
+# Requires a judge model to be configured for the eval run (see src/judge.ts /
+# README): the harness loads it automatically (default id gemini-3.5-flash,
+# overridable via ZOWE_EVALS_JUDGE_MODEL) only when a set uses answerJudge.
+config:
+  name: semantic-quality
+  description: Answers graded semantically by an LLM judge against a rubric, not just regex
+  repetitions: 3
+  minSuccessRate: 0.8
+  mock:
+    initArgs: --preset default
+
+questions:
+  - id: summarize-custfile
+    prompt: Read USER.SRC.COBOL(CUSTFILE) and summarize what it does.
+    assertions:
+      - toolCall:
+          tool: readDataset
+          args:
+            validDsn: 'USER.SRC.COBOL(CUSTFILE)'
+      - answerJudge:
+          rubric: >
+            The answer correctly identifies USER.SRC.COBOL(CUSTFILE) as a COBOL
+            program and describes it as a sequential file-processing routine
+            that reads input records and writes them to an output file (e.g.
+            "reads/copies/processes records from an input file to an output
+            file"). It does not need to describe every field or paragraph, and
+            it does not need to use the literal word "customer" — mentioning
+            the general record/file-processing behavior is sufficient.
+
+  - id: explain-copybook-purpose
+    prompt: Read the copybook USER.SRC.COPYBOOK(CUSTREC) and explain what it is used for.
+    assertions:
+      - toolCall:
+          tool: readDataset
+          args:
+            validDsn: 'USER.SRC.COPYBOOK(CUSTREC)'
+      - answerJudge:
+          rubric: >
+            The answer correctly identifies CUSTREC as a COBOL copybook (a
+            reusable record/data structure definition, not an executable
+            program) and explains that it defines the layout of a customer
+            record used by other programs.
+
+  - id: compare-cobol-vs-jcl
+    prompt: >
+      List the members of USER.SRC.COBOL and USER.JCL.CNTL, then explain in one
+      or two sentences the difference between what these two libraries contain.
+    assertions:
+      - toolCall:
+          tool: listMembers
+          minCount: 2
+      - toolCall:
+          oneOf:
+            - tool: listMembers
+              args:
+                validDsn: 'USER.SRC.COBOL'
+      - toolCall:
+          oneOf:
+            - tool: listMembers
+              args:
+                validDsn: 'USER.JCL.CNTL'
+      - answerJudge:
+          rubric: >
+            The answer explains that USER.SRC.COBOL contains COBOL source
+            programs (compiled application code) while USER.JCL.CNTL contains
+            JCL (Job Control Language used to run/submit jobs on z/OS), i.e. it
+            correctly distinguishes source code from job-control scripts.

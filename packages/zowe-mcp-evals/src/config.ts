@@ -15,7 +15,7 @@ import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-export type EvalsProvider = 'vllm' | 'gemini' | 'lmstudio';
+export type EvalsProvider = 'vllm' | 'gemini' | 'lmstudio' | 'anthropic' | 'openai';
 
 export interface EvalsConfig {
   provider: EvalsProvider;
@@ -60,10 +60,10 @@ export function getConfigDir(): string {
   return findConfigDir();
 }
 
-function validateProvider(p: string): EvalsProvider {
-  if (p !== 'vllm' && p !== 'gemini' && p !== 'lmstudio') {
+export function validateProvider(p: string): EvalsProvider {
+  if (p !== 'vllm' && p !== 'gemini' && p !== 'lmstudio' && p !== 'anthropic' && p !== 'openai') {
     throw new Error(
-      `evals.config.json: provider must be "vllm", "gemini", or "lmstudio", got "${p}"`
+      `evals.config.json: provider must be "vllm", "gemini", "lmstudio", "anthropic", or "openai", got "${p}"`
     );
   }
   return p;
@@ -75,7 +75,8 @@ export const VLLM_DEFAULT_BASE_URL = 'http://localhost:8000/v1';
 export const LMSTUDIO_DEFAULT_BASE_URL = 'http://localhost:1234/v1';
 const LMSTUDIO_DEFAULT_CONTEXT_LENGTH = 32768;
 
-function entryToConfig(entry: EvalsModelEntry): EvalsConfig {
+/** Resolve a single model entry (from evals.config.json) into a runnable {@link EvalsConfig}. */
+export function entryToConfig(entry: EvalsModelEntry): EvalsConfig {
   const provider = validateProvider(entry.provider);
   if (!entry.serverModel || typeof entry.serverModel !== 'string') {
     throw new Error(`evals.config.json: model "${entry.id}" has no serverModel`);
@@ -92,6 +93,25 @@ function entryToConfig(entry: EvalsModelEntry): EvalsConfig {
       `evals.config.json: model "${entry.id}" needs apiKey or GEMINI_API_KEY / GOOGLE_API_KEY env for Gemini`
     );
   }
+  if (provider === 'anthropic' && !apiKey && process.env.ANTHROPIC_API_KEY) {
+    apiKey = process.env.ANTHROPIC_API_KEY;
+  }
+  if (provider === 'anthropic' && !apiKey) {
+    throw new Error(
+      `evals.config.json: model "${entry.id}" needs apiKey or ANTHROPIC_API_KEY env for Anthropic`
+    );
+  }
+  if (provider === 'openai' && !apiKey && process.env.OPENAI_API_KEY) {
+    apiKey = process.env.OPENAI_API_KEY;
+  }
+  if (provider === 'openai' && !apiKey && process.env.AZURE_OPENAI_API_KEY) {
+    apiKey = process.env.AZURE_OPENAI_API_KEY;
+  }
+  if (provider === 'openai' && !apiKey) {
+    throw new Error(
+      `evals.config.json: model "${entry.id}" needs apiKey or OPENAI_API_KEY / AZURE_OPENAI_API_KEY env for OpenAI`
+    );
+  }
   const config: EvalsConfig = {
     provider,
     serverModel: entry.serverModel,
@@ -104,6 +124,10 @@ function entryToConfig(entry: EvalsModelEntry): EvalsConfig {
   if (provider === 'lmstudio') {
     config.baseUrl = entry.baseUrl ?? LMSTUDIO_DEFAULT_BASE_URL;
     config.contextLength = entry.contextLength ?? LMSTUDIO_DEFAULT_CONTEXT_LENGTH;
+  }
+  if (provider === 'openai' && entry.baseUrl) {
+    // Supports Azure OpenAI (or any OpenAI-compatible endpoint) via a configurable base URL.
+    config.baseUrl = entry.baseUrl;
   }
   return config;
 }

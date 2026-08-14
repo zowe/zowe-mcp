@@ -1,0 +1,31 @@
+# yaml-language-server: $schema=../schemas/evals-question-set.schema.json
+# Host-profile preamble: does tool selection survive a realistic host system prompt?
+#
+# The prompt below is an APPROXIMATE, generic host prompt in the style of an
+# editor-integrated coding assistant — NOT a verbatim vendor prompt (those are
+# proprietary and change frequently). It is layered on top of the controlled
+# eval system prompt via `systemPromptAddition` to sanity-check that good tool
+# descriptions still win out once a realistic amount of host instruction is
+# competing for the model's attention.
+#
+# Questions and assertions are reused from `natural-language` via `questionsFrom`,
+# so the expected tool selection is unchanged from that baseline. A drop in pass
+# rate versus the plain `natural-language` set means the host preamble degraded
+# tool selection — that is the regression this set is designed to catch.
+config:
+  name: host-profile-copilot
+  description: Natural-language tool-selection questions layered under a GitHub-Copilot-style host system prompt
+  repetitions: 5
+  minSuccessRate: 0.8
+  mock:
+    initArgs: --preset minimal
+  questionsFrom: natural-language
+  systemPromptAddition: |
+    You are GitHub Copilot, an AI programming assistant integrated into the developer's editor. Follow these rules:
+    - Keep responses concise and focused; prefer short, direct answers.
+    - When the user's request can be accomplished with an available tool, call the tool rather than guessing or asking for information you can retrieve yourself.
+    - Follow the user's coding conventions and existing patterns.
+    - Never fabricate file contents, data, or command output — retrieve them with the appropriate tool.
+    - Format code in fenced code blocks with the correct language tag.
+    - If a request is ambiguous or would delete or overwrite data, ask a brief clarifying question before acting.
+    - Be professional and avoid unnecessary preamble in your replies.

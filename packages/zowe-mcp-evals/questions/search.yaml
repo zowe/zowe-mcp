@@ -3,7 +3,7 @@
 config:
   name: search
   description: Agent must use searchInDataset to find a string in a data set or member
-  repetitions: 2
+  repetitions: 5
   minSuccessRate: 0.8
   mock:
     initArgs: --preset default
@@ -27,3 +27,66 @@ questions:
           args:
             validDsn: 'USER.SRC.COBOL(CUSTFILE)'
             string: 'PROCEDURE'
+
+  - id: search-in-jcl-library
+    prompt: Search for the string JOB across the JCL library USER.JCL.CNTL.
+    assertions:
+      - toolCall:
+          tool: searchInDataset
+          args:
+            validDsn: 'USER.JCL.CNTL'
+            string: 'JOB'
+      - answerContains:
+          pattern: 'JOB|found|match|member'
+
+  - id: search-copybook-pic
+    prompt: Search the copybook library USER.SRC.COPYBOOK for the string PIC and tell me which members contain it.
+    assertions:
+      - toolCall:
+          tool: searchInDataset
+          args:
+            validDsn: 'USER.SRC.COPYBOOK'
+            string: 'PIC'
+      - answerContains:
+          pattern: 'PIC|found|match|member|CUSTREC|ACCTFMT'
+
+  - id: search-in-copybook-member
+    prompt: Look for the string CUSTOMER in member CUSTREC of USER.SRC.COPYBOOK.
+    assertions:
+      - toolCall:
+          tool: searchInDataset
+          args:
+            validDsn: 'USER.SRC.COPYBOOK(CUSTREC)'
+            string: 'CUSTOMER'
+
+  - id: search-listing-info
+    prompt: Search the data set USER.LISTING for the string INFO and tell me how many matches there are.
+    assertions:
+      - toolCall:
+          tool: searchInDataset
+          args:
+            validDsn: 'USER.LISTING'
+            string: 'INFO'
+      - answerContains:
+          pattern: 'INFO|found|match|[0-9]'
+
+  - id: search-cobol-procedure-lowercase
+    prompt: Find where the word "procedure" appears in USER.SRC.COBOL.
+    assertions:
+      # Natural-language phrasing (lowercase, no member): agent should still target
+      # the PDS and search the term. Accept either casing of the search string.
+      - toolCall:
+          tool: searchInDataset
+          args:
+            validDsn: 'USER.SRC.COBOL'
+            string:
+              pattern: 'procedure'
+
+  - id: search-errcodes-member
+    prompt: Search member ERRCODES in USER.SRC.COPYBOOK for the string ERR.
+    assertions:
+      - toolCall:
+          tool: searchInDataset
+          args:
+            validDsn: 'USER.SRC.COPYBOOK(ERRCODES)'
+            string: 'ERR'

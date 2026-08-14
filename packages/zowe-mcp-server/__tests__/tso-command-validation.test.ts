@@ -61,6 +61,7 @@ describe('validateTsoCommand', () => {
     expect(validateTsoCommand('LISTA').action).toBe('allow');
     expect(validateTsoCommand('LISTCAT').action).toBe('allow');
     expect(validateTsoCommand('LISTC').action).toBe('allow');
+    expect(validateTsoCommand('LISTBC').action).toBe('allow');
     expect(validateTsoCommand('STATUS').action).toBe('allow');
     expect(validateTsoCommand('HELP').action).toBe('allow');
     expect(validateTsoCommand('WHO').action).toBe('allow');

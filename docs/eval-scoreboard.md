@@ -342,3 +342,6 @@ Automatically updated by `npm run eval-compare`.
 | 2026-07-31 | after-system-certs        | gemini-2.5-flash      | gemini-2.5-flash                | description-quality      | 11        | 83.6%     | 92     | 110   | 3d7caa4 | 6fbf5f33  |          |
 | 2026-08-03 | rebaseline-empty-retry    | gemini-2.5-flash      | gemini-2.5-flash                | system                   | 11        | 94.5%     | 52     | 55    | ef42148 | 0bf7403b  |          |
 | 2026-08-03 | rebaseline-empty-retry    | gemini-2.5-flash      | gemini-2.5-flash                | certificates             | 13        | 93.8%     | 61     | 65    | ef42148 | 0bf7403b  |          |
+| 2026-08-06 | v7-merge-qwen-baseline    | qwen3.6-35b-a3b       | qwen/qwen3.6-35b-a3b            | system                   | 11        | 100.0%    | 55     | 55    | b0a14fd |           |          |
+| 2026-08-06 | v7-merge-qwen-baseline    | qwen3.6-35b-a3b       | qwen/qwen3.6-35b-a3b            | certificates             | 13        | 100.0%    | 65     | 65    | b0a14fd |           |          |
+| 2026-08-06 | v7-merge-qwen-baseline    | qwen3.6-35b-a3b       | qwen/qwen3.6-35b-a3b            | multi-turn               | 4         | 100.0%    | 20     | 20    | b0a14fd |           |          |

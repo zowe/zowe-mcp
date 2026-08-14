@@ -9,8 +9,10 @@ on:
     - cron: '0 3 * * *'
   workflow_dispatch:
 
+# contents/pull-requests write are for the automated pin bump PR at the end of the job.
 permissions:
-  contents: read
+  contents: write
+  pull-requests: write
 
 concurrency:
   group: nightly-${{ github.ref }}
@@ -37,10 +39,12 @@ jobs:
       # sdk-switch rewrites the server dependency to the downloaded nightly
       # tarball and runs its own npm install (falls back to the latest
       # successful upstream Build artifact when Artifactory has no nightly).
+      # --write-pin records what it resolved into resources/zowex-pin.json, so a
+      # green run can be turned into a reviewable pin bump below.
       - name: Switch to nightly zowex-sdk and install
         env:
           GH_TOKEN: ${{ github.token }}
-        run: node scripts/sdk-switch.js nightly
+        run: node scripts/sdk-switch.js nightly --write-pin
 
       - name: Download VS Code API types
         run: npm run download-api -w packages/zowe-mcp-vscode
@@ -55,3 +59,49 @@ jobs:
 
       - name: Test (server)
         run: npm run test
+
+      # Everything above passed against the newest nightly, so that build is a safe
+      # candidate for the committed pin. Open (or update) a PR rather than pushing to
+      # main: moving the pin is a dependency change and should be reviewed, and the PR's
+      # own CI re-runs the whole suite against the proposed pin.
+      #
+      # This also keeps the pin from ageing out — upstream prunes nightly snapshots after
+      # roughly six weeks, at which point `sdk-switch.js pin` would start failing to fetch.
+      - name: Open pin bump PR
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          if git diff --quiet -- resources/zowex-pin.json; then
+            echo "Pin already points at the latest nightly — nothing to bump."
+            exit 0
+          fi
+
+          DATESTAMP=$(node -p "require('./resources/zowex-pin.json').datestamp || 'unknown'")
+          BRANCH="chore/zowex-pin-${DATESTAMP}"
+
+          if git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null 2>&1; then
+            echo "Branch $BRANCH already exists — a bump PR for this nightly is already open."
+            exit 0
+          fi
+
+          # Only the pin and the files that follow from it; the working tree also holds the
+          # staged tarball (gitignored) and sdk-switch's own dependency rewrite.
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$BRANCH"
+          git add resources/zowex-pin.json packages/zowe-mcp-server/package.json package-lock.json
+          git commit -m "chore(zowex): bump SDK pin to nightly ${DATESTAMP}"
+          git push origin "$BRANCH"
+
+          gh pr create \
+            --title "chore(zowex): bump SDK pin to nightly ${DATESTAMP}" \
+            --body "Automated pin bump. The nightly workflow built and tested \`main\` against the newest upstream zowex nightly and it passed, so this moves \`resources/zowex-pin.json\` to that build.
+
+          Review notes:
+          - Check the \`upstream\` block for which zowex commits are newly included.
+          - CI on this PR re-runs the full suite against the proposed pin.
+          - Nightly snapshots are pruned upstream after roughly six weeks, so letting the pin drift too far will eventually break \`sdk-switch.js pin\`." \
+            --label dependencies

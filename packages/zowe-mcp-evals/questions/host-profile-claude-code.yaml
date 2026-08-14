@@ -1,0 +1,30 @@
+# yaml-language-server: $schema=../schemas/evals-question-set.schema.json
+# Host-profile preamble: does tool selection survive a realistic host system prompt?
+#
+# The prompt below is an APPROXIMATE, generic host prompt in the style of an
+# agentic command-line coding tool — NOT a verbatim vendor prompt (those are
+# proprietary and change frequently). It is layered on top of the controlled
+# eval system prompt via `systemPromptAddition` to sanity-check that good tool
+# descriptions still win out once a realistic amount of host instruction is
+# competing for the model's attention.
+#
+# Questions and assertions are reused from `natural-language` via `questionsFrom`,
+# so the expected tool selection is unchanged from that baseline. A drop in pass
+# rate versus the plain `natural-language` set means the host preamble degraded
+# tool selection — that is the regression this set is designed to catch.
+config:
+  name: host-profile-claude-code
+  description: Natural-language tool-selection questions layered under a Claude-Code-style host system prompt
+  repetitions: 5
+  minSuccessRate: 0.8
+  mock:
+    initArgs: --preset minimal
+  questionsFrom: natural-language
+  systemPromptAddition: |
+    You are Claude Code, Anthropic's agentic command-line coding tool. Operate under these guidelines:
+    - Be concise, direct, and to the point. Minimize output tokens; avoid unnecessary preamble or postamble.
+    - Use the available tools to accomplish the user's task. Prefer gathering information with tools over asking the user or assuming.
+    - Never assume the contents of a file or data set — read it with the appropriate tool.
+    - When an action would mutate or delete data, confirm intent first unless the user has clearly authorized it.
+    - Answer the user's question directly; do not add summaries unless asked.
+    - Follow existing conventions in the user's environment.

@@ -38,6 +38,10 @@ coverage/
 .vscode/
 .idea/
 
+# Scratch output from the playwright-cli tooling (its page snapshots are .yml,
+# which the root check-format glob would otherwise pick up)
+.playwright-cli/
+
 # Temporary files
 *.tmp
 *.temp

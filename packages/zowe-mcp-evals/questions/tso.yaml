@@ -3,7 +3,7 @@
 config:
   name: tso
   description: Agent must use runSafeTsoCommand for LISTALC, LISTDS, WHO
-  repetitions: 2
+  repetitions: 5
   minSuccessRate: 0.8
   mock:
     initArgs: --preset minimal
@@ -23,16 +23,23 @@ questions:
           pattern: 'SYSIN|USER.INPUT|Allocations|allocated'
 
   - id: tso-list-dataset-attributes
-    prompt: Run TSO to show the attributes of a data set (like RECFM, LRECL).
+    prompt: Run a TSO command to show the attributes (RECFM, LRECL) of data set USER.SRC.COBOL.
     assertions:
-      - toolCall:
-          tool: runSafeTsoCommand
-          args:
-            commandText:
-              - 'LISTDS'
-              - 'LISTD'
+      # Accept either the raw TSO LISTDS command or the dedicated getDatasetAttributes
+      # tool — both correctly answer "show the attributes"; don't penalize the better tool.
+      - anyOf:
+          - toolCall:
+              tool: runSafeTsoCommand
+              args:
+                commandText:
+                  - 'LISTDS'
+                  - 'LISTD'
+          - toolCall:
+              tool: getDatasetAttributes
+              args:
+                validDsn: 'USER.SRC.COBOL'
       - answerContains:
-          pattern: 'RECFM|LRECL|USER.MOCK.DATA'
+          pattern: 'RECFM|LRECL|DSORG|USER.MOCK.DATA|attribute'
 
   - id: tso-who
     prompt: Who am I in TSO?
@@ -45,3 +52,84 @@ questions:
               args: { commandText: 'WHO' }
       - answerContains:
           pattern: 'USER|mockuser'
+
+  - id: tso-list-catalog
+    prompt: Use a TSO command to list catalog entries.
+    assertions:
+      - toolCall:
+          tool: runSafeTsoCommand
+          args:
+            commandText:
+              - 'LISTCAT'
+              - 'LISTC'
+      - answerContains:
+          pattern: 'USER.MOCK|Catalog|LISTCAT'
+
+  - id: tso-session-status
+    prompt: Use TSO to show my current session status.
+    assertions:
+      # oneOf = any-call semantics: the model sometimes makes a harmless extra
+      # exploratory call after already running STATUS; match any STATUS call.
+      - toolCall:
+          oneOf:
+            - tool: runSafeTsoCommand
+              args:
+                commandText: 'STATUS'
+      - answerContains:
+          pattern: 'READY|STATUS'
+
+  - id: tso-time
+    prompt: What time does TSO report right now?
+    assertions:
+      - toolCall:
+          tool: runSafeTsoCommand
+          args:
+            commandText: 'TIME'
+      - answerContains:
+          pattern: 'TIME|CPU|:'
+
+  - id: tso-help
+    prompt: Show the TSO HELP output.
+    assertions:
+      - toolCall:
+          tool: runSafeTsoCommand
+          args:
+            commandText:
+              - 'HELP'
+              - 'H'
+      - answerContains:
+          pattern: 'command|HELP|LISTDS'
+
+  - id: tso-system-level
+    prompt: Run the TSO SYSTEM command to show what level or version of z/OS this system is running.
+    assertions:
+      # The model often explores other TSO verbs (STATUS, HELP, WHO) before or after
+      # the correct one, so match ANY call to runSafeTsoCommand with SYSTEM (oneOf uses
+      # "any call" semantics), not just the last call to the tool.
+      - toolCall:
+          oneOf:
+            - tool: runSafeTsoCommand
+              args:
+                commandText: { pattern: 'SYSTEM' }
+      - answerContains:
+          pattern: 'MVS|VER|SP7|level|version'
+
+  - id: tso-broadcast-messages
+    prompt: Run the TSO LISTBC command to check for any broadcast messages waiting for me.
+    assertions:
+      - toolCall:
+          tool: runSafeTsoCommand
+          args:
+            commandText: { pattern: 'LISTBC' }
+      - answerContains:
+          pattern: 'broadcast|IKJM026I|message'
+
+  - id: tso-allocations-conversational
+    prompt: Which data sets are tied up in my current session right now?
+    assertions:
+      - toolCall:
+          tool: runSafeTsoCommand
+          args:
+            commandText: { pattern: 'LISTALC|LISTA' }
+      - answerContains:
+          pattern: 'DDNAME|SYSIN|allocat'

@@ -7,6 +7,7 @@ development within Zowe MCP.
 - [Sign All of Your Git Commits](#sign-all-of-your-git-commits)
 - [Pull Request Guidelines](#pull-request-guidelines)
 - [Continuous Integration & Branch Protection](#continuous-integration--branch-protection)
+- [How Releases Work](#how-releases-work)
 - [AI Evaluation Requirements](#ai-evaluation-requirements)
 - [Code Style](#code-style)
 - [Testing Guidelines](#testing-guidelines)
@@ -143,6 +144,18 @@ root [CHANGELOG.md](CHANGELOG.md).
   administrators too.
 - **`develop`** — the integration branch; no review approval required, but only
   members of the `zowe-mcp-administrators` team can merge.
+
+## How Releases Work
+
+Releases are prepared by an AI-assisted command (`/prepare-release`) that
+opens a reviewed PR (version bump, changelog rollover, regenerated docs).
+Merging that PR to `main` is the release approval — CI
+([`.github/workflows/release.yml`](.github/workflows/release.yml), via
+[Octorelease](https://github.com/zowe-actions/octorelease)) then builds,
+tags, and publishes the GitHub Release, and opens the follow-up PR that sets
+the next development version. See
+[docs/release-process.md](docs/release-process.md) for the full pipeline,
+including rehearsal paths and the one-time repo settings this depends on.
 
 ## AI Evaluation Requirements
 

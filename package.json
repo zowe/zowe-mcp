@@ -1,6 +1,6 @@
 {
   "name": "zowe-mcp",
-  "version": "0.10.0-dev",
+  "version": "0.10.0-rc.1",
   "private": true,
   "description": "Zowe MCP - Model Context Protocol server and VS Code extension for z/OS",
   "workspaces": [
@@ -17,6 +17,7 @@
     "evals": "npm run build -w @zowe/mcp-server && npm run build -w packages/zowe-mcp-evals && npm run evals -w packages/zowe-mcp-evals -- \"$@\"",
     "list-eval-models": "npm run build -w packages/zowe-mcp-evals && npm run list-eval-models -w packages/zowe-mcp-evals --",
     "smoke:gemini-zowe-mcp": "npm run build -w @zowe/mcp-server && npm run build -w packages/zowe-mcp-evals && npm run smoke:gemini-zowe-mcp -w packages/zowe-mcp-evals",
+    "smoke:claude-code": "npm run build -w @zowe/mcp-server && npm run build -w packages/zowe-mcp-evals && npm run smoke:claude-code -w packages/zowe-mcp-evals",
     "format": "prettier --write \"**/*.{ts,mts,js,mjs,cjs,json,jsonc,yaml,yml,css,html}\" && node scripts/shfmt-write.mjs",
     "generate-cli-bridge-yaml": "node scripts/generate-cli-bridge-yaml.mjs",
     "zosmf:download-specs": "node scripts/download-zosmf-specs.mjs",
@@ -42,7 +43,7 @@
     "test:airgap": "npm run test:airgap -w @zowe/mcp-server",
     "test:airgap:build": "npm run test:airgap:build -w @zowe/mcp-server",
     "test:airgap:build:native": "npm run test:airgap:build:native -w @zowe/mcp-server",
-    "release-vsix": "bash scripts/release-vsix.sh",
+    "ci:package-release": "bash scripts/package-release.sh",
     "sdk:release": "node scripts/sdk-switch.js release",
     "sdk:nightly": "node scripts/sdk-switch.js nightly",
     "sdk:pr": "node scripts/sdk-switch.js pr",

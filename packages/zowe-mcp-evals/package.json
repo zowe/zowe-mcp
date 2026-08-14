@@ -1,6 +1,6 @@
 {
   "name": "zowe-mcp-evals",
-  "version": "0.10.0-dev",
+  "version": "0.10.0-rc.1",
   "description": "AI evaluations for Zowe MCP data set/member tools",
   "type": "module",
   "main": "dist/run.js",
@@ -10,6 +10,7 @@
     "evals": "node dist/run.js",
     "list-eval-models": "node dist/list-eval-models.js",
     "smoke:gemini-zowe-mcp": "node dist/gemini-zowe-mcp-smoke.js",
+    "smoke:claude-code": "node dist/claude-code-smoke.js",
     "test": "vitest run",
     "format": "prettier --write \"**/*.{ts,js,json}\"",
     "check-format": "prettier --check \"**/*.{ts,js,json}\""
@@ -22,10 +23,12 @@
   ],
   "license": "EPL-2.0",
   "dependencies": {
-    "@ai-sdk/google": "^4.0.24",
-    "@ai-sdk/openai-compatible": "3.0.14",
+    "@ai-sdk/anthropic": "^4.0.33",
+    "@ai-sdk/google": "^4.0.34",
+    "@ai-sdk/openai": "^4.0.33",
+    "@ai-sdk/openai-compatible": "3.0.23",
     "@modelcontextprotocol/sdk": "^1.29.0",
-    "ai": "^7.0.37",
+    "ai": "^7.0.52",
     "ajv": "^8.20.0",
     "dotenv": "^17.4.2",
     "js-yaml": "^5.2.2",

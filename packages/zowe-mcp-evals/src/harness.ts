@@ -9,11 +9,13 @@
  *
  */
 
+import { createAnthropic } from '@ai-sdk/anthropic';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
+import { createOpenAI } from '@ai-sdk/openai';
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
-import type { LanguageModel, ToolSet } from 'ai';
+import type { Instructions, LanguageModel, LanguageModelUsage, ModelMessage, ToolSet } from 'ai';
 import { generateText, jsonSchema, stepCountIs, tool } from 'ai';
 import type { ChildProcess } from 'node:child_process';
 import { spawn, spawnSync } from 'node:child_process';
@@ -123,13 +125,19 @@ export interface AgentRunResult {
   stepCount: number;
 }
 
+/** Result of a multi-turn conversation: per-turn results plus cumulative totals. */
+export interface ConversationRunResult extends AgentRunResult {
+  /** One entry per turn: that turn's final answer text and the tool calls it made. */
+  turns: AgentRunResult[];
+}
+
 /** Optional overrides for {@link McpEvalHarness.runOne} (e.g. Gemini smoke forcing `listDatasets`). */
 export interface RunOneOptions {
   toolChoice?: 'auto' | 'none' | 'required';
   activeTools?: string[];
 }
 
-function buildModel(evalsConfig: EvalsConfig): LanguageModel {
+export function buildModel(evalsConfig: EvalsConfig): LanguageModel {
   if (evalsConfig.provider === 'vllm') {
     const provider = createOpenAICompatible({
       name: 'vllm',
@@ -145,6 +153,22 @@ function buildModel(evalsConfig: EvalsConfig): LanguageModel {
       apiKey: evalsConfig.apiKey ?? 'no key needed',
     });
     return provider(evalsConfig.serverModel);
+  }
+  if (evalsConfig.provider === 'anthropic') {
+    const provider = createAnthropic({ apiKey: evalsConfig.apiKey });
+    return provider(evalsConfig.serverModel);
+  }
+  if (evalsConfig.provider === 'openai') {
+    const provider = createOpenAI({
+      apiKey: evalsConfig.apiKey,
+      ...(evalsConfig.baseUrl ? { baseURL: evalsConfig.baseUrl } : {}),
+    });
+    // Use the Chat Completions API (`/chat/completions`), not the default
+    // Responses API (`/responses`). Chat Completions is supported by real
+    // OpenAI, Azure OpenAI, and OpenAI-compatible endpoints (vLLM, LM Studio);
+    // the Responses API is not universally available on Azure / compatible
+    // servers, which is exactly what the configurable base URL targets.
+    return provider.chat(evalsConfig.serverModel);
   }
   const google = createGoogleGenerativeAI({ apiKey: evalsConfig.apiKey! });
   return google(evalsConfig.serverModel);
@@ -257,7 +281,10 @@ export class McpEvalHarness {
         args.push(...splitArgs(this.options.nativeServerArgs));
       } else if (this.options.mockDir) {
         args.push('--mock', this.options.mockDir);
-        args.push('--capability-tier', 'full');
+        // Default to 'full' (all tools) unless the set requests a narrower tier
+        // (e.g. injection variants run at 'read' so destructive tools are never
+        // registered — a deterministic control the model cannot bypass).
+        args.push('--capability-tier', setConfig.mock?.capabilityTier ?? 'full');
       }
       // CLI bridge plugin connections (can coexist with any backend).
       // Auto-derive from mockServers[].pluginName; explicit cliPluginConfiguration take precedence.
@@ -448,40 +475,9 @@ export class McpEvalHarness {
    */
   async runOne(prompt: string, runOptions?: RunOneOptions): Promise<AgentRunResult> {
     if (!this.client) throw new Error('Harness not started');
-    const { tools: mcpTools } = await this.client.listTools();
-    const toolCallRecords: ToolCallRecord[] = [];
-    const toolAliases = this.options.setConfig.toolAliases ?? {};
-
-    const tools: ToolSet = {};
-    for (const t of mcpTools) {
-      const name = t.name;
-      const description = t.description ?? `Tool: ${name}`;
-      const schema = t.inputSchema as Parameters<typeof jsonSchema>[0];
-      tools[name] = tool({
-        description,
-        inputSchema: jsonSchema(schema),
-        execute: async (args: unknown) => {
-          const a = args as Record<string, unknown>;
-          const result = await this.client!.callTool({ name, arguments: a });
-          const content = result.content as { type: string; text?: string }[];
-          const text = content?.find(c => c.type === 'text')?.text ?? JSON.stringify(result);
-          const resultForReport =
-            text.length > 16000 ? text.slice(0, 16000) + '\n… [truncated]' : text;
-          const canonicalName = toolAliases[name] ?? name;
-          toolCallRecords.push({ name: canonicalName, arguments: a, result: resultForReport });
-          return text;
-        },
-      });
-    }
-
-    const model = buildModel(this.options.evalsConfig);
-    const serverInstructions = this.client.getInstructions();
-    log.info('Server instructions', {
-      hasInstructions: serverInstructions != null,
-      length: serverInstructions?.length ?? 0,
-      preview: serverInstructions?.slice(0, 100),
-    });
-    const systemPrompt = getSystemPrompt(this.options.setConfig, serverInstructions);
+    const { tools, toolCallRecords } = await this.buildAgentTools();
+    const { model, instructions } = this.prepareRun();
+    const messages: ModelMessage[] = [{ role: 'user', content: prompt }];
 
     const t0 = Date.now();
     const totalAttempts = 1 + EMPTY_RESPONSE_RETRIES;
@@ -489,8 +485,8 @@ export class McpEvalHarness {
       toolCallRecords.length = 0;
       const attemptResult = await generateText({
         model,
-        system: systemPrompt,
-        prompt,
+        instructions,
+        messages,
         tools,
         ...(runOptions?.toolChoice != null ? { toolChoice: runOptions.toolChoice } : {}),
         ...(runOptions?.activeTools != null && runOptions.activeTools.length > 0
@@ -501,15 +497,7 @@ export class McpEvalHarness {
           log.debug('AI SDK prepareStep (before request)', prepareStepPayload(options));
           return {};
         },
-        onStepFinish(stepResult: {
-          finishReason?: string;
-          usage?: unknown;
-          totalUsage?: unknown;
-          text?: string;
-          toolCalls?: unknown[];
-          toolResults?: unknown[];
-          isContinued?: boolean;
-        }) {
+        onStepFinish(stepResult: StepFinishInfo) {
           log.debug('AI SDK onStepFinish', stepFinishPayload(stepResult));
         },
       });
@@ -536,14 +524,184 @@ export class McpEvalHarness {
     }
     const durationMs = Date.now() - t0;
 
-    const u = result.usage;
-    const tokenUsage: TokenUsage | undefined = u
-      ? { input: u.inputTokens ?? 0, output: u.outputTokens ?? 0, total: u.totalTokens ?? 0 }
-      : undefined;
-    const stepCount = result.steps?.length ?? 0;
-    const finalText = result.text ?? '';
-    return { finalText, toolCalls: toolCallRecords, durationMs, tokenUsage, stepCount };
+    return {
+      finalText: result.text ?? '',
+      toolCalls: toolCallRecords,
+      durationMs,
+      tokenUsage: toTokenUsage(result.usage),
+      stepCount: result.steps?.length ?? 0,
+    };
   }
+
+  /**
+   * Run a multi-turn conversation: each prompt is a user turn, driven through the
+   * agent while accumulating the conversation (assistant + tool messages) so later
+   * turns see earlier results. Returns a per-turn result (finalText + the tool calls
+   * made during that turn) plus cumulative totals.
+   */
+  async runConversation(prompts: string[]): Promise<ConversationRunResult> {
+    if (!this.client) throw new Error('Harness not started');
+    const { tools, toolCallRecords } = await this.buildAgentTools();
+    const { model, instructions } = this.prepareRun();
+
+    const messages: ModelMessage[] = [];
+    const turns: AgentRunResult[] = [];
+    const t0 = Date.now();
+    for (const prompt of prompts) {
+      const start = toolCallRecords.length;
+      const turnT0 = Date.now();
+      messages.push({ role: 'user', content: prompt });
+      const result = await generateText({
+        model,
+        instructions,
+        messages,
+        tools,
+        stopWhen: stepCountIs(MAX_STEPS),
+        prepareStep(options) {
+          log.debug('AI SDK prepareStep (before request)', prepareStepPayload(options));
+          return {};
+        },
+        onStepFinish(stepResult: StepFinishInfo) {
+          log.debug('AI SDK onStepFinish', stepFinishPayload(stepResult));
+        },
+      });
+      // Carry the assistant + tool messages into the next turn's context.
+      messages.push(...(result.response.messages as ModelMessage[]));
+      turns.push({
+        finalText: result.text ?? '',
+        toolCalls: toolCallRecords.slice(start),
+        durationMs: Date.now() - turnT0,
+        tokenUsage: toTokenUsage(result.usage),
+        stepCount: result.steps?.length ?? 0,
+      });
+    }
+
+    return {
+      turns,
+      finalText: turns[turns.length - 1]?.finalText ?? '',
+      toolCalls: toolCallRecords,
+      durationMs: Date.now() - t0,
+      tokenUsage: sumTokenUsage(turns),
+      stepCount: turns.reduce((a, t) => a + t.stepCount, 0),
+    };
+  }
+
+  /** Build the AI SDK tool set that proxies to the MCP client, recording each call. */
+  private async buildAgentTools(): Promise<{
+    tools: ToolSet;
+    toolCallRecords: ToolCallRecord[];
+  }> {
+    const { tools: mcpTools } = await this.client!.listTools();
+    const toolCallRecords: ToolCallRecord[] = [];
+    const toolAliases = this.options.setConfig.toolAliases ?? {};
+    const tools: ToolSet = {};
+    // Cache the entire tool-definitions prefix by marking the last tool with
+    // cache_control (anthropic only): Anthropic renders tools → system → messages,
+    // so a breakpoint on the last tool caches all tool definitions before it.
+    const isAnthropic = this.options.evalsConfig.provider === 'anthropic';
+    const lastToolName =
+      isAnthropic && mcpTools.length > 0 ? mcpTools[mcpTools.length - 1].name : undefined;
+    for (const t of mcpTools) {
+      const name = t.name;
+      const description = t.description ?? `Tool: ${name}`;
+      const schema = t.inputSchema as Parameters<typeof jsonSchema>[0];
+      tools[name] = tool({
+        description,
+        inputSchema: jsonSchema(schema),
+        ...(name === lastToolName
+          ? { providerOptions: { anthropic: { cacheControl: { type: 'ephemeral' } } } }
+          : {}),
+        execute: async (args: unknown) => {
+          const a = args as Record<string, unknown>;
+          const result = await this.client!.callTool({ name, arguments: a });
+          const content = result.content as { type: string; text?: string }[];
+          const text = content?.find(c => c.type === 'text')?.text ?? JSON.stringify(result);
+          const resultForReport =
+            text.length > 16000 ? text.slice(0, 16000) + '\n… [truncated]' : text;
+          const canonicalName = toolAliases[name] ?? name;
+          toolCallRecords.push({ name: canonicalName, arguments: a, result: resultForReport });
+          return text;
+        },
+      });
+    }
+    return { tools, toolCallRecords };
+  }
+
+  /**
+   * Build the model and `instructions` (AI SDK v7's top-level system-prompt option) for a
+   * run (logs server instructions once). System messages are no longer accepted inside
+   * `messages` in v7, so the system prompt travels via `instructions` instead; for Anthropic,
+   * `instructions` is passed as a `SystemModelMessage` object so the ephemeral cacheControl
+   * providerOptions can still be attached to it (needed for prompt caching).
+   */
+  private prepareRun(): { model: LanguageModel; instructions: Instructions } {
+    const model = buildModel(this.options.evalsConfig);
+    const serverInstructions = this.client!.getInstructions();
+    log.info('Server instructions', {
+      hasInstructions: serverInstructions != null,
+      length: serverInstructions?.length ?? 0,
+      preview: serverInstructions?.slice(0, 100),
+    });
+    const systemPrompt = getSystemPrompt(this.options.setConfig, serverInstructions);
+    const isAnthropic = this.options.evalsConfig.provider === 'anthropic';
+    const instructions: Instructions = isAnthropic
+      ? {
+          role: 'system',
+          content: systemPrompt,
+          providerOptions: { anthropic: { cacheControl: { type: 'ephemeral' } } },
+        }
+      : systemPrompt;
+    return { model, instructions };
+  }
+}
+
+/** Shape of the AI SDK onStepFinish argument we log. */
+interface StepFinishInfo {
+  finishReason?: string;
+  usage?: unknown;
+  totalUsage?: unknown;
+  text?: string;
+  toolCalls?: unknown[];
+  toolResults?: unknown[];
+  isContinued?: boolean;
+}
+
+/**
+ * Convert AI SDK v7 usage to our TokenUsage (undefined when the provider omits usage).
+ *
+ * In AI SDK v7, `result.usage` already reflects the total across all agentic steps
+ * (the previously separate `totalUsage` is now equivalent and deprecated), and cache
+ * read/write token counts are provider-agnostic fields on `inputTokenDetails` rather
+ * than something that must be summed by hand from per-step `providerMetadata`.
+ */
+function toTokenUsage(u: LanguageModelUsage | undefined): TokenUsage | undefined {
+  return u
+    ? {
+        input: u.inputTokens ?? 0,
+        output: u.outputTokens ?? 0,
+        total: u.totalTokens ?? 0,
+        cacheReadInputTokens: u.inputTokenDetails?.cacheReadTokens,
+        cacheCreationInputTokens: u.inputTokenDetails?.cacheWriteTokens,
+      }
+    : undefined;
+}
+
+/** Sum per-turn token usage into a single TokenUsage (undefined when none reported). */
+function sumTokenUsage(turns: AgentRunResult[]): TokenUsage | undefined {
+  const withUsage = turns.filter(t => t.tokenUsage);
+  if (withUsage.length === 0) return undefined;
+  return withUsage.reduce<TokenUsage>(
+    (acc, t) => ({
+      input: acc.input + (t.tokenUsage?.input ?? 0),
+      output: acc.output + (t.tokenUsage?.output ?? 0),
+      total: acc.total + (t.tokenUsage?.total ?? 0),
+      cacheReadInputTokens:
+        (acc.cacheReadInputTokens ?? 0) + (t.tokenUsage?.cacheReadInputTokens ?? 0),
+      cacheCreationInputTokens:
+        (acc.cacheCreationInputTokens ?? 0) + (t.tokenUsage?.cacheCreationInputTokens ?? 0),
+    }),
+    { input: 0, output: 0, total: 0, cacheReadInputTokens: 0, cacheCreationInputTokens: 0 }
+  );
 }
 
 /**

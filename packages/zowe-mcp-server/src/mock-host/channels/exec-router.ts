@@ -10,9 +10,11 @@
  */
 
 /**
- * Routes incoming SSH `exec` commands. Three classes of command are recognized:
+ * Routes incoming SSH `exec` commands. Four classes of command are recognized:
  *
  *   1. `<path>/zowex server [args]`   →  start the JSON-RPC dispatcher on this channel
+ *   1b. `<path>/zowex -v|--version`   →  post-deploy smoke test (verifyZowexBinary /
+ *      ZSshUtils.verifyServerBinary): report a fake version line and exit 0
  *   2. `cat > /tmp/zrs-pipe-*`        →  client is uploading bytes for a PUT streaming RPC
  *      `cat /tmp/zrs-pipe-*`          →  client is downloading bytes for a GET streaming RPC
  *   3. anything else (e.g. `pax -rzf server.pax.Z`, `mkdir -p`, `ls -la /u/USER`)
@@ -25,7 +27,7 @@ import ssh2 from 'ssh2';
 import type { MockHostStore } from '../store.js';
 import type { MockUser } from '../users.js';
 import { newShellSession, runLine } from '../uss-shell/interpreter.js';
-import { startRpcChannel } from './rpc-channel.js';
+import { loadServerVersion, startRpcChannel } from './rpc-channel.js';
 import {
   appendReceiveChunk,
   failReceive,
@@ -44,9 +46,28 @@ export interface ExecRouterCtx {
 }
 
 const ZOWEX_RE = /(?:^|\/)zowex\s+server\b/;
+// Two callers run the freshly deployed binary to confirm it loads, with different flags:
+//   - zowex-deploy-check.ts's verifyZowexBinary uses `<path>/zowex -v` (see issue #47)
+//   - zowex-sdk 0.7.1's ZSshUtils.verifyServerBinary uses `./zowex --version`, cwd-wrapped
+// The real binary prints a version line and exits 0 for both. Without matching *both* spellings
+// the command falls through to the USS shell interpreter, which has no `zowex` builtin and
+// returns FSUM7351 (rc=127) — making every mock-backed deploy look like it failed to start.
+// Not start-anchored on purpose: `./zowex` matches via the `/` alternative, which also covers
+// the `cd '<dir>' ; ` prefix node-ssh adds for `execCommand(..., { cwd })`.
+const ZOWEX_VERSION_RE = /(?:^|\/)zowex\s+(?:-v|--version)\b/;
 const CAT_WRITE_RE = /^cat\s*>\s*(\/tmp\/zrs-pipe-\S+)\s*$/;
 const CAT_READ_RE = /^cat\s+(\/tmp\/zrs-pipe-\S+)\s*$/;
-const PAX_RE = /^pax\s+-rzf\s+server\.pax\.Z\s*$/;
+// zowex-sdk 0.7.1's ZSshUtils.installServer extracts the PAX archive via
+// `ssh.execCommand('pax -rzf server.pax.Z', { cwd: remoteDir })`. node-ssh
+// (see node_modules/node-ssh/lib/cjs/index.js execCommand) implements `cwd` by
+// prefixing the command with `cd <shell-escaped dir> ; `, so the string this
+// mock actually receives on the wire looks like
+// `cd '~/.zowe-server' ; pax -rzf server.pax.Z`, not the bare `pax` command.
+// Match an optional leading `cd <dir> ;` wrapper, and tolerate a path prefix
+// on the archive name (in case a future SDK version passes a full remote path
+// instead of relying on `cwd`).
+const CD_WRAPPER_RE = /^cd\s+(?:'[^']*'|"[^"]*"|\S+)\s*;\s*/;
+const PAX_RE = /^pax\s+-rzf\s+(?:\S*\/)?server\.pax\.Z\s*$/;
 const SILENT_OK_RE = /^(mkdir|rm)\s+/;
 
 export function handleExec(
@@ -66,6 +87,18 @@ export function handleExec(
       systemId: ctx.systemId,
       log: ctx.log,
     });
+    return;
+  }
+
+  // 1b. zowex -v / --version → post-deploy smoke test → report a version line, rc=0.
+  // Real zowex prints the bare version (e.g. "0.6.1+1c4859ed"), no "zowex " prefix
+  // (confirmed against a real z/OS system).
+  if (ZOWEX_VERSION_RE.test(cmd)) {
+    const version = loadServerVersion();
+    ctx.log('info', `EXEC zowex version check (no-op) → rc=0 version=${version}`);
+    channel.write(`${version}\n`);
+    channel.exit(0);
+    channel.end();
     return;
   }
 
@@ -111,8 +144,12 @@ export function handleExec(
     return;
   }
 
-  // 3a. pax -rzf server.pax.Z → silent success (we don't actually extract)
-  if (PAX_RE.test(cmd)) {
+  // 3a. pax -rzf server.pax.Z → silent success (we don't actually extract).
+  // Strip a `cd <dir> ; ` wrapper first — node-ssh's execCommand({ cwd })
+  // (used by ZSshUtils.installServer's extraction step) prefixes the real
+  // command with one instead of sending `pax` bare.
+  const unwrapped = cmd.replace(CD_WRAPPER_RE, '');
+  if (PAX_RE.test(unwrapped)) {
     ctx.log('info', `EXEC pax extract (no-op) → rc=0`);
     channel.exit(0);
     channel.end();
@@ -120,7 +157,7 @@ export function handleExec(
   }
 
   // 3b. mkdir -p / rm -rf for the zowex install dance → silent success
-  if (SILENT_OK_RE.test(cmd) && !isShellCommand(cmd)) {
+  if (SILENT_OK_RE.test(unwrapped) && !isShellCommand(unwrapped)) {
     ctx.log('debug', `EXEC install-dance command (no-op) → rc=0`);
     channel.exit(0);
     channel.end();

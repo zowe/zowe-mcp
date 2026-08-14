@@ -27,20 +27,14 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { plural } from 'zowe-mcp-common';
-import { buildCacheKey, get as cacheGet, set as cacheSet, getToolsUnderTest } from './cache.js';
+import type { JudgeFn } from './assertions.js';
+import { usesAnswerJudge } from './cache.js';
 import { getConfigDir, loadEvalsConfig, type EvalsConfig } from './config.js';
-import {
-  assertAndRecord,
-  buildToolDefsSubset,
-  errorMessage,
-  FAIL,
-  makeFailedRunResult,
-  PASS,
-  resolveNativeServerArgs,
-} from './evals-utils.js';
+import { errorMessage, FAIL, PASS, resolveNativeServerArgs } from './evals-utils.js';
 import { getSystemPrompt, initMockData, McpEvalHarness, prepareEvalWorkspace } from './harness.js';
 import { listSetNames, loadAndValidateAllSets } from './load-questions.js';
 import { log } from './log.js';
+import { maybeBuildJudge, runQuestion } from './question-runner.js';
 import { writeReport } from './report.js';
 import type { QuestionSet, RunResult, SetConfig } from './types.js';
 
@@ -153,6 +147,7 @@ async function runSetForModel(
   evalsConfig: EvalsConfig,
   cli: CliArgs,
   cache: CacheOptions,
+  judge: JudgeFn | undefined,
   progress?: ProgressTracker
 ): Promise<SetRunResult> {
   const config = questionSet.config;
@@ -204,92 +199,29 @@ async function runSetForModel(
         ? `[${progress.current.toString()}/${progress.total.toString()}] `
         : '';
       log.info(`${progressTag}${setName}/${q.id}:`);
-      for (const line of q.prompt.trim().split(/\n/)) log.info(`  ${line}`);
-
-      const toolNames = getToolsUnderTest(q.assertionBlock);
-      const toolDefs = buildToolDefsSubset(toolDefinitions, toolNames);
-      const cacheKey = cache.enabled
-        ? buildCacheKey({
-            systemPrompt: getSystemPrompt(effectiveConfig, serverInstructions),
-            prompt: q.prompt,
-            toolDefs,
-            modelId: evalsConfig.modelId,
-          })
-        : '';
-
-      const cached = cache.enabled ? await cacheGet(cache.dir, cacheKey) : null;
-      const questionResults: RunResult[] = [];
-
-      if (cached) {
-        for (let r = 0; r < repetitions; r++) {
-          const { finalText, toolCalls } = cached;
-          const result = assertAndRecord({
-            questionId: q.id,
-            prompt: q.prompt,
-            runIndex: r,
-            finalText,
-            toolCalls,
-            assertionBlock: q.assertionBlock,
-          });
-          questionResults.push(result);
-          allResults.push(result);
-          cache.stats.hits++;
-          const icon = result.passed ? PASS : FAIL;
-          const detail = result.passed
-            ? ' cache hit'
-            : ` ${result.assertionFailed ?? 'assertion failed'}`;
-          const msg = `${progressTag}[${evalsConfig.modelId ?? 'default'}] ${setName}/${q.id} (${r + 1}/${repetitions}) ${icon}${detail}`;
-          if (result.passed) log.pass(msg);
-          else log.fail(msg);
-        }
+      const isMultiTurn = Array.isArray(q.turns) && q.turns.length > 0;
+      if (isMultiTurn) {
+        q.turns!.forEach((t, i) => {
+          log.info(`  turn ${i + 1}: ${t.prompt}`);
+        });
       } else {
-        for (let r = 0; r < repetitions; r++) {
-          try {
-            const runResult = await harness.runOne(q.prompt);
-            const { finalText, toolCalls } = runResult;
-            const result = assertAndRecord({
-              questionId: q.id,
-              prompt: q.prompt,
-              runIndex: r,
-              finalText,
-              toolCalls,
-              assertionBlock: q.assertionBlock,
-              durationMs: runResult.durationMs,
-              tokenUsage: runResult.tokenUsage,
-              stepCount: runResult.stepCount,
-            });
-            questionResults.push(result);
-            allResults.push(result);
-            const icon = result.passed ? PASS : FAIL;
-            const detail = result.passed ? '' : ` ${result.assertionFailed ?? 'assertion failed'}`;
-            const msg = `${progressTag}[${evalsConfig.modelId ?? 'default'}] ${setName}/${q.id} (${r + 1}/${repetitions}) ${icon}${detail}`;
-            if (result.passed) log.pass(msg);
-            else log.fail(msg);
-          } catch (err) {
-            const msg = errorMessage(err);
-            const failedResult = makeFailedRunResult(q.id, q.prompt, r, msg);
-            questionResults.push(failedResult);
-            allResults.push(failedResult);
-            log.fail(
-              `${progressTag}[${evalsConfig.modelId ?? 'default'}] ${setName}/${q.id} (${r + 1}/${repetitions}) ${FAIL} ${msg}`
-            );
-          }
-        }
-
-        const qPassed = questionResults.filter(x => x.passed).length;
-        const qTotal = questionResults.length;
-        const questionPassRate = qTotal > 0 ? qPassed / qTotal : 0;
-        if (cache.enabled && questionPassRate >= minSuccessRate) {
-          const firstPassing = questionResults.find(x => x.passed);
-          if (firstPassing) {
-            await cacheSet(cache.dir, cacheKey, {
-              finalText: firstPassing.finalText,
-              toolCalls: firstPassing.toolCalls,
-            });
-            cache.stats.writes++;
-          }
-        }
+        for (const line of q.prompt.trim().split(/\n/)) log.info(`  ${line}`);
       }
+
+      const questionResults = await runQuestion(q, {
+        harness,
+        judge,
+        cache,
+        systemPrompt: getSystemPrompt(effectiveConfig, serverInstructions),
+        toolDefinitions,
+        modelId: evalsConfig.modelId,
+        repetitions,
+        minSuccessRate,
+        runLabel: r =>
+          `${progressTag}[${evalsConfig.modelId ?? 'default'}] ${setName}/${q.id} (${r + 1}/${repetitions})`,
+        verboseAnswers: false,
+      });
+      allResults.push(...questionResults);
     }
   } finally {
     await harness.stop();
@@ -562,6 +494,15 @@ async function main(): Promise<void> {
     `Plan: ${totalQuestions} ${plural(totalQuestions, 'question', 'questions')}, ${totalReps} total ${plural(totalReps, 'run', 'runs')} across ${modelIds.length} ${plural(modelIds.length, 'model', 'models')} and ${setNames.filter(s => !loadedSets.get(s)!.config.skip).length} ${plural(setNames.filter(s => !loadedSets.get(s)!.config.skip).length, 'set', 'sets')}`
   );
 
+  // Build the judge once, before the model loop: the judge model is independent of
+  // the models being compared. Only needed when some selected question uses answerJudge.
+  const needsJudge = setNames.some(setName => {
+    const qs = loadedSets.get(setName)!;
+    if (qs.config.skip) return false;
+    return qs.questions.some(q => !q.skip && usesAnswerJudge(q.assertionBlock));
+  });
+  const judge: JudgeFn | undefined = await maybeBuildJudge(needsJudge);
+
   for (const modelId of modelIds) {
     log.info(`Loading model: ${modelId}`);
     let evalsConfig: EvalsConfig;
@@ -580,7 +521,15 @@ async function main(): Promise<void> {
       }
 
       log.info(`Running set "${setName}" with model "${modelId}"`);
-      const result = await runSetForModel(setName, questionSet, evalsConfig, cli, cache, progress);
+      const result = await runSetForModel(
+        setName,
+        questionSet,
+        evalsConfig,
+        cli,
+        cache,
+        judge,
+        progress
+      );
       allSetResults.push(result);
 
       const passed = result.results.filter(r => r.passed).length;

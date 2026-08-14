@@ -75,14 +75,14 @@ export function writeReport(
   );
   if (hasAnyMetrics) {
     metricsRows.push(
-      '|Question ID|Runs w/ metrics|Avg duration (s)|Avg input tokens|Avg output tokens|Avg steps|'
+      '|Question ID|Runs w/ metrics|Avg duration (s)|Avg input tokens|Avg output tokens|Avg cache-read tokens|Avg cache-write tokens|Avg steps|'
     );
-    metricsRows.push('|---|---|---|---|---|---|');
+    metricsRows.push('|---|---|---|---|---|---|---|---|');
     for (const [qid, runs] of byQuestion) {
       const measured = runs.filter(r => r.durationMs != null);
       const count = measured.length;
       if (count === 0) {
-        metricsRows.push(`|${escapeMd(qid)}|0|—|—|—|—|`);
+        metricsRows.push(`|${escapeMd(qid)}|0|—|—|—|—|—|—|`);
         continue;
       }
       const avgDuration = (
@@ -103,13 +103,27 @@ export function writeReport(
               withTokens.reduce((s, r) => s + (r.tokenUsage?.output ?? 0), 0) / withTokens.length
             ).toString()
           : '—';
+      const avgCacheRead =
+        withTokens.length > 0
+          ? Math.round(
+              withTokens.reduce((s, r) => s + (r.tokenUsage?.cacheReadInputTokens ?? 0), 0) /
+                withTokens.length
+            ).toString()
+          : '—';
+      const avgCacheWrite =
+        withTokens.length > 0
+          ? Math.round(
+              withTokens.reduce((s, r) => s + (r.tokenUsage?.cacheCreationInputTokens ?? 0), 0) /
+                withTokens.length
+            ).toString()
+          : '—';
       const withSteps = measured.filter(r => r.stepCount != null);
       const avgSteps =
         withSteps.length > 0
           ? (withSteps.reduce((s, r) => s + (r.stepCount ?? 0), 0) / withSteps.length).toFixed(1)
           : '—';
       metricsRows.push(
-        `|${escapeMd(qid)}|${count}|${avgDuration}|${avgIn}|${avgOut}|${avgSteps}|`
+        `|${escapeMd(qid)}|${count}|${avgDuration}|${avgIn}|${avgOut}|${avgCacheRead}|${avgCacheWrite}|${avgSteps}|`
       );
     }
   }

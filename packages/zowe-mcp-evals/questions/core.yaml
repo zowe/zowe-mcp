@@ -3,7 +3,7 @@
 config:
   name: core
   description: Agent must use getContext to report server and backend
-  repetitions: 2
+  repetitions: 5
   minSuccessRate: 0.8
   mock:
     initArgs: --preset default

@@ -23,3 +23,13 @@ don't warrant an entry (CI, chores, internal refactors, docs-only) can carry the
   unaffected. Resolution order: SSH key → password env → Vault KV → interactive prompt.
   New VS Code setting `zoweMCP.preferSshKey` (default on). See the README's
   "Authentication (in order of preference)" section for details.
+
+### Fixed
+
+- **`listMembers` did not return ISPF statistics**, so the AI would incorrectly report
+  "no ISPF statistics recorded" for members that actually have them (e.g. asking who
+  last updated a member). The native backend now requests attributes from the
+  underlying `listDsMembers` RPC and returns them (`user`, `version`, `modLevel`,
+  `createdDate`, `modifiedDate`, `modifiedTime`, `currentRecords`, `initialRecords`,
+  `modifiedRecords`, `sclm`) alongside the member name; fields are omitted for members
+  with no ISPF stats recorded. Fixes #69.

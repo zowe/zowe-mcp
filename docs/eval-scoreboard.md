@@ -345,3 +345,5 @@ Automatically updated by `npm run eval-compare`.
 | 2026-08-06 | v7-merge-qwen-baseline    | qwen3.6-35b-a3b       | qwen/qwen3.6-35b-a3b            | system                   | 11        | 100.0%    | 55     | 55    | b0a14fd |           |          |
 | 2026-08-06 | v7-merge-qwen-baseline    | qwen3.6-35b-a3b       | qwen/qwen3.6-35b-a3b            | certificates             | 13        | 100.0%    | 65     | 65    | b0a14fd |           |          |
 | 2026-08-06 | v7-merge-qwen-baseline    | qwen3.6-35b-a3b       | qwen/qwen3.6-35b-a3b            | multi-turn               | 4         | 100.0%    | 20     | 20    | b0a14fd |           |          |
+| 2026-08-14 | before-fix-69             | gemini-2.5-flash      | gemini-2.5-flash                | datasets                 | 9         | 68.9%     | 31     | 45    | e3606a2 | 8752a341  |          |
+| 2026-08-14 | after-fix-69              | gemini-2.5-flash      | gemini-2.5-flash                | datasets                 | 9         | 86.7%     | 39     | 45    | e3606a2 | 79ad97a4  |          |

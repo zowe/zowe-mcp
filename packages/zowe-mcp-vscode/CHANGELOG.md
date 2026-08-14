@@ -19,6 +19,7 @@ All notable changes to the Zowe MCP extension will be documented in this file.
 ### Bug fixes
 
 - **Server deploy could silently corrupt when the deploy directory ran out of space**, surfacing much later as a confusing load failure. Space is now checked before deploying, and a truncated binary is detected and redeployed automatically. [#56](https://github.com/zowe/zowe-mcp/pull/56)
+- **`listMembers` did not return ISPF statistics**, so the AI would incorrectly report that no statistics were recorded even for members that have them — e.g. asking who last updated a member. The tool now returns them (user, version, dates, record counts, SCLM flag) when recorded. [#69](https://github.com/zowe/zowe-mcp/issues/69)
 
 ### Other
 

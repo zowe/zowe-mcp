@@ -595,6 +595,59 @@ describe('NativeBackend', () => {
       expect(result).toEqual([{ name: 'A' }, { name: 'B' }, { name: 'COBOL' }]);
     });
 
+    it('requests attributes and maps ISPF statistics from listDsMembers response (issue #69)', async () => {
+      const listDsMembers = vi.fn().mockResolvedValue({
+        items: [
+          {
+            name: 'iefbr14',
+            user: 'IBMUSER',
+            vers: 2,
+            mod: 5,
+            c4date: '2026-01-15',
+            m4date: '2026-08-10',
+            mtime: '14:32',
+            cnorc: 100,
+            inorc: 95,
+            mnorc: 3,
+            sclm: 'N',
+          },
+        ],
+      });
+      const backend = createBackendWithClient({ listDsMembers });
+
+      const result = await backend.listMembers(SYSTEM_ID, 'USER.PDS');
+
+      expect(listDsMembers).toHaveBeenCalledWith(
+        expect.objectContaining({ dsname: 'USER.PDS', attributes: true })
+      );
+      expect(result).toEqual([
+        {
+          name: 'IEFBR14',
+          user: 'IBMUSER',
+          version: 2,
+          modLevel: 5,
+          createdDate: '2026-01-15',
+          modifiedDate: '2026-08-10',
+          modifiedTime: '14:32',
+          currentRecords: 100,
+          initialRecords: 95,
+          modifiedRecords: 3,
+          sclm: 'N',
+        },
+      ]);
+    });
+
+    it('omits ISPF statistics fields when a member has none recorded', async () => {
+      const backend = createBackendWithClient({
+        listDsMembers: () => Promise.resolve({ items: [{ name: 'NOSTATS' }] }),
+      });
+
+      const result = await backend.listMembers(SYSTEM_ID, 'USER.PDS');
+
+      expect(result).toEqual([{ name: 'NOSTATS' }]);
+      expect(result[0].user).toBeUndefined();
+    });
+
     it('filters by pattern client-side when pattern is provided', async () => {
       const backend = createBackendWithClient({
         listDsMembers: () =>

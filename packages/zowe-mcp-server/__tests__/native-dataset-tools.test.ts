@@ -76,9 +76,28 @@ function createFakeNativeClient() {
         Promise.resolve({
           items: req.attributes === false ? [{ name: 'USER.PDS.LIB' }] : fullItems,
         }),
-      listDsMembers: () =>
+      listDsMembers: (req: { dsname: string; pattern?: string; attributes?: boolean }) =>
         Promise.resolve({
-          items: [{ name: 'MEM1' }, { name: 'MEM2' }, { name: 'MEM3' }],
+          items:
+            req.attributes === true
+              ? [
+                  {
+                    name: 'MEM1',
+                    user: 'IBMUSER',
+                    vers: 2,
+                    mod: 5,
+                    c4date: '2026-01-15',
+                    m4date: '2026-08-10',
+                    mtime: '14:32',
+                    cnorc: 100,
+                    inorc: 95,
+                    mnorc: 3,
+                    sclm: 'N',
+                  },
+                  { name: 'MEM2' },
+                  { name: 'MEM3' },
+                ]
+              : [{ name: 'MEM1' }, { name: 'MEM2' }, { name: 'MEM3' }],
         }),
     },
   };
@@ -181,6 +200,35 @@ describe('Dataset tools with native backend', () => {
       expect(memberNames).toContain('MEM1');
       expect(memberNames).toContain('MEM2');
       expect(memberNames).toContain('MEM3');
+    });
+
+    it('should include ISPF statistics for members that have them recorded (issue #69)', async () => {
+      const result = await client.callTool({
+        name: 'listMembers',
+        arguments: { dsn: `${NATIVE_USER}.PDS.LIB` },
+      });
+
+      const envelope = parseEnvelope<Record<string, unknown>[]>(result);
+      const mem1 = envelope.data.find(m => m.member === 'MEM1');
+      const mem2 = envelope.data.find(m => m.member === 'MEM2');
+
+      expect(mem1).toMatchObject({
+        member: 'MEM1',
+        user: 'IBMUSER',
+        version: 2,
+        modLevel: 5,
+        createdDate: '2026-01-15',
+        modifiedDate: '2026-08-10',
+        modifiedTime: '14:32',
+        currentRecords: 100,
+        initialRecords: 95,
+        modifiedRecords: 3,
+        sclm: 'N',
+      });
+
+      // A member with no ISPF stats recorded should not carry spurious undefined fields.
+      expect(mem2).toEqual({ member: 'MEM2' });
+      expect(mem2).not.toHaveProperty('user');
     });
 
     it('should apply pagination (offset/limit) at tool layer', async () => {

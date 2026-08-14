@@ -25,23 +25,23 @@ The server provides **15** tools.
 
 z/OS data set operations — list, search, read, write, create, copy, rename, delete, and manage PDS/E members and temporary data sets.
 
-| #  | Tool                                                      | Description                                                                                                                                                   |
-|----|-----------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| 1  | [`listDatasets`](#listdatasets)                           | List data sets matching a DSLEVEL pattern                                                                                                                     |
-| 2  | [`listMembers`](#listmembers)                             | List members of a PDS or PDS/E data set Results are paginated (default 500, max 1000 per page); follow the pagination instructions in the server instructions |
-| 3  | [`searchInDataset`](#searchindataset)                     | Search for a string in a sequential data set, PDS, or PDS/E (all members or one member)                                                                       |
-| 4  | [`getDatasetAttributes`](#getdatasetattributes)           | Get detailed attributes of a data set: organization, record format, record length, block size, volume, SMS classes, dates, and more                           |
-| 5  | [`readDataset`](#readdataset)                             | Read the content of a sequential data set or PDS/E member                                                                                                     |
-| 6  | [`writeDataset`](#writedataset)                           | Write UTF-8 content to a sequential data set or PDS/E member                                                                                                  |
-| 7  | [`createDataset`](#createdataset)                         | Create a new sequential or partitioned data set                                                                                                               |
-| 8  | [`createTempDataset`](#createtempdataset)                 | Creates a new data set with a unique temporary name in a single call                                                                                          |
-| 9  | [`getTempDatasetPrefix`](#gettempdatasetprefix)           | Return a unique DSN prefix (HLQ) under which temporary data sets can be created                                                                               |
-| 10 | [`getTempDatasetName`](#gettempdatasetname)               | Returns a single unique full temporary data set name (for one data set)                                                                                       |
-| 11 | [`copyDataset`](#copydataset)                             | Copy a data set or PDS or PDS/E member within a single z/OS system                                                                                            |
-| 12 | [`renameDataset`](#renamedataset)                         | Rename a data set or PDS or PDS/E member                                                                                                                      |
-| 13 | [`deleteDataset`](#deletedataset)                         | Delete a data set or a specific PDS or PDS/E member                                                                                                           |
-| 14 | [`deleteDatasetsUnderPrefix`](#deletedatasetsunderprefix) | Delete all data sets whose names start with the given prefix (e.g. tempDsnPrefix from getTempDatasetPrefix)                                                   |
-| 15 | [`restoreDataset`](#restoredataset)                       | Restore (recall) a migrated data set from the hierarchical storage manager (HSM/DFHSM)                                                                        |
+| #  | Tool                                                      | Description                                                                                                                         |
+|----|-----------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------|
+| 1  | [`listDatasets`](#listdatasets)                           | List data sets matching a DSLEVEL pattern                                                                                           |
+| 2  | [`listMembers`](#listmembers)                             | List members of a PDS or PDS/E data set                                                                                             |
+| 3  | [`searchInDataset`](#searchindataset)                     | Search for a string in a sequential data set, PDS, or PDS/E (all members or one member)                                             |
+| 4  | [`getDatasetAttributes`](#getdatasetattributes)           | Get detailed attributes of a data set: organization, record format, record length, block size, volume, SMS classes, dates, and more |
+| 5  | [`readDataset`](#readdataset)                             | Read the content of a sequential data set or PDS/E member                                                                           |
+| 6  | [`writeDataset`](#writedataset)                           | Write UTF-8 content to a sequential data set or PDS/E member                                                                        |
+| 7  | [`createDataset`](#createdataset)                         | Create a new sequential or partitioned data set                                                                                     |
+| 8  | [`createTempDataset`](#createtempdataset)                 | Creates a new data set with a unique temporary name in a single call                                                                |
+| 9  | [`getTempDatasetPrefix`](#gettempdatasetprefix)           | Return a unique DSN prefix (HLQ) under which temporary data sets can be created                                                     |
+| 10 | [`getTempDatasetName`](#gettempdatasetname)               | Returns a single unique full temporary data set name (for one data set)                                                             |
+| 11 | [`copyDataset`](#copydataset)                             | Copy a data set or PDS or PDS/E member within a single z/OS system                                                                  |
+| 12 | [`renameDataset`](#renamedataset)                         | Rename a data set or PDS or PDS/E member                                                                                            |
+| 13 | [`deleteDataset`](#deletedataset)                         | Delete a data set or a specific PDS or PDS/E member                                                                                 |
+| 14 | [`deleteDatasetsUnderPrefix`](#deletedatasetsunderprefix) | Delete all data sets whose names start with the given prefix (e.g. tempDsnPrefix from getTempDatasetPrefix)                         |
+| 15 | [`restoreDataset`](#restoredataset)                       | Restore (recall) a migrated data set from the hierarchical storage manager (HSM/DFHSM)                                              |
 
 ## USS
 
@@ -611,7 +611,7 @@ Output:
 
 > Read-only
 
-List members of a PDS or PDS/E data set Results are paginated (default 500, max 1000 per page); follow the pagination instructions in the server instructions.
+List members of a PDS or PDS/E data set. Results are paginated (default 500, max 1000 per page); follow the pagination instructions in the server instructions. Each entry includes ISPF statistics (user, version, modLevel, createdDate, modifiedDate, modifiedTime, record counts, sclm) when recorded for that member — use these to answer "who last updated/created this member" questions. Fields are omitted for members with no ISPF stats recorded.
 
 #### Parameters
 
@@ -627,13 +627,23 @@ List members of a PDS or PDS/E data set Results are paginated (default 500, max 
 
 #### Output Schema
 
-| Field             | Type       | Required | Description                                                                                                                               |
-|-------------------|------------|----------|-------------------------------------------------------------------------------------------------------------------------------------------|
-| `_context`        | `object`   | Yes      | Resolution context: system and optional normalized data set names/patterns. *(same as [`listDatasets`](#listdatasets-output-schema))*     |
-| `_result`         | `object`   | Yes      | Result metadata (pagination, line window, or success). *(same as [`listDatasets`](#listdatasets-output-schema))*                          |
-| `messages`        | `string`[] | No       | Operational messages: pagination hints (e.g. call again with offset/limit), resolution notes, or allocation messages. Omitted when empty. |
-| `data`            | `object`[] | Yes      | Array of PDS or PDS/E member entries. Each entry has the member name (up to 8 characters, uppercase).                                     |
-| &ensp;└─ `member` | `string`   | Yes      | PDS or PDS/E member name (up to 8 characters, uppercase).                                                                                 |
+| Field                      | Type       | Required | Description                                                                                                                                                                                                                                                                                                                 |
+|----------------------------|------------|----------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `_context`                 | `object`   | Yes      | Resolution context: system and optional normalized data set names/patterns. *(same as [`listDatasets`](#listdatasets-output-schema))*                                                                                                                                                                                       |
+| `_result`                  | `object`   | Yes      | Result metadata (pagination, line window, or success). *(same as [`listDatasets`](#listdatasets-output-schema))*                                                                                                                                                                                                            |
+| `messages`                 | `string`[] | No       | Operational messages: pagination hints (e.g. call again with offset/limit), resolution notes, or allocation messages. Omitted when empty.                                                                                                                                                                                   |
+| `data`                     | `object`[] | Yes      | Array of PDS or PDS/E member entries. Each entry has the member name (up to 8 characters, uppercase) plus ISPF statistics when recorded for that member (user, version, modLevel, createdDate, modifiedDate, modifiedTime, currentRecords, initialRecords, modifiedRecords, sclm) — omitted for members with no ISPF stats. |
+| &ensp;├─ `member`          | `string`   | Yes      | PDS or PDS/E member name (up to 8 characters, uppercase).                                                                                                                                                                                                                                                                   |
+| &ensp;├─ `user`            | `string`   | No       | ISPF statistics: user ID that created or last saved the member.                                                                                                                                                                                                                                                             |
+| &ensp;├─ `version`         | `number`   | No       | ISPF statistics: version number.                                                                                                                                                                                                                                                                                            |
+| &ensp;├─ `modLevel`        | `number`   | No       | ISPF statistics: modification level.                                                                                                                                                                                                                                                                                        |
+| &ensp;├─ `createdDate`     | `string`   | No       | ISPF statistics: creation date (YYYY-MM-DD).                                                                                                                                                                                                                                                                                |
+| &ensp;├─ `modifiedDate`    | `string`   | No       | ISPF statistics: last modified date (YYYY-MM-DD).                                                                                                                                                                                                                                                                           |
+| &ensp;├─ `modifiedTime`    | `string`   | No       | ISPF statistics: last modified time.                                                                                                                                                                                                                                                                                        |
+| &ensp;├─ `currentRecords`  | `number`   | No       | ISPF statistics: current number of records.                                                                                                                                                                                                                                                                                 |
+| &ensp;├─ `initialRecords`  | `number`   | No       | ISPF statistics: initial number of records.                                                                                                                                                                                                                                                                                 |
+| &ensp;├─ `modifiedRecords` | `number`   | No       | ISPF statistics: number of records modified since the member was created.                                                                                                                                                                                                                                                   |
+| &ensp;└─ `sclm`            | `string`   | No       | ISPF statistics: SCLM flag, present whenever ISPF statistics are recorded ('Y' = last updated via SCLM, 'N' = via plain ISPF edit) — not omitted for non-SCLM members.                                                                                                                                                      |
 
 #### Example Outputs
 

@@ -214,6 +214,31 @@ const datasetListEntrySchema = z.object({
 
 const memberEntrySchema = z.object({
   member: z.string().describe('PDS or PDS/E member name (up to 8 characters, uppercase).'),
+  user: z
+    .string()
+    .optional()
+    .describe('ISPF statistics: user ID that created or last saved the member.'),
+  version: z.number().optional().describe('ISPF statistics: version number.'),
+  modLevel: z.number().optional().describe('ISPF statistics: modification level.'),
+  createdDate: z.string().optional().describe('ISPF statistics: creation date (YYYY-MM-DD).'),
+  modifiedDate: z
+    .string()
+    .optional()
+    .describe('ISPF statistics: last modified date (YYYY-MM-DD).'),
+  modifiedTime: z.string().optional().describe('ISPF statistics: last modified time.'),
+  currentRecords: z.number().optional().describe('ISPF statistics: current number of records.'),
+  initialRecords: z.number().optional().describe('ISPF statistics: initial number of records.'),
+  modifiedRecords: z
+    .number()
+    .optional()
+    .describe('ISPF statistics: number of records modified since the member was created.'),
+  sclm: z
+    .string()
+    .optional()
+    .describe(
+      "ISPF statistics: SCLM flag, present whenever ISPF statistics are recorded ('Y' = last " +
+        "updated via SCLM, 'N' = via plain ISPF edit) — not omitted for non-SCLM members."
+    ),
 });
 
 const readDatasetDataSchema = z.object({
@@ -450,7 +475,9 @@ export const listMembersOutputSchema = envelopeSchema(
   z
     .array(memberEntrySchema)
     .describe(
-      'Array of PDS or PDS/E member entries. Each entry has the member name (up to 8 characters, uppercase).'
+      'Array of PDS or PDS/E member entries. Each entry has the member name (up to 8 characters, uppercase) ' +
+        'plus ISPF statistics when recorded for that member (user, version, modLevel, createdDate, modifiedDate, ' +
+        'modifiedTime, currentRecords, initialRecords, modifiedRecords, sclm) — omitted for members with no ISPF stats.'
     ),
   listResultMetaSchema,
   'Paginated list of PDS or PDS/E members. data[] has one entry per member; _result has count, offset, hasMore.'

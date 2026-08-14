@@ -423,7 +423,10 @@ export function registerDatasetTools(
     'listMembers',
     {
       description: withPaginationNote(
-        'List members of a PDS or PDS/E data set',
+        'List members of a PDS or PDS/E data set. Each entry includes ISPF statistics ' +
+          '(user, version, modLevel, createdDate, modifiedDate, modifiedTime, record counts, sclm) ' +
+          'when recorded for that member — use these to answer "who last updated/created this member" ' +
+          'questions. Fields are omitted for members with no ISPF stats recorded.',
         PAGINATION_NOTE_LIST
       ),
       _meta: { resourceEffectLevel: ResourceEffect.READ },
@@ -483,9 +486,9 @@ export function registerDatasetTools(
           [buildScopeDsn(systemId, resolvedDsn)]
         );
 
-        // Paginate and map name -> member for response
+        // Paginate and map name -> member for response, forwarding ISPF statistics fields
         const { data: rawData, meta } = paginateList(
-          members.map((m: MemberEntry) => ({ member: m.name })),
+          members.map(({ name, ...ispfStats }: MemberEntry) => ({ member: name, ...ispfStats })),
           offset ?? 0,
           limit ?? DEFAULT_LIST_LIMIT
         );

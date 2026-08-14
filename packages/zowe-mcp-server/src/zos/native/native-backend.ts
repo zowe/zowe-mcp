@@ -123,10 +123,21 @@ interface NativeDsApi {
       volsers?: string[];
     }[];
   }>;
-  listDsMembers(req: {
-    dsname: string;
-    pattern?: string;
-  }): Promise<{ items?: { name: string }[] }>;
+  listDsMembers(req: { dsname: string; pattern?: string; attributes?: boolean }): Promise<{
+    items?: {
+      name: string;
+      user?: string;
+      vers?: number;
+      mod?: number;
+      c4date?: string;
+      m4date?: string;
+      mtime?: string;
+      cnorc?: number;
+      inorc?: number;
+      mnorc?: number;
+      sclm?: string;
+    }[];
+  }>;
   readDataset(req: {
     dsname: string;
     localEncoding?: string;
@@ -398,6 +409,35 @@ function mapDatasetToEntry(item: {
     secondary: item.secondary,
     devtype: item.devtype,
     volsers: item.volsers,
+  };
+}
+
+/** Maps a raw listDsMembers item (SDK DsMember shape) to MemberEntry, including ISPF statistics. */
+function mapMemberToEntry(item: {
+  name: string;
+  user?: string;
+  vers?: number;
+  mod?: number;
+  c4date?: string;
+  m4date?: string;
+  mtime?: string;
+  cnorc?: number;
+  inorc?: number;
+  mnorc?: number;
+  sclm?: string;
+}): MemberEntry {
+  return {
+    name: item.name.toUpperCase(),
+    user: item.user,
+    version: item.vers,
+    modLevel: item.mod,
+    createdDate: item.c4date,
+    modifiedDate: item.m4date,
+    modifiedTime: item.mtime,
+    currentRecords: item.cnorc,
+    initialRecords: item.inorc,
+    modifiedRecords: item.mnorc,
+    sclm: item.sclm,
   };
 }
 
@@ -906,10 +946,12 @@ export class NativeBackend {
       async client => {
         const ds = (client as unknown as { ds: NativeDsApi }).ds;
         const memberListPattern = pattern ? pattern.replace(/%/g, '?') : undefined;
-        const response = await ds.listDsMembers({ dsname: dsn, pattern: memberListPattern });
-        let members: MemberEntry[] = (response.items ?? []).map(m => ({
-          name: m.name.toUpperCase(),
-        }));
+        const response = await ds.listDsMembers({
+          dsname: dsn,
+          pattern: memberListPattern,
+          attributes: true,
+        });
+        let members: MemberEntry[] = (response.items ?? []).map(mapMemberToEntry);
 
         if (pattern) {
           const regex = memberPatternToRegExp(pattern);

@@ -77,6 +77,14 @@ questions:
       - answerContains:
           pattern: 'COMPILE|LINKJOB|RUNJOB'
 
+  - id: list-members-last-updated
+    prompt: Who last updated the member CUSTFILE in USER.SRC.COBOL?
+    assertions:
+      - toolCall:
+          tool: listMembers
+          args:
+            validDsn: 'USER.SRC.COBOL'
+
   - id: read-sequential-data-input
     prompt: Read the sequential data set USER.DATA.INPUT and tell me what kind of records it holds.
     assertions:

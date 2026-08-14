@@ -150,6 +150,26 @@ export interface DatasetEntry {
 export interface MemberEntry {
   /** Member name (uppercase, up to 8 chars). */
   name: string;
+  /** ISPF statistics: user ID that created or last saved the member. */
+  user?: string;
+  /** ISPF statistics: version number. */
+  version?: number;
+  /** ISPF statistics: modification level. */
+  modLevel?: number;
+  /** ISPF statistics: creation date (ISO 8601 date string). */
+  createdDate?: string;
+  /** ISPF statistics: last modified date (ISO 8601 date string). */
+  modifiedDate?: string;
+  /** ISPF statistics: last modified time. */
+  modifiedTime?: string;
+  /** ISPF statistics: current number of records. */
+  currentRecords?: number;
+  /** ISPF statistics: initial number of records. */
+  initialRecords?: number;
+  /** ISPF statistics: number of records modified since the member was created. */
+  modifiedRecords?: number;
+  /** SCLM flag, present whenever ISPF statistics are recorded ('Y' = last updated via SCLM, 'N' = via plain ISPF edit). */
+  sclm?: string;
 }
 
 /** Result of reading a data set or member. */

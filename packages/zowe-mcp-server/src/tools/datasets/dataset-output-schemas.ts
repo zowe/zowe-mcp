@@ -232,7 +232,13 @@ const memberEntrySchema = z.object({
     .number()
     .optional()
     .describe('ISPF statistics: number of records modified since the member was created.'),
-  sclm: z.string().optional().describe('SCLM flag, present when the member is SCLM-managed.'),
+  sclm: z
+    .string()
+    .optional()
+    .describe(
+      "ISPF statistics: SCLM flag, present whenever ISPF statistics are recorded ('Y' = last " +
+        "updated via SCLM, 'N' = via plain ISPF edit) — not omitted for non-SCLM members."
+    ),
 });
 
 const readDatasetDataSchema = z.object({

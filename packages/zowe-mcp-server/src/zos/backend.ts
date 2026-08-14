@@ -168,7 +168,7 @@ export interface MemberEntry {
   initialRecords?: number;
   /** ISPF statistics: number of records modified since the member was created. */
   modifiedRecords?: number;
-  /** SCLM flag, present when the member is SCLM-managed. */
+  /** SCLM flag, present whenever ISPF statistics are recorded ('Y' = last updated via SCLM, 'N' = via plain ISPF edit). */
   sclm?: string;
 }
 

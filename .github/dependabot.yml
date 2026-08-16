@@ -13,6 +13,12 @@ updates:
         dependency-type: development
       production-dependencies:
         dependency-type: production
+    ignore:
+      # TS 7 (the Go-native "tsgo" compiler) isn't supported by
+      # typescript-eslint yet, which breaks `npm ci` (ERESOLVE). Remove once
+      # typescript-eslint ships a compatible major version.
+      - dependency-name: 'typescript'
+        versions: ['>=7.0.0']
 
   # Keep GitHub Actions current (replaces manual SHA-pinning of actions).
   - package-ecosystem: github-actions

@@ -203,9 +203,19 @@ jobs:
           node scripts/set-version.js "$NEXT_VERSION"
           # set-version.js also syncs package-lock.json (zowe-mcp#66 finding 1), so stage it too.
           git add -u -- package.json package-lock.json packages/*/package.json packages/zowe-mcp-server/server.json
+
+          # The reference docs embed the server version in their header, so the
+          # version bump alone leaves them stale and fails the ci.yml docs-drift
+          # gate (`git diff --exit-code docs/mcp-reference.md
+          # vendor/zowe/docs/mcp-reference-vendor.md`). Regenerate and stage them
+          # in the same commit.
+          npm run generate-docs
+          git add -- docs/mcp-reference.md vendor/zowe/docs/mcp-reference-vendor.md
+
           git commit -s -m "chore: set development version to ${NEXT_VERSION}"
           git push "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git" "HEAD:refs/heads/${BRANCH}"
 
           gh pr create --base main --head "$BRANCH" \
             --title "chore: set development version to ${NEXT_VERSION}" \
-            --body "Automated post-release version bump after v${VERSION}. Sets the development version to ${NEXT_VERSION} so main is ready for the next development cycle. Please also sync this onto \`develop\`."
+            --body "Automated post-release version bump after v${VERSION}. Sets the development version to ${NEXT_VERSION} so main is ready for the next development cycle. Please also sync this onto \`develop\`." \
+            --label no-changelog

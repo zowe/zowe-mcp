@@ -14,11 +14,14 @@ updates:
       production-dependencies:
         dependency-type: production
     ignore:
-      # TS 7 (the Go-native "tsgo" compiler) isn't supported by
-      # typescript-eslint yet, which breaks `npm ci` (ERESOLVE). Remove once
-      # typescript-eslint ships a compatible major version.
+      # Held at 5.9.x pending a deliberate TS 7 migration. TS 6.0+ makes
+      # our tsconfigs' `moduleResolution: node` (node10) a hard error
+      # (TS5107); TS 7 (the Go-native "tsgo" compiler) also isn't supported
+      # by typescript-eslint yet, which breaks `npm ci` (ERESOLVE). Fix the
+      # moduleResolution config and confirm typescript-eslint support, then
+      # remove this rule and bump straight to 7.
       - dependency-name: 'typescript'
-        versions: ['>=7.0.0']
+        versions: ['>=6.0.0']
 
   # Keep GitHub Actions current (replaces manual SHA-pinning of actions).
   - package-ecosystem: github-actions

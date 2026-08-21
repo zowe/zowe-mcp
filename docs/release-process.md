@@ -144,7 +144,6 @@ coordination:
 
 ## See also
 
-- [DEVELOPMENT.md](../DEVELOPMENT.md#releases-and-ci-artifacts)
 - [CONTRIBUTING.md](../CONTRIBUTING.md)
 - [`release.config.js`](../release.config.js)
 - [`.github/workflows/release.yml`](../.github/workflows/release.yml)

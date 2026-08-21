@@ -314,8 +314,7 @@ into one stable name; the four security checks stay independent workflows
 - [x] **Branch protection** now requires: `ci-ok`, `audit`, `gitleaks`,
   `headers`, `Analyze (javascript-typescript)`, plus `DCO`. `main` additionally
   requires a code-owner review and enforces rules for admins; `develop` merges
-  stay restricted to `zowe-mcp-administrators`. Documented in `CONTRIBUTING.md`
-  (Continuous Integration & Branch Protection).
+  stay restricted to `zowe-mcp-administrators`.
 - [x] **Changelog check** (`changelog.yml`, `no-changelog` label escape hatch) —
   **advisory, not required.** A PR passes when it edits a `CHANGELOG.md` (root or
   package) or carries `no-changelog`. Added a root `CHANGELOG.md` (Keep-a-Changelog

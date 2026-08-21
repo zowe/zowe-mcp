@@ -1,316 +1,95 @@
 # Contribution Guidelines
 
-This document is a living summary of conventions and best practices for
-development within Zowe MCP.
+This document defines the policies that apply to contributions to Zowe MCP.
 
-- [AI-Assisted Development](#ai-assisted-development)
-- [Sign All of Your Git Commits](#sign-all-of-your-git-commits)
-- [Pull Request Guidelines](#pull-request-guidelines)
-- [Continuous Integration & Branch Protection](#continuous-integration--branch-protection)
-- [How Releases Work](#how-releases-work)
-- [AI Evaluation Requirements](#ai-evaluation-requirements)
-- [Code Style](#code-style)
-- [Testing Guidelines](#testing-guidelines)
-- [Dependencies](#dependencies)
-- [Reporting Security Issues](#reporting-security-issues)
-- [More Information](#more-information)
+## AI Usage Disclosure
 
-## AI-Assisted Development
+Every pull request must include an **AI Usage** section that states:
 
-This project embraces AI-assisted development. The vast majority of the code
-has been written by AI coding assistants (primarily Cursor with Claude models)
-under experienced human guidance, testing, evaluation, and automated feedback
-loops.
+- The AI assistant and model used
+- Which parts of the change were AI-assisted
+- How the generated work was reviewed and validated
 
-We encourage contributors to use AI coding assistants when contributing. Your
-domain expertise — mainframe experience, use cases, architectural insights, and
-bug reports — is invaluable and complements AI-generated code.
-
-### AI Usage Disclosure in Pull Requests
-
-Every pull request must include an **AI Usage** section in the PR description
-that documents how AI was used:
-
-- **Tool**: Which AI assistant was used (e.g. Cursor, GitHub Copilot, Claude
-  Code, Cline)
-- **Model**: Which model(s) were used (e.g. Claude Sonnet 4, GPT-4.1)
-- **Scope**: What parts of the PR were AI-assisted vs. manually written
-- **Review**: How the AI-generated code was reviewed and validated
+If no AI was used, state that explicitly.
 
 Example:
 
 ```markdown
 ## AI Usage
-- **Tool**: Cursor (Agent mode)
-- **Model**: Claude Sonnet 4
-- **Scope**: All code changes were AI-generated; test cases were reviewed
-  and adjusted manually
-- **Review**: Ran full test suite, verified with evals, manual code review
+
+- **Tool and model:** Cursor with Claude Sonnet 4.5
+- **Scope:** Implementation and initial tests
+- **Review:** Manually reviewed the diff and ran the relevant checks
 ```
 
-## Sign All of Your Git Commits
+## DCO Sign-off
 
-Whenever you make a commit, it is required to be signed. If you do not, you
-will have to re-write the git history to get all commits signed before they can
-be merged, which can be quite a pain.
-
-Use the `-s` or `--signoff` flags to sign a commit.
-
-> **Match your sign-off email to your commit author email.** DCO requires the
-> `Signed-off-by` email to equal the commit author email. If your local
-> `git config user.email` differs from the email on your GitHub account, a
-> **squash merge** can rewrite the author to your GitHub email while keeping the
-> original sign-off, which fails DCO on the squashed commit. Keep the two emails
-> the same (or add the other as a verified email on your GitHub account).
-
-Example calls:
+Every commit must include a Developer Certificate of Origin sign-off. Use
+`-s` or `--signoff` when committing:
 
 ```bash
-git commit -s -m "Add a new MCP tool for USS file operations"
-git commit --signoff -m "Fix pagination in listDatasets"
+git commit -s -m "Add USS file search"
 ```
 
-Why? Sign-off is a line at the end of the commit message which certifies who is
-the author of the commit. Its main purpose is to improve tracking of who did
-what, especially with patches.
+The sign-off email must match the commit author email.
 
-Example commit in git history:
+### What to do if you forgot to sign off on a commit
 
-```text
-Add tests for the searchInDataset tool.
-
-Signed-off-by: Jane Doe <jane.doe@example.com>
-```
-
-What to do if you forget to sign off on a commit?
+Rewrite the affected commits with:
 
 ```bash
-git rebase --exec 'git commit --amend --no-edit --signoff' -i <commit-hash>
+git rebase --exec 'git commit --amend --no-edit --signoff' -i <base-commit>
 ```
 
-where `<commit-hash>` is the commit before your first unsigned commit in
-history.
+Use the commit immediately before the first unsigned commit as `<base-commit>`.
 
-## Pull Request Guidelines
+## Pull Requests
 
-Consider the following when you interact with pull requests:
+A pull request must:
 
-- Pull requests require approval from at least one maintainer before merging.
-- The code in the pull request must adhere to the [Code Style](#code-style)
-  guidelines.
-- The code must compile/transpile and pass all tests without breaking current
-  Zowe MCP functionality.
-- The pull request must describe the purpose and implementation clearly enough
-  for maintainers to understand what is being accomplished.
-- The pull request must explain how to test the change so maintainers or QA
-  teams can verify correctness.
-- If a pull request depends upon a pull request from the same or another
-  repository that is pending, this must be stated.
-- Pull requests must include the [AI Evaluation
-  Requirements](#ai-evaluation-requirements) checklist (see below).
-- Pull requests must include an [AI Usage](#ai-usage-disclosure-in-pull-requests)
-  section describing how AI was used.
+- Explain its purpose and implementation clearly
+- Explain how the change was tested
+- Pass the repository's required checks
+- Follow the AI usage disclosure policy above
+- Follow the evaluation policy below when it changes LLM-facing behavior
+- Identify dependencies on unmerged changes in this or another repository
+- Receive the approvals required by repository branch protection
 
-## Continuous Integration & Branch Protection
+Record user-facing changes under **Unreleased** in the root `CHANGELOG.md`.
+Use the `no-changelog` label for changes that do not need an entry, such as
+internal refactoring, documentation, or CI maintenance.
 
-Both `main` and `develop` are protected. A pull request can be merged only when
-the required status checks are green and the branch rules are satisfied.
+## AI Evaluation Policy
 
-### Required status checks
+Changes that can affect how an LLM selects or calls MCP tools must be validated
+with the evaluation harness.
 
-| Check | Workflow | What it covers |
-| ----- | -------- | -------------- |
-| `ci-ok` | `ci.yml` | Aggregate gate over the Linux `build` job (lint, format, duplication, type-check, server tests + coverage, VS Code tests, pack, airgap, docs-drift, VSIX) **and** the `cross-platform` matrix (Windows + macOS build/type-check/tests). One stable name, so the CI jobs can be reorganized without touching branch protection. |
-| `audit` | `audit.yml` | `npm audit` on production dependencies (moderate+). |
-| `gitleaks` | `secret-scan.yml` | Secret scanning. |
-| `headers` | `license-headers.yml` | EPL-2.0 license header on every `.ts` file. |
-| `Analyze (javascript-typescript)` | `codeql.yml` | CodeQL static analysis (security-extended). |
-| `DCO` | (GitHub app) | Every commit is signed off (`git commit -s`). |
+- New tools, prompts, and significant LLM-facing features require new or
+  updated evaluation questions and a baseline result in
+  `docs/eval-scoreboard.md`.
+- Changes intended to improve tool descriptions, parameter naming, prompts, or
+  other model behavior require before-and-after evaluation results.
+- The after result must maintain or improve the relevant pass rates. Document
+  the reason for any accepted regression in the pull request.
 
-`ci-ok` runs with `if: always()` and only fails if a required CI job actually
-failed or was cancelled. A `[ci skip]` push skips `build`/`cross-platform`, which
-counts as a pass — so trivial pushes still satisfy the check.
+See [packages/zowe-mcp-evals/README.md](packages/zowe-mcp-evals/README.md) for
+the evaluation format and commands.
 
-The **Changelog** check (`changelog.yml`) is **advisory, not required**: it asks
-each PR to update a `CHANGELOG.md` (root or a package), or to carry the
-`no-changelog` label for changes that don't need an entry (CI, chore, docs,
-internal refactors). Record user-facing changes under **[Unreleased]** in the
-root [CHANGELOG.md](CHANGELOG.md).
+## Dependencies and Licensing
 
-### Branch rules
+Dependencies must be compatible with the Eclipse Public License 2.0. Add or
+update dependencies through npm rather than editing resolved versions by hand.
+Use the latest appropriate version and follow the repository's existing
+version-range conventions:
 
-- **`main`** — requires a passing review from a code owner (see
-  [`.github/CODEOWNERS`](.github/CODEOWNERS)); rules are enforced for
-  administrators too.
-- **`develop`** — the integration branch; no review approval required, but only
-  members of the `zowe-mcp-administrators` team can merge.
+- Use `^` when updates within the same major version are acceptable.
+- Use `~` when updates should remain within the same minor version.
 
-## How Releases Work
-
-Releases are prepared by an AI-assisted command (`/prepare-release`) that
-opens a reviewed PR (version bump, changelog rollover, regenerated docs).
-Merging that PR to `main` is the release approval — CI
-([`.github/workflows/release.yml`](.github/workflows/release.yml), via
-[Octorelease](https://github.com/zowe-actions/octorelease)) then builds,
-tags, and publishes the GitHub Release, and opens the follow-up PR that sets
-the next development version. See
-[docs/release-process.md](docs/release-process.md) for the full pipeline,
-including rehearsal paths and the one-time repo settings this depends on.
-
-## AI Evaluation Requirements
-
-Zowe MCP is an AI/MCP project. Every change that affects how an LLM interacts
-with MCP tools must be validated with evaluations. The project maintains 19+
-eval question sets in `packages/zowe-mcp-evals/questions/` and an
-[eval scoreboard](docs/eval-scoreboard.md) that tracks pass rates across
-models.
-
-### New Functionality
-
-Every new tool, prompt, or significant feature must be accompanied by new or
-updated evaluation question sets (YAML files in
-`packages/zowe-mcp-evals/questions/`). New eval sets must have a **baseline**
-entry in the scoreboard before the PR is merged:
-
-```bash
-npm run eval-compare -- --set <new-set> --label "baseline"
-```
-
-### Behavior Improvements
-
-Changes that aim to improve LLM behavior (e.g. better tool descriptions,
-parameter naming, prompt tuning) must run `eval-compare` before and after the
-change and update `docs/eval-scoreboard.md` to demonstrate improvement for at
-least one model:
-
-```bash
-# Before making the change
-npm run eval-compare -- --set <relevant-sets> --label "before-<change>"
-
-# Make the change
-
-# After making the change
-npm run eval-compare -- --set <relevant-sets> --label "after-<change>"
-```
-
-The scoreboard must show the "after" label with equal or better pass rates
-compared to the "before" label.
-
-### No Regressions Without Justification
-
-If a change causes a pass rate drop on any existing eval set, the PR must
-document why the regression is acceptable (e.g. a trade-off that improves a
-more important set).
-
-### Eval Set Conventions
-
-Eval question sets are YAML files in `packages/zowe-mcp-evals/questions/`.
-Each file defines questions with assertions. The three assertion types are:
-
-- **toolCall** — asserts which tool(s) the LLM calls (with optional argument
-  checks)
-- **toolCallOrder** — asserts an ordered sequence of tool calls
-- **answerContains** — asserts the LLM's text response contains a substring or
-  pattern
-
-Composites `allOf`/`anyOf` provide logical grouping. Each assertion can have an
-optional `name` for failure messages. See `AGENTS.md` for the full
-specification.
-
-### Key Commands
-
-| Command | Description |
-| ------- | ----------- |
-| `npm run evals -- --set <name>` | Run a single eval set |
-| `npm run eval-compare -- --set <sets> --label "<label>"` | Run and record results to the scoreboard |
-| `npm run eval-compare -- --set <sets> --model all --label "<label>"` | Run across all configured models |
-
-## Code Style
-
-The project enforces code style automatically through tooling:
-
-- **Prettier** formats TypeScript, JavaScript, JSON/JSONC, YAML, CSS, and HTML
-  (`.prettierrc.json` + `prettier-plugin-organize-imports`)
-- **shfmt** (via `@wasm-fmt/shfmt` and `scripts/shfmt-write.mjs`) formats shell
-  scripts (`.sh`, `.bash`)
-- **ESLint** enforces type-checked rules (`typescript-eslint`
-  `recommendedTypeChecked` + `stylisticTypeChecked`) and license headers
-  (`eslint-plugin-headers`)
-- **markdownlint-cli2** formats Markdown files
-- A Cursor hook (`.cursor/hooks/format.sh`) auto-formats files after Agent and
-  Tab edits
-
-Key conventions:
-
-- 2 spaces per indent (no tabs)
-- Tool names use **camelCase** (e.g. `listDatasets`, `setSystem`)
-- Avoid `any` — use `as` type assertions on `JSON.parse()` results
-- Prefer `T[]` over `Array<T>`, `interface` over `type` alias, `??` over `||`
-  for nullish values
-
-### License Headers
-
-Every `.ts` file must start with the EPL-2.0 license header. This is enforced
-by `eslint-plugin-headers` via `eslint.config.mjs` and auto-fixed by
-`eslint --fix`. You do not need to manually add the header — the format hook
-does it for you.
-
-### Manual Commands
-
-```bash
-npm run format        # Prettier + shfmt (tracked shell scripts)
-npm run check-format  # Verify formatting without modifying
-npm run lint          # Check all ESLint rules
-npm run lint:fix      # Auto-fix ESLint issues
-```
-
-## Testing Guidelines
-
-The project uses Vitest for MCP server tests and `@vscode/test-cli` +
-`@vscode/test-electron` for VS Code extension tests.
-
-```bash
-npm test          # Run server tests (Vitest)
-npm run test:all  # Run all tests (server + VS Code extension)
-npm run test:vscode  # Run VS Code extension tests
-```
-
-Server tests are organized into common (parameterized across transports) and
-transport-specific files. See `packages/zowe-mcp-server/__tests__/` for
-examples.
-
-For quick tool testing during development:
-
-```bash
-node packages/zowe-mcp-server/dist/index.js call-tool [--mock=<dir>] [<tool-name> [key=value ...]]
-```
-
-## Dependencies
-
-For Zowe organization repositories, all dependencies must be compatible with
-the EPL-2.0 license.
-
-When adding new dependencies, use the package manager (`npm`) to add the latest
-version. Do not make up dependency versions. Pin dependencies appropriately:
-
-- Use `^` for dependencies with the same major version
-- Use `~` for dependencies with the same minor version
+See the Zowe project guidance for
+[license and copyright requirements](https://github.com/zowe/community/blob/master/Technical-Steering-Committee/best-practices/license-copyright.md).
 
 ## Reporting Security Issues
 
-Please direct all security issues to
-<zowe-security@lists.openmainframeproject.org>. A member of the security group
-will reply to acknowledge receipt of the vulnerability and coordinate
-remediation.
-
-## More Information
-
-| For more information about ... | See: |
-| ------------------------------ | ---- |
-| General Zowe contribution guidelines | [Zowe Community](https://github.com/zowe/community/blob/master/README.md) |
-| Zowe code style guidelines | [General Code Style](https://docs.zowe.org/stable/contribute/guidelines-code/general/) |
-| Zowe license and copyright requirements | [License & Copyright](https://github.com/zowe/community/blob/master/Technical-Steering-Committee/best-practices/license-copyright.md) |
-| Project architecture and patterns | [AGENTS.md](AGENTS.md) |
-| MCP tools reference | [docs/mcp-reference.md](docs/mcp-reference.md) |
-| Eval scoreboard | [docs/eval-scoreboard.md](docs/eval-scoreboard.md) |
-| Development guide | [DEVELOPMENT.md](DEVELOPMENT.md) |
+Do not report security vulnerabilities in public issues. Email
+<zowe-security@lists.openmainframeproject.org>. The security group will
+acknowledge the report and coordinate remediation.

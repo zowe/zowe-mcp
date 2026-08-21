@@ -79,9 +79,11 @@ provides multiple layers of protection — use them together.
 ```text
 zowe-mcp/                       # npm workspaces monorepo
   packages/
+    zowe-mcp-common/            # Shared CommonJS utilities
     zowe-mcp-server/            # Server package (npm: @zowe/mcp-server, ESM)
     zowe-mcp-vscode/            # VS Code extension (CommonJS)
     zowe-mcp-evals/             # AI evaluations (LLM agent + MCP tools)
+    zowe-mcp-e2e/               # End-to-end test support (ESM)
 ```
 
 ## Prerequisites
@@ -94,11 +96,11 @@ zowe-mcp/                       # npm workspaces monorepo
 ## Quick start (building from source)
 
 ```bash
-# 1. Install dependencies (both packages are linked automatically)
-npm install
+# 1. Stage the pinned Zowe Remote SSH SDK
+node scripts/sdk-switch.js pin --no-install
 
-# 2. Fetch the Zowe Remote SSH SDK (required for the native backend)
-npm run sdk:nightly
+# 2. Install dependencies (workspaces are linked automatically)
+npm install
 
 # 3. Build everything
 npm run build
@@ -107,10 +109,10 @@ npm run build
 npm run build-and-install
 ```
 
-Step 2 fetches the latest nightly build of the
-[Zowe Remote SSH](https://github.com/zowe/zowex) SDK (`zowex-sdk`). Use
-`npm run sdk:release` for the latest stable release instead. See
-[Zowe Remote SSH SDK (zowex-sdk)](#zowe-remote-ssh-sdk) for all options.
+The pin identifies the tested
+[`@zowe/zowex-for-zowe-sdk`](https://github.com/zowe/zowex) build. Run
+`node scripts/sdk-switch.js` without arguments to list other supported SDK
+sources and their usage.
 
 After step 4, reload VS Code and the Zowe MCP tools will be available in
 GitHub Copilot Chat.
@@ -135,8 +137,8 @@ npx @zowe/mcp-server init-mock --output ./zowe-mcp-mock-data
 
 ## Building
 
-For a deeper guide to local development (environment setup, architecture, and
-day-to-day workflows), see [DEVELOPMENT.md](DEVELOPMENT.md).
+The root and workspace `package.json` files are the canonical command
+reference.
 
 ### Full build (all packages)
 
@@ -144,8 +146,8 @@ day-to-day workflows), see [DEVELOPMENT.md](DEVELOPMENT.md).
 npm run build
 ```
 
-This compiles both `@zowe/mcp-server` and `zowe-mcp-vscode`. The server must
-be built first because the extension imports types from it.
+This builds every workspace package. The server must be built before the
+extension because the extension imports types from it.
 
 ### Server only
 
@@ -233,33 +235,16 @@ npx --package=file:/abs/path/to/zowe-mcp-server-<version>.tgz \
 
 ## Zowe Remote SSH SDK
 
-The npm package is **`zowex-sdk`** (Zowe Remote SSH SDK). Nightly builds are under Artifactory `org/zowe/zowex/SDK/Nightly`.
-
-The server depends on the
-[Zowe Remote SSH](https://github.com/zowe/zowex) SDK for
-connecting to z/OS over SSH. Use the scripts below to fetch the `zowex-sdk`
-tarball (Zowe Artifactory or in-repo fallback).
-
-| Script | Source | Description |
-| --- | --- | --- |
-| `npm run sdk:release` | Artifactory npm | Latest stable release |
-| `npm run sdk:release -- <version>` | Artifactory npm | Specific release when published (e.g. `0.4.0`) |
-| `npm run sdk:fallback` | In-repo | Fallback resource for CI and when nightly is unavailable |
-| `npm run sdk:nightly` | Artifactory / GitHub | Latest nightly build (recommended for development) |
-| `npm run sdk:pr -- <pr-number>` | GitHub Actions | Build from a specific pull request |
-| `npm run sdk:branch -- <branch>` | GitHub Actions | Latest successful build for a branch |
-| `npm run sdk:local -- <path>` | Local filesystem | A `.tgz` file or a Zowe Remote SSH SDK (`zowex`) repo directory |
-
-After switching, rebuild (`npm run build`) and run tests (`npm test`) to
-verify compatibility. The SDK tarball is stored in `deps/` (gitignored).
-
-Requires [GitHub CLI](https://cli.github.com/) (`gh`) for the `pr`, `branch`,
-and `nightly` (fallback) modes.
+The server depends on
+[`@zowe/zowex-for-zowe-sdk`](https://github.com/zowe/zowex). Source builds use
+the exact SDK build recorded in `resources/zowex-pin.json`; the downloaded
+tarball is staged under `resources/` and is not committed. Run
+`node scripts/sdk-switch.js` without arguments to list SDK switching options.
 
 ## Native (SSH) backend
 
 The server can connect to real z/OS systems over SSH using the Zowe Remote SSH
-SDK (`zowex-sdk`). The native backend implements the full set of z/OS operations: data set
+SDK (`@zowe/zowex-for-zowe-sdk`). The native backend implements the full set of z/OS operations: data set
 CRUD (list, read, write, create, delete, copy, rename, restore, search,
 attributes), USS file operations (list, read, write, create, delete, chmod,
 chown, chtag, copy), TSO and console commands, and job management (submit,
@@ -549,18 +534,7 @@ or in `settings.json`:
 Once configured, the server starts with the full set of tools (dataset listing,
 reading, writing, context management, etc.).
 
-## Testing
-
-```bash
-# Server unit tests (Vitest)
-npm test
-
-# All tests (server + VS Code extension)
-npm run test:all
-
-# VS Code extension tests only (launches a real VS Code instance)
-npm run test:vscode
-```
+## Development utilities
 
 ### Quick tool testing from the CLI
 
@@ -583,100 +557,6 @@ npm run inspector          # no backend
 npm run inspector:mock     # mock data in ./zowe-mcp-mock-data
 npm run inspector:native   # SSH via native-config.json + .env
 ```
-
-## Evaluations
-
-The **evals** package runs an LLM agent against the MCP server (mock or native) and checks that tool calls and answers match expectations. Use it to validate that AI assistants use the Zowe MCP tools correctly.
-
-1. **Config** (at repo root): copy `evals.config.example.json` to `evals.config.json` and set your LLM provider (vLLM, Gemini, or LM Studio). See [packages/zowe-mcp-evals/README.md](packages/zowe-mcp-evals/README.md).
-2. **Run** from repo root:
-
-```bash
-npm run evals                    # all question sets
-npm run evals -- --set datasets  # one set
-npm run evals -- --set datasets --number 1   # one question
-```
-
-Reports are written to `evals-report/report.md` and `evals-report/failures.md`.
-
-## Vendor extensions
-
-Private or enterprise content (CLI plugin definitions, eval question sets, E2E tests, documentation) can live in a `vendor/` directory at the repo root without touching the upstream codebase. The server, docs generator, and eval harness auto-discover anything placed there — no configuration required.
-
-### Directory layout
-
-```text
-vendor/<name>/
-  cli-bridge-plugins/   ← *.yaml CLI plugin definitions (auto-loaded at server startup)
-  eval-questions/       ← *.yaml eval question sets (referenced as "<name>/set-name")
-  e2e-tests/            ← *.test.ts E2E tests (picked up by Vitest automatically)
-  docs/                 ← private documentation
-```
-
-The `vendor/` directory is kept out of the upstream repo by a `vendor/.gitignore` containing `*` that the extract script creates automatically — the root `.gitignore` is the same on all branches. To populate it from a private branch that tracks vendor content:
-
-```bash
-VENDOR_REMOTE=<git-remote> VENDOR_BRANCH=<branch> npm run vendor:extract
-```
-
-This fetches the branch, extracts the `vendor/` directory into your working tree, and writes `vendor/.gitignore` so git treats the whole directory as ignored. To remove it:
-
-```bash
-npm run vendor:clean
-```
-
-## Linting and formatting
-
-```bash
-npm run lint          # Check all ESLint rules
-npm run lint:fix      # Auto-fix ESLint issues
-npm run format        # Prettier (TS/JS/JSON/YAML/CSS/HTML, etc.) + shfmt on tracked shell scripts
-npm run check-format  # Same checks without modifying files
-```
-
-## Scripts reference
-
-To publish a VSIX to GitHub Releases from your machine (no GitHub Actions): run `npm run release-vsix` (tag defaults to `v` + extension version) or `npm run release-vsix -- v0.1.0`. Or run `./scripts/release-vsix.sh [TAG]` directly. Requires [GitHub CLI](https://cli.github.com/) (`gh`) and `gh auth login`. Builds the extension, creates/updates the release for the tag, and uploads the VSIX.
-
-[CI](.github/workflows/ci.yml) uploads build artifacts for every successful run: the VSIX, the MCP reference doc, and an **`npm pack`** tarball of **`@zowe/mcp-server`** (artifact name `zowe-mcp-server-npm`, file pattern `zowe-mcp-server-*.tgz`). Download from the workflow run’s **Artifacts** section. Install locally with `npm install ./zowe-mcp-server-0.x.y.tgz` (or use `npm run pack:server` to build and pack from your clone).
-
-The packed tarball **bundles all dependencies** (including workspace package `zowe-mcp-common` and file-based `zowex-sdk`) so it can be installed standalone without requiring the monorepo or external file dependencies. The `prepack` script automatically bundles these dependencies before packing, and `bundledDependencies` in `package.json` ensures npm includes them in the tarball.
-
-Test airgapped/offline installation:
-
-- `npm run test:airgap` — uses existing tarball (requires `npm run pack:server` first)
-- `npm run test:airgap:build` — builds and packs the server, then tests installation
-
-The test simulates an airgapped system using an empty cache, invalid registry (`http://localhost`), and 5ms timeout to verify no network access is required. It also verifies the binary works after installation with detailed error output if it fails.
-
-| Script | Description |
-| --- | --- |
-| `npm run build` | Build all packages |
-| `npm run pack:server` | Build the server and create `zowe-mcp-server-<version>.tgz` in the repo root (same contents as CI npm artifact) |
-| `npm run test:airgap` | Test that the packed tarball installs in airgapped mode (uses existing tarball) |
-| `npm run test:airgap:build` | Build, pack, and test airgapped installation (all-in-one) |
-| `npm test` | Run server tests (Vitest) |
-| `npm run test:all` | Run all tests (server + VS Code extension) |
-| `npm run test:vscode` | Run VS Code extension tests |
-| `npm run build-and-install` | Package and install the VS Code extension |
-| `npm run inspector` | Launch MCP Inspector (no backend) |
-| `npm run inspector:mock` | Launch MCP Inspector with mock data (`./zowe-mcp-mock-data`) |
-| `npm run inspector:native` | Launch MCP Inspector with native SSH (`native-config.json` + `.env`) |
-| `npm run evals` | Run AI evals (builds server + evals first). Pass options after `--`: `--set`, `--number`, `--id`, `--filter`. Requires `evals.config.json` at root. |
-| `npm run lint` | Run ESLint |
-| `npm run lint:fix` | Auto-fix ESLint issues |
-| `npm run format` | Prettier + shfmt (`scripts/shfmt-write.mjs`) |
-| `npx @zowe/mcp-server init-mock --output <dir>` | Generate mock data |
-| `npx @zowe/mcp-server call-tool [--mock=<dir>] [<tool-name> [key=value ...]]` | Call a tool from the CLI |
-| `npm run sdk:release [-- version]` | Fetch latest (or specific) SDK release from Zowe Artifactory |
-| `npm run sdk:fallback` | Use in-repo fallback SDK (for CI and when nightly is unavailable) |
-| `npm run sdk:nightly` | Fetch latest nightly SDK build |
-| `npm run sdk:pr -- <pr-number>` | Fetch SDK from a specific PR build (requires `gh`) |
-| `npm run sdk:branch -- <branch>` | Fetch SDK from the latest successful build for a branch (requires `gh`) |
-| `npm run sdk:local -- <path>` | Use a local `.tgz` or ZNP repo directory |
-| `npm run release-vsix [-- TAG]` | Build VSIX and create/update GitHub Release (requires `gh`). Optional tag after `--`, e.g. `v0.1.0`; default from extension version. |
-| `VENDOR_REMOTE=… VENDOR_BRANCH=… npm run vendor:extract` | Fetch and extract the `vendor/` directory from a private branch into the current checkout (gitignored) |
-| `npm run vendor:clean` | Remove the local `vendor/` directory |
 
 ## License
 

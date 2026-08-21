@@ -4,8 +4,7 @@ ZOWE MCP gives AI assistants tools for working with z/OS systems.
 
 ## Project Documentation
 
-- [DEVELOPMENT.md](DEVELOPMENT.md): repository setup, builds, tests, SDK switching, packaging, and vendor extensions.
-- [CONTRIBUTING.md](CONTRIBUTING.md): code style, testing policy, evaluations, CI, and pull request requirements.
+- [CONTRIBUTING.md](CONTRIBUTING.md): pull request, AI usage, evaluation, dependency, and security policies.
 - [README.md](README.md): installation and user-facing behavior.
 - [docs/mcp-reference.md](docs/mcp-reference.md): generated MCP tool, prompt, and resource reference.
 - [docs/mcp-safety-security-principles.md](docs/mcp-safety-security-principles.md): capability tiers and safety model.
@@ -81,4 +80,4 @@ Register new z/OS-backed components inside the backend-enabled section of `packa
 
 - Do not edit generated build output under `dist/`, `out/`, or the extension's bundled `server/` directory.
 - `docs/mcp-reference.md` is generated. After changing MCP definitions, run `npm run generate-docs` and commit the generated result when it changes.
-- Follow the formatting, type-checking, linting, testing, and evaluation commands in `DEVELOPMENT.md` and `CONTRIBUTING.md`. Run the checks relevant to the files and behavior you changed.
+- Use the root and workspace `package.json` scripts for validation. Follow the contribution and evaluation policies in `CONTRIBUTING.md`.

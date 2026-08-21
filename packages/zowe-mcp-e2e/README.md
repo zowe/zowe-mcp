@@ -159,11 +159,7 @@ it can't be found by profile-directory pattern matching.
   is a red herring: `code chat` still routes to the classic panel because
   `chat.editor.localAgent.enabled` defaults to true. Since the deciding
   settings are experiment-controlled, `portable-profile.ts` seeds
-  `"chat.agentHost.enabled": false` to pin the classic route. Full
-  investigation (routing internals, Agent Host↔MCP forwarding, a working
-  Playwright panel-typing fallback in
-  `__tests__/e2e/vscode-132-experiments.e2e.test.ts`):
-  [`docs/vscode-132-agent-host-investigation.md`](../../docs/vscode-132-agent-host-investigation.md).
+  `"chat.agentHost.enabled": false` to pin the classic route.
 
 - **Copilot Chat 0.60.0 (VS Code 1.132) side-flows need a "utility model"
   when the main model is BYOK.** Inline-chat progress messages, intent

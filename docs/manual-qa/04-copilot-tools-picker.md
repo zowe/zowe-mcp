@@ -22,7 +22,7 @@ To exercise **list data sets** with Gemini, continue to [05-mock-mode-happy-path
 
 ### Optional: automate the Gemini + MCP layer (not Copilot UI)
 
-If you want a **scripted** check that **Gemini** can call **`listDatasets`** on the Zowe MCP server (mock data, no VS Code), use **`npm run smoke:gemini-zowe-mcp`** with **`GEMINI_API_KEY`**—see [09 — Why Copilot UI is manual](09-automation-strategy.md) (*Automated Gemini + Zowe MCP (stdio smoke)*). Use it as a complement to manual Copilot steps, not a replacement for signing in and trying chat.
+If you want a **scripted** check that **Gemini** can call **`listDatasets`** on the Zowe MCP server (mock data, no VS Code), use **`npm run smoke:gemini-zowe-mcp`** with **`GEMINI_API_KEY`**. Use it as a complement to manual Copilot steps, not a replacement for signing in and trying chat.
 
 ## Steps
 

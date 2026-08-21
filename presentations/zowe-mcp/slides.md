@@ -1241,9 +1241,7 @@ An <strong class="text-[#1b375f]">MCP registry</strong> is a <strong class="text
 <div class="mt-3 p-3 bg-[#eef2f8] rounded-lg border-l-4 border-[#3975d0] text-xs text-[#6d7176]">
   <strong class="text-[#1b375f]">Further reading:</strong>&nbsp;
   <a href="https://github.com/zowe/zowe-mcp/blob/main/docs/remote-http-mcp-registry.md" target="_blank" class="text-[#3162ac] underline">remote-http-mcp-registry.md</a>
-  (registry registration, stdio + remote together),
-  <a href="https://github.com/zowe/zowe-mcp/blob/main/docs/mcp-registry-research.md" target="_blank" class="text-[#3162ac] underline">mcp-registry-research.md</a>
-  (ecosystem, galleries);
+  (registry registration, stdio + remote together), and
   <a href="https://github.com/zowe/zowe-mcp/blob/main/docs/mcp-authentication-oauth.md" target="_blank" class="text-[#3162ac] underline">mcp-authentication-oauth.md</a>
   (OAuth, Copilot, z/OS credentials).
 </div>

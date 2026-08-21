@@ -66,10 +66,7 @@ don't warrant an entry (CI, chores, internal refactors, docs-only) can carry the
   `chat.agentHost.enabled: false` (the classic-panel routing is
   experiment-controlled) and seed `chat.byokUtilityModelDefault: mainAgent`
   for 0.60.0's BYOK utility-model side-flows. S1–S3 pass unmodified on
-  1.132.0 (and still on 1.126); the CI pin moves to 1.132.0. Full
-  investigation notes (Agent Host routing internals, MCP-forwarding into
-  agent sessions, and a working Playwright panel-typing fallback) in
-  `docs/vscode-132-agent-host-investigation.md`.
+  1.132.0 (and still on 1.126); the CI pin moves to 1.132.0.
 
 - **End-to-end Copilot Chat testing** (`packages/zowe-mcp-e2e`): a scripted
   harness that drives a from-scratch, isolated VS Code instance with the built

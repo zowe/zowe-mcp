@@ -147,7 +147,8 @@ In `.roo/mcp.json`, pass the JSON as a **string** value (escape quotes as requir
 - Maps cleanly to enterprise secret stores (inject one variable from Vault, Kubernetes `Secret`, CI, etc.).
 - Covers **multiple** connections in one value when you use `--config` with several systems.
 
-The shipped [`server.json`](../packages/zowe-mcp-server/server.json) documents `ZOWE_MCP_CREDENTIALS` for that reason. More background: [`mcp-authentication-oauth.md`](mcp-authentication-oauth.md) (credentials and HTTP auth), [`mcp-registry-research.md`](mcp-registry-research.md) (registry metadata).
+The shipped [`server.json`](../packages/zowe-mcp-server/server.json) documents `ZOWE_MCP_CREDENTIALS` for that reason. For more background on credentials and HTTP authentication, see
+[`mcp-authentication-oauth.md`](mcp-authentication-oauth.md).
 
 Prefer injecting secrets from the OS or a vault; do not commit real passwords into `.roo/mcp.json`.
 

@@ -58,7 +58,7 @@ flowchart TB
 - **TLS reverse proxy or ingress** — Terminates **HTTPS** from clients and forwards plain HTTP to the Node listener (or balances across replicas). Sets **`Host`** and **`X-Forwarded-Proto`** so OAuth discovery and password-elicit URLs match the public URL. Further reading: [HTTPS, reverse proxies, and public URLs](#https-reverse-proxies-and-public-urls) below, [local HTTPS dev with Docker nginx](../docker/remote-https-dev/README.md).
 - **Zowe MCP resource server** — The **`@zowe/mcp-server`** process in **`--http`** mode: **MCP Streamable HTTP** session handling, optional Bearer JWT verification, tools, and native SSH to z/OS. It validates tokens but does **not** issue them. Further reading: root [**`AGENTS.md`**](../AGENTS.md) (HTTP transport, JWT, component tools).
 - **Tenant connection store per sub** — On-disk JSON per **OIDC `sub`** listing **user@host** connection strings for z/OS (`ZOWE_MCP_TENANT_STORE_DIR`), isolated per signed-in user; use **`addZosConnection`** in shared deployments. Further reading: [**`AGENTS.md`**](../AGENTS.md) (tenant connection persistence, `addZosConnection`).
-- **Secrets for z/OS SSH** — Platform-supplied **passwords or key material** for SSH (for example **`ZOWE_MCP_CREDENTIALS`**, **`ZOWE_MCP_PASSWORD_*`**, Vault KV, Kubernetes secrets), **not** the OAuth access token. Further reading: [**`AGENTS.md`**](../AGENTS.md) (standalone env passwords, Vault), [Future z/OS identity and OIDC subject mapping](future-zos-identity-mapping.md) (why chat identity and SAF user are separate concerns).
+- **Secrets for z/OS SSH** — Platform-supplied **passwords or key material** for SSH (for example **`ZOWE_MCP_CREDENTIALS`**, **`ZOWE_MCP_PASSWORD_*`**, Vault KV, Kubernetes secrets), **not** the OAuth access token. Further reading: [**`AGENTS.md`**](../AGENTS.md) (standalone env passwords, Vault). Chat identity and SAF user remain separate concerns.
 - **z/OS SSH** — The mainframe side reached by **Zowe Remote SSH** over **SSH** from the MCP server only; **no OAuth** on the wire to z/OS. Further reading: [**`AGENTS.md`**](../AGENTS.md) (native SSH backend, ZNP).
 
 The **IdP** is only used for **OAuth tokens and JWKS** at the MCP HTTP layer. **z/OS** is reached by **SSH from the MCP server** only; LPARs do not participate in OIDC.
@@ -138,7 +138,7 @@ JWT, reverse-proxy, and **`ZOWE_MCP_OAUTH_RESOURCE`** / **`ZOWE_MCP_PUBLIC_BASE_
 
 ### Local registry and HTTPS dev stack
 
-To exercise **gallery + `remotes`** against this repo’s Keycloak HTTPS flow, run a **v0.1-spec** private registry (see **`docs/mcp-registry-research.md`** §9) and register a `server.json` whose `remotes[0].url` matches **your** dev MCP URL (for example from **`npm run start:remote-https-dev-native-zos`**: `https://zowe.mcp.example.com:7542/mcp` with **`/etc/hosts`** and **mkcert** per **`docker/remote-https-dev/README.md`**). Point the IDE MCP gallery at that registry URL. That still uses **one concrete hostname** for your machine—it validates coexistence with stdio and remote HTTP, not a single global on-prem hostname.
+To exercise **gallery + `remotes`** against this repo’s Keycloak HTTPS flow, run a **v0.1-spec** private registry (see [Local registry setup](local-registry-setup.md)) and register a `server.json` whose `remotes[0].url` matches **your** dev MCP URL (for example from **`npm run start:remote-https-dev-native-zos`**: `https://zowe.mcp.example.com:7542/mcp` with **`/etc/hosts`** and **mkcert** per **`docker/remote-https-dev/README.md`**). Point the IDE MCP gallery at that registry URL. That still uses **one concrete hostname** for your machine—it validates coexistence with stdio and remote HTTP, not a single global on-prem hostname.
 
 ## 2. Register with the registry operator
 
@@ -149,7 +149,7 @@ Typical steps (vary by registry):
 
 ## 3. Point the IDE at the registry (if applicable)
 
-In **VS Code**, set the MCP gallery to your registry URL when using a private catalog (see **`docs/mcp-registry-research.md`** §9–§11). **Copilot / VS Code** settings and the Bearer token prompt for remote servers are described in **`docs/mcp-authentication-oauth.md`**. Users can add the server from the `@mcp` gallery and enter the **Bearer token** when prompted for the `Authorization` header.
+In **VS Code**, set the MCP gallery to your registry URL when using a private catalog (see [Local registry setup](local-registry-setup.md)). **Copilot / VS Code** settings and the Bearer token prompt for remote servers are described in **`docs/mcp-authentication-oauth.md`**. Users can add the server from the `@mcp` gallery and enter the **Bearer token** when prompted for the `Authorization` header.
 
 ## 4. Manual client config (Cursor / VS Code `mcp.json`)
 
@@ -198,7 +198,6 @@ Track research and implementation ideas in **`TODO.md`** (Authentication / HTTP 
 
 - **`docker/remote-https-dev/certs/README.md`** — TLS files for **`npm run start:remote-https-dev-native-zos`** and the local registry nginx front (one mkcert leaf: zowe, keycloak, registry — see **`docker/remote-https-dev/README.md`**).
 - **`docs/mcp-authentication-oauth.md`** — OAuth / OIDC, Copilot vs VS Code, z/OS credentials, multi-tenant deployment, container examples.
-- **`docs/mcp-registry-research.md`** — MCP registry ecosystem, `server.json`, publishing, private catalogs (§9–§11).
 - **`docs/dev-oidc-tinyauth.md`** — run a local OIDC provider (e.g. Keycloak dev mode) and configure `ZOWE_MCP_JWT_*` for HTTP JWT testing.
 - **`docs/standalone-mcp.md`** — stdio-focused standalone clients.
 - **`packages/zowe-mcp-server/server.json`** — published npm **stdio** entry; remote HTTP is usually documented in a separate deployment-specific `server.json` or `remotes` overlay as above.

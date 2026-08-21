@@ -949,6 +949,5 @@ on the next call.
 
 For more depth, see:
 
-- [docs/research-zowex-pagination-caching.md](research-zowex-pagination-caching.md) — the underlying RPC protocol.
 - [packages/zowe-mcp-server/src/mock-host/](../packages/zowe-mcp-server/src/mock-host/) — source for the daemon.
 - [zowe/zowe-native-proto](https://github.com/zowe/zowe-native-proto) — the real zowex server (whose RPC dispatch table we mimic).

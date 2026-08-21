@@ -2,7 +2,10 @@
 
 This document adapts general MCP safety and security ideas to **Zowe MCP**: an MCP server that exposes z/OS-oriented tools (data sets, jobs, USS, TSO, local file bridge, and context) over **stdio** or **HTTP (Streamable)**, with optional **JWT validation** at the HTTP layer and **separate SSH credentials** for the native (Zowe Remote SSH) backend.
 
-For how identity and secrets actually work in this project, see [mcp-authentication-oauth.md](./mcp-authentication-oauth.md), [future-zos-identity-mapping.md](./future-zos-identity-mapping.md), and [AGENTS.md](../AGENTS.md). For registry and remote HTTP topology, see [remote-http-mcp-registry.md](./remote-http-mcp-registry.md).
+For how identity and secrets work in this project, see
+[mcp-authentication-oauth.md](./mcp-authentication-oauth.md). For registry and
+remote HTTP topology, see
+[remote-http-mcp-registry.md](./remote-http-mcp-registry.md).
 
 **Implementation status** (what exists in the product today vs gaps, and what is planned in-repo) is summarized in [§10](#10-implementation-status-in-zowe-mcp). Planned Zowe MCP work for addressable gaps is tracked in [TODO.md](../TODO.md) under **MCP safety & security**.
 
@@ -70,7 +73,8 @@ The MCP protocol does not standardize **risk tiers**, **tool groups**, or **per-
 Practical mitigations that apply to Zowe MCP:
 
 - **Separate MCP server instances or configs** per sensitivity tier (e.g., read-only mock lab vs. native production).
-- **Client / gateway allowlists** where the product supports them (enterprise MCP registry posture, `chat.mcp.access`, org policies—see [mcp-authentication-oauth.md](./mcp-authentication-oauth.md) and [mcp-registry-research.md](./mcp-registry-research.md)).
+- **Client / gateway allowlists** where the product supports them (enterprise MCP registry posture, `chat.mcp.access`, and organization policies;
+  see [mcp-authentication-oauth.md](./mcp-authentication-oauth.md)).
 - **Reverse proxy or sidecar** filtering of `tools/call` (advanced; must not break session semantics).
 
 None of these is a complete, portable, multi-dimensional model; the gap is **ecosystem-wide**, not specific to Zowe MCP.
@@ -216,7 +220,6 @@ Related existing TODO items (overlap): **Configurable safety for TSO/USS/JCL** a
 | Topic | Document |
 | --- | --- |
 | OAuth vs z/OS credentials, Copilot / VS Code | [mcp-authentication-oauth.md](./mcp-authentication-oauth.md) |
-| JWT `sub` vs future z/OS identity mapping | [future-zos-identity-mapping.md](./future-zos-identity-mapping.md) |
 | Transports, tools, env vars, tenant store | [AGENTS.md](../AGENTS.md) |
 | Remote HTTP registry and URLs | [remote-http-mcp-registry.md](./remote-http-mcp-registry.md) |
 | Local OIDC lab | [remote-dev-keycloak.md](./remote-dev-keycloak.md), [dev-oidc-tinyauth.md](./dev-oidc-tinyauth.md) |

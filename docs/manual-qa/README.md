@@ -21,7 +21,6 @@ For ad hoc inspection outside Copilot, launch the
 | 06 | [06-native-mode-smoke.md](06-native-mode-smoke.md) | Optional SSH smoke |
 | 07 | [07-settings-and-restart-behavior.md](07-settings-and-restart-behavior.md) | Reload vs MCP restart vs live settings |
 | 08 | [08-failure-and-recovery.md](08-failure-and-recovery.md) | Reset tools, logs, clear password |
-| 09 | [09-automation-strategy.md](09-automation-strategy.md) | Why Copilot UI is manual; optional LLM+MCP smoke; profiles |
 
 ## Profiles and install commands
 
@@ -46,7 +45,7 @@ Manual tests should **not** re-verify tool contracts, transports, or extension h
 | VS Code extension | [`packages/zowe-mcp-vscode/src/test/extension.test.ts`](../../packages/zowe-mcp-vscode/src/test/extension.test.ts) | Activation, output channel, `provideZoweMcpServerDefinitions` vs `buildServerConfig`, real-settings `nativeConnections` round-trip, registered commands, bundled `server/index.js`, dialog-cancel command paths, `onStartupFinished`, mocked `buildServerConfig` / no-connections notification |
 | Extension test runner | [`packages/zowe-mcp-vscode/.vscode-test.mjs`](../../packages/zowe-mcp-vscode/.vscode-test.mjs) | Launches VS Code; Mocha tests in `out/test/` |
 
-**Gap:** Nothing in this repo drives **GitHub Copilot Chat** to invoke MCP tools (see [09 — Why Copilot UI is manual](09-automation-strategy.md)). **`npm run smoke:gemini-zowe-mcp`** automates **Gemini + Zowe MCP** over stdio (mock)—same tool layer as chat, not the VS Code UI.
+**Gap:** Nothing in this repo drives **GitHub Copilot Chat** to invoke MCP tools. **`npm run smoke:gemini-zowe-mcp`** automates **Gemini + Zowe MCP** over stdio (mock)—same tool layer as chat, not the VS Code UI.
 
 ## Screen capture on failures
 

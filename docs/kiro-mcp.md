@@ -211,4 +211,4 @@ Each configured server appears with a status badge — e.g. `zowe — Connected 
 
 - [Kiro MCP configuration reference](https://kiro.dev/docs/mcp/configuration/) — full Kiro schema, remote/HTTP servers, security defaults.
 - [Claude Code MCP](claude-code-mcp.md) — same `mcpServers` shape, plus OAuth / streamable-HTTP details that apply to any client speaking MCP over HTTP.
-- [Roo / standalone MCP](roo-or-standalone-mcp.md) — pattern for any client that loads MCP from its own JSON instead of VS Code's registration API.
+- [Standalone MCP clients](standalone-mcp.md) — pattern for any client that loads MCP from its own JSON instead of VS Code's registration API.

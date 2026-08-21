@@ -4,6 +4,10 @@ Repeatable, human-run checks for **first-run experience**, **Copilot + MCP integ
 
 **Companion docs:** [Copilot setup guide](../copilot-setup-guide.md) (BYOK, model providers, MCP list, outputs), [README VS Code extension](../../README.md#vs-code-extension-optional).
 
+For ad hoc inspection outside Copilot, launch the
+[MCP Inspector](https://github.com/modelcontextprotocol/inspector) with
+`npm run inspector`, `npm run inspector:mock`, or `npm run inspector:native`.
+
 ## Procedure index
 
 | Step | Document | Focus |

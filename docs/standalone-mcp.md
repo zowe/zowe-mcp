@@ -1,12 +1,12 @@
-# Roo Code and other standalone MCP clients
+# Standalone MCP clients
 
-Some AI clients (for example [Roo Code](https://docs.roocode.com/features/mcp/using-mcp-in-roo)) load MCP servers only from **their own** configuration (e.g. project `.roo/mcp.json` or global `mcp_settings.json` with an `mcpServers` object). They do **not** use VS Code’s `vscode.lm.registerMcpServerDefinitionProvider`, so the Zowe MCP VS Code extension does not register the server for them.
+Standalone MCP clients start `@zowe/mcp-server` directly from their own
+configuration instead of relying on the optional VS Code extension to register
+the server. Use stdio mode with `command`, `args`, and optional `env` fields, as
+shown below.
 
-> **If you have the Zowe MCP VS Code extension installed for Roo:** uninstall it and use the `@zowe/mcp-server` npm package directly via Roo's `mcp.json` (this guide). The extension's MCP-server registration is invisible to Roo, so leaving it installed just adds a stale Settings UI and a misleading log channel. Uninstall via the Extensions view, or `code --uninstall-extension zowe.zowe-mcp-vscode`. The extension's helper commands (`zowe-mcp.initMockData`, etc.) are thin wrappers around CLI subcommands — `zowe-mcp-server init-mock --output …` is equivalent.
-
-Use the `**@zowe/mcp-server`** npm package in **stdio** mode: `command` + `args` (+ optional `env`), the same as any MCP client that spawns a process.
-
-For **Streamable HTTP** (Bearer JWT, local Keycloak, or any remote URL), Roo supports **`type`: `streamable-http`** with **`url`** and optional **`headers`** — see **`docs/remote-dev-keycloak.md`** (Copilot / Cursor / Roo examples).
+For **Streamable HTTP** with Bearer JWT, local Keycloak, or another remote URL,
+see [Remote development with Keycloak](remote-dev-keycloak.md).
 
 ## Package identity
 
@@ -39,6 +39,12 @@ npx --package=file:/absolute/path/to/zowe-mcp-server-0.8.0-dev.tgz zowe-mcp-serv
 The argument after the package is the `**bin` name** (`zowe-mcp-server`), not the scoped package name.
 
 ## Roo Code: `.roo/mcp.json` (native SSH)
+
+Roo Code loads MCP servers from its own configuration and does not use VS
+Code's `vscode.lm.registerMcpServerDefinitionProvider`. If the Zowe MCP VS Code
+extension is installed only for Roo, uninstall it and use the server package
+directly through Roo's `mcp.json`. The extension's helper commands are thin
+wrappers around equivalent server CLI subcommands.
 
 Copy or adapt [examples/roo-mcp.json](examples/roo-mcp.json).
 
@@ -167,15 +173,7 @@ See the server CLI in `[index.ts](../packages/zowe-mcp-server/src/index.ts)` (`-
 
 ## Mock mode
 
-Add `--mock` / `ZOWE_MCP_MOCK_DIR`, or pass `"--mock", "/absolute/path/to/mock-data"` in `args`. Generate mock data:
-
-```bash
-# If zowe-mcp-server is installed (globally or project-local):
-zowe-mcp-server init-mock --output ./zowe-mcp-mock-data
-
-# Or from a local tarball (see "Obtaining the .tgz" above):
-npx --package=file:/absolute/path/to/zowe-mcp-server-0.8.0-dev.tgz zowe-mcp-server init-mock --output ./zowe-mcp-mock-data
-```
+For standalone testing without a mainframe, see [Mock mode](mock-mode.md).
 
 ## Local file tools
 

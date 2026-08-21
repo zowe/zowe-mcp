@@ -20,9 +20,9 @@ Validate the **Generate Mock Data** flow, reload/restart behavior, and a short C
 
 ## Expected result
 
-- Settings show **Mock Data Directory** populated and **Native connections** empty (mock wins only when native list is empty; if both are set, **native wins**—see [README](../../README.md)).
+- Settings show **Mock Data Directory** populated and **Native connections** empty (mock wins only when native list is empty; if both are set, **native wins**—see [Mock mode](../mock-mode.md)).
 - Copilot runs tools such as `listSystems` / `listDatasets` (names may show as `mcp_zowe_listSystems`, `mcp_zowe_listDatasets`) and returns plausible mock content.
 
 ## Failure notes
 
-Capture whether **backend** in settings is `mock` or `native`, the **Zowe MCP** output channel, and **MCP** server output. If mock data is missing files, re-run **Generate Mock Data** or, from a clone of this repo, `npx @zowe/mcp-server init-mock` per [README](../../README.md).
+Capture whether **backend** in settings is `mock` or `native`, the **Zowe MCP** output channel, and **MCP** server output. If mock data is missing files, re-run **Generate Mock Data** or, from a clone of this repo, `npx @zowe/mcp-server init-mock` per [Mock mode](../mock-mode.md).

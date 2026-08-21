@@ -200,7 +200,7 @@ Track research and implementation ideas in **`TODO.md`** (Authentication / HTTP 
 - **`docs/mcp-authentication-oauth.md`** — OAuth / OIDC, Copilot vs VS Code, z/OS credentials, multi-tenant deployment, container examples.
 - **`docs/mcp-registry-research.md`** — MCP registry ecosystem, `server.json`, publishing, private catalogs (§9–§11).
 - **`docs/dev-oidc-tinyauth.md`** — run a local OIDC provider (e.g. Keycloak dev mode) and configure `ZOWE_MCP_JWT_*` for HTTP JWT testing.
-- **`docs/roo-or-standalone-mcp.md`** — stdio-focused standalone clients.
+- **`docs/standalone-mcp.md`** — stdio-focused standalone clients.
 - **`packages/zowe-mcp-server/server.json`** — published npm **stdio** entry; remote HTTP is usually documented in a separate deployment-specific `server.json` or `remotes` overlay as above.
 - **`packages/zowe-mcp-server/remote-server-example.json`** — same `packages` metadata as `server.json` plus a **`remotes`** entry with **`{onPremHostname}`** / **`{pathPrefix}`** URL template variables (`name`: **`io.github.zowe/zowe-mcp-server`** — publish with **`mcp-publisher login github`** when required).
 - **`packages/zowe-mcp-server/remote-server-example-dev.json`** — same **`packages`** block with **`io.modelcontextprotocol.anonymous/zowe-mcp-server`** and a **fixed** `remotes.url` (`https://zowe.mcp.example.com:7542/mcp`) for the Keycloak HTTPS dev stack—no URL template variables, so VS Code gallery can add the remote without placeholder prompts. For **`mcp-publisher login none`**, see **`docs/local-registry-setup.md`**. Hosts / TLS: **`docs/remote-dev-keycloak.md`**, **`docker/remote-https-dev/certs/README.md`**.

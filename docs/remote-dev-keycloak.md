@@ -302,7 +302,7 @@ Example file (also **[`native-config.example.json`](../native-config.example.jso
 }
 ```
 
-Optional **`jobCards`** supply default JCL when submitting jobs without a `JOB` statement (same shape as standalone stdio; see [`roo-or-standalone-mcp.md`](roo-or-standalone-mcp.md#job-cards-and-multiple-systems-no-extension)).
+Optional **`jobCards`** supply default JCL when submitting jobs without a `JOB` statement (same shape as standalone stdio; see [Standalone MCP clients](standalone-mcp.md#job-cards-and-multiple-systems-no-extension)).
 
 ### Start on the host (Keycloak in Docker, MCP native)
 
@@ -332,7 +332,7 @@ Without the VS Code extension pipe, the server resolves SSH passwords in this or
 
 1. **Recommended (interactive / remote):** **MCP elicitation** — if the client advertises elicitation support, the server prompts for the SSH password when a tool first needs it. Default **`ZOWE_MCP_PASSWORD_ELICIT_MODE`** is **`auto`**: **URL-mode** (browser to `/zowe-mcp/password-elicit/…` on the MCP HTTP server — password not shown in chat) when the client supports **`elicitation.url`**; **form** only as fallback. **Do not** inject mainframe passwords into Compose **`environment`** or **`secrets`** for production-style remote deployments; avoid baking them into images.
 
-2. **Optional (automation / CI / headless):** **`ZOWE_MCP_PASSWORD_<USER>_<HOST>`** or **`ZOWE_MCP_CREDENTIALS`** — inject from a secret manager or CI secrets at runtime, not committed files. Precedence and details: [`roo-or-standalone-mcp.md`](roo-or-standalone-mcp.md#passwords-standalone) and [`packages/zowe-mcp-server/server.json`](../packages/zowe-mcp-server/server.json).
+2. **Optional (automation / CI / headless):** **`ZOWE_MCP_PASSWORD_<USER>_<HOST>`** or **`ZOWE_MCP_CREDENTIALS`** — inject from a secret manager or CI secrets at runtime, not committed files. Precedence and details: [Standalone MCP clients](standalone-mcp.md#fallback-passwords) and [`packages/zowe-mcp-server/server.json`](../packages/zowe-mcp-server/server.json).
 
 Env-based passwords take precedence when set; if they are **unset**, elicitation runs when the client supports it.
 
@@ -455,7 +455,7 @@ Example for **`.roo/mcp.json`** (or global Roo MCP settings — paths vary by OS
 }
 ```
 
-For **stdio-only** setups (no HTTP), see [`roo-or-standalone-mcp.md`](roo-or-standalone-mcp.md).
+For **stdio-only** setups (no HTTP), see [Standalone MCP clients](standalone-mcp.md).
 
 ## Port conflicts
 

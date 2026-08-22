@@ -20,7 +20,7 @@
  * and so the notes edit precedes GitHub's immutable-release lock-in).
  * No `@octorelease/git` / `@octorelease/changelog` plugins in
  * this phase: those push commits to `main`, which needs an org-level robot
- * token we don't have yet (see docs/release-process.md). Version, changelog
+ * token we don't have yet (see RELEASING.md). Version, changelog
  * rollover, and generated docs are all carried by the release PR itself and
  * reviewed there instead.
  */

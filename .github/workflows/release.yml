@@ -1,7 +1,7 @@
 name: Release
 
 # Builds and publishes a GitHub Release when a reviewed release PR merges to
-# main (see docs/release-process.md for the full pipeline). The version in
+# main (see RELEASING.md for the full pipeline). The version in
 # packages/zowe-mcp-vscode/package.json is the trigger: a `-dev` suffix means
 # "nothing to release yet", so every publishing step is skipped (mirrors
 # Zowe Explorer's -SNAPSHOT guard). A push with a version whose tag already

@@ -269,7 +269,7 @@ Create or edit `.vscode/mcp.json` in your workspace using the standard client
 configuration above, with `"servers"` as the top-level key instead of
 `"mcpServers"`. New to Copilot and MCP? See the
 [Copilot setup guide](docs/copilot-setup-guide.md) and
-[Manual QA checklists](docs/manual-qa/README.md).
+[Manual QA checklist](docs/manual-qa.md).
 
 Tool names use camelCase. In Copilot they appear prefixed with `mcp_zowe_`, such
 as `mcp_zowe_getContext`, `mcp_zowe_listDatasets`, and

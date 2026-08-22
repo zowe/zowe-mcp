@@ -72,5 +72,5 @@ Tool names appear with an `mcp_zowe_` prefix in Copilot, such as
   Tools** when restarting is insufficient.
 
 For repeatable human test procedures, see the [Manual QA
-checklists](manual-qa/README.md). For general safety guidance, see [Safety and
+checklist](manual-qa.md). For general safety guidance, see [Safety and
 security](mcp-safety-security-principles.md).

@@ -83,4 +83,4 @@ Native and mock backends cannot be active together; native mode takes
 precedence when both are configured.
 
 For the VS Code extension workflow, see the
-[mock-mode manual QA procedure](manual-qa/05-mock-mode-happy-path.md).
+[mock backend smoke test](manual-qa.md#mock-backend-smoke-test).

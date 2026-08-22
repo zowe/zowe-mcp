@@ -222,5 +222,5 @@ Related existing TODO items (overlap): **Configurable safety for TSO/USS/JCL** a
 | OAuth vs z/OS credentials, Copilot / VS Code | [mcp-authentication-oauth.md](./mcp-authentication-oauth.md) |
 | Transports, tools, env vars, tenant store | [AGENTS.md](../AGENTS.md) |
 | Remote HTTP registry and URLs | [remote-http-mcp-registry.md](./remote-http-mcp-registry.md) |
-| Local OIDC lab | [remote-dev-keycloak.md](./remote-dev-keycloak.md), [dev-oidc-tinyauth.md](./dev-oidc-tinyauth.md) |
+| Local OIDC lab | [remote-dev-keycloak.md](./remote-dev-keycloak.md) |
 | Principles in this doc vs product | This doc [§10](#10-implementation-status-in-zowe-mcp), [TODO.md](../TODO.md) |

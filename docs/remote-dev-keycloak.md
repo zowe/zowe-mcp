@@ -160,6 +160,26 @@ docker compose -f docker/remote-dev/docker-compose.yml run --rm keycloak-init
 
 Set **`ZOWE_MCP_JWT_ISSUER`** and **`ZOWE_MCP_JWKS_URI`** to match your Keycloak base URL (see OIDC discovery), then build and run **`node packages/zowe-mcp-server/dist/index.js --http --mock …`** or **`--native …`** as needed.
 
+### Minimal Keycloak and JWT E2E
+
+With the minimal non-TLS Keycloak stack above running, run the opt-in JWT
+integration test:
+
+```bash
+npm run test:keycloak-jwt-e2e
+```
+
+The test defaults to `http://localhost:18080`, realm and client `demo`, and user
+`user` with password `password`. Override these with
+`ZOWE_MCP_KEYCLOAK_URL`, `ZOWE_MCP_KEYCLOAK_REALM`,
+`ZOWE_MCP_KEYCLOAK_CLIENT`, `ZOWE_MCP_KEYCLOAK_USER`, and
+`ZOWE_MCP_KEYCLOAK_PASSWORD`.
+
+Zowe MCP validates RS256 access tokens against `ZOWE_MCP_JWKS_URI`. The token's
+`iss` claim must exactly match `ZOWE_MCP_JWT_ISSUER`, `sub` is required, and
+`aud` is checked when `ZOWE_MCP_JWT_AUDIENCE` is configured. MCP clients send
+the token as `Authorization: Bearer <access-token>`.
+
 ## Keycloak host port
 
 The compose file maps **`KEYCLOAK_HOST_PORT`** (default **`18080`**) on the host to Keycloak’s container port **8080**. Keycloak always listens on **8080** inside the container; only the published host port changes.
@@ -427,8 +447,6 @@ Paste a token from the Keycloak token endpoint (same grant as the smoke test). T
 
 **Note:** The published npm **`server.json`** describes **stdio**; remote HTTP is documented per deployment ([`remote-http-mcp-registry.md`](remote-http-mcp-registry.md)).
 
-A copy-paste template also lives at [`examples/mcp-remote-http-keycloak.json`](examples/mcp-remote-http-keycloak.json).
-
 ## Cursor
 
 Cursor uses the same **`mcp.json`** shape as VS Code (user or workspace **`.vscode/mcp.json`**, or Cursor’s MCP UI depending on version). Use the same **`streamable-http`** URL and **`Authorization`** header as above.
@@ -474,5 +492,5 @@ This guide uses **local Keycloak** and **plain HTTP** to MCP for developer speed
 
 ## See also
 
-- [`dev-oidc-tinyauth.md`](dev-oidc-tinyauth.md) — OIDC details, optional audience, Vitest Keycloak E2E (`ZOWE_MCP_KEYCLOAK_URL`; use **`http://localhost:18080`** with this stack unless you override **`KEYCLOAK_HOST_PORT`**).
+- [`mcp-authentication-oauth.md`](mcp-authentication-oauth.md) — authentication architecture and deployment guidance.
 - [`remote-http-mcp-registry.md`](remote-http-mcp-registry.md) — production registry / headers shape.

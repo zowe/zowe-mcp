@@ -1,8 +1,0 @@
-{
-  "mcpServers": {
-    "zowe": {
-      "command": "zowe-mcp-server",
-      "args": ["--stdio", "--native", "--system", "USERID@zos.example.com"]
-    }
-  }
-}

@@ -28,9 +28,6 @@ For project scope, create `.mcp.json` in the project root:
 }
 ```
 
-A ready-to-edit example is available at
-[`examples/claude-code-mcp.json`](examples/claude-code-mcp.json).
-
 You can create the same project-scoped entry with the CLI:
 
 ```bash

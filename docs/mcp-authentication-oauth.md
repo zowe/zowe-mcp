@@ -73,7 +73,7 @@ For **multi-user** shared HTTP deployments, Bearer JWT validation (gateway or in
 
 **Multi-session HTTP:** Each client session uses Streamable HTTP; state is scoped per session. With JWT + **`ZOWE_MCP_TENANT_STORE_DIR`**, per-user connection lists are isolated on disk (see [AGENTS.md](../AGENTS.md), tenant persistence).
 
-Local and lab setup: [dev-oidc-tinyauth.md](./dev-oidc-tinyauth.md), [remote-dev-keycloak.md](./remote-dev-keycloak.md) (Keycloak + HTTPS MCP + native z/OS).
+Local and lab setup: [remote-dev-keycloak.md](./remote-dev-keycloak.md) (minimal JWT E2E and Keycloak + HTTPS MCP + native z/OS).
 
 ---
 
@@ -249,5 +249,5 @@ Each deployment has its **own** base URL — replace the hostname with your FQDN
 | --- | --- |
 | Remote HTTP topology, `mcp.json`, gallery + Bearer | [remote-http-mcp-registry.md](./remote-http-mcp-registry.md) |
 | Keycloak dev, HTTPS, Inspector | [remote-dev-keycloak.md](./remote-dev-keycloak.md), [docker/remote-https-dev/README.md](../docker/remote-https-dev/README.md) |
-| Local OIDC / TinyAuth-style | [dev-oidc-tinyauth.md](./dev-oidc-tinyauth.md) |
+| Local OIDC and JWT E2E | [remote-dev-keycloak.md](./remote-dev-keycloak.md#minimal-keycloak-and-jwt-e2e) |
 | Standalone stdio, env passwords, tools | [AGENTS.md](../AGENTS.md) |

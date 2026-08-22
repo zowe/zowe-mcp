@@ -46,8 +46,6 @@ extension is installed only for Roo, uninstall it and use the server package
 directly through Roo's `mcp.json`. The extension's helper commands are thin
 wrappers around equivalent server CLI subcommands.
 
-Copy or adapt [examples/roo-mcp.json](examples/roo-mcp.json).
-
 **Prefer the installed binary** (no `npx`, no registry): if `@zowe/mcp-server` is already installed globally or in a project, run the `**zowe-mcp-server`** executable directly. Put only server flags in `args` — do **not** pass `npx`, `-y`, or `@zowe/mcp-server`.
 
 ```json

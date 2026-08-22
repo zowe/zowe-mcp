@@ -22,7 +22,7 @@ Zowe MCP provides these security and safety controls:
   resource effects. Configure them with `--capability-tier` or
   `ZOWE_MCP_CAPABILITY_TIER`; the default is `read-strict`.
 
-| Tier | What the agent can do |
+   | Tier | What the agent can do |
    | --- | --- |
    | `read-strict` (default) | Read only, with client confirmation prompts |
    | `read` | Read only, auto-approved |
@@ -37,7 +37,7 @@ Zowe MCP provides these security and safety controls:
   approval for sensitive operations, and constrain local file access to MCP
   workspace roots or configured directories.
 3. **Tool-result data marking** identifies mainframe content as untrusted data in
-  server instructions to defend against prompt injection attacks. 
+  server instructions to defend against prompt injection attacks.
   It is enabled by default and can be disabled with `ZOWE_MCP_DATA_MARKING=0`.
 
 See [Safety and security principles](docs/mcp-safety-security-principles.md) for
@@ -201,8 +201,8 @@ use the CLI:
 claude mcp add zowe -- node /absolute/path/to/zowe-mcp/packages/zowe-mcp-server/dist/index.js --stdio --native --system USERID@sys1.example.com
 ```
 
-See also [Claude Code MCP](docs/claude-code-mcp.md) (tarball install, passwords,
-and job cards via `--config`).
+See [Claude Code](docs/claude-code-mcp.md) for client scopes, `/mcp`, path
+handling, and remote OAuth.
 
 </details>
 
@@ -215,10 +215,20 @@ Add the standard config from above to `~/.cursor/mcp.json` (global) or
 </details>
 
 <details>
+<summary><b>Kiro</b></summary>
+
+Add the standard config to `~/.kiro/settings/mcp.json` or
+`.kiro/settings/mcp.json`. See [Kiro](docs/kiro-mcp.md) for environment-variable
+approval, `autoApprove`, and extension compatibility.
+
+</details>
+
+<details>
 <summary><b>Other clients</b></summary>
 
 Check your client's MCP documentation for the correct config file and syntax.
-The server block is the same either way.
+See [Standalone MCP clients](docs/standalone-mcp.md) for shared installation,
+authentication, and configuration guidance.
 </details>
 
 For testing without a z/OS system, see [Mock mode](docs/mock-mode.md).
@@ -279,14 +289,15 @@ After installation, reload VS Code. The extension activates on startup,
 registers a "Zowe" MCP server provider, and exposes the capability tier through
 the `zoweMCP.capabilityTier` setting.
 
-### Native connections and authentication
+### Zowe Remote SSH connections and authentication
 
 1. Open Settings and search for **Zowe MCP**.
-2. Set **Native connections** to an array of SSH connection specs, such as
-   `["USERID@sys1.example.com"]`. Each entry is one connection
+2. Set **Backend** to `zowex`.
+3. Set **Zowe Remote SSH: Zowex Connections** to an array of SSH connection
+   specs, such as `["USERID@sys1.example.com"]`. Each entry is one connection
    (`user@host` or `user@host:port`); you can have multiple connections to the
    same z/OS system with different user IDs.
-3. Reload the window so the MCP server restarts with `--native`.
+4. Reload the window.
 
 As in standalone mode, the server first tries **SSH key authentication** using
 your existing `~/.ssh` setup and only falls back to a password when no usable
@@ -322,11 +333,12 @@ Use the built-in command (easiest):
 4. The command generates the data, configures the setting, and offers to
    reload the window
 
-Or point at an existing mock data directory via the **Mock Data Dir** setting,
-or in `settings.json`:
+Or set **Backend** to `mock` and point at an existing directory with **Mock
+Data Directory**. In `settings.json`:
 
 ```jsonc
 {
+  "zoweMCP.backend": "mock",
   "zoweMCP.mockDataDirectory": "/absolute/path/to/zowe-mcp-mock-data"
 }
 ```

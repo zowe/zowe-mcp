@@ -14,9 +14,11 @@ Build a clear mental model of when to **reload the window**, when to **restart t
    - Set or change the path, then try **Developer: Reload Window** vs **MCP: List Servers** → **Restart** on **Zowe**.
    - Note which action is required for the server to pick up `--mock` and the new directory on your build.
 
-2. **Native connections**
-   - Add or change an entry. Watch whether tools reflect the new system **without** reload ([Copilot setup guide](../copilot-setup-guide.md) suggests updates can be sent without restart).
-   - Compare with [README](../../README.md) statements about reload.
+2. **Zowe Remote SSH connections**
+   - Add or change an entry under **Zowex Connections**. Check whether tools
+     reflect the new system before reloading.
+   - Compare the observed behavior with the [Copilot setup
+     guide](../copilot-setup-guide.md) and [README](../../README.md).
 
 3. **Log level** (`zoweMCP.logLevel`)
    - Change from **Settings**; confirm whether **Zowe MCP** output verbosity changes **without** reload (extension forwards log level over the pipe per [AGENTS.md](../../AGENTS.md)).

@@ -372,7 +372,7 @@
     "@zowe/mcp-server": "0.11.0-dev"
   },
   "devDependencies": {
-    "@types/node": "^26.1.1",
+    "@types/node": "^26.2.0",
     "@vscode/dts": "^0.4.1",
     "@vscode/vsce": "^3.9.2",
     "@vscode/test-cli": "^0.0.15",

@@ -59,6 +59,21 @@ Record user-facing changes under **Unreleased** in the root `CHANGELOG.md`.
 Use the `no-changelog` label for changes that do not need an entry, such as
 internal refactoring, documentation, or CI maintenance.
 
+## Local Validation
+
+Run the checks relevant to your change before opening or updating a pull
+request. The usual checks are:
+
+```bash
+npm run check-format
+npm run typecheck
+npm run lint
+npm test
+```
+
+The root and workspace `package.json` files are the canonical source for
+additional and package-specific commands.
+
 ## AI Evaluation Policy
 
 Changes that can affect how an LLM selects or calls MCP tools must be validated

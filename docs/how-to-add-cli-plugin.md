@@ -1140,6 +1140,22 @@ vendor/<yourname>/
 > **NEVER `git merge` between `develop` and a vendor branch in either direction.**
 > Use `git cherry-pick` to move individual commits.
 
+### Working with vendor content on `develop`
+
+Extract vendor content from its remote branch into a `develop` checkout
+without merging the branches:
+
+```bash
+VENDOR_REMOTE=<remote> VENDOR_BRANCH=<branch> npm run vendor:extract
+```
+
+The extracted `vendor/` directory is gitignored locally. Remove it when it is
+no longer needed:
+
+```bash
+npm run vendor:clean
+```
+
 ### Nested AGENTS.md
 
 Create a `vendor/<name>/AGENTS.md` with vendor-specific context for the AI agent:

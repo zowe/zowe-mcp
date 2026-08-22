@@ -2,10 +2,11 @@
 
 Model Context Protocol (MCP) server that gives AI assistants tools for working
 with z/OS systems -- data sets, jobs, and UNIX System Services. Works with any
-MCP-capable client (Claude Code, Cursor, VS Code, Zed, Roo Code, and others).
-An optional VS Code extension is also included.
+MCP-capable client (Claude Code, Cursor, GitHub Copilot, Codex, OpenCode, IBM Bob, etc.)
 
-## Use case examples
+An optional [VS Code extension](#vs-code-extension-optional) is also included.
+
+## Use cases
 
 The AI can combine multiple tools and reason over results to:
 
@@ -13,26 +14,13 @@ The AI can combine multiple tools and reason over results to:
 - **Job failure diagnostics** — "Why did this job fail?" The assistant fetches status and spool, finds errors/ABENDs, and explains cause and next steps.
 - **Search and trace** — Find where a program, copybook, or string is used or defined across libraries; get a short report and suggested next reads.
 
-See [Use cases](docs/use-cases.md) for the full list and more detail.
-
 ## Safety and security
 
-AI agents can make mistakes. When an agent has tools that modify or delete
-mainframe resources, an incorrect action can cause real damage. Zowe MCP
-provides multiple layers of protection — use them together.
+Zowe MCP provides these security and safety controls:
 
-**Read the full guide:** [Safety & Security principles](docs/mcp-safety-security-principles.md)
-
-### Key recommendations
-
-1. **Principle of least privilege** — Grant only the capability tier needed for
-   the task. Start with `read-strict` (the default) and raise it only when
-   required. A narrower tier limits the blast radius of any mistake.
-
-2. **Progressive capability tiers** — Each tool declares a *resource effect
-   level* (none → read → update → delete → execute). The operator-configured
-   *capability tier* controls which tools register and how MCP clients treat
-   them:
+1. **Capability tiers** control which tools are registered based on their
+  resource effects. Configure them with `--capability-tier` or
+  `ZOWE_MCP_CAPABILITY_TIER`; the default is `read-strict`.
 
    | Tier | What the agent can do |
    | --- | --- |
@@ -45,228 +33,59 @@ provides multiple layers of protection — use them together.
    Configure via `--capability-tier <tier>`, env `ZOWE_MCP_CAPABILITY_TIER`,
    or VS Code setting `zoweMCP.capabilityTier`.
 
-3. **Dedicated z/OS credentials** — Use a dedicated SSH user with the minimum
-   SAF / RACF authority needed. The z/OS security system is the ultimate
-   enforcement boundary — even if the MCP layer or the AI model fails, SAF
-   ensures the agent cannot exceed its authority. Prefer **SSH key
-   authentication** (ideally passphrase-protected) over passwords: a key — and
-   especially a passphrase-protected one — is more secure than a password in an
-   environment variable, which can leak via process listings, shell history, and
-   crash dumps. See [Native (SSH) backend](#native-ssh-backend).
+2. **Command and path gates** block dangerous TSO and USS operations, request
+  approval for sensitive operations, and constrain local file access to MCP
+  workspace roots or configured directories.
+3. **Tool-result data marking** identifies mainframe content as untrusted data in
+  server instructions to defend against prompt injection attacks.
+  It is enabled by default and can be disabled with `ZOWE_MCP_DATA_MARKING=0`.
 
-4. **Command safety gates** — TSO and USS command tools use pattern-based
-   evaluation (block / elicit / allow) to catch dangerous commands before
-   execution.
-
-5. **Data trust boundary** — Server instructions mark all tool-result content
-   (data set/USS contents, job output, search results, console output) as
-   untrusted data, so the model treats it as data to read rather than
-   instructions to follow — a defense-in-depth layer against prompt injection
-   carried through mainframe content. Enabled by default; set
-   `ZOWE_MCP_DATA_MARKING=0` to omit it (used to A/B evaluate the directive's
-   effect on injection resistance).
-
-6. **Mock mode for learning** — Use the mock backend for exploration and
-   CI — no real z/OS resources are at risk.
-
-7. **Safety is not security** — Client hints, confirmation dialogs, and
-   command gates reduce *accidents*. Only z/OS access controls (SAF, USS
-   ACLs, scheduler exits) and credential management *enforce* real
-   boundaries.
-
-## Repository layout
-
-```text
-zowe-mcp/                       # npm workspaces monorepo
-  packages/
-    zowe-mcp-server/            # Server package (npm: @zowe/mcp-server, ESM)
-    zowe-mcp-vscode/            # VS Code extension (CommonJS)
-    zowe-mcp-evals/             # AI evaluations (LLM agent + MCP tools)
-```
+See [Safety and security principles](docs/mcp-safety-security-principles.md) for
+configuration details and deployment recommendations.
 
 ## Prerequisites
 
 - **Node.js** >= 22 (LTS recommended)
 - **npm** >= 10 (ships with Node 22+)
-- **VS Code** >= 1.101 (for the extension)
-- **GitHub Copilot Chat** extension installed in VS Code
+- An MCP client such as OpenCode
+- SSH access to z/OS for native operation
 
-## Quick start (building from source)
+## Installation from source
+
+> **Registry status:** `@zowe/mcp-server` is not yet on a public npm registry.
+> To install without a source checkout, use a tarball from `npm run pack:server`
+> or the `zowe-mcp-server-npm` CI artifact. See
+> [Standalone MCP clients](docs/standalone-mcp.md#obtaining-the-tgz).
 
 ```bash
-# 1. Install dependencies (both packages are linked automatically)
+# 1. Stage the pinned Zowe Remote SSH SDK
+node scripts/sdk-switch.js pin --no-install
+
+# 2. Install dependencies
 npm install
 
-# 2. Fetch the Zowe Remote SSH SDK (required for the native backend)
-npm run sdk:nightly
-
-# 3. Build everything
-npm run build
-
-# 4. Build and install the VS Code extension
-npm run build-and-install
-```
-
-Step 2 fetches the latest nightly build of the
-[Zowe Remote SSH](https://github.com/zowe/zowex) SDK (`zowex-sdk`). Use
-`npm run sdk:release` for the latest stable release instead. See
-[Zowe Remote SSH SDK (zowex-sdk)](#zowe-remote-ssh-sdk) for all options.
-
-After step 4, reload VS Code and the Zowe MCP tools will be available in
-GitHub Copilot Chat.
-
-To use the tools you need a z/OS backend — either a real system
-([native mode](#native-ssh-backend)) or mock data ([mock mode](#mock-mode)).
-Mock data is **not** required for building; generate it only when you want to
-test without a mainframe:
-
-```bash
-# Inside this repo (after `npm install`) — npm workspaces resolve @zowe/mcp-server.
-npx @zowe/mcp-server init-mock --output ./zowe-mcp-mock-data
-```
-
-> **Running outside the repo?** `@zowe/mcp-server` is not yet on a public npm
-> registry, so `npx @zowe/mcp-server …` and `npm install @zowe/mcp-server`
-> fail with a 404. Install from a tarball produced by `npm run pack:server`
-> (or a CI `zowe-mcp-server-npm` artifact) — see
-> [Roo and standalone MCP § Obtaining the `.tgz`](docs/roo-or-standalone-mcp.md#obtaining-the-tgz).
-> Every `npx @zowe/mcp-server …` snippet below assumes the in-repo form;
-> the equivalent post-install command is `zowe-mcp-server …`.
-
-## Building
-
-For a deeper guide to local development (environment setup, architecture, and
-day-to-day workflows), see [DEVELOPMENT.md](DEVELOPMENT.md).
-
-### Full build (all packages)
-
-```bash
-npm run build
-```
-
-This compiles both `@zowe/mcp-server` and `zowe-mcp-vscode`. The server must
-be built first because the extension imports types from it.
-
-### Server only
-
-```bash
+# 3. Build the shared package and server
+npm run build -w packages/zowe-mcp-common
 npm run build -w @zowe/mcp-server
 ```
 
-### Extension only
+The server entry point is
+`packages/zowe-mcp-server/dist/index.js`. The SDK pin identifies the tested
+[`@zowe/zowex-for-zowe-sdk`](https://github.com/zowe/zowex) build; run
+`node scripts/sdk-switch.js` without arguments to list other supported SDK
+sources.
 
-The extension build has two stages: it bundles the server dist into a
-`server/` directory, then compiles the extension TypeScript.
-
-```bash
-# Build server + bundle + compile extension
-npm run build:all -w packages/zowe-mcp-vscode
-```
-
-### Watch mode (development)
-
-```bash
-# Server — recompiles on file changes
-npm run dev -w @zowe/mcp-server
-
-# Extension — recompiles on file changes (in a second terminal)
-npm run dev -w packages/zowe-mcp-vscode
-```
-
-## Mock mode
-
-The server includes a filesystem-backed mock z/OS backend so you can develop
-and test without a real mainframe.
-
-### Generating mock data
-
-```bash
-# Default preset (2 systems, 2 users each, ~8 datasets per user)
-npx @zowe/mcp-server init-mock --output ./zowe-mcp-mock-data
-
-# Minimal (1 system, 1 user, 5 datasets)
-npx @zowe/mcp-server init-mock --output ./zowe-mcp-mock-data --preset minimal
-
-# Large (5 systems, 3 users each, 20 datasets per user)
-npx @zowe/mcp-server init-mock --output ./zowe-mcp-mock-data --preset large
-
-# Custom scale
-npx @zowe/mcp-server init-mock --output ./zowe-mcp-mock-data \
-  --systems 3 --users-per-system 2 --datasets-per-user 10 --members-per-pds 8
-```
-
-The generated directory looks like:
-
-```text
-zowe-mcp-mock-data/
-  systems.json                          # System definitions + credentials
-  mainframe-dev.example.com/            # One directory per system
-    USER/                            # HLQ directory
-      SRC.COBOL/                        # PDS — directory with members
-        HELLO.cbl                       # Member file
-        _meta.json                      # Dataset attributes
-      LOAD.JCL                          # Sequential dataset — plain file
-```
-
-### Running the server standalone with mock data
-
-Inside this repo (after `npm install`):
-
-```bash
-# Via CLI flag
-npx @zowe/mcp-server --stdio --mock ./zowe-mcp-mock-data
-
-# Via environment variable
-ZOWE_MCP_MOCK_DIR=./zowe-mcp-mock-data npx @zowe/mcp-server --stdio
-```
-
-Outside this repo — `@zowe/mcp-server` is unpublished, so install from a
-tarball first ([Obtaining the `.tgz`](docs/roo-or-standalone-mcp.md#obtaining-the-tgz)),
-then run the installed binary directly:
-
-```bash
-zowe-mcp-server --stdio --mock ./zowe-mcp-mock-data
-# or ephemeral from the tarball:
-npx --package=file:/abs/path/to/zowe-mcp-server-<version>.tgz \
-  zowe-mcp-server --stdio --mock ./zowe-mcp-mock-data
-```
-
-## Zowe Remote SSH SDK
-
-The npm package is **`zowex-sdk`** (Zowe Remote SSH SDK). Nightly builds are under Artifactory `org/zowe/zowex/SDK/Nightly`.
-
-The server depends on the
-[Zowe Remote SSH](https://github.com/zowe/zowex) SDK for
-connecting to z/OS over SSH. Use the scripts below to fetch the `zowex-sdk`
-tarball (Zowe Artifactory or in-repo fallback).
-
-| Script | Source | Description |
-| --- | --- | --- |
-| `npm run sdk:release` | Artifactory npm | Latest stable release |
-| `npm run sdk:release -- <version>` | Artifactory npm | Specific release when published (e.g. `0.4.0`) |
-| `npm run sdk:fallback` | In-repo | Fallback resource for CI and when nightly is unavailable |
-| `npm run sdk:nightly` | Artifactory / GitHub | Latest nightly build (recommended for development) |
-| `npm run sdk:pr -- <pr-number>` | GitHub Actions | Build from a specific pull request |
-| `npm run sdk:branch -- <branch>` | GitHub Actions | Latest successful build for a branch |
-| `npm run sdk:local -- <path>` | Local filesystem | A `.tgz` file or a Zowe Remote SSH SDK (`zowex`) repo directory |
-
-After switching, rebuild (`npm run build`) and run tests (`npm test`) to
-verify compatibility. The SDK tarball is stored in `deps/` (gitignored).
-
-Requires [GitHub CLI](https://cli.github.com/) (`gh`) for the `pr`, `branch`,
-and `nightly` (fallback) modes.
+Continue with [Native SSH configuration](#native-ssh-backend). To test without
+a mainframe, see [Mock mode](docs/mock-mode.md).
 
 ## Native (SSH) backend
 
-The server can connect to real z/OS systems over SSH using the Zowe Remote SSH
-SDK (`zowex-sdk`). The native backend implements the full set of z/OS operations: data set
-CRUD (list, read, write, create, delete, copy, rename, restore, search,
-attributes), USS file operations (list, read, write, create, delete, chmod,
-chown, chtag, copy), TSO and console commands, and job management (submit,
-status, list, output, cancel, hold, release, delete).
+The server connects to z/OS over SSH using
+`@zowe/zowex-for-zowe-sdk`. See the generated
+[MCP reference](docs/mcp-reference.md) for the current tools and operations.
 
 Connection format is `user@hostname` or `user@hostname:port` (default port 22),
-same as SSH.
+the same as SSH.
 
 ### Standalone mode
 
@@ -296,16 +115,13 @@ Config file format:
 
 When multiple systems are configured and a tool is called with no `system`
 parameter and no active system yet, the server defaults to the first
-configured connection (rather than erroring) and reports which system it used
-in the response context; call `setSystem` to target a different one. Set
+configured connection. Call `setSystem` to target a different one. Set
 `ZOWE_MCP_REQUIRE_EXPLICIT_SYSTEM=1` to require an explicit system instead —
-recommended for multi-environment deployments (e.g. dev vs prod) where
-silently defaulting could target the wrong system.
+recommended for multi-environment deployments.
 
-#### Authentication (in order of preference)
+#### Authentication
 
-The server authenticates each connection in this order, automatically falling
-back to the next method when one is unavailable or fails:
+If no explicit authentication method is set, the server will attempt these methods in order:
 
 **SSH key → password env var → Vault KV → interactive prompt.**
 
@@ -320,7 +136,7 @@ SSH setup:
   `id_dsa`).
 
 A private key — especially a passphrase-protected one — is more secure than a
-password in an environment variable. Optional overrides (rarely needed):
+password in an environment variable. Optional overrides:
 
 ```bash
 # Pin a specific key / passphrase for one connection (USER and HOST uppercase, dots → _)
@@ -335,7 +151,7 @@ export ZOWE_MCP_DISABLE_SSH_KEY=1
 > disk are supported. An encrypted key needs its passphrase via
 > `ZOWE_MCP_KEY_PASSPHRASE_*`; otherwise the server falls back to a password.
 
-**2. Password (fallback).** When no usable key is found (or key auth fails),
+**2. Password.** When no usable key is found (or key auth fails),
 passwords are read from environment variables:
 `ZOWE_MCP_PASSWORD_<USER>_<HOST>` (user and host uppercase, dots in host
 replaced by `_`). Example for `USERID@sys1.example.com`:
@@ -348,36 +164,6 @@ npx @zowe/mcp-server --stdio --native --system USERID@sys1.example.com
 You can also set `ZOWE_MCP_CREDENTIALS` (a JSON map of `user@host` to password).
 If a password is invalid, the server will not retry it for the rest of the
 process.
-
-### VS Code extension
-
-1. Open Settings and search for **Zowe MCP**
-2. Set **Native connections** to an array of SSH connection specs, e.g.
-   `["USERID@sys1.example.com"]`. Each entry is one connection (user@host or user@host:port); you can have multiple connections to the same z/OS system (e.g. different user IDs).
-3. Reload the window so the MCP server restarts with `--native`
-
-As in standalone mode, the server first tries **SSH key authentication** using
-your existing `~/.ssh` setup (most secure, zero-config) and only falls back to a
-password when no usable key is found or the key is rejected. Set
-`zoweMCP.preferSshKey` to `false` to disable key auth and always use a password.
-
-When the server needs a password it sends a request to the extension; the
-extension prompts (or reads from VS Code Secret Storage) and sends the password
-back. Passwords are stored under the shared Zowe OSS key
-`zowe.ssh.password.<user>.<hostNormalized>` so other Zowe extensions can reuse
-them. If a password is invalid the extension deletes it from storage.
-
-Server and extension logs include a **passwordHash** (first 16 hex characters of
-SHA-256 of the password in UTF-8) so you can correlate log lines without
-exposing the password. To verify or reproduce the hash from the command line
-(use `-n` so no newline is included):
-
-```bash
-echo -n 'YOUR_EXACT_PASSWORD' | sha256sum
-```
-
-Take the first 16 characters of the output; they should match the `passwordHash`
-in the logs when the same password is used.
 
 You cannot use both mock mode and native mode; if both are configured, native
 wins.
@@ -406,18 +192,6 @@ client, replacing the path with the absolute path to your built `dist/index.js`:
 ```
 
 <details>
-<summary><b>VS Code</b></summary>
-
-Create or edit `.vscode/mcp.json` in your workspace using the standard config
-from above, with `"servers"` as the top-level key instead of `"mcpServers"`.
-New to Copilot + MCP? See the
-[Copilot setup guide](docs/copilot-setup-guide.md) and the
-[Manual QA checklists](docs/manual-qa/README.md). The optional VS Code
-extension (below) can register the server for you instead.
-
-</details>
-
-<details>
 <summary><b>Claude Code</b></summary>
 
 Add the standard config from above to `.mcp.json` in your project root, or
@@ -427,8 +201,8 @@ use the CLI:
 claude mcp add zowe -- node /absolute/path/to/zowe-mcp/packages/zowe-mcp-server/dist/index.js --stdio --native --system USERID@sys1.example.com
 ```
 
-See also [Claude Code MCP](docs/claude-code-mcp.md) (tarball install, passwords,
-and job cards via `--config`).
+See [Claude Code](docs/claude-code-mcp.md) for client scopes, `/mcp`, path
+handling, and remote OAuth.
 
 </details>
 
@@ -441,42 +215,23 @@ Add the standard config from above to `~/.cursor/mcp.json` (global) or
 </details>
 
 <details>
-<summary><b>Roo Code</b></summary>
+<summary><b>Kiro</b></summary>
 
-Add the standard config from above to `.roo/mcp.json`. See also
-[Roo and standalone MCP](docs/roo-or-standalone-mcp.md).
+Add the standard config to `~/.kiro/settings/mcp.json` or
+`.kiro/settings/mcp.json`. See [Kiro](docs/kiro-mcp.md) for environment-variable
+approval, `autoApprove`, and extension compatibility.
 
 </details>
 
 <details>
 <summary><b>Other clients</b></summary>
 
-Check your client's MCP documentation for the config file location and
-whether it expects `mcpServers` or `servers` as the top-level key. The server
-block is the same either way. If your client does not forward your shell
-environment, pass the password variable in an `env` block instead — only in a
-local, uncommitted config file:
-
-```json
-      "env": {
-        "ZOWE_MCP_PASSWORD_USERID_SYS1_EXAMPLE_COM": "password"
-      }
-```
-
+Check your client's MCP documentation for the correct config file and syntax.
+See [Standalone MCP clients](docs/standalone-mcp.md) for shared installation,
+authentication, and configuration guidance.
 </details>
 
-To run against **mock data** instead of a real z/OS system (no SSH needed), swap
-the `--native --system …` arguments for `--mock` and the absolute path to a
-generated mock-data directory (see [Mock mode](#mock-mode)):
-
-```jsonc
-"args": [
-  "/absolute/path/to/zowe-mcp/packages/zowe-mcp-server/dist/index.js",
-  "--stdio",
-  "--mock",
-  "/absolute/path/to/zowe-mcp/zowe-mcp-mock-data"
-]
-```
+For testing without a z/OS system, see [Mock mode](docs/mock-mode.md).
 
 ### Verifying the setup
 
@@ -497,20 +252,30 @@ List the available z/OS systems.
 Set the active system to mainframe-dev.example.com and list datasets matching USER.**
 ```
 
-Tool names use camelCase; in Copilot they appear prefixed with `mcp_zowe_` (e.g.
-`mcp_zowe_getContext`, `mcp_zowe_listDatasets`, `mcp_zowe_setSystem`).
-
 ## VS Code extension (optional)
 
 The repository also includes a VS Code extension that registers the MCP server
 with GitHub Copilot Chat automatically and adds a bidirectional channel for log
 forwarding, dynamic configuration, and password prompts via VS Code Secret
-Storage. If you configured the server through `mcp.json` above, you do not need
-it. Native (SSH) connections through the extension are covered under
-[Native (SSH) backend](#native-ssh-backend); this section covers install and
-mock mode.
+Storage. If you configure the server through `mcp.json` as described below,
+you do not need the extension.
 
-### Install
+VS Code integration requires VS Code 1.101 or later and the GitHub Copilot Chat
+extension.
+
+### Configure VS Code without the extension
+
+Create or edit `.vscode/mcp.json` in your workspace using the standard client
+configuration above, with `"servers"` as the top-level key instead of
+`"mcpServers"`. New to Copilot and MCP? See the
+[Copilot setup guide](docs/copilot-setup-guide.md) and
+[Manual QA checklist](docs/manual-qa.md).
+
+Tool names use camelCase. In Copilot they appear prefixed with `mcp_zowe_`, such
+as `mcp_zowe_getContext`, `mcp_zowe_listDatasets`, and
+`mcp_zowe_setSystem`.
+
+### Install the extension
 
 ```bash
 # Build and install in one step
@@ -520,8 +285,39 @@ npm run build-and-install
 VSCODE_CLONE=cursor npm run build-and-install
 ```
 
-After installation, reload VS Code. The extension activates on startup and
-registers a "Zowe" MCP server provider.
+After installation, reload VS Code. The extension activates on startup,
+registers a "Zowe" MCP server provider, and exposes the capability tier through
+the `zoweMCP.capabilityTier` setting.
+
+### Zowe Remote SSH connections and authentication
+
+1. Open Settings and search for **Zowe MCP**.
+2. Set **Backend** to `zowex`.
+3. Set **Zowe Remote SSH: Zowex Connections** to an array of SSH connection
+   specs, such as `["USERID@sys1.example.com"]`. Each entry is one connection
+   (`user@host` or `user@host:port`); you can have multiple connections to the
+   same z/OS system with different user IDs.
+4. Reload the window.
+
+As in standalone mode, the server first tries **SSH key authentication** using
+your existing `~/.ssh` setup and only falls back to a password when no usable
+key is found or the key is rejected. Set `zoweMCP.preferSshKey` to `false` to
+disable key authentication and always use a password.
+
+When the server needs a password, it sends a request to the extension. The
+extension prompts for it or reads it from VS Code Secret Storage. Passwords are
+stored under the shared Zowe OSS key
+`zowe.ssh.password.<user>.<hostNormalized>` so other Zowe extensions can reuse
+them. If a password is invalid, the extension deletes it from storage.
+
+Server and extension logs include a **passwordHash** containing the first 16
+hexadecimal characters of the password's UTF-8 SHA-256 hash. This allows log
+correlation without exposing the password. To reproduce it, omit the trailing
+newline and take the first 16 characters:
+
+```bash
+echo -n 'YOUR_EXACT_PASSWORD' | sha256sum
+```
 
 ### Mock mode in the extension
 
@@ -537,146 +333,18 @@ Use the built-in command (easiest):
 4. The command generates the data, configures the setting, and offers to
    reload the window
 
-Or point at an existing mock data directory via the **Mock Data Dir** setting,
-or in `settings.json`:
+Or set **Backend** to `mock` and point at an existing directory with **Mock
+Data Directory**. In `settings.json`:
 
 ```jsonc
 {
+  "zoweMCP.backend": "mock",
   "zoweMCP.mockDataDirectory": "/absolute/path/to/zowe-mcp-mock-data"
 }
 ```
 
 Once configured, the server starts with the full set of tools (dataset listing,
 reading, writing, context management, etc.).
-
-## Testing
-
-```bash
-# Server unit tests (Vitest)
-npm test
-
-# All tests (server + VS Code extension)
-npm run test:all
-
-# VS Code extension tests only (launches a real VS Code instance)
-npm run test:vscode
-```
-
-### Quick tool testing from the CLI
-
-Build the server first (`npm run build`), then use `npx @zowe/mcp-server call-tool`. For usage, options, and examples see the script source: [`packages/zowe-mcp-server/src/scripts/call-tool.ts`](packages/zowe-mcp-server/src/scripts/call-tool.ts).
-
-### MCP Inspector
-
-The [MCP Inspector](https://github.com/modelcontextprotocol/inspector)
-provides a web UI for interacting with the server (opens at <http://localhost:6274>).
-Use the script that matches how you want to run the server:
-
-| Script | Backend | Use when |
-| --- | --- | --- |
-| `npm run inspector` | None | Quick check: only core tools (e.g. `getContext`) are available; no z/OS systems. |
-| `npm run inspector:mock` | Mock (filesystem) | Try dataset tools without a real z/OS: uses `./zowe-mcp-mock-data`. Generate mock data first with `npx @zowe/mcp-server init-mock --output ./zowe-mcp-mock-data`. |
-| `npm run inspector:native` | Native (SSH) | Connect to real z/OS via SSH. Needs `native-config.json` (systems) and `.env` (passwords). Copy `native-config.example.json` → `native-config.json` and `.env.example` → `.env`, then set `ZOWE_MCP_PASSWORD_<USER>_<HOST>` (see [Standalone mode](#standalone-mode)). |
-
-```bash
-npm run inspector          # no backend
-npm run inspector:mock     # mock data in ./zowe-mcp-mock-data
-npm run inspector:native   # SSH via native-config.json + .env
-```
-
-## Evaluations
-
-The **evals** package runs an LLM agent against the MCP server (mock or native) and checks that tool calls and answers match expectations. Use it to validate that AI assistants use the Zowe MCP tools correctly.
-
-1. **Config** (at repo root): copy `evals.config.example.json` to `evals.config.json` and set your LLM provider (vLLM, Gemini, or LM Studio). See [packages/zowe-mcp-evals/README.md](packages/zowe-mcp-evals/README.md).
-2. **Run** from repo root:
-
-```bash
-npm run evals                    # all question sets
-npm run evals -- --set datasets  # one set
-npm run evals -- --set datasets --number 1   # one question
-```
-
-Reports are written to `evals-report/report.md` and `evals-report/failures.md`.
-
-## Vendor extensions
-
-Private or enterprise content (CLI plugin definitions, eval question sets, E2E tests, documentation) can live in a `vendor/` directory at the repo root without touching the upstream codebase. The server, docs generator, and eval harness auto-discover anything placed there — no configuration required.
-
-### Directory layout
-
-```text
-vendor/<name>/
-  cli-bridge-plugins/   ← *.yaml CLI plugin definitions (auto-loaded at server startup)
-  eval-questions/       ← *.yaml eval question sets (referenced as "<name>/set-name")
-  e2e-tests/            ← *.test.ts E2E tests (picked up by Vitest automatically)
-  docs/                 ← private documentation
-```
-
-The `vendor/` directory is kept out of the upstream repo by a `vendor/.gitignore` containing `*` that the extract script creates automatically — the root `.gitignore` is the same on all branches. To populate it from a private branch that tracks vendor content:
-
-```bash
-VENDOR_REMOTE=<git-remote> VENDOR_BRANCH=<branch> npm run vendor:extract
-```
-
-This fetches the branch, extracts the `vendor/` directory into your working tree, and writes `vendor/.gitignore` so git treats the whole directory as ignored. To remove it:
-
-```bash
-npm run vendor:clean
-```
-
-## Linting and formatting
-
-```bash
-npm run lint          # Check all ESLint rules
-npm run lint:fix      # Auto-fix ESLint issues
-npm run format        # Prettier (TS/JS/JSON/YAML/CSS/HTML, etc.) + shfmt on tracked shell scripts
-npm run check-format  # Same checks without modifying files
-```
-
-## Scripts reference
-
-To publish a VSIX to GitHub Releases from your machine (no GitHub Actions): run `npm run release-vsix` (tag defaults to `v` + extension version) or `npm run release-vsix -- v0.1.0`. Or run `./scripts/release-vsix.sh [TAG]` directly. Requires [GitHub CLI](https://cli.github.com/) (`gh`) and `gh auth login`. Builds the extension, creates/updates the release for the tag, and uploads the VSIX.
-
-[CI](.github/workflows/ci.yml) uploads build artifacts for every successful run: the VSIX, the MCP reference doc, and an **`npm pack`** tarball of **`@zowe/mcp-server`** (artifact name `zowe-mcp-server-npm`, file pattern `zowe-mcp-server-*.tgz`). Download from the workflow run’s **Artifacts** section. Install locally with `npm install ./zowe-mcp-server-0.x.y.tgz` (or use `npm run pack:server` to build and pack from your clone).
-
-The packed tarball **bundles all dependencies** (including workspace package `zowe-mcp-common` and file-based `zowex-sdk`) so it can be installed standalone without requiring the monorepo or external file dependencies. The `prepack` script automatically bundles these dependencies before packing, and `bundledDependencies` in `package.json` ensures npm includes them in the tarball.
-
-Test airgapped/offline installation:
-
-- `npm run test:airgap` — uses existing tarball (requires `npm run pack:server` first)
-- `npm run test:airgap:build` — builds and packs the server, then tests installation
-
-The test simulates an airgapped system using an empty cache, invalid registry (`http://localhost`), and 5ms timeout to verify no network access is required. It also verifies the binary works after installation with detailed error output if it fails.
-
-| Script | Description |
-| --- | --- |
-| `npm run build` | Build all packages |
-| `npm run pack:server` | Build the server and create `zowe-mcp-server-<version>.tgz` in the repo root (same contents as CI npm artifact) |
-| `npm run test:airgap` | Test that the packed tarball installs in airgapped mode (uses existing tarball) |
-| `npm run test:airgap:build` | Build, pack, and test airgapped installation (all-in-one) |
-| `npm test` | Run server tests (Vitest) |
-| `npm run test:all` | Run all tests (server + VS Code extension) |
-| `npm run test:vscode` | Run VS Code extension tests |
-| `npm run build-and-install` | Package and install the VS Code extension |
-| `npm run inspector` | Launch MCP Inspector (no backend) |
-| `npm run inspector:mock` | Launch MCP Inspector with mock data (`./zowe-mcp-mock-data`) |
-| `npm run inspector:native` | Launch MCP Inspector with native SSH (`native-config.json` + `.env`) |
-| `npm run evals` | Run AI evals (builds server + evals first). Pass options after `--`: `--set`, `--number`, `--id`, `--filter`. Requires `evals.config.json` at root. |
-| `npm run lint` | Run ESLint |
-| `npm run lint:fix` | Auto-fix ESLint issues |
-| `npm run format` | Prettier + shfmt (`scripts/shfmt-write.mjs`) |
-| `npx @zowe/mcp-server init-mock --output <dir>` | Generate mock data |
-| `npx @zowe/mcp-server call-tool [--mock=<dir>] [<tool-name> [key=value ...]]` | Call a tool from the CLI |
-| `npm run sdk:release [-- version]` | Fetch latest (or specific) SDK release from Zowe Artifactory |
-| `npm run sdk:fallback` | Use in-repo fallback SDK (for CI and when nightly is unavailable) |
-| `npm run sdk:nightly` | Fetch latest nightly SDK build |
-| `npm run sdk:pr -- <pr-number>` | Fetch SDK from a specific PR build (requires `gh`) |
-| `npm run sdk:branch -- <branch>` | Fetch SDK from the latest successful build for a branch (requires `gh`) |
-| `npm run sdk:local -- <path>` | Use a local `.tgz` or ZNP repo directory |
-| `npm run release-vsix [-- TAG]` | Build VSIX and create/update GitHub Release (requires `gh`). Optional tag after `--`, e.g. `v0.1.0`; default from extension version. |
-| `VENDOR_REMOTE=… VENDOR_BRANCH=… npm run vendor:extract` | Fetch and extract the `vendor/` directory from a private branch into the current checkout (gitignored) |
-| `npm run vendor:clean` | Remove the local `vendor/` directory |
 
 ## License
 

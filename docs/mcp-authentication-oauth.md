@@ -2,8 +2,6 @@
 
 This document describes how **identity and secrets** work for the Zowe MCP server: **OAuth / OIDC at the HTTP MCP layer**, how **clients such as GitHub Copilot and VS Code** supply credentials, and how **z/OS access** is authenticated separately (SSH, not OAuth).
 
-For **MCP registry** discovery, `server.json` shape, and the broader ecosystem, see [mcp-registry-research.md](./mcp-registry-research.md).
-
 ---
 
 ## Architecture
@@ -55,7 +53,7 @@ flowchart TB
 | **MCP HTTP (optional)** | Who is this chat or IDE user talking to the MCP server? | OIDC access token as **`Authorization: Bearer`** — validated by Zowe MCP (resource server) or by a reverse proxy |
 | **z/OS (native backend)** | How does the server connect to the mainframe? | **SSH** credentials: env (`ZOWE_MCP_CREDENTIALS`, `ZOWE_MCP_PASSWORD_*`), Vault KV, Kubernetes secrets, MCP elicitation, or per-tenant saved connection specs — **not** derived from the OAuth access token by default |
 
-The IdP **`sub`** (and optional `email`) identify the **portal or chat user** at the MCP layer. They are **not** automatically the SAF user ID or SSH principal for z/OS. See [future-zos-identity-mapping.md](./future-zos-identity-mapping.md).
+The IdP **`sub`** (and optional `email`) identify the **portal or chat user** at the MCP layer. They are **not** automatically the SAF user ID or SSH principal for z/OS.
 
 ---
 
@@ -75,7 +73,7 @@ For **multi-user** shared HTTP deployments, Bearer JWT validation (gateway or in
 
 **Multi-session HTTP:** Each client session uses Streamable HTTP; state is scoped per session. With JWT + **`ZOWE_MCP_TENANT_STORE_DIR`**, per-user connection lists are isolated on disk (see [AGENTS.md](../AGENTS.md), tenant persistence).
 
-Local and lab setup: [dev-oidc-tinyauth.md](./dev-oidc-tinyauth.md), [remote-dev-keycloak.md](./remote-dev-keycloak.md) (Keycloak + HTTPS MCP + native z/OS).
+Local and lab setup: [remote-dev-keycloak.md](./remote-dev-keycloak.md) (minimal JWT E2E and Keycloak + HTTPS MCP + native z/OS).
 
 ---
 
@@ -138,7 +136,7 @@ When a user installs a **remote HTTP** server from the gallery, VS Code can **pr
 
 ### Clients without a gallery registry URL
 
-**Cursor** (as of early 2026) did not ship native `chat.mcp.gallery.serviceUrl`-style catalog support; use project or user MCP config. **Claude Desktop** uses different extension upload models for MCPB — not the v0.1 registry URL. See [mcp-registry-research.md](./mcp-registry-research.md) for the assistant comparison table.
+**Cursor** (as of early 2026) did not ship native `chat.mcp.gallery.serviceUrl`-style catalog support; use project or user MCP config. **Claude Desktop** uses different extension upload models for MCPB — not the v0.1 registry URL.
 
 ---
 
@@ -249,9 +247,7 @@ Each deployment has its **own** base URL — replace the hostname with your FQDN
 
 | Topic | Document |
 | --- | --- |
-| MCP registry ecosystem, `server.json`, publishing | [mcp-registry-research.md](./mcp-registry-research.md) |
 | Remote HTTP topology, `mcp.json`, gallery + Bearer | [remote-http-mcp-registry.md](./remote-http-mcp-registry.md) |
 | Keycloak dev, HTTPS, Inspector | [remote-dev-keycloak.md](./remote-dev-keycloak.md), [docker/remote-https-dev/README.md](../docker/remote-https-dev/README.md) |
-| Local OIDC / TinyAuth-style | [dev-oidc-tinyauth.md](./dev-oidc-tinyauth.md) |
-| JWT `sub` vs z/OS user (future) | [future-zos-identity-mapping.md](./future-zos-identity-mapping.md) |
+| Local OIDC and JWT E2E | [remote-dev-keycloak.md](./remote-dev-keycloak.md#minimal-keycloak-and-jwt-e2e) |
 | Standalone stdio, env passwords, tools | [AGENTS.md](../AGENTS.md) |

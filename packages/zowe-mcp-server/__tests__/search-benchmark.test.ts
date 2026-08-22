@@ -21,7 +21,7 @@
 
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, describe, expect, it } from 'vitest';
@@ -269,9 +269,10 @@ describe.skipIf(skipReason !== undefined)('Search Benchmark', () => {
       '',
     ].join('\n');
 
-    const docsDir = resolve(__dirname, '..', '..', '..', 'docs');
-    const outPath = resolve(docsDir, 'search-benchmark-results.md');
+    const reportDir = resolve(__dirname, '..', '..', '..', 'evals-report');
+    const outPath = resolve(reportDir, 'search-benchmark-results.md');
     try {
+      mkdirSync(reportDir, { recursive: true });
       writeFileSync(outPath, md, 'utf-8');
       console.log(`Benchmark results written to ${outPath}`);
     } catch {

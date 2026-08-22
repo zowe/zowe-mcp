@@ -10,7 +10,7 @@ for the VS Code extension lives in
 Add an entry under **Unreleased** in the same PR that makes the change. PRs that
 don't warrant an entry (CI, chores, internal refactors, docs-only) can carry the
 `no-changelog` label instead — see
-[CONTRIBUTING.md](CONTRIBUTING.md#continuous-integration--branch-protection).
+[CONTRIBUTING.md](CONTRIBUTING.md#pull-requests).
 
 ## [Unreleased]
 
@@ -27,10 +27,7 @@ don't warrant an entry (CI, chores, internal refactors, docs-only) can carry the
   `chat.agentHost.enabled: false` (the classic-panel routing is
   experiment-controlled) and seed `chat.byokUtilityModelDefault: mainAgent`
   for 0.60.0's BYOK utility-model side-flows. S1–S3 pass unmodified on
-  1.132.0 (and still on 1.126); the CI pin moves to 1.132.0. Full
-  investigation notes (Agent Host routing internals, MCP-forwarding into
-  agent sessions, and a working Playwright panel-typing fallback) in
-  `docs/vscode-132-agent-host-investigation.md`.
+  1.132.0 (and still on 1.126); the CI pin moves to 1.132.0.
 
 - **End-to-end Copilot Chat testing** (`packages/zowe-mcp-e2e`): a scripted
   harness that drives a from-scratch, isolated VS Code instance with the built
@@ -111,7 +108,7 @@ don't warrant an entry (CI, chores, internal refactors, docs-only) can carry the
   mode is gone — `pin` replaces it.
 
 - **Releases are now built and published by CI** via a reviewed release PR —
-  see [docs/release-process.md](docs/release-process.md). The manual
+  see [RELEASING.md](RELEASING.md). The manual
   `release-vsix` script has been replaced by `ci:package-release`
   (build/package only; CI owns tagging and publishing).
 - **Session default: first configured system instead of an error.** When a tool

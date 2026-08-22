@@ -76,7 +76,7 @@ These behaviors apply whenever you run **`@zowe/mcp-server`** — including **VS
 
 #### MCP server — remote HTTP and credentials
 
-Applies to **standalone** / **shared** HTTP deployments. See **`docs/mcp-authentication-oauth.md`**, **`docs/roo-or-standalone-mcp.md`**, and related guides.
+Applies to **standalone** / **shared** HTTP deployments. See **`docs/mcp-authentication-oauth.md`**, **`docs/standalone-mcp.md`**, and related guides.
 
 - **HTTP transport — OAuth and JWT**: Optional **Bearer JWT** validation for **`POST /mcp`**, **OAuth 2.0 protected-resource metadata**, URL/password elicitation for standalone HTTP, and **multi-session** behavior. Configure with environment variables such as **`ZOWE_MCP_JWT_*`**, **`ZOWE_MCP_OAUTH_*`**, **`ZOWE_MCP_PUBLIC_BASE_URL`** as documented.
 - **Credentials**: **`ZOWE_MCP_CREDENTIALS`** JSON map for standalone SSH passwords; optional **Vault KV** integration for native credentials where configured.

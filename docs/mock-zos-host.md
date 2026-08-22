@@ -470,12 +470,12 @@ If you want several editors to share one MCP server instance:
 
 ```bash
 node packages/zowe-mcp-server/dist/index.js \
-  --http --port 7542 \
+  --http --http-allow-no-auth --port 7542 \
   --native --config ~/native-mock.json
 ```
 
-And point your MCP clients at `http://127.0.0.1:7542/mcp` (see
-`docs/copilot-setup-guide.md` for HTTP transport details).
+Then point your MCP clients at `http://127.0.0.1:7542/mcp`. For authenticated
+HTTP deployments, see [Remote development with Keycloak](remote-dev-keycloak.md).
 
 ---
 
@@ -949,6 +949,5 @@ on the next call.
 
 For more depth, see:
 
-- [docs/research-zowex-pagination-caching.md](research-zowex-pagination-caching.md) — the underlying RPC protocol.
 - [packages/zowe-mcp-server/src/mock-host/](../packages/zowe-mcp-server/src/mock-host/) — source for the daemon.
 - [zowe/zowe-native-proto](https://github.com/zowe/zowe-native-proto) — the real zowex server (whose RPC dispatch table we mimic).

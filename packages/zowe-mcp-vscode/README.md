@@ -1,178 +1,115 @@
-# Zowe MCP
+# Zowe MCP for VS Code
 
-Zowe MCP brings mainframe z/OS capabilities to AI assistants in VS Code. It registers a [Model Context Protocol](https://modelcontextprotocol.io/) (MCP) server so tools like **GitHub Copilot Chat** can work with data sets, jobs, and UNIX System Services on your z/OS systems.
+Zowe MCP gives AI assistants in VS Code tools for working with z/OS data sets,
+jobs, and UNIX System Services. The extension bundles and registers the Zowe
+MCP server, manages its configuration, prompts for SSH passwords, and forwards
+runtime events between VS Code and the server.
 
-[Zowe](https://www.zowe.org/) is a project hosted by the [Open Mainframe Project](https://www.openmainframeproject.org/).
+The extension also supports Cursor when its optional MCP registration API is
+available. Other MCP clients should run
+[`@zowe/mcp-server`](https://github.com/zowe/zowe-mcp/blob/main/docs/standalone-mcp.md)
+directly.
 
 ## Requirements
 
-- **VS Code** 1.101 or later
-- **GitHub Copilot Chat** (or another MCP-enabled AI chat extension) installed
-
-## What You Get
-
-When the extension is configured with a backend (**zowex** or **mock**), your AI assistant can:
-
-- **Data sets** — List, read, write, copy, rename, and delete data sets and PDS members; search in data sets
-- **Jobs** — Submit JCL, check job status, read spool output, search job output, list jobs, get JCL, cancel/hold/release/delete jobs
-- **UNIX System Services (USS)** — List, read, write, create, and delete USS files; run safe USS commands; temp dir/path helpers; chmod/chown/chtag
-- **TSO** — Run safe TSO commands (block/elicit/safe patterns)
-- **Context** — Switch between z/OS systems; get current system and USS working directory
-- **Open in Zowe Explorer** — When [Zowe Explorer](https://marketplace.visualstudio.com/items?itemName=Zowe.vscode-extension-for-zowe) is installed, the AI can open data sets, USS files, and jobs in the editor: `openDatasetInEditor`, `openUssFileInEditor`, `openJobInEditor`. Each opens the resource in Zowe Explorer's editor (zowe-ds, zowe-uss, or zowe-jobs URI). The extension resolves the Zowe profile (session cache, default from team config or `zowe config list --rfj`, or match by system) or prompts you to pick or type a profile name and remembers it for the session.
-- **Slash commands** — Use prompts such as “review JCL” or “explain data set” in chat
-
-Without a backend, only the server **info** tool is available; the extension will prompt you to set up mock data or a connection.
-
-### Example use cases
-
-- **AI-assisted development** — Browse, search, read, and open data sets and USS in natural language; get explanations and open in editor.
-- **Job failure diagnostics** — "Why did this job fail?" The assistant fetches status and spool, finds errors/ABENDs, and explains cause and next steps.
-- **Search and trace** — Find where a program, copybook, or string is used or defined across libraries; get a short report and suggested next reads.
-
-Other high-value uses include explaining programs and batch flows, assembling context for a task ("get me everything for payroll"), generating and validating code, operational picture of jobs, mainframe actions (TSO/USS/batch), discovery and mapping, and many more.
+- VS Code 1.101 or later
+- GitHub Copilot Chat or another MCP-enabled chat extension
+- SSH access to z/OS when using the Zowe Remote SSH backend
 
 ## Installation
 
-The extension is not yet on the Marketplace. For build and install instructions, see the [repository README](https://github.com/zowe/zowe-mcp). After installation, reload VS Code; the extension registers a **Zowe** MCP server — ensure it is enabled for your AI chat (e.g. in Copilot settings).
+The extension is not yet available from the VS Code Marketplace. Build and
+install the VSIX from a repository checkout as described in the
+[repository README](https://github.com/zowe/zowe-mcp#install-the-extension).
+Reload VS Code after installation.
+
+The extension registers an MCP server named **Zowe**. Confirm that it is running
+with **MCP: List Servers**.
 
 ## Configuration
 
-### Option 1: Mock data (no mainframe)
+Open VS Code Settings and search for **Zowe MCP**.
 
-Use mock data to try the tools without connecting to z/OS:
+### Capability tier
 
-1. Open the Command Palette (`Ctrl+Shift+P` / `Cmd+Shift+P`).
-2. Run **Zowe MCP: Generate Mock Data**.
-3. Choose a folder for the mock data. The command creates the data, sets the path in settings, and can reload the window.
+`zoweMCP.capabilityTier` controls which tools the assistant can use. The default
+is `read-strict`, which exposes read-only tools and asks the client to confirm
+reads.
 
-Or set the path manually:
+| Tier | Allowed operations |
+| --- | --- |
+| `read-strict` | Read only, with confirmation prompts |
+| `read` | Read only, automatically approved |
+| `update` | Read, create, and modify |
+| `delete` | Read, update, delete, and cancel |
+| `full` | All tools, including job submission and command execution |
 
-- Open Settings and search for **Zowe MCP**.
-- Set **Mock Data Dir** to the absolute path of your mock data directory.
-- Reload the window so the MCP server restarts.
+Use the lowest tier needed for the task. See the
+[Safety and security principles](https://github.com/zowe/zowe-mcp/blob/main/docs/mcp-safety-security-principles.md)
+for the full security model.
 
-### Option 2: Zowe Remote SSH (zowex) connection to z/OS
+### Connect through Zowe Remote SSH
 
-To connect to real z/OS systems over SSH:
-
-1. Open Settings and search for **Zowe MCP**.
-2. Under **Zowe Remote SSH**, set **Zowe Remote SSH: Zowex Connections** (`zoweMCP.zowexConnections`) to an array of connection specs, e.g. `["USERID@sys1.example.com"]` or `["USERID@host:22"]`. Each entry is one connection (`user@host` or `user@host:port`); you can have multiple connections to the same z/OS system (e.g. different user IDs or roles).
+1. Set **Backend** (`zoweMCP.backend`) to `zowex`.
+2. Add one or more `user@host` or `user@host:port` values under **Zowe Remote
+   SSH: Zowex Connections** (`zoweMCP.zowexConnections`).
 3. Reload the window.
 
-When the server needs a password, the extension will prompt you. Passwords are stored in VS Code Secret Storage under the shared Zowe key so other Zowe extensions can reuse them.
+The server tries SSH keys from your existing `~/.ssh` configuration before
+requesting a password. Set `zoweMCP.preferSshKey` to `false` to require password
+authentication. Passwords entered through the extension are stored in VS Code
+Secret Storage, not in settings.
 
-**Note:** If both Mock Data Dir and SSH connections are set, **Backend** `zowex` (SSH) is used when connections are non-empty; use **Backend** `mock` to force mock mode.
+### Use mock data
 
-## Safety and security
+1. Set **Backend** to `mock`.
+2. Run **Zowe MCP: Generate Mock Data** from the Command Palette, or set
+   `zoweMCP.mockDataDirectory` to an existing mock-data directory.
+3. Reload the window.
 
-AI agents can make mistakes. When an agent has tools that modify or delete mainframe resources, an incorrect action can cause real damage. Zowe MCP provides multiple layers of protection.
+Mock mode is intended for testing without a mainframe. See
+[Mock mode](https://github.com/zowe/zowe-mcp/blob/main/docs/mock-mode.md) for the
+standalone workflow and fixture layout.
 
-**Follow the principle of least privilege:** grant only the capability tier needed for the task, and raise it only when required. A narrower tier limits the blast radius of any mistake.
-
-| Capability Tier | What the agent can do |
-| --- | --- |
-| **read-strict** (default) | Read only, with client confirmation prompts (safest) |
-| **read** | Read only, auto-approved |
-| **update** | Read + create/write/modify |
-| **delete** | Read + update + delete/cancel |
-| **full** | Everything including job submit and command execution |
-
-Set the tier under **Zowe MCP > Capability Tier** in Settings. Start with `read-strict` and widen only as needed.
-
-Additional recommendations:
-
-- **Use a dedicated z/OS SSH user** with the minimum SAF / RACF authority needed. z/OS access controls are the ultimate enforcement boundary.
-- **Use mock mode** for exploration and testing — no real resources are at risk.
-- **Safety is not security** — confirmation dialogs and command gates reduce accidents; only z/OS security rules enforce real boundaries.
-
-For the full security model see [Safety & Security principles](https://github.com/zowe/zowe-mcp/blob/main/docs/mcp-safety-security-principles.md).
-
-## Settings
-
-| Setting | Description |
-| --- | --- |
-| **Capability Tier** (`zoweMCP.capabilityTier`) | Controls which tools the AI assistant can use. Follow the principle of least privilege — grant only the tier needed. Default `read-strict` (safest). Changes require reloading the window. See [Safety and security](#safety-and-security). |
-| **Zowe Remote SSH: Zowex Connections** (`zoweMCP.zowexConnections`) | SSH connection specs: `user@host` or `user@host:port` (e.g. `USERID@sys1.example.com`). Each entry defines access to a z/OS system; you can have multiple connections to the same host. With default **Backend** `zowex`, add entries here to connect. Passwords are stored in VS Code Secret Storage (Zowe namespace). Changes require reloading the window. |
-| **Log Level** | Minimum log level (e.g. `info`, `debug`). Takes effect immediately without restart. |
-| **Install Zowe Remote SSH z/OS server automatically** | When enabled (default), the extension automatically installs the Zowe Remote SSH z/OS server on the host when "Server not found" is detected. Disable to use a pre-installed server only. Changes are sent to the server and apply to future connections. |
-| **Zowe Remote SSH z/OS server path** | Remote path for the Zowe Remote SSH z/OS server on the host (default: `~/.zowe-server`). Changes are sent to the server and apply to future connections. |
-| **Native Response Timeout** | Response timeout in seconds for each Zowe Remote SSH request (default: 60). Increase on overloaded systems. Changes apply to future connections. |
-| **Mock Data Directory** | Absolute path to a mock data directory. Used when **Backend** is **mock**. Changes require reloading the window. |
-| **Default Mainframe MVS Encoding** | Default EBCDIC encoding for data set read/write (e.g. `IBM-037`, `IBM-1047`). Takes effect immediately. |
-| **Default Mainframe USS Encoding** | Default EBCDIC encoding for USS file operations (e.g. `IBM-1047`). Takes effect immediately. |
-| **Job Cards** | JCL job cards per connection spec (key: `user@host` or `user@host:port`). Use placeholders `{jobname}` and `{programmer}` for `submitJob`. Takes effect immediately. |
-
-**Mode behavior:** With default **Backend** `zowex` and empty `zoweMCP.zowexConnections`, the server runs in SSH mode with no systems until you add connection specs. Set **Backend** to **mock** and configure **Mock Data Directory** to use local mock data instead.
-
-## User-facing options reference
-
-All options that affect the MCP server are documented below. The extension uses the **VS Code settings**; when running the server standalone you use **CLI options** and **environment variables**.
-
-### VS Code settings (Zowe MCP)
-
-| Setting ID | Type | Default | Description |
-| --- | --- | --- | --- |
-| `zoweMCP.capabilityTier` | string | `"read-strict"` | Which tools the AI can use: `read-strict`, `read`, `update`, `delete`, `full`. Follow the principle of least privilege. Changes require reloading the window. |
-| `zoweMCP.zowexConnections` | array of string | `[]` | SSH connection specs for Zowe Remote SSH / zowex: `user@host` or `user@host:port`. Each entry is one connection. Format is validated in Settings UI. Legacy `zoweMCP.nativeConnections` / `nativeSystems` in JSON are migrated into this key when read. |
-| `zoweMCP.logLevel` | string | `"info"` | Log level: `debug`, `info`, `notice`, `warning`, `error`, `critical`, `alert`, `emergency`. |
-| `zoweMCP.installZoweNativeServerAutomatically` | boolean | `true` | Auto-install Zowe Remote SSH z/OS server on host when "Server not found". |
-| `zoweMCP.zoweNativeServerPath` | string | `"~/.zowe-server"` | Remote path for Zowe Remote SSH z/OS server install/run. |
-| `zoweMCP.nativeResponseTimeout` | number | `60` | Response timeout in seconds for each Zowe Remote SSH request. |
-| `zoweMCP.mockDataDirectory` | string | `""` | Absolute path to mock data directory. Used when **Backend** is **mock**. |
-| `zoweMCP.defaultMainframeMvsEncoding` | string | `"IBM-037"` | Default EBCDIC encoding for data set read/write. |
-| `zoweMCP.defaultMainframeUssEncoding` | string | `"IBM-1047"` | Default EBCDIC encoding for USS file operations. |
-| `zoweMCP.jobCards` | object | `{}` | JCL job cards per connection spec; keys `user@host` or `user@host:port`, value array of lines or string. Placeholders: `{jobname}`, `{programmer}`. |
-
-### Server CLI options (standalone)
-
-When running the bundled server, or the `zowe-mcp-server` binary from a
-standalone install, outside VS Code — `@zowe/mcp-server` is not yet on a
-public npm registry, so the bare `npx @zowe/mcp-server …` form fails with a
-404; install from a packed tarball (`npm run pack:server` produces it) or use
-the in-repo workspace form:
-
-- **Transport:** `--stdio` (default), `--http`, `--port <N>` (default 7542 for HTTP)
-- **Safety:** `--capability-tier <tier>` (`read-strict`, `read`, `update`, `delete`, `full`; default: `read-strict`)
-- **Backend:** `--mock <dir>`, `--native`, `--config <path>`, `--system <spec>` (repeatable). Config file may include `jobCards` per connection.
-- **Native:** `--native-server-auto-install=true|false` (default: true), `--native-server-path <path>`, `--native-response-timeout <seconds>` (default 60)
-- **Encoding:** `--default-mvs-encoding <name>` (e.g. IBM-037), `--default-uss-encoding <name>` (e.g. IBM-1047)
-- **Response cache:** `--response-cache-disable`, `--response-cache-ttl-minutes N`, `--response-cache-max-mb N`
-- **Subcommands:** `init-mock [--output <dir>] [--preset ...]`, `call-tool [--mock=<dir>] [tool-name key=value ...]`
-- **Help:** `-h`, `--help`, `--version`
-
-### Environment variables (standalone)
-
-- `ZOWE_MCP_CAPABILITY_TIER` — Capability tier (`read-strict`, `read`, `update`, `delete`, `full`; default: `read-strict`)
-- `ZOWE_MCP_MOCK_DIR` — Mock data directory (same as `--mock <dir>`)
-- `ZOWE_MCP_LOG_LEVEL` — Log level (e.g. `info`, `debug`)
-- `ZOWE_MCP_NATIVE_SERVER_AUTO_INSTALL` — `false` or `0` to disable auto-install
-- `ZOWE_MCP_NATIVE_SERVER_PATH` — Remote path for Zowe Remote SSH z/OS server
-- `ZOWE_MCP_NATIVE_RESPONSE_TIMEOUT` — Response timeout in seconds for Zowe Remote SSH (default 60)
-- `ZOWE_MCP_DEFAULT_MVS_ENCODING` — Default EBCDIC for data sets (e.g. IBM-037)
-- `ZOWE_MCP_DEFAULT_USS_ENCODING` — Default EBCDIC for USS (e.g. IBM-1047)
-- `ZOWE_MCP_RESPONSE_CACHE_DISABLE` — `1` or `true` to disable response cache
-- `ZOWE_MCP_RESPONSE_CACHE_TTL_MINUTES` — Cache entry TTL in minutes (default 10). Legacy: `ZOWE_MCP_RESPONSE_CACHE_TTL_MS` (milliseconds) is still supported.
-- `ZOWE_MCP_RESPONSE_CACHE_MAX_BYTES` — Max cache size in bytes
-- `ZOWE_MCP_PASSWORD_<USER>_<HOST>` — Password for native SSH (e.g. `ZOWE_MCP_PASSWORD_MYUSER_MYHOST_EXAMPLE_COM`)
-
-## Zowe Explorer integration
-
-When the **Zowe Explorer** extension (`Zowe.vscode-extension-for-zowe`) is installed, the MCP server registers three read-only tools that open resources in Zowe Explorer’s editor:
-
-| Tool | Description |
-| --- | --- |
-| **openDatasetInEditor** | Open a sequential data set or PDS or PDS/E member (zowe-ds URI). |
-| **openUssFileInEditor** | Open a USS file or directory (zowe-uss URI). |
-| **openJobInEditor** | Open a job or a specific job spool file (zowe-jobs URI). Use `jobFileId` from `listJobFiles` to open a spool; omit to open the job node. |
-
-Profile resolution (which Zowe profile to use for the URI) runs in this order: (1) session cache for the current system, (2) default zosmf profile from team config (ProfileInfo or `zowe config list --rfj` with workspace cwd), (3) profile matched by MCP system (host/user), (4) if none found — quick pick of zosmf profiles or an input box to type the profile name. The chosen profile is remembered for the session so the next open is immediate. Path segments in URIs are percent-encoded so names like member `###` work correctly; documents open with **preview: false** so multiple opens do not replace the previous tab.
+The Settings UI is the authoritative reference for all extension options,
+including encodings, response timeouts, job cards, log level, and CLI bridge
+plugin configuration.
 
 ## Commands
 
-- **Zowe MCP: Generate Mock Data** — Creates a mock z/OS data directory, configures the Mock Data Dir setting, and optionally reloads the window.
-- **Zowe MCP: Clear Stored Password** — Clears the stored password in VS Code Secret Storage for a chosen native connection.
+- **Zowe MCP: Generate Mock Data** — Generate fixtures and configure their
+  directory.
+- **Zowe MCP: Clear Stored Password** — Remove the saved SSH password for a
+  selected connection.
+- **Zowe MCP: Reset All Settings and State** — Clear Zowe MCP settings, stored
+  passwords for configured connections, and extension state.
 
-## Documentation and Contributing
+## Zowe Explorer integration
 
-- For development, build, and technical details, see the [repository README](https://github.com/zowe/zowe-mcp).
-- To contribute or report issues, use the [Zowe MCP repository](https://github.com/zowe/zowe-mcp).
+When [Zowe Explorer](https://marketplace.visualstudio.com/items?itemName=Zowe.vscode-extension-for-zowe)
+is installed, the MCP server can register tools that open data sets, USS files,
+and job output in the editor. The extension resolves the applicable Zowe
+Explorer profile and remembers the selection for the current session.
+
+## Themes
+
+The extension includes Zowe and ISPF color themes and the **Zowe Mainframe**,
+**ISPF**, and **ISPF Modern** file icon themes. Select them with the standard VS
+Code theme commands.
+
+## Troubleshooting
+
+- Open **View: Toggle Output** and select **Zowe MCP** for extension logs.
+- Use **MCP: List Servers**, select **Zowe**, and open its output for MCP server
+  logs.
+- Reload the window after changing the backend, connections, capability tier,
+  SSH key preference, or other startup settings.
+
+For setup checks, see the
+[manual QA guide](https://github.com/zowe/zowe-mcp/blob/main/docs/manual-qa.md).
+For the current tools, prompts, and resources, see the generated
+[MCP reference](https://github.com/zowe/zowe-mcp/blob/main/docs/mcp-reference.md).
+
+## License
+
+[Eclipse Public License v2.0](https://www.eclipse.org/legal/epl-2.0/)

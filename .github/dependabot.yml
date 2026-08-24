@@ -13,6 +13,13 @@ updates:
         dependency-type: development
       production-dependencies:
         dependency-type: production
+    # Setting `labels` replaces Dependabot's defaults, so the default pair is
+    # restated alongside `no-changelog`, which satisfies the changelog gate —
+    # dependency bumps don't get CHANGELOG.md entries (see changelog.yml).
+    labels:
+      - dependencies
+      - javascript
+      - no-changelog
     ignore:
       # Held at 5.9.x pending a deliberate TS 7 migration. TS 6.0+ makes
       # our tsconfigs' `moduleResolution: node` (node10) a hard error
@@ -28,3 +35,7 @@ updates:
     directory: '/'
     schedule:
       interval: weekly
+    labels:
+      - dependencies
+      - github_actions
+      - no-changelog

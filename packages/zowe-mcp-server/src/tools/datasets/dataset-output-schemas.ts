@@ -245,8 +245,12 @@ const readDatasetDataSchema = z.object({
   lines: z
     .array(z.string())
     .describe(
-      'Content as array of lines (UTF-8). When _result.hasMore is true, call again with startLine/lineCount to get more.'
+      'Content as array of lines (UTF-8). When _result.hasMore is true, call again with startLine/lineCount to get more. Empty for binary reads.'
     ),
+  contentBase64: z
+    .string()
+    .optional()
+    .describe('Raw content as base64. Present only for binary reads (binary: true).'),
   etag: z
     .string()
     .describe(

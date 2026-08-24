@@ -839,9 +839,15 @@ export function registerDatasetTools(
           .describe(
             'Number of lines to return from startLine. Use with startLine to read an exact range (e.g. startLine: 20, lineCount: 10 for lines 20–29). Default: all remaining lines up to the auto-truncation limit.'
           ),
+        binary: z
+          .boolean()
+          .optional()
+          .describe(
+            'Read raw bytes with no EBCDIC conversion; content is returned base64-encoded in data.contentBase64 instead of data.lines. For non-text content (tersed files, load modules). Not combinable with encoding, startLine, or lineCount. Note: base64 is verbose — avoid on large data sets.'
+          ),
       },
     },
-    async ({ dsn, member, system, encoding, startLine, lineCount }, extra) => {
+    async ({ dsn, member, system, encoding, startLine, lineCount, binary }, extra) => {
       const displayDsn = member ? `${dsn}(${member})` : dsn;
       const range = formatReadProgressRange(startLine, lineCount);
       const title = range ? `Read ${displayDsn} ${range}` : `Read ${displayDsn}`;
@@ -857,14 +863,22 @@ export function registerDatasetTools(
       });
 
       try {
+        if (binary && (encoding != null || startLine != null || lineCount != null)) {
+          await progress.complete('invalid arguments');
+          return errorResult(
+            'binary cannot be combined with encoding, startLine, or lineCount — a binary read returns the whole content as base64 with no conversion.'
+          );
+        }
         const resolved = await resolveInput(deps, dsn, member, system, log);
         const systemCtx = deps.sessionState.getContext(resolved.systemId);
         const userId = systemCtx?.userId ?? '';
-        const resolvedEncoding = resolveDatasetEncoding(
-          encoding,
-          systemCtx?.mainframeMvsEncoding,
-          deps.encodingOptions.defaultMainframeMvsEncoding
-        );
+        const resolvedEncoding = binary
+          ? 'binary'
+          : resolveDatasetEncoding(
+              encoding,
+              systemCtx?.mainframeMvsEncoding,
+              deps.encodingOptions.defaultMainframeMvsEncoding
+            );
 
         const progressCb = extra._meta?.progressToken
           ? (msg: string) => void progress.step(msg)
@@ -892,15 +906,38 @@ export function registerDatasetTools(
           ]
         );
 
-        const sanitized = sanitizeTextForDisplay(result.text);
-        const windowed = windowContent(sanitized, startLine, lineCount);
-
         const fullDsn = resolved.member ? `${resolved.dsn}(${resolved.member})` : resolved.dsn;
         const rawInputDsn = member ? `${dsn.trim()}(${member.trim()})` : dsn.trim();
 
         const responseCtx = buildContext(resolved.systemId, {
           resolvedDsn: resolvedOnlyIfDifferent(fullDsn, rawInputDsn),
         });
+
+        if (binary) {
+          const binaryMeta = {
+            totalLines: 0,
+            startLine: 1,
+            returnedLines: 0,
+            contentLength: result.text.length,
+            mimeType: 'application/octet-stream',
+            hasMore: false,
+          };
+          await progress.complete(`${result.text.length} base64 chars`);
+          return wrapResponse(
+            responseCtx,
+            binaryMeta,
+            {
+              lines: [],
+              contentBase64: result.text,
+              etag: result.etag,
+              encoding: 'binary',
+            },
+            []
+          );
+        }
+
+        const sanitized = sanitizeTextForDisplay(result.text);
+        const windowed = windowContent(sanitized, startLine, lineCount);
 
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const { startLine: s, returnedLines: r, totalLines: total } = windowed.meta;
@@ -947,13 +984,26 @@ export function registerDatasetTools(
         dsn: z.string().describe('Fully qualified data set name (e.g. USER.SRC.COBOL).'),
         lines: z
           .array(z.string())
-          .describe('UTF-8 content to write as an array of lines (one string per record).'),
+          .optional()
+          .describe(
+            'UTF-8 content to write as an array of lines (one string per record). Required unless binary is true.'
+          ),
         member: z.string().optional().describe('Member name for PDS or PDS/E data sets.'),
         system: z.string().optional().describe(SYSTEM_PARAM_DESCRIPTION),
         etag: z
           .string()
           .optional()
           .describe('ETag from a previous readDataset call for optimistic locking.'),
+        binary: z
+          .boolean()
+          .optional()
+          .describe(
+            'Write raw bytes with no EBCDIC conversion; supply the content base64-encoded in contentBase64 instead of lines. For non-text content (tersed files, load modules). Not combinable with lines, encoding, startLine, or endLine. The target data set must already have a suitable record format (e.g. FB LRECL 1024 for tersed files); bytes are split into records at the record length.'
+          ),
+        contentBase64: z
+          .string()
+          .optional()
+          .describe('Base64-encoded raw content to write when binary is true.'),
         encoding: z
           .string()
           .optional()
@@ -974,8 +1024,10 @@ export function registerDatasetTools(
           ),
       },
     },
-    async ({ dsn, lines, member, system, etag, encoding, startLine, endLine }, extra) => {
-      const content = linesToText(lines ?? []);
+    async (
+      { dsn, lines, member, system, etag, encoding, startLine, endLine, binary, contentBase64 },
+      extra
+    ) => {
       const displayDsn = member ? `${dsn}(${member})` : dsn;
       const title = `Write to ${displayDsn}`;
       const progress = createToolProgress(extra, title);
@@ -986,16 +1038,35 @@ export function registerDatasetTools(
         system,
         hasEtag: !!etag,
         encoding,
+        binary,
       });
 
       try {
+        if (binary) {
+          if (contentBase64 == null) {
+            await progress.complete('invalid arguments');
+            return errorResult('binary writes require contentBase64.');
+          }
+          if (lines != null || encoding != null || startLine != null || endLine != null) {
+            await progress.complete('invalid arguments');
+            return errorResult(
+              'binary cannot be combined with lines, encoding, startLine, or endLine — a binary write replaces the whole data set with the decoded contentBase64 bytes.'
+            );
+          }
+        } else if (lines == null) {
+          await progress.complete('invalid arguments');
+          return errorResult('lines is required unless binary is true.');
+        }
+        const content = binary ? (contentBase64 as string) : linesToText(lines ?? []);
         const resolved = await resolveInput(deps, dsn, member, system, log);
         const systemCtx = deps.sessionState.getContext(resolved.systemId);
-        const resolvedEncoding = resolveDatasetEncoding(
-          encoding,
-          systemCtx?.mainframeMvsEncoding,
-          deps.encodingOptions.defaultMainframeMvsEncoding
-        );
+        const resolvedEncoding = binary
+          ? 'binary'
+          : resolveDatasetEncoding(
+              encoding,
+              systemCtx?.mainframeMvsEncoding,
+              deps.encodingOptions.defaultMainframeMvsEncoding
+            );
         const progressCb = extra._meta?.progressToken
           ? (msg: string) => void progress.step(msg)
           : undefined;

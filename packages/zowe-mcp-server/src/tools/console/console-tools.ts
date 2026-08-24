@@ -105,28 +105,44 @@ export function registerConsoleTools(
         if (validation.action === 'elicit') {
           const reason =
             validation.pattern?.message ?? 'Unknown console command — requires user approval';
+          const caps = deps.mcpServer.server.getClientCapabilities();
+          // Per MCP spec, empty elicitation object defaults to form mode
+          if (!caps?.elicitation) {
+            await progress.complete('elicitation unavailable');
+            return errorResult(
+              `Console command "${commandText.trim()}" requires user approval but elicitation is not available. Only safe DISPLAY commands can run without approval.`
+            );
+          }
           try {
             const elicitResult = await deps.mcpServer.server.elicitInput({
+              mode: 'form',
               message: `Console command requires approval: ${commandText}\nReason: ${reason}`,
               requestedSchema: {
                 type: 'object' as const,
                 properties: {
                   confirm: {
-                    type: 'string' as const,
+                    type: 'boolean' as const,
                     title: 'Run command',
                     description: commandText.trim(),
                   },
                 },
+                required: ['confirm'],
               },
             });
-            if (elicitResult.action !== 'accept') {
+            if (elicitResult.action !== 'accept' || elicitResult.content?.confirm !== true) {
+              const declined =
+                elicitResult.action === 'decline'
+                  ? 'Console command declined by user.'
+                  : elicitResult.action === 'cancel'
+                    ? 'Console command cancelled by user.'
+                    : 'Console command requires confirmation; not confirmed.';
               await progress.complete('declined');
-              return errorResult('Console command declined by user.');
+              return errorResult(declined);
             }
           } catch {
-            await progress.complete('elicitation unavailable');
+            await progress.complete('elicitation failed');
             return errorResult(
-              `Console command "${commandText.trim()}" requires user approval but elicitation is not available. Only safe DISPLAY commands can run without approval.`
+              `Console command "${commandText.trim()}" requires user approval but elicitation failed; execution denied.`
             );
           }
         }

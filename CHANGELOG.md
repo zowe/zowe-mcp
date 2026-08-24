@@ -14,6 +14,15 @@ don't warrant an entry (CI, chores, internal refactors, docs-only) can carry the
 
 ## [Unreleased]
 
+### Added
+
+- Binary (base64, no-conversion) transfer on `readDataset`, `writeDataset`, `readUssFile`, and `writeUssFile` via a new optional `binary` input: reads return `data.contentBase64`, writes take `contentBase64` instead of `lines`. For non-text content (tersed files, load modules) that the UTF-8/EBCDIC text path would corrupt. Binary dataset writes require a preallocated target with a suitable record format.
+
+### Changed
+
+- Console command elicitation (dormant tool) brought to parity with TSO: client-capability pre-check, form mode, and a required boolean confirmation.
+- Hardened the console command safety patterns (dormant tool): official abbreviations (`V`, `C`, `E`, `RO`, `K`, `T`, `M`, `U`, `G`, `I`), `DUMP`, `SLIP`, `CONFIG`/`CF`, dump/page management (`CHNGDUMP`/`CD`, `DUMPDS`/`DD`, `PAGEADD`/`PA`, `PAGEDEL`/`PD`, `IOACTION`/`IO`), and WTOR replies elicit confirmation; the SET pattern now also covers `SETPROG`/`SETXCF`/`SETSMF` and friends; system-stopping commands smuggled through `ROUTE` are blocked.
+
 ## [0.10.0] - 2026-08-13
 
 ### Added

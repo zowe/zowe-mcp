@@ -372,14 +372,26 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
           .min(1)
           .optional()
           .describe('Number of lines to return. Omit for default window size.'),
+        binary: z
+          .boolean()
+          .optional()
+          .describe(
+            'Read raw bytes with no encoding conversion; content is returned base64-encoded in data.contentBase64 instead of data.lines. For non-text files. Not combinable with encoding, startLine, or lineCount. Note: base64 is verbose — avoid on large files.'
+          ),
       },
     },
-    async ({ path: pathArg, system, encoding, startLine, lineCount }, extra) => {
+    async ({ path: pathArg, system, encoding, startLine, lineCount, binary }, extra) => {
       const progress = createToolProgress(extra, `Read USS file ${pathArg}`);
       await progress.start();
-      log.info('readUssFile called', { path: pathArg, system });
+      log.info('readUssFile called', { path: pathArg, system, binary });
 
       try {
+        if (binary && (encoding != null || startLine != null || lineCount != null)) {
+          await progress.complete('invalid arguments');
+          return errorResult(
+            'binary cannot be combined with encoding, startLine, or lineCount — a binary read returns the whole content as base64 with no conversion.'
+          );
+        }
         const { systemId, userId: resolvedUserId } = resolveSystemForTool(
           deps.systemRegistry,
           deps.sessionState,
@@ -444,11 +456,13 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
           }
         }
 
-        const enc = resolveDatasetEncoding(
-          encoding,
-          sessionCtx?.mainframeUssEncoding,
-          deps.encodingOptions.defaultMainframeUssEncoding
-        );
+        const enc = binary
+          ? 'binary'
+          : resolveDatasetEncoding(
+              encoding,
+              sessionCtx?.mainframeUssEncoding,
+              deps.encodingOptions.defaultMainframeUssEncoding
+            );
         const userId = sessionCtx?.userId;
         const progressCb = extra._meta?.progressToken
           ? (msg: string) => void progress.step(msg)
@@ -466,10 +480,6 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
           [buildScopeSystem(systemId)]
         );
 
-        const sanitized = sanitizeTextForDisplay(result.text);
-        const { text, meta, mimeType } = windowContent(sanitized, startLine, lineCount);
-        const lines = textToLines(text);
-
         const pathDisplay = relativizeForDisplay(resolvedPath, effectiveCwd);
         const currentDirDisplay = effectiveCwd
           ? relativizeForDisplay(effectiveCwd, effectiveCwd)
@@ -478,6 +488,33 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
           resolvedPath: resolvedPath !== pathArg.trim() ? pathDisplay : undefined,
           currentDirectory: currentDirDisplay,
         });
+
+        if (binary) {
+          const binaryMeta = {
+            totalLines: 0,
+            startLine: 1,
+            returnedLines: 0,
+            contentLength: result.text.length,
+            mimeType: 'application/octet-stream',
+            hasMore: false,
+          };
+          await progress.complete(`${result.text.length} base64 chars`);
+          return wrapResponse(
+            responseCtx,
+            binaryMeta,
+            {
+              lines: [],
+              contentBase64: result.text,
+              etag: result.etag,
+              mimeType: 'application/octet-stream',
+            },
+            []
+          );
+        }
+
+        const sanitized = sanitizeTextForDisplay(result.text);
+        const { text, meta, mimeType } = windowContent(sanitized, startLine, lineCount);
+        const lines = textToLines(text);
 
         await progress.complete(`${meta.returnedLines} lines`);
         return wrapResponse(
@@ -652,17 +689,45 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
           ),
         lines: z
           .array(z.string())
-          .describe('UTF-8 content to write as an array of lines (one string per line).'),
+          .optional()
+          .describe(
+            'UTF-8 content to write as an array of lines (one string per line). Required unless binary is true.'
+          ),
         system: z.string().optional().describe(SYSTEM_PARAM_DESCRIPTION),
         etag: z.string().optional().describe('ETag for optimistic locking.'),
         encoding: z.string().optional().describe('Mainframe encoding. Omit for default.'),
+        binary: z
+          .boolean()
+          .optional()
+          .describe(
+            'Write raw bytes with no encoding conversion; supply the content base64-encoded in contentBase64 instead of lines. For non-text files. Not combinable with lines or encoding.'
+          ),
+        contentBase64: z
+          .string()
+          .optional()
+          .describe('Base64-encoded raw content to write when binary is true.'),
       },
     },
-    async ({ path: pathArg, lines, system, etag, encoding }, extra) => {
-      const content = linesToText(lines ?? []);
+    async ({ path: pathArg, lines, system, etag, encoding, binary, contentBase64 }, extra) => {
       const progress = createToolProgress(extra, `Write USS file ${pathArg}`);
       await progress.start();
       try {
+        if (binary) {
+          if (contentBase64 == null) {
+            await progress.complete('invalid arguments');
+            return errorResult('binary writes require contentBase64.');
+          }
+          if (lines != null || encoding != null) {
+            await progress.complete('invalid arguments');
+            return errorResult(
+              'binary cannot be combined with lines or encoding — a binary write replaces the file with the decoded contentBase64 bytes.'
+            );
+          }
+        } else if (lines == null) {
+          await progress.complete('invalid arguments');
+          return errorResult('lines is required unless binary is true.');
+        }
+        const content = binary ? (contentBase64 as string) : linesToText(lines ?? []);
         const { systemId, userId: resolvedUserId } = resolveSystemForTool(
           deps.systemRegistry,
           deps.sessionState,
@@ -672,11 +737,13 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
         const ctx = deps.sessionState.getContext(systemId);
         const effectiveCwd = ctx?.ussCwd ?? ctx?.ussHome;
         const resolvedPath = resolveUssPath(pathArg, effectiveCwd);
-        const enc = resolveDatasetEncoding(
-          encoding,
-          ctx?.mainframeUssEncoding,
-          deps.encodingOptions.defaultMainframeUssEncoding
-        );
+        const enc = binary
+          ? 'binary'
+          : resolveDatasetEncoding(
+              encoding,
+              ctx?.mainframeUssEncoding,
+              deps.encodingOptions.defaultMainframeUssEncoding
+            );
         const userId = ctx?.userId;
         const result = await deps.backend.writeUssFile(
           systemId,

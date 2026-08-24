@@ -10,10 +10,11 @@
  */
 
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { createRequire } from 'node:module';
+import { readFileSync } from 'node:fs';
 import { z } from 'zod';
 import { ResourceEffect } from '../../capability-level.js';
 import type { Logger } from '../../log.js';
+import { resolveAsset } from '../../runtime/asset-root.js';
 import type { ZosBackend } from '../../zos/backend.js';
 import type { CredentialProvider } from '../../zos/credentials.js';
 import { resolveSystemForTool, type SessionState } from '../../zos/session.js';
@@ -35,12 +36,17 @@ import {
 import { ensureContext, errorResult } from '../tool-utils.js';
 import { runConsoleCommandOutputSchema } from './console-output-schemas.js';
 
-const require = createRequire(import.meta.url);
-
 let cachedPatterns: CommandPatterns | undefined;
 
 function getPatterns(): CommandPatterns {
-  cachedPatterns ??= require('./console-command-patterns.json') as CommandPatterns;
+  if (!cachedPatterns) {
+    const patternsPath = resolveAsset(
+      import.meta.url,
+      ['console-command-patterns.json'],
+      ['tools', 'console', 'console-command-patterns.json']
+    );
+    cachedPatterns = JSON.parse(readFileSync(patternsPath, 'utf-8')) as CommandPatterns;
+  }
   return cachedPatterns;
 }
 

@@ -14,6 +14,27 @@ don't warrant an entry (CI, chores, internal refactors, docs-only) can carry the
 
 ## [Unreleased]
 
+### Changed
+
+- **Much faster installs: esbuild-bundled VSIX and slimmer npm tarball.** The
+  VS Code extension no longer ships a full `npm install` of every production
+  dependency (25,521 files, 172 MB unpacked): the extension host and the MCP
+  server are now esbuild-bundled, with only native-binding packages (`ssh2`,
+  `@zowe/zowex-for-zowe-sdk`) and `hardstop-patterns` kept as real
+  `node_modules`, and files Node never loads at runtime (TypeScript sources,
+  typings, sourcemaps, docs) pruned from what remains. The VSIX drops to
+  7,575 files / 27 MB, which cuts install time substantially, especially on
+  Windows. The `@zowe/mcp-server` release tarball gets the same pruning
+  (minus `.mjs` files, which its unbundled ESM build still loads), shrinking
+  it from ~19,000 to ~10,300 files. ([#54](https://github.com/zowe/zowe-mcp/issues/54))
+
+### Fixed
+
+- **`generate-docs` could crash outside the monorepo.** `markdown-table-prettify`
+  was loaded through an undeclared (phantom) dependency that only resolved via
+  monorepo hoisting; it is now a declared dependency and statically bundled, so
+  the `generate-docs` subcommand works from the installed VSIX and tarball.
+
 ## [0.10.0] - 2026-08-13
 
 ### Added

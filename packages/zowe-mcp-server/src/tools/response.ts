@@ -25,7 +25,10 @@
 import { createRequire } from 'node:module';
 import { inferMimeType } from '../zos/dsn.js';
 
-const require = createRequire(import.meta.url);
+// Named `loadCjsModule` (not `require`) so it can't collide with the
+// ambient `require` that esbuild's bundled output synthesizes (via its
+// banner) for CJS interop when this module is bundled into the VSIX.
+const loadCjsModule = createRequire(import.meta.url);
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -206,7 +209,7 @@ export function formatResolved(value: string): string {
   const unquoted = alreadyQuoted ? value.slice(1, -1) : value;
   if (alreadyQuoted) {
     try {
-      const { getLogger } = require('../server.js') as {
+      const { getLogger } = loadCjsModule('../server.js') as {
         getLogger: () => {
           child: (name: string) => { debug: (msg: string, data?: unknown) => void };
         };
@@ -215,7 +218,10 @@ export function formatResolved(value: string): string {
         value,
       });
     } catch {
-      // Avoid circular dependency or missing server at load time; skip log
+      // Avoid circular dependency or missing server at load time; skip log.
+      // Also always taken in the esbuild-bundled VSIX layout, where there is
+      // no standalone "server.js" file to require — this debug log is
+      // best-effort only, so that's fine.
     }
   }
   return unquoted;

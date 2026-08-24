@@ -112,26 +112,25 @@ Certificate and key ring operations on the z/OS security database (RACF, ACF2, o
 
 ## Jobs
 
-The server provides **14** tools.
+The server provides **13** tools.
 
 z/OS batch job management — submit JCL, monitor job status, read spool output, search output, and manage job lifecycle (cancel, hold, release, delete).
 
-| #  | Tool                                            | Description                                                                                                                                                                       |
-|----|-------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| 1  | [`submitJob`](#submitjob)                       | Submit JCL to the current (or specified) z/OS system                                                                                                                              |
-| 2  | [`submitJobFromDataset`](#submitjobfromdataset) | Submit a job from a data set or PDS or PDS/E member containing JCL                                                                                                                |
-| 3  | [`submitJobFromUss`](#submitjobfromuss)         | Submit a job from a USS file path                                                                                                                                                 |
-| 4  | [`getJobStatus`](#getjobstatus)                 | Get the current status of a z/OS job (INPUT, ACTIVE, or OUTPUT) and its return code when complete                                                                                 |
-| 5  | [`listJobFiles`](#listjobfiles)                 | List output files (spools) for a z/OS job                                                                                                                                         |
-| 6  | [`readJobFile`](#readjobfile)                   | Read the content of one job output file (spool); use listJobFiles to get job file IDs Results may be line-windowed; follow the pagination instructions in the server instructions |
-| 7  | [`getJobOutput`](#getjoboutput)                 | Get aggregated output from job files for a completed job                                                                                                                          |
-| 8  | [`searchJobOutput`](#searchjoboutput)           | Search for a substring in a job's output files (all files or one by jobFileId)                                                                                                    |
-| 9  | [`listJobs`](#listjobs)                         | List jobs on the z/OS system with optional filters (owner, prefix, status)                                                                                                        |
-| 10 | [`getJcl`](#getjcl)                             | Get the JCL for a job                                                                                                                                                             |
-| 11 | [`cancelJob`](#canceljob)                       | Cancel a job on the z/OS system                                                                                                                                                   |
-| 12 | [`holdJob`](#holdjob)                           | Hold a job on the z/OS system                                                                                                                                                     |
-| 13 | [`releaseJob`](#releasejob)                     | Release a held job on the z/OS system                                                                                                                                             |
-| 14 | [`deleteJob`](#deletejob)                       | Delete a job from the output queue                                                                                                                                                |
+| #  | Tool                                            | Description                                                                                       |
+|----|-------------------------------------------------|---------------------------------------------------------------------------------------------------|
+| 1  | [`submitJob`](#submitjob)                       | Submit JCL to the current (or specified) z/OS system                                              |
+| 2  | [`submitJobFromDataset`](#submitjobfromdataset) | Submit a job from a data set or PDS or PDS/E member containing JCL                                |
+| 3  | [`submitJobFromUss`](#submitjobfromuss)         | Submit a job from a USS file path                                                                 |
+| 4  | [`getJobStatus`](#getjobstatus)                 | Get the current status of a z/OS job (INPUT, ACTIVE, or OUTPUT) and its return code when complete |
+| 5  | [`listJobFiles`](#listjobfiles)                 | List output files (spools) for a z/OS job, including the current job status and return code       |
+| 6  | [`readJobFile`](#readjobfile)                   | Read a line-windowed portion of one job output file (spool)                                       |
+| 7  | [`searchJobOutput`](#searchjoboutput)           | Search for a substring in a job's output files (all files or one by jobFileId)                    |
+| 8  | [`listJobs`](#listjobs)                         | List jobs on the z/OS system with optional filters (owner, prefix, status)                        |
+| 9  | [`getJcl`](#getjcl)                             | Get the JCL for a job                                                                             |
+| 10 | [`cancelJob`](#canceljob)                       | Cancel a job on the z/OS system                                                                   |
+| 11 | [`holdJob`](#holdjob)                           | Hold a job on the z/OS system                                                                     |
+| 12 | [`releaseJob`](#releasejob)                     | Release a held job on the z/OS system                                                             |
+| 13 | [`deleteJob`](#deletejob)                       | Delete a job from the output queue                                                                |
 
 ## Local Files
 
@@ -3320,7 +3319,7 @@ Get the current status of a z/OS job (INPUT, ACTIVE, or OUTPUT) and its return c
 
 > Read-only
 
-List output files (spools) for a z/OS job. The job must be in OUTPUT status. Use getJobStatus to check status first.
+List output files (spools) for a z/OS job, including the current job status and return code. Returns paginated metadata without reading spool content. Use readJobFile for windowed in-context reads or downloadJobFileToFile for large-output investigation.
 
 #### Parameters
 
@@ -3335,17 +3334,16 @@ List output files (spools) for a z/OS job. The job must be in OUTPUT status. Use
 
 #### Output Schema
 
-| Field               | Type       | Required | Description                                                                                                 |
-|---------------------|------------|----------|-------------------------------------------------------------------------------------------------------------|
-| `_context`          | `object`   | Yes      | Resolution context: target z/OS system. *(same as [`runSafeTsoCommand`](#runsafetsocommand-output-schema))* |
-| `_result`           | `object`   | Yes      | Result metadata (pagination or success). *(same as [`listDatasets`](#listdatasets-output-schema))*          |
-| `messages`          | `string`[] | No       | Operational messages: pagination hints, job card notice, or other notes. Omitted when empty.                |
-| `data`              | `object`[] | Yes      | Array of job file (spool) entries. Each entry has id, optional ddname, stepname, dsname, procstep.          |
-| &ensp;├─ `id`       | `number`   | Yes      | Job file (spool) ID.                                                                                        |
-| &ensp;├─ `ddname`   | `string`   | No       | DD name (e.g. SYSOUT, JESJCL).                                                                              |
-| &ensp;├─ `stepname` | `string`   | No       | Step name.                                                                                                  |
-| &ensp;├─ `dsname`   | `string`   | No       | Data set name when applicable.                                                                              |
-| &ensp;└─ `procstep` | `string`   | No       | Procedure step name.                                                                                        |
+| Field              | Type       | Required | Description                                                                                                   |
+|--------------------|------------|----------|---------------------------------------------------------------------------------------------------------------|
+| `_context`         | `object`   | Yes      | Resolution context: target z/OS system. *(same as [`runSafeTsoCommand`](#runsafetsocommand-output-schema))*   |
+| `_result`          | `object`   | Yes      | Result metadata (pagination or success). *(same as [`listDatasets`](#listdatasets-output-schema))*            |
+| `messages`         | `string`[] | No       | Operational messages: pagination hints, job card notice, or other notes. Omitted when empty.                  |
+| `data`             | `object`   | Yes      |                                                                                                               |
+| &ensp;├─ `jobId`   | `string`   | Yes      | Job ID.                                                                                                       |
+| &ensp;├─ `status`  | `string`   | Yes      | Current job status (e.g. OUTPUT).                                                                             |
+| &ensp;├─ `retcode` | `string`   | No       | Job return code when complete (e.g. CC 0000).                                                                 |
+| &ensp;└─ `files`   | `object`[] | Yes      | Job file (spool) entries in this page. Each entry has id and optional ddname, stepname, dsname, and procstep. |
 
 ---
 
@@ -3353,7 +3351,7 @@ List output files (spools) for a z/OS job. The job must be in OUTPUT status. Use
 
 > Read-only
 
-Read the content of one job output file (spool); use listJobFiles to get job file IDs Results may be line-windowed; follow the pagination instructions in the server instructions.
+Read a line-windowed portion of one job output file (spool). Results may be line-windowed; follow the pagination instructions in the server instructions. Use listJobFiles to get job file IDs.
 
 #### Parameters
 
@@ -3363,7 +3361,7 @@ Read the content of one job output file (spool); use listJobFiles to get job fil
 | `jobFileId` | `integer` | Yes      | Job file (spool) ID from listJobFiles.                                                 |
 | `system`    | `string`  | No       | Optional z/OS system (hostname). If omitted, the active system from setSystem is used. |
 | `startLine` | `integer` | No       | 1-based first line to return (default 1).                                              |
-| `lineCount` | `integer` | No       | Number of lines to return (default: all).                                              |
+| `lineCount` | `integer` | No       | Number of lines to return. When omitted, up to 1000 lines are returned.                |
 
 <a id="readjobfile-output-schema"></a>
 
@@ -3381,40 +3379,6 @@ Read the content of one job output file (spool); use listJobFiles to get job fil
 | &ensp;├─ `returnedLines` | `number`   | Yes      | Number of lines returned.                                                                                   |
 | &ensp;├─ `hasMore`       | `boolean`  | Yes      | True if more lines exist.                                                                                   |
 | &ensp;└─ `mimeType`      | `string`   | Yes      | Content type (e.g. text/plain, text/x-jcl).                                                                 |
-
----
-
-### `getJobOutput`
-
-> Read-only
-
-Get aggregated output from job files for a completed job. By default returns output from failed steps only when the job has a non-zero return code. Optional jobFileIds to limit to specific files.
-
-#### Parameters
-
-| Parameter         | Type        | Required | Description                                                                                                                        |
-|-------------------|-------------|----------|------------------------------------------------------------------------------------------------------------------------------------|
-| `jobId`           | `string`    | Yes      | Job ID (e.g. JOB00123 or J0nnnnnn).                                                                                                |
-| `system`          | `string`    | No       | Optional z/OS system (hostname). If omitted, the active system from setSystem is used.                                             |
-| `failedStepsOnly` | `boolean`   | No       | When true (default), only include output from steps that failed (when job retcode is non-zero). When false, include all job files. |
-| `jobFileIds`      | `integer`[] | No       | Optional list of job file (spool) IDs to include. When provided, only these files are read; failedStepsOnly is ignored.            |
-| `offset`          | `integer`   | No       | 0-based offset for pagination over job files (default 0).                                                                          |
-| `limit`           | `integer`   | No       | Number of job files to return (default 500, max 1000).                                                                             |
-
-<a id="getjoboutput-output-schema"></a>
-
-#### Output Schema
-
-| Field              | Type       | Required | Description                                                                                                 |
-|--------------------|------------|----------|-------------------------------------------------------------------------------------------------------------|
-| `_context`         | `object`   | Yes      | Resolution context: target z/OS system. *(same as [`runSafeTsoCommand`](#runsafetsocommand-output-schema))* |
-| `_result`          | `object`   | Yes      | Result metadata (pagination or success). *(same as [`listDatasets`](#listdatasets-output-schema))*          |
-| `messages`         | `string`[] | No       | Operational messages: pagination hints, job card notice, or other notes. Omitted when empty.                |
-| `data`             | `object`   | Yes      |                                                                                                             |
-| &ensp;├─ `jobId`   | `string`   | Yes      | Job ID.                                                                                                     |
-| &ensp;├─ `status`  | `string`   | Yes      | Job status (e.g. OUTPUT).                                                                                   |
-| &ensp;├─ `retcode` | `string`   | No       | Job return code when complete (e.g. CC 0000).                                                               |
-| &ensp;└─ `files`   | `object`[] | Yes      | Output from job files in this page.                                                                         |
 
 ---
 
@@ -3877,7 +3841,7 @@ See [Safety and security principles](mcp-safety-security-principles.md) for deta
 
 Read-only with client confirmation prompts for every read operation. Safest tier for exploration.
 
-**36** tools available.
+**35** tools available.
 
 | Tool                                              | Effect Level |
 |---------------------------------------------------|--------------|
@@ -3906,7 +3870,6 @@ Read-only with client confirmation prompts for every read operation. Safest tier
 | [`getJobStatus`](#getjobstatus)                   | read         |
 | [`listJobFiles`](#listjobfiles)                   | read         |
 | [`readJobFile`](#readjobfile)                     | read         |
-| [`getJobOutput`](#getjoboutput)                   | read         |
 | [`searchJobOutput`](#searchjoboutput)             | read         |
 | [`listJobs`](#listjobs)                           | read         |
 | [`getJcl`](#getjcl)                               | read         |
@@ -3922,13 +3885,13 @@ Read-only with client confirmation prompts for every read operation. Safest tier
 
 Read-only with auto-approved reads. No confirmation prompts for read operations.
 
-**36** tools available.
+**35** tools available.
 
 ### `update`
 
 Adds tools that create, write, copy, rename, and modify resources.
 
-**61** tools available (25 new at this tier).
+**60** tools available (25 new at this tier).
 
 | Tool                                                  | Effect Level |
 |-------------------------------------------------------|--------------|
@@ -3962,7 +3925,7 @@ Adds tools that create, write, copy, rename, and modify resources.
 
 Adds tools that delete or cancel resources.
 
-**68** tools available (7 new at this tier).
+**67** tools available (7 new at this tier).
 
 | Tool                                                      | Effect Level |
 |-----------------------------------------------------------|--------------|
@@ -3978,7 +3941,7 @@ Adds tools that delete or cancel resources.
 
 Adds tools that execute commands and submit jobs. Full access to all operations.
 
-**75** tools available (7 new at this tier).
+**74** tools available (7 new at this tier).
 
 | Tool                                            | Effect Level |
 |-------------------------------------------------|--------------|

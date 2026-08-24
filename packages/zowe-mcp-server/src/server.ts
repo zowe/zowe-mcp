@@ -78,14 +78,20 @@ export const SERVER_INSTRUCTIONS = `Zowe MCP Server — Pagination Protocol
 
 Many tools return paginated results. The response envelope contains a _result object with a hasMore boolean.
 
-List pagination (listDatasets, listMembers, searchInDataset, listUssFiles, listJobs, listJobFiles, getJobOutput, searchJobOutput):
+List pagination (listDatasets, listMembers, searchInDataset, listUssFiles, listJobs, listJobFiles, searchJobOutput):
 - When _result.hasMore is true, call the tool again with offset = current offset + _result.count and the same limit.
 - To report a TOTAL count ("how many members/data sets/matches"), use _result.totalAvailable (the full number of matching items) — NOT _result.count, which is only the items on the current page.
 
 Line-windowed pagination (readDataset, readUssFile, readJobFile, runSafeUssCommand, runSafeTsoCommand):
 - When _result.hasMore is true, call the tool again with startLine = _result.startLine + _result.returnedLines and the same lineCount.
 
-If the task requires more data, do not answer with only the first page/window; keep calling you have the desired amount of data.
+Job output routing:
+- Use a two-phase flow for job output: first discover spool files with listJobFiles, then read what you need.
+- listJobFiles returns the job status and return code with paginated spool-file metadata; it does not read spool content.
+- Use searchJobOutput to find a known string across spool files.
+- Use readJobFile for windowed in-context reads of one spool file. Use downloadJobFileToFile when output is large or unknown-size and should be searched from the local workspace.
+
+If the task requires more data, do not answer with only the first page/window; keep calling until you have the desired amount of data.
 The response messages array contains the exact parameters for the next call when more data is available.
 
 z/OS Terminology

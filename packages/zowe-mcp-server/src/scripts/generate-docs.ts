@@ -1025,7 +1025,6 @@ async function main(): Promise<void> {
             'getJobStatus',
             'listJobFiles',
             'readJobFile',
-            'getJobOutput',
             'searchJobOutput',
             'listJobs',
             'getJcl',

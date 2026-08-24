@@ -38,11 +38,7 @@ questions:
   - id: list-jobs-then-spool-and-read
     prompt: List my jobs, then list the spool files for the most recent job and show me the content of the first spool file.
     assertions:
-      anyOf:
-        - toolCallOrder:
-            - tool: listJobs
-            - tool: listJobFiles
-            - tool: readJobFile
-        - toolCallOrder:
-            - tool: listJobs
-            - tool: getJobOutput
+      - toolCallOrder:
+          - tool: listJobs
+          - tool: listJobFiles
+          - tool: readJobFile

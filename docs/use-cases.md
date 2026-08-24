@@ -47,7 +47,7 @@ The following are ordered by **general value** (broad applicability and impact).
 
 **User goal:** Understand why a job failed and what to fix.
 
-**Tool combo:** `getJobStatus` → `listJobFiles` / `getJobOutput` or `readJobFile` → often `searchJobOutput` for ABEND/error text → optionally `readDataset` (e.g. JCL or source of the failing program).
+**Tool combo:** `listJobFiles` (which returns job status and return code) → `searchJobOutput` for ABEND/error text or `readJobFile` for selected spool content → optionally `readDataset` (e.g. JCL or source of the failing program).
 
 **LLM’s job:** Read status and spool, find error/ABEND lines, explain the failure in plain language (e.g. S0C7 = data exception), point to the step/program, and suggest next steps (check file, fix data, rerun). Optionally pull in JCL or source and tie the error to a specific line or DD.
 
@@ -67,7 +67,7 @@ The following are ordered by **general value** (broad applicability and impact).
 
 **User goal:** Have one place (e.g. chat or editor) with all relevant mainframe artifacts for a task (e.g. "fix payroll").
 
-**Tool combo:** `listDatasets` / `listMembers` (find payroll-related DSNs) → `readDataset` for JCL, COBOL, copybooks → maybe `getJobOutput` for the failing run. Optional: `openDatasetInEditor` / `openUssFileInEditor` so the user can edit in VS Code.
+**Tool combo:** `listDatasets` / `listMembers` (find payroll-related DSNs) → `readDataset` for JCL, COBOL, copybooks → maybe `listJobFiles` and `readJobFile` for the failing run. Optional: `openDatasetInEditor` / `openUssFileInEditor` so the user can edit in VS Code.
 
 **LLM’s job:** Decide what’s "relevant" from names and content, fetch in a sensible order (e.g. JCL → main program → copybooks), summarize what each piece is and how they connect, and optionally open key files in the editor so the user has full context without manual browsing.
 
@@ -77,7 +77,7 @@ The following are ordered by **general value** (broad applicability and impact).
 
 **User goal:** Generate mainframe code (e.g. COBOL, JCL) and validate that it compiles, addresses compile problems, can be executed, and produces expected results.
 
-**Tool combo:** `readDataset` (existing code, copybooks, JCL) → `writeDataset` (new or modified members) → submit/compile via `submitJob` or `runSafeTsoCommand` / `runSafeUssCommand` (depending on build setup) → `getJobStatus`, `getJobOutput`, `readJobFile` or command output to read compiler listing and RC → iterate with further `readDataset` / `writeDataset` and resubmit until clean compile and successful run.
+**Tool combo:** `readDataset` (existing code, copybooks, JCL) → `writeDataset` (new or modified members) → submit/compile via `submitJob` or `runSafeTsoCommand` / `runSafeUssCommand` (depending on build setup) → `listJobFiles`, `readJobFile`, `searchJobOutput`, or command output to read compiler listings and return codes → iterate with further `readDataset` / `writeDataset` and resubmit until clean compile and successful run.
 
 **LLM’s job:** Generate or modify code; submit build/job; read compiler and runtime output; interpret errors (syntax, undefined references, etc.); suggest and apply fixes; re-run until the code compiles and execution matches expected results. Combines code generation with a validate-fix-validate loop.
 
@@ -97,7 +97,7 @@ The following are ordered by **general value** (broad applicability and impact).
 
 **User goal:** Quick view of job activity and any problems.
 
-**Tool combo:** `listJobs` (possibly with filters) → for interesting jobs: `getJobStatus`, maybe `getJobOutput` or `readJobFile` for one or two.
+**Tool combo:** `listJobs` (possibly with filters) → for interesting jobs: `listJobFiles`, then perhaps `readJobFile` for one or two spool files.
 
 **LLM’s job:** Group jobs by status (running, output, held, etc.), highlight long-running or abnormal jobs, and summarize: "3 jobs in OUTPUT, 1 in execution for 2 hours, 2 held; JOB00245 failed (see earlier diagnostics)." Optionally pull one spool and summarize the failure.
 
@@ -107,7 +107,7 @@ The following are ordered by **general value** (broad applicability and impact).
 
 **User goal:** Accomplish a task where the LLM chooses the best mainframe mechanism: TSO command, UNIX command, or batch utility, possibly using search or project context (e.g. AGENTS.md).
 
-**Tool combo:** LLM decides among `runSafeTsoCommand`, `runSafeUssCommand`, and job-based tools (`submitJob`, `getJobOutput`, etc.). May combine with `searchInDataset` (find where something is defined or used), `listDatasets` / `listMembers` (discover targets), or `readDataset` (inspect before/after). Project docs (e.g. AGENTS.md) inform conventions, patterns, and safe practices.
+**Tool combo:** LLM decides among `runSafeTsoCommand`, `runSafeUssCommand`, and job-based tools (`submitJob`, `getJobStatus`, `listJobFiles`, `readJobFile`, etc.). May combine with `searchInDataset` (find where something is defined or used), `listDatasets` / `listMembers` (discover targets), or `readDataset` (inspect before/after). Project docs (e.g. AGENTS.md) inform conventions, patterns, and safe practices.
 
 **LLM’s job:** Interpret the user’s request; choose TSO vs USS vs batch (and which tool sequence) based on task and context; optionally use search to find how to accomplish the task or AGENTS.md to follow organizational conventions; execute the chosen actions and summarize outcomes. Example: "List my data sets in a catalog" → TSO; "Find a file that contains the word 'payroll' in my home directory" → USS (grep); "Run the inventory report" → find JCL via search or list, then submit job.
 

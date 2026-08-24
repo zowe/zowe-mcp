@@ -953,13 +953,21 @@ describe.skipIf(!shouldRunNativeStdioE2E)(
           const listEnvelope = listParsed as {
             _context: { system: string };
             _result: { count: number; totalAvailable: number; hasMore: boolean };
-            data: { id: number; ddname?: string; stepname?: string }[];
+            data: {
+              jobId: string;
+              status: string;
+              retcode?: string;
+              files: { id: number; ddname?: string; stepname?: string }[];
+            };
           };
           expect(listEnvelope._context).toBeDefined();
           expect(listEnvelope._context.system).toBeDefined();
-          expect(Array.isArray(listEnvelope.data)).toBe(true);
-          expect(listEnvelope.data.length).toBeGreaterThanOrEqual(1);
-          const firstFile = listEnvelope.data[0];
+          expect(listEnvelope.data.jobId).toBe(submittedJobId);
+          expect(listEnvelope.data.status).toBe('OUTPUT');
+          expect(Array.isArray(listEnvelope.data.files)).toBe(true);
+          expect(listEnvelope.data.files.length).toBeGreaterThanOrEqual(1);
+          expect(listEnvelope._result.count).toBe(listEnvelope.data.files.length);
+          const firstFile = listEnvelope.data.files[0];
           expect(firstFile.id).toBeDefined();
           expect(typeof firstFile.id).toBe('number');
 

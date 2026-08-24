@@ -23,7 +23,7 @@ This document describes how pagination and search work in the Zowe MCP Server �
 
 z/OS systems can hold data sets with thousands of members and files with tens of thousands of lines. LLM context windows are finite, and repeatedly fetching the same backend data for every page of results would be slow and expensive. Zowe MCP solves this with two independent pagination mechanisms and a dedicated search tool:
 
-- **List pagination** (`offset` / `limit`): for operations that return a list of items — data sets, PDS members, USS directory entries, jobs, job files, job output lines, or search matches. Default page size is 500, maximum 1000.
+- **List pagination** (`offset` / `limit`): for operations that return a list of items — data sets, PDS members, USS directory entries, jobs, job files, or search matches. Default page size is 500, maximum 1000.
 - **Line-windowed pagination** (`startLine` / `lineCount`): for operations that return the content of a single file or command output. The window moves forward through lines. Content larger than 1000 lines is auto-truncated on the first call unless an explicit window is requested.
 - **Search** (`searchInDataset`): searches for a literal string across all members of a PDS or PDS/E (or a single member, or a sequential data set). The search result is itself paginated by member using the list pagination mechanism.
 
@@ -180,8 +180,9 @@ For tool execution errors (validation failure, blocked command), the tool return
 | `listUssFiles` | USS | USS directory entries |
 | `listJobs` | Jobs | Jobs matching filter criteria |
 | `listJobFiles` | Jobs | Spool files (DDs) for a job |
-| `getJobOutput` | Jobs | Lines in a spool file (by job file) |
 | `searchJobOutput` | Jobs | Spool file matches |
+
+`listJobFiles` returns job-level `jobId`, `status`, and optional `retcode` fields alongside the paginated `files` array. The `_result` metadata and next-page messages apply to `data.files`.
 
 ### 3.2 Input parameters
 
@@ -463,7 +464,7 @@ Many tools return paginated results. The response envelope contains a _result
 object with a hasMore boolean.
 
 List pagination (listDatasets, listMembers, searchInDataset, listUssFiles,
-listJobs, listJobFiles, getJobOutput, searchJobOutput):
+listJobs, listJobFiles, searchJobOutput):
 - When _result.hasMore is true, call the tool again with
   offset = current offset + _result.count and the same limit.
 
@@ -472,8 +473,18 @@ runSafeUssCommand, runSafeTsoCommand):
 - When _result.hasMore is true, call the tool again with
   startLine = _result.startLine + _result.returnedLines and the same lineCount.
 
+Job output routing:
+- Use a two-phase flow for job output: first discover spool files with
+  listJobFiles, then read exactly what you need.
+- listJobFiles returns the job status and return code with paginated spool-file
+  metadata; it does not read spool content.
+- Use searchJobOutput to find a known string across spool files.
+- Use readJobFile for windowed in-context reads of one spool file. Use
+  downloadJobFileToFile when output is large or unknown-size and should be
+  searched from the local workspace.
+
 If the task requires more data, do not answer with only the first page/window;
-keep calling until _result.hasMore is false.
+keep calling until you have the desired amount of data.
 The response messages array contains the exact parameters for the next call
 when more data is available.
 ```

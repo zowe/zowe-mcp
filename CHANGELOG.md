@@ -14,6 +14,13 @@ don't warrant an entry (CI, chores, internal refactors, docs-only) can carry the
 
 ## [Unreleased]
 
+### Changed
+
+- **Job output now uses explicit discovery and read steps.** The redundant
+  `getJobOutput` tool has been removed. `listJobFiles` now returns the current
+  job status and return code with paginated spool-file metadata; use
+  `readJobFile`, `searchJobOutput`, or `downloadJobFileToFile` for content.
+
 ## [0.10.0] - 2026-08-13
 
 ### Added

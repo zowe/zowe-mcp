@@ -209,9 +209,6 @@ listJobFiles:
 readJobFile:
   skip: true
 
-getJobOutput:
-  skip: true
-
 searchJobOutput:
   skip: true
 

@@ -5,8 +5,12 @@ updates:
   # always raised individually by Dependabot regardless of grouping.
   - package-ecosystem: npm
     directory: '/'
+    # Twice a month (cron can't express a strict 14-day cadence) — weekly was
+    # more review churn than the bumps were worth (#42). Security updates are
+    # raised immediately regardless of this schedule.
     schedule:
-      interval: weekly
+      interval: cron
+      cronjob: '0 8 1,15 * *'
     open-pull-requests-limit: 10
     groups:
       dev-dependencies:
@@ -34,7 +38,8 @@ updates:
   - package-ecosystem: github-actions
     directory: '/'
     schedule:
-      interval: weekly
+      interval: cron
+      cronjob: '0 8 1,15 * *'
     labels:
       - dependencies
       - github_actions

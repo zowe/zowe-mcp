@@ -20,11 +20,10 @@
 
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { readFileSync } from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
 import { ResourceEffect } from '../../capability-level.js';
 import type { Logger } from '../../log.js';
+import { resolveAsset } from '../../runtime/asset-root.js';
 import type { DatasetEntry, MemberEntry, ZosBackend } from '../../zos/backend.js';
 import type { CredentialProvider } from '../../zos/credentials.js';
 import {
@@ -99,12 +98,10 @@ import {
   writeDatasetOutputSchema,
 } from './dataset-output-schemas.js';
 
-const RESOURCES_DSLEVEL_PATH = path.join(
-  path.dirname(fileURLToPath(import.meta.url)),
-  '..',
-  '..',
-  'resources',
-  'dslevel-pattern.txt'
+const RESOURCES_DSLEVEL_PATH = resolveAsset(
+  import.meta.url,
+  ['..', '..', 'resources', 'dslevel-pattern.txt'],
+  ['resources', 'dslevel-pattern.txt']
 );
 
 /** Fallback when the packaged resource file is missing (e.g. tests or incomplete build). */

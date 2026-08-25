@@ -19,8 +19,31 @@
 
 import * as vscode from 'vscode';
 
-let outputChannel: vscode.LogOutputChannel | undefined;
-let displayName: string | undefined;
+/**
+ * State lives on `globalThis` rather than module-scoped `let`s.
+ *
+ * The packaged extension runs the esbuild-bundled `dist/extension.js`,
+ * which inlines its own copy of this module's code — a separate JS module
+ * instance from `out/log.js` (the plain tsc output), which the VS Code
+ * integration test suite (`out/test/*.js`) imports directly to call
+ * {@link getLog}. Module-scoped state would make each instance keep its
+ * own independent `outputChannel`/`displayName`, so `initLog()` running
+ * inside the bundle would never be visible to the test file's separate
+ * `out/log.js` instance. Both run in the same extension host process
+ * during `vscode-test`, though, so `globalThis` is genuinely shared even
+ * when the module instance isn't.
+ */
+interface ZoweMcpLogGlobalState {
+  outputChannel?: vscode.LogOutputChannel;
+  displayName?: string;
+}
+
+const GLOBAL_STATE_KEY = '__zoweMcpLogState__';
+
+function getGlobalState(): ZoweMcpLogGlobalState {
+  const globalRecord = globalThis as unknown as Record<string, ZoweMcpLogGlobalState | undefined>;
+  return (globalRecord[GLOBAL_STATE_KEY] ??= {});
+}
 
 /**
  * Initializes the log output channel and registers it for disposal
@@ -28,10 +51,11 @@ let displayName: string | undefined;
  * `displayName` field in the extension's `package.json`.
  */
 export function initLog(context: vscode.ExtensionContext): vscode.LogOutputChannel {
-  displayName = (context.extension.packageJSON as { displayName: string }).displayName;
-  outputChannel = vscode.window.createOutputChannel(displayName, { log: true });
-  context.subscriptions.push(outputChannel);
-  return outputChannel;
+  const state = getGlobalState();
+  state.displayName = (context.extension.packageJSON as { displayName: string }).displayName;
+  state.outputChannel = vscode.window.createOutputChannel(state.displayName, { log: true });
+  context.subscriptions.push(state.outputChannel);
+  return state.outputChannel;
 }
 
 /**
@@ -39,10 +63,11 @@ export function initLog(context: vscode.ExtensionContext): vscode.LogOutputChann
  * Must be called after {@link initLog}.
  */
 export function getLog(): vscode.LogOutputChannel {
-  if (!outputChannel) {
+  const state = getGlobalState();
+  if (!state.outputChannel) {
     throw new Error('Log output channel has not been initialized. Call initLog() first.');
   }
-  return outputChannel;
+  return state.outputChannel;
 }
 
 /**
@@ -50,10 +75,11 @@ export function getLog(): vscode.LogOutputChannel {
  * Must be called after {@link initLog}.
  */
 export function getDisplayName(): string {
-  if (!displayName) {
+  const state = getGlobalState();
+  if (!state.displayName) {
     throw new Error('Display name has not been initialized. Call initLog() first.');
   }
-  return displayName;
+  return state.displayName;
 }
 
 /**

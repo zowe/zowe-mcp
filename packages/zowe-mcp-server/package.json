@@ -1,6 +1,6 @@
 {
   "name": "@zowe/mcp-server",
-  "version": "0.10.0",
+  "version": "0.11.0-dev",
   "description": "Zowe MCP Server - Model Context Protocol server providing tools for z/OS",
   "type": "module",
   "main": "dist/index.js",
@@ -40,15 +40,16 @@
   ],
   "license": "EPL-2.0",
   "dependencies": {
-    "@faker-js/faker": "^10.5.0",
+    "@faker-js/faker": "^10.6.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
-    "@zowe/imperative": "^8.34.0",
-    "@zowe/zos-uss-for-zowe-sdk": "^8.34.0",
+    "@zowe/imperative": "^8.36.0",
+    "@zowe/zos-uss-for-zowe-sdk": "^8.36.0",
     "@zowe/zowex-for-zowe-sdk": "file:../../resources/zowe-zowex-for-zowe-sdk-0.7.1-2026-08-12-083747.tgz",
     "express": "^5.1.0",
     "hardstop-patterns": "^1.0.0",
-    "js-yaml": "^5.2.2",
+    "js-yaml": "^5.3.0",
     "lru-cache": "^11.5.2",
+    "markdown-table-prettify": "^3.7.0",
     "node-ssh": "^13.2.0",
     "path-to-regexp": "8.4.2",
     "ssh2": "^1.17.0",
@@ -59,10 +60,10 @@
   "devDependencies": {
     "@types/express": "^5.0.0",
     "@types/js-yaml": "^4.0.9",
-    "@types/node": "^26.1.1",
+    "@types/node": "^26.2.0",
     "@types/ssh2": "^1.15.5",
-    "@vitest/coverage-v8": "4.1.10",
+    "@vitest/coverage-v8": "4.1.11",
     "ajv": "^8.20.0",
-    "vitest": "^4.1.10"
+    "vitest": "^4.1.11"
   }
 }

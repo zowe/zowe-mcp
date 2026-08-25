@@ -2,7 +2,7 @@
   "name": "zowe-mcp-vscode",
   "displayName": "Zowe MCP",
   "description": "Zowe MCP Server for z/OS - provides AI tools for data sets, jobs, and UNIX System Services.",
-  "version": "0.10.0",
+  "version": "0.11.0-dev",
   "publisher": "Zowe",
   "author": "Zowe",
   "license": "EPL-2.0",
@@ -26,7 +26,7 @@
   "activationEvents": [
     "onStartupFinished"
   ],
-  "main": "./out/extension.js",
+  "main": "./dist/extension.js",
   "contributes": {
     "iconThemes": [
       {
@@ -351,9 +351,10 @@
     "vscode:prepublish": "npm run build:all",
     "build": "tsc -p ./",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "build:server": "npm run build -w @zowe/mcp-server && npm run bundle:server",
+    "build:server": "npm run build -w zowe-mcp-common && npm run build -w @zowe/mcp-server && npm run bundle:server",
     "bundle:server": "node scripts/bundle-server.js",
-    "build:all": "npm run build:server && npm run build",
+    "bundle:extension": "node scripts/esbuild.mjs extension",
+    "build:all": "npm run build:server && npm run build && npm run bundle:extension",
     "dev": "tsc -watch -p ./",
     "pretest": "npm run build:all",
     "test": "vscode-test",
@@ -367,16 +368,17 @@
     "postinstall": "npm run download-api"
   },
   "dependencies": {
-    "@zowe/imperative": "^8.34.0",
-    "zowe-mcp-common": "*",
-    "@zowe/mcp-server": "0.10.0"
+    "@zowe/imperative": "^8.36.0",
+    "@zowe/mcp-server": "0.11.0-dev",
+    "zowe-mcp-common": "*"
   },
   "devDependencies": {
-    "@types/node": "^26.1.1",
+    "@types/node": "^26.2.0",
     "@vscode/dts": "^0.4.1",
-    "@vscode/vsce": "^3.9.2",
     "@vscode/test-cli": "^0.0.15",
     "@vscode/test-electron": "^3.1.0",
+    "@vscode/vsce": "^3.9.2",
+    "esbuild": "^0.28.2",
     "typescript": "^5.9.2"
   }
 }

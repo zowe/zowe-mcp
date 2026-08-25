@@ -17,7 +17,6 @@
  */
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { createRequire } from 'node:module';
 import { getOrCreateTenantResponseCache, tenantKeyFromSub } from './auth/tenant-resources.js';
 import {
   buildCapabilityInstructions,
@@ -36,6 +35,7 @@ import { installMcpServerInvocationContext } from './mcp-tool-context.js';
 import { registerDatasetPrompts } from './prompts/dataset-prompts.js';
 import { registerImprovementPrompts } from './prompts/improvement-prompts.js';
 import { registerDatasetResources } from './resources/dataset-resources.js';
+import { getServerPackageJson } from './runtime/asset-root.js';
 import { registerCertificateTools } from './tools/certificates/certificate-tools.js';
 import { registerContextTools } from './tools/context/context-tools.js';
 // import { registerConsoleTools } from './tools/console/console-tools.js';
@@ -62,10 +62,7 @@ import {
 import { SessionState } from './zos/session.js';
 import { SystemRegistry } from './zos/system.js';
 
-const require = createRequire(import.meta.url);
-const packageJson: { version: string } = require('../package.json') as {
-  version: string;
-};
+const packageJson = getServerPackageJson(import.meta.url);
 
 /** The server version from package.json. */
 export const SERVER_VERSION: string = packageJson.version;

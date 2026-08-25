@@ -210,7 +210,10 @@ function buildLocalFilesFallbackDirectories(parsed: ParsedArgs): string[] {
   return [...new Set(dirs)];
 }
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
+// Named `scriptDir` (not `__dirname`) so it can't collide with the ambient
+// `__dirname` that esbuild's bundled output synthesizes (via its banner)
+// for CJS interop when this entry point is bundled into the VSIX.
+const scriptDir = dirname(fileURLToPath(import.meta.url));
 
 function applyEnvOverrides(parsed: ParsedArgs): void {
   if (!parsed.mockDir && process.env.ZOWE_MCP_MOCK_DIR) {
@@ -310,7 +313,7 @@ function parseArgs(): ParsedArgs {
           },
         }),
       () => {
-        const scriptPath = resolve(__dirname, 'scripts', 'init-mock.js');
+        const scriptPath = resolve(scriptDir, 'scripts', 'init-mock.js');
         const result = spawnSync(process.execPath, [scriptPath, ...process.argv.slice(3)], {
           stdio: 'inherit',
         });
@@ -328,7 +331,7 @@ function parseArgs(): ParsedArgs {
           },
         }),
       () => {
-        const scriptPath = resolve(__dirname, 'scripts', 'generate-docs.js');
+        const scriptPath = resolve(scriptDir, 'scripts', 'generate-docs.js');
         const result = spawnSync(process.execPath, [scriptPath, ...process.argv.slice(3)], {
           stdio: 'inherit',
         });
@@ -366,7 +369,7 @@ function parseArgs(): ParsedArgs {
         // spawnSync, signals to this parent kill the parent by default
         // disposition while orphaning the daemon child — `kill <pid>` then
         // appears to "not work" because port 8443 stays bound.
-        const scriptPath = resolve(__dirname, 'scripts', 'mock-zos.js');
+        const scriptPath = resolve(scriptDir, 'scripts', 'mock-zos.js');
         const child = spawn(process.execPath, [scriptPath, ...process.argv.slice(3)], {
           stdio: 'inherit',
         });
@@ -420,7 +423,7 @@ function parseArgs(): ParsedArgs {
           },
         }),
       () => {
-        const scriptPath = resolve(__dirname, 'scripts', 'call-tool.js');
+        const scriptPath = resolve(scriptDir, 'scripts', 'call-tool.js');
         const result = spawnSync(process.execPath, [scriptPath, ...process.argv.slice(3)], {
           stdio: 'inherit',
         });
@@ -1141,7 +1144,7 @@ async function main(): Promise<void> {
   // Run subcommand scripts directly so they work even if yargs doesn't dispatch (e.g. in bundled extension)
   const subcommand = process.argv[2];
   if (subcommand === 'init-mock' || subcommand === 'call-tool' || subcommand === 'generate-docs') {
-    const scriptPath = resolve(__dirname, 'scripts', `${subcommand}.js`);
+    const scriptPath = resolve(scriptDir, 'scripts', `${subcommand}.js`);
     const result = spawnSync(process.execPath, [scriptPath, ...process.argv.slice(3)], {
       stdio: 'inherit',
     });
@@ -1777,7 +1780,7 @@ async function main(): Promise<void> {
     const yamlEntries: { fileName: string; yamlPath: string; source: string }[] = [];
 
     const pluginsDir =
-      parsed.cliPluginsDir ?? resolve(__dirname, 'tools', 'cli-bridge', 'plugins');
+      parsed.cliPluginsDir ?? resolve(scriptDir, 'tools', 'cli-bridge', 'plugins');
     if (!existsSync(pluginsDir)) {
       if (parsed.cliPluginsDir) {
         logger.warning('CLI plugins directory not found', { pluginsDir });
@@ -1792,7 +1795,7 @@ async function main(): Promise<void> {
 
     // Vendor scan: <repo-root>/vendor/*/cli-bridge-plugins/*.yaml
     // Companion files (*-commands.yaml) are loaded by the tools YAML loader via $.path refs — skip here.
-    const vendorDir = resolve(__dirname, '..', '..', '..', 'vendor');
+    const vendorDir = resolve(scriptDir, '..', '..', '..', 'vendor');
     if (existsSync(vendorDir)) {
       for (const entry of readdirSync(vendorDir, { withFileTypes: true })) {
         if (!entry.isDirectory()) continue;

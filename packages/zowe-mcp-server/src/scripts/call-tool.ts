@@ -72,7 +72,10 @@ import {
 } from '../zos/native/connection-spec.js';
 import { loadNative } from '../zos/native/load-native.js';
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
+// Named `scriptDir` (not `__dirname`) so it can't collide with the ambient
+// `__dirname` that esbuild's bundled output synthesizes (via its banner)
+// for CJS interop when this entry point is bundled into the VSIX.
+const scriptDir = dirname(fileURLToPath(import.meta.url));
 
 const log = new Logger({ name: 'call-tool' });
 
@@ -383,8 +386,8 @@ async function main(): Promise<void> {
     const { existsSync, readdirSync, readFileSync: rf } = await import('node:fs');
 
     // Build candidate YAML search paths: built-in plugins dir + vendor dirs
-    const vendorDir = resolve(__dirname, '..', '..', '..', '..', 'vendor');
-    const builtinPluginsDir = resolve(__dirname, '..', 'tools', 'cli-bridge', 'plugins');
+    const vendorDir = resolve(scriptDir, '..', '..', '..', '..', 'vendor');
+    const builtinPluginsDir = resolve(scriptDir, '..', 'tools', 'cli-bridge', 'plugins');
 
     for (const [pluginName, connFile] of cliPluginConnections.entries()) {
       const raw = rf(connFile, 'utf-8');

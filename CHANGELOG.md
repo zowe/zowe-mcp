@@ -16,6 +16,7 @@ don't warrant an entry (CI, chores, internal refactors, docs-only) can carry the
 
 ### Added
 
+- Enabled the `runConsoleCommand` tool (z/OS operator console commands) at capability tier `full`. Requires zowex 0.9.0+ on the host and the separately installed APF-authorized `zoweax` binary; each command is authorized by the site ESM (OPERCMDS). Safe DISPLAY commands run directly, state-changing commands require user confirmation via elicitation, and system-stopping commands are blocked. Failures map to actionable guidance (server too old, zoweax missing, not authorized).
 - Binary (base64, no-conversion) transfer on `readDataset`, `writeDataset`, `readUssFile`, and `writeUssFile` via a new optional `binary` input: reads return `data.contentBase64`, writes take `contentBase64` instead of `lines`. For non-text content (tersed files, load modules) that the UTF-8/EBCDIC text path would corrupt. Binary dataset writes require a preallocated target with a suitable record format.
 
 ### Changed

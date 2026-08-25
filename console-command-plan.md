@@ -41,7 +41,7 @@ Each step below is one reviewable PR. Steps marked ⚡ can start today, in paral
 
 ## Dependency graph
 
-```
+```text
 ⚡ M1 (mcp elicitation fix) ──────────────────┐
 ⚡ M2 (mcp pattern hardening) ────────────────┤
 ⚡ Z1 (slim zoweax) ────────────┬─→ Z4 (docs/packaging)
@@ -72,10 +72,12 @@ APF binary), but Z3 works against either zoweax shape.
 ## Phase 0 — start today, all parallel ⚡
 
 ### Step 1 (M1, zowe-mcp): console elicitation parity + plumbing
+
 > STATUS: done (branch `console-prep-and-binary`, together with M2 and the
 > binary-transfer backlog item; full test suite green).
 
 Zero risk — tool stays unregistered.
+
 - Fix elicitation in `tools/console/console-tools.ts:106-133` to match TSO
   (`tools/tso/tso-tools.ts:107-160`): pre-check `caps.elicitation`, `mode: 'form'`,
   `confirm` as `type: 'boolean'` + `required: ['confirm']`, require `confirm === true`.
@@ -84,6 +86,7 @@ Zero risk — tool stays unregistered.
 - Done when: unit test covers the elicitation schema; no registration change.
 
 ### Step 2 (M2, zowe-mcp): pattern hardening
+
 - Extend `tools/console/console-command-patterns.json`: `V`/`E`/`C` abbreviations,
   `DUMP`, `SLIP`, `CF`/`CONFIG`, `IPL`, ROUTE smuggling (`RO SYS1,P JOB` must be
   evaluated as its routed command, or elicit). WTOR replies (`R nn,...` /
@@ -93,6 +96,7 @@ Zero risk — tool stays unregistered.
 - Done when: every dangerous/elicit/safe class has positive + negative test cases.
 
 ### Step 3 (Z1, zowex): slim zoweax
+
 - New minimal `main()` for zoweax: registers console group + version/help only.
   Remove plugin bridge, server, and other command groups from the authorized link
   (`native/c/makefile:392-397` target keeps its name; new entry object).
@@ -103,6 +107,7 @@ Zero risk — tool stays unregistered.
   cleanly errors; binary is materially smaller.
 
 ### Step 4 (Z2, zowex): SAF-mediated authority
+
 - Remove `AUTHCMDX=X'8000'` (`native/c/zcnm31.c:145-146`) so MGCRE commands are
   checked against OPERCMDS under the caller's ACEE. Hard cutover — no
   code-level escape hatch (see next bullet for why none is needed).
@@ -133,6 +138,7 @@ Zero risk — tool stays unregistered.
 ## Phase 1 — zowex enablement
 
 ### Step 5 (Z3, zowex): console over RPC — after Z2 (rebase on Z1)
+
 - Register `consoleCommand` in `native/c/server/rpc_commands.cpp` (TSO template at
   `:195-202`): handler spawns zoweax via `zut_run_program`
   (`native/c/zut.cpp:57-205`), `.validate<IssueConsoleCmdRequest, IssueConsoleCmdResponse>()`,
@@ -149,6 +155,7 @@ Zero risk — tool stays unregistered.
   on a host with zoweax installed, and returns the actionable error on one without.
 
 ### Step 6 (Z4, zowex): packaging + security docs — after Z1, parallel with Z3
+
 - Apply the distribution decision (release-pax-only recommended; SDK pax stays
   zowex-only per `scripts/buildTools.ts:1102-1126`).
 - New `doc/zoweax-security.md` — two required parts:
@@ -175,6 +182,7 @@ Zero risk — tool stays unregistered.
   `console-name` required→optional (matches RPC schema; non-breaking).
 
 ### Step 6b (Z6, zowex + zowe-mcp, optional): guided zoweax install skill
+
 - **zowex**: skill beside `zowex-ssh` (or `zx doctor console` subcommand):
   preflight over SSH (detect ESM, check `BPX.FILEATTR.APF`, mount SETUID,
   `ls -E` for `ap`/no-`s` attributes, non-login-shell `command -v zoweax`),
@@ -195,6 +203,7 @@ Zero risk — tool stays unregistered.
   ESM sections of doc/zoweax-security.md.
 
 ### Step 7 (Z5, zowex): test enablement — anytime after Z2
+
 - APF-bound test-runner target (unused `BIND_FLAGS_AUTH` at
   `native/c/test/makefile:23-25`; main target binds unauth at `:159`).
 - Re-enable the ~200 commented lines in `native/c/test/zcn.test.cpp:43-256`.
@@ -205,6 +214,7 @@ Zero risk — tool stays unregistered.
 ## Phase 2 — zowe-mcp enablement (after Z3 merges)
 
 ### Step 8 (P1, zowe-mcp): move the SDK pin
+
 - Wait for the post-Z3 nightly (or main Build artifact), then:
   `node scripts/sdk-switch.js nightly --write-pin`
 - Commit `resources/zowex-pin.json` + `packages/zowe-mcp-server/package.json` +
@@ -212,6 +222,7 @@ Zero risk — tool stays unregistered.
 - (For pre-merge testing: `node scripts/sdk-switch.js pr <zowex-pr#>`.)
 
 ### Step 9 (M3, zowe-mcp): enable the tool
+
 - Uncomment `server.ts:41` and `:554-569`.
 - Map backend errors to actionable tool messages (METHOD_NOT_FOUND → "zowex server
   too old"; zoweax missing/unauthorized → "sysprog must install zoweax, see
@@ -224,6 +235,7 @@ Zero risk — tool stays unregistered.
   dangerous-class blocked; live `D T` works against a prepared test system.
 
 ### Step 10 (M4, zowe-mcp): docs + evals
+
 - `docs/mcp-reference-inputs.yaml`: add `runConsoleCommand` entry; `npm run generate-docs`.
 - Update `AGENTS.md:34`/`:76`, `docs/mock-zos-host.md:945`, safety doc
   `docs/mcp-safety-security-principles.md` §7/§10 (state: patterns are guardrails,
@@ -232,6 +244,7 @@ Zero risk — tool stays unregistered.
   add live console prompt-injection vector (TODO.md:154).
 
 ### Step 11 (R1, zowe-mcp): release
+
 - Standard flow per `docs/prepare-release.md` (set-version, changelogs,
   generate-docs, `release/vX.Y.Z` branch). Release notes must carry the two
   zowex breaking changes (zoweax scope, master authority → SAF) and link
@@ -247,6 +260,14 @@ Zero risk — tool stays unregistered.
   support, round-trip integration tests. Remaining: verify the native path
   once against a live zowex (`readDataset`/`writeDataset` with
   `encoding: "binary"` — same RPC contract `zx ds put --binary` uses).
+
+### Step 12: delete this plan
+
+- When R1 ships, `git rm console-command-plan.md`. Everything durable has a
+  better home by then: the security model in `doc/zoweax-security.md` (zowex),
+  behavior changes in both changelogs, tool docs in `docs/mcp-reference.md`,
+  and open follow-ups as GitHub issues. A finished plan left in the repo is
+  just a document that slowly becomes wrong.
 
 ## Breaking-changes register (for release notes)
 

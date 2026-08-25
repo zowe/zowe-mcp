@@ -149,11 +149,12 @@ Transfer files between z/OS (data sets and USS paths) and the local workspace.
 
 ## Other
 
-The server provides **1** tool.
+The server provides **2** tools.
 
 | # | Tool                                          | Description                                                                                             |
 |---|-----------------------------------------------|---------------------------------------------------------------------------------------------------------|
 | 1 | [`removeZosConnection`](#removezosconnection) | Remove a z/OS SSH connection (user@host or user@host:port) from your per-user saved list (OIDC subject) |
+| 2 | [`runConsoleCommand`](#runconsolecommand)     | Run a z/OS operator console command (e.g. DISPLAY T, DISPLAY A)                                         |
 
 ## db2 CLI Plugin Tools
 
@@ -3798,6 +3799,90 @@ Remove a z/OS SSH connection (user@host or user@host:port) from your per-user sa
 
 ---
 
+### `runConsoleCommand`
+
+> Destructive
+
+Run a z/OS operator console command (e.g. DISPLAY T, DISPLAY A). System-shutdown commands (HALT, SHUTDOWN, QUIESCE, Z EOD) are blocked. Other non-display commands (SET, VARY, CANCEL, FORCE, START, STOP, MODIFY) require user approval. Unknown commands also require user approval.
+
+#### Parameters
+
+| Parameter     | Type      | Required | Description                                                                                                                                                                                                                                                                                                         |
+|---------------|-----------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `commandText` | `string`  | Yes      | Console command to execute (e.g. "D T", "D A,L", "DISPLAY IPLINFO").                                                                                                                                                                                                                                                |
+| `consoleName` | `string`  | No       | Console name (optional).                                                                                                                                                                                                                                                                                            |
+| `system`      | `string`  | No       | Optional. Target z/OS system (a host, or user@host when several connections exist). Omit it to use the active/default connection — you do not need to select or set a system first, and you should still call the tool when no system has been chosen yet. Specify it only to target a different configured system. |
+| `startLine`   | `integer` | No       | 1-based start line for paginating a previous result.                                                                                                                                                                                                                                                                |
+| `lineCount`   | `integer` | No       | Number of lines to return from startLine.                                                                                                                                                                                                                                                                           |
+
+<a id="runconsolecommand-output-schema"></a>
+
+#### Output Schema
+
+| Field      | Type       | Required | Description                                                                                                 |
+|------------|------------|----------|-------------------------------------------------------------------------------------------------------------|
+| `_context` | `object`   | Yes      | Resolution context: target z/OS system. *(same as [`runSafeTsoCommand`](#runsafetsocommand-output-schema))* |
+| `_result`  | `object`   | Yes      | Result metadata (line window). *(same as [`readDataset`](#readdataset-output-schema))*                      |
+| `messages` | `string`[] | No       | Operational messages: pagination hints, resolution notes. Omitted when empty.                               |
+| `data`     | `object`   | Yes      | *(same as [`runSafeUssCommand`](#runsafeusscommand-output-schema))*                                         |
+
+#### Example Outputs
+
+##### default
+
+Input:
+
+```json
+{
+  "commandText": "D T"
+}
+```
+
+Output:
+
+```json
+{
+  "_context": {
+    "system": "mainframe-dev.example.com"
+  },
+  "_result": {
+    "totalLines": 1,
+    "startLine": 1,
+    "returnedLines": 1,
+    "contentLength": 48,
+    "mimeType": "text/plain",
+    "hasMore": false
+  },
+  "data": {
+    "lines": [
+      "IEE136I LOCAL: TIME=12:00:00 DATE=2026.08.25 UTC"
+    ],
+    "mimeType": "text/plain"
+  }
+}
+```
+
+##### blocked command
+
+Input:
+
+```json
+{
+  "commandText": "Z EOD"
+}
+```
+
+Output:
+
+```json
+// isError: true
+{
+  "error": "This console command was BLOCKED by the z/OS MCP safety policy and was NOT run. Z EOD terminates the system. Do not retry it or explain how to run it; if it is genuinely required, advise the user to run it through an authorized channel (such as a 3270 session) under their own authority."
+}
+```
+
+---
+
 ### `db2ListConnections`
 
 > Read-only
@@ -3986,7 +4071,7 @@ Adds tools that delete or cancel resources.
 
 Adds tools that execute commands and submit jobs. Full access to all operations.
 
-**75** tools available (7 new at this tier).
+**76** tools available (8 new at this tier).
 
 | Tool                                            | Effect Level |
 |-------------------------------------------------|--------------|
@@ -3995,6 +4080,7 @@ Adds tools that execute commands and submit jobs. Full access to all operations.
 | [`submitJob`](#submitjob)                       | execute      |
 | [`submitJobFromDataset`](#submitjobfromdataset) | execute      |
 | [`submitJobFromUss`](#submitjobfromuss)         | execute      |
+| [`runConsoleCommand`](#runconsolecommand)       | execute      |
 | [`db2ExecuteSql`](#db2executesql)               | execute      |
 | [`db2CallProcedure`](#db2callprocedure)         | execute      |
 

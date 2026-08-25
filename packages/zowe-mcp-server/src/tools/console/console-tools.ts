@@ -180,9 +180,38 @@ export function registerConsoleTools(
         await progress.complete('done');
         return wrapResponse(responseCtx, meta, { lines, mimeType }, messages);
       } catch (err) {
-        await progress.complete((err as Error).message);
-        return errorResult((err as Error).message);
+        const message = (err as Error).message;
+        await progress.complete(message);
+        return errorResult(decorateConsoleError(message));
       }
     }
   );
+}
+
+/**
+ * Maps known console failure classes to actionable guidance. The raw message
+ * is always preserved; this only appends what to do about it.
+ */
+export function decorateConsoleError(message: string): string {
+  if (/unrecognized command|-32601/i.test(message)) {
+    return (
+      `${message}\nThe z/OS server does not support console commands (needs zowex 0.9.0 or later). ` +
+      'It is normally updated automatically on the next connection; reconnect and retry.'
+    );
+  }
+  if (/command not found|permission denied.*zoweax|zoweax.*command not found/i.test(message)) {
+    return (
+      `${message}\nConsole commands run through the separately installed APF-authorized zoweax binary, ` +
+      'which was not found or is not executable on the host. A system programmer must install it — ' +
+      'see doc/zoweax-security.md in the zowe/zowex repository.'
+    );
+  }
+  if (/not authorized/i.test(message)) {
+    return (
+      `${message}\nEither the zoweax binary is not APF-authorized (extattr +ap, set by a system programmer) ` +
+      'or the ESM denied the console activation/command (OPERCMDS class). ' +
+      'See doc/zoweax-security.md in the zowe/zowex repository. Do not retry until access is granted.'
+    );
+  }
+  return message;
 }

@@ -6,6 +6,10 @@ All notable changes to the Zowe MCP extension will be documented in this file.
 
 ## Recent Changes
 
+### Other
+
+- **Much faster installs**: The extension VSIX is now esbuild-bundled (extension host and MCP server) instead of shipping a full `npm install` of every production dependency. This cuts the packaged file count and removes duplicate copies of large native binaries, which noticeably speeds up installation, especially on Windows. [#54](https://github.com/zowe/zowe-mcp/issues/54)
+
 ## `0.10.0`
 
 ### New features and enhancements

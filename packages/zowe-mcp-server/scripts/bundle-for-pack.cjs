@@ -20,8 +20,12 @@
  *   3. Copy the rewritten package.json to an isolated temp directory (outside
  *      the monorepo so npm install doesn't hoist deps to root)
  *   4. Run `npm install --omit=dev` in the isolated dir
- *   5. Copy the resulting node_modules back, dereference symlinks
- *   6. Add bundledDependencies: true for npm pack
+ *   5. Dereference symlinks
+ *   6. Prune dead weight (@napi-rs/cli, runtime-dead files — but keep .mjs,
+ *      since this tree is consumed as real ESM; see the CJS-vs-ESM note at
+ *      that step below)
+ *   7. Copy the resulting node_modules back
+ *   8. Add bundledDependencies: true for npm pack
  *
  * Runs as a prepack script (before npm pack).
  */
@@ -35,6 +39,8 @@ const {
   prepareFileDepsForBundle,
   dereferenceSymlinks,
   npmInstallProduction,
+  pruneNapiRsCli,
+  pruneRuntimeDeadFiles,
 } = require('../../../scripts/bundle-production-deps.cjs');
 
 const serverPkgDir = path.resolve(__dirname, '..');
@@ -90,7 +96,25 @@ try {
   // 5. Dereference symlinks created by file: deps
   dereferenceSymlinks(path.join(isoDir, 'node_modules'));
 
-  // 6. Copy the node_modules tree into the server package directory
+  // 6. Prune dead weight from the isolated node_modules before it's copied
+  //    into the package: @napi-rs/cli (a russh devDependency npm installs
+  //    anyway, never needed at runtime) and dead runtime files. The packed
+  //    server runs UNBUNDLED as ESM (tsc build, "type": "module", real
+  //    `import` statements) — those `import`s resolve into dependencies
+  //    through the dependencies' own package.json "exports"/"import"
+  //    conditions, which often point at a .mjs file for the ESM entry
+  //    point, so .mjs MUST be kept here (pruneEsmVariants: false). See
+  //    scripts/bundle-production-deps.cjs for the full CJS-vs-ESM
+  //    reasoning (bundle-server.js, the VSIX's pure-CJS require tree,
+  //    prunes .mjs; this unbundled ESM tree must not).
+  console.log('Pruning @napi-rs/cli and runtime-dead files from isolated node_modules...');
+  pruneNapiRsCli(path.join(isoDir, 'node_modules'));
+  const deadFilesPruned = pruneRuntimeDeadFiles(path.join(isoDir, 'node_modules'), {
+    pruneEsmVariants: false,
+  });
+  console.log(`Pruned ${deadFilesPruned} runtime-dead files.`);
+
+  // 7. Copy the node_modules tree into the server package directory
   const targetNodeModules = path.join(serverPkgDir, 'node_modules');
   if (fs.existsSync(targetNodeModules)) {
     fs.rmSync(targetNodeModules, { recursive: true, force: true });
@@ -100,7 +124,7 @@ try {
   // Clean up the temp directory
   fs.rmSync(isoDir, { recursive: true, force: true });
 
-  // 7. Add bundledDependencies: true so npm pack includes the node_modules/ tree.
+  // 8. Add bundledDependencies: true so npm pack includes the node_modules/ tree.
   //    This flag is NOT in the committed package.json (it would cause npm install
   //    to skip deps during development). We add it here only for the pack phase.
   const modifiedPkg = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));

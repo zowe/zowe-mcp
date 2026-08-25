@@ -19,22 +19,25 @@
  * 4. unknown → ELICIT
  */
 
-import { createRequire } from 'node:module';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { readFileSync } from 'node:fs';
+import { resolveAsset } from '../../runtime/asset-root.js';
 import {
   evaluateCommandSafety,
   type CommandPatterns,
   type CommandSafetyResult,
 } from '../command-safety.js';
 
-const require = createRequire(import.meta.url);
-const __dirname = dirname(fileURLToPath(import.meta.url));
-
 let cachedPatterns: CommandPatterns | undefined;
 
 function getPatterns(): CommandPatterns {
-  cachedPatterns ??= require(join(__dirname, 'tso-command-patterns.json')) as CommandPatterns;
+  if (!cachedPatterns) {
+    const patternsPath = resolveAsset(
+      import.meta.url,
+      ['tso-command-patterns.json'],
+      ['tools', 'tso', 'tso-command-patterns.json']
+    );
+    cachedPatterns = JSON.parse(readFileSync(patternsPath, 'utf-8')) as CommandPatterns;
+  }
   return cachedPatterns;
 }
 

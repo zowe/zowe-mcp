@@ -1054,7 +1054,7 @@ export function registerDatasetTools(
           await progress.complete('invalid arguments');
           return errorResult('lines is required unless binary is true.');
         }
-        const content = binary ? (contentBase64 as string) : linesToText(lines ?? []);
+        const content = binary ? contentBase64! : linesToText(lines ?? []);
         const resolved = await resolveInput(deps, dsn, member, system, log);
         const systemCtx = deps.sessionState.getContext(resolved.systemId);
         const resolvedEncoding = binary

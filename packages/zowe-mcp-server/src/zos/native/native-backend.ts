@@ -1778,7 +1778,10 @@ export class NativeBackend {
         return response.data ?? '';
       },
       progress,
-      { operation: 'runConsoleCommand', params: { commandText: commandText.slice(0, 80), consoleName } }
+      {
+        operation: 'runConsoleCommand',
+        params: { commandText: commandText.slice(0, 80), consoleName },
+      }
     );
   }
 

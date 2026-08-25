@@ -188,7 +188,7 @@ This section states **explicitly** what this repository already provides versus 
 | **Multi-user HTTP** | Per-tenant connection persistence and isolation when JWT + `ZOWE_MCP_TENANT_STORE_DIR` are set; optional encrypt-at-rest (`ZOWE_MCP_TENANT_STORE_KEY`). |
 | **Tool hints** | `readOnlyHint` / `destructiveHint` derived from each tool's `resourceEffectLevel` and the active capability tier (UX, not enforcement). |
 | **Progressive capability tiers** (§7) | `--capability-tier` / `ZOWE_MCP_CAPABILITY_TIER` / VS Code `zoweMCP.capabilityTier`. Default `read-strict`. Filters tools at registration and derives hints. |
-| **Command safety** | Pattern-based evaluation for TSO and USS command tools (`tso-command-patterns.json`, USS path/command gates); block vs elicit vs allow paths. |
+| **Command safety** | Pattern-based evaluation for TSO, USS, and console command tools (`tso-command-patterns.json`, `console-command-patterns.json`, USS path/command gates); block vs elicit vs allow paths. These patterns are UX guardrails, not the security boundary: for console commands the boundary is the site ESM's OPERCMDS check under the invoking user's identity, plus the separately installed APF-authorized `zoweax` binary (see `doc/zoweax-security.md` in the zowe/zowex repository). |
 | **Audit / debug** | Optional full tool-call logging (`ZOWE_MCP_LOG_TOOL_CALLS` / `CreateServerOptions.logToolCalls`)—operational risk if secrets appear in arguments. |
 | **Backend choice** | Mock filesystem backend vs native (Zowe Remote SSH) to limit real system exposure during learning or CI. |
 | **Local file bridge** | Paths constrained via MCP `roots/list` or `ZOWE_MCP_WORKSPACE_DIR`, `ZOWE_MCP_LOCAL_FILES_ROOT`, `--local-files-root`. |

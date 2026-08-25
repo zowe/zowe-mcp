@@ -18,9 +18,8 @@ import { describe, expect, it } from 'vitest';
 import { evaluateCommandSafety, type CommandPatterns } from '../src/tools/command-safety.js';
 
 const require = createRequire(import.meta.url);
-const patterns = require(
-  '../src/tools/console/console-command-patterns.json'
-) as unknown as CommandPatterns;
+const patterns =
+  require('../src/tools/console/console-command-patterns.json') as unknown as CommandPatterns;
 
 const evalCmd = (text: string) => evaluateCommandSafety(text, patterns);
 

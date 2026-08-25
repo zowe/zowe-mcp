@@ -3,7 +3,7 @@
 config:
   name: console
   description: Agent must use runConsoleCommand for z/OS operator console commands
-  skip: 'ZNP does not yet support console.issueCmd — tool not registered until SDK adds support'
+  skip: 'Requires a real z/OS native backend (native-config.json + live system) with zowex 0.9.0+ and an installed APF-authorized zoweax; console commands are canned-only in mock mode. Run manually: npm run evals -- --set console'
   repetitions: 1
   minSuccessRate: 0.8
   native:

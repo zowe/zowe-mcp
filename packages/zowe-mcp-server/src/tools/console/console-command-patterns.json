@@ -68,7 +68,11 @@
       "message": "RO (ROUTE) sends commands to other systems.",
       "pattern": "^RO\\s+"
     },
-    { "id": "console-v", "message": "V (VARY) changes device/subsystem status.", "pattern": "^V\\s+" },
+    {
+      "id": "console-v",
+      "message": "V (VARY) changes device/subsystem status.",
+      "pattern": "^V\\s+"
+    },
     { "id": "console-c", "message": "C (CANCEL) terminates address spaces.", "pattern": "^C\\s+" },
     {
       "id": "console-e",
@@ -106,19 +110,71 @@
       "message": "K (CONTROL) changes console configuration.",
       "pattern": "^K\\s+"
     },
-    { "id": "console-mount", "message": "MOUNT allocates a volume to a device.", "pattern": "^MOUNT\\b" },
-    { "id": "console-m-mount", "message": "M (MOUNT) allocates a volume to a device.", "pattern": "^M\\s+" },
-    { "id": "console-unload", "message": "UNLOAD removes a volume from a device.", "pattern": "^UNLOAD\\b" },
-    { "id": "console-u-unload", "message": "U (UNLOAD) removes a volume from a device.", "pattern": "^U\\s+" },
-    { "id": "console-swap", "message": "SWAP performs dynamic device reconfiguration.", "pattern": "^SWAP\\b" },
-    { "id": "console-g-swap", "message": "G (SWAP) performs dynamic device reconfiguration.", "pattern": "^G\\s+" },
-    { "id": "console-switch", "message": "SWITCH switches SMF recording data sets.", "pattern": "^SWITCH\\b" },
-    { "id": "console-i-switch", "message": "I (SWITCH) switches SMF recording data sets.", "pattern": "^I\\s+" },
-    { "id": "console-chngdump", "message": "CHNGDUMP changes system dump options.", "pattern": "^(CHNGDUMP\\b|CD\\s+)" },
-    { "id": "console-dumpds", "message": "DUMPDS manages dump data sets.", "pattern": "^(DUMPDS\\b|DD\\s+)" },
-    { "id": "console-pageadd", "message": "PAGEADD adds page or swap data sets.", "pattern": "^(PAGEADD\\b|PA\\s+)" },
-    { "id": "console-pagedel", "message": "PAGEDEL removes page or swap data sets.", "pattern": "^(PAGEDEL\\b|PD\\s+)" },
-    { "id": "console-ioaction", "message": "IOACTION stops or resumes device I/O.", "pattern": "^(IOACTION\\b|IO\\s+)" }
+    {
+      "id": "console-mount",
+      "message": "MOUNT allocates a volume to a device.",
+      "pattern": "^MOUNT\\b"
+    },
+    {
+      "id": "console-m-mount",
+      "message": "M (MOUNT) allocates a volume to a device.",
+      "pattern": "^M\\s+"
+    },
+    {
+      "id": "console-unload",
+      "message": "UNLOAD removes a volume from a device.",
+      "pattern": "^UNLOAD\\b"
+    },
+    {
+      "id": "console-u-unload",
+      "message": "U (UNLOAD) removes a volume from a device.",
+      "pattern": "^U\\s+"
+    },
+    {
+      "id": "console-swap",
+      "message": "SWAP performs dynamic device reconfiguration.",
+      "pattern": "^SWAP\\b"
+    },
+    {
+      "id": "console-g-swap",
+      "message": "G (SWAP) performs dynamic device reconfiguration.",
+      "pattern": "^G\\s+"
+    },
+    {
+      "id": "console-switch",
+      "message": "SWITCH switches SMF recording data sets.",
+      "pattern": "^SWITCH\\b"
+    },
+    {
+      "id": "console-i-switch",
+      "message": "I (SWITCH) switches SMF recording data sets.",
+      "pattern": "^I\\s+"
+    },
+    {
+      "id": "console-chngdump",
+      "message": "CHNGDUMP changes system dump options.",
+      "pattern": "^(CHNGDUMP\\b|CD\\s+)"
+    },
+    {
+      "id": "console-dumpds",
+      "message": "DUMPDS manages dump data sets.",
+      "pattern": "^(DUMPDS\\b|DD\\s+)"
+    },
+    {
+      "id": "console-pageadd",
+      "message": "PAGEADD adds page or swap data sets.",
+      "pattern": "^(PAGEADD\\b|PA\\s+)"
+    },
+    {
+      "id": "console-pagedel",
+      "message": "PAGEDEL removes page or swap data sets.",
+      "pattern": "^(PAGEDEL\\b|PD\\s+)"
+    },
+    {
+      "id": "console-ioaction",
+      "message": "IOACTION stops or resumes device I/O.",
+      "pattern": "^(IOACTION\\b|IO\\s+)"
+    }
   ],
   "safe": [
     { "id": "console-d-t", "pattern": "^D\\s+T\\b" },

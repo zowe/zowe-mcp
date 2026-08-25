@@ -776,7 +776,11 @@ export class FilesystemMockBackend implements ZosBackend {
       // Binary mode: text carries the file's raw bytes as base64
       const buf = await fs.readFile(localPath);
       const binStat = await fs.stat(localPath);
-      return { text: buf.toString('base64'), etag: computeEtag(binStat.mtimeMs), encoding: 'binary' };
+      return {
+        text: buf.toString('base64'),
+        etag: computeEtag(binStat.mtimeMs),
+        encoding: 'binary',
+      };
     }
     const content = await fs.readFile(localPath, 'utf-8');
     const stat = await fs.stat(localPath);

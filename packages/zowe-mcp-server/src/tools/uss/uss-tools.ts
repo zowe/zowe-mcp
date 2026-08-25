@@ -727,7 +727,7 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
           await progress.complete('invalid arguments');
           return errorResult('lines is required unless binary is true.');
         }
-        const content = binary ? (contentBase64 as string) : linesToText(lines ?? []);
+        const content = binary ? contentBase64! : linesToText(lines ?? []);
         const { systemId, userId: resolvedUserId } = resolveSystemForTool(
           deps.systemRegistry,
           deps.sessionState,

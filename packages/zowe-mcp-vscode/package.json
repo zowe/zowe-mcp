@@ -351,7 +351,7 @@
     "vscode:prepublish": "npm run build:all",
     "build": "tsc -p ./",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "build:server": "npm run build -w @zowe/mcp-server && npm run bundle:server",
+    "build:server": "npm run build -w zowe-mcp-common && npm run build -w @zowe/mcp-server && npm run bundle:server",
     "bundle:server": "node scripts/bundle-server.js",
     "bundle:extension": "node scripts/esbuild.mjs extension",
     "build:all": "npm run build:server && npm run build && npm run bundle:extension",

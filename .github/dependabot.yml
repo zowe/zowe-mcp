@@ -5,14 +5,25 @@ updates:
   # always raised individually by Dependabot regardless of grouping.
   - package-ecosystem: npm
     directory: '/'
+    # Twice a month (cron can't express a strict 14-day cadence) — weekly was
+    # more review churn than the bumps were worth (#42). Security updates are
+    # raised immediately regardless of this schedule.
     schedule:
-      interval: weekly
+      interval: cron
+      cronjob: '0 8 1,15 * *'
     open-pull-requests-limit: 10
     groups:
       dev-dependencies:
         dependency-type: development
       production-dependencies:
         dependency-type: production
+    # Setting `labels` replaces Dependabot's defaults, so the default pair is
+    # restated alongside `no-changelog`, which satisfies the changelog gate —
+    # dependency bumps don't get CHANGELOG.md entries (see changelog.yml).
+    labels:
+      - dependencies
+      - javascript
+      - no-changelog
     ignore:
       # Held at 5.9.x pending a deliberate TS 7 migration. TS 6.0+ makes
       # our tsconfigs' `moduleResolution: node` (node10) a hard error
@@ -27,4 +38,9 @@ updates:
   - package-ecosystem: github-actions
     directory: '/'
     schedule:
-      interval: weekly
+      interval: cron
+      cronjob: '0 8 1,15 * *'
+    labels:
+      - dependencies
+      - github_actions
+      - no-changelog

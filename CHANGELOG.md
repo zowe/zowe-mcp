@@ -20,6 +20,7 @@ don't warrant an entry (CI, chores, internal refactors, docs-only) can carry the
 
 ### Changed
 
+- Bundled zowex SDK pin moved to the 0.9.0 nightly (2026-08-25): brings the `consoleCommand` JSON-RPC support and the slimmed APF-authorized `zoweax` companion; hosts running older auto-deployed servers are redeployed on next connect. Also fixed the `sdk-switch.js nightly` resolver picking stale pre-rename artifacts (lexical sort) — it now filters to the current package name and sorts by datestamp.
 - Console command elicitation (dormant tool) brought to parity with TSO: client-capability pre-check, form mode, and a required boolean confirmation.
 - Hardened the console command safety patterns (dormant tool): official abbreviations (`V`, `C`, `E`, `RO`, `K`, `T`, `M`, `U`, `G`, `I`), `DUMP`, `SLIP`, `CONFIG`/`CF`, dump/page management (`CHNGDUMP`/`CD`, `DUMPDS`/`DD`, `PAGEADD`/`PA`, `PAGEDEL`/`PD`, `IOACTION`/`IO`), and WTOR replies elicit confirmation; the SET pattern now also covers `SETPROG`/`SETXCF`/`SETSMF` and friends; system-stopping commands smuggled through `ROUTE` are blocked.
 - **Much faster installs: esbuild-bundled VSIX and slimmer npm tarball.** The

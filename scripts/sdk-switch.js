@@ -367,8 +367,12 @@ function handleNightly({ writePin: shouldWritePin } = {}) {
 
 function tryArtifactoryNightly({ shouldWritePin } = {}) {
   try {
+    // Current package name only (the folder still holds stale pre-rename
+    // `zowex-sdk-*` files, which sort lexically AFTER `zowe-zowex-*`), and
+    // sort by the trailing datestamp, not the whole name (version segments
+    // sort wrong lexically: 0.10.0 < 0.9.0).
     const listJson = run(
-      `curl -sf "${ARTIFACTORY_SNAPSHOT_BASE}/" 2>/dev/null | grep -oE 'href="((zowe-zowex-for-zowe-sdk|zowex-sdk)-[^"]+\\.tgz)"' | sed 's/href="//;s/"//' | sort | tail -1`
+      `curl -sf "${ARTIFACTORY_SNAPSHOT_BASE}/" 2>/dev/null | grep -oE 'href="(zowe-zowex-for-zowe-sdk-[^"]+\\.tgz)"' | sed 's/href="//;s/"//' | sed -E 's/^.*-([0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9]{6})\\.tgz$/\\1 &/' | sort | tail -1 | cut -d' ' -f2`
     );
 
     if (!listJson) return false;

@@ -7,7 +7,8 @@ config:
   repetitions: 1
   minSuccessRate: 0.8
   native:
-    serverArgs: --native --config native-config.json
+    # runConsoleCommand only registers at the full capability tier
+    serverArgs: --native --config native-config.json --capability-tier full
 
 questions:
   - id: console-display-time

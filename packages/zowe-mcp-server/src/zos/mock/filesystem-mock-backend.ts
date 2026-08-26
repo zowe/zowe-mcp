@@ -1086,10 +1086,9 @@ export class FilesystemMockBackend implements ZosBackend {
   ): Promise<string> {
     const upper = commandText.trim().toUpperCase();
     if (upper.startsWith('D T') || upper.startsWith('DISPLAY T')) {
-      const now = new Date();
-      return Promise.resolve(
-        `IEE136I LOCAL: TIME=12:00:00 DATE=${now.getFullYear()}.${String(now.getMonth() + 1).padStart(2, '0')}.${String(now.getDate()).padStart(2, '0')} UTC`
-      );
+      // Fixed timestamp: generated docs (mcp-reference.md) capture this output,
+      // so it must not change from day to day.
+      return Promise.resolve('IEE136I LOCAL: TIME=12:00:00 DATE=2026.01.01 UTC');
     }
     if (upper.startsWith('D A') || upper.startsWith('DISPLAY A')) {
       return Promise.resolve(

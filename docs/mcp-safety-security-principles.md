@@ -7,7 +7,7 @@ For how identity and secrets work in this project, see
 remote HTTP topology, see
 [remote-http-mcp-registry.md](./remote-http-mcp-registry.md).
 
-**Implementation status** (what exists in the product today vs gaps, and what is planned in-repo) is summarized in [§10](#10-implementation-status-in-zowe-mcp). Planned Zowe MCP work for addressable gaps is tracked in [TODO.md](../TODO.md) under **MCP safety & security**.
+**Implementation status** (what exists in the product today and what gaps remain) is summarized in [§10](#10-implementation-status-in-zowe-mcp).
 
 ---
 
@@ -199,19 +199,17 @@ This section states **explicitly** what this repository already provides versus 
 
 ### Not implemented (product gaps called out in this document)
 
-These are **not** provided as first-class Zowe MCP features today. Some are **in scope for the product** and listed in [TODO.md](../TODO.md) (**MCP safety & security**); others stay **operator-only** or depend on external systems.
+These are **not** provided as first-class Zowe MCP features today. Some could be implemented in the product; others stay **operator-only** or depend on external systems.
 
 | Topic | In Zowe MCP today | Notes |
 | --- | --- | --- |
 | **Progressive capability levels** (§7) | **Implemented** — see §7 and `capability-level.ts`. | ✅ Done |
-| **OAuth / JWT scope → tool list** (§6) | JWT validates caller identity; **no** mapping from token scopes/claims to subsets of tools | Planned — [TODO.md](../TODO.md) |
-| **In-server functional scoping** (§7) | No “datasets-only / jobs-only / USS-only” switch on one server process | Planned — [TODO.md](../TODO.md) |
-| **In-server data scope policy** (§7) | No built-in HLQ or USS path allowlist enforced in tool handlers | Planned — [TODO.md](../TODO.md) |
+| **OAuth / JWT scope → tool list** (§6) | JWT validates caller identity; **no** mapping from token scopes/claims to subsets of tools | Not implemented |
+| **In-server functional scoping** (§7) | No “datasets-only / jobs-only / USS-only” switch on one server process | Not implemented |
+| **In-server data scope policy** (§7) | No built-in HLQ or USS path allowlist enforced in tool handlers | Not implemented |
 | **MCP-standard risk tiers / portable tool groups** (§5) | Ecosystem limitation; Zowe MCP does not define a protocol-level fix | Track MCP spec; mitigate with separate deployments or gateway (operator). |
 | **Sub-agent topology** (§4) | Not enforced; multiple agents/credentials are orchestration outside this server | Operator / platform choice. |
 | **Reverse proxy filtering `tools/call`** (§5) | Not part of this package | External deployment pattern. |
-
-Related existing TODO items (overlap): **Configurable safety for TSO/USS/JCL** and **Dev/test vs production system awareness** in [TODO.md](../TODO.md) align with safety themes but are separate from the ordered **MCP safety & security** list.
 
 ---
 
@@ -223,4 +221,4 @@ Related existing TODO items (overlap): **Configurable safety for TSO/USS/JCL** a
 | Transports, tools, env vars, tenant store | [AGENTS.md](../AGENTS.md) |
 | Remote HTTP registry and URLs | [remote-http-mcp-registry.md](./remote-http-mcp-registry.md) |
 | Local OIDC lab | [remote-dev-keycloak.md](./remote-dev-keycloak.md) |
-| Principles in this doc vs product | This doc [§10](#10-implementation-status-in-zowe-mcp), [TODO.md](../TODO.md) |
+| Principles in this doc vs product | This doc [§10](#10-implementation-status-in-zowe-mcp) |

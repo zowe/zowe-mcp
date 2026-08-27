@@ -488,7 +488,7 @@ This guide uses **local Keycloak** and **plain HTTP** to MCP for developer speed
 
 - Terminate **HTTPS** at a **reverse proxy** (e.g. **nginx**) or load balancer and forward **`http://`** to the MCP process; set **`ZOWE_MCP_PUBLIC_BASE_URL`** and often **`ZOWE_MCP_OAUTH_RESOURCE`** to the **external** `https://` URL users and browsers see (see **`remote-http-mcp-registry.md`** — *HTTPS, reverse proxies, and public URLs*).
 
-**Zowe API Mediation Layer (API ML):** Shops that standardize on **API ML** for OIDC and routing may eventually **register the MCP HTTP service** behind the gateway or align **JWT issuers** with the platform IdP. That is **not implemented** in this repo yet; it is tracked as future work in **`TODO.md`** and summarized in **`remote-http-mcp-registry.md`** (*Future: Zowe API ML and OIDC*).
+**Zowe API Mediation Layer (API ML):** Shops that standardize on **API ML** for OIDC and routing may eventually **register the MCP HTTP service** behind the gateway or align **JWT issuers** with the platform IdP. That is **not implemented** in this repo; see **`remote-http-mcp-registry.md`** (*Future: Zowe API ML and OIDC*) for the current direction.
 
 ## See also
 

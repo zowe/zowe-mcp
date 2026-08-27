@@ -192,8 +192,6 @@ If discovery or elicit links show the wrong scheme or hostname, fix **`ZOWE_MCP_
 
 **Direction:** Many Zowe shops already use **Zowe API Mediation Layer** with **OIDC** and a single gateway for z/OS-facing services. A natural evolution is to **leverage API ML** as the enterprise front door for the MCP HTTP service: unified login, routing, and TLS at the mediation layer, with tokens validated either at the gateway or by the MCP server using the same IdP’s JWKS as today’s variables. That would align remote MCP auth with other Zowe components instead of a standalone IdP per MCP deployment.
 
-Track research and implementation ideas in **`TODO.md`** (Authentication / HTTP Transport).
-
 ## See also
 
 - **`docker/remote-https-dev/certs/README.md`** — TLS files for **`npm run start:remote-https-dev-native-zos`** and the local registry nginx front (one mkcert leaf: zowe, keycloak, registry — see **`docker/remote-https-dev/README.md`**).

@@ -309,14 +309,18 @@ stored under the shared Zowe OSS key
 `zowe.ssh.password.<user>.<hostNormalized>` so other Zowe extensions can reuse
 them. If a password is invalid, the extension deletes it from storage.
 
-Server and extension logs include a **passwordHash** containing the first 16
-hexadecimal characters of the password's UTF-8 SHA-256 hash. This allows log
-correlation without exposing the password. To reproduce it, omit the trailing
-newline and take the first 16 characters:
+Extension logs include a **passwordHash** containing the first 16 hexadecimal
+characters of the password's UTF-8 SHA-256 hash. To reproduce it, omit the
+trailing newline and take the first 16 characters:
 
 ```bash
 echo -n 'YOUR_EXACT_PASSWORD' | sha256sum
 ```
+
+Server logs also include a **passwordHash**, but there it is a salted
+per-process fingerprint: stable within one server run (so equal hashes still
+identify the same password in that log), deliberately not reproducible
+offline, and different from the extension's value.
 
 ### Mock mode in the extension
 

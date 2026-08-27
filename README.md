@@ -292,7 +292,7 @@ the `zoweMCP.capabilityTier` setting.
 
 1. Open Settings and search for **Zowe MCP**.
 2. Set **Backend** to `zowex`.
-3. Set **Zowe Remote SSH: Zowex Connections** to an array of SSH connection
+3. Set **Zowe MCP: Zowex Connections** to an array of SSH connection
    specs, such as `["USERID@sys1.example.com"]`. Each entry is one connection
    (`user@host` or `user@host:port`); you can have multiple connections to the
    same z/OS system with different user IDs.

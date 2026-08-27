@@ -36,11 +36,13 @@ The generated directory looks like:
 zowe-mcp-mock-data/
   systems.json                          # System definitions + credentials
   mainframe-dev.example.com/            # One directory per system
-    USER/                                # HLQ directory
-      SRC.COBOL/                         # PDS — directory with members
-        HELLO.cbl                        # Member file
-        _meta.json                       # Data set attributes
-      LOAD.JCL                           # Sequential data set — plain file
+    USER/                               # HLQ directory
+      SRC.COBOL/                        # PDS — directory with members
+        CUSTFILE.cbl                    # Member file
+        _meta.json                      # Data set attributes
+      DATA.INPUT                        # Sequential data set — plain file
+  uss/
+    mainframe-dev.example.com/u/USER/   # USS home tree per system
 ```
 
 ## Run the server with mock data

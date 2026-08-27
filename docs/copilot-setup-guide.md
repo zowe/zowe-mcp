@@ -43,7 +43,7 @@ Open Settings and search for **Zowe MCP**.
 For native SSH access:
 
 1. Set **Backend** to `zowex`.
-2. Add `user@host` or `user@host:port` entries under **Zowe Remote SSH: Zowex
+2. Add `user@host` or `user@host:port` entries under **Zowe MCP: Zowex
    Connections** (`zoweMCP.zowexConnections`).
 3. Reload the window when prompted.
 

@@ -52,7 +52,7 @@ configuration details and deployment recommendations.
 
 ## Installation from source
 
-> **Registry status:** `@zowe/mcp-server` is not yet on a public npm registry.
+> **Registry status / running outside the repo:** `@zowe/mcp-server` is not yet on a public npm registry.
 > To install without a source checkout, use a tarball from `npm run pack:server`
 > or the `zowe-mcp-server-npm` CI artifact. See
 > [Standalone MCP clients](docs/standalone-mcp.md#obtaining-the-tgz).

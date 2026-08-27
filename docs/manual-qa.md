@@ -73,7 +73,7 @@ fails, see [Mock mode](mock-mode.md) and capture both logs.
 Run this optional test only with an approved z/OS account and host.
 
 1. In Zowe MCP settings, set **Backend** to **Zowe Remote SSH** (`zowex`).
-2. Add `USER@host` or `USER@host:port` under **Zowe Remote SSH**
+2. Add `USER@host` or `USER@host:port` under **Zowe MCP: Zowex Connections**
    (`zoweMCP.zowexConnections`).
 3. Reload VS Code if prompted.
 4. Ask Copilot to run a read-only operation against a data set pattern valid at

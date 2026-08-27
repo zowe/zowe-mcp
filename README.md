@@ -19,8 +19,7 @@ The AI can combine multiple tools and reason over results to:
 Zowe MCP provides these security and safety controls:
 
 1. **Capability tiers** control which tools are registered based on their
-  resource effects. Configure them with `--capability-tier` or
-  `ZOWE_MCP_CAPABILITY_TIER`; the default is `read-strict`.
+  resource effects.
 
    | Tier | What the agent can do |
    | --- | --- |

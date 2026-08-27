@@ -79,8 +79,8 @@ npx --package=file:/abs/path/to/zowe-mcp-server-<version>.tgz \
   zowe-mcp-server --stdio --mock ./zowe-mcp-mock-data
 ```
 
-Native and mock backends cannot be active together; native mode takes
-precedence when both are configured.
+Native and mock backends cannot be configured together: if both `--mock` (or
+`ZOWE_MCP_MOCK_DIR`) and `--native` are set, the server logs an error and exits.
 
 For the VS Code extension workflow, see the
 [mock backend smoke test](manual-qa.md#mock-backend-smoke-test).

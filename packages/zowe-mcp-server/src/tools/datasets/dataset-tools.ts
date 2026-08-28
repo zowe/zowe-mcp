@@ -840,7 +840,7 @@ export function registerDatasetTools(
           .boolean()
           .optional()
           .describe(
-            'Read raw bytes with no EBCDIC conversion; content is returned base64-encoded in data.contentBase64 instead of data.lines. For non-text content (tersed files, load modules). Not combinable with encoding, startLine, or lineCount. Note: base64 is verbose — avoid on large data sets.'
+            'Return raw bytes base64-encoded in data.contentBase64 instead of data.lines, with no EBCDIC conversion. For non-text content (tersed files, load modules). Excludes encoding, startLine, lineCount.'
           ),
       },
     },
@@ -995,7 +995,7 @@ export function registerDatasetTools(
           .boolean()
           .optional()
           .describe(
-            'Write raw bytes with no EBCDIC conversion; supply the content base64-encoded in contentBase64 instead of lines. For non-text content (tersed files, load modules). Not combinable with lines, encoding, startLine, or endLine. The target data set must already have a suitable record format (e.g. FB LRECL 1024 for tersed files); bytes are split into records at the record length.'
+            'Write raw bytes from contentBase64 instead of lines, with no EBCDIC conversion. For non-text content (tersed files, load modules). Excludes lines, encoding, startLine, endLine. Target must already exist with a suitable RECFM/LRECL (e.g. FB 1024); bytes are split at the record length.'
           ),
         contentBase64: z
           .string()

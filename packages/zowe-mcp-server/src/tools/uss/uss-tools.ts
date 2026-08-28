@@ -376,7 +376,7 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
           .boolean()
           .optional()
           .describe(
-            'Read raw bytes with no encoding conversion; content is returned base64-encoded in data.contentBase64 instead of data.lines. For non-text files. Not combinable with encoding, startLine, or lineCount. Note: base64 is verbose — avoid on large files.'
+            'Return raw bytes base64-encoded in data.contentBase64 instead of data.lines, with no encoding conversion. For non-text files. Excludes encoding, startLine, lineCount.'
           ),
       },
     },
@@ -700,7 +700,7 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
           .boolean()
           .optional()
           .describe(
-            'Write raw bytes with no encoding conversion; supply the content base64-encoded in contentBase64 instead of lines. For non-text files. Not combinable with lines or encoding.'
+            'Write raw bytes from contentBase64 instead of lines, with no encoding conversion. For non-text files. Excludes lines, encoding.'
           ),
         contentBase64: z
           .string()

@@ -825,7 +825,10 @@ describe('NativeBackend', () => {
       ['endLine', undefined, 5],
       ['both', 3, 5],
     ])('rejects a binary write with %s and never connects', async (_name, startLine, endLine) => {
-      const options = createOptions();
+      const getOrCreate = vi.fn();
+      const options = createOptions({
+        clientCache: { getOrCreate, evict: vi.fn(), hasKey: vi.fn().mockReturnValue(true) },
+      });
       const backend = new NativeBackend(options);
 
       await expect(
@@ -841,7 +844,7 @@ describe('NativeBackend', () => {
         )
       ).rejects.toThrow('startLine/endLine are not supported');
 
-      expect(options.clientCache.getOrCreate).not.toHaveBeenCalled();
+      expect(getOrCreate).not.toHaveBeenCalled();
     });
   });
 

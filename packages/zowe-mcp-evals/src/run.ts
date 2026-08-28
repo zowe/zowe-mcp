@@ -18,7 +18,13 @@ import type { JudgeFn } from './assertions.js';
 import { usesAnswerJudge } from './cache.js';
 import { getConfigDir, loadEvalsConfig } from './config.js';
 import { estimateCostUsd } from './cost.js';
-import { errorMessage, FAIL, PASS, resolveNativeServerArgs } from './evals-utils.js';
+import {
+  errorMessage,
+  FAIL,
+  PASS,
+  reportEmptyResponses,
+  resolveNativeServerArgs,
+} from './evals-utils.js';
 import { getSystemPrompt, initMockData, McpEvalHarness, prepareEvalWorkspace } from './harness.js';
 import { listSetNames, loadAndValidateAllSets } from './load-questions.js';
 import { log } from './log.js';
@@ -174,7 +180,6 @@ async function main(): Promise<void> {
 
     const questions = filterQuestions(questionSet.questions, cli);
     const repetitions = cli.repetitions ?? config.repetitions ?? 5;
-    const minSuccessRate = config.minSuccessRate ?? 0.8;
     log.info('Set loaded', {
       setName,
       questionCount: questions.length,
@@ -240,7 +245,6 @@ async function main(): Promise<void> {
           toolDefinitions,
           modelId: evalsConfig.modelId,
           repetitions,
-          minSuccessRate,
           runLabel: r => `Running ${setName}/${q.id} (${r + 1}/${repetitions})`,
           verboseAnswers: true,
           onToolCalls: toolCalls => {
@@ -275,6 +279,8 @@ async function main(): Promise<void> {
   const runsMsg = `Runs: ${passed}/${total} passed`;
   if (success) log.pass(runsMsg);
   else log.fail(runsMsg);
+
+  reportEmptyResponses(allResults);
 
   const resultsWithTokens = allResults.filter(r => r.tokenUsage != null);
   if (resultsWithTokens.length > 0) {

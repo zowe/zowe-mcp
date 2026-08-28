@@ -1041,7 +1041,7 @@ export class NativeBackend {
   ): Promise<WriteDatasetResult> {
     const mainframeEncoding = encoding ?? 'IBM-1047';
     const binary = mainframeEncoding === 'binary';
-    if (binary && startLine != null) {
+    if (binary && (startLine != null || endLine != null)) {
       throw new Error(
         'Binary writes replace the whole data set; startLine/endLine are not supported.'
       );

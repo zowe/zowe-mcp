@@ -816,6 +816,35 @@ describe('NativeBackend', () => {
     });
   });
 
+  describe('writeDataset', () => {
+    // The tool layer rejects these combinations first; this guards any other
+    // direct caller of the backend, so endLine must be refused as well as
+    // startLine rather than silently ignored.
+    it.each([
+      ['startLine', 3, undefined],
+      ['endLine', undefined, 5],
+      ['both', 3, 5],
+    ])('rejects a binary write with %s and never connects', async (_name, startLine, endLine) => {
+      const options = createOptions();
+      const backend = new NativeBackend(options);
+
+      await expect(
+        backend.writeDataset(
+          SYSTEM_ID,
+          'USER.BIN.DATA',
+          Buffer.from('bytes').toString('base64'),
+          undefined,
+          undefined,
+          'binary',
+          startLine,
+          endLine
+        )
+      ).rejects.toThrow('startLine/endLine are not supported');
+
+      expect(options.clientCache.getOrCreate).not.toHaveBeenCalled();
+    });
+  });
+
   describe('searchInDataset', () => {
     const SUPERC_OUTPUT = [
       ' ASMFSUPC - MVS FILE/LINE/WORD/BYTE/SFOR COMPARE UTILITY- V1R6M0 (2021/11/01) 2026/02/20 9.05',

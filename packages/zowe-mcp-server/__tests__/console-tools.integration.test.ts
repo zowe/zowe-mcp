@@ -137,6 +137,33 @@ describe('decorateConsoleError', () => {
     expect(out).toContain('OPERCMDS');
   });
 
+  it('maps an ESM profile denial (IEE345I FAILED BY SECURITY PRODUCT) to a permit request', () => {
+    const out = decorateConsoleError(
+      "Error: console command failed: 'D T' IEE345I D T AUTHORITY INVALID, FAILED BY SECURITY PRODUCT"
+    );
+    expect(out).toContain('OPERCMDS');
+    expect(out).toContain('not permitted');
+    expect(out).toContain('Do not retry');
+    expect(out).not.toContain('APF-authorized');
+  });
+
+  it('maps a no-profile-matched denial (IEE345I FAILED BY MVS) to defining a profile', () => {
+    const out = decorateConsoleError(
+      'Error: console command failed IEE345I V 0A80,OFFLINE AUTHORITY INVALID, FAILED BY MVS'
+    );
+    expect(out).toContain('no OPERCMDS profile matches');
+    expect(out).toContain('Do not retry');
+    expect(out).not.toContain('APF-authorized');
+  });
+
+  it('maps a SAF console-activation denial (service_rc 12) to the MCSOPER profile', () => {
+    const out = decorateConsoleError(
+      "Error: could not activate console: 'TESTUSR0' service_rc: 12 safRc: 8"
+    );
+    expect(out).toContain('MVS.MCSOPER');
+    expect(out).toContain('Do not retry');
+  });
+
   it('passes unknown errors through unchanged', () => {
     expect(decorateConsoleError('some other failure')).toBe('some other failure');
   });

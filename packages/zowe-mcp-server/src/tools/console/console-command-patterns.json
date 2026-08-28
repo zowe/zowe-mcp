@@ -23,8 +23,8 @@
     },
     {
       "id": "console-route-dangerous",
-      "message": "ROUTE would send a system-stopping command (QUIESCE/HALT/Z EOD/SHUTDOWN) to another system.",
-      "pattern": "^(RO|ROUTE)\\s+\\S+\\s*,\\s*(QUIESCE\\b|HALT\\b|Z\\s+EOD\\b|SHUTDOWN\\b)"
+      "message": "ROUTE would send a system-stopping command (QUIESCE/HALT/Z EOD/SHUTDOWN/VARY XCF,...,OFFLINE) to another system.",
+      "pattern": "^(RO|ROUTE)\\s+(T=\\d+\\s*,\\s*)?(\\([^)]*\\)|[^,\\s]+)\\s*,\\s*(QUIESCE\\b|HALT\\b|Z\\s+EOD\\b|SHUTDOWN\\b|V(?:ARY)?\\s+XCF\\b.*\\bOFFLINE\\b)"
     }
   ],
   "elicit": [

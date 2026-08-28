@@ -15,7 +15,6 @@
  */
 
 import { join } from 'node:path';
-import ssh2 from 'ssh2';
 import { describe, expect, it, vi } from 'vitest';
 import type { ParsedConnectionSpec } from '../src/zos/native/connection-spec.js';
 import {
@@ -25,15 +24,12 @@ import {
   resolveSshKey,
   type SshKeyResolverDeps,
 } from '../src/zos/native/ssh-key-resolver.js';
+import { generateTestKeyPair } from './helpers/ssh-test-keys.js';
 
 const SPEC: ParsedConnectionSpec = { user: 'USER', host: 'host.example.com', port: 22 };
 
-const unencrypted = ssh2.utils.generateKeyPairSync('ed25519');
-const encrypted = ssh2.utils.generateKeyPairSync('ed25519', {
-  passphrase: 'pw',
-  cipher: 'aes256-cbc',
-  rounds: 16,
-});
+const unencrypted = generateTestKeyPair();
+const encrypted = generateTestKeyPair({ passphrase: 'pw' });
 
 /** Build resolver deps with sensible empty defaults; override per test. */
 function deps(overrides: Partial<SshKeyResolverDeps>): Partial<SshKeyResolverDeps> {

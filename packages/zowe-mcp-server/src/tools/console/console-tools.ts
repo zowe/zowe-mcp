@@ -224,7 +224,36 @@ export function decorateConsoleError(message: string): string {
       'see doc/zoweax-security.md in the zowe/zowex repository.'
     );
   }
-  if (/not authorized/i.test(message)) {
+  // IEE345I "... AUTHORITY INVALID, FAILED BY SECURITY PRODUCT": an OPERCMDS profile
+  // covers the command and the ESM refused it for this user — a permit is needed.
+  if (/failed by security product/i.test(message)) {
+    return (
+      `${message}\nThe security product (RACF/ACF2/TSS) denied this command: an OPERCMDS profile ` +
+      'covers it and your user is not permitted. A security administrator must grant access to the ' +
+      'matching MVS.* OPERCMDS profile — see doc/zoweax-security.md in the zowe/zowex repository. ' +
+      'Do not retry until access is granted; permits do not affect an already established session, ' +
+      'so reconnect after one is added.'
+    );
+  }
+  // IEE345I "... AUTHORITY INVALID, FAILED BY MVS": no ESM decision was made — usually no
+  // OPERCMDS profile matches the command, or the class is not active/RACLISTed.
+  if (/failed by mvs/i.test(message)) {
+    return (
+      `${message}\nMVS console command authority was insufficient and the security product made no ` +
+      'decision: normally no OPERCMDS profile matches this command, or the OPERCMDS class is not ' +
+      'active. A security administrator must define and permit the profile — see ' +
+      'doc/zoweax-security.md in the zowe/zowex repository. Do not retry until access is granted.'
+    );
+  }
+  // SAF denial on console activation (MCSOPER) reported by zoweax as service_rc 12.
+  if (/service_rc\W{0,4}12\b/i.test(message)) {
+    return (
+      `${message}\nThe security product denied the console activation (SAF return code 12): your user ` +
+      'lacks access to the MVS.MCSOPER.<console-name> profile in the OPERCMDS class. ' +
+      'See doc/zoweax-security.md in the zowe/zowex repository. Do not retry until access is granted.'
+    );
+  }
+  if (/not authorized|authority invalid/i.test(message)) {
     return (
       `${message}\nEither the zoweax binary is not APF-authorized (extattr +ap, set by a system programmer) ` +
       'or the ESM denied the console activation/command (OPERCMDS class). ' +

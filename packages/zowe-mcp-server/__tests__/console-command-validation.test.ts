@@ -37,6 +37,19 @@ describe('console command patterns', () => {
     expect(evalCmd('ro *all, shutdown').action).toBe('block');
     expect(evalCmd('RO SYS1 , Z EOD').action).toBe('block');
     expect(evalCmd('RO SYS1,QUIESCE').pattern?.id).toBe('console-route-dangerous');
+    // ROUTE accepts an optional T=nnn timeout before the system spec, and a
+    // parenthesized system/system-group list — neither may hide the command.
+    expect(evalCmd('RO T=0,*ALL,Z EOD').action).toBe('block');
+    expect(evalCmd('ROUTE T=10,SYSGRP1,SHUTDOWN').action).toBe('block');
+    expect(evalCmd('RO (SYS1,SYS2),HALT EOD').action).toBe('block');
+    expect(evalCmd('RO (SYS1, SYS2),QUIESCE').action).toBe('block');
+  });
+
+  it('blocks sysplex partitioning smuggled through ROUTE', () => {
+    expect(evalCmd('RO SYS2,V XCF,SY02,OFFLINE').pattern?.id).toBe('console-route-dangerous');
+    expect(evalCmd('ROUTE SYS2,VARY XCF,SY02,OFFLINE').action).toBe('block');
+    expect(evalCmd('RO *ALL,V XCF,SY02,OFFLINE').action).toBe('block');
+    expect(evalCmd('RO T=0,*OTHER,V XCF,SY02,OFFLINE,RETAIN=YES').action).toBe('block');
   });
 
   it('blocks sysplex partitioning', () => {
@@ -48,6 +61,11 @@ describe('console command patterns', () => {
   it('elicits for ROUTE carrying non-dangerous commands', () => {
     expect(evalCmd('RO SYS1,D T').action).toBe('elicit');
     expect(evalCmd('ROUTE SYS2,D IPLINFO').action).toBe('elicit');
+    expect(evalCmd('RO T=20,*ALL,D T,L=CON1').action).toBe('elicit');
+    // A subsystem shutdown (F <stc>,SHUTDOWN) is not a system-stopping command;
+    // it stays at elicit, matching the unrouted form.
+    expect(evalCmd('RO SYS1,F CICSA,SHUTDOWN').action).toBe('elicit');
+    expect(evalCmd('RO SYS1,V 0414,OFFLINE').action).toBe('elicit');
   });
 
   it('elicits for state-changing commands and their abbreviations', () => {

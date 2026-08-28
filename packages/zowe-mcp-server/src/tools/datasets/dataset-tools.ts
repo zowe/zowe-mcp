@@ -995,7 +995,7 @@ export function registerDatasetTools(
           .boolean()
           .optional()
           .describe(
-            'Write raw bytes from contentBase64 instead of lines, with no EBCDIC conversion. For non-text content (tersed files, load modules). Excludes lines, encoding, startLine, endLine. Target must already exist with a suitable RECFM/LRECL (e.g. FB 1024); bytes are split at the record length.'
+            'Write raw bytes from contentBase64 instead of lines, with no EBCDIC conversion. For non-text content (tersed files, load modules). Excludes lines, encoding, startLine, endLine. Target must already exist; the whole content is replaced. The z/OS server writes the bytes as fixed-length records, NUL-pads the last record, and does not preserve the target RECFM/LRECL — after writing, re-check the attributes with getDatasetAttributes if a downstream consumer (TRSMAIN, IEBCOPY, a load library) depends on them.'
           ),
         contentBase64: z
           .string()

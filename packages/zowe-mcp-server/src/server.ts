@@ -559,6 +559,7 @@ export function createServer(options?: CreateServerOptions): CreateServerResult 
         systemRegistry,
         sessionState,
         credentialProvider,
+        responseCache: responseCache ?? undefined,
         mcpServer: server,
       },
       logger

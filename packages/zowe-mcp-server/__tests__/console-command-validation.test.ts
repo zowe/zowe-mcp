@@ -35,7 +35,14 @@ describe('console command patterns', () => {
     expect(evalCmd('RO SYS1,Z EOD').action).toBe('block');
     expect(evalCmd('ROUTE SYS1,HALT EOD').action).toBe('block');
     expect(evalCmd('ro *all, shutdown').action).toBe('block');
+    expect(evalCmd('RO SYS1 , Z EOD').action).toBe('block');
     expect(evalCmd('RO SYS1,QUIESCE').pattern?.id).toBe('console-route-dangerous');
+  });
+
+  it('blocks sysplex partitioning', () => {
+    expect(evalCmd('V XCF,SY02,OFFLINE').action).toBe('block');
+    expect(evalCmd('VARY XCF,SY02,OFFLINE,RETAIN=YES').action).toBe('block');
+    expect(evalCmd('v xcf,sy02,offline').pattern?.id).toBe('console-vary-xcf-offline');
   });
 
   it('elicits for ROUTE carrying non-dangerous commands', () => {

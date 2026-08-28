@@ -73,6 +73,26 @@ describe('console tools integration', () => {
     expect(envelope.data.lines.join('\n')).toContain('IEE136I');
   });
 
+  it('paginates with startLine/lineCount (served from the response cache)', async () => {
+    const first = await client.callTool({
+      name: 'runConsoleCommand',
+      arguments: { commandText: 'D A' },
+    });
+    expect(first.isError ?? false).toBe(false);
+    const paged = await client.callTool({
+      name: 'runConsoleCommand',
+      arguments: { commandText: 'D A', startLine: 2, lineCount: 1 },
+    });
+    expect(paged.isError ?? false).toBe(false);
+    const envelope = JSON.parse(getResultText(paged)) as {
+      _result: { startLine: number; returnedLines: number };
+      data: { lines: string[] };
+    };
+    expect(envelope._result.startLine).toBe(2);
+    expect(envelope.data.lines).toHaveLength(1);
+    expect(envelope.data.lines[0]).toContain('JOBNAME');
+  });
+
   it('blocks dangerous commands without running them', async () => {
     const result = await client.callTool({
       name: 'runConsoleCommand',

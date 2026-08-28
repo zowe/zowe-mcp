@@ -17,6 +17,8 @@ import type { Logger } from '../../log.js';
 import { resolveAsset } from '../../runtime/asset-root.js';
 import type { ZosBackend } from '../../zos/backend.js';
 import type { CredentialProvider } from '../../zos/credentials.js';
+import type { ResponseCache } from '../../zos/response-cache.js';
+import { buildCacheKey, buildScopeSystem, withCache } from '../../zos/response-cache.js';
 import { resolveSystemForTool, type SessionState } from '../../zos/session.js';
 import type { SystemRegistry } from '../../zos/system.js';
 import {
@@ -55,6 +57,7 @@ export interface ConsoleToolDeps {
   systemRegistry: SystemRegistry;
   sessionState: SessionState;
   credentialProvider: CredentialProvider;
+  responseCache?: ResponseCache;
   mcpServer: McpServer;
 }
 
@@ -71,6 +74,8 @@ export function registerConsoleTools(
       _meta: { resourceEffectLevel: ResourceEffect.EXECUTE },
       description:
         'Run a z/OS operator console command (e.g. DISPLAY T, DISPLAY A). ' +
+        'Prefer a dedicated tool when one exists (listProclib, listApfLibraries, listLinklist, viewSyslog, dataset/job tools): ' +
+        'dedicated tools return structured output and need less authorization than console commands. ' +
         'System-shutdown commands (HALT, SHUTDOWN, QUIESCE, Z EOD) are blocked. ' +
         'Other non-display commands (SET, VARY, CANCEL, FORCE, START, STOP, MODIFY) require user approval. ' +
         'Unknown commands also require user approval.',
@@ -162,12 +167,25 @@ export function registerConsoleTools(
         const ctx = deps.sessionState.getContext(systemId);
         const userId = ctx?.userId;
 
-        const fullOutput = await deps.backend.runConsoleCommand(
+        const cacheKey = buildCacheKey('runConsoleCommand', {
           systemId,
           commandText,
           consoleName,
-          userId
-        );
+        });
+        const scope = buildScopeSystem(systemId);
+        const isPaging = startLine !== undefined || lineCount !== undefined;
+
+        const fetchCmd = async () => ({
+          text: await deps.backend.runConsoleCommand(systemId, commandText, consoleName, userId),
+        });
+        let fullOutput: string;
+        if (!isPaging && deps.responseCache) {
+          const result = await fetchCmd();
+          deps.responseCache.set(cacheKey, result, [scope]);
+          fullOutput = result.text;
+        } else {
+          fullOutput = (await withCache(deps.responseCache, cacheKey, fetchCmd, [scope])).text;
+        }
 
         const {
           text: windowedText,

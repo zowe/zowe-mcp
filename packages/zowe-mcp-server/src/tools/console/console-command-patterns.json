@@ -17,9 +17,14 @@
       "pattern": "^SHUTDOWN\\b"
     },
     {
+      "id": "console-vary-xcf-offline",
+      "message": "VARY XCF,...,OFFLINE removes a system from the sysplex.",
+      "pattern": "^(V|VARY)\\s+XCF\\b.*\\bOFFLINE\\b"
+    },
+    {
       "id": "console-route-dangerous",
       "message": "ROUTE would send a system-stopping command (QUIESCE/HALT/Z EOD/SHUTDOWN) to another system.",
-      "pattern": "^(RO|ROUTE)\\s+\\S+,\\s*(QUIESCE\\b|HALT\\b|Z\\s+EOD\\b|SHUTDOWN\\b)"
+      "pattern": "^(RO|ROUTE)\\s+\\S+\\s*,\\s*(QUIESCE\\b|HALT\\b|Z\\s+EOD\\b|SHUTDOWN\\b)"
     }
   ],
   "elicit": [

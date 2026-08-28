@@ -348,3 +348,9 @@ Automatically updated by `npm run eval-compare`.
 | 2026-08-14 | before-fix-69             | gemini-2.5-flash      | gemini-2.5-flash                | datasets                 | 9         | 68.9%     | 31     | 45    | e3606a2 | 8752a341  |          |
 | 2026-08-14 | after-fix-69              | gemini-2.5-flash      | gemini-2.5-flash                | datasets                 | 9         | 86.7%     | 39     | 45    | e3606a2 | 79ad97a4  |          |
 | 2026-08-26 | baseline                  | gemini-2.5-flash      | gemini-2.5-flash                | console                  | 2         | 100.0%    | 2      | 2     | 439b291 | f3fb44c9  |          |
+| 2026-08-26 | before-console-binary     | gemini-2.5-flash      | gemini-2.5-flash                | datasets                 | 9         | 82.2%     | 37     | 45    | bcfb419 | 1096b656  |          |
+| 2026-08-26 | before-console-binary     | gemini-2.5-flash      | gemini-2.5-flash                | uss                      | 8         | 87.5%     | 35     | 40    | bcfb419 | 1096b656  |          |
+| 2026-08-26 | before-console-binary     | gemini-2.5-flash      | gemini-2.5-flash                | mutations                | 5         | 96.0%     | 24     | 25    | bcfb419 | 1096b656  |          |
+| 2026-08-26 | after-console-binary      | gemini-2.5-flash      | gemini-2.5-flash                | datasets                 | 9         | 68.9%     | 31     | 45    | 8629e43 | 26d903f0  |          |
+| 2026-08-26 | after-console-binary      | gemini-2.5-flash      | gemini-2.5-flash                | uss                      | 8         | 72.5%     | 29     | 40    | 8629e43 | 26d903f0  |          |
+| 2026-08-26 | after-console-binary      | gemini-2.5-flash      | gemini-2.5-flash                | mutations                | 5         | 96.0%     | 24     | 25    | 8629e43 | 26d903f0  |          |

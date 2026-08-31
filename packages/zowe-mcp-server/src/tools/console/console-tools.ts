@@ -198,7 +198,7 @@ export function registerConsoleTools(
         await progress.complete('done');
         return wrapResponse(responseCtx, meta, { lines, mimeType }, messages);
       } catch (err) {
-        const message = (err as Error).message;
+        const message = err instanceof Error ? err.message : String(err);
         await progress.complete(message);
         return errorResult(decorateConsoleError(message));
       }

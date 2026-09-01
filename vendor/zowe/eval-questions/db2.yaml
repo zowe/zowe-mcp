@@ -3,11 +3,12 @@
 # Requires:
 #   DB2_HOST, DB2_PORT, DB2_USER, DB2_DATABASE  (set in .env)
 #   ZOWE_MCP_PASSWORD_<USER>_<HOST>             (set in .env)
-#   Authentication=SERVER in ibm_db clidriver/cfg/db2dsdriver.cfg (see vendor/zowe/AGENTS.md)
-#   intel (x86_64) Node.js session for ibm_db native binary
+# Eval configuration: vendor/zowe/AGENTS.md#running-db2-evaluations
+# Native runtime: docs/how-to-add-cli-plugin.md#installing-the-native-build-for-smoke-tests-and-evals
+# Authentication and licensing: docs/how-to-add-cli-plugin.md#external-license-requirements
 config:
   name: db2
-  skip: 'Requires x86_64 Node.js (intel alias), Authentication=SERVER in db2dsdriver.cfg, and DB2_HOST/DB2_PORT/DB2_USER/DB2_DATABASE in .env — run manually with: intel && source .env && npm run evals -- --set zowe/db2'
+  skip: 'Requires the documented Db2 runtime and .env configuration. From a supported Node.js environment, run manually with: npm run evals -- --set zowe/db2'
   repetitions: 5
   minSuccessRate: 0.7
   cliPluginConfiguration:

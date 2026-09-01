@@ -1,9 +1,12 @@
 # Db2 for z/OS — stress eval question set (ambiguous prompts, multi-step, domain vocabulary)
+# Eval configuration: vendor/zowe/AGENTS.md#running-db2-evaluations
+# Native runtime: docs/how-to-add-cli-plugin.md#installing-the-native-build-for-smoke-tests-and-evals
+# Authentication and licensing: docs/how-to-add-cli-plugin.md#external-license-requirements
 config:
   name: db2-stress
   repetitions: 5
   minSuccessRate: 0.5
-  skip: 'Requires x86_64 Node.js (intel alias) and Authentication=SERVER in db2dsdriver.cfg — run manually with: intel && source .env && npm run evals -- --set zowe/db2-stress'
+  skip: 'Requires the documented Db2 runtime and .env configuration. From a supported Node.js environment, run manually with: npm run evals -- --set zowe/db2-stress'
   cliPluginConfiguration:
     db2:
       host: '${DB2_HOST}'

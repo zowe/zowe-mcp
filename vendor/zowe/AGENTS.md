@@ -17,6 +17,33 @@ evaluations and tests. Root repository instructions also apply.
 The upstream `@zowe/db2-for-zowe-cli` package is not bundled here. These files
 provide MCP metadata only; users must install the matching Zowe CLI plugin.
 
+## Running Db2 evaluations
+
+The Db2 evaluation sets use a real subsystem; no Db2 mock is available. The eval
+runner automatically loads `.env` from the repository root. Define:
+
+```dotenv
+DB2_HOST=db2.example.com
+DB2_PORT=50000
+DB2_USER=USERID
+DB2_DATABASE=DB2LOC
+ZOWE_MCP_PASSWORD_USERID_DB2_EXAMPLE_COM=replace-with-secret
+```
+
+`DB2_DATABASE` is the DDF location name. Construct the password variable from
+the configured user and host by uppercasing them and replacing dots and other
+special characters with underscores. Never commit `.env` or connection secrets.
+
+Before running the evaluations, follow the generic guidance for
+[installing the native build](../../docs/how-to-add-cli-plugin.md#installing-the-native-build-for-smoke-tests-and-evals),
+[external license requirements](../../docs/how-to-add-cli-plugin.md#external-license-requirements),
+and [password variable naming](../../docs/how-to-add-cli-plugin.md#password-env-var-naming).
+Then run from a supported Node.js environment:
+
+```bash
+npm run evals -- --set zowe/db2
+```
+
 ## Changing the Db2 bridge
 
 - Keep tool names concise and camelCase.

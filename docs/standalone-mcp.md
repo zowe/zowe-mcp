@@ -14,7 +14,7 @@ see [Remote development with Keycloak](remote-dev-keycloak.md).
 | -------------------- | -------------------------------------------------------------------- |
 | **npm package**      | `@zowe/mcp-server`                                                   |
 | **CLI / `bin` name** | `zowe-mcp-server` (what you run after `npm install -g` or via `npx`) |
-| `**npx`**            | `npx @zowe/mcp-server …` or `npx -y @zowe/mcp-server@<version> …`    |
+| **`npx`**            | `npx @zowe/mcp-server …` or `npx -y @zowe/mcp-server@<version> …`    |
 
 ## Install the server
 
@@ -26,7 +26,7 @@ Ensure your npm registry can resolve `@zowe/*` (public npm or your org’s mirro
 
 ## Obtaining the `.tgz`
 
-- **CI** — Successful [GitHub Actions](../.github/workflows/ci.yml) runs upload `**zowe-mcp-server-npm`** (`zowe-mcp-server-*.tgz`). Download from the workflow run’s **Artifacts**.
+- **CI** — Successful [GitHub Actions](../.github/workflows/ci.yml) runs upload **`zowe-mcp-server-npm`** (`zowe-mcp-server-*.tgz`). Download from the workflow run’s **Artifacts**.
 - **From a clone** — `npm run pack:server` at the repo root writes `zowe-mcp-server-<version>.tgz` (gitignored).
 - **Install from tarball** — `npm install -g ./zowe-mcp-server-0.x.y.tgz` or `npm install ./zowe-mcp-server-*.tgz`.
 
@@ -36,7 +36,7 @@ Run from a local tarball without publishing:
 npx --package=file:/absolute/path/to/zowe-mcp-server-0.8.0-dev.tgz zowe-mcp-server --stdio --native --system USER@host
 ```
 
-The argument after the package is the `**bin` name** (`zowe-mcp-server`), not the scoped package name.
+The argument after the package is the **`bin` name** (`zowe-mcp-server`), not the scoped package name.
 
 ## Roo Code: `.roo/mcp.json` (native SSH)
 
@@ -46,7 +46,7 @@ extension is installed only for Roo, uninstall it and use the server package
 directly through Roo's `mcp.json`. The extension's helper commands are thin
 wrappers around equivalent server CLI subcommands.
 
-**Prefer the installed binary** (no `npx`, no registry): if `@zowe/mcp-server` is already installed globally or in a project, run the `**zowe-mcp-server`** executable directly. Put only server flags in `args` — do **not** pass `npx`, `-y`, or `@zowe/mcp-server`.
+**Prefer the installed binary** (no `npx`, no registry): if `@zowe/mcp-server` is already installed globally or in a project, run the **`zowe-mcp-server`** executable directly. Put only server flags in `args` — do **not** pass `npx`, `-y`, or `@zowe/mcp-server`.
 
 ```json
 {
@@ -188,7 +188,7 @@ Prefer injecting secrets from the OS or a vault; do not commit real passwords in
 
 ## Job cards and multiple systems (no extension)
 
-The VS Code extension can send job cards over a pipe. In standalone mode, use `**--config`** with a JSON file:
+The VS Code extension can send job cards over a pipe. In standalone mode, use **`--config`** with a JSON file:
 
 ```json
 {
@@ -204,7 +204,7 @@ The VS Code extension can send job cards over a pipe. In standalone mode, use `*
 
 Then add to your MCP `args`: `"--config", "/absolute/path/to/native-config.json"`.
 
-See the server CLI in `[index.ts](../packages/zowe-mcp-server/src/index.ts)` (`--native`, `--system`, `--config`).
+See the server CLI in [`index.ts`](../packages/zowe-mcp-server/src/index.ts) (`--native`, `--system`, `--config`).
 
 ## Mock mode
 
@@ -212,7 +212,7 @@ For standalone testing without a mainframe, see [Mock mode](mock-mode.md).
 
 ## Local file tools
 
-If the client does not expose MCP workspace roots, set `**ZOWE_MCP_WORKSPACE_DIR**` in `env` to your workspace folder so upload/download tools can resolve paths.
+If the client does not expose MCP workspace roots, set **`ZOWE_MCP_WORKSPACE_DIR`** in `env` to your workspace folder so upload/download tools can resolve paths.
 
 ## See also
 

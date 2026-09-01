@@ -301,7 +301,7 @@ Use this when the MCP server should connect to **real z/OS** through [Zowe Remot
 
 For **shared remote HTTP** with JWT and **`ZOWE_MCP_TENANT_STORE_DIR`**, **recommended:** each user adds their own z/OS systems with the **`addZosConnection`** tool (`user@host` or `user@host:port`). Connections are **persisted per OIDC `sub`** in separate files — they are **not** shared across users.
 
-**`--config <path>`** and **`--system`** at startup are **not** the recommended way to define production connection lists for multi-user HTTP; use them for **local testing, smoke tests, or a minimal bootstrap** list only. Optional startup lists are **merged** with each tenant’s file (see **`AGENTS.md`**).
+**`--config <path>`** and **`--system`** at startup are **not** the recommended way to define production connection lists for multi-user HTTP; use them for **local testing, smoke tests, or a minimal bootstrap** list only. Optional startup lists are **merged** with each tenant's file; see [Save connections per user](mcp-authentication-oauth.md#save-connections-per-user).
 
 ### Connection list format (`--config` or `--system`, testing / bootstrap)
 
@@ -344,7 +344,7 @@ npm run build -w zowe-mcp-common -w @zowe/mcp-server
 
 Do **not** set **`ZOWE_MCP_CREDENTIALS`** / **`ZOWE_MCP_PASSWORD_*`** unless you need non-interactive operation (see [Passwords](#passwords-standalone-native)).
 
-Other useful standalone flags (see `zowe-mcp-server --help`): **`--native-response-timeout`**, **`--default-mvs-encoding`** / **`--default-uss-encoding`**, **`ZOWE_MCP_TENANT_STORE_DIR`** for per-user persisted connections on JWT-backed HTTP (see **`AGENTS.md`**).
+Other useful standalone flags (see `zowe-mcp-server --help`): **`--native-response-timeout`**, **`--default-mvs-encoding`** / **`--default-uss-encoding`**, and **`ZOWE_MCP_TENANT_STORE_DIR`** to [save connections per user](mcp-authentication-oauth.md#save-connections-per-user) on JWT-backed HTTP.
 
 ### Passwords (standalone native)
 

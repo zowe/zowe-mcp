@@ -15,13 +15,13 @@ The [official MCP registry](https://registry.modelcontextprotocol.io) is a **met
 ## Prerequisites
 
 - A reachable **HTTPS URL for your deployment’s** MCP endpoint (path is usually `/mcp`; port **7542** on the app or another port if the load balancer terminates TLS and routes by hostname).
-- **OIDC / Bearer JWT** at the gateway or on the server (`ZOWE_MCP_JWT_ISSUER`, `ZOWE_MCP_JWKS_URI`, optional `ZOWE_MCP_JWT_AUDIENCE`) for multi-user deployments. Client requests must send `Authorization: Bearer <access_token>` on every `/mcp` call when JWT is enabled.
-- Optional **`ZOWE_MCP_TENANT_STORE_DIR`**: directory for per-user (`sub`) JSON files listing z/OS SSH connection strings in isolation (each OIDC subject has a separate file). Startup **`--config` / `--system`** lists are optional and intended mainly for **testing/bootstrap**; **recommended** operation is **`addZosConnection`** so users add their own connections. See **`AGENTS.md`** (tenant connection persistence).
+- **Bearer JWT validation** on the server (`ZOWE_MCP_JWT_ISSUER`, `ZOWE_MCP_JWKS_URI`, and optional `ZOWE_MCP_JWT_AUDIENCE`) for multi-user deployments. A gateway can also validate the token. Clients must send `Authorization: Bearer <access_token>` on every `/mcp` request.
+- Optional **`ZOWE_MCP_TENANT_STORE_DIR`**: directory for per-user (`sub`) files containing saved z/OS SSH connection strings and job cards. Startup **`--config`** / **`--system`** lists are optional and intended mainly for **testing/bootstrap**; **recommended** operation is **`addZosConnection`** so users add their own connections. See [Save connections per user](mcp-authentication-oauth.md#save-connections-per-user).
 - **mTLS** may be considered in the future as an additional option; it is not required for the steps below.
 
 ## Enterprise topology (shared Streamable HTTP and OAuth)
 
-**`docs/mcp-authentication-oauth.md`** describes OAuth / OIDC at the MCP layer, GitHub Copilot / VS Code client behavior, z/OS SSH credentials, multi-tenant deployment models, and container/registry examples. The diagram below summarizes a **typical** shared **HTTPS** endpoint: users sign in to your **OIDC provider**, MCP clients send **Bearer** access tokens on **Streamable HTTP**, the server validates JWTs and scopes tenant state by **`sub`**, and **z/OS** credentials come from your platform secrets story, not from the IdP access token alone.
+[Authentication and z/OS access](mcp-authentication-oauth.md) describes JWT validation, z/OS SSH credentials, and per-user connection storage. The diagram below shows a typical shared HTTPS deployment.
 
 ```mermaid
 flowchart TB
@@ -53,11 +53,11 @@ flowchart TB
 
 **Diagram boxes (short):**
 
-- **MCP client in IDE** — The chat or MCP-enabled app (for example VS Code or Cursor) that speaks **Streamable HTTP** to `/mcp`, runs the **OAuth** login in the browser against your IdP when needed, and sends **`Authorization: Bearer`** on tool calls. Further reading: [Remote HTTP MCP with local Keycloak](remote-dev-keycloak.md) (browser OAuth and Inspector), and [Authentication and OAuth for Zowe MCP](mcp-authentication-oauth.md) (Copilot, gallery, Bearer headers).
-- **OIDC authorization server** — Your organization’s **identity provider** (Azure AD, Okta, Keycloak, etc.): issues **access tokens**; it is **not** embedded in Zowe MCP. The MCP server validates JWTs using **`ZOWE_MCP_JWT_ISSUER`** and **`ZOWE_MCP_JWKS_URI`** (resource-server pattern). Further reading: [Remote HTTP MCP with local Keycloak](remote-dev-keycloak.md), [Authentication and OAuth for Zowe MCP](mcp-authentication-oauth.md) (resource server policy).
+- **MCP client in IDE** — The chat or MCP-enabled app (for example VS Code or Cursor) that sends Streamable HTTP requests to `/mcp`. See [Remote HTTP MCP with local Keycloak](remote-dev-keycloak.md) for a browser login and Inspector setup.
+- **OIDC authorization server** — Your organization's identity provider, such as Azure AD, Okta, or Keycloak. It issues access tokens. See [Authentication and z/OS access](mcp-authentication-oauth.md#protect-a-remote-http-server) for the server settings.
 - **TLS reverse proxy or ingress** — Terminates **HTTPS** from clients and forwards plain HTTP to the Node listener (or balances across replicas). Sets **`Host`** and **`X-Forwarded-Proto`** so OAuth discovery and password-elicit URLs match the public URL. Further reading: [HTTPS, reverse proxies, and public URLs](#https-reverse-proxies-and-public-urls) below, [local HTTPS dev with Docker nginx](../docker/remote-https-dev/README.md).
 - **Zowe MCP resource server** — The **`@zowe/mcp-server`** process in **`--http`** mode: **MCP Streamable HTTP** session handling, optional Bearer JWT verification, tools, and native SSH to z/OS. It validates tokens but does **not** issue them. Further reading: root [**`AGENTS.md`**](../AGENTS.md) (HTTP transport, JWT, component tools).
-- **Tenant connection store per sub** — On-disk JSON per **OIDC `sub`** listing **user@host** connection strings for z/OS (`ZOWE_MCP_TENANT_STORE_DIR`), isolated per signed-in user; use **`addZosConnection`** in shared deployments. Further reading: [**`AGENTS.md`**](../AGENTS.md) (tenant connection persistence, `addZosConnection`).
+- **Connection store per user** — On-disk state for each OIDC `sub`. It contains saved `user@host` connection strings and job cards. See [Save connections per user](mcp-authentication-oauth.md#save-connections-per-user).
 - **Secrets for z/OS SSH** — Platform-supplied **passwords or key material** for SSH (for example **`ZOWE_MCP_CREDENTIALS`**, **`ZOWE_MCP_PASSWORD_*`**, Vault KV, Kubernetes secrets), **not** the OAuth access token. Further reading: [Standalone credentials and Vault KV](standalone-mcp.md#authentication-standalone). Chat identity and SAF user remain separate concerns.
 - **z/OS SSH** — The mainframe side reached by **Zowe Remote SSH** over **SSH** from the MCP server only; **no OAuth** on the wire to z/OS. Further reading: [**`AGENTS.md`**](../AGENTS.md) (native SSH backend, ZNP).
 
@@ -149,7 +149,17 @@ Typical steps (vary by registry):
 
 ## 3. Point the IDE at the registry (if applicable)
 
-In **VS Code**, set the MCP gallery to your registry URL when using a private catalog (see [Local registry setup](local-registry-setup.md)). **Copilot / VS Code** settings and the Bearer token prompt for remote servers are described in **`docs/mcp-authentication-oauth.md`**. Users can add the server from the `@mcp` gallery and enter the **Bearer token** when prompted for the `Authorization` header.
+In **VS Code**, set the MCP gallery to your registry URL when using a private catalog (see [Local registry setup](local-registry-setup.md)). Users can add the server from the `@mcp` gallery and enter the Bearer token when prompted for the `Authorization` header.
+
+### VS Code and Copilot access policy
+
+Use `chat.mcp.access` or the `ChatMCP` organization policy to control which MCP servers can run:
+
+- `allowed` permits registry servers and direct `mcp.json` entries.
+- `registryOnly` permits only servers from the configured registry.
+- `off` disables MCP servers.
+
+`registryOnly` also blocks direct localhost HTTP servers. Use `McpGalleryServiceUrl` to deploy the approved registry URL through organization policy.
 
 ## 4. Manual client config (Cursor / VS Code `mcp.json`)
 
@@ -195,7 +205,7 @@ If discovery or elicit links show the wrong scheme or hostname, fix **`ZOWE_MCP_
 ## See also
 
 - **`docker/remote-https-dev/certs/README.md`** — TLS files for **`npm run start:remote-https-dev-native-zos`** and the local registry nginx front (one mkcert leaf: zowe, keycloak, registry — see **`docker/remote-https-dev/README.md`**).
-- **`docs/mcp-authentication-oauth.md`** — OAuth / OIDC, Copilot vs VS Code, z/OS credentials, multi-tenant deployment, container examples.
+- **`docs/mcp-authentication-oauth.md`** — HTTP JWT settings, z/OS credentials, and per-user connection storage.
 - **`docs/remote-dev-keycloak.md`** — run local Keycloak and configure `ZOWE_MCP_JWT_*` for HTTP JWT testing.
 - **`docs/standalone-mcp.md`** — stdio-focused standalone clients.
 - **`packages/zowe-mcp-server/server.json`** — published npm **stdio** entry; remote HTTP is usually documented in a separate deployment-specific `server.json` or `remotes` overlay as above.

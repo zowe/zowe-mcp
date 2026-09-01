@@ -1,253 +1,160 @@
-# Authentication, OAuth, and z/OS access for Zowe MCP
+# Authentication and z/OS access
 
-This document describes how **identity and secrets** work for the Zowe MCP server: **OAuth / OIDC at the HTTP MCP layer**, how **clients such as GitHub Copilot and VS Code** supply credentials, and how **z/OS access** is authenticated separately (SSH, not OAuth).
+Zowe MCP authenticates two connections:
 
----
-
-## Architecture
-
-OAuth establishes **who is calling the MCP HTTP API**. z/OS access uses a **separate** SSH credential path (env, Vault, elicitation, tenant store)—the Bearer token is not the mainframe password.
-
-```mermaid
-flowchart TB
-  subgraph clientLayer["MCP client"]
-    Host[MCP Host - VS Code, Copilot, ...]
-  end
-  subgraph oauthLayer["OAuth OIDC"]
-    IdP[Identity Provider]
-  end
-  subgraph edgeLayer["HTTPS"]
-    GW[Reverse proxy or API gateway]
-  end
-  subgraph mcpLayer["Zowe MCP server"]
-    ZMCP[Zowe MCP<br/>Remote / centralized HTTP<br/>resource server]
-  end
-  subgraph credLayer["z/OS credentials"]
-    Cred[env, tenant store, z/OS identity mapping<br/>Vault, K8s secrets<br/>MCP elicitation]
-  end
-  subgraph zosLayer["Mainframe"]
-    ZRS[z/OS systems via Zowe Remote SSH]
-    zOSMF[z/OSMF]
-  end
-
-  Host -->|"OIDC login or device code"| IdP
-  IdP -->|"access token JWT"| Host
-  Host -->|"Streamable HTTPS MCP Authorization Bearer"| GW
-  GW --> ZMCP
-  ZMCP -->|"JWKS verify iss aud"| IdP
-  ZMCP -->|"resolve SSH password or key"| Cred
-  ZMCP -->|"SSH session"| ZRS
-  ZMCP -->|"HTTP"| zOSMF
-  ZMCP -.->|"HTTP"| APIML
-  APIML -.->|"HTTP"| zOSMF
-  APIML -.->|"JWKS verify"| IdP
-  style APIML stroke-dasharray: 5 5
-```
-
----
-
-## Two separate layers
-
-| Layer | Question it answers | Typical mechanism |
+| Connection | Authentication | Purpose |
 | --- | --- | --- |
-| **MCP HTTP (optional)** | Who is this chat or IDE user talking to the MCP server? | OIDC access token as **`Authorization: Bearer`** — validated by Zowe MCP (resource server) or by a reverse proxy |
-| **z/OS (native backend)** | How does the server connect to the mainframe? | **SSH** credentials: env (`ZOWE_MCP_CREDENTIALS`, `ZOWE_MCP_PASSWORD_*`), Vault KV, Kubernetes secrets, MCP elicitation, or per-tenant saved connection specs — **not** derived from the OAuth access token by default |
+| MCP client to Zowe MCP HTTP | Bearer JWT | Controls access to the remote MCP server and identifies the user. |
+| Zowe MCP to z/OS | SSH key or password | Controls access to data sets, jobs, and USS resources. |
 
-The IdP **`sub`** (and optional `email`) identify the **portal or chat user** at the MCP layer. They are **not** automatically the SAF user ID or SSH principal for z/OS.
+An OAuth token never replaces an SSH credential. Local stdio connections do not
+use OAuth because the client starts the server as a local process.
 
----
+## Protect a remote HTTP server
 
-## HTTP MCP: OAuth 2.1 / OIDC (resource server)
+Use JWT authentication for an HTTP server that other users or hosts can reach.
+Use HTTPS between the client and the reverse proxy or MCP server.
 
-**Product policy:** Zowe MCP **does not embed** an OAuth 2.0 Authorization Server. It acts as a **resource server**: it validates access tokens issued by **your** IdP (Azure AD, Okta, Keycloak, Zowe API ML with OIDC, etc.).
+Set these variables on the MCP server:
 
-Configure validation with:
-
-- **`ZOWE_MCP_JWT_ISSUER`** — expected token issuer (`iss` claim)
-- **`ZOWE_MCP_JWKS_URI`** — JWKS URL for signature verification
-- **`ZOWE_MCP_JWT_AUDIENCE`** (optional) — expected `aud`
-
-When issuer and JWKS are set, the HTTP transport exposes **OAuth protected resource metadata** at **`GET /.well-known/oauth-protected-resource`** and **`GET /.well-known/oauth-protected-resource/mcp`** (CORS enabled) so MCP clients can discover the authorization server. Optional **`ZOWE_MCP_OAUTH_RESOURCE`** sets the metadata `resource` URL when behind a reverse proxy.
-
-For **multi-user** shared HTTP deployments, Bearer JWT validation (gateway or in-process) gives a stable per-user identity (`sub`). **VPN or network perimeter alone** does not establish end-user identity at the MCP layer. Undifferentiated shared secrets or ad-hoc identity headers are **not** adequate for multi-tenant service. **mTLS** may be added later as an additional binding.
-
-**Multi-session HTTP:** Each client session uses Streamable HTTP; state is scoped per session. With JWT + **`ZOWE_MCP_TENANT_STORE_DIR`**, per-user connection lists are isolated on disk (see [AGENTS.md](../AGENTS.md), tenant persistence).
-
-Local and lab setup: [remote-dev-keycloak.md](./remote-dev-keycloak.md) (minimal JWT E2E and Keycloak + HTTPS MCP + native z/OS).
-
----
-
-## MCP clients: VS Code and GitHub Copilot
-
-### Private MCP registry URL (catalog)
-
-Only **GitHub Copilot** (across multiple IDEs) natively supports a **custom MCP registry URL** as the discoverable catalog today. Set:
-
-| Setting / policy | Purpose |
+| Variable | Purpose |
 | --- | --- |
-| **`chat.mcp.gallery.serviceUrl`** / **`McpGalleryServiceUrl`** | Base URL of a **v0.1-spec** MCP registry (`GET /v0.1/servers`). Replaces the default GitHub gallery for `@mcp` Extensions search |
-| **`chat.mcp.access`** / **`ChatMCP`** | `allowed` (default), `registryOnly`, or `off` |
+| `ZOWE_MCP_JWT_ISSUER` | Expected value of the token's `iss` claim. |
+| `ZOWE_MCP_JWKS_URI` | URL for the issuer's signing keys. |
+| `ZOWE_MCP_JWT_AUDIENCE` | Optional expected value of the token's `aud` claim. |
+| `ZOWE_MCP_OAUTH_RESOURCE` | Optional public MCP URL in OAuth metadata. |
 
-**VS Code** (from approximately **1.101**): add `"chat.mcp.gallery.serviceUrl": "https://your-registry.example.com"` **in `settings.json` JSON** — the graphical Settings UI often does **not** expose this field; enterprises also use **`McpGalleryServiceUrl`** policy.
+Set both `ZOWE_MCP_JWT_ISSUER` and `ZOWE_MCP_JWKS_URI`. The server exits if you
+set only one variable.
 
-**GitHub Copilot and licensing:** With **GitHub Copilot without an Enterprise subscription**, testers have observed **`chat.mcp.gallery.serviceUrl` greyed out in Settings and not changing Copilot’s MCP gallery behavior** (the custom catalog URL does not take effect). **Validate custom-registry gallery flows using Copilot Enterprise** (org admin: **Settings → AI controls → MCP**, or equivalent org policy for the MCP registry URL) so the IDE and Copilot both honor the private v0.1 registry.
-
-**Confirmed behavior (when the setting applies):** VS Code calls **`GET <gallery-service-url>/v0.1/servers`** to populate the server list. No window reload is always required; behavior matches your VS Code build.
-
-### `chat.mcp.access` and what gets blocked
-
-| Server type | `allowed` (default) | `registryOnly` |
-| --- | --- | --- |
-| From registry — stdio | Allowed | Allowed |
-| From registry — remote HTTP | Allowed | Allowed |
-| Direct **`mcp.json`** — remote HTTP | Allowed | **Blocked** |
-| Direct **`mcp.json`** — localhost HTTP (sidecar) | Allowed | **Blocked** |
-| Direct **`mcp.json`** — stdio | Allowed | **Blocked** |
-
-**Localhost remote URLs** cannot appear in a public registry `remotes` entry (publisher tooling rejects them by design). Sidecar HTTP servers on `localhost` are only usable with **`chat.mcp.access: "allowed"`** and a direct `mcp.json` entry.
-
-**Enterprise postures:**
-
-- **Permissive:** `chat.mcp.access: "allowed"` + custom `chat.mcp.gallery.serviceUrl` — developers may still add manual `mcp.json` entries (including localhost sidecars).
-- **Strict:** `chat.mcp.access: "registryOnly"` + **`McpGalleryServiceUrl`** via MDM — only servers present in the approved registry run; direct `mcp.json` and localhost sidecars are blocked.
-
-Policy deployment (overrides user settings): Windows ADMX/Intune, macOS `.mobileconfig`, Linux `/etc/vscode/policy.json` (see VS Code enterprise AI documentation).
-
-### GitHub org admin (Copilot Enterprise)
-
-Admins can set the **MCP Registry URL** under **Settings → AI controls → MCP** and optionally **registry-only** enforcement so developers see only approved servers in the gallery. **Limitation (as of research period):** enforcement is largely **name/ID-based**; stricter verification may evolve — see current GitHub Docs on MCP allowlists.
-
-### Other IDEs (Copilot)
-
-- **JetBrains** — Copilot Chat → MCP → MCP Registry URL
-- **Eclipse / Xcode** — similar “MCP Registry URL” fields in Copilot settings (see product version notes)
-
-### Remote HTTP: `Authorization` header and Bearer tokens
-
-Registry entries for **`remotes`** often declare:
+Clients must send this header on each `/mcp` request:
 
 ```http
-Authorization: Bearer <access_token>
+Authorization: Bearer <access-token>
 ```
 
-When a user installs a **remote HTTP** server from the gallery, VS Code can **prompt once** for the secret header value and store it securely. That token is the **OIDC access token** from your IdP (or an API key your gateway accepts), not the z/OS password.
+The server accepts RS256 tokens. It checks the signature, issuer, expiry time,
+and optional audience and `nbf` claims. Each token must contain a `sub` claim.
 
-**Browser OAuth for MCP:** For interactive flows, clients may perform OAuth against your IdP and attach the resulting access token to MCP requests. Inspectors and local dev setups are described in [remote-dev-keycloak.md](./remote-dev-keycloak.md).
+The first token on an MCP session sets the user for that session. Later requests
+on the session must use the same `sub` value.
 
-### Clients without a gallery registry URL
+The server publishes OAuth protected resource metadata when JWT authentication
+is active. Set `ZOWE_MCP_OAUTH_RESOURCE` if the generated URL does not match the
+public URL. See [RFC 9728](https://www.rfc-editor.org/rfc/rfc9728) for the
+metadata format.
 
-**Cursor** (as of early 2026) did not ship native `chat.mcp.gallery.serviceUrl`-style catalog support; use project or user MCP config. **Claude Desktop** uses different extension upload models for MCPB — not the v0.1 registry URL.
+Do not expose an HTTP server without authentication. The
+`--http-allow-no-auth` option is for local development. Without JWT
+configuration, the server binds to loopback unless you set another host.
 
----
+For TLS and reverse proxy settings, see
+[Remote HTTP MCP](remote-http-mcp-registry.md#https-reverse-proxies-and-public-urls).
+For a local Keycloak environment, see
+[Remote HTTP MCP with local Keycloak](remote-dev-keycloak.md).
 
-## z/OS credentials (SSH / native backend)
+## Save connections per user
 
-The native backend uses **Zowe Remote SSH** (`zowex-sdk` over SSH). There is **no OAuth** on the wire to z/OS.
+The server uses the JWT `sub` value to find the user's saved connections. Each
+MCP session keeps its own active system. Sessions for the same user use the same
+saved connection list.
 
-**Precedence (standalone / server-side resolution)** is implemented in [`connection-spec.ts`](../packages/zowe-mcp-server/src/zos/native/connection-spec.ts): per-connection env vars, then **`ZOWE_MCP_CREDENTIALS`** JSON map, optional [HashiCorp Vault KV](standalone-mcp.md#optional-hashicorp-vault-kv), then MCP elicitation when enabled.
+Per-user connection tools require all of these settings:
 
-**Registry-friendly env var:** **`ZOWE_MCP_CREDENTIALS`** maps `user@host` (or `user@host:port`) strings to passwords in one JSON object — fits static `server.json` `environmentVariables` and gallery secret prompts. The dynamic pattern **`ZOWE_MCP_PASSWORD_<USER>_<HOST>`** cannot be fully enumerated in metadata; document it in prose or use the JSON map.
+- HTTP transport;
+- JWT authentication;
+- the native SSH backend; and
+- `ZOWE_MCP_TENANT_STORE_DIR`.
 
-**HTTP + JWT:** Central injection (Kubernetes secrets, Vault) for production; optional per-tenant connection files under **`ZOWE_MCP_TENANT_STORE_DIR`** with tools **`addZosConnection`** / **`removeZosConnection`** (see [AGENTS.md](../AGENTS.md)). Optional **encrypt-at-rest** for tenant files: **`ZOWE_MCP_TENANT_STORE_KEY`**.
+Without the store directory, the server keeps SSH sessions and password prompts
+separate for each user. It does not save connections. It also does not register
+`addZosConnection` or `removeZosConnection`.
 
----
+Set an absolute path for the store:
 
-## Deployment sketch (HTTP)
-
-```text
-Developer IDE (Copilot / MCP client)
-        │  HTTPS POST /mcp, Authorization: Bearer …
-        ▼
-  Reverse proxy — TLS, optional gateway JWT validation, rate limits
-        ▼
-  Zowe MCP (`--http`) — session via Streamable HTTP, optional in-process JWT validation
-        ▼
-  z/OS — SSH (ZNP); credentials from platform secrets, not from the OAuth token alone
+```bash
+export ZOWE_MCP_TENANT_STORE_DIR=/var/lib/zowe-mcp/tenants
 ```
 
-**Per-organization URLs:** On-premises HTTP MCP uses a **different hostname per organization**; there is no single global endpoint. Registry `remotes` and client config both use **your** FQDN.
+The server can start without `--system` or `--config` when the per-user store is
+active. A user can then call `addZosConnection` with `user@host` or
+`user@host:port`.
 
-Step-by-step **registry registration** and **`mcp.json` examples**: [remote-http-mcp-registry.md](./remote-http-mcp-registry.md).
+`addZosConnection` checks the connection format and saves it. The tool does not
+check the network or the SSH credential. The user calls `setSystem` when the
+connection is ready.
 
-### Dockerfile examples
+`removeZosConnection` removes a connection from the user's file. It cannot
+remove a connection from `--system` or `--config`.
 
-```dockerfile
-FROM node:20-slim
-WORKDIR /app
-COPY . .
-RUN npm ci --omit=dev
-EXPOSE 7542
-CMD ["node", "dist/index.js", "--http", "--port", "7542", "--native", \
-     "--system", "jsmith@mainframe.example.com"]
-```
+Connections from `--system` and `--config` are bootstrap connections. Every
+user can see them. The server adds each user's saved connections to this common
+list.
 
-Or using the published npm package (once on public npmjs.com):
+See the [MCP reference](mcp-reference.md) for the tool inputs and outputs.
 
-```dockerfile
-FROM node:20-slim
-RUN npm install -g @zowe/mcp-server
-EXPOSE 7542
-CMD ["zowe-mcp-server", "--http", "--port", "7542", "--native"]
-```
+### Store contents
 
-### Kubernetes (sketch)
+Each user file can contain:
 
-```yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: zowe-mcp-server
-spec:
-  replicas: 2
-  template:
-    spec:
-      containers:
-        - name: zowe-mcp-server
-          image: ghcr.io/yourorg/zowe-mcp-server:1.0.0
-          ports:
-            - containerPort: 7542
-          env:
-            - name: ZOWE_MCP_CREDENTIALS
-              valueFrom:
-                secretKeyRef:
-                  name: zowe-mcp-credentials
-                  key: credentials-json
-```
+- saved connection names;
+- saved job cards; and
+- the last update time.
 
-### Example `remotes` entry (private MCP registry)
+The file does not contain SSH passwords, private keys, or OAuth tokens. The
+server gets SSH credentials from keys, environment variables, Vault KV, or an
+MCP prompt.
 
-Each deployment has its **own** base URL — replace the hostname with your FQDN:
+A job card from `--config` is common to all users. A job card from an MCP prompt
+is saved only for that user.
 
-```json
-{
-  "name": "com.example/zowe-mcp-server",
-  "title": "Zowe MCP Server",
-  "description": "Internal z/OS MCP server — data sets, jobs, USS.",
-  "version": "1.0.0",
-  "remotes": [
-    {
-      "type": "streamable-http",
-      "url": "https://zowe-mcp.tools.example.com/mcp",
-      "headers": [
-        {
-          "name": "Authorization",
-          "description": "Bearer access token from the OIDC provider (validated as JWT at the MCP server or gateway)",
-          "isSecret": true,
-          "isRequired": true
-        }
-      ]
-    }
-  ]
-}
-```
+The server hashes `sub` to create the filename. Where supported, it creates new
+directories with mode `0700` and new files with mode `0600`. It replaces files
+atomically.
 
----
+### Encrypt the store
+
+The files contain plaintext JSON by default. Set `ZOWE_MCP_TENANT_STORE_KEY` to
+encrypt them with AES-256-GCM.
+
+Use a random 32-byte key. Supply it as 64 hexadecimal characters or as base64.
+
+Keep the same key after a restart. If you lose or change the key, the server
+cannot read the existing files. Keep the key and file backups in separate
+locations.
+
+The server does not rotate keys or delete old user files. Removing a connection
+does not remove saved job cards.
+
+### Deployment limits
+
+The store uses the local file system. It is not a shared database.
+
+HTTP sessions and memory caches belong to one server process. Route each MCP
+session to one process. Do not let processes update the same user file at the
+same time because the store does not synchronize writes.
+
+The store does not grant access to z/OS. Use SAF and other z/OS controls to
+limit each SSH account.
+
+## Provide z/OS credentials
+
+The native backend tries these methods in order:
+
+1. SSH key;
+2. password environment variable;
+3. HashiCorp Vault KV; and
+4. MCP password prompt.
+
+For variable names, Vault settings, and password prompts, see
+[Standalone MCP authentication](standalone-mcp.md#authentication-standalone).
 
 ## Related documentation
 
-| Topic | Document |
+| Task | Document |
 | --- | --- |
-| Remote HTTP topology, `mcp.json`, gallery + Bearer | [remote-http-mcp-registry.md](./remote-http-mcp-registry.md) |
-| Keycloak dev, HTTPS, Inspector | [remote-dev-keycloak.md](./remote-dev-keycloak.md), [docker/remote-https-dev/README.md](../docker/remote-https-dev/README.md) |
-| Local OIDC and JWT E2E | [remote-dev-keycloak.md](./remote-dev-keycloak.md#minimal-keycloak-and-jwt-e2e) |
-| Standalone clients, env passwords, Vault KV | [standalone-mcp.md](./standalone-mcp.md#authentication-standalone) |
+| Register or configure a remote HTTP server | [Remote HTTP MCP](remote-http-mcp-registry.md) |
+| Run the local Keycloak environment | [Remote HTTP MCP with local Keycloak](remote-dev-keycloak.md) |
+| Configure a local registry | [Local registry setup](local-registry-setup.md) |
+| Configure SSH keys, passwords, or Vault | [Standalone MCP clients](standalone-mcp.md#authentication-standalone) |
+| Review the security model | [MCP safety and security principles](mcp-safety-security-principles.md) |

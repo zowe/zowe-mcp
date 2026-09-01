@@ -73,8 +73,8 @@ The MCP protocol does not standardize **risk tiers**, **tool groups**, or **per-
 Practical mitigations that apply to Zowe MCP:
 
 - **Separate MCP server instances or configs** per sensitivity tier (e.g., read-only mock lab vs. native production).
-- **Client / gateway allowlists** where the product supports them (enterprise MCP registry posture, `chat.mcp.access`, and organization policies;
-  see [mcp-authentication-oauth.md](./mcp-authentication-oauth.md)).
+- **Client / gateway allowlists** where the product supports them. See
+  [VS Code and Copilot access policy](./remote-http-mcp-registry.md#vs-code-and-copilot-access-policy).
 - **Reverse proxy or sidecar** filtering of `tools/call` (advanced; must not break session semantics).
 
 None of these is a complete, portable, multi-dimensional model; the gap is **ecosystem-wide**, not specific to Zowe MCP.
@@ -217,8 +217,9 @@ These are **not** provided as first-class Zowe MCP features today. Some could be
 
 | Topic | Document |
 | --- | --- |
-| OAuth vs z/OS credentials, Copilot / VS Code | [mcp-authentication-oauth.md](./mcp-authentication-oauth.md) |
-| Transports, tools, env vars, tenant store | [AGENTS.md](../AGENTS.md) |
+| HTTP JWT and z/OS credentials | [mcp-authentication-oauth.md](./mcp-authentication-oauth.md) |
+| Saved connections per user | [mcp-authentication-oauth.md](./mcp-authentication-oauth.md#save-connections-per-user) |
+| MCP tools, prompts, and resources | [mcp-reference.md](./mcp-reference.md) |
 | Remote HTTP registry and URLs | [remote-http-mcp-registry.md](./remote-http-mcp-registry.md) |
 | Local OIDC lab | [remote-dev-keycloak.md](./remote-dev-keycloak.md) |
 | Principles in this doc vs product | This doc [§10](#10-implementation-status-in-zowe-mcp) |

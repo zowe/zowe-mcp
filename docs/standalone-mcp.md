@@ -95,7 +95,10 @@ ssh-agent keys are not supported in this release — only key files on disk.
 
 ### Fallback: passwords
 
-Without the VS Code extension, passwords are not collected via the extension pipe. Use one or both of the following.
+The password sources below apply when the VS Code extension pipe is unavailable,
+including standalone stdio, server-side HTTP, CLI bridge plugins, and
+`call-tool`. For native SSH, the server can use MCP elicitation after checking
+the configured password sources.
 
 ### Per-connection env vars: `ZOWE_MCP_PASSWORD_<USER>_<HOST>`
 
@@ -133,7 +136,40 @@ In `.roo/mcp.json`, pass the JSON as a **string** value (escape quotes as requir
 }
 ```
 
-**Precedence:** If both are set for the same connection, `ZOWE_MCP_PASSWORD_<USER>_<HOST>` wins; otherwise the server looks up the connection in `ZOWE_MCP_CREDENTIALS`. Implementation: `getStandalonePasswordFromEnv()` in [`connection-spec.ts`](../packages/zowe-mcp-server/src/zos/native/connection-spec.ts).
+**Password-source precedence:** `ZOWE_MCP_PASSWORD_<USER>_<HOST>` wins for
+the same connection, followed by `ZOWE_MCP_CREDENTIALS`, then optional
+HashiCorp Vault KV. For native SSH, MCP elicitation follows when no configured
+source provides a password.
+
+### Optional: HashiCorp Vault KV
+
+Vault KV provides passwords for automation and server-side deployments without
+putting them directly in the MCP process environment. Set all three required
+Vault variables to enable lookup:
+
+| Variable | Purpose |
+| --- | --- |
+| `ZOWE_MCP_VAULT_ADDR` | Vault base URL, for example `https://vault.example.com`. |
+| `ZOWE_MCP_VAULT_TOKEN` | Token sent to Vault in the `X-Vault-Token` header. Treat it as a secret. |
+| `ZOWE_MCP_VAULT_KV_PATH` | KV v2 API path after `/v1/`, for example `secret/data/myapp/zowe-mcp`. |
+| `ZOWE_MCP_VAULT_CACHE_TTL_MS` | Optional in-process cache duration in milliseconds. The default is `60000`; set it to `0` to disable caching. |
+
+The secret data uses the same connection map as `ZOWE_MCP_CREDENTIALS`:
+
+```json
+{
+  "userid@zos.example.com": "your-password",
+  "otheruser@other.host.example.com:2222": "other-password"
+}
+```
+
+The server reads this secret but never writes passwords to Vault. Vault values
+are cached only in memory. Elicited passwords are also held only for the server
+process lifetime and are cleared after failed authentication; use Vault or
+environment variables when credentials must remain available across restarts.
+
+Do not commit Vault tokens or passwords. Inject the token through your secret
+manager, deployment platform, or protected process environment.
 
 ### Why `ZOWE_MCP_CREDENTIALS` matters for MCP registries
 

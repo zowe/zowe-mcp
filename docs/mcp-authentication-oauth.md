@@ -144,7 +144,7 @@ When a user installs a **remote HTTP** server from the gallery, VS Code can **pr
 
 The native backend uses **Zowe Remote SSH** (`zowex-sdk` over SSH). There is **no OAuth** on the wire to z/OS.
 
-**Precedence (standalone / server-side resolution)** is implemented in [`connection-spec.ts`](../packages/zowe-mcp-server/src/zos/native/connection-spec.ts): per-connection env vars, then **`ZOWE_MCP_CREDENTIALS`** JSON map, optional **HashiCorp Vault KV**, then MCP elicitation when enabled.
+**Precedence (standalone / server-side resolution)** is implemented in [`connection-spec.ts`](../packages/zowe-mcp-server/src/zos/native/connection-spec.ts): per-connection env vars, then **`ZOWE_MCP_CREDENTIALS`** JSON map, optional [HashiCorp Vault KV](standalone-mcp.md#optional-hashicorp-vault-kv), then MCP elicitation when enabled.
 
 **Registry-friendly env var:** **`ZOWE_MCP_CREDENTIALS`** maps `user@host` (or `user@host:port`) strings to passwords in one JSON object — fits static `server.json` `environmentVariables` and gallery secret prompts. The dynamic pattern **`ZOWE_MCP_PASSWORD_<USER>_<HOST>`** cannot be fully enumerated in metadata; document it in prose or use the JSON map.
 
@@ -250,4 +250,4 @@ Each deployment has its **own** base URL — replace the hostname with your FQDN
 | Remote HTTP topology, `mcp.json`, gallery + Bearer | [remote-http-mcp-registry.md](./remote-http-mcp-registry.md) |
 | Keycloak dev, HTTPS, Inspector | [remote-dev-keycloak.md](./remote-dev-keycloak.md), [docker/remote-https-dev/README.md](../docker/remote-https-dev/README.md) |
 | Local OIDC and JWT E2E | [remote-dev-keycloak.md](./remote-dev-keycloak.md#minimal-keycloak-and-jwt-e2e) |
-| Standalone stdio, env passwords, tools | [AGENTS.md](../AGENTS.md) |
+| Standalone clients, env passwords, Vault KV | [standalone-mcp.md](./standalone-mcp.md#authentication-standalone) |

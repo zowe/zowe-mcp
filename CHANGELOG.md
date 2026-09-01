@@ -14,8 +14,17 @@ don't warrant an entry (CI, chores, internal refactors, docs-only) can carry the
 
 ## [Unreleased]
 
+### Added
+
+- Enabled the `runConsoleCommand` tool (z/OS operator console commands) at capability tier `full`. Requires zowex 0.9.0+ on the host and the separately installed APF-authorized `zoweax` binary; each command is authorized by the site ESM (OPERCMDS). Safe DISPLAY commands run directly, state-changing commands require user confirmation via elicitation, and system-stopping commands are blocked. Failures map to actionable guidance (server too old, zoweax missing, not authorized).
+- Binary (base64, no-conversion) transfer on `readDataset`, `writeDataset`, `readUssFile`, and `writeUssFile` via a new optional `binary` input: reads return `data.contentBase64`, writes take `contentBase64` instead of `lines`. For non-text content (tersed files, load modules) that the UTF-8/EBCDIC text path would corrupt. Binary dataset writes require a preallocated target. Note that the z/OS server writes the byte stream as fixed-length records, NUL-pads the last record, and does not preserve the target's RECFM/LRECL (validated on a real z/OS: an FB/1024 sequential data set came back FB/80 after a binary write) — the bytes read back through `readDataset` are exact, but re-check the DCB attributes if another z/OS program consumes the data set. USS binary transfer is byte-exact with no such caveat.
+
 ### Changed
 
+- Bundled zowex SDK pin moved to the 0.9.0 nightly (2026-08-25): brings the `consoleCommand` JSON-RPC support and the slimmed APF-authorized `zoweax` companion; hosts running older auto-deployed servers are redeployed on next connect. Also fixed the `sdk-switch.js nightly` resolver picking stale pre-rename artifacts (lexical sort) — it now filters to the current package name and sorts by datestamp.
+- Console command elicitation (dormant tool) brought to parity with TSO: client-capability pre-check, form mode, and a required boolean confirmation.
+- Console authorization failures now distinguish the security-product cases instead of only matching "not authorized": an ESM profile denial (IEE345I `AUTHORITY INVALID, FAILED BY SECURITY PRODUCT`) asks for a permit on the matching `MVS.*` OPERCMDS profile, a no-profile-matched denial (`FAILED BY MVS`) asks for the profile to be defined, and a SAF console-activation denial (`service_rc 12`) points at `MVS.MCSOPER.<console-name>`. Each says not to retry until access is granted.
+- Hardened the console command safety patterns (dormant tool): official abbreviations (`V`, `C`, `E`, `RO`, `K`, `T`, `M`, `U`, `G`, `I`), `DUMP`, `SLIP`, `CONFIG`/`CF`, dump/page management (`CHNGDUMP`/`CD`, `DUMPDS`/`DD`, `PAGEADD`/`PA`, `PAGEDEL`/`PD`, `IOACTION`/`IO`), and WTOR replies elicit confirmation; the SET pattern now also covers `SETPROG`/`SETXCF`/`SETSMF` and friends; system-stopping commands smuggled through `ROUTE` are blocked — including a routed `VARY XCF,...,OFFLINE` (sysplex partitioning) and the `RO T=nnn,...` and `RO (SYS1,SYS2),...` operand forms, which previously downgraded to a confirmation prompt.
 - **Much faster installs: esbuild-bundled VSIX and slimmer npm tarball.** The
   VS Code extension no longer ships a full `npm install` of every production
   dependency (25,521 files, 172 MB unpacked): the extension host and the MCP

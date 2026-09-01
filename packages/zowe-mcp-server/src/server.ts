@@ -37,8 +37,8 @@ import { registerImprovementPrompts } from './prompts/improvement-prompts.js';
 import { registerDatasetResources } from './resources/dataset-resources.js';
 import { getServerPackageJson } from './runtime/asset-root.js';
 import { registerCertificateTools } from './tools/certificates/certificate-tools.js';
+import { registerConsoleTools } from './tools/console/console-tools.js';
 import { registerContextTools } from './tools/context/context-tools.js';
-// import { registerConsoleTools } from './tools/console/console-tools.js';
 import { registerDatasetTools } from './tools/datasets/dataset-tools.js';
 import { registerJobTools } from './tools/jobs/jobs-tools.js';
 import { registerLocalFileTools } from './tools/local-files/local-file-tools.js';
@@ -548,22 +548,22 @@ export function createServer(options?: CreateServerOptions): CreateServerResult 
       },
       logger
     );
-    // Console tools disabled: ZNP (zowex server binary) does not yet implement
-    // console.issueCmd, even though the zowex-sdk client API exposes it. Re-enable
-    // only after verifying the server binary handles the consoleCommand RPC.
-    // The mock SSH daemon (src/mock-host) does implement it for tests, but the
-    // production MCP server must not register a tool that fails on real z/OS.
-    // registerConsoleTools(
-    //   server,
-    //   {
-    //     backend,
-    //     systemRegistry,
-    //     sessionState,
-    //     credentialProvider,
-    //     mcpServer: server,
-    //   },
-    //   logger
-    // );
+    // Console commands require zowex 0.9.0+ on the host (consoleCommand RPC,
+    // which spawns the separately installed APF-authorized zoweax binary) and
+    // ESM OPERCMDS authorization. Older servers and missing/unauthorized
+    // zoweax installs surface actionable errors from the tool.
+    registerConsoleTools(
+      server,
+      {
+        backend,
+        systemRegistry,
+        sessionState,
+        credentialProvider,
+        responseCache: responseCache ?? undefined,
+        mcpServer: server,
+      },
+      logger
+    );
     registerDatasetResources(server, { backend }, logger);
     registerDatasetPrompts(server, { backend, systemRegistry, sessionState }, logger);
 

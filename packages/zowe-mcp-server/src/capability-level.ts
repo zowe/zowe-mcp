@@ -274,8 +274,8 @@ export function buildCapabilityInstructions(
 
   if (maxLevel < ResourceEffect.EXECUTE) {
     lines.push(
-      'Execute z/OS operations — job submission and TSO/USS commands (requires tier "full") — examples:',
-      '  submitJob, submitJobFromDataset, submitJobFromUss, runSafeTsoCommand, runSafeUssCommand',
+      'Execute z/OS operations — job submission and TSO/USS/console commands (requires tier "full") — examples:',
+      '  submitJob, submitJobFromDataset, submitJobFromUss, runSafeTsoCommand, runSafeUssCommand, runConsoleCommand',
       ''
     );
   }

@@ -139,6 +139,12 @@ deleteUssTempUnderDir:
 runSafeTsoCommand:
   commandText: 'TIME'
 
+runConsoleCommand:
+  commandText: 'D T'
+
+runConsoleCommand[blocked command]:
+  commandText: 'Z EOD'
+
 runSafeTsoCommand[blocked command]:
   commandText: 'OSHELL rm -rf /'
 

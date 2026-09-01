@@ -47,14 +47,14 @@
     "@zowe/zowex-for-zowe-sdk": "file:../../resources/zowe-zowex-for-zowe-sdk-0.9.0-nightly-2026-08-25-012900.tgz",
     "express": "^5.1.0",
     "hardstop-patterns": "^1.0.0",
-    "js-yaml": "^5.3.0",
+    "js-yaml": "^5.4.1",
     "lru-cache": "^11.5.2",
-    "markdown-table-prettify": "^3.7.0",
+    "markdown-table-prettify": "^4.1.0",
     "node-ssh": "^13.2.0",
     "path-to-regexp": "8.4.2",
     "ssh2": "^1.17.0",
     "yargs": "^18.0.0",
-    "zod": "^4.4.3",
+    "zod": "^4.5.2",
     "zowe-mcp-common": "*"
   },
   "devDependencies": {

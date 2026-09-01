@@ -1209,7 +1209,7 @@ npm install @zowe/db2-for-zowe-cli -g --ignore-scripts --legacy-peer-deps \
   --prefix ~/.zowe/plugins/installed \
   --registry https://zowe.jfrog.io/artifactory/api/npm/npm-release/
 
-# Manually register in ~/.zowe/plugins/plugins.json if needed (see vendor/broadcom/AGENTS.md)
+# Manually register in ~/.zowe/plugins/plugins.json if needed
 
 # 2. Temporarily stub the native module so definitions can load
 DB2_PLUGIN=~/.zowe/plugins/installed/lib/node_modules/@zowe/db2-for-zowe-cli

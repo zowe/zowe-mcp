@@ -307,7 +307,7 @@ costs real API money for ~13 Sonnet runs per invocation (more with retries).
 
 ## eval-compare
 
-`eval-compare` is a benchmarking tool that runs evals across one or more models, produces comparison reports, and auto-updates the [eval scoreboard](../../docs/eval-scoreboard.md). It is the primary tool for the [eval-driven improvement methodology](../../AGENTS.md) — every proposed change to tool definitions is tested with before/after eval-compare runs.
+`eval-compare` is a benchmarking tool that runs evals across one or more models, produces comparison reports, and auto-updates the [eval scoreboard](../../docs/eval-scoreboard.md). It is the primary tool for the [eval-driven improvement methodology](#typical-workflow) — every proposed change to tool definitions is tested with before/after eval-compare runs.
 
 ### Running eval-compare
 

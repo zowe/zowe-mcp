@@ -51,5 +51,6 @@ services:
     environment:
       ZOWE_MCP_JWT_ISSUER: http://localhost:${KEYCLOAK_HOST_PORT:-18080}/realms/demo
       ZOWE_MCP_JWKS_URI: http://keycloak:8080/realms/demo/protocol/openid-connect/certs
-      # Optional: MCP server debug logs on stderr and via MCP logging (default: info). See AGENTS.md — Logging
+      # Optional: MCP server debug logs on stderr and via MCP logging (default: info).
+      # See docs/remote-dev-keycloak.md#debug-logging-remote-dev.
       # ZOWE_MCP_LOG_LEVEL: debug

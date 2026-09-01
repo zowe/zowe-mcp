@@ -1,7 +1,10 @@
 # Mock mode
 
 The server includes a filesystem-backed mock z/OS backend for testing without a
-mainframe.
+mainframe. The server reads fixture files directly and does not use SSH.
+
+To test the native SSH and `zowex-sdk` path, use the
+[mock z/OS host](mock-zos-host.md).
 
 ## Generate mock data
 

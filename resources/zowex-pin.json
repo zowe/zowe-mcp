@@ -10,17 +10,17 @@
     "CI will start failing to fetch it."
   ],
   "package": "@zowe/zowex-for-zowe-sdk",
-  "version": "0.9.0",
+  "version": "nightly",
   "train": "Nightly",
-  "datestamp": "2026-08-25-012900",
-  "filename": "zowe-zowex-for-zowe-sdk-0.9.0-nightly-2026-08-25-012900.tgz",
-  "url": "https://zowe.jfrog.io/artifactory/libs-snapshot-local/org/zowe/zowex/SDK/Nightly/zowe-zowex-for-zowe-sdk-0.9.0-2026-08-25-012900.tgz",
-  "sha256": "054643b6b126b14cd2eb90992c469217db4a9b2fba6c3a2fa7cedd17a6b63cdb",
+  "datestamp": "2026-09-04-011305",
+  "filename": "zowe-zowex-for-zowe-sdk-nightly-nightly-2026-09-04-011305.tgz",
+  "url": "https://zowe.jfrog.io/artifactory/libs-snapshot-local/org/zowe/zowex/SDK/Nightly/zowe-zowex-for-zowe-sdk-0.9.0-2026-09-04-011305.tgz",
+  "sha256": "d9d403ff61b74797b58d627a0168f90ccc071c1ce368d8b0a2140a3e262c45eb",
   "upstream": {
     "repo": "zowe/zowex",
-    "commit": "11758350ec6fbc8753ab8c52cbdf975b951e2ffa",
+    "commit": "9a3a0993865535887def0ab53d635ab0ebd27a19",
     "releaseRunId": null,
     "note": "Resolved from zowe/zowex main HEAD at pin time, not from the build itself — treat as approximate."
   },
-  "pinnedAt": "2026-08-25"
+  "pinnedAt": "2026-09-04"
 }

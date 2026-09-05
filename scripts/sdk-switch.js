@@ -179,27 +179,30 @@ function npmInstall() {
 }
 
 /**
- * Read the version from a tarball by extracting its package.json.
- * Returns the version string or the provided fallback.
+ * Read the version from a tarball by extracting its package.json to stdout.
+ * Uses `tar -xzOf <tgz> package/package.json` (the `-O` flag extracts to stdout) rather than
+ * `--include`, which is a bsdtar/libarchive-only flag: GNU tar (e.g. ubuntu CI runners) rejects
+ * it outright, so extracting to stdout is what actually works on both.
+ * Returns the version string, or the provided fallback if it could not be read (in which case a
+ * warning is printed to stderr, since a silently-used fallback is exactly what hid the bug this
+ * function used to have).
  */
 function readVersionFromTgz(tgzPath, fallback) {
-  const tmpDir = path.join(repoRoot, '.sdk-version-tmp');
   try {
-    fs.rmSync(tmpDir, { recursive: true, force: true });
-    fs.mkdirSync(tmpDir, { recursive: true });
-    execSync(`tar -xzf "${tgzPath}" -C "${tmpDir}" --include='package/package.json'`, {
-      stdio: 'ignore',
+    const pkgJsonText = execSync(`tar -xzOf "${tgzPath}" package/package.json`, {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
     });
-    const pkgJson = path.join(tmpDir, 'package', 'package.json');
-    if (fs.existsSync(pkgJson)) {
-      const pkg = JSON.parse(fs.readFileSync(pkgJson, 'utf8'));
-      return pkg.version || fallback;
-    }
+    const pkg = JSON.parse(pkgJsonText);
+    if (pkg.version) return pkg.version;
   } catch {
     // fall through
-  } finally {
-    fs.rmSync(tmpDir, { recursive: true, force: true });
   }
+  console.warn(
+    'Could not read the version from %s; falling back to %s',
+    tgzPath,
+    JSON.stringify(fallback)
+  );
   return fallback;
 }
 

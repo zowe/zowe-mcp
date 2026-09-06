@@ -603,6 +603,20 @@ async function updateCursorRegistration(
 }
 
 /**
+ * Picks Workspace scope when a workspace is open, otherwise falls back to
+ * Global so settings updates don't fail with "no workspace is opened".
+ */
+export function pickConfigTarget(): {
+  target: vscode.ConfigurationTarget;
+  scopeLabel: string;
+} {
+  const hasWorkspace = (vscode.workspace.workspaceFolders?.length ?? 0) > 0;
+  return hasWorkspace
+    ? { target: vscode.ConfigurationTarget.Workspace, scopeLabel: 'workspace settings' }
+    : { target: vscode.ConfigurationTarget.Global, scopeLabel: 'user settings' };
+}
+
+/**
  * Generates mock z/OS data by running the bundled server's `init-mock` command.
  *
  * Prompts the user for an output directory, runs the generator, and offers
@@ -716,12 +730,13 @@ async function initMockData(
 
   if (choice === configure) {
     const config = vscode.workspace.getConfiguration('zoweMCP');
-    await config.update('mockDataDirectory', outputDir, vscode.ConfigurationTarget.Workspace);
-    log.info(`Set zoweMCP.mockDataDirectory to: ${outputDir}`);
+    const { target, scopeLabel } = pickConfigTarget();
+    await config.update('mockDataDirectory', outputDir, target);
+    log.info(`Set zoweMCP.mockDataDirectory to: ${outputDir} (${scopeLabel})`);
 
     const reload = 'Reload Window';
     const reloadChoice = await vscode.window.showInformationMessage(
-      'Mock data directory configured. Reload the window to restart the MCP server with mock data.',
+      `Mock data directory saved to ${scopeLabel}. Reload the window to restart the MCP server with mock data.`,
       reload
     );
     if (reloadChoice === reload) {
@@ -755,15 +770,12 @@ async function promptForMockDataDirectory(): Promise<void> {
     });
     if (folders && folders.length > 0) {
       const config = vscode.workspace.getConfiguration('zoweMCP');
-      await config.update(
-        'mockDataDirectory',
-        folders[0].fsPath,
-        vscode.ConfigurationTarget.Workspace
-      );
-      log.info(`Set zoweMCP.mockDataDirectory to: ${folders[0].fsPath}`);
+      const { target, scopeLabel } = pickConfigTarget();
+      await config.update('mockDataDirectory', folders[0].fsPath, target);
+      log.info(`Set zoweMCP.mockDataDirectory to: ${folders[0].fsPath} (${scopeLabel})`);
       const reload = 'Reload Window';
       const reloadChoice = await vscode.window.showInformationMessage(
-        'Mock data directory configured. Reload the window to restart the MCP server with mock data.',
+        `Mock data directory saved to ${scopeLabel}. Reload the window to restart the MCP server with mock data.`,
         reload
       );
       if (reloadChoice === reload) {

@@ -6,6 +6,10 @@ All notable changes to the Zowe MCP extension will be documented in this file.
 
 ## Recent Changes
 
+### Bug fixes
+
+- **Setting a mock data directory failed with "Unable to write to Workspace Settings because no workspace is opened"** when no folder was open in the editor. The extension now saves `zoweMCP.mockDataDirectory` to user settings in that case, falling back to workspace settings only when a workspace is open. [#107](https://github.com/zowe/zowe-mcp/issues/107)
+
 ### Other
 
 - **Much faster installs**: The extension VSIX is now esbuild-bundled (extension host and MCP server) instead of shipping a full `npm install` of every production dependency. This cuts the packaged file count and removes duplicate copies of large native binaries, which noticeably speeds up installation, especially on Windows. [#54](https://github.com/zowe/zowe-mcp/issues/54)

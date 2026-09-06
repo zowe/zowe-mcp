@@ -991,7 +991,7 @@ async function main(): Promise<void> {
         {
           label: 'System Information',
           description:
-            'Read-only information about the z/OS system itself — APF-authorized data sets, the PROCLIB concatenation, the link list (LNKLST) concatenation, and the operations SYSLOG.',
+            'Read-only information about the z/OS system itself — APF-authorized data sets, the PROCLIB concatenation, the PARMLIB concatenation, the link list (LNKLST) concatenation, and the operations SYSLOG.',
           toolNames: [
             'listApfLibraries',
             'listProclib',

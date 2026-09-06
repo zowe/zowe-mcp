@@ -83,7 +83,7 @@ Time Sharing Option — run TSO commands interactively on z/OS.
 
 The server provides **5** tools.
 
-Read-only information about the z/OS system itself — APF-authorized data sets, the PROCLIB concatenation, the link list (LNKLST) concatenation, and the operations SYSLOG.
+Read-only information about the z/OS system itself — APF-authorized data sets, the PROCLIB concatenation, the PARMLIB concatenation, the link list (LNKLST) concatenation, and the operations SYSLOG.
 
 | # | Tool                                    | Description                                                                                                                                                                |
 |---|-----------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -3861,7 +3861,7 @@ Remove a z/OS SSH connection (user@host or user@host:port) from your per-user sa
 
 > Destructive
 
-Run a z/OS operator console command (e.g. DISPLAY T, DISPLAY A). Prefer a dedicated tool when one exists (listProclib, listApfLibraries, listLinklist, viewSyslog, dataset/job tools): dedicated tools return structured output and need less authorization than console commands. System-shutdown commands (HALT, SHUTDOWN, QUIESCE, Z EOD) are blocked. Other non-display commands (SET, VARY, CANCEL, FORCE, START, STOP, MODIFY) require user approval. Unknown commands also require user approval.
+Run a z/OS operator console command (e.g. DISPLAY T, DISPLAY A). Prefer a dedicated tool when one exists (listProclib, listParmlib, listApfLibraries, listLinklist, viewSyslog, dataset/job tools): dedicated tools return structured output and need less authorization than console commands. System-shutdown commands (HALT, SHUTDOWN, QUIESCE, Z EOD) are blocked. Other non-display commands (SET, VARY, CANCEL, FORCE, START, STOP, MODIFY) require user approval. Unknown commands also require user approval.
 
 #### Parameters
 

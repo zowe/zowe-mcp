@@ -32,7 +32,14 @@ import { toPasswordEnvVarName } from '../src/zos/native/connection-spec.js';
 import { disposeMockZos, spawnMockZos, type SpawnedMockZos } from './helpers/spawn-mock-zos.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const serverPath = resolve(__dirname, '..', 'dist', 'index.js');
+// Overridable so this suite can be pointed at a packed/installed artifact
+// (e.g. node_modules/@zowe/mcp-server/dist/index.js from an offline install
+// of the npm-pack tarball) instead of the repo build, to prove the SSH/zowex
+// path still works once bundle-for-pack.cjs's `--omit=optional` drops
+// `russh`/`cpu-features` from the installed tree. Defaults to the repo
+// build so normal `npm test` behavior is unchanged.
+const serverPath =
+  process.env.ZOWE_MCP_E2E_SERVER_PATH ?? resolve(__dirname, '..', 'dist', 'index.js');
 
 /** Parsed tool result content. */
 interface ToolContent {

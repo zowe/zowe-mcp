@@ -52,6 +52,7 @@ jobs:
     if: "!contains(github.event.head_commit.message || '', '[ci skip]')"
     outputs:
       code: ${{ steps.filter.outputs.code }}
+      slides: ${{ steps.filter.outputs.slides }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -74,6 +75,7 @@ jobs:
           if [ -z "$range" ]; then
             echo "No diff range (new branch / manual dispatch) — running all lanes."
             echo "code=true" >> "$GITHUB_OUTPUT"
+            echo "slides=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           changed=$(git diff --name-only "$range" 2>/dev/null) || changed=""
@@ -83,18 +85,41 @@ jobs:
           if [ -z "$changed" ]; then
             echo "Empty diff — running all lanes."
             echo "code=true" >> "$GITHUB_OUTPUT"
+            echo "slides=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           # 'code' is true when ANY changed file is not a Markdown file. Filter
           # with `grep -v` and test for non-empty output rather than `grep -qv` —
           # the -q exit code with -v is unreliable across BSD/GNU grep. Pure-.md
-          # changes (the only docs we ship) skip the heavy lanes.
+          # changes (the only docs we ship) skip the heavy lanes. Note that
+          # presentations/zowe-mcp/slides.md is itself a .md file, so a
+          # slides-only change deliberately reports code=false here — the
+          # 'slides' output below is what gates the deck build instead.
           nonmd=$(printf '%s\n' "$changed" | grep -vE '\.md$' || true)
           if [ -n "$nonmd" ]; then
             echo "code=true" >> "$GITHUB_OUTPUT"
           else
             echo "Docs-only (Markdown) change — heavy lanes will be skipped."
             echo "code=false" >> "$GITHUB_OUTPUT"
+          fi
+          # 'slides' is true when any changed file is under presentations/ —
+          # gates the Slidev deck build/upload job (zowe-mcp#66, finding 4) so a
+          # broken deck (or a broken export toolchain) surfaces on the PR that
+          # touched it, instead of only at release time.
+          #
+          # Release PRs (version with no -dev suffix) build the deck too, even
+          # when presentations/ is untouched. The PDF is no longer committed, so
+          # otherwise release.yml would be the first thing ever to build this
+          # release's deck, and a failure there lands *after* the merge decision
+          # — the same shape as finding 2, which this repo already gates against
+          # in the "Validate release notes heading" step below. The runner's
+          # system node is enough to read the version (no setup-node here).
+          slides=$(printf '%s\n' "$changed" | grep -E '^presentations/' || true)
+          version=$(node -p "require('./packages/zowe-mcp-vscode/package.json').version")
+          if [ -n "$slides" ] || [[ "$version" != *-dev ]]; then
+            echo "slides=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "slides=false" >> "$GITHUB_OUTPUT"
           fi
 
   # Fast static checks (markdown lint, formatting, duplication, type-check, ESLint
@@ -407,6 +432,39 @@ jobs:
       - name: Test (VS Code extension)
         run: npm run test:vscode
 
+  # Build the Slidev deck and upload the exported PDF (zowe-mcp#66, finding 4).
+  # The PDF used to be a committed binary that the releaser exported locally
+  # before every release; that export needs Playwright to download a Chromium
+  # build, which 403s off the corporate VPN (pulled through a Broadcom
+  # Artifactory mirror). Building it here means a broken deck or a broken
+  # export toolchain fails a PR instead of being discovered while cutting a
+  # release, and scripts/package-release.sh can build it fresh on demand.
+  slides:
+    needs: changes
+    if: ${{ needs.changes.outputs.slides == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: '.nvmrc'
+          cache: npm
+          # The deck is its own npm project, outside the root workspace.
+          cache-dependency-path: presentations/zowe-mcp/package-lock.json
+
+      - name: Build slides
+        run: npm run build:slides
+
+      - name: Upload slides PDF
+        uses: actions/upload-artifact@v7
+        with:
+          name: zowe-mcp-slides
+          path: presentations/zowe-mcp/zowe-mcp-slides.pdf
+          if-no-files-found: error
+
   # Aggregate gate: one stable check name for branch protection to require, so
   # adding, renaming, or sharding the CI jobs above never churns the protection
   # config (only a brand-new *workflow* would). Runs even when an upstream job
@@ -416,17 +474,18 @@ jobs:
   # satisfies the required check.
   ci-ok:
     name: ci-ok
-    needs: [changes, lint, build, cross-platform]
+    needs: [changes, lint, build, cross-platform, slides]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - name: Verify required CI jobs succeeded
         run: |
-          echo "changes        = ${{ needs.changes.result }} (code=${{ needs.changes.outputs.code }})"
+          echo "changes        = ${{ needs.changes.result }} (code=${{ needs.changes.outputs.code }}, slides=${{ needs.changes.outputs.slides }})"
           echo "lint           = ${{ needs.lint.result }}"
           echo "build          = ${{ needs.build.result }}"
           echo "cross-platform = ${{ needs.cross-platform.result }}"
+          echo "slides         = ${{ needs.slides.result }}"
           if [ "${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}" = "true" ]; then
             echo "::error::A required CI job failed or was cancelled."
             exit 1

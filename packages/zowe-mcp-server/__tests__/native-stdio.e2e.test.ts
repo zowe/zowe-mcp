@@ -44,7 +44,16 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { parseConnectionSpec, toPasswordEnvVarName } from '../src/zos/native/connection-spec.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const serverPath = resolve(__dirname, '..', 'dist', 'index.js');
+// Overridable so this suite can be pointed at a packed/installed artifact
+// (e.g. node_modules/@zowe/mcp-server/dist/index.js from an offline install of
+// the npm-pack tarball) instead of the repo build. Same knob as
+// native-mock-zos-stdio.e2e.test.ts, but this suite runs against a real LPAR —
+// so it is the one that proves the *shipped* bundle talks to real z/OS after
+// bundle-for-pack.cjs's `--omit=optional` drops `russh`/`cpu-features`, which
+// the mock host cannot fully establish. Defaults to the repo build so normal
+// `npm run test:native-stdio-e2e` behavior is unchanged.
+const serverPath =
+  process.env.ZOWE_MCP_E2E_SERVER_PATH ?? resolve(__dirname, '..', 'dist', 'index.js');
 
 /** Load .env from the given path; set process.env for each KEY=value line (existing env not overwritten). */
 function loadEnvFile(path: string): void {

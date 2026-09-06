@@ -206,12 +206,87 @@ function dereferenceSymlinks(dir) {
  * Run npm install for production dependencies in the given directory.
  *
  * @param {string} cwd  Directory containing the package.json to install
+ * @param {object} [opts]
+ * @param {boolean} [opts.omitOptional]  Also pass `--omit=optional`. Kept
+ *   opt-in (default false, matching the previous unconditional behavior of
+ *   this function) rather than baked in, because the two callers want
+ *   different answers:
+ *    - `bundle-for-pack.cjs` (npm pack) wants optional deps dropped: the
+ *      biggest is `russh`, an optionalDependency of `@zowe/zowex-for-zowe-sdk`
+ *      carrying ~33 MB across 7 platform-specific prebuilds. It backs
+ *      `createClient(useNativeSsh)`, a code path nothing in this repo ever
+ *      enables (the server always talks SSH through `ssh2`/`node-ssh`
+ *      instead) — see `zos/native/ssh-client-cache.ts`. `cpu-features`/`nan`
+ *      (ssh2's own optional native accelerator) go the same way; ssh2 falls
+ *      back to a pure-JS implementation without them. If a future change
+ *      turns `useNativeSsh` on by default, this flag must come back off (or
+ *      `russh` must be pulled in some other way) or that path breaks.
+ *    - `bundle-server.js` (VSIX) already avoids installing `cpu-features`/
+ *      `nan`/`russh` a different way — it writes its own minimal
+ *      `server/package.json` listing only `SERVER_EXTERNAL`'s own runtime
+ *      dependencies, which doesn't include russh in the first place (it's
+ *      zowex's optional dep, and zowex itself is already the thing being
+ *      installed, not a fresh consumer of it) — so this flag would be a
+ *      no-op there today; leaving the default off keeps that path's
+ *      behavior unchanged and avoids two functions needing to agree on why.
  */
-function npmInstallProduction(cwd) {
-  execSync('npm install --omit=dev --ignore-scripts --force', {
+function npmInstallProduction(cwd, { omitOptional = false } = {}) {
+  const omitFlags = omitOptional ? '--omit=dev --omit=optional' : '--omit=dev';
+  // --install-strategy=hoisted is explicit, not the default, on purpose: this
+  // repo's own .npmrc sets `install-strategy=nested` (to avoid version
+  // conflicts like ajv@6 vs ajv@8 in the real dev node_modules), and npm
+  // propagates that as an `npm_config_install_strategy=nested` environment
+  // variable to every child process a lifecycle script spawns — including
+  // this execSync call, since it inherits the parent's env by default. Under
+  // "nested", npm's legacy (pre-v7-style) installer does NOT reliably honor
+  // `--omit=dev`/`--omit=optional` for a `file:` dependency's OWN transitive
+  // tree: verified empirically that installing the zowex tgz this way pulled
+  // in `russh` (a `--omit=optional` target) plus `typescript`/`typedoc`/`rxjs`
+  // (russh's own devDependencies, which `--omit=dev` should have excluded)
+  // regardless of the flags passed here. This isolated install is a
+  // throwaway tree entirely outside the repo (an mkdtemp'd directory), so
+  // there's no reason for it to inherit the repo's nested-vs-hoisted
+  // preference at all — forcing "hoisted" (npm's own modern default, where
+  // `--omit` is correctly respected) sidesteps the inherited env variable
+  // instead of relying on every caller to remember to strip it.
+  execSync(`npm install ${omitFlags} --install-strategy=hoisted --ignore-scripts --force`, {
     cwd,
     stdio: 'inherit',
   });
+}
+
+/** Build-output extensions — never runtime assets, so never copied by copyRuntimeAssets. */
+const RUNTIME_ASSET_SKIP_EXTENSIONS = new Set(['.js', '.mjs', '.cjs', '.map', '.ts']);
+
+/**
+ * Recursively copies every file under `srcDir` into `destDir` at the same
+ * relative path, skipping compiled JS/maps/declaration files (those come
+ * from the esbuild bundle instead) and dotfiles.
+ *
+ * Both the VSIX (`bundle-server.js`) and the npm pack (`bundle-for-pack.cjs`)
+ * bundle the same server code the same way (see
+ * `scripts/esbuild-server-config.cjs`), so both need this same follow-up
+ * step: copying whatever `packages/zowe-mcp-server/scripts/copy-resources.cjs`
+ * put into `dist/` (resources/, tools/tso/*.json, tools/console/*.json, ...)
+ * into the bundle's output directory, so the bundled entries' asset-
+ * resolution fallback (see `packages/zowe-mcp-server/src/runtime/asset-root.ts`)
+ * finds them at exactly `<bundle root>/<same relative path>`.
+ *
+ * @param {string} srcDir   The tsc + copy-resources `dist/` to copy assets from
+ * @param {string} destDir  The bundle's output directory
+ */
+function copyRuntimeAssets(srcDir, destDir) {
+  if (!fs.existsSync(srcDir)) return;
+  for (const entry of fs.readdirSync(srcDir, { withFileTypes: true })) {
+    const srcPath = path.join(srcDir, entry.name);
+    const destPath = path.join(destDir, entry.name);
+    if (entry.isDirectory()) {
+      copyRuntimeAssets(srcPath, destPath);
+    } else if (!RUNTIME_ASSET_SKIP_EXTENSIONS.has(path.extname(entry.name))) {
+      fs.mkdirSync(destDir, { recursive: true });
+      fs.copyFileSync(srcPath, destPath);
+    }
+  }
 }
 
 /**
@@ -299,20 +374,23 @@ const LICENSE_RE = /license|notice|copying/i;
  * @param {object} opts
  * @param {boolean} opts.pruneEsmVariants  Whether `.mjs` files are also dead
  *   weight here. This is NOT a general "mjs is safe to delete" rule — it
- *   depends entirely on how the tree being pruned is consumed:
- *
- *    - The VSIX's `server/node_modules` (bundle-server.js) is reached
- *      exclusively via CJS `require` — verified: no dynamic `import(` in
- *      that tree — so `require` can't load ESM and a `.mjs` file with no
- *      `require`-able sibling is unreachable. Pass `true`.
- *    - The npm tarball's `node_modules` (bundle-for-pack.cjs) backs an
- *      UNBUNDLED server running as real ESM (`"type": "module"`, actual
- *      `import` statements). Those `import` statements resolve dependencies
- *      through the dependency packages' own package.json `"exports"`/
- *      `"import"` conditions, which frequently point at `.mjs` files
- *      specifically for the ESM entry point. Deleting `.mjs` there would
- *      break `import` resolution at runtime. Pass `false` — `.mjs` MUST be
- *      kept.
+ *   depends entirely on how the tree being pruned is consumed. Both current
+ *   callers pass `true`, for the same underlying reason: both
+ *   `bundle-server.js` (VSIX) and `bundle-for-pack.cjs` (npm pack) install
+ *   this node_modules tree to hold only `SERVER_EXTERNAL`'s packages and
+ *   their own transitive dependencies, reached exclusively through those
+ *   externals' own CommonJS `require()` calls (`@zowe/zowex-for-zowe-sdk`'s
+ *   compiled JS `require`s `node-ssh`/`es-toolkit`/etc. — it has no `"type":
+ *   "module"` and no dynamic `import(` — same for ssh2, hardstop-patterns,
+ *   and each of the others). A CJS `require()` follows a package's
+ *   `exports."require"` (or plain `"main"`) condition, never `"import"`, so
+ *   the `.mjs` files some of these transitive deps ship purely for ESM
+ *   consumers (e.g. `node-ssh`'s `lib/esm/index.mjs`, `es-toolkit`'s
+ *   `dist/index.mjs`) are genuinely unreachable here and safe to delete —
+ *   verified by checking each installed package's `package.json` `"main"`/
+ *   `"exports"` before relying on this. If a future external ever needs its
+ *   own `import()` of one of these deps, this reasoning would need
+ *   rechecking for it specifically before passing `true`.
  */
 function pruneRuntimeDeadFiles(dir, { pruneEsmVariants }) {
   if (!fs.existsSync(dir)) return 0;
@@ -343,4 +421,5 @@ module.exports = {
   npmInstallProduction,
   pruneNapiRsCli,
   pruneRuntimeDeadFiles,
+  copyRuntimeAssets,
 };

@@ -47,7 +47,7 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
-const { execSync } = require('child_process');
+const { execSync, execFileSync } = require('child_process');
 
 const repoRoot = path.resolve(__dirname, '..');
 const serverPkgPath = path.join(repoRoot, 'packages', 'zowe-mcp-server', 'package.json');
@@ -100,6 +100,17 @@ function run(cmd, opts) {
   }).trim();
 }
 
+/**
+ * Validate a value that came from the command line before it is interpolated into a
+ * shell command. Rejects anything outside the allowed shape rather than trying to
+ * escape it, so shell metacharacters can never reach `run()`.
+ */
+function requireSafeArg(value, pattern, label) {
+  if (pattern.test(value)) return value;
+  console.error('Invalid %s: %s', label, JSON.stringify(value));
+  process.exit(1);
+}
+
 function setDependency(value) {
   const pkg = readServerPkg();
   pkg.dependencies[PKG_NAME] = value;
@@ -123,9 +134,19 @@ const NESTED_SDK_NODE_MODULES_PREFIX =
 
 function removeSdkIntegrityFromLockfile() {
   const lockPath = path.join(repoRoot, 'package-lock.json');
-  if (!fs.existsSync(lockPath)) return;
 
-  const lock = JSON.parse(fs.readFileSync(lockPath, 'utf8'));
+  // Read first and treat a missing file as "nothing to do", rather than checking
+  // existence and then reading: the check-then-use pattern is a file-system race,
+  // since the lockfile can be removed between the two calls.
+  let lockText;
+  try {
+    lockText = fs.readFileSync(lockPath, 'utf8');
+  } catch (err) {
+    if (err.code === 'ENOENT') return;
+    throw err;
+  }
+
+  const lock = JSON.parse(lockText);
   let changed = false;
   let nestedRemoved = 0;
 
@@ -179,27 +200,32 @@ function npmInstall() {
 }
 
 /**
- * Read the version from a tarball by extracting its package.json.
- * Returns the version string or the provided fallback.
+ * Read the version from a tarball by extracting its package.json to stdout.
+ * Uses `execFileSync('tar', ['-xzOf', tgzPath, 'package/package.json'])` (the `-O` flag extracts
+ * to stdout) rather than `--include`, which is a bsdtar/libarchive-only flag: GNU tar (e.g.
+ * ubuntu CI runners) rejects it outright, so extracting to stdout is what actually works on both.
+ * Passing the path as an argv element (not a shell string) also means it is never parsed by a
+ * shell, so it is safe even if the path contains shell metacharacters.
+ * Returns the version string, or the provided fallback if it could not be read (in which case a
+ * warning is printed to stderr, since a silently-used fallback is exactly what hid the bug this
+ * function used to have).
  */
 function readVersionFromTgz(tgzPath, fallback) {
-  const tmpDir = path.join(repoRoot, '.sdk-version-tmp');
   try {
-    fs.rmSync(tmpDir, { recursive: true, force: true });
-    fs.mkdirSync(tmpDir, { recursive: true });
-    execSync(`tar -xzf "${tgzPath}" -C "${tmpDir}" --include='package/package.json'`, {
-      stdio: 'ignore',
+    const pkgJsonText = execFileSync('tar', ['-xzOf', tgzPath, 'package/package.json'], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
     });
-    const pkgJson = path.join(tmpDir, 'package', 'package.json');
-    if (fs.existsSync(pkgJson)) {
-      const pkg = JSON.parse(fs.readFileSync(pkgJson, 'utf8'));
-      return pkg.version || fallback;
-    }
+    const pkg = JSON.parse(pkgJsonText);
+    if (pkg.version) return pkg.version;
   } catch {
     // fall through
-  } finally {
-    fs.rmSync(tmpDir, { recursive: true, force: true });
   }
+  console.warn(
+    'Could not read the version from %s; falling back to %s',
+    tgzPath,
+    JSON.stringify(fallback)
+  );
   return fallback;
 }
 
@@ -314,7 +340,7 @@ function findSuccessfulBuildRun(branch, event) {
 // ---------------------------------------------------------------------------
 
 function handleRelease(version) {
-  let v = version;
+  let v = version ? requireSafeArg(version, /^[A-Za-z0-9.+_-]+$/, 'version') : version;
   if (!v) {
     console.log('Querying latest SDK version from Artifactory npm-release...');
     try {
@@ -424,10 +450,11 @@ function tryArtifactoryNightly({ shouldWritePin } = {}) {
 // ---------------------------------------------------------------------------
 
 function handlePr(prNumber) {
-  if (!prNumber || !/^\d+$/.test(prNumber)) {
+  if (!prNumber) {
     console.error('Usage: node scripts/sdk-switch.js pr <pr-number>');
     process.exit(1);
   }
+  prNumber = requireSafeArg(prNumber, /^\d+$/, 'PR number');
 
   console.log('Looking up PR #%s in %s...', prNumber, ZOWEX_REPO);
 
@@ -482,6 +509,7 @@ function handleBranch(branchName) {
   if (!branchName) {
     throw new Error('Usage: node scripts/sdk-switch.js branch <branch-name>');
   }
+  branchName = requireSafeArg(branchName, /^(?!-)(?!.*\.\.)[A-Za-z0-9._/-]+$/, 'branch name');
 
   console.log("Looking for latest successful Build run on branch '%s'...", branchName);
 

@@ -23,7 +23,7 @@ don't warrant an entry (CI, chores, internal refactors, docs-only) can carry the
 ### Changed
 
 - Bundled zowex SDK pin moved to the 0.9.0 nightly (2026-08-25): brings the `consoleCommand` JSON-RPC support and the slimmed APF-authorized `zoweax` companion; hosts running older auto-deployed servers are redeployed on next connect. Also fixed the `sdk-switch.js nightly` resolver picking stale pre-rename artifacts (lexical sort) — it now filters to the current package name and sorts by datestamp.
-- Bundled zowex SDK pin moved to the 0.9.0 nightly (2026-09-02): brings the `listParmlib` JSON-RPC support.
+- Bundled zowex SDK pin moved to the 0.9.0 nightly (2026-09-04). Also fixed `sdk-switch.js` recording the wrong version in `resources/zowex-pin.json`: it read the tarball's `package.json` with `tar --include=`, a bsdtar-only flag that GNU tar rejects outright, and the failure was swallowed so the function silently returned its fallback. Pins generated on CI therefore recorded `"version": "nightly"` and derived the doubled filename `zowe-zowex-for-zowe-sdk-nightly-nightly-<datestamp>.tgz`, while pins written on macOS were correct. It now extracts to stdout (`tar -xzOf`), which works on both, and warns instead of falling back silently. Also cleared the three CodeQL findings standing against `scripts/sdk-switch.js`: the tarball is read via `execFileSync` with an argument list so the path never reaches a shell, command-line arguments (version, PR number, branch name) are validated against an allow-list before being interpolated into any shell command, and `removeSdkIntegrityFromLockfile` no longer checks the lockfile's existence before reading it (a check-then-use file-system race) — it reads and treats `ENOENT` as "nothing to do".
 - Console command elicitation (dormant tool) brought to parity with TSO: client-capability pre-check, form mode, and a required boolean confirmation.
 - Console authorization failures now distinguish the security-product cases instead of only matching "not authorized": an ESM profile denial (IEE345I `AUTHORITY INVALID, FAILED BY SECURITY PRODUCT`) asks for a permit on the matching `MVS.*` OPERCMDS profile, a no-profile-matched denial (`FAILED BY MVS`) asks for the profile to be defined, and a SAF console-activation denial (`service_rc 12`) points at `MVS.MCSOPER.<console-name>`. Each says not to retry until access is granted.
 - Hardened the console command safety patterns (dormant tool): official abbreviations (`V`, `C`, `E`, `RO`, `K`, `T`, `M`, `U`, `G`, `I`), `DUMP`, `SLIP`, `CONFIG`/`CF`, dump/page management (`CHNGDUMP`/`CD`, `DUMPDS`/`DD`, `PAGEADD`/`PA`, `PAGEDEL`/`PD`, `IOACTION`/`IO`), and WTOR replies elicit confirmation; the SET pattern now also covers `SETPROG`/`SETXCF`/`SETSMF` and friends; system-stopping commands smuggled through `ROUTE` are blocked — including a routed `VARY XCF,...,OFFLINE` (sysplex partitioning) and the `RO T=nnn,...` and `RO (SYS1,SYS2),...` operand forms, which previously downgraded to a confirmation prompt.
@@ -41,6 +41,14 @@ don't warrant an entry (CI, chores, internal refactors, docs-only) can carry the
 
 ### Fixed
 
+- **Cleared three production dependency advisories** that had been failing the
+  `audit` gate on `main` since 2026-09-02 and therefore blocking every PR:
+  `fast-uri` 3.1.5 → 3.1.7 (high — host confusion and SSRF via IDN/IPv6/percent-decoding
+  handling, reached through `ajv`), `sanitize-html` 2.17.6 → 2.17.7 (moderate — stored
+  XSS via SVG SMIL URI-list scheme-policy bypass, reached through `@zowe/imperative`),
+  and `qs` 6.15.2 → 6.16.0 (moderate — array-limit bypass and DoS via attacker-controlled
+  `isBuffer`, reached through `express`). Transitive upgrades only; no direct dependency
+  ranges changed.
 - **`generate-docs` could crash outside the monorepo.** `markdown-table-prettify`
   was loaded through an undeclared (phantom) dependency that only resolved via
   monorepo hoisting; it is now a declared dependency and statically bundled, so

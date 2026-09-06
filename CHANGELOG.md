@@ -52,6 +52,23 @@ don't warrant an entry (CI, chores, internal refactors, docs-only) can carry the
   was loaded through an undeclared (phantom) dependency that only resolved via
   monorepo hoisting; it is now a declared dependency and statically bundled, so
   the `generate-docs` subcommand works from the installed VSIX and tarball.
+- **The Zowe MCP slides deck (`presentations/zowe-mcp/zowe-mcp-slides.pdf`) is
+  built in CI instead of being a committed binary.** It previously depended on
+  the releaser exporting it locally with Slidev, which fails off the corporate
+  VPN because `playwright-chromium`'s postinstall download 403s through a
+  Broadcom Artifactory mirror, and nothing validated the deck before release.
+  A new `scripts/build-slides.sh` (`npm run build:slides`) is now the single
+  build path for both a new CI `slides` job (runs on changes under
+  `presentations/` and on every release PR, so a broken deck fails a PR rather
+  than a release) and `scripts/package-release.sh`, which builds the PDF on
+  demand when packaging a release.
+  (zowe-mcp#66, finding 4 — [#66](https://github.com/zowe/zowe-mcp/issues/66))
+- **A prerelease run now says what it leaves behind.** The post-release
+  development-version bump PR is deliberately skipped for prereleases, which
+  left `main` parked on `-rc.N` with nothing prompting the follow-up. The
+  release job now writes both owed follow-ups (move `main` off the rc; delete
+  the rc tag/release if it was a rehearsal) to its job summary.
+  (zowe-mcp#66, finding 3 — [#66](https://github.com/zowe/zowe-mcp/issues/66))
 
 ## [0.10.0] - 2026-08-13
 

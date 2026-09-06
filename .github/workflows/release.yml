@@ -219,3 +219,32 @@ jobs:
             --title "chore: set development version to ${NEXT_VERSION}" \
             --body "Automated post-release version bump after v${VERSION}. Sets the development version to ${NEXT_VERSION} so main is ready for the next development cycle. Please also sync this onto \`develop\`." \
             --label no-changelog
+
+      # The step above is deliberately skipped for prereleases, which leaves
+      # main sitting on the -rc.N version with nothing prompting the follow-up:
+      # main is then neither a development version nor a releasable one, and
+      # release.yml will skip every subsequent push (the tag already exists).
+      # The rc.1 rehearsal hit exactly that (zowe-mcp#66, finding 3), so say so
+      # in the job summary — the one place the releaser is already looking when
+      # the run finishes.
+      - name: Remind that a prerelease leaves main on the -rc version
+        if: steps.version.outputs.mode == 'publish' && steps.version.outputs.is-prerelease == 'true'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          {
+            echo "## Prerelease published: v${VERSION}"
+            echo
+            echo "\`main\` is now sitting on \`${VERSION}\`. The automated"
+            echo "development-version bump PR is **not** opened for prereleases,"
+            echo "so two manual follow-ups are still owed:"
+            echo
+            echo "1. Move \`main\` off \`${VERSION}\` — open the next release PR"
+            echo "   (to the clean version) or a PR back to a \`-dev\` version."
+            echo "   Until then \`main\` is neither releasable nor a dev version."
+            echo "2. Delete the \`v${VERSION}\` tag and release if this was only a"
+            echo "   rehearsal, then repeat with the clean version."
+            echo
+            echo "See [docs/release-process.md](../blob/main/docs/release-process.md)"
+            echo "(\"Rehearsal paths\")."
+          } >> "$GITHUB_STEP_SUMMARY"

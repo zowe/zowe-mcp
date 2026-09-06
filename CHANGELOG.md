@@ -40,6 +40,14 @@ don't warrant an entry (CI, chores, internal refactors, docs-only) can carry the
 
 ### Fixed
 
+- **Cleared three production dependency advisories** that had been failing the
+  `audit` gate on `main` since 2026-09-02 and therefore blocking every PR:
+  `fast-uri` 3.1.5 → 3.1.7 (high — host confusion and SSRF via IDN/IPv6/percent-decoding
+  handling, reached through `ajv`), `sanitize-html` 2.17.6 → 2.17.7 (moderate — stored
+  XSS via SVG SMIL URI-list scheme-policy bypass, reached through `@zowe/imperative`),
+  and `qs` 6.15.2 → 6.16.0 (moderate — array-limit bypass and DoS via attacker-controlled
+  `isBuffer`, reached through `express`). Transitive upgrades only; no direct dependency
+  ranges changed.
 - **`generate-docs` could crash outside the monorepo.** `markdown-table-prettify`
   was loaded through an undeclared (phantom) dependency that only resolved via
   monorepo hoisting; it is now a declared dependency and statically bundled, so

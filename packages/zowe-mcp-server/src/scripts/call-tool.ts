@@ -502,6 +502,9 @@ main()
   // before terminating. Loop callers don't want that.
   .then(() => process.exit(0))
   .catch((error: unknown) => {
-    log.error('Error', error);
+    log.error('Error', {
+      message: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+    });
     process.exit(1);
   });

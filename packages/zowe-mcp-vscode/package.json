@@ -12,89 +12,20 @@
   },
   "categories": [
     "AI",
-    "Other",
-    "Themes"
+    "Other"
   ],
   "keywords": [
     "zowe",
     "mcp",
     "z/OS",
     "mainframe",
-    "model-context-protocol",
-    "theme"
+    "model-context-protocol"
   ],
   "activationEvents": [
     "onStartupFinished"
   ],
   "main": "./dist/extension.js",
   "contributes": {
-    "iconThemes": [
-      {
-        "id": "zowe-mainframe",
-        "label": "Zowe Mainframe",
-        "path": "./themes/fileicons/zowe-file-icon-theme.json"
-      },
-      {
-        "id": "ispf-file-icons",
-        "label": "ISPF",
-        "path": "./themes/fileicons/ispf-file-icon-theme.json"
-      },
-      {
-        "id": "ispf-modern-file-icons",
-        "label": "ISPF Modern",
-        "path": "./themes/fileicons/ispf-modern-file-icon-theme.json"
-      }
-    ],
-    "themes": [
-      {
-        "id": "zowe-dark-classic",
-        "label": "Zowe Dark (Classic)",
-        "path": "./themes/zowe-dark-classic-color-theme.json",
-        "uiTheme": "vs-dark"
-      },
-      {
-        "id": "zowe-light-classic",
-        "label": "Zowe Light (Classic)",
-        "path": "./themes/zowe-light-classic-color-theme.json",
-        "uiTheme": "vs"
-      },
-      {
-        "id": "zowe-dark-official",
-        "label": "Zowe Dark (Official)",
-        "path": "./themes/zowe-dark-official-color-theme.json",
-        "uiTheme": "vs-dark"
-      },
-      {
-        "id": "zowe-light-official",
-        "label": "Zowe Light (Official)",
-        "path": "./themes/zowe-light-official-color-theme.json",
-        "uiTheme": "vs"
-      },
-      {
-        "id": "ispf-classic-dark",
-        "label": "ISPF Classic (Dark)",
-        "path": "./themes/ispf-classic-dark-color-theme.json",
-        "uiTheme": "vs-dark"
-      },
-      {
-        "id": "ispf-green",
-        "label": "ISPF Green (Dark)",
-        "path": "./themes/ispf-green-color-theme.json",
-        "uiTheme": "vs-dark"
-      },
-      {
-        "id": "ispf-modern-dark",
-        "label": "ISPF Modern (Dark)",
-        "path": "./themes/ispf-modern-dark-color-theme.json",
-        "uiTheme": "vs-dark"
-      },
-      {
-        "id": "ispf-modern-light",
-        "label": "ISPF Modern (Light)",
-        "path": "./themes/ispf-modern-light-color-theme.json",
-        "uiTheme": "vs"
-      }
-    ],
     "mcpServerDefinitionProviders": [
       {
         "id": "zowe",

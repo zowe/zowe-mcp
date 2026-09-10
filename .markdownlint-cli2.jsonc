@@ -6,7 +6,6 @@
   "gitignore": true,
   "ignores": [
     "presentations/**/*.md", // slide decks (not prose)
-    "**/themes/**", // generated theme docs (e.g. FILE_ICONS.md)
     "vendor/**", // vendored upstream docs (not ours to lint)
     ".claude/**", // local agent worktrees/scratch
   ],

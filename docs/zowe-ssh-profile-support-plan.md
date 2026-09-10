@@ -1,7 +1,9 @@
 # Plan: Zowe CLI `ssh` profiles as a source of native-backend connections
 
-Status: approved requirements, design proposal, **no code yet**. Written
-2026-09-10 on branch `zowe-ssh-profile-support` from `main` at `7d366a7`.
+Status: **draft, not yet reviewed.** Requirements in §1 were agreed with the
+project lead; the design (§3 onwards) is a proposal awaiting review, and the
+points in §8 are open. **No code yet.** Written 2026-09-10 on branch
+`zowe-ssh-profile-support` from `main` at `7d366a7`.
 Every code reference below was checked on that commit; SDK references are
 against the pinned `@zowe/zowex-for-zowe-sdk` 0.9.0 nightly
 (`resources/zowex-pin.json`) and `@zowe/imperative` 8.36.0.

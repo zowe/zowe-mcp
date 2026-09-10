@@ -92,7 +92,7 @@ Ideas inspired by [Gestell-AI/zowe-mcp](https://github.com/Gestell-AI/zowe-mcp) 
 - ✅ **Upload/download local workspace (MCP roots)**: Implemented in `packages/zowe-mcp-server/src/tools/local-files/`: `downloadDatasetToFile`, `uploadFileToDataset`, `downloadUssFileToFile`, `uploadFileToUssFile`, `downloadJobFileToFile`. Local paths are constrained to MCP **`roots/list`** or fallback dirs (`ZOWE_MCP_LOCAL_FILES_ROOT`, `--local-files-root`, `ZOWE_MCP_WORKSPACE_DIR`).
 - **Bulk directory ↔ PDS**: Not implemented — e.g. upload an entire local folder as PDS members (Zowe CLI `upload dir-to-pds`) or download all members to a tree in one step (`download all-members`). For patterns and IBM `cp` behavior, see [pds-uss-directory-upload-download-zowe-and-cp.md](docs/pds-uss-directory-upload-download-zowe-and-cp.md).
 - **z/OSMF backend**: Add a `ZosBackend` implementation using z/OSMF REST APIs (e.g. Data Set and File REST) for environments where SSH/native is not desired.
-- **Credential providers**: Implement `ZoweTeamConfigProvider` and/or `OAuthTokenProvider` (see `src/zos/credentials.ts`); currently only mock and native credential providers exist.
+- **Zowe CLI `ssh` profiles as connection source (planned)**: Read named `ssh` profiles from Zowe team config (`zowe.config.json` + secure store) into the native backend — explicit selection, stdio only, non-interactive, no credential substitution. Requirements, decisions, design and work breakdown: [docs/zowe-ssh-profile-support-plan.md](docs/zowe-ssh-profile-support-plan.md). Replaces the earlier `ZoweTeamConfigProvider` idea; `OAuthTokenProvider` (see `src/zos/credentials.ts`) remains a separate, unplanned item.
 
 ## HTTP Transport
 

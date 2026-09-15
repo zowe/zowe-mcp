@@ -63,16 +63,16 @@
     "@wasm-fmt/shfmt": "^0.2.7",
     "cloc": "^2.6.0",
     "dotenv-cli": "^11.0.0",
-    "eslint": "^10.9.1",
+    "eslint": "^10.10.0",
     "eslint-plugin-headers": "^1.3.4",
-    "jscpd": "^5.0.16",
+    "jscpd": "^5.2.0",
     "markdown-table-formatter": "^1.7.0",
     "markdownlint-cli2": "^0.23.1",
     "prettier": "^3.9.6",
     "prettier-plugin-organize-imports": "^4.3.0",
-    "tsx": "^4.23.12",
+    "tsx": "^4.23.13",
     "typescript": "^5.9.2",
-    "typescript-eslint": "^8.68.0"
+    "typescript-eslint": "^8.70.0"
   },
   "overrides": {
     "@modelcontextprotocol/sdk": {

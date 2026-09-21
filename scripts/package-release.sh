@@ -17,6 +17,12 @@
 #   - docs/mcp-reference.md
 #   - presentations/zowe-mcp/zowe-mcp-slides.pdf
 #
+# The slides PDF is no longer committed (zowe-mcp#66, finding 4): it is built
+# on demand by scripts/build-slides.sh, which this script calls when the PDF
+# isn't already present. A local export left in place (e.g. from a prior
+# `npm run build:slides` or a manual `slidev export`) is reused as-is so
+# repeated local dry runs stay fast.
+#
 # Invoked by CI as the Octorelease exec plugin's publish command (see
 # release.config.js and .github/workflows/release.yml — `npm run
 # ci:package-release`). Tagging, pushing, and creating the GitHub Release are
@@ -71,15 +77,27 @@ echo "Server npm pack: $SERVER_TGZ"
 npm run test:airgap
 
 MCP_REFERENCE="$REPO_ROOT/docs/mcp-reference.md"
-SLIDES_PDF="$REPO_ROOT/presentations/zowe-mcp/zowe-mcp-slides.pdf"
-for f in "$MCP_REFERENCE" "$SLIDES_PDF"; do
-  if [ ! -f "$f" ]; then
-    echo "Error: Release asset missing: $f" >&2
-    echo "Regenerate docs (npm run generate-docs) and slides (presentations/zowe-mcp: npm run export) before releasing." >&2
-    exit 1
-  fi
-done
+if [ ! -f "$MCP_REFERENCE" ]; then
+  echo "Error: Release asset missing: $MCP_REFERENCE" >&2
+  echo "Regenerate docs (npm run generate-docs) before releasing." >&2
+  exit 1
+fi
 echo "Docs: $MCP_REFERENCE"
+
+# The slides deck is built on demand rather than committed (zowe-mcp#66,
+# finding 4) — a fresh CI checkout won't have it. Build it here so a fresh
+# checkout works unattended; if a local export is already sitting there
+# (from a manual `npm run build:slides` / `slidev export`), reuse it so
+# repeated local dry runs stay fast instead of re-exporting every time.
+SLIDES_PDF="$REPO_ROOT/presentations/zowe-mcp/zowe-mcp-slides.pdf"
+if [ ! -f "$SLIDES_PDF" ]; then
+  bash "$REPO_ROOT/scripts/build-slides.sh"
+fi
+if [ ! -f "$SLIDES_PDF" ]; then
+  echo "Error: Release asset missing: $SLIDES_PDF" >&2
+  echo "scripts/build-slides.sh ran but did not produce it; see its output above." >&2
+  exit 1
+fi
 echo "Slides: $SLIDES_PDF"
 
 # Collect the final artifacts into dist/ at the repo root, wiping stale

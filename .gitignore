@@ -115,6 +115,8 @@ evals-report/
 # Presentation build artifacts
 presentations/*/dist/
 presentations/zowe-mcp/slides-export.pdf
+# Built in CI by scripts/build-slides.sh, not committed (zowe-mcp#66, finding 4)
+presentations/zowe-mcp/zowe-mcp-slides.pdf
 
 # MCP Registry tokens
 packages/zowe-mcp-server/.mcpregistry_*

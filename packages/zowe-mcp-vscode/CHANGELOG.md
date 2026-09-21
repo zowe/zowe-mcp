@@ -6,6 +6,10 @@ All notable changes to the Zowe MCP extension will be documented in this file.
 
 ## Recent Changes
 
+### Bug fixes
+
+- **Setting a mock data directory failed with "Unable to write to Workspace Settings because no workspace is opened"** when no folder was open in the editor. The extension now saves `zoweMCP.mockDataDirectory` to user settings in that case, falling back to workspace settings only when a workspace is open. [#107](https://github.com/zowe/zowe-mcp/issues/107)
+
 ### Other
 
 - **Color themes and file icon themes removed**: The bundled color themes (Zowe Dark/Light, ISPF variants) and file icon themes were out of scope for an MCP server extension and have been removed. [#117](https://github.com/zowe/zowe-mcp/issues/117)

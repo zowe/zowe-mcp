@@ -55,6 +55,7 @@ import type {
   ListApfResult,
   ListJobsOptions,
   ListLinklistResult,
+  ListParmlibResult,
   ListProclibResult,
   ListUssFilesOptions,
   MemberEntry,
@@ -1142,6 +1143,21 @@ export class FilesystemMockBackend implements ZosBackend {
         { dsn: 'USER.PROCLIB' },
         { dsn: 'CPAC.PROCLIB' },
         { dsn: 'SYS2.PROCLIB' },
+      ],
+    });
+  }
+
+  listParmlib(
+    _systemId: SystemId,
+    _userId?: string,
+    _progress?: BackendProgressCallback
+  ): Promise<ListParmlibResult> {
+    return Promise.resolve({
+      items: [
+        { dsn: 'SYS1.PARMLIB' },
+        { dsn: 'SYS1.IBM.PARMLIB' },
+        { dsn: 'USER.PARMLIB' },
+        { dsn: 'CPAC.PARMLIB' },
       ],
     });
   }

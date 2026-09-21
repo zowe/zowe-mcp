@@ -16,10 +16,12 @@
  * z/OS system itself (not the MCP server's session):
  * - listApfLibraries: APF-authorized libraries (data sets)
  * - listProclib: PROCLIB concatenation
+ * - listParmlib: PARMLIB concatenation
  * - listLinklist: link list (LNKLST) concatenation
  * - viewSyslog: the operations SYSLOG
  *
- * Backed by the Zowe Remote SSH SDK `client.system` RPCs (SDK 0.6.0+; listLinklist requires 0.6.1+).
+ * Backed by the Zowe Remote SSH SDK `client.system` RPCs (SDK 0.6.0+; listLinklist requires 0.6.1+;
+ * listParmlib requires 0.9.0-nightly-2026-09-02+).
  */
 
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
@@ -54,6 +56,7 @@ import { ensureContext, errorResult } from '../tool-utils.js';
 import {
   listApfLibrariesOutputSchema,
   listLinklistOutputSchema,
+  listParmlibOutputSchema,
   listProclibOutputSchema,
   viewSyslogOutputSchema,
 } from './system-output-schemas.js';
@@ -211,6 +214,57 @@ export function registerSystemTools(
           deps.responseCache,
           cacheKey,
           () => deps.backend.listProclib(systemId, userId, progressCb),
+          [scope]
+        );
+        const { data: page, meta } = paginateList(
+          result.items,
+          offset ?? 0,
+          limit ?? DEFAULT_LIST_LIMIT
+        );
+        const ctx = buildContext(systemId, {});
+        await progress.complete(`${meta.count} of ${meta.totalAvailable}`);
+        return wrapResponse(ctx, meta, page, getListMessages(meta));
+      } catch (err) {
+        await progress.complete((err as Error).message);
+        return errorResult((err as Error).message);
+      }
+    }
+  );
+
+  // -----------------------------------------------------------------------
+  // listParmlib
+  // -----------------------------------------------------------------------
+  server.registerTool(
+    'listParmlib',
+    {
+      outputSchema: listParmlibOutputSchema,
+      description: withPaginationNote(
+        'List the PARMLIB concatenation on the z/OS system (the data sets searched for system ' +
+          'parameter members like IEASYSxx, in order). Use this to find where system parmlib members live.',
+        PAGINATION_NOTE_LIST
+      ),
+      _meta: { resourceEffectLevel: ResourceEffect.READ },
+      inputSchema: {
+        system: z.string().optional().describe(SYSTEM_PARAM_DESCRIPTION),
+        offset: offsetParam,
+        limit: limitParam,
+      },
+    },
+    async ({ system, offset, limit }, extra) => {
+      const progress = createToolProgress(extra, 'List PARMLIB concatenation');
+      await progress.start();
+      log.info('listParmlib called', { system });
+      try {
+        const { systemId, userId } = await resolveAndEnsure(system);
+        const progressCb = extra._meta?.progressToken
+          ? (msg: string) => void progress.step(msg)
+          : undefined;
+        const cacheKey = buildCacheKey('listParmlib', { systemId, userId });
+        const scope = buildScopeSystem(systemId);
+        const result = await withCache(
+          deps.responseCache,
+          cacheKey,
+          () => deps.backend.listParmlib(systemId, userId, progressCb),
           [scope]
         );
         const { data: page, meta } = paginateList(

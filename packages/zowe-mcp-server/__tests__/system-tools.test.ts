@@ -11,11 +11,11 @@
 
 /**
  * Integration tests for the z/OS system information tools (listApfLibraries, listProclib,
- * listLinklist, viewSyslog) against the filesystem mock backend (which returns
+ * listParmlib, listLinklist, viewSyslog) against the filesystem mock backend (which returns
  * canned data).
  *
  * Verifies: tool registration + outputSchema, envelope shape, list pagination
- * (listApfLibraries/listProclib/listLinklist), syslog line-windowing (viewSyslog), and
+ * (listApfLibraries/listProclib/listParmlib/listLinklist), syslog line-windowing (viewSyslog), and
  * the date/secondsAgo mutual-exclusivity guard.
  */
 
@@ -103,9 +103,15 @@ describe('System information tools with mock backend', () => {
     await server.close();
   });
 
-  it('registers listApfLibraries, listProclib, listLinklist, and viewSyslog with output schemas', async () => {
+  it('registers listApfLibraries, listProclib, listParmlib, listLinklist, and viewSyslog with output schemas', async () => {
     const { tools } = await client.listTools();
-    for (const name of ['listApfLibraries', 'listProclib', 'listLinklist', 'viewSyslog']) {
+    for (const name of [
+      'listApfLibraries',
+      'listProclib',
+      'listParmlib',
+      'listLinklist',
+      'viewSyslog',
+    ]) {
       const tool = tools.find(t => t.name === name);
       expect(tool, `tool ${name} should be registered`).toBeDefined();
       expect(tool!.outputSchema).toBeDefined();
@@ -156,6 +162,19 @@ describe('System information tools with mock backend', () => {
       const result = await client.callTool({ name: 'listProclib', arguments: {} });
       const env = parseEnvelope<{ dsn: string }[]>(result);
       expect(env.data.map(i => i.dsn)).toContain('SYS1.PROCLIB');
+      const meta = env._result as ListResultMeta;
+      expect(meta.totalAvailable).toBe(env.data.length);
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // listParmlib
+  // -----------------------------------------------------------------------
+  describe('listParmlib', () => {
+    it('returns parmlib data sets as data[] of { dsn } objects', async () => {
+      const result = await client.callTool({ name: 'listParmlib', arguments: {} });
+      const env = parseEnvelope<{ dsn: string }[]>(result);
+      expect(env.data.map(i => i.dsn)).toContain('SYS1.PARMLIB');
       const meta = env._result as ListResultMeta;
       expect(meta.totalAvailable).toBe(env.data.length);
     });

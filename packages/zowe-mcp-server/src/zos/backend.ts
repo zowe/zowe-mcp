@@ -487,6 +487,18 @@ export interface ListProclibResult {
   items: ProclibDatasetEntry[];
 }
 
+/** A single PARMLIB concatenation entry (the RPC provides no volume serial). */
+export interface ParmlibDatasetEntry {
+  /** Data set name. */
+  dsn: string;
+}
+
+/** Result of listing the PARMLIB concatenation. */
+export interface ListParmlibResult {
+  /** PARMLIB data sets (in concatenation order). */
+  items: ParmlibDatasetEntry[];
+}
+
 /** A single link list (LNKLST) data set entry. */
 export interface LinklistDatasetEntry {
   /** Data set name. */
@@ -1188,6 +1200,18 @@ export interface ZosBackend {
     userId?: string,
     progress?: BackendProgressCallback
   ): Promise<ListProclibResult>;
+
+  /**
+   * List the PARMLIB concatenation on the system.
+   *
+   * @param systemId - Target z/OS system.
+   * @param userId - Optional user ID (for backends that select a connection by user).
+   */
+  listParmlib(
+    systemId: SystemId,
+    userId?: string,
+    progress?: BackendProgressCallback
+  ): Promise<ListParmlibResult>;
 
   /**
    * List the link list (LNKLST) concatenation on the system.

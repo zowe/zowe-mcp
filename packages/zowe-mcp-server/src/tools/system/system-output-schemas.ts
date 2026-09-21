@@ -77,6 +77,23 @@ export const listProclibOutputSchema = envelopeSchema(
 );
 
 // ---------------------------------------------------------------------------
+// listParmlib
+// ---------------------------------------------------------------------------
+
+const parmlibDatasetSchema = z.object({
+  dsn: z.string().describe('PARMLIB data set name.'),
+});
+
+export const listParmlibOutputSchema = envelopeSchema(
+  z
+    .array(parmlibDatasetSchema)
+    .describe('PARMLIB data sets (in concatenation order) for this page.'),
+  listResultMetaSchema,
+  'Pagination metadata: count, totalAvailable, offset, hasMore.',
+  'PARMLIB concatenation list. data[] has one entry per data set (dsn); _result has pagination metadata.'
+);
+
+// ---------------------------------------------------------------------------
 // listLinklist
 // ---------------------------------------------------------------------------
 

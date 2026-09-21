@@ -42,8 +42,8 @@
   "dependencies": {
     "@faker-js/faker": "^10.6.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
-    "@zowe/imperative": "^8.36.0",
-    "@zowe/zos-uss-for-zowe-sdk": "^8.36.0",
+    "@zowe/imperative": "^8.37.0",
+    "@zowe/zos-uss-for-zowe-sdk": "^8.37.0",
     "@zowe/zowex-for-zowe-sdk": "file:../../resources/zowe-zowex-for-zowe-sdk-0.9.0-nightly-2026-09-04-011305.tgz",
     "express": "^5.1.0",
     "hardstop-patterns": "^1.0.0",
@@ -54,7 +54,7 @@
     "path-to-regexp": "8.4.2",
     "ssh2": "^1.17.0",
     "yargs": "^18.0.0",
-    "zod": "^4.5.2",
+    "zod": "^4.6.2",
     "zowe-mcp-common": "*"
   },
   "devDependencies": {

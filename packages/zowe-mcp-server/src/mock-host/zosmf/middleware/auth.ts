@@ -30,7 +30,7 @@ export interface BasicAuthCredentials {
 export function parseBasicAuth(req: Request): BasicAuthCredentials | undefined {
   const header = req.header('authorization');
   if (!header) return undefined;
-  const match = /^Basic\s+(.+)$/i.exec(header.trim());
+  const match = /^Basic\s+(\S.*)$/i.exec(header.trim());
   if (!match) return undefined;
   let decoded: string;
   try {

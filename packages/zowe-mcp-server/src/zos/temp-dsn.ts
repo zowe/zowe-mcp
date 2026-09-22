@@ -42,16 +42,29 @@ export const REQUIRED_SAFETY_QUALIFIER = 'TMP';
 // ---------------------------------------------------------------------------
 
 /**
+ * Returns a uniformly distributed index in [0, n) by rejection sampling random bytes.
+ * A single byte is drawn per attempt; bytes falling in the biased tail (>= the largest
+ * multiple of `n` that fits in 256) are discarded and redrawn.
+ */
+function randomIndex(n: number): number {
+  const limit = Math.floor(256 / n) * n;
+  let byte: number;
+  do {
+    byte = randomBytes(1)[0];
+  } while (byte >= limit);
+  return byte % n;
+}
+
+/**
  * Generate an 8-char DSN-safe qualifier (first char A–Z, rest A–Z0–9).
- * Uses random bytes for uniqueness; no requirement for crypto randomness per plan.
+ * Draws unbiased characters via rejection sampling over crypto random bytes.
  */
 function uniqueQualifier(): string {
   const firstChar = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
   const rest = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-  const bytes = randomBytes(8);
-  let result = firstChar[bytes[0] % 26];
+  let result = firstChar[randomIndex(firstChar.length)];
   for (let i = 1; i < 8; i++) {
-    result += rest[bytes[i] % 36];
+    result += rest[randomIndex(rest.length)];
   }
   return result;
 }

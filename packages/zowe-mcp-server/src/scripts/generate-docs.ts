@@ -182,7 +182,7 @@ function yamlStringify(obj: Record<string, Record<string, unknown>>): string {
         lines.push(`  ${k}: ${v}`);
       } else if (typeof v === 'string') {
         if (v.includes("'") || v.includes('"') || v.includes('\n')) {
-          lines.push(`  ${k}: "${v.replace(/"/g, '\\"')}"`);
+          lines.push(`  ${k}: "${v.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`);
         } else {
           lines.push(`  ${k}: "${v}"`);
         }

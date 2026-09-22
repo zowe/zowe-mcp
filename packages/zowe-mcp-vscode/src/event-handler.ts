@@ -47,6 +47,18 @@ export function jobCardConnectionSpec(user: string, host: string, port?: number)
 }
 
 /**
+ * Setting keys that must never be used to index an object we spread and write back to
+ * configuration — these keys come from the MCP server (connection spec / plugin name) and
+ * could otherwise pollute the object's prototype chain.
+ */
+const FORBIDDEN_SETTING_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+
+/** Returns whether `key` is safe to use as an object key when merging into a settings object. */
+function isSafeSettingKey(key: string): boolean {
+  return key.length > 0 && !FORBIDDEN_SETTING_KEYS.has(key);
+}
+
+/**
  * Turns pasted or typed job card text into newline-separated lines. Splits on whitespace
  * (space, tab, newline) before a JCL line start (`//` or `/*`) so one-line or multi-line paste works.
  */
@@ -447,6 +459,10 @@ async function handleStoreJobCard(
 ): Promise<void> {
   if (event.type !== 'store-job-card') return;
   const { connectionSpec, jobCard } = event.data;
+  if (!isSafeSettingKey(connectionSpec)) {
+    log.warn(`Refusing to store job card for unsafe connection spec: "${connectionSpec}"`);
+    return;
+  }
   const config = vscode.workspace.getConfiguration('zoweMCP');
   const current = config.get<Record<string, string | string[]>>('jobCards', {}) ?? {};
   const updated = { ...current, [connectionSpec]: jobCard };
@@ -465,6 +481,10 @@ async function handleStoreCliPluginProfiles(
 ): Promise<void> {
   if (event.type !== 'store-cli-plugin-profiles') return;
   const { pluginName, profilesFile } = event.data;
+  if (!isSafeSettingKey(pluginName)) {
+    log.warn(`Refusing to store CLI plugin profiles for unsafe plugin name: "${pluginName}"`);
+    return;
+  }
   const config = vscode.workspace.getConfiguration('zoweMCP');
   const current = config.get<Record<string, unknown>>('cliPluginConfiguration', {}) ?? {};
   const updated = { ...current, [pluginName]: profilesFile };

@@ -14,7 +14,7 @@
  * Includes a **`getContext` tools/call** via the MCP Streamable HTTP client (Bearer token).
  *
  * Requires a running Keycloak with realm `demo`, client `demo` (Direct Access Grants), user
- * `user` — see `docs/dev-oidc-tinyauth.md`.
+ * `user` — see `docs/remote-dev-keycloak.md#minimal-keycloak-and-jwt-e2e`.
  *
  * Enable: ZOWE_MCP_KEYCLOAK_E2E=1 (or `true`). Default `npm test` skips this file.
  */
@@ -30,7 +30,7 @@ import { postMcpLocal } from './helpers/jwt-test-utils.js';
 const KEYCLOAK_E2E =
   process.env.ZOWE_MCP_KEYCLOAK_E2E === '1' || process.env.ZOWE_MCP_KEYCLOAK_E2E === 'true';
 
-/** Keycloak base URL (no trailing slash). Default matches `docs/dev-oidc-tinyauth.md` port mapping. */
+/** Keycloak base URL (no trailing slash). Default matches the remote-dev Keycloak port mapping. */
 const KC = (process.env.ZOWE_MCP_KEYCLOAK_URL ?? 'http://localhost:18080').replace(/\/$/, '');
 const REALM = process.env.ZOWE_MCP_KEYCLOAK_REALM ?? 'demo';
 const CLIENT_ID = process.env.ZOWE_MCP_KEYCLOAK_CLIENT ?? 'demo';
@@ -80,7 +80,7 @@ describe.skipIf(!KEYCLOAK_E2E)('Keycloak HTTP JWT e2e (opt-in)', () => {
     if (!probe.ok) {
       throw new Error(
         `Keycloak not reachable or realm missing: GET ${KC}/realms/${REALM}/.well-known/openid-configuration → ${probe.status}. ` +
-          `Start Keycloak (see docs/dev-oidc-tinyauth.md) or set ZOWE_MCP_KEYCLOAK_URL.`
+          `Start Keycloak (see docs/remote-dev-keycloak.md#minimal-keycloak-and-jwt-e2e) or set ZOWE_MCP_KEYCLOAK_URL.`
       );
     }
   });

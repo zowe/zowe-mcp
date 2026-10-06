@@ -83,15 +83,67 @@ if npm install \
   echo "SUCCESS: Installation completed in airgapped mode!"
   echo ""
   echo "Verifying installation..."
-  if [ -d "node_modules/@zowe/mcp-server" ]; then
-    echo "  Package installed: node_modules/@zowe/mcp-server"
+
+  PKG_DIR="node_modules/@zowe/mcp-server"
+  if [ ! -d "$PKG_DIR" ]; then
+    echo "FAILED: Package not installed: $PKG_DIR"
+    exit 1
   fi
-  if [ -d "node_modules/zowe-mcp-common" ]; then
-    echo "  Bundled dependency installed: node_modules/zowe-mcp-common"
+  echo "  Package installed: $PKG_DIR"
+
+  # bundledDependencies (see bundle-for-pack.cjs) keeps the small set of
+  # packages esbuild couldn't inline (native bindings, install scripts,
+  # __dirname-relative asset loading — see SERVER_EXTERNAL in
+  # scripts/esbuild-server-config.cjs) INSIDE the package's own
+  # node_modules — nested one level under the consumer's node_modules/, not
+  # hoisted to this test dir's top level. These used to be informational-only
+  # `if [ -d ... ]` checks that printed nothing (and passed) even if zowex
+  # vanished from the tarball entirely — assert and fail instead.
+  NESTED_NM="$PKG_DIR/node_modules"
+
+  if [ ! -d "$NESTED_NM/@zowe/zowex-for-zowe-sdk" ]; then
+    echo "FAILED: zowex not found at $NESTED_NM/@zowe/zowex-for-zowe-sdk"
+    echo "  Contents of $NESTED_NM:"
+    ls -la "$NESTED_NM" 2> /dev/null || echo "    (directory does not exist)"
+    exit 1
   fi
-  if [ -d "node_modules/@zowe/zowex-for-zowe-sdk" ]; then
-    echo "  Bundled dependency installed: node_modules/@zowe/zowex-for-zowe-sdk"
+  echo "  Bundled dependency installed: $NESTED_NM/@zowe/zowex-for-zowe-sdk"
+
+  if [ ! -d "$NESTED_NM/ssh2" ]; then
+    echo "FAILED: ssh2 not found at $NESTED_NM/ssh2 — this is the transport the product actually uses"
+    exit 1
   fi
+  echo "  Bundled dependency installed: $NESTED_NM/ssh2"
+
+  # zowe-mcp-common used to be shipped as a real (if unresolvable against the
+  # public registry) npm dependency purely so bundledDependencies would carry
+  # it through `npm install`. esbuild now inlines its compiled dist/ straight
+  # into the server bundle (see bundle-for-pack.cjs's file-header comment), so
+  # it must never appear as a separate installed package again — if it does,
+  # the inlining regressed and this install is carrying dead weight (or a
+  # stale duplicate copy) back.
+  if [ -d "node_modules/zowe-mcp-common" ] || [ -d "$NESTED_NM/zowe-mcp-common" ]; then
+    echo "FAILED: zowe-mcp-common found as a separate package — it should be inlined into the bundle now"
+    exit 1
+  fi
+  echo "  Confirmed inlined (not a separate package): zowe-mcp-common"
+
+  # russh (an optionalDependency of zowex: ~33 MB across 7 platform-specific
+  # native prebuilds, backing only the SDK's createClient(useNativeSsh) path,
+  # which nothing in this repo enables) and cpu-features/nan (ssh2's own
+  # optional native accelerator) are deliberately dropped by
+  # `npm install --omit=optional` in bundle-for-pack.cjs. Assert they're
+  # absent so a future accidental re-inclusion (dropping --omit=optional,
+  # zowex un-optional-ing russh, etc.) is caught here instead of silently
+  # bloating every install by tens of MB again.
+  for pkg in russh cpu-features nan; do
+    if [ -d "node_modules/$pkg" ] || [ -d "$NESTED_NM/$pkg" ]; then
+      echo "FAILED: $pkg is present — expected it to be dropped by --omit=optional (see bundle-for-pack.cjs)"
+      exit 1
+    fi
+  done
+  echo "  Confirmed absent (--omit=optional): russh, cpu-features, nan"
+
   echo ""
   echo "Testing binary..."
   BIN_PATH="node_modules/.bin/zowe-mcp-server"
@@ -127,6 +179,144 @@ if npm install \
     exit 1
   }
   echo "  Binary works: $OUTPUT"
+
+  # --version never loads ssh2 or zowex (it short-circuits before any backend
+  # is constructed), so it proves almost nothing about the slimmed-down
+  # dependency tree. Supplement it with a real MCP stdio session against the
+  # INSTALLED entry point: generate a mock data dir, start the server with
+  # --stdio --mock, and drive it over the actual JSON-RPC protocol
+  # (initialize, then tools/list), asserting a non-empty tool list. This is
+  # dependency-free (a plain node script, no test framework) and fully
+  # offline (mock backend, no network).
+  echo ""
+  echo "Testing real MCP stdio session (init-mock + --stdio --mock)..."
+
+  ENTRY_POINT="$PWD/node_modules/@zowe/mcp-server/dist/index.js"
+  MOCK_DATA_DIR="$TEST_DIR/mock-data"
+
+  echo "  Running: node $ENTRY_POINT init-mock --output $MOCK_DATA_DIR --preset minimal"
+  INIT_OUTPUT=$(node "$ENTRY_POINT" init-mock --output "$MOCK_DATA_DIR" --preset minimal 2>&1) || {
+    EXIT_CODE=$?
+    echo "FAILED: init-mock failed (exit code: $EXIT_CODE)"
+    echo "$INIT_OUTPUT" | sed 's/^/  /'
+    exit 1
+  }
+  echo "$INIT_OUTPUT" | sed 's/^/  /'
+
+  STDIO_CHECK="$TEST_DIR/mcp-stdio-check.mjs"
+  cat > "$STDIO_CHECK" << 'NODE_EOF'
+// Drives the installed server binary over real MCP stdio JSON-RPC:
+// initialize -> notifications/initialized -> tools/list. Plain Node, no
+// dependencies, so it works against an offline-installed package that
+// deliberately has no dev/test tooling around it.
+import { spawn } from 'node:child_process';
+
+const [, , entryPoint, mockDir] = process.argv;
+const child = spawn(process.execPath, [entryPoint, '--stdio', '--mock', mockDir], {
+  stdio: ['pipe', 'pipe', 'pipe'],
+});
+
+let stderrBuf = '';
+child.stderr.on('data', d => {
+  stderrBuf += d.toString();
+});
+
+let stdoutBuf = '';
+const messages = [];
+child.stdout.on('data', d => {
+  stdoutBuf += d.toString();
+  let idx;
+  while ((idx = stdoutBuf.indexOf('\n')) >= 0) {
+    const line = stdoutBuf.slice(0, idx);
+    stdoutBuf = stdoutBuf.slice(idx + 1);
+    if (line.trim()) {
+      try {
+        messages.push(JSON.parse(line));
+      } catch (err) {
+        console.error(`non-JSON line on stdout: ${line}`);
+      }
+    }
+  }
+});
+
+function send(msg) {
+  child.stdin.write(`${JSON.stringify(msg)}\n`);
+}
+
+function waitFor(id, timeoutMs = 15000) {
+  return new Promise((resolve, reject) => {
+    const start = Date.now();
+    const iv = setInterval(() => {
+      const msg = messages.find(m => m.id === id);
+      if (msg) {
+        clearInterval(iv);
+        resolve(msg);
+      } else if (Date.now() - start > timeoutMs) {
+        clearInterval(iv);
+        reject(new Error(`timed out waiting for response id ${id}`));
+      }
+    }, 50);
+  });
+}
+
+function fail(message) {
+  console.error(`FAILED: ${message}`);
+  if (stderrBuf.trim()) {
+    console.error('  Server stderr:');
+    console.error(
+      stderrBuf
+        .trim()
+        .split('\n')
+        .map(l => `    ${l}`)
+        .join('\n')
+    );
+  }
+  child.kill();
+  process.exit(1);
+}
+
+(async () => {
+  send({
+    jsonrpc: '2.0',
+    id: 1,
+    method: 'initialize',
+    params: {
+      protocolVersion: '2024-11-05',
+      capabilities: {},
+      clientInfo: { name: 'airgap-install-check', version: '1.0.0' },
+    },
+  });
+
+  const initResp = await waitFor(1).catch(err => fail(err.message));
+  if (initResp.error) {
+    fail(`initialize returned an error: ${JSON.stringify(initResp.error)}`);
+  }
+  console.log(`  initialize OK: ${JSON.stringify(initResp.result?.serverInfo)}`);
+
+  send({ jsonrpc: '2.0', method: 'notifications/initialized' });
+  send({ jsonrpc: '2.0', id: 2, method: 'tools/list', params: {} });
+
+  const toolsResp = await waitFor(2).catch(err => fail(err.message));
+  if (toolsResp.error) {
+    fail(`tools/list returned an error: ${JSON.stringify(toolsResp.error)}`);
+  }
+  const tools = toolsResp.result?.tools ?? [];
+  console.log(`  tools/list returned ${tools.length} tools (e.g. ${tools.slice(0, 3).map(t => t.name).join(', ')})`);
+
+  child.kill();
+  if (tools.length === 0) {
+    fail('tools/list returned an empty tool list');
+  }
+  process.exit(0);
+})().catch(err => fail(err.stack || String(err)));
+NODE_EOF
+
+  if node "$STDIO_CHECK" "$ENTRY_POINT" "$MOCK_DATA_DIR"; then
+    echo "  MCP stdio session works: initialize + tools/list succeeded against the installed package."
+  else
+    echo "FAILED: MCP stdio session against the installed package did not succeed."
+    exit 1
+  fi
 else
   echo ""
   echo "FAILED: Installation failed in airgapped mode"

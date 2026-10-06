@@ -322,7 +322,14 @@ export function createServer(options?: CreateServerOptions): CreateServerResult 
     arch: process.arch,
     pid: process.pid,
     env: getRelevantEnv(),
-    mockMode: !!options?.backend,
+    // The backend's class name (FilesystemMockBackend / NativeBackend / a test
+    // double), not a boolean. This used to be logged as `mockMode:
+    // !!options?.backend`, which was true for *any* injected backend — so a
+    // `--native` session logged `mockMode: true` and read as if it were talking
+    // to a mock instead of a real z/OS host. `createServer` has no other way to
+    // tell the implementations apart (ZosBackend carries no discriminator), and
+    // the class name is stable here because neither bundle minifies.
+    backend: options?.backend?.constructor?.name ?? 'none',
   });
 
   const capabilityTier = resolveCapabilityTier({

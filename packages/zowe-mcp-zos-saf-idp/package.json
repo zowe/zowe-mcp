@@ -1,0 +1,52 @@
+{
+  "name": "zowe-mcp-zos-saf-idp",
+  "version": "0.11.0-dev",
+  "description": "Standalone SAF/RACF-backed token issuer for Zowe MCP's HTTP Bearer-JWT resource-server auth (policy candidate, not yet adopted)",
+  "type": "module",
+  "main": "dist/server.js",
+  "types": "dist/server.d.ts",
+  "bin": {
+    "zowe-mcp-zos-saf-idp": "dist/index.js"
+  },
+  "files": [
+    "dist/",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "start": "node dist/index.js",
+    "prepack": "node scripts/bundle-for-pack.cjs",
+    "postpack": "node scripts/restore-after-pack.cjs",
+    "pretest": "npm run build -w @zowe/mcp-server",
+    "test": "vitest run",
+    "test:e2e": "npm run build -w @zowe/mcp-server && ZOWE_MCP_ZOS_IDP_E2E=1 vitest run idp-mcp-server.e2e",
+    "test:zos": "node dist/zos-integration-test.js",
+    "format": "prettier --write \"**/*.{ts,js,json}\"",
+    "check-format": "prettier --check \"**/*.{ts,js,json}\""
+  },
+  "keywords": [
+    "zowe",
+    "mcp",
+    "saf",
+    "racf",
+    "idp"
+  ],
+  "license": "EPL-2.0",
+  "dependencies": {
+    "express": "5.2.1",
+    "oidc-provider": "9.12.2",
+    "ssh2": "1.17.0",
+    "zos-attls": "*"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@types/express": "^5.0.0",
+    "@types/node": "^26.2.0",
+    "@types/oidc-provider": "9.12.1",
+    "@types/ssh2": "^1.15.5",
+    "@zowe/mcp-server": "*",
+    "typescript": "^5.9.2",
+    "vitest": "^4.1.11"
+  }
+}

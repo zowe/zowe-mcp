@@ -268,6 +268,10 @@ status, list, output, cancel, hold, release, delete).
 Connection format is `user@hostname` or `user@hostname:port` (default port 22),
 same as SSH.
 
+**Running the server on z/OS itself** (HTTP behind AT-TLS, a SAF-backed test
+IdP, same-system `zowex` execution, started-task deployment): see
+[`docs/zos-overview.md`](docs/zos-overview.md).
+
 ### Standalone mode
 
 Systems come from a config file or CLI (in-repo form shown; outside this

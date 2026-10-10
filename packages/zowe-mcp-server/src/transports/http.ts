@@ -25,6 +25,7 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
 import express, { type NextFunction, type Request, type Response } from 'express';
+import { ipKeyGenerator, rateLimit } from 'express-rate-limit';
 import { randomUUID } from 'node:crypto';
 import type { AtTlsGate } from 'zos-attls';
 import { atTlsAwareJsonGet } from '../auth/attls-client-http.js';
@@ -104,6 +105,72 @@ export interface StartHttpOptions {
   atTlsGate?: AtTlsGate;
 }
 
+/** `ZOWE_MCP_TRUST_PROXY`: a hop count (e.g. `1`) or an Express trust-proxy subnet list; unset = trust none. */
+function parseTrustProxy(raw: string | undefined): number | string | undefined {
+  const value = raw?.trim();
+  if (!value) {
+    return undefined;
+  }
+  return /^\d+$/.test(value) ? Number(value) : value;
+}
+
+const DEFAULT_AUTH_FAILURE_LIMIT = 60;
+const DEFAULT_AUTH_FAILURE_WINDOW_SECONDS = 60;
+
+function envPositiveInt(name: string, fallback: number): number {
+  const n = Number(process.env[name]?.trim());
+  return Number.isInteger(n) && n >= 0 && process.env[name]?.trim() ? n : fallback;
+}
+
+/**
+ * Per-client-IP cap on failed bearer verifications for /mcp (responses >= 400),
+ * so invalid tokens cannot be used to burn signature-check CPU. Successful
+ * requests are not counted. `ZOWE_MCP_AUTH_FAILURE_LIMIT=0` disables it.
+ */
+function createAuthFailureLimiter(log: Logger): ReturnType<typeof rateLimit> | undefined {
+  const limit = envPositiveInt('ZOWE_MCP_AUTH_FAILURE_LIMIT', DEFAULT_AUTH_FAILURE_LIMIT);
+  if (limit === 0) {
+    log.warning('Auth-failure rate limit disabled (ZOWE_MCP_AUTH_FAILURE_LIMIT=0)');
+    return undefined;
+  }
+  const windowSeconds = Math.max(
+    1,
+    envPositiveInt('ZOWE_MCP_AUTH_FAILURE_WINDOW_SECONDS', DEFAULT_AUTH_FAILURE_WINDOW_SECONDS)
+  );
+  let nextWarnAt = 0;
+  return rateLimit({
+    windowMs: windowSeconds * 1000,
+    limit,
+    skipSuccessfulRequests: true,
+    standardHeaders: 'draft-7',
+    legacyHeaders: false,
+    keyGenerator: req => ipKeyGenerator(req.ip ?? req.socket.remoteAddress ?? 'unknown'),
+    handler: (req, res, _next, optionsUsed) => {
+      const resetTime = (req as Request & { rateLimit?: { resetTime?: Date } }).rateLimit
+        ?.resetTime;
+      const retryAfter = Math.max(
+        1,
+        resetTime ? Math.ceil((resetTime.getTime() - Date.now()) / 1000) : windowSeconds
+      );
+      // Warn once per window (not per rejected request) so a flood cannot flood the log.
+      const now = Date.now();
+      if (now >= nextWarnAt) {
+        nextWarnAt = now + windowSeconds * 1000;
+        log.warning('Too many failed /mcp authentication attempts', {
+          limit: optionsUsed.limit,
+          windowSeconds,
+        });
+      }
+      res.setHeader('Retry-After', String(retryAfter));
+      res.status(429).json({
+        jsonrpc: '2.0',
+        error: { code: -32029, message: 'Too many failed authentication attempts' },
+        id: null,
+      });
+    },
+  });
+}
+
 /** Handle returned by {@link startHttp} so tests (or embedding) can shut down the listener. */
 export interface HttpTransportHandle {
   /** TCP port the server is listening on (may differ from the requested port when `0` is used). */
@@ -165,6 +232,10 @@ export async function startHttp(
   const atTlsGate = options?.atTlsGate;
 
   const app = express();
+  const trustProxy = parseTrustProxy(process.env.ZOWE_MCP_TRUST_PROXY);
+  if (trustProxy !== undefined) {
+    app.set('trust proxy', trustProxy);
+  }
   if (atTlsGate) {
     app.use(atTlsGate.middleware);
   }
@@ -178,6 +249,10 @@ export async function startHttp(
   // authenticated MCP payloads (writeDataset etc.) — an unauthenticated
   // request must be rejected from the headers alone, not after buffering and
   // parsing up to `bodyLimit` of JSON.
+  const authFailureLimiter = jwtAuth ? createAuthFailureLimiter(log) : undefined;
+  if (authFailureLimiter) {
+    app.use('/mcp', authFailureLimiter);
+  }
   app.use('/mcp', (req: Request, res: Response, next: NextFunction) => {
     void mcpAuthGate(req, res, next);
   });

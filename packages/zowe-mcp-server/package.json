@@ -47,6 +47,7 @@
     "@zowe/zos-uss-for-zowe-sdk": "^8.37.0",
     "@zowe/zowex-for-zowe-sdk": "file:../../resources/zowe-zowex-for-zowe-sdk-0.9.0-nightly-2026-09-04-011305.tgz",
     "express": "^5.1.0",
+    "express-rate-limit": "^8.7.1",
     "hardstop-patterns": "^1.0.0",
     "js-yaml": "^5.4.1",
     "lru-cache": "^11.5.2",

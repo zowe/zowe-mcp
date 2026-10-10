@@ -144,6 +144,18 @@ When a user installs a **remote HTTP** server from the gallery, VS Code can **pr
 
 ---
 
+### Failed-authentication rate limit
+
+With JWT auth enabled, `/mcp` counts failed bearer verifications (responses with status 400 or above) per client IP and answers `429` with a `Retry-After` header once the budget is spent, so invalid tokens cannot be used to burn signature-check CPU. Successful requests are not counted. The state is in memory and per process.
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `ZOWE_MCP_AUTH_FAILURE_LIMIT` | `60` | Failures allowed per window per client IP; `0` disables the limit |
+| `ZOWE_MCP_AUTH_FAILURE_WINDOW_SECONDS` | `60` | Window length in seconds |
+| `ZOWE_MCP_TRUST_PROXY` | unset | Express `trust proxy` value (hop count such as `1`, or a subnet list) |
+
+Behind a reverse proxy every client otherwise shares the proxy address, so one attacker could lock out everyone. Set `ZOWE_MCP_TRUST_PROXY` only when a proxy you control sets `X-Forwarded-For`; a client can forge that header when no such proxy is in front. With AT-TLS on z/OS the client connects directly and the default is correct.
+
 ## z/OS credentials (SSH / native backend)
 
 The native backend uses **Zowe Remote SSH** (`zowex-sdk` over SSH). There is **no OAuth** on the wire to z/OS.

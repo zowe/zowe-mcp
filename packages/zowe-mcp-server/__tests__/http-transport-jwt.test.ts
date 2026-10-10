@@ -362,3 +362,65 @@ describe('startHttp with jwtAuth', () => {
     }
   });
 });
+
+describe('startHttp /mcp auth-failure rate limit', () => {
+  const jwtAuth = { issuer: TEST_ISSUER, jwksUri: TEST_JWKS_URI, audience: TEST_AUDIENCE };
+  const start = () => startHttp(() => getServer(createServer()), 0, getLogger(), { jwtAuth });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('answers 429 with Retry-After once failures exceed the budget', async () => {
+    vi.stubEnv('ZOWE_MCP_AUTH_FAILURE_LIMIT', '3');
+    const handle = await start();
+    try {
+      const codes: number[] = [];
+      let last: Awaited<ReturnType<typeof postMcpLocal>> | undefined;
+      for (let i = 0; i < 5; i++) {
+        last = await postMcpLocal(handle.port, MCP_INIT_BODY, { Authorization: 'Bearer bad' });
+        codes.push(last.statusCode);
+      }
+      expect(codes).toEqual([401, 401, 401, 429, 429]);
+      expect(Number(last?.headers['retry-after'])).toBeGreaterThan(0);
+    } finally {
+      await handle.close();
+    }
+  });
+
+  it('does not count successful requests against the budget', async () => {
+    vi.stubEnv('ZOWE_MCP_AUTH_FAILURE_LIMIT', '2');
+    const handle = await start();
+    try {
+      const token = sign({
+        iss: TEST_ISSUER,
+        aud: TEST_AUDIENCE,
+        sub: 'user-1',
+        exp: Math.floor(Date.now() / 1000) + 300,
+      });
+      for (let i = 0; i < 5; i++) {
+        const res = await postMcpLocal(handle.port, MCP_INIT_BODY, {
+          Authorization: `Bearer ${token}`,
+        });
+        expect(res.statusCode).toBe(200);
+      }
+    } finally {
+      await handle.close();
+    }
+  });
+
+  it('is disabled by ZOWE_MCP_AUTH_FAILURE_LIMIT=0', async () => {
+    vi.stubEnv('ZOWE_MCP_AUTH_FAILURE_LIMIT', '0');
+    const handle = await start();
+    try {
+      for (let i = 0; i < 5; i++) {
+        const res = await postMcpLocal(handle.port, MCP_INIT_BODY, {
+          Authorization: 'Bearer bad',
+        });
+        expect(res.statusCode).toBe(401);
+      }
+    } finally {
+      await handle.close();
+    }
+  });
+});

@@ -1,5 +1,7 @@
 # Running `zowex` locally as the authenticated user (same-system deployment)
 
+> Overview of all z/OS components and deployment shapes: [`zos-overview.md`](./zos-overview.md).
+
 **Status: design, 2026-09-12; identity-switch mechanism revised the same day
 (SURROGAT chosen, PassTickets dropped by decision, SAF IDTs investigated and
 ruled out for unprivileged code).** This document turns the "Part 2" sketches

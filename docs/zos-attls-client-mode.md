@@ -1,5 +1,7 @@
 # AT-TLS aware client: fail-closed outbound TLS for z/OS service-to-service calls
 
+> Overview of all z/OS components and deployment shapes: [`zos-overview.md`](./zos-overview.md).
+
 Status: **Host-A-validated, guard API implemented, and wired into the MCP
 server** (2026-09-14) — outbound AT-TLS rules secure a plain-HTTP client
 transparently, and the same `zos-attls` query addon (unchanged) gates

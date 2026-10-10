@@ -1,5 +1,7 @@
 # AT-TLS aware mode: fail-closed transport security for the z/OS HTTP services
 
+> Overview of all z/OS components and deployment shapes: [`zos-overview.md`](./zos-overview.md).
+
 Status: **rolled out on Host-A in `required` mode** (2026-09-13): gate + addon
 (§ 3-4) validated on the LPAR (`native/README.md`), both services wired
 (§ 4.3, § 5), IdP doctor section live (§ 6), § 8.2 tests all pass on-platform

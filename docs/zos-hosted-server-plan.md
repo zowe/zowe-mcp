@@ -1,5 +1,7 @@
 # Running the Zowe MCP server on z/OS: research and test plan
 
+> Overview of all z/OS components and deployment shapes: [`zos-overview.md`](./zos-overview.md).
+
 Status: research + plan, 2026-09-08. Nothing here has run on real z/OS yet.
 Audience: a Claude Code session (or a person) with SSH access to a z/OS LPAR.
 

@@ -1,5 +1,7 @@
 # `zowe-mcp-zos-saf-idp`: a SAF/RACF-backed OAuth 2.1 / OIDC authorization server for dev/test
 
+> Overview of all z/OS components and deployment shapes: [`zos-overview.md`](./zos-overview.md).
+
 `packages/zowe-mcp-zos-saf-idp` is a **standalone, separate package** that gives a
 Zowe MCP HTTP deployment on z/OS its own OAuth 2.1 / OIDC authorization server —
 the role Keycloak, Azure AD, or Okta would play off-platform — authenticating

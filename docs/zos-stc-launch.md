@@ -1,5 +1,7 @@
 # Started-task (STC) launch shape for the z/OS MCP server and SAF IdP
 
+> Overview of all z/OS components and deployment shapes: [`zos-overview.md`](./zos-overview.md).
+
 Status: **LIVE on Host-A since 2026-10-05** — both services run as started
 tasks (`S ZMCPIDP` / `S ZMCPMCP`, PROCs in `PRODUCT.PROCLIB`) under the
 dedicated `ZMCPSRV` userid; HTTPS healthy from off-LPAR. Operations get

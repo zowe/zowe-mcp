@@ -1,5 +1,7 @@
 # Running the Zowe MCP server on z/OS: Phase 0/1 results (Host-A)
 
+> Overview of all z/OS components and deployment shapes: [`zos-overview.md`](./zos-overview.md).
+
 Status: Phase 0 (discovery) and Phase 1 (shape A — loopback SSH, and shape C —
 HTTP transport) complete on `Host-A` (z/OS V3R1, RACF). Also
 includes a real end-to-end test of the standalone SAF-backed IdP

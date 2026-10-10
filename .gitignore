@@ -84,6 +84,11 @@ resources/zosmf/unknown-version/
 # z/OSMF instance list (personal/team-specific, created from zosmf-instances.example.json)
 zosmf-instances.json
 
+# z/OS deployment targets (internal hostnames/userids; created from deploy/example-idp.json;
+# secrets go in deploy/.env, covered by the .env rules below)
+deploy/*.json
+!deploy/example-idp.json
+
 # SDK switch temporary directories
 .sdk-download-tmp/
 .sdk-version-tmp/
@@ -131,3 +136,14 @@ eslint-results.sarif
 
 # ESLint cache (--cache, used to speed the gate + SARIF passes)
 .eslintcache
+deploy/*.pem
+deploy/*.mjs
+
+# Local MCP client config (personal key paths, internal hostnames) and 3270 session data
+.mcp.json
+.panelwright/
+MSD_PLUGIN_FEEDBACK.md
+
+# Performance tests
+perf
+perf-results

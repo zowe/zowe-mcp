@@ -15,7 +15,7 @@ The [official MCP registry](https://registry.modelcontextprotocol.io) is a **met
 ## Prerequisites
 
 - A reachable **HTTPS URL for your deployment’s** MCP endpoint (path is usually `/mcp`; port **7542** on the app or another port if the load balancer terminates TLS and routes by hostname).
-- **OIDC / Bearer JWT** at the gateway or on the server (`ZOWE_MCP_JWT_ISSUER`, `ZOWE_MCP_JWKS_URI`, optional `ZOWE_MCP_JWT_AUDIENCE`) for multi-user deployments. Client requests must send `Authorization: Bearer <access_token>` on every `/mcp` call when JWT is enabled.
+- **OIDC / Bearer JWT** at the gateway or on the server (`ZOWE_MCP_JWT_ISSUER`, `ZOWE_MCP_JWT_AUDIENCE`, optional `ZOWE_MCP_JWKS_URI`) for multi-user deployments. Client requests must send `Authorization: Bearer <access_token>` on every `/mcp` call when JWT is enabled.
 - Optional **`ZOWE_MCP_TENANT_STORE_DIR`**: directory for per-user (`sub`) JSON files listing z/OS SSH connection strings in isolation (each OIDC subject has a separate file). Startup **`--config` / `--system`** lists are optional and intended mainly for **testing/bootstrap**; **recommended** operation is **`addZosConnection`** so users add their own connections. See **`AGENTS.md`** (tenant connection persistence).
 - **mTLS** may be considered in the future as an additional option; it is not required for the steps below.
 

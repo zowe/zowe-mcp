@@ -63,13 +63,15 @@ The IdP **`sub`** (and optional `email`) identify the **portal or chat user** at
 
 **Product policy:** Zowe MCP **does not embed** an OAuth 2.0 Authorization Server. It acts as a **resource server**: it validates access tokens issued by **your** IdP (Azure AD, Okta, Keycloak, Zowe API ML with OIDC, etc.).
 
+**Policy decision (2026-09):** the standalone `zowe-mcp-zos-saf-idp` package ([docs/zos-saf-idp.md](./zos-saf-idp.md)) — a separate, opt-in, **dev/test-only** SAF/RACF-backed authorization server that is never imported by `@zowe/mcp-server` — is compatible with this policy: the resource server itself stays AS-free, and production deployments still bring their own IdP. It exists so a z/OS deployment can be tested end-to-end (including the VS Code OAuth flow) with nothing installed off-platform.
+
 Configure validation with:
 
 - **`ZOWE_MCP_JWT_ISSUER`** — expected token issuer (`iss` claim)
-- **`ZOWE_MCP_JWKS_URI`** — JWKS URL for signature verification
-- **`ZOWE_MCP_JWT_AUDIENCE`** (optional) — expected `aud`
+- **`ZOWE_MCP_JWKS_URI`** (optional) — JWKS URL for signature verification; when unset, resolved from the issuer's OIDC discovery document (`{issuer}/.well-known/openid-configuration`) at startup
+- **`ZOWE_MCP_JWT_AUDIENCE`** (required) — expected `aud`; always validated, so tokens the issuer minted for another relying party are rejected
 
-When issuer and JWKS are set, the HTTP transport exposes **OAuth protected resource metadata** at **`GET /.well-known/oauth-protected-resource`** and **`GET /.well-known/oauth-protected-resource/mcp`** (CORS enabled) so MCP clients can discover the authorization server. Optional **`ZOWE_MCP_OAUTH_RESOURCE`** sets the metadata `resource` URL when behind a reverse proxy.
+When JWT auth is enabled, the HTTP transport exposes **OAuth protected resource metadata** at **`GET /.well-known/oauth-protected-resource`** and **`GET /.well-known/oauth-protected-resource/mcp`** (CORS enabled) so MCP clients can discover the authorization server, and every `401` carries a **`WWW-Authenticate: Bearer resource_metadata="…"`** challenge (RFC 9728 §5.1 / MCP authorization spec) pointing at that metadata — this is what triggers VS Code's OAuth flow. Optional **`ZOWE_MCP_OAUTH_RESOURCE`** sets the metadata `resource` URL when behind a reverse proxy.
 
 For **multi-user** shared HTTP deployments, Bearer JWT validation (gateway or in-process) gives a stable per-user identity (`sub`). **VPN or network perimeter alone** does not establish end-user identity at the MCP layer. Undifferentiated shared secrets or ad-hoc identity headers are **not** adequate for multi-tenant service. **mTLS** may be added later as an additional binding.
 

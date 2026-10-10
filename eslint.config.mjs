@@ -37,6 +37,8 @@ export default tseslint.config(
           'packages/zowe-mcp-vscode/tsconfig.eslint.json',
           'packages/zowe-mcp-evals/tsconfig.eslint.json',
           'packages/zowe-mcp-e2e/tsconfig.eslint.json',
+          'packages/zowe-mcp-zos-saf-idp/tsconfig.eslint.json',
+          'packages/zos-attls/tsconfig.eslint.json',
         ],
         tsconfigRootDir: import.meta.dirname,
       },
@@ -71,12 +73,15 @@ export default tseslint.config(
       ],
     },
   },
-  // Vitest rules for server test files (VS Code extension uses Mocha, not Vitest)
+  // Vitest rules for server/idp test files (VS Code extension uses Mocha, not Vitest)
   {
     files: [
       'packages/zowe-mcp-server/__tests__/**/*.ts',
       'packages/zowe-mcp-server/**/*.test.ts',
       'packages/zowe-mcp-server/**/*.spec.ts',
+      'packages/zowe-mcp-zos-saf-idp/__tests__/**/*.ts',
+      'packages/zowe-mcp-zos-saf-idp/**/*.test.ts',
+      'packages/zos-attls/__tests__/**/*.ts',
     ],
     plugins: {
       vitest,

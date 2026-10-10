@@ -29,7 +29,7 @@
 
 import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { posix } from 'node:path';
 import { isEnvFlagSet } from './connection-spec.js';
 
 /** System id under which local zowex execution is registered. */
@@ -105,7 +105,7 @@ export function resolveStdioZowexPath(
 ): { path: string; source: 'env' | 'default' } {
   const fromEnv = env[LOCAL_ZOWEX_ENV]?.trim();
   if (fromEnv) return { path: fromEnv, source: 'env' };
-  return { path: join(home, LOCAL_DEFAULT_ZOWEX_SUBPATH), source: 'default' };
+  return { path: posix.join(home, LOCAL_DEFAULT_ZOWEX_SUBPATH), source: 'default' };
 }
 
 export interface LocalGatingInput {

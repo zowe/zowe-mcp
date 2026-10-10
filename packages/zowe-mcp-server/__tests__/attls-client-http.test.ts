@@ -124,22 +124,26 @@ describe('atTlsAwareJsonGet routing', () => {
     expect(fetchMock).toHaveBeenCalledWith('http://idp.example/jwks', {});
   });
 
-  it('routes http:// through the gated agent when active (secure verdict)', async () => {
-    const { port } = await listenJson({ hello: 'attls' });
-    const queryFn = vi.fn(() => secure);
-    initAtTlsClientHttp({ mode: 'required', queryFn, log: noopLog });
-    const fetchMock = vi.fn();
-    vi.stubGlobal('fetch', fetchMock);
+  // The AT-TLS gate reads the socket fd, which Windows sockets do not expose (z/OS-only feature).
+  it.skipIf(process.platform === 'win32')(
+    'routes http:// through the gated agent when active (secure verdict)',
+    async () => {
+      const { port } = await listenJson({ hello: 'attls' });
+      const queryFn = vi.fn(() => secure);
+      initAtTlsClientHttp({ mode: 'required', queryFn, log: noopLog });
+      const fetchMock = vi.fn();
+      vi.stubGlobal('fetch', fetchMock);
 
-    const res = await atTlsAwareJsonGet(`http://127.0.0.1:${port}/doc`, {
-      Accept: 'application/json',
-    });
-    expect(res.ok).toBe(true);
-    expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ hello: 'attls' });
-    expect(queryFn).toHaveBeenCalled();
-    expect(fetchMock).not.toHaveBeenCalled();
-  });
+      const res = await atTlsAwareJsonGet(`http://127.0.0.1:${port}/doc`, {
+        Accept: 'application/json',
+      });
+      expect(res.ok).toBe(true);
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual({ hello: 'attls' });
+      expect(queryFn).toHaveBeenCalled();
+      expect(fetchMock).not.toHaveBeenCalled();
+    }
+  );
 
   it('leaves https:// on global fetch even when the guard is active', async () => {
     const queryFn = vi.fn(() => secure);
@@ -178,16 +182,20 @@ describe('atTlsAwareJsonGet routing', () => {
     expect(entries.some(m => m.includes('would refuse'))).toBe(true);
   });
 
-  it('wires bearer-jwt: resolveJwksUriFromIssuer goes through the guard', async () => {
-    const { port } = await listenJson({ jwks_uri: 'http://idp.example/jwks.json' });
-    const queryFn = vi.fn(() => secure);
-    initAtTlsClientHttp({ mode: 'required', queryFn, log: noopLog });
-    const fetchMock = vi.fn();
-    vi.stubGlobal('fetch', fetchMock);
+  // The AT-TLS gate reads the socket fd, which Windows sockets do not expose (z/OS-only feature).
+  it.skipIf(process.platform === 'win32')(
+    'wires bearer-jwt: resolveJwksUriFromIssuer goes through the guard',
+    async () => {
+      const { port } = await listenJson({ jwks_uri: 'http://idp.example/jwks.json' });
+      const queryFn = vi.fn(() => secure);
+      initAtTlsClientHttp({ mode: 'required', queryFn, log: noopLog });
+      const fetchMock = vi.fn();
+      vi.stubGlobal('fetch', fetchMock);
 
-    const jwksUri = await resolveJwksUriFromIssuer(`http://127.0.0.1:${port}`);
-    expect(jwksUri).toBe('http://idp.example/jwks.json');
-    expect(queryFn).toHaveBeenCalled();
-    expect(fetchMock).not.toHaveBeenCalled();
-  });
+      const jwksUri = await resolveJwksUriFromIssuer(`http://127.0.0.1:${port}`);
+      expect(jwksUri).toBe('http://idp.example/jwks.json');
+      expect(queryFn).toHaveBeenCalled();
+      expect(fetchMock).not.toHaveBeenCalled();
+    }
+  );
 });

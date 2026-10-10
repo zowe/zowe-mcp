@@ -37,11 +37,25 @@ import {
   unlinkSync,
   writeFileSync,
 } from 'node:fs';
+import { userInfo } from 'node:os';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
-import { loadJwtAuthConfigFromEnv, type TenantJwtClaims } from './auth/bearer-jwt.js';
+import {
+  createAtTlsGate,
+  parseAtTlsMode,
+  parseLoopbackClear,
+  type AtTlsGate,
+  type AtTlsLogFn,
+} from 'zos-attls';
+import { initAtTlsClientHttp, loadAtTlsClientEnvOptions } from './auth/attls-client-http.js';
+import {
+  loadJwtAuthConfigFromEnv,
+  resolveJwksUriFromIssuer,
+  type JwtAuthConfig,
+  type TenantJwtClaims,
+} from './auth/bearer-jwt.js';
 import { getOrCreateTenantCliPluginStates, tenantKeyFromSub } from './auth/tenant-resources.js';
 import { parseCapabilityTier, type CapabilityTier } from './capability-level.js';
 import type {
@@ -94,6 +108,16 @@ import {
   toPasswordEnvVarName,
 } from './zos/native/connection-spec.js';
 import type { NativeSetup } from './zos/native/load-native.js';
+import {
+  checkLocalGating,
+  isLocalConnectionSpec,
+  isValidSafUserid,
+  LOCAL_LAUNCHER_ENV,
+  LOCAL_SUB_IS_USERID_ENV,
+  LOCAL_ZOWEX_ENV,
+  resolveProcessUserid,
+  resolveStdioZowexPath,
+} from './zos/native/local-system.js';
 import type { WaitablePasswordStoreLike } from './zos/native/native-credential-provider.js';
 import type { ZowexClientOptions } from './zos/native/ssh-client-cache.js';
 
@@ -112,11 +136,22 @@ function mergeConnectionStrings(base: string[], extra: string[]): string[] {
   return out;
 }
 
-/** True when both JWT issuer and JWKS URI are set (HTTP JWT auth will be enabled). */
+/**
+ * True when a JWT issuer is set (HTTP JWT auth will be enabled). The JWKS URI
+ * is optional — resolved from the issuer's OIDC discovery document at startup
+ * when ZOWE_MCP_JWKS_URI is not set.
+ */
+/** The OS username of this process, or undefined where the OS has no entry for the uid. */
+function tryOsUsername(): string | undefined {
+  try {
+    return userInfo().username;
+  } catch {
+    return undefined;
+  }
+}
+
 function hasJwtAuthConfigured(): boolean {
-  const i = process.env.ZOWE_MCP_JWT_ISSUER?.trim();
-  const j = process.env.ZOWE_MCP_JWKS_URI?.trim();
-  return !!i && !!j;
+  return !!process.env.ZOWE_MCP_JWT_ISSUER?.trim();
 }
 
 /** Response cache config from CLI or env (undefined = use server defaults). */
@@ -184,6 +219,12 @@ interface ParsedArgs {
    * Unset: 127.0.0.1 in unauthenticated mode, all interfaces with JWT auth.
    */
   httpHost?: string;
+  /**
+   * AT-TLS aware mode for the HTTP transport on z/OS (--attls / ZOWE_MCP_ATTLS):
+   * off (default), monitor (log-only), or required (reject connections not
+   * secured by AT-TLS — fail-closed). Validated in main via parseAtTlsMode.
+   */
+  attls?: string;
 }
 
 /** One CLI plugin bridge entry (one --cli-plugin-yaml / --cli-plugin-connection-file pair). */
@@ -289,6 +330,9 @@ function applyEnvOverrides(parsed: ParsedArgs): void {
   if (!parsed.httpHost && process.env.ZOWE_MCP_HTTP_HOST?.trim()) {
     parsed.httpHost = process.env.ZOWE_MCP_HTTP_HOST.trim();
   }
+  if (!parsed.attls && process.env.ZOWE_MCP_ATTLS?.trim()) {
+    parsed.attls = process.env.ZOWE_MCP_ATTLS.trim();
+  }
 }
 
 function parseArgs(): ParsedArgs {
@@ -314,6 +358,30 @@ function parseArgs(): ParsedArgs {
         }),
       () => {
         const scriptPath = resolve(scriptDir, 'scripts', 'init-mock.js');
+        const result = spawnSync(process.execPath, [scriptPath, ...process.argv.slice(3)], {
+          stdio: 'inherit',
+        });
+        process.exit(result.status ?? 0);
+      }
+    )
+    .command(
+      'doctor-local',
+      'Check this z/OS host for same-system ("local") zowex execution readiness',
+      y =>
+        y.options({
+          'probe-user': {
+            type: 'string',
+            describe:
+              'Run a real SURROGAT switch probe to this userid through the launcher (SAF-audited)',
+          },
+          stdio: {
+            type: 'boolean',
+            describe:
+              'Check the stdio same-user arm instead (invoking user + zowex; no launcher/SURROGAT)',
+          },
+        }),
+      () => {
+        const scriptPath = resolve(scriptDir, 'scripts', 'doctor-local.js');
         const result = spawnSync(process.execPath, [scriptPath, ...process.argv.slice(3)], {
           stdio: 'inherit',
         });
@@ -575,6 +643,13 @@ function parseArgs(): ParsedArgs {
           'without JWT auth (--http-allow-no-auth) and to all interfaces with JWT auth. ' +
           'Also settable via ZOWE_MCP_HTTP_HOST.',
       },
+      attls: {
+        type: 'string',
+        describe:
+          'AT-TLS aware mode for --http on z/OS: off (default), monitor (log ' +
+          'connections AT-TLS did not secure), or required (reject them — fail-closed). ' +
+          'Needs the zos-attls addon (ZOWE_MCP_ATTLS_MODULE). Also settable via ZOWE_MCP_ATTLS.',
+      },
     })
     .alias('h', 'help')
     .help();
@@ -651,6 +726,7 @@ function parseArgs(): ParsedArgs {
   }
 
   const httpHostArg = (argv['http-host'] as string | undefined)?.trim();
+  const attlsArg = (argv.attls as string | undefined)?.trim();
   const parsed: ParsedArgs = {
     transport: argv.http ? 'http' : 'stdio',
     port: (argv.port as number) ?? 7542,
@@ -673,6 +749,7 @@ function parseArgs(): ParsedArgs {
     capabilityTier: parseCapabilityTier(argv['capability-tier'] as string | undefined),
     httpAllowNoAuth: Boolean(argv['http-allow-no-auth']),
     httpHost: httpHostArg === undefined || httpHostArg === '' ? undefined : httpHostArg,
+    attls: attlsArg === undefined || attlsArg === '' ? undefined : attlsArg,
   };
   applyEnvOverrides(parsed);
   return parsed;
@@ -1143,7 +1220,12 @@ function setupExtensionEventHandlers(
 async function main(): Promise<void> {
   // Run subcommand scripts directly so they work even if yargs doesn't dispatch (e.g. in bundled extension)
   const subcommand = process.argv[2];
-  if (subcommand === 'init-mock' || subcommand === 'call-tool' || subcommand === 'generate-docs') {
+  if (
+    subcommand === 'init-mock' ||
+    subcommand === 'call-tool' ||
+    subcommand === 'generate-docs' ||
+    subcommand === 'doctor-local'
+  ) {
     const scriptPath = resolve(scriptDir, 'scripts', `${subcommand}.js`);
     const result = spawnSync(process.execPath, [scriptPath, ...process.argv.slice(3)], {
       stdio: 'inherit',
@@ -1197,6 +1279,30 @@ async function main(): Promise<void> {
     });
   }
 
+  // The environment differs per system/user/launch path (JCL vs shell vs
+  // non-interactive ssh, containers, ...) — record the variables the runtime
+  // relies on (z/OS conversion/tagging, STEPLIB) plus user-owned context (TZ,
+  // LANG, never overridden), so the state the process ran with is in its log.
+  const runtimeEnvSnapshot = Object.fromEntries(
+    [
+      '_BPXK_AUTOCVT',
+      '_CEE_RUNOPTS',
+      '_TAG_REDIR_IN',
+      '_TAG_REDIR_OUT',
+      '_TAG_REDIR_ERR',
+      'STEPLIB',
+      LOCAL_SUB_IS_USERID_ENV,
+      LOCAL_LAUNCHER_ENV,
+      LOCAL_ZOWEX_ENV,
+      'ZOWE_MCP_ATTLS',
+      'ZOWE_MCP_ATTLS_CLIENT',
+      'ZOWE_MCP_ATTLS_MODULE',
+      'ZOWE_MCP_ATTLS_LOOPBACK_CLEAR',
+      'TZ',
+      'LANG',
+    ].map(name => [name, process.env[name] ?? '(unset)'])
+  );
+
   logger.info(`Starting Zowe MCP Server v${SERVER_VERSION}`, {
     transport,
     ...(transport === 'http' ? { port } : {}),
@@ -1204,6 +1310,7 @@ async function main(): Promise<void> {
     ...(zowex ? { zowex: true } : {}),
     cwd: process.cwd(),
     argv: process.argv,
+    env: runtimeEnvSnapshot,
   });
 
   // Load mock backend if --mock is specified
@@ -1275,6 +1382,47 @@ async function main(): Promise<void> {
         process.exit(1);
       }
     }
+    // Same-system ("local") zowex execution is gated on explicit operator
+    // assertions — checked here, at startup, with the full list of problems.
+    const localConfigured = systems.some(isLocalConnectionSpec);
+    // stdio same-user (deployment shape 2): the invoking user, resolved once.
+    const stdioLocalUserid =
+      transport === 'stdio' ? resolveProcessUserid(tryOsUsername()) : undefined;
+    if (localConfigured) {
+      const gatingErrors = checkLocalGating({
+        platform: process.platform,
+        transport,
+        jwtIssuerSet: hasJwtAuthConfigured(),
+        env: process.env,
+        processUsername: tryOsUsername(),
+      });
+      if (gatingErrors.length > 0) {
+        logger.error(
+          'The "local" system entry cannot be activated:\n' +
+            gatingErrors.map(e => `  - ${e}`).join('\n')
+        );
+        process.exit(1);
+      }
+      if (transport === 'stdio') {
+        logger.info(
+          'Local zowex execution configured (system "local"): stdio same-user — tools run as ' +
+            'the invoking user, no identity switch',
+          {
+            user: stdioLocalUserid,
+            zowex: resolveStdioZowexPath(process.env).path,
+          }
+        );
+      } else {
+        logger.info(
+          'Local zowex execution configured (system "local"): available to authenticated HTTP ' +
+            'sessions, each running as its own JWT sub',
+          {
+            launcher: process.env[LOCAL_LAUNCHER_ENV],
+            zowex: process.env[LOCAL_ZOWEX_ENV],
+          }
+        );
+      }
+    }
     const extensionConnected = extensionClient?.connected === true;
     const allowEmptyBaseNative =
       !extensionConnected &&
@@ -1344,6 +1492,10 @@ async function main(): Promise<void> {
       autoInstallZowex: parsed.zowexServerAutoInstall ?? true,
       zowexServerPath: parsed.zowexServerPath,
       responseTimeout: parsed.zowexResponseTimeout ?? defaultResponseTimeout,
+      // stdio same-user local execution (gated above); HTTP setups get their
+      // per-tenant localUserid from the JWT sub instead, never here.
+      localUserid: stdioLocalUserid,
+      localSameUser: stdioLocalUserid !== undefined,
     });
     sharedNativeResolveJobCard = nativeSetup.resolveJobCardConnectionSpec;
 
@@ -1409,9 +1561,21 @@ async function main(): Promise<void> {
         }
         const fromFile = tenantPersistenceDir ? loadTenantSystems(tenantPersistenceDir, sub) : [];
         const merged = mergeConnectionStrings(baseSystemsRef.current, fromFile);
+        // The `local` system runs zowex as the JWT sub — only a sub with the
+        // canonical SAF-userid shape gets a local identity; anything else means
+        // this issuer's subjects are not this system's userids, and the tenant
+        // simply has no `local` system (never a shared-identity fallback).
+        const localUserid = isValidSafUserid(sub) ? sub : undefined;
+        if (localConfigured && !localUserid) {
+          logger.warning(
+            'The "local" system is unavailable for this session: the token sub is not a SAF userid',
+            { sub }
+          );
+        }
         const setup = loadNative({
           ...nativeLoadBase,
           systems: merged,
+          localUserid,
         });
         tenantNativeCache.set(key, setup);
         return setup;
@@ -1429,6 +1593,11 @@ async function main(): Promise<void> {
         responseTimeout: parsed.zowexResponseTimeout ?? defaultResponseTimeout,
       };
       addTenantNativeConnectionHandler = (tenantSub: string, spec: string): Promise<void> => {
+        if (isLocalConnectionSpec(spec)) {
+          throw new Error(
+            '"local" is a server-startup configuration entry (operator assertion) and cannot be added per user.'
+          );
+        }
         parseConnectionSpec(spec);
         appendTenantSystem(tenantPersistenceDir, tenantSub, spec);
         const merged = mergeConnectionStrings(
@@ -1445,12 +1614,18 @@ async function main(): Promise<void> {
             loadNative({
               ...nativeLoadBase,
               systems: merged,
+              localUserid: isValidSafUserid(tenantSub) ? tenantSub : undefined,
             })
           );
         }
         return Promise.resolve();
       };
       removeTenantNativeConnectionHandler = (tenantSub: string, spec: string): Promise<void> => {
+        if (isLocalConnectionSpec(spec)) {
+          throw new Error(
+            '"local" is a server-startup configuration entry (operator assertion) and cannot be removed per user.'
+          );
+        }
         parseConnectionSpec(spec);
         const removed = removeTenantSystem(tenantPersistenceDir, tenantSub, spec);
         if (!removed) {
@@ -1485,6 +1660,7 @@ async function main(): Promise<void> {
             loadNative({
               ...nativeLoadBase,
               systems: merged,
+              localUserid: isValidSafUserid(tenantSub) ? tenantSub : undefined,
             })
           );
         }
@@ -1855,6 +2031,20 @@ async function main(): Promise<void> {
   }
 
   if (transport === 'stdio') {
+    if (parsed.attls && parsed.attls !== 'off') {
+      logger.warning(
+        '--attls / ZOWE_MCP_ATTLS is set but the transport is stdio — ' +
+          'AT-TLS aware mode applies only to --http (stdio has no TCP sockets); ignoring'
+      );
+    }
+    const attlsClientRaw = process.env.ZOWE_MCP_ATTLS_CLIENT?.trim();
+    if (attlsClientRaw && attlsClientRaw !== 'off') {
+      logger.warning(
+        'ZOWE_MCP_ATTLS_CLIENT is set but the transport is stdio — the AT-TLS ' +
+          'client guard covers the JWT upstream calls (OIDC discovery, JWKS), ' +
+          'which only the HTTP transport makes; ignoring'
+      );
+    }
     const created = createServer(serverOptions);
     const server = getServer(created);
     if (serverRef) {
@@ -1866,9 +2056,45 @@ async function main(): Promise<void> {
     registerCliPlugins(server, undefined, cliPluginStatesByPlugin);
     await startStdio(server, logger);
   } else {
-    let httpJwtAuth: ReturnType<typeof loadJwtAuthConfigFromEnv>;
+    const atTlsLog: AtTlsLogFn = (level, msg, fields) => {
+      logger[level === 'warn' ? 'warning' : level](msg, fields);
+    };
+
+    // AT-TLS client guard (z/OS): must exist BEFORE the first upstream call —
+    // the OIDC discovery fetch below — so a plain-http IdP transport that
+    // relies on an outbound AT-TLS rule is fail-closed from the first byte
+    // (docs/zos-attls-client-mode.md). `required` fails fast like the gate.
     try {
-      httpJwtAuth = loadJwtAuthConfigFromEnv();
+      const clientEnv = loadAtTlsClientEnvOptions();
+      if (clientEnv.mode !== 'off') {
+        const effective = initAtTlsClientHttp({
+          ...clientEnv,
+          log: atTlsLog,
+        });
+        logger.info(
+          `AT-TLS client mode: ${effective} (loopback-clear: ${clientEnv.allowLoopbackClear ? 'allow' : 'reject'})`
+        );
+      }
+    } catch (e) {
+      logger.error(
+        'AT-TLS client mode failed to initialize (ZOWE_MCP_ATTLS_CLIENT): ' +
+          (e instanceof Error ? e.message : String(e))
+      );
+      process.exit(1);
+    }
+
+    let httpJwtAuth: JwtAuthConfig | undefined;
+    try {
+      const envJwtAuth = loadJwtAuthConfigFromEnv();
+      if (envJwtAuth && !envJwtAuth.jwksUri) {
+        // ZOWE_MCP_JWKS_URI not set: resolve it from the issuer's OIDC
+        // discovery document (an explicit ZOWE_MCP_JWKS_URI always wins).
+        const jwksUri = await resolveJwksUriFromIssuer(envJwtAuth.issuer);
+        logger.info(`Resolved JWKS URI from issuer OIDC discovery: ${jwksUri}`);
+        httpJwtAuth = { ...envJwtAuth, jwksUri };
+      } else if (envJwtAuth) {
+        httpJwtAuth = envJwtAuth as JwtAuthConfig;
+      }
     } catch (e) {
       logger.error(
         'Invalid HTTP JWT auth environment (ZOWE_MCP_JWT_ISSUER / ZOWE_MCP_JWKS_URI)',
@@ -1905,6 +2131,29 @@ async function main(): Promise<void> {
           'Any client that can reach this port has full access. ' +
           'Use only on trusted local networks or for development.'
       );
+    }
+
+    // AT-TLS aware mode (z/OS): built before listen so `required` fails fast
+    // on a non-z/OS platform or a missing addon (docs/zos-attls-aware-mode.md).
+    let atTlsGate: AtTlsGate | undefined;
+    try {
+      const attlsMode = parseAtTlsMode(parsed.attls);
+      if (attlsMode !== 'off') {
+        const attlsModulePath = process.env.ZOWE_MCP_ATTLS_MODULE?.trim();
+        atTlsGate = createAtTlsGate({
+          mode: attlsMode,
+          modulePath:
+            attlsModulePath === undefined || attlsModulePath === '' ? undefined : attlsModulePath,
+          allowLoopbackClear: parseLoopbackClear(process.env.ZOWE_MCP_ATTLS_LOOPBACK_CLEAR),
+          log: atTlsLog,
+        });
+      }
+    } catch (e) {
+      logger.error(
+        'AT-TLS aware mode failed to initialize (--attls / ZOWE_MCP_ATTLS): ' +
+          (e instanceof Error ? e.message : String(e))
+      );
+      process.exit(1);
     }
 
     const httpHandle = await startHttp(
@@ -1993,6 +2242,7 @@ async function main(): Promise<void> {
       {
         ...(httpJwtAuth ? { jwtAuth: httpJwtAuth } : {}),
         ...(httpBindHost ? { host: httpBindHost } : {}),
+        ...(atTlsGate ? { atTlsGate } : {}),
       }
     );
     if (!httpPublicBaseUrlRef.current) {

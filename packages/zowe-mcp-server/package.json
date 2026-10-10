@@ -15,6 +15,7 @@
     "dist/"
   ],
   "scripts": {
+    "prebuild": "npm run build -w zos-attls",
     "build": "tsc -p tsconfig.build.json && node scripts/copy-resources.cjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "dev": "tsc -p tsconfig.build.json --watch",

@@ -1,4 +1,13 @@
 #!/bin/sh
+#
+# This program and the accompanying materials are made available under the terms of the
+# Eclipse Public License v2.0 which accompanies this distribution, and is available at
+# https://www.eclipse.org/legal/epl-v20.html
+#
+# SPDX-License-Identifier: EPL-2.0
+#
+# Copyright Contributors to the Zowe Project.
+#
 # Manual node-gyp-equivalent build of the zos-attls addon for z/OS (the target
 # LPARs have no GNU make, and z/OS /bin/make rejects node-gyp's Makefiles).
 # The flag set is copied from the gyp-generated Release flags validated for
@@ -22,8 +31,8 @@ DIR=$(cd "$(dirname "$0")" && pwd)
 NODEDIR=${NODEDIR:-/u/users/group/product/nodejs-zos/v24r0/IBM/node-v24.18.1-os390-s390x-202608141439}
 NAPI_INC=${NAPI_INC:-$DIR/../node_modules/node-addon-api}
 if [ ! -f "$NAPI_INC/napi.h" ]; then
-	# Fall back to the node-addon-api copy from the validated racf build.
-	NAPI_INC=/u/users/group/product/usera/zmcp/racf-test/node_modules/node-addon-api
+  # Fall back to the node-addon-api copy from the validated racf build.
+  NAPI_INC=/u/users/group/product/usera/zmcp/racf-test/node_modules/node-addon-api
 fi
 OPENXL=${OPENXL:-/usr/lpp/IBM/cnw/v2r2/openxl/bin}
 export PATH=$OPENXL:$PATH
@@ -48,6 +57,6 @@ CXXFLAGS="-fno-rtti -fno-exceptions -fno-strict-aliasing -std=gnu++20"
 mkdir -p "$DIR/build/Release"
 ibm-clang++64 -c "$DIR/attls.cc" -o "$DIR/build/attls.o" $DEFS $INCS $CFLAGS $CXXFLAGS
 ibm-clang++64 -shared -m64 -fPIC -o "$DIR/build/Release/attls.node" \
-	"$DIR/build/attls.o" "$NODEDIR/lib/libnode.x"
+  "$DIR/build/attls.o" "$NODEDIR/lib/libnode.x"
 ls -l "$DIR/build/Release/attls.node"
 echo BUILD_OK

@@ -1,4 +1,13 @@
 #!/bin/sh
+#
+# This program and the accompanying materials are made available under the terms of the
+# Eclipse Public License v2.0 which accompanies this distribution, and is available at
+# https://www.eclipse.org/legal/epl-v20.html
+#
+# SPDX-License-Identifier: EPL-2.0
+#
+# Copyright Contributors to the Zowe Project.
+#
 # Contract tests for zowex-launcher, run ON z/OS as the server userid
 # (the userid holding the SURROGAT permits). POSIX sh — no bash on the LPAR.
 #
@@ -41,7 +50,7 @@ if [ ! -x ./zowex-launcher ]; then
 fi
 
 echo "== invoker: $(id) =="
-echo "== launcher extattr: $(extattr ./zowex-launcher 2>/dev/null | tr '\n' ' ') =="
+echo "== launcher extattr: $(extattr ./zowex-launcher 2> /dev/null | tr '\n' ' ') =="
 
 # 1. Positive: switch to $TARGET; the child must report the target's uid.
 #    Print full id output — record what happens to GROUPS (the setuid doc
@@ -50,16 +59,16 @@ out=$(printf '%s\n' "$TARGET" | ./zowex-launcher /bin/sh -c 'id' 2>&1)
 rc=$?
 echo "-- id as target: $out"
 case "$out" in
-  *"($TARGET)"*) report "switch to $TARGET" 0 "" ;;
-  *) report "switch to $TARGET" 1 "rc=$rc out=$out" ;;
+*"($TARGET)"*) report "switch to $TARGET" 0 "" ;;
+*) report "switch to $TARGET" 1 "rc=$rc out=$out" ;;
 esac
 
 # 2. Stdin passthrough: bytes after the userid line must reach the child.
 out=$(printf '%s\nhello-stdin\n' "$TARGET" | ./zowex-launcher /bin/cat 2>&1)
 rc=$?
 case "$out" in
-  *hello-stdin*) report "stdin passthrough to exec'd program" 0 "" ;;
-  *) report "stdin passthrough to exec'd program" 1 "rc=$rc out=$out" ;;
+*hello-stdin*) report "stdin passthrough to exec'd program" 0 "" ;;
+*) report "stdin passthrough to exec'd program" 1 "rc=$rc out=$out" ;;
 esac
 
 # 3. HOME/USER/LOGNAME point at the target after the switch. Match line-wise:
@@ -73,7 +82,7 @@ else
 fi
 
 # 4. Unknown user -> exit 4, nothing executed.
-printf 'NOSUCHU9\n' | ./zowex-launcher /bin/sh -c 'echo REACHED' >/tmp/zl-t4.out 2>&1
+printf 'NOSUCHU9\n' | ./zowex-launcher /bin/sh -c 'echo REACHED' > /tmp/zl-t4.out 2>&1
 rc=$?
 if [ "$rc" -eq 4 ] && ! grep -q REACHED /tmp/zl-t4.out; then
   report "unknown user rejected (exit 4)" 0 ""
@@ -83,7 +92,7 @@ fi
 rm -f /tmp/zl-t4.out
 
 # 5. Bad userid syntax -> exit 3.
-printf 'BAD*ID\n' | ./zowex-launcher /bin/true 2>/dev/null
+printf 'BAD*ID\n' | ./zowex-launcher /bin/true 2> /dev/null
 rc=$?
 report "invalid userid syntax rejected (exit 3)" $([ "$rc" -eq 3 ] && echo 0 || echo 1) "rc=$rc"
 
@@ -92,8 +101,8 @@ if [ -n "$DENIED" ]; then
   out=$(printf '%s\n' "$DENIED" | ./zowex-launcher /bin/sh -c 'echo REACHED' 2>&1)
   rc=$?
   case "$rc:$out" in
-    5:*BPX.SRV.*) report "no-permit user denied (exit 5, EPERM hint)" 0 "" ;;
-    *) report "no-permit user denied (exit 5, EPERM hint)" 1 "rc=$rc out=$out" ;;
+  5:*BPX.SRV.*) report "no-permit user denied (exit 5, EPERM hint)" 0 "" ;;
+  *) report "no-permit user denied (exit 5, EPERM hint)" 1 "rc=$rc out=$out" ;;
   esac
 else
   echo "SKIP: no-permit denial (pass a denied-userid to run it)"
@@ -101,7 +110,7 @@ fi
 
 # 7. UID 0 target refused -> exit 6.
 if [ -n "$UID0" ]; then
-  printf '%s\n' "$UID0" | ./zowex-launcher /bin/true 2>/dev/null
+  printf '%s\n' "$UID0" | ./zowex-launcher /bin/true 2> /dev/null
   rc=$?
   report "UID 0 target refused (exit 6)" $([ "$rc" -eq 6 ] && echo 0 || echo 1) "rc=$rc"
 else
@@ -114,9 +123,9 @@ cp ./zowex-launcher /tmp/zl-unmarked && chmod 700 /tmp/zl-unmarked
 out=$(printf '%s\n' "$TARGET" | /tmp/zl-unmarked /bin/sh -c 'echo REACHED' 2>&1)
 rc=$?
 case "$rc:$out" in
-  5:*) report "unmarked copy cannot switch (program control enforced)" 0 "" ;;
-  *REACHED*) report "unmarked copy cannot switch (program control enforced)" 1 "rc=$rc out=$out (is BPX.DAEMON defined?)" ;;
-  *) report "unmarked copy cannot switch (program control enforced)" 1 "rc=$rc out=$out" ;;
+5:*) report "unmarked copy cannot switch (program control enforced)" 0 "" ;;
+*REACHED*) report "unmarked copy cannot switch (program control enforced)" 1 "rc=$rc out=$out (is BPX.DAEMON defined?)" ;;
+*) report "unmarked copy cannot switch (program control enforced)" 1 "rc=$rc out=$out" ;;
 esac
 rm -f /tmp/zl-unmarked
 
@@ -125,14 +134,14 @@ rm -f /tmp/zl-unmarked
 #    not connected to in the security database. setuid-then-exec leaked the
 #    invoker's supplementary groups (with real USS authority); the identity
 #    spawn must rebuild the list from the target's connections.
-db=$(id "$TARGET" 2>/dev/null)
-proc=$(printf '%s\n' "$TARGET" | ./zowex-launcher /bin/sh -c 'id' 2>/dev/null | tail -1)
+db=$(id "$TARGET" 2> /dev/null)
+proc=$(printf '%s\n' "$TARGET" | ./zowex-launcher /bin/sh -c 'id' 2> /dev/null | tail -1)
 leaked=""
 for g in $(printf '%s\n' "$proc" | sed -n 's/.*groups=//p' | tr ',' '\n' \
-           | sed -n 's/.*(\(.*\))$/\1/p'); do
+  | sed -n 's/.*(\(.*\))$/\1/p'); do
   case "$db" in
-    *"($g)"*) ;;
-    *) leaked="$leaked $g" ;;
+  *"($g)"*) ;;
+  *) leaked="$leaked $g" ;;
   esac
 done
 if [ -z "$leaked" ]; then

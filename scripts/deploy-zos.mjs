@@ -119,9 +119,9 @@ function sshScript(config, script, { allowFailure = false } = {}) {
     spawnSync('ssh', [config.sshDest, 'sh -s'], { input: script, encoding: 'utf8' })
   );
   if (result.status !== 0 && !allowFailure) {
-    fail(
-      `remote step failed (rc=${result.status}):\n${result.output}\n--- script was:\n${script}`
-    );
+    // The script is deliberately not echoed: it carries the environment
+    // contract, which may hold secrets interpolated from deploy/.env.
+    fail(`remote step failed (rc=${result.status}):\n${result.output}`);
   }
   return result;
 }
@@ -497,7 +497,7 @@ process.exit(res.status === 200 ? 0 : 1);
     if (result.status !== 0) fail('smoke login failed');
   } else if (smoke) {
     console.log(
-      `smoke login skipped (${smoke.usernameEnv}/${smoke.passwordEnv} not set in deploy/.env)`
+      'smoke login skipped (the variables named by smokeLogin are not set in deploy/.env)'
     );
   }
 

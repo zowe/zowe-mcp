@@ -18,7 +18,7 @@ import { createSign, type KeyObject } from 'node:crypto';
 
 function base64Url(input: Buffer | string): string {
   const buf = typeof input === 'string' ? Buffer.from(input, 'utf8') : input;
-  return buf.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  return buf.toString('base64url');
 }
 
 export interface MintAccessTokenOptions {

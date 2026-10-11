@@ -40,6 +40,10 @@ don't warrant an entry (CI, chores, internal refactors, docs-only) can carry the
 
 ### Fixed
 
+- Certificate tool errors now name SAF codes `productReturnCode`/`productReasonCode`,
+  matching successful responses. A failing call (for example `showCertificate` on a
+  missing label) used to pass the SDK's `esmReturnCode`/`esmReasonCode` keys through
+  in the error details. ([#70](https://github.com/zowe/zowe-mcp/issues/70))
 - **Cleared three production dependency advisories** that had been failing the
   `audit` gate on `main` since 2026-09-02 and therefore blocking every PR:
   `fast-uri` 3.1.5 → 3.1.7 (high — host confusion and SSRF via IDN/IPv6/percent-decoding

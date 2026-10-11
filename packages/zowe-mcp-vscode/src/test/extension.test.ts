@@ -22,6 +22,7 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import {
   buildServerConfig,
+  pickConfigTarget,
   provideZoweMcpServerDefinitions,
   showNoConnectionsNotificationIfNeeded,
 } from '../extension';
@@ -473,6 +474,59 @@ suite('Zowe MCP VS Code Extension', () => {
         serverConfig.args.includes('zowemcp-test-user@127.0.0.1'),
         'args should include --system value from real settings'
       );
+    });
+  });
+
+  suite('pickConfigTarget', () => {
+    // workspaceFolders is a getter-only property on the vscode namespace, so a
+    // plain assignment throws. Swap in a value descriptor and restore the
+    // original accessor afterwards.
+    const originalDescriptor = Object.getOwnPropertyDescriptor(
+      vscode.workspace,
+      'workspaceFolders'
+    );
+
+    function setWorkspaceFolders(value: readonly vscode.WorkspaceFolder[] | undefined): void {
+      Object.defineProperty(vscode.workspace, 'workspaceFolders', {
+        value,
+        configurable: true,
+        enumerable: true,
+      });
+    }
+
+    teardown(() => {
+      assert.ok(originalDescriptor, 'workspaceFolders descriptor should exist');
+      Object.defineProperty(vscode.workspace, 'workspaceFolders', originalDescriptor);
+    });
+
+    test('returns Workspace/"workspace settings" when a workspace is open', () => {
+      setWorkspaceFolders([
+        {
+          uri: vscode.Uri.file('/tmp/some-workspace'),
+          name: 'some-workspace',
+          index: 0,
+        },
+      ]);
+
+      const { target, scopeLabel } = pickConfigTarget();
+      assert.strictEqual(target, vscode.ConfigurationTarget.Workspace);
+      assert.strictEqual(scopeLabel, 'workspace settings');
+    });
+
+    test('returns Global/"user settings" when workspaceFolders is undefined', () => {
+      setWorkspaceFolders(undefined);
+
+      const { target, scopeLabel } = pickConfigTarget();
+      assert.strictEqual(target, vscode.ConfigurationTarget.Global);
+      assert.strictEqual(scopeLabel, 'user settings');
+    });
+
+    test('returns Global/"user settings" when workspaceFolders is an empty array', () => {
+      setWorkspaceFolders([]);
+
+      const { target, scopeLabel } = pickConfigTarget();
+      assert.strictEqual(target, vscode.ConfigurationTarget.Global);
+      assert.strictEqual(scopeLabel, 'user settings');
     });
   });
 

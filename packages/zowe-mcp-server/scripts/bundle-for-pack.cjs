@@ -38,6 +38,7 @@ const {
   bundleWorkspaceDep,
   prepareFileDepsForBundle,
   dereferenceSymlinks,
+  installBundledNodeModules,
   npmInstallProduction,
   pruneNapiRsCli,
   pruneRuntimeDeadFiles,
@@ -69,6 +70,13 @@ try {
     targetPackageJsonPath: packageJsonPath,
     depName: 'zowe-mcp-common',
     depSourceDir: commonPkgDir,
+  });
+  // AT-TLS gate (dist only — the native addon is built per-LPAR, never packed).
+  bundleWorkspaceDep({
+    targetDir: serverPkgDir,
+    targetPackageJsonPath: packageJsonPath,
+    depName: 'zos-attls',
+    depSourceDir: path.join(repoRoot, 'packages', 'zos-attls'),
   });
 
   prepareFileDepsForBundle({
@@ -114,23 +122,18 @@ try {
   });
   console.log(`Pruned ${deadFilesPruned} runtime-dead files.`);
 
-  // 7. Copy the node_modules tree into the server package directory
-  const targetNodeModules = path.join(serverPkgDir, 'node_modules');
-  if (fs.existsSync(targetNodeModules)) {
-    fs.rmSync(targetNodeModules, { recursive: true, force: true });
-  }
-  fs.cpSync(path.join(isoDir, 'node_modules'), targetNodeModules, { recursive: true });
+  // 7.+8. Copy the node_modules tree into the server package directory and add
+  //    bundledDependencies: true so npm pack includes it. The flag is NOT in
+  //    the committed package.json (it would cause npm install to skip deps
+  //    during development) — added only for the pack phase, restored by postpack.
+  installBundledNodeModules({
+    pkgDir: serverPkgDir,
+    isoNodeModules: path.join(isoDir, 'node_modules'),
+    packageJsonPath,
+  });
 
   // Clean up the temp directory
   fs.rmSync(isoDir, { recursive: true, force: true });
-
-  // 8. Add bundledDependencies: true so npm pack includes the node_modules/ tree.
-  //    This flag is NOT in the committed package.json (it would cause npm install
-  //    to skip deps during development). We add it here only for the pack phase.
-  const modifiedPkg = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
-  modifiedPkg.bundledDependencies = true;
-  fs.writeFileSync(packageJsonPath, JSON.stringify(modifiedPkg, null, 2));
-  console.log('Prepack complete — bundledDependencies will include node_modules/ in the tarball.');
 } catch (err) {
   // Restore the original package.json and remove scratch dirs so a failed
   // prepack doesn't leave the working tree broken (which then breaks npm ci).

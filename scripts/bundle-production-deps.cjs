@@ -70,7 +70,15 @@ function bundleWorkspaceDep({ targetDir, targetPackageJsonPath, depName, depSour
   fs.writeFileSync(
     path.join(localDir, 'package.json'),
     JSON.stringify(
-      { name: depPkg.name, version: depPkg.version, main: depPkg.main, types: depPkg.types },
+      {
+        name: depPkg.name,
+        version: depPkg.version,
+        main: depPkg.main,
+        types: depPkg.types,
+        // Preserve the module system: an ESM dep ("type": "module") whose
+        // bundled copy lost the field would load its dist as CJS and crash.
+        ...(depPkg.type ? { type: depPkg.type } : {}),
+      },
       null,
       2
     )
@@ -215,6 +223,20 @@ function npmInstallProduction(cwd) {
 }
 
 /**
+ * Lockfile-enforced clean install of production dependencies (`npm ci`): every
+ * version and integrity hash comes from the package-lock.json in `cwd`, so
+ * nothing in the bundled tree can resolve fresh from the registry at pack
+ * time. Fails (by npm ci's own contract) when package.json and the lockfile
+ * disagree — the caller decides how to regenerate the lock.
+ */
+function npmCiProduction(cwd) {
+  execSync('npm ci --omit=dev --ignore-scripts', {
+    cwd,
+    stdio: 'inherit',
+  });
+}
+
+/**
  * Recursively deletes every `@napi-rs/cli` directory (and its `.bin/napi`
  * entry) found anywhere under `dir`. It's a devDependency of `russh`
  * (bundled inside the `@zowe/zowex-for-zowe-sdk` tgz) that npm installs
@@ -334,6 +356,65 @@ function pruneRuntimeDeadFiles(dir, { pruneEsmVariants }) {
   return pruned;
 }
 
+/**
+ * Final prepack steps shared by every bundling package: replace the package's
+ * node_modules with the prepared isolated tree, then flip
+ * `bundledDependencies: true` for the pack phase only (the committed
+ * package.json never carries it — postpack restores the backup).
+ */
+function installBundledNodeModules({ pkgDir, isoNodeModules, packageJsonPath }) {
+  const targetNodeModules = path.join(pkgDir, 'node_modules');
+  if (fs.existsSync(targetNodeModules)) {
+    fs.rmSync(targetNodeModules, { recursive: true, force: true });
+  }
+  fs.cpSync(isoNodeModules, targetNodeModules, { recursive: true });
+
+  const modifiedPkg = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
+  modifiedPkg.bundledDependencies = true;
+  fs.writeFileSync(packageJsonPath, JSON.stringify(modifiedPkg, null, 2));
+  console.log('Prepack complete — bundledDependencies will include node_modules/ in the tarball.');
+}
+
+/**
+ * Shared postpack behavior: restore the byte-exact package.json backup, remove
+ * prepack scratch directories and the production node_modules tree, then
+ * reinstall workspace dependencies from the repo root.
+ */
+function restoreAfterPack({ pkgDir, repoRoot, scratchDirs = [] }) {
+  const packageJsonPath = path.join(pkgDir, 'package.json');
+  const backupPath = path.join(pkgDir, '.package.json.backup');
+
+  if (fs.existsSync(backupPath)) {
+    fs.copyFileSync(backupPath, packageJsonPath);
+    fs.unlinkSync(backupPath);
+    console.log('Restored original package.json');
+  } else {
+    console.warn('Warning: No backup package.json found to restore');
+  }
+
+  for (const dir of scratchDirs) {
+    const dirPath = path.join(pkgDir, dir);
+    if (fs.existsSync(dirPath)) {
+      fs.rmSync(dirPath, { recursive: true, force: true });
+      console.log(`Cleaned up ${dir}/`);
+    }
+  }
+
+  const nodeModulesPath = path.join(pkgDir, 'node_modules');
+  if (fs.existsSync(nodeModulesPath)) {
+    fs.rmSync(nodeModulesPath, { recursive: true, force: true });
+    console.log('Removed prepack node_modules/');
+  }
+
+  console.log('Restoring workspace dependencies...');
+  execSync('npm install --ignore-scripts', {
+    cwd: repoRoot,
+    stdio: 'inherit',
+  });
+
+  console.log('Postpack cleanup complete.');
+}
+
 module.exports = {
   safeDepFolderName,
   stripIntegrityDeep,
@@ -341,6 +422,9 @@ module.exports = {
   prepareFileDepsForBundle,
   dereferenceSymlinks,
   npmInstallProduction,
+  npmCiProduction,
   pruneNapiRsCli,
   pruneRuntimeDeadFiles,
+  installBundledNodeModules,
+  restoreAfterPack,
 };

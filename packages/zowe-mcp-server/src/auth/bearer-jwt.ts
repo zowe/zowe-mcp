@@ -15,6 +15,7 @@
  */
 
 import { createPublicKey, verify as cryptoVerify } from 'node:crypto';
+import { atTlsAwareJsonGet } from './attls-client-http.js';
 
 /** Parsed JWT claims used as tenant identity for shared MCP. */
 export interface TenantJwtClaims {
@@ -29,8 +30,12 @@ export interface JwtAuthConfig {
   issuer: string;
   /** JWKS URL (e.g. https://idp/.well-known/jwks.json). */
   jwksUri: string;
-  /** Optional expected audience (`aud` claim — string or first element if array). */
-  audience?: string;
+  /**
+   * Expected audience (`aud` claim — string, or matched against array
+   * members). Required: without a bound audience, any signature-valid token
+   * the issuer minted for another relying party would be accepted here.
+   */
+  audience: string;
 }
 
 interface CachedJwks {
@@ -39,6 +44,12 @@ interface CachedJwks {
 }
 
 const JWKS_TTL_MS = 300_000;
+/**
+ * Upper bound on the JWKS / OIDC-discovery HTTP round trip. Without it, an
+ * IdP that accepts the TCP connection but never answers hangs server startup
+ * (discovery) and, once the JWKS cache expires, every token verification.
+ */
+const IDP_FETCH_TIMEOUT_MS = 10_000;
 /** Tolerated clock difference between this server and the IdP for exp/nbf checks. */
 const CLOCK_SKEW_SEC = 60;
 const jwksCache = new Map<string, CachedJwks>();
@@ -59,7 +70,8 @@ async function fetchJwks(uri: string): Promise<{ keys: unknown[] }> {
   if (cached && now - cached.fetchedAt < JWKS_TTL_MS) {
     return { keys: cached.keys };
   }
-  const res = await fetch(uri, { headers: { Accept: 'application/json' } });
+  // Routed through the AT-TLS client guard when ZOWE_MCP_ATTLS_CLIENT is on.
+  const res = await atTlsAwareJsonGet(uri, { Accept: 'application/json' }, IDP_FETCH_TIMEOUT_MS);
   if (!res.ok) {
     throw new Error(`JWKS fetch failed: ${res.status} ${res.statusText}`);
   }
@@ -134,7 +146,9 @@ export async function verifyBearerJwt(
   if (payload.iss !== config.issuer) {
     throw new Error('JWT issuer mismatch');
   }
-  if (config.audience !== undefined) {
+  // Audience is always validated — a token without an aud claim, or minted
+  // for a different relying party of the same issuer, must not be accepted.
+  {
     const aud = payload.aud;
     const ok =
       typeof aud === 'string'
@@ -177,26 +191,57 @@ export function __clearJwtJwksCacheForTests(): void {
   jwksCache.clear();
 }
 
+/** JWT auth config as read from the environment; `jwksUri` may still need OIDC discovery. */
+export type JwtAuthEnvConfig = Omit<JwtAuthConfig, 'jwksUri'> & { jwksUri?: string };
+
 /**
  * Reads optional JWT auth config from environment variables:
- * - ZOWE_MCP_JWT_ISSUER + ZOWE_MCP_JWKS_URI → JWT required on HTTP /mcp
- * - ZOWE_MCP_JWT_AUDIENCE (optional)
+ * - ZOWE_MCP_JWT_ISSUER → JWT required on HTTP /mcp
+ * - ZOWE_MCP_JWKS_URI (optional — resolved from the issuer's OIDC discovery
+ *   document via `resolveJwksUriFromIssuer` when unset)
+ * - ZOWE_MCP_JWT_AUDIENCE (required when JWT auth is enabled — without a bound
+ *   audience, any signature-valid token the issuer minted for another relying
+ *   party would be accepted here)
  */
-export function loadJwtAuthConfigFromEnv(): JwtAuthConfig | undefined {
+export function loadJwtAuthConfigFromEnv(): JwtAuthEnvConfig | undefined {
   const issuer = process.env.ZOWE_MCP_JWT_ISSUER?.trim();
   const jwksUri = process.env.ZOWE_MCP_JWKS_URI?.trim();
   if (!issuer && !jwksUri) {
     return undefined;
   }
-  if (!issuer || !jwksUri) {
-    throw new Error(
-      'Both ZOWE_MCP_JWT_ISSUER and ZOWE_MCP_JWKS_URI must be set to enable HTTP JWT auth'
-    );
+  if (!issuer) {
+    throw new Error('ZOWE_MCP_JWT_ISSUER must be set to enable HTTP JWT auth');
   }
   const audience = process.env.ZOWE_MCP_JWT_AUDIENCE?.trim();
+  if (!audience) {
+    throw new Error(
+      'ZOWE_MCP_JWT_AUDIENCE must be set to enable HTTP JWT auth: without a bound audience, ' +
+        'tokens the issuer minted for other relying parties would be accepted here. Set it to ' +
+        "this server's MCP resource URL (the IdP's --mcp-resource value)."
+    );
+  }
   return {
     issuer,
-    jwksUri,
-    ...(audience ? { audience } : {}),
+    audience,
+    ...(jwksUri ? { jwksUri } : {}),
   };
+}
+
+/**
+ * Resolves the issuer's `jwks_uri` from its OIDC discovery document
+ * (`{issuer}/.well-known/openid-configuration`). Used at startup when
+ * ZOWE_MCP_JWKS_URI is not set explicitly.
+ */
+export async function resolveJwksUriFromIssuer(issuer: string): Promise<string> {
+  const url = `${issuer.replace(/\/+$/, '')}/.well-known/openid-configuration`;
+  // Routed through the AT-TLS client guard when ZOWE_MCP_ATTLS_CLIENT is on.
+  const res = await atTlsAwareJsonGet(url, undefined, IDP_FETCH_TIMEOUT_MS);
+  if (!res.ok) {
+    throw new Error(`OIDC discovery failed: HTTP ${String(res.status)} from ${url}`);
+  }
+  const doc = (await res.json()) as { jwks_uri?: unknown };
+  if (typeof doc.jwks_uri !== 'string' || !doc.jwks_uri) {
+    throw new Error(`OIDC discovery document at ${url} has no jwks_uri`);
+  }
+  return doc.jwks_uri;
 }

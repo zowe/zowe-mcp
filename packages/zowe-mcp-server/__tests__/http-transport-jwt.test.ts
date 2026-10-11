@@ -30,6 +30,7 @@ const TEST_ISSUER = 'https://idp.http-test.example.com';
 const TEST_JWKS_URI = 'https://idp.http-test.example.com/jwks.json';
 const TEST_OIDC_DISCOVERY = `${TEST_ISSUER}/.well-known/openid-configuration`;
 const KID = 'http-test-kid';
+const TEST_AUDIENCE = 'api://zowe-mcp-http-test';
 
 /** Preserve Node/Web fetch so MCP Streamable HTTP client can POST to localhost while JWKS is mocked. */
 const realFetch = globalThis.fetch.bind(globalThis);
@@ -132,6 +133,7 @@ describe('startHttp with jwtAuth', () => {
         jwtAuth: {
           issuer: TEST_ISSUER,
           jwksUri: TEST_JWKS_URI,
+          audience: TEST_AUDIENCE,
         },
       }
     );
@@ -164,6 +166,7 @@ describe('startHttp with jwtAuth', () => {
         jwtAuth: {
           issuer: TEST_ISSUER,
           jwksUri: TEST_JWKS_URI,
+          audience: TEST_AUDIENCE,
         },
       }
     );
@@ -172,6 +175,104 @@ describe('startHttp with jwtAuth', () => {
       expect(res.statusCode).toBe(401);
       const body = JSON.parse(res.text) as { error?: { message?: string } };
       expect(body.error?.message).toMatch(/Bearer token/i);
+      // MCP authorization spec / RFC 9728 §5.1: the 401 must point clients at
+      // the protected-resource metadata. RFC 6750: no `error` attribute when
+      // credentials are absent.
+      const challenge = res.headers['www-authenticate'];
+      expect(challenge).toMatch(/^Bearer /);
+      expect(challenge).toContain(
+        `resource_metadata="http://127.0.0.1:${handle.port}/.well-known/oauth-protected-resource/mcp"`
+      );
+      expect(challenge).not.toContain('error=');
+    } finally {
+      await handle.close();
+    }
+  });
+
+  it('returns 401 with error="invalid_token" challenge for a bad Bearer token', async () => {
+    const logger = getLogger();
+    const expiredToken = sign({
+      iss: TEST_ISSUER,
+      aud: TEST_AUDIENCE,
+      sub: 'http-user-expired',
+      exp: Math.floor(Date.now() / 1000) - 3600,
+    });
+    const handle = await startHttp(
+      () => {
+        const r = createServer();
+        return getServer(r);
+      },
+      0,
+      logger,
+      {
+        jwtAuth: {
+          issuer: TEST_ISSUER,
+          jwksUri: TEST_JWKS_URI,
+          audience: TEST_AUDIENCE,
+        },
+      }
+    );
+    try {
+      const res = await postMcpLocal(handle.port, MCP_INIT_BODY, {
+        Authorization: `Bearer ${expiredToken}`,
+      });
+      expect(res.statusCode).toBe(401);
+      const challenge = res.headers['www-authenticate'];
+      expect(challenge).toMatch(/^Bearer error="invalid_token", error_description="[^"]*", /);
+      expect(challenge).toContain(
+        `resource_metadata="http://127.0.0.1:${handle.port}/.well-known/oauth-protected-resource/mcp"`
+      );
+    } finally {
+      await handle.close();
+    }
+  });
+
+  it('does not send WWW-Authenticate on a 403 session-subject mismatch', async () => {
+    const logger = getLogger();
+    const tokenAlice = sign({
+      iss: TEST_ISSUER,
+      aud: TEST_AUDIENCE,
+      sub: 'http-user-alice',
+      exp: Math.floor(Date.now() / 1000) + 3600,
+    });
+    const tokenBob = sign({
+      iss: TEST_ISSUER,
+      aud: TEST_AUDIENCE,
+      sub: 'http-user-bob',
+      exp: Math.floor(Date.now() / 1000) + 3600,
+    });
+    const handle = await startHttp(
+      () => {
+        const r = createServer();
+        return getServer(r);
+      },
+      0,
+      logger,
+      {
+        jwtAuth: {
+          issuer: TEST_ISSUER,
+          jwksUri: TEST_JWKS_URI,
+          audience: TEST_AUDIENCE,
+        },
+      }
+    );
+    try {
+      const init = await postMcpLocal(handle.port, MCP_INIT_BODY, {
+        Authorization: `Bearer ${tokenAlice}`,
+      });
+      expect(init.statusCode).toBe(200);
+      const sessionId = init.headers['mcp-session-id'];
+      expect(typeof sessionId).toBe('string');
+      const res = await postMcpLocal(
+        handle.port,
+        { jsonrpc: '2.0', id: 2, method: 'tools/list', params: {} },
+        {
+          Authorization: `Bearer ${tokenBob}`,
+          'mcp-session-id': sessionId as string,
+        }
+      );
+      expect(res.statusCode).toBe(403);
+      expect(res.headers['www-authenticate']).toBeUndefined();
     } finally {
       await handle.close();
     }
@@ -181,6 +282,7 @@ describe('startHttp with jwtAuth', () => {
     const logger = getLogger();
     const token = sign({
       iss: TEST_ISSUER,
+      aud: TEST_AUDIENCE,
       sub: 'http-user-1',
       exp: Math.floor(Date.now() / 1000) + 3600,
     });
@@ -195,6 +297,7 @@ describe('startHttp with jwtAuth', () => {
         jwtAuth: {
           issuer: TEST_ISSUER,
           jwksUri: TEST_JWKS_URI,
+          audience: TEST_AUDIENCE,
         },
       }
     );
@@ -215,6 +318,7 @@ describe('startHttp with jwtAuth', () => {
     const logger = getLogger();
     const token = sign({
       iss: TEST_ISSUER,
+      aud: TEST_AUDIENCE,
       sub: 'http-user-tool',
       exp: Math.floor(Date.now() / 1000) + 3600,
     });
@@ -229,6 +333,7 @@ describe('startHttp with jwtAuth', () => {
         jwtAuth: {
           issuer: TEST_ISSUER,
           jwksUri: TEST_JWKS_URI,
+          audience: TEST_AUDIENCE,
         },
       }
     );
@@ -253,6 +358,68 @@ describe('startHttp with jwtAuth', () => {
       expect(data.server?.name).toBe('Zowe MCP Server');
     } finally {
       await client.close().catch(() => undefined);
+      await handle.close();
+    }
+  });
+});
+
+describe('startHttp /mcp auth-failure rate limit', () => {
+  const jwtAuth = { issuer: TEST_ISSUER, jwksUri: TEST_JWKS_URI, audience: TEST_AUDIENCE };
+  const start = () => startHttp(() => getServer(createServer()), 0, getLogger(), { jwtAuth });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('answers 429 with Retry-After once failures exceed the budget', async () => {
+    vi.stubEnv('ZOWE_MCP_AUTH_FAILURE_LIMIT', '3');
+    const handle = await start();
+    try {
+      const codes: number[] = [];
+      let last: Awaited<ReturnType<typeof postMcpLocal>> | undefined;
+      for (let i = 0; i < 5; i++) {
+        last = await postMcpLocal(handle.port, MCP_INIT_BODY, { Authorization: 'Bearer bad' });
+        codes.push(last.statusCode);
+      }
+      expect(codes).toEqual([401, 401, 401, 429, 429]);
+      expect(Number(last?.headers['retry-after'])).toBeGreaterThan(0);
+    } finally {
+      await handle.close();
+    }
+  });
+
+  it('does not count successful requests against the budget', async () => {
+    vi.stubEnv('ZOWE_MCP_AUTH_FAILURE_LIMIT', '2');
+    const handle = await start();
+    try {
+      const token = sign({
+        iss: TEST_ISSUER,
+        aud: TEST_AUDIENCE,
+        sub: 'user-1',
+        exp: Math.floor(Date.now() / 1000) + 300,
+      });
+      for (let i = 0; i < 5; i++) {
+        const res = await postMcpLocal(handle.port, MCP_INIT_BODY, {
+          Authorization: `Bearer ${token}`,
+        });
+        expect(res.statusCode).toBe(200);
+      }
+    } finally {
+      await handle.close();
+    }
+  });
+
+  it('is disabled by ZOWE_MCP_AUTH_FAILURE_LIMIT=0', async () => {
+    vi.stubEnv('ZOWE_MCP_AUTH_FAILURE_LIMIT', '0');
+    const handle = await start();
+    try {
+      for (let i = 0; i < 5; i++) {
+        const res = await postMcpLocal(handle.port, MCP_INIT_BODY, {
+          Authorization: 'Bearer bad',
+        });
+        expect(res.statusCode).toBe(401);
+      }
+    } finally {
       await handle.close();
     }
   });

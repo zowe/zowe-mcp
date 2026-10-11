@@ -539,7 +539,6 @@ export class NativeBackend {
         `No connection spec for system "${systemId}"${userId ? ` and user "${userId}"` : ''}`
       );
     }
-
     const key = cacheKey(spec);
     const prev = connectionLocks.get(key) ?? Promise.resolve();
     let release: () => void;
@@ -555,9 +554,15 @@ export class NativeBackend {
     await prev;
     log.debug('Native backend: connection lock acquired', { key, systemId });
 
-    let credentials = await this.options.credentialProvider.getCredentials(systemId, userId, {
-      progress,
-    });
+    // Local zowex execution (docs/zos-local-zowex-identity.md): no credential
+    // lookup ever happens for `local` — the identity is the authenticated JWT
+    // sub, switched to by the SURROGAT launcher at spawn time.
+    let credentials: Credentials | undefined;
+    if (!spec.local) {
+      credentials = await this.options.credentialProvider.getCredentials(systemId, userId, {
+        progress,
+      });
+    }
 
     try {
       try {
@@ -566,7 +571,7 @@ export class NativeBackend {
         // SSH key auth failed: fall back to the password flow once (env / vault / elicitation /
         // VS Code prompt). markKeyFailed makes subsequent operations skip the key for this
         // connection; a failure of the password retry below flows to the classification handler.
-        if (credentials.authMethod === 'key' && this.isKeyAuthFailure(attemptErr)) {
+        if (credentials?.authMethod === 'key' && this.isKeyAuthFailure(attemptErr)) {
           log.info('SSH key authentication failed; falling back to password', {
             key,
             systemId,
@@ -638,14 +643,18 @@ export class NativeBackend {
         err: toThrow instanceof Error ? toThrow.stack : String(toThrow),
       });
 
-      if (isPasswordExpired) {
+      // Local specs have no password to mark invalid or expire — the identity
+      // is the JWT sub and the launcher's SURROGAT switch; misclassifying a
+      // launcher/zowex error as a password problem must never reach the
+      // credential provider or the password-invalid callback.
+      if (isPasswordExpired && !spec.local) {
         this.options.credentialProvider.markInvalid(spec);
         this.options.clientCache.evict(spec);
         this.options.onPasswordInvalid?.(spec.user, spec.host, spec.port);
         throw new Error(
           `Password for ${spec.user}@${spec.host} has expired. Change your password on z/OS (e.g. via a 3270 terminal) and provide the new password.`
         );
-      } else if (isInvalidPassword) {
+      } else if (isInvalidPassword && !spec.local) {
         this.options.credentialProvider.markInvalid(spec);
         this.options.clientCache.evict(spec);
         this.options.onPasswordInvalid?.(spec.user, spec.host, spec.port);
@@ -700,7 +709,7 @@ export class NativeBackend {
     spec: ParsedConnectionSpec,
     key: string,
     systemId: SystemId,
-    credentials: Credentials,
+    credentials: Credentials | undefined,
     fn: (client: ZSshClient) => Promise<T>,
     progress?: BackendProgressCallback
   ): Promise<T> {
@@ -765,11 +774,9 @@ export class NativeBackend {
     const saveDir = explicitDir !== undefined && explicitDir !== '' ? explicitDir : process.cwd();
     let client: ZSshClient | undefined;
     try {
-      const credentials = await this.options.credentialProvider.getCredentials(
-        systemId,
-        userId,
-        {}
-      );
+      const credentials = spec.local
+        ? undefined
+        : await this.options.credentialProvider.getCredentials(systemId, userId, {});
       client = await this.options.clientCache.getOrCreate(spec, credentials);
       const uss = this.getUss(client);
 
@@ -1364,15 +1371,41 @@ export class NativeBackend {
     }
     const parsed = sdk.UtilsApi.tools.parseSearchOutput(rawOutput);
 
-    const members = parsed.members.map(m => ({
-      name: m.name,
-      matches: m.matches.map(match => ({
+    // The SDK's SuperC output parser emits a member row without a name when a
+    // listing page break falls inside a member's match list (the continuation
+    // page repeats the LINE-#/SRCH DSN header but not the member-name line;
+    // seen with SYS1.MACLIB on Host-A) — one such row makes the whole response
+    // fail MCP output-schema validation (name is required). A nameless row is
+    // always the continuation of the member before it, so merge its matches
+    // into the preceding named member; the parser gap is an SDK issue.
+    const hasName = (m: { name?: string }) =>
+      typeof m.name === 'string' && m.name.trim().length > 0;
+    let merged = 0;
+    let dropped = 0;
+    const members: SearchInDatasetResult['members'] = [];
+    for (const m of parsed.members) {
+      const matches = m.matches.map(match => ({
         lineNumber: match.lineNumber,
         content: match.content,
         ...(match.beforeContext?.length ? { beforeContext: match.beforeContext } : {}),
         ...(match.afterContext?.length ? { afterContext: match.afterContext } : {}),
-      })),
-    }));
+      }));
+      if (hasName(m)) {
+        members.push({ name: m.name, matches });
+      } else if (members.length > 0) {
+        members[members.length - 1].matches.push(...matches);
+        merged++;
+      } else {
+        // No preceding member to attach to — nothing safe to do but drop.
+        dropped++;
+      }
+    }
+    if (merged > 0 || dropped > 0) {
+      log.notice(
+        'ZNP tool.search returned member rows without a name (SuperC page-break parser gap); merged them into the preceding member',
+        { dsname: searchDsn, merged, dropped, members: members.length }
+      );
+    }
 
     const summarySaysMatches =
       parsed.summary.linesFound > 0 || parsed.summary.membersWithLines > 0;

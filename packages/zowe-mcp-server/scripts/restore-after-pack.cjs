@@ -15,47 +15,12 @@
  * Runs as a postpack script (after npm pack).
  */
 
-const fs = require('fs');
 const path = require('path');
-const { execSync } = require('child_process');
+const { restoreAfterPack } = require('../../../scripts/bundle-production-deps.cjs');
 
 const serverPkgDir = path.resolve(__dirname, '..');
-const repoRoot = path.resolve(serverPkgDir, '..', '..');
-const packageJsonPath = path.join(serverPkgDir, 'package.json');
-const backupPath = path.join(serverPkgDir, '.package.json.backup');
-
-// Restore original package.json verbatim (byte-exact — preserves formatting,
-// e.g. the trailing newline, so packing leaves the working tree clean).
-if (fs.existsSync(backupPath)) {
-  fs.copyFileSync(backupPath, packageJsonPath);
-  fs.unlinkSync(backupPath);
-  console.log('Restored original package.json');
-} else {
-  console.warn('Warning: No backup package.json found to restore');
-}
-
-// Clean up temporary directories created by prepack
-const dirsToClean = ['.local', '.unpack', '.extract-tmp', '.tgz', '.temp-extract'];
-for (const dir of dirsToClean) {
-  const dirPath = path.join(serverPkgDir, dir);
-  if (fs.existsSync(dirPath)) {
-    fs.rmSync(dirPath, { recursive: true, force: true });
-    console.log(`Cleaned up ${dir}/`);
-  }
-}
-
-// Remove the production node_modules tree that prepack created and
-// restore workspace state with a fresh npm install from the repo root.
-const nodeModulesPath = path.join(serverPkgDir, 'node_modules');
-if (fs.existsSync(nodeModulesPath)) {
-  fs.rmSync(nodeModulesPath, { recursive: true, force: true });
-  console.log('Removed prepack node_modules/');
-}
-
-console.log('Restoring workspace dependencies...');
-execSync('npm install --ignore-scripts', {
-  cwd: repoRoot,
-  stdio: 'inherit',
+restoreAfterPack({
+  pkgDir: serverPkgDir,
+  repoRoot: path.resolve(serverPkgDir, '..', '..'),
+  scratchDirs: ['.local', '.unpack', '.extract-tmp', '.tgz', '.temp-extract'],
 });
-
-console.log('Postpack cleanup complete.');

@@ -35,6 +35,7 @@
   "license": "EPL-2.0",
   "dependencies": {
     "express": "5.2.1",
+    "express-rate-limit": "^8.7.1",
     "oidc-provider": "9.12.2",
     "ssh2": "1.17.0",
     "zos-attls": "*"

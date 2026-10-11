@@ -25,6 +25,7 @@ import type Provider from 'oidc-provider';
 import { errors, type InteractionResults } from 'oidc-provider';
 import { attemptSafLogin } from '../auth-attempt.js';
 import type { LoginRateLimiter } from '../rate-limit.js';
+import { createRequestLimiter } from '../request-limit.js';
 import { toSafUserid } from '../saf-userid.js';
 import type { SafVerifier } from '../saf-verify.js';
 import { consentPage, errorPage, loginPage, setInteractionPageHeaders } from './html.js';
@@ -121,6 +122,7 @@ export function createInteractionRouter(config: InteractionRouterConfig): Router
   const { provider, rateLimiter } = config;
   const log = config.log ?? noopLog;
   const router = Router();
+  router.use(createRequestLimiter());
   const formParser = express.urlencoded({ extended: false, limit: '4kb' });
 
   const withInteraction = (

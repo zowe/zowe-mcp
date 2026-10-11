@@ -14,6 +14,7 @@ import { attemptSafLogin } from '../auth-attempt.js';
 import { mintAccessToken } from '../jwt-sign.js';
 import type { IdpKeyPair } from '../keys.js';
 import type { LoginRateLimiter } from '../rate-limit.js';
+import { createRequestLimiter } from '../request-limit.js';
 import { toSafUserid } from '../saf-userid.js';
 import type { SafVerifier } from '../saf-verify.js';
 
@@ -46,11 +47,12 @@ function isLoopbackAddress(address: string | undefined): boolean {
  */
 export function createLoginRouter(config: LoginRouteConfig): Router {
   const router = Router();
+  const requestLimiter = createRequestLimiter();
 
   // Scoped here, NOT app-wide: a global express.json() would drain request
   // bodies before oidc-provider's own body parser sees them, silently
   // breaking /token and /reg.
-  router.post('/login', express.json(), async (req: Request, res: Response) => {
+  router.post('/login', requestLimiter, express.json(), async (req: Request, res: Response) => {
     if (!isLoopbackAddress(req.socket.remoteAddress)) {
       res.status(403).json({ error: 'forbidden' });
       return;

@@ -63,6 +63,11 @@
           "isRequired": false
         },
         {
+          "name": "ZOWE_MCP_VAULT_CACHE_TTL_MS",
+          "description": "Optional in-process cache duration in milliseconds for Vault password reads. Defaults to 60000; set to 0 to disable caching.",
+          "isRequired": false
+        },
+        {
           "name": "ZOWE_MCP_TENANT_STORE_KEY",
           "description": "Optional 64 hex chars or base64 32-byte key to encrypt tenant connection JSON files under ZOWE_MCP_TENANT_STORE_DIR (AES-256-GCM).",
           "isSecret": true,

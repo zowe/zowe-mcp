@@ -1,12 +1,12 @@
-# Roo Code and other standalone MCP clients
+# Standalone MCP clients
 
-Some AI clients (for example [Roo Code](https://docs.roocode.com/features/mcp/using-mcp-in-roo)) load MCP servers only from **their own** configuration (e.g. project `.roo/mcp.json` or global `mcp_settings.json` with an `mcpServers` object). They do **not** use VS Code’s `vscode.lm.registerMcpServerDefinitionProvider`, so the Zowe MCP VS Code extension does not register the server for them.
+Standalone MCP clients start `@zowe/mcp-server` directly from their own
+configuration instead of relying on the optional VS Code extension to register
+the server. Use stdio mode with `command`, `args`, and optional `env` fields, as
+shown below.
 
-> **If you have the Zowe MCP VS Code extension installed for Roo:** uninstall it and use the `@zowe/mcp-server` npm package directly via Roo's `mcp.json` (this guide). The extension's MCP-server registration is invisible to Roo, so leaving it installed just adds a stale Settings UI and a misleading log channel. Uninstall via the Extensions view, or `code --uninstall-extension zowe.zowe-mcp-vscode`. The extension's helper commands (`zowe-mcp.initMockData`, etc.) are thin wrappers around CLI subcommands — `zowe-mcp-server init-mock --output …` is equivalent.
-
-Use the `**@zowe/mcp-server`** npm package in **stdio** mode: `command` + `args` (+ optional `env`), the same as any MCP client that spawns a process.
-
-For **Streamable HTTP** (Bearer JWT, local Keycloak, or any remote URL), Roo supports **`type`: `streamable-http`** with **`url`** and optional **`headers`** — see **`docs/remote-dev-keycloak.md`** (Copilot / Cursor / Roo examples).
+For **Streamable HTTP** with Bearer JWT, local Keycloak, or another remote URL,
+see [Remote development with Keycloak](remote-dev-keycloak.md).
 
 ## Package identity
 
@@ -14,7 +14,7 @@ For **Streamable HTTP** (Bearer JWT, local Keycloak, or any remote URL), Roo sup
 | -------------------- | -------------------------------------------------------------------- |
 | **npm package**      | `@zowe/mcp-server`                                                   |
 | **CLI / `bin` name** | `zowe-mcp-server` (what you run after `npm install -g` or via `npx`) |
-| `**npx`**            | `npx @zowe/mcp-server …` or `npx -y @zowe/mcp-server@<version> …`    |
+| **`npx`**            | `npx @zowe/mcp-server …` or `npx -y @zowe/mcp-server@<version> …`    |
 
 ## Install the server
 
@@ -26,7 +26,7 @@ Ensure your npm registry can resolve `@zowe/*` (public npm or your org’s mirro
 
 ## Obtaining the `.tgz`
 
-- **CI** — Successful [GitHub Actions](../.github/workflows/ci.yml) runs upload `**zowe-mcp-server-npm`** (`zowe-mcp-server-*.tgz`). Download from the workflow run’s **Artifacts**.
+- **CI** — Successful [GitHub Actions](../.github/workflows/ci.yml) runs upload **`zowe-mcp-server-npm`** (`zowe-mcp-server-*.tgz`). Download from the workflow run’s **Artifacts**.
 - **From a clone** — `npm run pack:server` at the repo root writes `zowe-mcp-server-<version>.tgz` (gitignored).
 - **Install from tarball** — `npm install -g ./zowe-mcp-server-0.x.y.tgz` or `npm install ./zowe-mcp-server-*.tgz`.
 
@@ -36,13 +36,17 @@ Run from a local tarball without publishing:
 npx --package=file:/absolute/path/to/zowe-mcp-server-0.8.0-dev.tgz zowe-mcp-server --stdio --native --system USER@host
 ```
 
-The argument after the package is the `**bin` name** (`zowe-mcp-server`), not the scoped package name.
+The argument after the package is the **`bin` name** (`zowe-mcp-server`), not the scoped package name.
 
 ## Roo Code: `.roo/mcp.json` (native SSH)
 
-Copy or adapt [examples/roo-mcp.json](examples/roo-mcp.json).
+Roo Code loads MCP servers from its own configuration and does not use VS
+Code's `vscode.lm.registerMcpServerDefinitionProvider`. If the Zowe MCP VS Code
+extension is installed only for Roo, uninstall it and use the server package
+directly through Roo's `mcp.json`. The extension's helper commands are thin
+wrappers around equivalent server CLI subcommands.
 
-**Prefer the installed binary** (no `npx`, no registry): if `@zowe/mcp-server` is already installed globally or in a project, run the `**zowe-mcp-server`** executable directly. Put only server flags in `args` — do **not** pass `npx`, `-y`, or `@zowe/mcp-server`.
+**Prefer the installed binary** (no `npx`, no registry): if `@zowe/mcp-server` is already installed globally or in a project, run the **`zowe-mcp-server`** executable directly. Put only server flags in `args` — do **not** pass `npx`, `-y`, or `@zowe/mcp-server`.
 
 ```json
 {
@@ -91,7 +95,10 @@ ssh-agent keys are not supported in this release — only key files on disk.
 
 ### Fallback: passwords
 
-Without the VS Code extension, passwords are not collected via the extension pipe. Use one or both of the following.
+The password sources below apply when the VS Code extension pipe is unavailable,
+including standalone stdio, server-side HTTP, CLI bridge plugins, and
+`call-tool`. For native SSH, the server can use MCP elicitation after checking
+the configured password sources.
 
 ### Per-connection env vars: `ZOWE_MCP_PASSWORD_<USER>_<HOST>`
 
@@ -129,7 +136,40 @@ In `.roo/mcp.json`, pass the JSON as a **string** value (escape quotes as requir
 }
 ```
 
-**Precedence:** If both are set for the same connection, `ZOWE_MCP_PASSWORD_<USER>_<HOST>` wins; otherwise the server looks up the connection in `ZOWE_MCP_CREDENTIALS`. Implementation: `getStandalonePasswordFromEnv()` in [`connection-spec.ts`](../packages/zowe-mcp-server/src/zos/native/connection-spec.ts).
+**Password-source precedence:** `ZOWE_MCP_PASSWORD_<USER>_<HOST>` wins for
+the same connection, followed by `ZOWE_MCP_CREDENTIALS`, then optional
+HashiCorp Vault KV. For native SSH, MCP elicitation follows when no configured
+source provides a password.
+
+### Optional: HashiCorp Vault KV
+
+Vault KV provides passwords for automation and server-side deployments without
+putting them directly in the MCP process environment. Set all three required
+Vault variables to enable lookup:
+
+| Variable | Purpose |
+| --- | --- |
+| `ZOWE_MCP_VAULT_ADDR` | Vault base URL, for example `https://vault.example.com`. |
+| `ZOWE_MCP_VAULT_TOKEN` | Token sent to Vault in the `X-Vault-Token` header. Treat it as a secret. |
+| `ZOWE_MCP_VAULT_KV_PATH` | KV v2 API path after `/v1/`, for example `secret/data/myapp/zowe-mcp`. |
+| `ZOWE_MCP_VAULT_CACHE_TTL_MS` | Optional in-process cache duration in milliseconds. The default is `60000`; set it to `0` to disable caching. |
+
+The secret data uses the same connection map as `ZOWE_MCP_CREDENTIALS`:
+
+```json
+{
+  "userid@zos.example.com": "your-password",
+  "otheruser@other.host.example.com:2222": "other-password"
+}
+```
+
+The server reads this secret but never writes passwords to Vault. Vault values
+are cached only in memory. Elicited passwords are also held only for the server
+process lifetime and are cleared after failed authentication; use Vault or
+environment variables when credentials must remain available across restarts.
+
+Do not commit Vault tokens or passwords. Inject the token through your secret
+manager, deployment platform, or protected process environment.
 
 ### Why `ZOWE_MCP_CREDENTIALS` matters for MCP registries
 
@@ -141,13 +181,14 @@ In `.roo/mcp.json`, pass the JSON as a **string** value (escape quotes as requir
 - Maps cleanly to enterprise secret stores (inject one variable from Vault, Kubernetes `Secret`, CI, etc.).
 - Covers **multiple** connections in one value when you use `--config` with several systems.
 
-The shipped [`server.json`](../packages/zowe-mcp-server/server.json) documents `ZOWE_MCP_CREDENTIALS` for that reason. More background: [`mcp-authentication-oauth.md`](mcp-authentication-oauth.md) (credentials and HTTP auth), [`mcp-registry-research.md`](mcp-registry-research.md) (registry metadata).
+The shipped [`server.json`](../packages/zowe-mcp-server/server.json) documents `ZOWE_MCP_CREDENTIALS` for that reason. For more background on credentials and HTTP authentication, see
+[`mcp-authentication-oauth.md`](mcp-authentication-oauth.md).
 
 Prefer injecting secrets from the OS or a vault; do not commit real passwords into `.roo/mcp.json`.
 
 ## Job cards and multiple systems (no extension)
 
-The VS Code extension can send job cards over a pipe. In standalone mode, use `**--config`** with a JSON file:
+The VS Code extension can send job cards over a pipe. In standalone mode, use **`--config`** with a JSON file:
 
 ```json
 {
@@ -163,23 +204,15 @@ The VS Code extension can send job cards over a pipe. In standalone mode, use `*
 
 Then add to your MCP `args`: `"--config", "/absolute/path/to/native-config.json"`.
 
-See the server CLI in `[index.ts](../packages/zowe-mcp-server/src/index.ts)` (`--native`, `--system`, `--config`).
+See the server CLI in [`index.ts`](../packages/zowe-mcp-server/src/index.ts) (`--native`, `--system`, `--config`).
 
 ## Mock mode
 
-Add `--mock` / `ZOWE_MCP_MOCK_DIR`, or pass `"--mock", "/absolute/path/to/mock-data"` in `args`. Generate mock data:
-
-```bash
-# If zowe-mcp-server is installed (globally or project-local):
-zowe-mcp-server init-mock --output ./zowe-mcp-mock-data
-
-# Or from a local tarball (see "Obtaining the .tgz" above):
-npx --package=file:/absolute/path/to/zowe-mcp-server-0.8.0-dev.tgz zowe-mcp-server init-mock --output ./zowe-mcp-mock-data
-```
+For standalone testing without a mainframe, see [Mock mode](mock-mode.md).
 
 ## Local file tools
 
-If the client does not expose MCP workspace roots, set `**ZOWE_MCP_WORKSPACE_DIR**` in `env` to your workspace folder so upload/download tools can resolve paths.
+If the client does not expose MCP workspace roots, set **`ZOWE_MCP_WORKSPACE_DIR`** in `env` to your workspace folder so upload/download tools can resolve paths.
 
 ## See also
 

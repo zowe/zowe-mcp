@@ -164,8 +164,10 @@ export function matchPattern(dsn: string, pattern: string): boolean {
   const regexStr = qualifiers
     .map(q => {
       if (q === '**') return '.*';
-      // Replace * with [^.]* (match within qualifier)
-      return q.replace(/\*/g, '[^.]*');
+      // Escape all regex metacharacters first (so qualifiers like "A(1)" or "A+B" are
+      // treated literally), then translate the now-escaped `\*` into `[^.]*` (match
+      // within qualifier).
+      return q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\\\*/g, '[^.]*');
     })
     .join('\\.');
 

@@ -186,8 +186,10 @@ export async function startHttp(
     logOidcRegistrationDiscovery(jwtAuth.issuer, log);
   }
 
-  /** Map of active session ID → transport and optional JWT subject. */
-  const sessions: Record<string, SessionEntry> = {};
+  // Map of active session ID → transport and optional JWT subject. A Map (rather than a plain
+  // object) is used because the key is the client-controlled `mcp-session-id` header — an object
+  // would let values like `__proto__` resolve through the prototype chain instead of missing.
+  const sessions = new Map<string, SessionEntry>();
 
   async function verifyBearerOrRespond(
     req: Request,
@@ -242,8 +244,8 @@ export async function startHttp(
       }
       let transport: StreamableHTTPServerTransport;
 
-      if (sessionId && sessions[sessionId]) {
-        const entry = sessions[sessionId];
+      const entry = sessionId ? sessions.get(sessionId) : undefined;
+      if (entry) {
         const claims = await verifyBearerOrRespond(req, res, entry.sub);
         if (jwtAuth && claims === null) {
           return;
@@ -259,7 +261,7 @@ export async function startHttp(
         transport = new StreamableHTTPServerTransport({
           sessionIdGenerator: () => randomUUID(),
           onsessioninitialized: (sid: string) => {
-            sessions[sid] = { transport, sub: boundSub };
+            sessions.set(sid, { transport, sub: boundSub });
             log.info('MCP session initialized', { mcpSessionId: sid, tenantSub: boundSub });
           },
           ...(dnsRebindingGuard
@@ -275,8 +277,8 @@ export async function startHttp(
 
         transport.onclose = () => {
           const sid = transport.sessionId;
-          if (sid && sessions[sid]) {
-            delete sessions[sid];
+          if (sid) {
+            sessions.delete(sid);
           }
         };
 
@@ -314,11 +316,11 @@ export async function startHttp(
   // -----------------------------------------------------------------------
   app.get('/mcp', async (req: Request, res: Response) => {
     const sessionId = req.headers['mcp-session-id'] as string | undefined;
-    if (!sessionId || !sessions[sessionId]) {
+    const entry = sessionId ? sessions.get(sessionId) : undefined;
+    if (!entry) {
       res.status(400).send('Invalid or missing session ID');
       return;
     }
-    const entry = sessions[sessionId];
     const claims = await verifyBearerOrRespond(req, res, entry.sub);
     if (jwtAuth && claims === null) {
       return;
@@ -331,11 +333,11 @@ export async function startHttp(
   // -----------------------------------------------------------------------
   app.delete('/mcp', async (req: Request, res: Response) => {
     const sessionId = req.headers['mcp-session-id'] as string | undefined;
-    if (!sessionId || !sessions[sessionId]) {
+    const entry = sessionId ? sessions.get(sessionId) : undefined;
+    if (!entry) {
       res.status(400).send('Invalid or missing session ID');
       return;
     }
-    const entry = sessions[sessionId];
     try {
       const claims = await verifyBearerOrRespond(req, res, entry.sub);
       if (jwtAuth && claims === null) {

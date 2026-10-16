@@ -40,6 +40,35 @@ don't warrant an entry (CI, chores, internal refactors, docs-only) can carry the
 
 ### Fixed
 
+- **Unauthenticated crash on the HTTP transport.** `startHttp` kept its active
+  sessions in a plain object indexed by the client-supplied `mcp-session-id`
+  header, so a request carrying `mcp-session-id: __proto__` (or `constructor`,
+  `toString`) matched an inherited property, took the known-session branch, and
+  crashed the request on an `undefined` transport. All three `/mcp` endpoints
+  (POST, GET, DELETE) were affected, and no valid token was needed to trigger
+  it. This was a denial of service, not an authentication bypass — an inherited
+  entry can never resolve to a real transport, and JWT verification was
+  unaffected. Sessions are now held in a `Map`.
+- **Data set patterns containing `$` never matched** in the mock backend's
+  `matchPattern`. Pattern qualifiers were interpolated into a regular expression
+  with only `*` translated, leaving every other metacharacter live, so the `$`
+  in a perfectly legal qualifier such as `SYS1.A$B` compiled to an
+  end-of-string anchor. Qualifiers are now escaped before the wildcard is
+  translated, which also stops qualifiers containing `(`, `[`, or `+` from
+  throwing or silently changing the match.
+- Generated temp data set qualifiers were drawn with a biased modulo (`% 26` /
+  `% 36` over a random byte), skewing them toward earlier letters and slightly
+  raising the collision rate. They are now sampled uniformly.
+- Connection profiles written by the evals harness, which can contain
+  credentials, were written to a predictably named file directly under a
+  world-readable temp directory. They now go into a per-run private (0700)
+  directory with 0600 permissions.
+- Hardened three smaller paths flagged by CodeQL: keys arriving from the MCP
+  server are validated before indexing the VS Code settings objects they are
+  merged into, the mock host's `Authorization: Basic` parser no longer uses a
+  regular expression with ambiguous backtracking, and the docs generator now
+  escapes backslashes as well as quotes when quoting YAML strings.
+  ([#109](https://github.com/zowe/zowe-mcp/issues/109))
 - **Cleared three production dependency advisories** that had been failing the
   `audit` gate on `main` since 2026-09-02 and therefore blocking every PR:
   `fast-uri` 3.1.5 → 3.1.7 (high — host confusion and SSRF via IDN/IPv6/percent-decoding

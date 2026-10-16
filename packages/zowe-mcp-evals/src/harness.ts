@@ -309,6 +309,12 @@ export class McpEvalHarness {
   private mockServerDirs: string[] = [];
   /** Resolved port per mock server name (set in startGenericMockServer, read in start()). */
   private mockServerPorts = new Map<string, number>();
+  /**
+   * Private (0700) temp directories holding CLI plugin connection files. Kept separate from
+   * mockServerDirs because that array is also read positionally (`.at(-1)`) as a legacy data-dir
+   * fallback. Removed in stop().
+   */
+  private credentialDirs: string[] = [];
 
   constructor(private options: HarnessOptions) {}
 
@@ -356,11 +362,16 @@ export class McpEvalHarness {
         const pluginsDir =
           setConfig.cliPluginsDir ?? resolve(dirname(mcpScript), 'tools', 'cli-bridge', 'plugins');
         args.push('--cli-plugins-dir', pluginsDir);
+        // Connection profiles can contain credentials, so write them into a private
+        // (0700) temp directory rather than directly under the shared, world-readable
+        // tmpdir() with a predictable name.
+        const cliPluginConnDir = mkdtempSync(join(tmpdir(), 'zowe-mcp-evals-'));
+        this.credentialDirs.push(cliPluginConnDir);
         for (const [pluginName, conn] of Object.entries(effectiveConnections)) {
           const { profilesFile, passwordEnvVars: pluginPasswordEnvVars } =
             resolveCliPluginConnection(pluginName, conn);
-          const connFile = join(tmpdir(), `cli-plugin-conn-${pluginName}-${Date.now()}.json`);
-          writeFileSync(connFile, JSON.stringify(profilesFile));
+          const connFile = join(cliPluginConnDir, `cli-plugin-conn-${pluginName}.json`);
+          writeFileSync(connFile, JSON.stringify(profilesFile), { mode: 0o600 });
           args.push('--cli-plugin-configuration', `${pluginName}=${connFile}`);
           // Merge plugin password env vars into the process env for the server
           Object.assign(passwordEnvVarsForServer, pluginPasswordEnvVars);
@@ -492,10 +503,11 @@ export class McpEvalHarness {
       log.info('Mock server(s) stopped', { count: this.mockServerProcesses.length });
       this.mockServerProcesses = [];
     }
-    for (const dir of this.mockServerDirs) {
+    for (const dir of [...this.mockServerDirs, ...this.credentialDirs]) {
       rmSync(dir, { recursive: true, force: true });
     }
     this.mockServerDirs = [];
+    this.credentialDirs = [];
   }
 
   /**

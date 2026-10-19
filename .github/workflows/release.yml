@@ -147,7 +147,7 @@ jobs:
       # this step must release exactly that, never an inferred one.
       - name: Run Octorelease
         if: steps.version.outputs.mode == 'publish'
-        uses: zowe-actions/octorelease@e0672bf28f74f36219713afe75915ea2dc7bf85b # v1
+        uses: zowe-actions/octorelease@6cf71bdb7ca82117775295e076d63fe7a812f3c8 # v1
         env:
           GITHUB_TOKEN: ${{ github.token }}
         with:

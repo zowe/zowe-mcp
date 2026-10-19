@@ -40,6 +40,9 @@ don't warrant an entry (CI, chores, internal refactors, docs-only) can carry the
 
 ### Fixed
 
+- Updated production dependencies to address the MCP SDK OAuth credential
+  disclosure, proxy-address IP spoofing, and source-map denial-of-service
+  advisories. The MCP SDK minimum is now 1.32.1 for the server and eval runner.
 - Fatal `call-tool` failures now log the error message and stack instead of an
   empty object, making connection and authentication failures diagnosable.
 - **Cleared three production dependency advisories** that had been failing the

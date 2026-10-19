@@ -40,6 +40,8 @@ don't warrant an entry (CI, chores, internal refactors, docs-only) can carry the
 
 ### Fixed
 
+- Fatal `call-tool` failures now log the error message and stack instead of an
+  empty object, making connection and authentication failures diagnosable.
 - **Cleared three production dependency advisories** that had been failing the
   `audit` gate on `main` since 2026-09-02 and therefore blocking every PR:
   `fast-uri` 3.1.5 → 3.1.7 (high — host confusion and SSRF via IDN/IPv6/percent-decoding

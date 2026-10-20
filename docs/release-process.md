@@ -11,7 +11,7 @@ Explorer) via [Octorelease](https://github.com/zowe-actions/octorelease).
 ```text
 develop ──(feature PRs, each adds a changelog entry; changelog check)──►
 release PR to main:  set-version to X.Y.Z (strip -dev), roll changelog headers,
-                     regen docs/mcp-reference.md, slides if changed
+                     regen docs/mcp-reference.md
         │  ← human review (CODEOWNERS) = THE approval gate; full ci-ok runs
         ▼ merge
 .github/workflows/release.yml (push to main, version has no -dev suffix):
@@ -60,7 +60,9 @@ Same four assets as the old manual flow:
 - `zowe-mcp-vscode-<version>.vsix`
 - `zowe-mcp-server-<version>.tgz` (`npm pack` of `@zowe/mcp-server`)
 - `docs/mcp-reference.md`
-- `presentations/zowe-mcp/zowe-mcp-slides.pdf`
+- `presentations/zowe-mcp/zowe-mcp-slides.pdf` — built by `scripts/build-slides.sh`
+  as part of `npm run ci:package-release` (`scripts/package-release.sh`), not
+  committed or exported locally by the releaser (zowe-mcp#66, finding 4)
 
 ## Rehearsal paths
 
@@ -87,6 +89,8 @@ Two ways to exercise the pipeline without cutting a real release:
    prereleases — so the follow-up release PR (to the clean version, or
    back to `-dev`) is what moves `main` forward; and delete the rc
    release/tag afterwards if desired, then repeat with the clean version.
+   The release run now prints both as a reminder in its job summary, so
+   they are not left to whoever remembers this section.
    Keep a single changelog section when the clean version follows an rc:
    retitle the rc heading rather than stacking a second entry.
 

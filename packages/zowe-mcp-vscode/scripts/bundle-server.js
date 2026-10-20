@@ -45,6 +45,7 @@ const {
   npmInstallProduction,
   pruneNapiRsCli,
   pruneRuntimeDeadFiles,
+  copyRuntimeAssets,
 } = require('../../../scripts/bundle-production-deps.cjs');
 
 const extDir = path.resolve(__dirname, '..');
@@ -63,34 +64,7 @@ const fileDepDirs = [
   { prefix: 'file:../../resources/', absDir: path.join(repoRoot, 'resources') },
 ];
 
-/** Extensions that are build output, not runtime assets — never copied into server/. */
-const CODE_EXTENSIONS = new Set(['.js', '.mjs', '.cjs', '.map', '.ts']);
-
-/**
- * Recursively copies every file under srcDir into destDir at the same
- * relative path, skipping compiled JS/maps/declaration files (those come
- * from the esbuild bundle instead) and dotfiles. This mirrors whatever
- * `packages/zowe-mcp-server/scripts/copy-resources.cjs` put into `dist/`
- * (resources/, tools/tso/*.json, tools/console/*.json, ...) so the bundled
- * entries' asset-resolution fallback (see
- * `packages/zowe-mcp-server/src/runtime/asset-root.ts`) finds them at
- * exactly `<server root>/<same relative path>`.
- */
-function copyRuntimeAssets(srcDir, destDir) {
-  if (!fs.existsSync(srcDir)) return;
-  for (const entry of fs.readdirSync(srcDir, { withFileTypes: true })) {
-    const srcPath = path.join(srcDir, entry.name);
-    const destPath = path.join(destDir, entry.name);
-    if (entry.isDirectory()) {
-      copyRuntimeAssets(srcPath, destPath);
-    } else if (!CODE_EXTENSIONS.has(path.extname(entry.name))) {
-      fs.mkdirSync(destDir, { recursive: true });
-      fs.copyFileSync(srcPath, destPath);
-    }
-  }
-}
-
-// pruneNapiRsCli and pruneRuntimeDeadFiles now live in
+// copyRuntimeAssets, pruneNapiRsCli, and pruneRuntimeDeadFiles now live in
 // scripts/bundle-production-deps.cjs (shared with bundle-for-pack.cjs's npm
 // pack/airgap flow) — see the require() destructure above.
 

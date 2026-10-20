@@ -35,7 +35,14 @@ if (fs.existsSync(backupPath)) {
 }
 
 // Clean up temporary directories created by prepack
-const dirsToClean = ['.local', '.unpack', '.extract-tmp', '.tgz', '.temp-extract'];
+const dirsToClean = [
+  '.local',
+  '.unpack',
+  '.extract-tmp',
+  '.tgz',
+  '.temp-extract',
+  '.dist-esbuild-staging',
+];
 for (const dir of dirsToClean) {
   const dirPath = path.join(serverPkgDir, dir);
   if (fs.existsSync(dirPath)) {
@@ -50,6 +57,21 @@ const nodeModulesPath = path.join(serverPkgDir, 'node_modules');
 if (fs.existsSync(nodeModulesPath)) {
   fs.rmSync(nodeModulesPath, { recursive: true, force: true });
   console.log('Removed prepack node_modules/');
+}
+
+// Remove the esbuild-bundled dist/ prepack left behind. tsc's incremental
+// output only ever adds/updates files for current source modules — it never
+// deletes stray files (like the bundle's dist/chunks/*.js, which have no
+// corresponding source module) that are no longer part of its output. Left
+// in place, those would silently linger through the next `npm run build`
+// instead of being cleaned up, so we remove dist/ entirely here and let the
+// next build regenerate it from scratch.
+const distPath = path.join(serverPkgDir, 'dist');
+if (fs.existsSync(distPath)) {
+  fs.rmSync(distPath, { recursive: true, force: true });
+  console.log(
+    'Removed prepack-bundled dist/ (run "npm run build -w @zowe/mcp-server" to rebuild)'
+  );
 }
 
 console.log('Restoring workspace dependencies...');

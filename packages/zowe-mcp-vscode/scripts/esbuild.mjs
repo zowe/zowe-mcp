@@ -27,72 +27,30 @@
  *    payload) stay external — see bundle-server.js for how a minimal
  *    `server/node_modules` is assembled for them.
  *
- * esbuild rewrites `import.meta.url` (and hence any `__dirname`/`__filename`
- * derived from it) to point at whatever *output* file a module's code ends
- * up in, not its original source location — see the long comment in
- * `packages/zowe-mcp-server/src/runtime/asset-root.ts` for how the server
- * source copes with that. Bundling ESM output also needs a real `require`
- * for any inlined CommonJS dependency that calls it dynamically (Node
- * builtins pulled in through a `__commonJS`-wrapped package, etc.) — esbuild
- * throws "Dynamic require is not supported" without one. The banner below
- * supplies `require`/`__filename`/`__dirname` for that purpose. A handful of
- * this package's own entry points already declare their own (needed so they
- * keep working when run unbundled from `dist/`); those were deliberately
- * renamed away from the standard names in src/index.ts, src/scripts/call-tool.ts
- * `scriptDir`, src/scripts/generate-docs.ts and src/tools/response.ts
- * `loadCjsModule` so they can't collide with this banner.
+ * The server-bundling half of this (entry points, externals, the `require`
+ * banner, format/target/splitting settings) lives in the repo-root
+ * `scripts/esbuild-server-config.cjs` instead of here, because
+ * `packages/zowe-mcp-server/scripts/bundle-for-pack.cjs` (the npm `prepack`
+ * step) needs the exact same configuration to bundle the same server code
+ * into its own `dist/` before `npm pack`. Only the extension-host bundle
+ * below is specific to this package.
  */
 
 import * as esbuild from 'esbuild';
-import { existsSync, mkdirSync, rmSync } from 'node:fs';
+import { mkdirSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import {
+  buildServer as buildServerShared,
+  SERVER_EXTERNAL,
+} from '../../../scripts/esbuild-server-config.cjs';
 
 const extDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const serverPkgDir = path.resolve(extDir, '..', 'zowe-mcp-server');
 
 const NODE_TARGET = 'node20';
 
-// Only `require` is shimmed here — NOT `__dirname`/`__filename`. Several
-// inlined dependencies (both ours and third-party, e.g. yargs' ESM
-// platform shim) compute their own top-level `const __dirname =
-// fileURLToPath(import.meta.url)`; injecting another top-level
-// `__dirname`/`__filename` binding via this banner collides with those
-// ("Identifier '__dirname' has already been declared") since they land in
-// the same output file/chunk. `require` doesn't have that problem: no
-// inlined ESM source in this codebase declares its own top-level `require`
-// (the handful that used to were renamed — see src/index.ts's `scriptDir`,
-// src/scripts/call-tool.ts's `scriptDir`, src/scripts/generate-docs.ts's
-// and src/tools/response.ts's `loadCjsModule` — specifically to avoid
-// colliding with this shim), and CJS dependencies esbuild wraps in
-// `__commonJS` never declare their own outer `require` either (they
-// reference the ambient one, which is exactly what `__require`'s
-// `typeof require !== "undefined"` fallback picks up).
-const SERVER_BANNER = [
-  'import { createRequire as __zoweMcpCreateRequire } from "node:module";',
-  'const require = __zoweMcpCreateRequire(import.meta.url);',
-].join('\n');
-
-/**
- * External packages for the server bundle: kept as real node_modules,
- * never inlined.
- *  - `ssh2` (+ its optional native deps `cpu-features`/`nan`) and
- *    `@zowe/zowex-for-zowe-sdk`: native `.node` bindings / install scripts
- *    that can't be bundled as plain JS.
- *  - `hardstop-patterns`: loads its `patterns/*.json` files via its own
- *    top-level `path.join(__dirname, 'patterns')` (real CommonJS
- *    `__dirname`, not `import.meta.url`-derived). If inlined, that
- *    `__dirname` reference has nothing to bind to in bundled ESM output
- *    (Node throws "__dirname is not defined in ES module scope") — keeping
- *    it external lets it resolve its own patterns/ directory normally.
- */
-export const SERVER_EXTERNAL = [
-  'ssh2',
-  'cpu-features',
-  'nan',
-  '@zowe/zowex-for-zowe-sdk',
-  'hardstop-patterns',
-];
+export { SERVER_EXTERNAL };
 
 /**
  * Bundles the extension host into a single CJS file at `dist/extension.js`.
@@ -120,56 +78,14 @@ export async function buildExtension() {
 }
 
 /**
- * Bundles @zowe/mcp-server's compiled `dist/` into `outDir` (the
- * extension's `server/` directory) as ESM with code-splitting across the
- * five CLI entry points. Only compiles what's already in
- * `packages/zowe-mcp-server/dist` — run `npm run build -w @zowe/mcp-server`
- * first.
- *
- * Output layout mirrors dist/'s entry-point structure exactly
- * (`index.js` at the root, `scripts/<name>.js` one level down) so the
- * `resolve(scriptDir, 'scripts', ...)` / `resolve(scriptDir, 'tools', ...)`
- * calls in src/index.ts and src/scripts/call-tool.ts resolve identically in
- * both the unbundled `dist/` build and this bundled layout — those files
- * are always entry points here, never split into a shared chunk, so their
- * own `import.meta.url` reliably points at their own output file.
+ * Bundles @zowe/mcp-server's compiled `packages/zowe-mcp-server/dist` into
+ * `outDir` (the extension's `server/` directory). Thin wrapper around the
+ * shared `buildServer` in `scripts/esbuild-server-config.cjs` — see there
+ * for the actual entry points, externals, and esbuild settings.
  */
 export async function buildServer(outDir) {
   const serverDist = path.join(serverPkgDir, 'dist');
-  if (!existsSync(path.join(serverDist, 'index.js'))) {
-    throw new Error(
-      `${serverDist}/index.js not found — run "npm run build -w @zowe/mcp-server" first.`
-    );
-  }
-
-  const entryPoints = {
-    index: path.join(serverDist, 'index.js'),
-    'scripts/init-mock': path.join(serverDist, 'scripts', 'init-mock.js'),
-    'scripts/generate-docs': path.join(serverDist, 'scripts', 'generate-docs.js'),
-    'scripts/mock-zos': path.join(serverDist, 'scripts', 'mock-zos.js'),
-    'scripts/call-tool': path.join(serverDist, 'scripts', 'call-tool.js'),
-  };
-
-  await esbuild.build({
-    entryPoints,
-    outdir: outDir,
-    bundle: true,
-    platform: 'node',
-    format: 'esm',
-    target: NODE_TARGET,
-    splitting: true,
-    chunkNames: 'chunks/[name]-[hash]',
-    external: SERVER_EXTERNAL,
-    banner: { js: SERVER_BANNER },
-    // No sourcemaps: keeping them out of server/ entirely avoids relying on
-    // .vscodeignore's directory re-include (`!server/**`) also correctly
-    // re-excluding `**/*.map` underneath it, which isn't reliable across
-    // ignore-pattern engines. `minify: false` keeps stack traces (file/line
-    // in the bundled output, original identifier names) useful without them.
-    sourcemap: false,
-    minify: false,
-    logLevel: 'info',
-  });
+  await buildServerShared(serverDist, outDir);
 }
 
 // Allow running directly: `node scripts/esbuild.mjs [extension|server|all]`

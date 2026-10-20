@@ -14,6 +14,7 @@ packages/zowe-mcp-server/.local/
 packages/zowe-mcp-server/.unpack/
 packages/zowe-mcp-server/.extract-tmp/
 packages/zowe-mcp-server/.tgz/
+packages/zowe-mcp-server/.dist-esbuild-staging/
 packages/zowe-mcp-server/.package.json.backup
 
 # VS Code extension package

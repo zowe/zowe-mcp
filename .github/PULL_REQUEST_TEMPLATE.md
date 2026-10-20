@@ -24,7 +24,8 @@
 - [ ] Linting passes (`npm run lint`)
 - [ ] PR description clearly explains the purpose and implementation
 
-### AI Evaluations (for MCP tool/prompt changes)
+
+### Evaluations (for MCP tool/prompt changes)
 
 - [ ] New/updated eval questions added for new functionality
       (`packages/zowe-mcp-evals/questions/`)
@@ -37,3 +38,13 @@
 ### Regression Justification (if applicable)
 
 <!-- If any eval set shows a pass rate drop, explain why it is acceptable. -->
+
+### AI Usage Disclosure
+
+Document how AI was used in this pull request:
+
+- **Tool**: Which AI assistant was used (e.g. Cursor, GitHub Copilot, Claude
+  Code, Cline)
+- **Model**: Which model(s) were used (e.g. Claude Sonnet 4, GPT-4.1)
+- **Scope**: What parts of the PR were AI-assisted vs. manually written
+- **Review**: How the AI-generated code was reviewed and validated

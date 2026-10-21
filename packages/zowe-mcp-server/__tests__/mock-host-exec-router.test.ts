@@ -60,6 +60,12 @@ describe('mock host exec router', () => {
     // Both spellings are in live use: `-v` from our zowex-deploy-check.ts, `--version` from
     // the SDK. The cwd-wrapped form is what actually reaches the wire from the SDK.
     const versionCommands = [
+      'zo -v',
+      './zo -v',
+      './zo --version',
+      '~/.zowe-server/zo --version',
+      "cd '~/.zowe-server' ; ./zo --version",
+      'cd "~/.zowe-server" ; ./zo -v',
       './zowex -v',
       './zowex --version',
       '~/.zowe-server/zowex --version',
@@ -79,12 +85,12 @@ describe('mock host exec router', () => {
       });
     }
 
-    it('does not mistake the RPC server command for a version check', () => {
-      // `zowex server` must reach the RPC dispatcher, which takes over the channel and
-      // neither exits nor writes a version line.
-      const { channel } = runExec('~/.zowe-server/zowex server');
+    it.each(['zo', 'zowex'])('routes %s server to the RPC dispatcher', binary => {
+      const { channel, written } = runExec(`~/.zowe-server/${binary} server`);
 
-      expect(channel.exit).not.toHaveBeenCalledWith(0);
+      expect(JSON.parse(written.join(''))).toMatchObject({ status: 'ready' });
+      expect(channel.on).toHaveBeenCalledWith('data', expect.any(Function));
+      expect(channel.exit).not.toHaveBeenCalled();
     });
   });
 

@@ -40,6 +40,16 @@ don't warrant an entry (CI, chores, internal refactors, docs-only) can carry the
 
 ### Fixed
 
+- **Cleared three production dependency advisories** published on 2026-10-20
+  that fail the `audit` gate on `main`: `hono` 4.13.7 → 4.13.13 (moderate:
+  `serveStatic` decodes the request path twice, letting static paths bypass
+  middleware; reached through `@modelcontextprotocol/sdk`), `markdown-it`
+  14.3.2 → 14.3.3 (high: quadratic-time denial of service in link reference
+  definitions and inline HTML; reached through `@zowe/imperative`), and
+  `sanitize-html` 2.17.7 → 2.18.1 (moderate: `<noscript>` content, SMIL
+  namespace-prefix and `meta http-equiv=refresh` URL bypasses; reached through
+  `@zowe/imperative`). Transitive upgrades only; no direct dependency ranges
+  changed.
 - Updated production dependencies to address the MCP SDK OAuth credential
   disclosure, proxy-address IP spoofing, and source-map denial-of-service
   advisories. The MCP SDK minimum is now 1.32.1 for the server and eval runner.

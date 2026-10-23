@@ -20,7 +20,7 @@ import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { decorateConsoleError } from '../src/tools/console/console-tools.js';
+import { buildDisplayCommand, decorateConsoleError } from '../src/tools/console/console-tools.js';
 import type { MockSystemsConfig } from '../src/zos/mock/mock-types.js';
 import { createMockIntegrationClient, getResultText } from './helpers/integration-test-utils.js';
 
@@ -112,6 +112,63 @@ describe('console tools integration', () => {
     expect(result.isError).toBe(true);
     expect(getResultText(result)).toContain('elicitation is not available');
   });
+});
+
+describe('display tool at the read capability tier', () => {
+  let mockDir: string;
+  let client: Client;
+  let server: Awaited<ReturnType<typeof createMockIntegrationClient>>['server'];
+
+  beforeAll(async () => {
+    mockDir = await fs.mkdtemp(path.join(os.tmpdir(), 'zowe-mcp-display-'));
+    await fs.writeFile(path.join(mockDir, 'systems.json'), JSON.stringify(mockConfig));
+    await fs.mkdir(path.join(mockDir, 'uss', SYSTEM_HOST, 'u', DEFAULT_USER), {
+      recursive: true,
+    });
+
+    ({ client, server } = await createMockIntegrationClient(
+      mockDir,
+      mockConfig,
+      'display-test',
+      'read'
+    ));
+  });
+
+  afterAll(async () => {
+    await client?.close();
+    await server?.close();
+    if (mockDir) await fs.rm(mockDir, { recursive: true, force: true }).catch(() => undefined);
+  });
+
+  it('rejects operands that would chain or inject another command', async () => {
+    for (const operands of ['T\nV 0A80,OFFLINE', 'T; HALT', 'T\r\nHALT', '']) {
+      const result = await client.callTool({ name: 'display', arguments: { operands } });
+      expect(result.isError).toBe(true);
+      expect(getResultText(result)).toContain('Invalid DISPLAY operands');
+    }
+  });
+});
+
+describe('buildDisplayCommand', () => {
+  it('prefixes the DISPLAY verb and normalizes whitespace', () => {
+    expect(buildDisplayCommand('  A,L  ')).toBe('DISPLAY A,L');
+    expect(buildDisplayCommand('PROG,APF')).toBe('DISPLAY PROG,APF');
+    expect(buildDisplayCommand('GRS,   C')).toBe('DISPLAY GRS, C');
+  });
+
+  it('accepts operands that use = , ( ) * and wildcards, including L= routing', () => {
+    expect(buildDisplayCommand('A,L,L=CONSOLE1')).toBe('DISPLAY A,L,L=CONSOLE1');
+    expect(buildDisplayCommand('M=STOR')).toBe('DISPLAY M=STOR');
+    expect(buildDisplayCommand('J,(JOB1,JOB2)')).toBe('DISPLAY J,(JOB1,JOB2)');
+    expect(buildDisplayCommand('OMVS,O=*')).toBe('DISPLAY OMVS,O=*');
+  });
+
+  it.each(['T;HALT', 'T\nHALT', 'T\tHALT', 'T|HALT', 'T`HALT', 'T&HALT', 'T<x', ''])(
+    'rejects %j',
+    operands => {
+      expect(() => buildDisplayCommand(operands)).toThrow('Invalid DISPLAY operands');
+    }
+  );
 });
 
 describe('decorateConsoleError', () => {

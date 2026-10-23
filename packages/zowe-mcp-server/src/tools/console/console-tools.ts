@@ -30,9 +30,11 @@ import { createToolProgress } from '../progress.js';
 import {
   buildContext,
   getReadMessages,
+  PAGINATION_NOTE_LINES,
   SYSTEM_PARAM_DESCRIPTION,
   textToLines,
   windowContent,
+  withPaginationNote,
   wrapResponse,
 } from '../response.js';
 import { ensureContext, errorResult } from '../tool-utils.js';
@@ -158,51 +160,151 @@ export function registerConsoleTools(
           }
         }
 
-        const { systemId, userId: resolvedUserId } = resolveSystemForTool(
-          deps.systemRegistry,
-          deps.sessionState,
-          system
-        );
-        await ensureContext(deps, systemId, resolvedUserId);
-        const ctx = deps.sessionState.getContext(systemId);
-        const userId = ctx?.userId;
-
-        const cacheKey = buildCacheKey('runConsoleCommand', {
-          systemId,
+        const response = await executeConsoleCommand(deps, {
           commandText,
           consoleName,
+          system,
+          startLine,
+          lineCount,
         });
-        const scope = buildScopeSystem(systemId);
-        const isPaging = startLine !== undefined || lineCount !== undefined;
-
-        const fetchCmd = async () => ({
-          text: await deps.backend.runConsoleCommand(systemId, commandText, consoleName, userId),
-        });
-        let fullOutput: string;
-        if (!isPaging && deps.responseCache) {
-          const result = await fetchCmd();
-          deps.responseCache.set(cacheKey, result, [scope]);
-          fullOutput = result.text;
-        } else {
-          fullOutput = (await withCache(deps.responseCache, cacheKey, fetchCmd, [scope])).text;
-        }
-
-        const {
-          text: windowedText,
-          meta,
-          mimeType,
-        } = windowContent(fullOutput, startLine, lineCount);
-        const lines = textToLines(windowedText);
-        const messages = getReadMessages(meta);
-        const responseCtx = buildContext(systemId, {});
         await progress.complete('done');
-        return wrapResponse(responseCtx, meta, { lines, mimeType }, messages);
+        return response;
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         await progress.complete(message);
         return errorResult(decorateConsoleError(message));
       }
     }
+  );
+
+  server.registerTool(
+    'display',
+    {
+      _meta: { resourceEffectLevel: ResourceEffect.READ },
+      description: withPaginationNote(
+        'Run a read-only z/OS DISPLAY operator console command and return its output. ' +
+          'Pass only the operands (such as T, A,L, IPLINFO, or PROG,APF): the server adds the DISPLAY verb, so no other console command can be issued. ' +
+          'Use runConsoleCommand (requires the full capability tier) for any other console command. ' +
+          'Prefer a dedicated tool when one exists (listProclib, listApfLibraries, listLinklist, viewSyslog)',
+        PAGINATION_NOTE_LINES
+      ),
+      outputSchema: runConsoleCommandOutputSchema,
+      inputSchema: {
+        operands: z
+          .string()
+          .describe(
+            'Operands of the DISPLAY command, without the DISPLAY verb (e.g. "T", "A,L", "IPLINFO", "PROG,APF").'
+          ),
+        consoleName: z.string().optional().describe('Console name (optional).'),
+        system: z.string().optional().describe(SYSTEM_PARAM_DESCRIPTION),
+        startLine: z
+          .number()
+          .int()
+          .min(1)
+          .optional()
+          .describe('1-based start line for paginating a previous result.'),
+        lineCount: z
+          .number()
+          .int()
+          .min(1)
+          .optional()
+          .describe('Number of lines to return from startLine.'),
+      },
+    },
+    async ({ operands, consoleName, system, startLine, lineCount }, extra) => {
+      const progress = createToolProgress(extra, `Display: ${operands.slice(0, 40)}`);
+      await progress.start();
+      log.info('display called', { operands: operands.slice(0, 80), system });
+
+      try {
+        const response = await executeConsoleCommand(deps, {
+          commandText: buildDisplayCommand(operands),
+          consoleName,
+          system,
+          startLine,
+          lineCount,
+        });
+        await progress.complete('done');
+        return response;
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        await progress.complete(message);
+        return errorResult(decorateConsoleError(message));
+      }
+    }
+  );
+}
+
+/**
+ * Characters permitted in DISPLAY operands. Only a literal space is allowed as
+ * whitespace, so newlines, tabs, and other control characters are rejected,
+ * as is anything else that could terminate or chain a command (e.g. `;`).
+ */
+const DISPLAY_OPERANDS_PATTERN = /^[A-Z0-9$#@.,=()*:+_' -]+$/i;
+
+/**
+ * Builds a `DISPLAY` console command from operands, rejecting anything that is
+ * not plain operand syntax. The verb is fixed, so the result is always a
+ * DISPLAY command.
+ */
+export function buildDisplayCommand(operands: string): string {
+  const trimmed = operands.trim();
+  if (!DISPLAY_OPERANDS_PATTERN.test(trimmed)) {
+    throw new Error(
+      'Invalid DISPLAY operands. Provide only the operands (e.g. "T", "A,L", "IPLINFO") using letters, ' +
+        "digits, and the characters $ # @ . , = ( ) * : + _ ' - and spaces."
+    );
+  }
+  return `DISPLAY ${trimmed.replace(/ +/g, ' ')}`;
+}
+
+/** Runs a console command (with caching and line windowing) and wraps the response. */
+async function executeConsoleCommand(
+  deps: ConsoleToolDeps,
+  args: {
+    commandText: string;
+    consoleName?: string;
+    system?: string;
+    startLine?: number;
+    lineCount?: number;
+  }
+) {
+  const { commandText, consoleName, system, startLine, lineCount } = args;
+  const { systemId, userId: resolvedUserId } = resolveSystemForTool(
+    deps.systemRegistry,
+    deps.sessionState,
+    system
+  );
+  await ensureContext(deps, systemId, resolvedUserId);
+  const userId = deps.sessionState.getContext(systemId)?.userId;
+
+  const cacheKey = buildCacheKey('runConsoleCommand', {
+    systemId,
+    commandText,
+    consoleName,
+  });
+  const scope = buildScopeSystem(systemId);
+  const isPaging = startLine !== undefined || lineCount !== undefined;
+
+  const fetchCmd = async () => ({
+    text: await deps.backend.runConsoleCommand(systemId, commandText, consoleName, userId),
+  });
+  let fullOutput: string;
+  if (!isPaging && deps.responseCache) {
+    const result = await fetchCmd();
+    deps.responseCache.set(cacheKey, result, [scope]);
+    fullOutput = result.text;
+  } else {
+    fullOutput = (await withCache(deps.responseCache, cacheKey, fetchCmd, [scope])).text;
+  }
+
+  const { text: windowedText, meta, mimeType } = windowContent(fullOutput, startLine, lineCount);
+  const lines = textToLines(windowedText);
+  return wrapResponse(
+    buildContext(systemId, {}),
+    meta,
+    { lines, mimeType },
+    getReadMessages(meta)
   );
 }
 

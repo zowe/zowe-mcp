@@ -145,3 +145,55 @@ describe('TSO tools integration', () => {
     expect(secondEnvelope._result.returnedLines).toBeLessThanOrEqual(2);
   });
 });
+
+describe('queryTso at the read capability tier', () => {
+  let mockDir: string;
+  let client: Client;
+  let server: Awaited<ReturnType<typeof createMockIntegrationClient>>['server'];
+
+  beforeAll(async () => {
+    mockDir = await fs.mkdtemp(path.join(os.tmpdir(), 'zowe-mcp-querytso-'));
+    await fs.writeFile(path.join(mockDir, 'systems.json'), JSON.stringify(mockConfig));
+    await fs.mkdir(path.join(mockDir, 'uss', SYSTEM_HOST, 'u', DEFAULT_USER), {
+      recursive: true,
+    });
+
+    ({ client, server } = await createMockIntegrationClient(
+      mockDir,
+      mockConfig,
+      'querytso-test',
+      'read'
+    ));
+  });
+
+  afterAll(async () => {
+    await client?.close();
+    await server?.close();
+    if (mockDir) await fs.rm(mockDir, { recursive: true, force: true }).catch(() => undefined);
+  });
+
+  it('runs a RACF query that runSafeTsoCommand would not offer at this tier', async () => {
+    const { tools } = await client.listTools();
+    expect(tools.map(t => t.name)).not.toContain('runSafeTsoCommand');
+
+    const result = await client.callTool({
+      name: 'queryTso',
+      arguments: { commandText: 'LISTUSER USER01' },
+    });
+    expect(result.isError).toBeFalsy();
+    const envelope = JSON.parse(getResultText(result)) as { data: { lines: string[] } };
+    expect(envelope.data.lines.join('\n')).toContain('USER=USER01');
+  });
+
+  it('rejects commands that chain or modify', async () => {
+    for (const commandText of [
+      'LISTUSER A;ALTUSER A SPECIAL',
+      'LISTUSER A\nDELETE X',
+      'DELETE USER.DATA',
+    ]) {
+      const result = await client.callTool({ name: 'queryTso', arguments: { commandText } });
+      expect(result.isError).toBe(true);
+      expect(getResultText(result)).toMatch(/Invalid TSO query command|not a read-only/);
+    }
+  });
+});

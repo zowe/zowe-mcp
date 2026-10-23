@@ -815,6 +815,7 @@ function generateDefaultInputs(tools: ToolInfo[]): Record<string, Record<string,
     listUssFiles: { path: '/' },
     readUssFile: { path: '/etc/profile' },
     runSafeTsoCommand: { command: 'TIME' },
+    queryTso: { commandText: 'LISTUSER USER01' },
     getUssHome: {},
     listApfLibraries: {},
     listProclib: {},
@@ -985,7 +986,7 @@ async function main(): Promise<void> {
         {
           label: 'TSO',
           description: 'Time Sharing Option — run TSO commands interactively on z/OS.',
-          toolNames: ['runSafeTsoCommand'],
+          toolNames: ['queryTso', 'runSafeTsoCommand'],
         },
         {
           label: 'System Information',

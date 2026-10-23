@@ -14,7 +14,10 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { validateTsoCommand } from '../src/tools/tso/tso-command-validation.js';
+import {
+  buildTsoQueryCommand,
+  validateTsoCommand,
+} from '../src/tools/tso/tso-command-validation.js';
 
 describe('validateTsoCommand', () => {
   it('returns block for system dataset DELETE (SYS1, SYSL, SYS2)', () => {
@@ -93,6 +96,20 @@ describe('validateTsoCommand', () => {
     expect(validateTsoCommand('LU KELDA16 TSO').action).toBe('allow');
   });
 
+  it('returns allow for read-only RACF queries (LISTGRP, LISTDSD, RLIST, SEARCH)', () => {
+    expect(validateTsoCommand('LISTGRP SYS1').action).toBe('allow');
+    expect(validateTsoCommand('LG SYS1').action).toBe('allow');
+    expect(validateTsoCommand("LISTDSD DATASET('USER.DATA') ALL").action).toBe('allow');
+    expect(validateTsoCommand('RLIST FACILITY BPX.SUPERUSER').action).toBe('allow');
+    expect(validateTsoCommand('SEARCH CLASS(USER)').action).toBe('allow');
+  });
+
+  it('returns elicit for SEARCH ... CLIST, which writes a data set', () => {
+    const r = validateTsoCommand('SEARCH CLASS(USER) CLIST');
+    expect(r.action).toBe('elicit');
+    expect(r.pattern?.id).toBe('tso-search-clist');
+  });
+
   it('returns elicit with a specific warning for security administration commands', () => {
     for (const cmd of [
       // RACF
@@ -154,5 +171,42 @@ describe('validateTsoCommand', () => {
     const r = validateTsoCommand('CUSTOMCMD PARM');
     expect(r.action).toBe('elicit');
     expect(r.pattern).toBeUndefined();
+  });
+});
+
+describe('buildTsoQueryCommand', () => {
+  it('trims and collapses spaces, preserving the command', () => {
+    expect(buildTsoQueryCommand('  LISTUSER   USER01   TSO ')).toBe('LISTUSER USER01 TSO');
+    expect(buildTsoQueryCommand("listdsd dataset('USER.DATA') all")).toBe(
+      "listdsd dataset('USER.DATA') all"
+    );
+    expect(buildTsoQueryCommand('LISTALC')).toBe('LISTALC');
+  });
+
+  it.each([
+    'LISTUSER A;DELETE X',
+    'LISTUSER A\nDELETE X',
+    'LISTUSER A|B',
+    'LISTUSER A&B',
+    'LISTUSER `x`',
+    'LISTUSER <x',
+    'LISTUSER >x',
+    '',
+  ])('rejects characters that could chain commands: %j', commandText => {
+    expect(() => buildTsoQueryCommand(commandText)).toThrow('Invalid TSO query command');
+  });
+
+  it.each([
+    'DELETE USER.DATA',
+    'ALTUSER X SPECIAL',
+    'PERMIT A.B ID(X)',
+    'SUBMIT USER.JCL',
+    'EXEC X',
+  ])('rejects non-query verb %j', commandText => {
+    expect(() => buildTsoQueryCommand(commandText)).toThrow('not a read-only TSO query command');
+  });
+
+  it('rejects a query verb whose arguments need approval under the safety policy', () => {
+    expect(() => buildTsoQueryCommand('SEARCH CLASS(USER) CLIST')).toThrow('needs user approval');
   });
 });

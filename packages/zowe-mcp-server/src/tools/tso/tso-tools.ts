@@ -27,7 +27,7 @@ import { buildCacheKey, buildScopeSystem, withCache } from '../../zos/response-c
 import { resolveSystemForTool, type SessionState } from '../../zos/session.js';
 import type { SystemRegistry } from '../../zos/system.js';
 import { formatBlockedCommandMessage } from '../command-safety.js';
-import { createToolProgress } from '../progress.js';
+import { createToolProgress, type ToolProgressReporter } from '../progress.js';
 import {
   buildContext,
   getReadMessages,
@@ -41,7 +41,7 @@ import {
   wrapResponse,
 } from '../response.js';
 import { ensureContext, errorResult } from '../tool-utils.js';
-import { validateTsoCommand } from './tso-command-validation.js';
+import { buildTsoQueryCommand, validateTsoCommand } from './tso-command-validation.js';
 import { runSafeTsoCommandOutputSchema } from './tso-output-schemas.js';
 
 export interface TsoToolDeps {
@@ -163,55 +163,123 @@ export function registerTsoTools(server: McpServer, deps: TsoToolDeps, logger: L
           }
         }
 
-        const { systemId, userId: resolvedUserId } = resolveSystemForTool(
-          deps.systemRegistry,
-          deps.sessionState,
-          system
+        return await executeTsoCommand(
+          deps,
+          { commandText, system, startLine, lineCount },
+          extra,
+          progress
         );
-        await ensureContext(deps, systemId, resolvedUserId);
-
-        const userId = deps.sessionState.getContext(systemId)?.userId;
-        const progressCb = extra._meta?.progressToken
-          ? (msg: string) => void progress.step(msg)
-          : undefined;
-
-        const cacheKey = buildCacheKey('runTsoCommand', {
-          systemId,
-          commandText,
-        });
-        const scope = buildScopeSystem(systemId);
-
-        const isPaging = startLine !== undefined || lineCount !== undefined;
-        let fullOutput: string;
-
-        const fetchCmd = async () => {
-          const out = await deps.backend.runTsoCommand(systemId, commandText, userId, progressCb);
-          return { text: out };
-        };
-        if (!isPaging && deps.responseCache) {
-          const result = await fetchCmd();
-          deps.responseCache.set(cacheKey, result, [scope]);
-          fullOutput = result.text;
-        } else {
-          fullOutput = (await withCache(deps.responseCache, cacheKey, fetchCmd, [scope])).text;
-        }
-
-        const sanitized = sanitizeTextForDisplay(fullOutput);
-        const { text, meta, mimeType } = windowContent(
-          sanitized,
-          startLine ?? 1,
-          lineCount ?? (isPaging ? undefined : MAX_READ_LINES)
-        );
-        const lines = textToLines(text);
-
-        const ctx = buildContext(systemId, {});
-
-        await progress.complete(`${meta.returnedLines} lines`);
-        return wrapResponse(ctx, meta, { lines, mimeType }, getReadMessages(meta));
       } catch (err) {
         await progress.complete((err as Error).message);
         return errorResult((err as Error).message);
       }
     }
   );
+
+  server.registerTool(
+    'queryTso',
+    {
+      outputSchema: runSafeTsoCommandOutputSchema,
+      description: withPaginationNote(
+        'Run a read-only TSO query command on z/OS, such as LISTUSER, LISTGRP, LISTDSD, RLIST, SEARCH, LISTDS, LISTALC, LISTCAT, LISTBC, STATUS, WHO, TIME, SYSTEM, or HELP. ' +
+          'Only these commands are accepted (no confirmation prompts, nothing that changes the system), ' +
+          'so it is available to read-only users; use runSafeTsoCommand for anything else. ' +
+          'RACF commands list only what the signed-in user is authorized to see',
+        PAGINATION_NOTE_LINES
+      ),
+      _meta: { resourceEffectLevel: ResourceEffect.READ },
+      inputSchema: {
+        commandText: z
+          .string()
+          .describe(
+            "The TSO query command, e.g. LISTUSER USER01 TSO, LISTGRP SYS1, RLIST FACILITY BPX.SUPERUSER ALL, LISTDS 'USER.DATA'."
+          ),
+        system: z.string().optional().describe(SYSTEM_PARAM_DESCRIPTION),
+        startLine: z
+          .number()
+          .int()
+          .min(1)
+          .optional()
+          .describe('1-based first line of output to return. Default: 1.'),
+        lineCount: z
+          .number()
+          .int()
+          .min(1)
+          .optional()
+          .describe('Number of lines to return. Omit for default window size.'),
+      },
+    },
+    async ({ commandText, system, startLine, lineCount }, extra) => {
+      const progress = createToolProgress(extra, 'Run TSO query');
+      await progress.start();
+      log.info('queryTso called', { commandText: commandText.slice(0, 80), system });
+      try {
+        const safeCommand = buildTsoQueryCommand(commandText);
+        return await executeTsoCommand(
+          deps,
+          { commandText: safeCommand, system, startLine, lineCount },
+          extra,
+          progress
+        );
+      } catch (err) {
+        await progress.complete((err as Error).message);
+        return errorResult((err as Error).message);
+      }
+    }
+  );
+}
+
+/** Runs a validated TSO command (with caching and line windowing) and wraps the response. */
+async function executeTsoCommand(
+  deps: TsoToolDeps,
+  args: { commandText: string; system?: string; startLine?: number; lineCount?: number },
+  extra: { _meta?: { progressToken?: string | number } | undefined },
+  progress: ToolProgressReporter
+) {
+  const { commandText, system, startLine, lineCount } = args;
+  const { systemId, userId: resolvedUserId } = resolveSystemForTool(
+    deps.systemRegistry,
+    deps.sessionState,
+    system
+  );
+  await ensureContext(deps, systemId, resolvedUserId);
+
+  const userId = deps.sessionState.getContext(systemId)?.userId;
+  const progressCb = extra._meta?.progressToken
+    ? (msg: string) => void progress.step(msg)
+    : undefined;
+
+  const cacheKey = buildCacheKey('runTsoCommand', {
+    systemId,
+    commandText,
+  });
+  const scope = buildScopeSystem(systemId);
+
+  const isPaging = startLine !== undefined || lineCount !== undefined;
+  let fullOutput: string;
+
+  const fetchCmd = async () => {
+    const out = await deps.backend.runTsoCommand(systemId, commandText, userId, progressCb);
+    return { text: out };
+  };
+  if (!isPaging && deps.responseCache) {
+    const result = await fetchCmd();
+    deps.responseCache.set(cacheKey, result, [scope]);
+    fullOutput = result.text;
+  } else {
+    fullOutput = (await withCache(deps.responseCache, cacheKey, fetchCmd, [scope])).text;
+  }
+
+  const sanitized = sanitizeTextForDisplay(fullOutput);
+  const { text, meta, mimeType } = windowContent(
+    sanitized,
+    startLine ?? 1,
+    lineCount ?? (isPaging ? undefined : MAX_READ_LINES)
+  );
+  const lines = textToLines(text);
+
+  const ctx = buildContext(systemId, {});
+
+  await progress.complete(`${meta.returnedLines} lines`);
+  return wrapResponse(ctx, meta, { lines, mimeType }, getReadMessages(meta));
 }

@@ -71,6 +71,11 @@
       "id": "tso-submit",
       "message": "SUBMIT submits jobs; user approval required.",
       "pattern": "\\bSUBMIT\\b"
+    },
+    {
+      "id": "tso-search-clist",
+      "message": "SEARCH with CLIST writes a CLIST data set; user approval required.",
+      "pattern": "^(SEARCH|SR)\\b.*\\bCLIST\\b"
     }
   ],
   "safe": [
@@ -79,6 +84,10 @@
     { "id": "tso-listcat", "pattern": "^(LISTCAT|LISTC)\\b" },
     { "id": "tso-listbc", "pattern": "^LISTBC\\b" },
     { "id": "tso-listuser", "pattern": "^(LISTUSER|LU)\\b" },
+    { "id": "tso-listgrp", "pattern": "^(LISTGRP|LG)\\b" },
+    { "id": "tso-listdsd", "pattern": "^(LISTDSD|LD)\\b" },
+    { "id": "tso-rlist", "pattern": "^(RLIST|RL)\\b" },
+    { "id": "tso-search", "pattern": "^(SEARCH|SR)\\b" },
     { "id": "tso-status", "pattern": "^STATUS\\b" },
     { "id": "tso-help", "pattern": "^(HELP|H)\\b" },
     { "id": "tso-who", "pattern": "^WHO\\b" },

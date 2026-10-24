@@ -49,6 +49,12 @@ don't warrant an entry (CI, chores, internal refactors, docs-only) can carry the
   matching successful responses. A failing call (for example `showCertificate` on a
   missing label) used to pass the SDK's `esmReturnCode`/`esmReasonCode` keys through
   in the error details. ([#70](https://github.com/zowe/zowe-mcp/issues/70))
+- The `mock-zos` daemon now recognizes the `zo` server binary that zowex SDK 1.0
+  starts (the SDK renamed it from `zowex`), so an SDK 1.0 client no longer gets
+  `Server not found` from the mock. This is what had failed the nightly SDK
+  workflow since 2026-09-05. On Windows the daemon also reports the installed SDK's
+  version instead of `0.0.0`, which had made every connection redeploy the server.
+  ([#131](https://github.com/zowe/zowe-mcp/pull/131))
 - **Cleared three production dependency advisories** that had been failing the
   `audit` gate on `main` since 2026-09-02 and therefore blocking every PR:
   `fast-uri` 3.1.5 → 3.1.7 (high — host confusion and SSRF via IDN/IPv6/percent-decoding

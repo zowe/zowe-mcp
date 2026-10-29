@@ -17,6 +17,7 @@ don't warrant an entry (CI, chores, internal refactors, docs-only) can carry the
 ### Added
 
 - Enabled the `runConsoleCommand` tool (z/OS operator console commands) at capability tier `full`. Requires zowex 0.9.0+ on the host and the separately installed APF-authorized `zoweax` binary; each command is authorized by the site ESM (OPERCMDS). Safe DISPLAY commands run directly, state-changing commands require user confirmation via elicitation, and system-stopping commands are blocked. Failures map to actionable guidance (server too old, zoweax missing, not authorized).
+- New `listParmlib` tool: lists the PARMLIB concatenation (the data sets searched for system parameter members like IEASYSxx), modeled on `listProclib` (`{ dsn }` entries, list-paginated). Requires the 0.9.0-nightly-2026-09-02+ SDK build.
 - Binary (base64, no-conversion) transfer on `readDataset`, `writeDataset`, `readUssFile`, and `writeUssFile` via a new optional `binary` input: reads return `data.contentBase64`, writes take `contentBase64` instead of `lines`. For non-text content (tersed files, load modules) that the UTF-8/EBCDIC text path would corrupt. Binary dataset writes require a preallocated target. Note that the z/OS server writes the byte stream as fixed-length records, NUL-pads the last record, and does not preserve the target's RECFM/LRECL (validated on a real z/OS: an FB/1024 sequential data set came back FB/80 after a binary write) — the bytes read back through `readDataset` are exact, but re-check the DCB attributes if another z/OS program consumes the data set. USS binary transfer is byte-exact with no such caveat.
 
 ### Changed
@@ -40,6 +41,15 @@ don't warrant an entry (CI, chores, internal refactors, docs-only) can carry the
 
 ### Fixed
 
+- Updated production dependencies to address the MCP SDK OAuth credential
+  disclosure, proxy-address IP spoofing, and source-map denial-of-service
+  advisories. The MCP SDK minimum is now 1.32.1 for the server and eval runner.
+- Fatal `call-tool` failures now log the error message and stack instead of an
+  empty object, making connection and authentication failures diagnosable.
+- Certificate tool errors now name SAF codes `productReturnCode`/`productReasonCode`,
+  matching successful responses. A failing call (for example `showCertificate` on a
+  missing label) used to pass the SDK's `esmReturnCode`/`esmReasonCode` keys through
+  in the error details. ([#70](https://github.com/zowe/zowe-mcp/issues/70))
 - **Cleared three production dependency advisories** that had been failing the
   `audit` gate on `main` since 2026-09-02 and therefore blocking every PR:
   `fast-uri` 3.1.5 → 3.1.7 (high — host confusion and SSRF via IDN/IPv6/percent-decoding

@@ -42,18 +42,14 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { parseConnectionSpec, toPasswordEnvVarName } from '../src/zos/native/connection-spec.js';
+import { resolveE2eServerPath } from './helpers/e2e-server-path.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-// Overridable so this suite can be pointed at a packed/installed artifact
-// (e.g. node_modules/@zowe/mcp-server/dist/index.js from an offline install of
-// the npm-pack tarball) instead of the repo build. Same knob as
-// native-mock-zos-stdio.e2e.test.ts, but this suite runs against a real LPAR —
-// so it is the one that proves the *shipped* bundle talks to real z/OS after
-// bundle-for-pack.cjs's `--omit=optional` drops `russh`/`cpu-features`, which
-// the mock host cannot fully establish. Defaults to the repo build so normal
-// `npm run test:native-stdio-e2e` behavior is unchanged.
-const serverPath =
-  process.env.ZOWE_MCP_E2E_SERVER_PATH ?? resolve(__dirname, '..', 'dist', 'index.js');
+// Server under test: repo build by default; set ZOWE_MCP_E2E_SERVER_PATH to use
+// another build (see helpers/e2e-server-path.ts). Pointed at an installed npm-pack
+// tarball, this suite — which runs against a real LPAR — can check the shipped
+// bundle by hand; nothing in CI sets the override.
+const serverPath = resolveE2eServerPath();
 
 /** Load .env from the given path; set process.env for each KEY=value line (existing env not overwritten). */
 function loadEnvFile(path: string): void {

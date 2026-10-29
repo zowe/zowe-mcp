@@ -25,21 +25,16 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import * as fs from 'node:fs/promises';
-import { dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { resolve } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { toPasswordEnvVarName } from '../src/zos/native/connection-spec.js';
+import { resolveE2eServerPath } from './helpers/e2e-server-path.js';
 import { disposeMockZos, spawnMockZos, type SpawnedMockZos } from './helpers/spawn-mock-zos.js';
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-// Overridable so this suite can be pointed at a packed/installed artifact
-// (e.g. node_modules/@zowe/mcp-server/dist/index.js from an offline install
-// of the npm-pack tarball) instead of the repo build, to prove the SSH/zowex
-// path still works once bundle-for-pack.cjs's `--omit=optional` drops
-// `russh`/`cpu-features` from the installed tree. Defaults to the repo
-// build so normal `npm test` behavior is unchanged.
-const serverPath =
-  process.env.ZOWE_MCP_E2E_SERVER_PATH ?? resolve(__dirname, '..', 'dist', 'index.js');
+// Server under test: repo build by default; set ZOWE_MCP_E2E_SERVER_PATH to use
+// another build (see helpers/e2e-server-path.ts), e.g. to run this suite by hand against
+// an installed npm-pack tarball. Nothing in CI sets the override.
+const serverPath = resolveE2eServerPath();
 
 /** Parsed tool result content. */
 interface ToolContent {

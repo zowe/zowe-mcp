@@ -212,13 +212,25 @@ if npm install \
 import { spawn } from 'node:child_process';
 
 const [, , entryPoint, mockDir] = process.argv;
-const child = spawn(process.execPath, [entryPoint, '--stdio', '--mock', mockDir], {
-  stdio: ['pipe', 'pipe', 'pipe'],
-});
+// --capability-tier full so the execute-level tools (runSafeTsoCommand,
+// runConsoleCommand) are registered and can be called below.
+const child = spawn(
+  process.execPath,
+  [entryPoint, '--stdio', '--mock', mockDir, '--capability-tier', 'full'],
+  { stdio: ['pipe', 'pipe', 'pipe'] }
+);
 
 let stderrBuf = '';
 child.stderr.on('data', d => {
   stderrBuf += d.toString();
+});
+
+// Fail fast when the server dies or cannot be spawned instead of burning the
+// whole response timeout on a generic "timed out" message.
+let childExit = null;
+child.on('error', err => fail(`could not spawn server: ${err.message}`));
+child.on('exit', (code, signal) => {
+  childExit = { code, signal };
 });
 
 let stdoutBuf = '';
@@ -251,11 +263,18 @@ function waitFor(id, timeoutMs = 15000) {
       if (msg) {
         clearInterval(iv);
         resolve(msg);
+      } else if (childExit) {
+        clearInterval(iv);
+        reject(
+          new Error(
+            `server exited (code=${childExit.code}, signal=${childExit.signal}) before responding to id ${id}`
+          )
+        );
       } else if (Date.now() - start > timeoutMs) {
         clearInterval(iv);
         reject(new Error(`timed out waiting for response id ${id}`));
       }
-    }, 50);
+    }, 20);
   });
 }
 
@@ -267,6 +286,7 @@ function fail(message) {
       stderrBuf
         .trim()
         .split('\n')
+        .slice(-40)
         .map(l => `    ${l}`)
         .join('\n')
     );
@@ -303,10 +323,33 @@ function fail(message) {
   const tools = toolsResp.result?.tools ?? [];
   console.log(`  tools/list returned ${tools.length} tools (e.g. ${tools.slice(0, 3).map(t => t.name).join(', ')})`);
 
-  child.kill();
   if (tools.length === 0) {
     fail('tools/list returned an empty tool list');
   }
+
+  // Exercise tools that load runtime assets (JSON pattern files) lazily on
+  // first call. tools/list alone never touches them, so a packaging layout
+  // where the bundled code cannot find its assets would pass the checks above
+  // and only fail for users at first TSO/console command.
+  let nextId = 3;
+  for (const [name, args] of [
+    ['runSafeTsoCommand', { commandText: 'TIME' }],
+    ['runConsoleCommand', { commandText: 'D T' }],
+  ]) {
+    if (!tools.some(t => t.name === name)) {
+      fail(`tool ${name} is not registered (capability tier full, mock backend)`);
+    }
+    const id = nextId++;
+    send({ jsonrpc: '2.0', id, method: 'tools/call', params: { name, arguments: args } });
+    const resp = await waitFor(id).catch(err => fail(err.message));
+    const text = resp.result?.content?.[0]?.text ?? '';
+    if (resp.error || resp.result?.isError) {
+      fail(`${name} failed: ${JSON.stringify(resp.error ?? text)}`);
+    }
+    console.log(`  tools/call ${name} OK`);
+  }
+
+  child.kill();
   process.exit(0);
 })().catch(err => fail(err.stack || String(err)));
 NODE_EOF

@@ -2,7 +2,7 @@ name: Audit
 
 # Dependency vulnerability scan. Runs on every PR and once daily so newly
 # disclosed advisories surface even without a code change. Production deps
-# only, failing at moderate+ (mirrors zowe/zowex).
+# only, failing at moderate+ except explicitly reviewed, expiring advisories.
 
 on:
   push:
@@ -30,5 +30,8 @@ jobs:
         with:
           node-version-file: '.nvmrc'
 
+      - name: Test production audit policy
+        run: npm run test:audit
+
       - name: npm audit (production, moderate+)
-        run: npm audit --omit=dev --audit-level=moderate
+        run: npm run audit:prod

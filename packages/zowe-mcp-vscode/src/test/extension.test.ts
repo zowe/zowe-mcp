@@ -550,14 +550,6 @@ suite('Zowe MCP VS Code Extension', () => {
       assert.strictEqual(target, vscode.ConfigurationTarget.Workspace);
     });
 
-    test('respects an existing workspace-folder-level value', () => {
-      stubInspect({ workspaceFolderValue: '/old/mock' });
-
-      const { target, scopeLabel } = pickConfigTarget();
-      assert.strictEqual(target, vscode.ConfigurationTarget.WorkspaceFolder);
-      assert.strictEqual(scopeLabel, 'workspace folder settings');
-    });
-
     test('returns Workspace/"workspace settings" when a workspace is open', () => {
       setWorkspaceFolders([
         {

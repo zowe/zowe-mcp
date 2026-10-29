@@ -613,21 +613,17 @@ export function isWorkspaceOpen(): boolean {
 }
 
 /**
- * Picks where to write a `zoweMCP` setting: wherever an existing workspace(-folder)
- * override already lives, else Workspace when a workspace is open, otherwise
- * Global so updates don't fail with "no workspace is opened".
+ * Picks where to write a `zoweMCP` setting: Workspace when a workspace override
+ * already exists or a workspace is open, otherwise Global so updates don't fail
+ * with "no workspace is opened". WorkspaceFolder is never chosen: the
+ * configuration is read without a resource, so a folder-scoped write would be
+ * rejected (and inspect() never reports a folder value here anyway).
  */
 export function pickConfigTarget(key = 'mockDataDirectory'): {
   target: vscode.ConfigurationTarget;
   scopeLabel: string;
 } {
   const ins = vscode.workspace.getConfiguration('zoweMCP').inspect(key);
-  if (ins?.workspaceFolderValue !== undefined) {
-    return {
-      target: vscode.ConfigurationTarget.WorkspaceFolder,
-      scopeLabel: 'workspace folder settings',
-    };
-  }
   if (ins?.workspaceValue !== undefined || isWorkspaceOpen()) {
     return { target: vscode.ConfigurationTarget.Workspace, scopeLabel: 'workspace settings' };
   }

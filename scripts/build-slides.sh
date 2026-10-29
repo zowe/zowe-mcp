@@ -39,16 +39,18 @@ echo "Installing Slidev deck dependencies ($SLIDES_DIR)..."
 npm ci
 
 echo "Exporting slides to PDF..."
+# Clear stale outputs so a no-op export can never pass on an old file.
+rm -f "$OUTPUT_PDF" "$SLIDES_DIR/slides-export.pdf"
 npm run export
 
 # `slidev export` with no --output writes <entry-basename>-export.pdf next to
 # the entry file — for entry slides.md that is slides-export.pdf (see the
 # now-stale presentations/zowe-mcp/slides-export.pdf entry in .gitignore, kept
-# as a safety net for local exports that don't hit this rename). Handle both
-# names so this script keeps working if a future Slidev version changes the
-# default, or if a local run already produced the file under its final name.
-if [ ! -f "$OUTPUT_PDF" ] && [ -f "$SLIDES_DIR/slides-export.pdf" ]; then
-  mv "$SLIDES_DIR/slides-export.pdf" "$OUTPUT_PDF"
+# as a safety net for local exports that don't hit this rename). A fresh export
+# always replaces any stale final-name PDF; if Slidev instead wrote the final
+# name directly (a future default change), that file is used as-is.
+if [ -f "$SLIDES_DIR/slides-export.pdf" ]; then
+  mv -f "$SLIDES_DIR/slides-export.pdf" "$OUTPUT_PDF"
 fi
 
 if [ ! -f "$OUTPUT_PDF" ]; then

@@ -107,16 +107,21 @@ jobs:
           # broken deck (or a broken export toolchain) surfaces on the PR that
           # touched it, instead of only at release time.
           #
-          # Release PRs (version with no -dev suffix) build the deck too, even
-          # when presentations/ is untouched. The PDF is no longer committed, so
-          # otherwise release.yml would be the first thing ever to build this
-          # release's deck, and a failure there lands *after* the merge decision
-          # — the same shape as finding 2, which this repo already gates against
-          # in the "Validate release notes heading" step below. The runner's
-          # system node is enough to read the version (no setup-node here).
+          # Release PRs build the deck too, even when presentations/ is
+          # untouched. The PDF is no longer committed, so otherwise release.yml
+          # would be the first thing ever to build this release's deck, and a
+          # failure there lands *after* the merge decision — the same shape as
+          # finding 2, which this repo already gates against in the "Validate
+          # release notes heading" step below. A release PR is one that changes
+          # the extension's package.json to a non-dev version; merely sitting
+          # on a non-dev version (e.g. main after a prerelease) does not make
+          # every unrelated PR pay for a multi-minute deck build. The runner's
+          # system node is enough to read the version (no setup-node here); if
+          # it cannot be read, run the lane (safe default).
           slides=$(printf '%s\n' "$changed" | grep -E '^presentations/' || true)
-          version=$(node -p "require('./packages/zowe-mcp-vscode/package.json').version")
-          if [ -n "$slides" ] || [[ "$version" != *-dev ]]; then
+          bumped=$(printf '%s\n' "$changed" | grep -Fx 'packages/zowe-mcp-vscode/package.json' || true)
+          version=$(node -p "require('./packages/zowe-mcp-vscode/package.json').version" 2>/dev/null) || version=""
+          if [ -n "$slides" ] || [ -z "$version" ] || { [ -n "$bumped" ] && [[ "$version" != *-dev ]]; }; then
             echo "slides=true" >> "$GITHUB_OUTPUT"
           else
             echo "slides=false" >> "$GITHUB_OUTPUT"
@@ -454,6 +459,14 @@ jobs:
           cache: npm
           # The deck is its own npm project, outside the root workspace.
           cache-dependency-path: presentations/zowe-mcp/package-lock.json
+
+      # playwright-chromium's postinstall downloads Chromium (~150 MB, via the
+      # Artifactory mirror) on every run; cache it, keyed on the lockfile.
+      - name: Cache Playwright browsers
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('presentations/zowe-mcp/package-lock.json') }}
 
       - name: Build slides
         run: npm run build:slides

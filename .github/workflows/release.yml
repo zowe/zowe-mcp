@@ -231,7 +231,9 @@ jobs:
         if: steps.version.outputs.mode == 'publish' && steps.version.outputs.is-prerelease == 'true'
         env:
           VERSION: ${{ steps.version.outputs.version }}
+          DOCS_URL: ${{ github.server_url }}/${{ github.repository }}/blob/main/docs/release-process.md
         run: |
+          echo "::warning title=main is on prerelease ${VERSION}::Open the next release PR (or a -dev bump) and delete the rehearsal tag; see the job summary."
           {
             echo "## Prerelease published: v${VERSION}"
             echo
@@ -245,6 +247,6 @@ jobs:
             echo "2. Delete the \`v${VERSION}\` tag and release if this was only a"
             echo "   rehearsal, then repeat with the clean version."
             echo
-            echo "See [docs/release-process.md](../blob/main/docs/release-process.md)"
+            echo "See [docs/release-process.md](${DOCS_URL})"
             echo "(\"Rehearsal paths\")."
           } >> "$GITHUB_STEP_SUMMARY"

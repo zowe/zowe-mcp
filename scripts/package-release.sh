@@ -85,14 +85,11 @@ fi
 echo "Docs: $MCP_REFERENCE"
 
 # The slides deck is built on demand rather than committed (zowe-mcp#66,
-# finding 4) — a fresh CI checkout won't have it. Build it here so a fresh
-# checkout works unattended; if a local export is already sitting there
-# (from a manual `npm run build:slides` / `slidev export`), reuse it so
-# repeated local dry runs stay fast instead of re-exporting every time.
+# finding 4) — a fresh CI checkout won't have it. Always rebuild: a leftover
+# PDF from an earlier local export may predate the slides in this release, and
+# publishing a stale deck is worse than the extra export time.
 SLIDES_PDF="$REPO_ROOT/presentations/zowe-mcp/zowe-mcp-slides.pdf"
-if [ ! -f "$SLIDES_PDF" ]; then
-  bash "$REPO_ROOT/scripts/build-slides.sh"
-fi
+bash "$REPO_ROOT/scripts/build-slides.sh"
 if [ ! -f "$SLIDES_PDF" ]; then
   echo "Error: Release asset missing: $SLIDES_PDF" >&2
   echo "scripts/build-slides.sh ran but did not produce it; see its output above." >&2
@@ -107,6 +104,9 @@ rm -rf "$DIST_DIR"
 mkdir -p "$DIST_DIR"
 cp "$VSIX" "$DIST_DIR/"
 cp "$SERVER_TGZ" "$DIST_DIR/"
+# Copied so release.yml's dry-run artifact (dist/ only) includes the deck. The real
+# release attaches it from its source path (release.config.js), not from dist/.
+cp "$SLIDES_PDF" "$DIST_DIR/"
 rm -f "$SERVER_TGZ"
 
 # Archive the zowex SDK build this release was compiled against, plus a provenance record.

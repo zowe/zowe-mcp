@@ -17,7 +17,7 @@
  * Works with both mock and native backends via the ZosBackend interface.
  */
 
-import { randomBytes } from 'node:crypto';
+import { randomInt } from 'node:crypto';
 import type { ZosBackend } from './backend.js';
 import { DsnError, resolvePattern, validateDsn, validateListPattern } from './dsn.js';
 import type { SystemId } from './system.js';
@@ -42,29 +42,15 @@ export const REQUIRED_SAFETY_QUALIFIER = 'TMP';
 // ---------------------------------------------------------------------------
 
 /**
- * Returns a uniformly distributed index in [0, n) by rejection sampling random bytes.
- * A single byte is drawn per attempt; bytes falling in the biased tail (>= the largest
- * multiple of `n` that fits in 256) are discarded and redrawn.
- */
-function randomIndex(n: number): number {
-  const limit = Math.floor(256 / n) * n;
-  let byte: number;
-  do {
-    byte = randomBytes(1)[0];
-  } while (byte >= limit);
-  return byte % n;
-}
-
-/**
  * Generate an 8-char DSN-safe qualifier (first char A–Z, rest A–Z0–9).
- * Draws unbiased characters via rejection sampling over crypto random bytes.
+ * Draws unbiased characters with crypto.randomInt.
  */
 function uniqueQualifier(): string {
   const firstChar = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
   const rest = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-  let result = firstChar[randomIndex(firstChar.length)];
+  let result = firstChar[randomInt(firstChar.length)];
   for (let i = 1; i < 8; i++) {
-    result += rest[randomIndex(rest.length)];
+    result += rest[randomInt(rest.length)];
   }
   return result;
 }

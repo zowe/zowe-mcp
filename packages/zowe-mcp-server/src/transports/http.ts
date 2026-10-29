@@ -233,6 +233,16 @@ export async function startHttp(
     }
   }
 
+  /** Finds the session named by the `mcp-session-id` header, or answers 400 and returns undefined. */
+  const lookupSessionOrRespond = (req: Request, res: Response): SessionEntry | undefined => {
+    const sessionId = req.headers['mcp-session-id'] as string | undefined;
+    const entry = sessionId ? sessions.get(sessionId) : undefined;
+    if (!entry) {
+      res.status(400).send('Invalid or missing session ID');
+    }
+    return entry;
+  };
+
   // -----------------------------------------------------------------------
   // POST /mcp — initialization + regular JSON-RPC requests
   // -----------------------------------------------------------------------
@@ -315,12 +325,8 @@ export async function startHttp(
   // GET /mcp — SSE streams for server-initiated messages
   // -----------------------------------------------------------------------
   app.get('/mcp', async (req: Request, res: Response) => {
-    const sessionId = req.headers['mcp-session-id'] as string | undefined;
-    const entry = sessionId ? sessions.get(sessionId) : undefined;
-    if (!entry) {
-      res.status(400).send('Invalid or missing session ID');
-      return;
-    }
+    const entry = lookupSessionOrRespond(req, res);
+    if (!entry) return;
     const claims = await verifyBearerOrRespond(req, res, entry.sub);
     if (jwtAuth && claims === null) {
       return;
@@ -332,12 +338,8 @@ export async function startHttp(
   // DELETE /mcp — session termination
   // -----------------------------------------------------------------------
   app.delete('/mcp', async (req: Request, res: Response) => {
-    const sessionId = req.headers['mcp-session-id'] as string | undefined;
-    const entry = sessionId ? sessions.get(sessionId) : undefined;
-    if (!entry) {
-      res.status(400).send('Invalid or missing session ID');
-      return;
-    }
+    const entry = lookupSessionOrRespond(req, res);
+    if (!entry) return;
     try {
       const claims = await verifyBearerOrRespond(req, res, entry.sub);
       if (jwtAuth && claims === null) {

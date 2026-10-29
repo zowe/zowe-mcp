@@ -481,7 +481,9 @@ async function handleStoreCliPluginProfiles(
 ): Promise<void> {
   if (event.type !== 'store-cli-plugin-profiles') return;
   const { pluginName, profilesFile } = event.data;
-  if (!isSafeSettingKey(pluginName)) {
+  // pluginName is also used to build a file name below, so it must be a plain identifier
+  // (no path separators or dots) in addition to being a safe settings key.
+  if (!isSafeSettingKey(pluginName) || !/^[A-Za-z0-9][A-Za-z0-9_-]*$/.test(pluginName)) {
     log.warn(`Refusing to store CLI plugin profiles for unsafe plugin name: "${pluginName}"`);
     return;
   }

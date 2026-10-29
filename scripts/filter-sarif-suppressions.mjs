@@ -34,15 +34,22 @@ const file = process.argv[2] ?? 'eslint-results.sarif';
 
 const sarif = JSON.parse(readFileSync(file, 'utf-8'));
 
+// Per SARIF 3.27.23 a suppression only counts when its status is "accepted" or absent;
+// "underReview" and "rejected" suppressions leave the result active.
+function isSuppressed(result) {
+  return (
+    Array.isArray(result.suppressions) &&
+    result.suppressions.some(s => s.status === undefined || s.status === 'accepted')
+  );
+}
+
 let removed = 0;
 let kept = 0;
 
 for (const run of sarif.runs ?? []) {
   if (!Array.isArray(run.results)) continue;
   const before = run.results.length;
-  run.results = run.results.filter(
-    r => !(Array.isArray(r.suppressions) && r.suppressions.length > 0)
-  );
+  run.results = run.results.filter(r => !isSuppressed(r));
   removed += before - run.results.length;
   kept += run.results.length;
 }

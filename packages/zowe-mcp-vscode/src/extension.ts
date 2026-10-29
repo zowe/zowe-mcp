@@ -603,17 +603,64 @@ async function updateCursorRegistration(
 }
 
 /**
- * Picks Workspace scope when a workspace is open, otherwise falls back to
- * Global so settings updates don't fail with "no workspace is opened".
+ * True when a folder or a (possibly folderless) `.code-workspace` is open.
  */
-export function pickConfigTarget(): {
+export function isWorkspaceOpen(): boolean {
+  return (
+    vscode.workspace.workspaceFile !== undefined ||
+    (vscode.workspace.workspaceFolders?.length ?? 0) > 0
+  );
+}
+
+/**
+ * Picks where to write a `zoweMCP` setting: wherever an existing workspace(-folder)
+ * override already lives, else Workspace when a workspace is open, otherwise
+ * Global so updates don't fail with "no workspace is opened".
+ */
+export function pickConfigTarget(key = 'mockDataDirectory'): {
   target: vscode.ConfigurationTarget;
   scopeLabel: string;
 } {
-  const hasWorkspace = (vscode.workspace.workspaceFolders?.length ?? 0) > 0;
-  return hasWorkspace
-    ? { target: vscode.ConfigurationTarget.Workspace, scopeLabel: 'workspace settings' }
-    : { target: vscode.ConfigurationTarget.Global, scopeLabel: 'user settings' };
+  const ins = vscode.workspace.getConfiguration('zoweMCP').inspect(key);
+  if (ins?.workspaceFolderValue !== undefined) {
+    return {
+      target: vscode.ConfigurationTarget.WorkspaceFolder,
+      scopeLabel: 'workspace folder settings',
+    };
+  }
+  if (ins?.workspaceValue !== undefined || isWorkspaceOpen()) {
+    return { target: vscode.ConfigurationTarget.Workspace, scopeLabel: 'workspace settings' };
+  }
+  return { target: vscode.ConfigurationTarget.Global, scopeLabel: 'user settings' };
+}
+
+/**
+ * Saves `zoweMCP.mockDataDirectory` and offers a window reload. Failures are
+ * logged and surfaced to the user.
+ */
+async function saveMockDataDirectory(dir: string): Promise<void> {
+  const log = getLog();
+  const config = vscode.workspace.getConfiguration('zoweMCP');
+  const { target, scopeLabel } = pickConfigTarget();
+  try {
+    await config.update('mockDataDirectory', dir, target);
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : String(err);
+    log.error(`Failed to set zoweMCP.mockDataDirectory (${scopeLabel}): ${reason}`);
+    void vscode.window.showErrorMessage(
+      `Zowe MCP: could not save the mock data directory to ${scopeLabel}: ${reason}`
+    );
+    return;
+  }
+  log.info(`Set zoweMCP.mockDataDirectory to: ${dir} (${scopeLabel})`);
+  const reload = 'Reload Window';
+  const reloadChoice = await vscode.window.showInformationMessage(
+    `Mock data directory saved to ${scopeLabel}. Reload the window to restart the MCP server with mock data.`,
+    reload
+  );
+  if (reloadChoice === reload) {
+    void vscode.commands.executeCommand('workbench.action.reloadWindow');
+  }
 }
 
 /**
@@ -729,19 +776,7 @@ async function initMockData(
   );
 
   if (choice === configure) {
-    const config = vscode.workspace.getConfiguration('zoweMCP');
-    const { target, scopeLabel } = pickConfigTarget();
-    await config.update('mockDataDirectory', outputDir, target);
-    log.info(`Set zoweMCP.mockDataDirectory to: ${outputDir} (${scopeLabel})`);
-
-    const reload = 'Reload Window';
-    const reloadChoice = await vscode.window.showInformationMessage(
-      `Mock data directory saved to ${scopeLabel}. Reload the window to restart the MCP server with mock data.`,
-      reload
-    );
-    if (reloadChoice === reload) {
-      void vscode.commands.executeCommand('workbench.action.reloadWindow');
-    }
+    await saveMockDataDirectory(outputDir);
   }
 }
 
@@ -750,7 +785,6 @@ async function initMockData(
  * the backend is set to "mock" but no mock data directory is configured.
  */
 async function promptForMockDataDirectory(): Promise<void> {
-  const log = getLog();
   const generateMock = 'Generate Mock Data';
   const selectExisting = 'Select Existing Directory';
   const choice = await vscode.window.showInformationMessage(
@@ -769,18 +803,7 @@ async function promptForMockDataDirectory(): Promise<void> {
       title: 'Select Zowe MCP Mock Data Directory',
     });
     if (folders && folders.length > 0) {
-      const config = vscode.workspace.getConfiguration('zoweMCP');
-      const { target, scopeLabel } = pickConfigTarget();
-      await config.update('mockDataDirectory', folders[0].fsPath, target);
-      log.info(`Set zoweMCP.mockDataDirectory to: ${folders[0].fsPath} (${scopeLabel})`);
-      const reload = 'Reload Window';
-      const reloadChoice = await vscode.window.showInformationMessage(
-        `Mock data directory saved to ${scopeLabel}. Reload the window to restart the MCP server with mock data.`,
-        reload
-      );
-      if (reloadChoice === reload) {
-        void vscode.commands.executeCommand('workbench.action.reloadWindow');
-      }
+      await saveMockDataDirectory(folders[0].fsPath);
     }
   }
 }
@@ -894,8 +917,7 @@ async function clearAllZoweMcpSettingsAndState(context: vscode.ExtensionContext)
   updateZoweMcpStatusBar(null, context);
 
   // Reset all zoweMCP settings to default (remove overrides in Global and Workspace)
-  const hasWorkspace =
-    vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0;
+  const hasWorkspace = isWorkspaceOpen();
   for (const key of ZOWE_MCP_CONFIG_KEYS) {
     await config.update(key, undefined, vscode.ConfigurationTarget.Global);
     if (hasWorkspace) {

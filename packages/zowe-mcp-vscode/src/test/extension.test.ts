@@ -494,9 +494,68 @@ suite('Zowe MCP VS Code Extension', () => {
       });
     }
 
+    const originalFileDescriptor = Object.getOwnPropertyDescriptor(
+      vscode.workspace,
+      'workspaceFile'
+    );
+    const originalGetConfiguration = vscode.workspace.getConfiguration.bind(vscode.workspace);
+
+    function setWorkspaceFile(value: vscode.Uri | undefined): void {
+      Object.defineProperty(vscode.workspace, 'workspaceFile', {
+        value,
+        configurable: true,
+        enumerable: true,
+      });
+    }
+
+    function stubInspect(inspected: object): void {
+      (
+        vscode.workspace as { getConfiguration: typeof originalGetConfiguration }
+      ).getConfiguration = ((section?: string) => {
+        const real = originalGetConfiguration(section);
+        return { ...real, get: real.get.bind(real), inspect: () => inspected };
+      }) as typeof originalGetConfiguration;
+    }
+
+    setup(() => {
+      // Start from a known "nothing open, no overrides" state.
+      setWorkspaceFolders(undefined);
+      setWorkspaceFile(undefined);
+      stubInspect({});
+    });
+
     teardown(() => {
       assert.ok(originalDescriptor, 'workspaceFolders descriptor should exist');
       Object.defineProperty(vscode.workspace, 'workspaceFolders', originalDescriptor);
+      assert.ok(originalFileDescriptor, 'workspaceFile descriptor should exist');
+      Object.defineProperty(vscode.workspace, 'workspaceFile', originalFileDescriptor);
+      (
+        vscode.workspace as { getConfiguration: typeof originalGetConfiguration }
+      ).getConfiguration = originalGetConfiguration;
+    });
+
+    test('returns Workspace for a folderless .code-workspace', () => {
+      setWorkspaceFolders([]);
+      setWorkspaceFile(vscode.Uri.file('/tmp/empty.code-workspace'));
+
+      const { target, scopeLabel } = pickConfigTarget();
+      assert.strictEqual(target, vscode.ConfigurationTarget.Workspace);
+      assert.strictEqual(scopeLabel, 'workspace settings');
+    });
+
+    test('respects an existing workspace-level value even without open folders', () => {
+      stubInspect({ workspaceValue: '/old/mock' });
+
+      const { target } = pickConfigTarget();
+      assert.strictEqual(target, vscode.ConfigurationTarget.Workspace);
+    });
+
+    test('respects an existing workspace-folder-level value', () => {
+      stubInspect({ workspaceFolderValue: '/old/mock' });
+
+      const { target, scopeLabel } = pickConfigTarget();
+      assert.strictEqual(target, vscode.ConfigurationTarget.WorkspaceFolder);
+      assert.strictEqual(scopeLabel, 'workspace folder settings');
     });
 
     test('returns Workspace/"workspace settings" when a workspace is open', () => {

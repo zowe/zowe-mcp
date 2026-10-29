@@ -124,6 +124,49 @@ const SERVER_EXTERNAL = [
 ];
 
 /**
+ * Runtime assets (relative to the bundle's root directory) that bundled code
+ * resolves via `resolveAsset`'s package-root fallback (see
+ * packages/zowe-mcp-server/src/runtime/asset-root.ts) once its modules no
+ * longer sit next to the asset on disk. Callers verify these exist in the
+ * directory they ship the bundle from (the VSIX's `server/`, the npm
+ * package's `dist/`) so asset drift fails the BUILD instead of the first
+ * TSO/console command in an installed package.
+ */
+const REQUIRED_RUNTIME_ASSETS = [
+  path.join('tools', 'tso', 'tso-command-patterns.json'),
+  path.join('tools', 'console', 'console-command-patterns.json'),
+  path.join('resources', 'dslevel-pattern.txt'),
+];
+
+/**
+ * Returns the missing entries of REQUIRED_RUNTIME_ASSETS under `bundleRoot`.
+ */
+function findMissingRuntimeAssets(bundleRoot) {
+  return REQUIRED_RUNTIME_ASSETS.filter(rel => !fs.existsSync(path.join(bundleRoot, rel)));
+}
+
+/**
+ * Maps SERVER_EXTERNAL to `{ name: versionSpec }` using the server's own
+ * package.json, so dependency bumps there propagate. `cpu-features`/`nan`
+ * are ssh2's own optional dependencies, not direct dependencies of ours, and
+ * are skipped. Throws when an external is not a dependency of the server.
+ */
+function externalDependencySpecs(serverPackageJson, serverPackageJsonPath) {
+  const specs = {};
+  for (const name of SERVER_EXTERNAL) {
+    if (name === 'cpu-features' || name === 'nan') continue;
+    const spec = serverPackageJson.dependencies?.[name];
+    if (!spec) {
+      throw new Error(
+        `SERVER_EXTERNAL lists "${name}" but it isn't a dependency of ${serverPackageJsonPath}`
+      );
+    }
+    specs[name] = spec;
+  }
+  return specs;
+}
+
+/**
  * Bundles @zowe/mcp-server's compiled `serverDistDir` (the tsc + copy-resources
  * output — index.js, scripts/*.js, and everything they import) into `outDir`
  * as ESM with code-splitting. Only compiles what's already on disk in
@@ -179,5 +222,8 @@ module.exports = {
   NODE_TARGET,
   SERVER_BANNER,
   SERVER_EXTERNAL,
+  REQUIRED_RUNTIME_ASSETS,
+  findMissingRuntimeAssets,
+  externalDependencySpecs,
   buildServer,
 };

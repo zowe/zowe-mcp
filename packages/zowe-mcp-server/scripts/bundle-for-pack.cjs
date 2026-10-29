@@ -40,14 +40,16 @@
  *      ... from '@zowe/mcp-server'`, and `dist/index.d.ts`'s own relative
  *      imports need the rest of the `.d.ts` tree to actually resolve — ~124
  *      files / ~350 KB, a rounding error against the ~11 MB the bundle
- *      saves), then swap the staging directory in as the new `dist/`.
+ *      saves), then swap the staging directory in as the new `dist/` (the tsc `dist/` is
+ *      kept aside and put back by postpack, or by this script's catch block
+ *      on failure).
  *      `main`/`types`/`bin` all stay `dist/index.js` (or `dist/index.d.ts`)
  *      — no consumer-visible path changes — because the bundle is written
  *      into `dist/` itself rather than some other directory.
  *   3. Prune `dependencies` down to just `SERVER_EXTERNAL`'s own packages
  *      (everything else is now inlined by esbuild and would otherwise be
  *      npm-installed for nothing). `zowe-mcp-common` — previously handled
- *      by staging a local copy under `.local/` because the unbundled ESM
+ *      by staging a local copy because the unbundled ESM
  *      tree needed a real `node_modules/zowe-mcp-common` to `import` at
  *      runtime — is dropped from `dependencies` entirely for the same
  *      reason: esbuild inlines its compiled `dist/` directly into this
@@ -98,8 +100,20 @@ const {
   pruneNapiRsCli,
   pruneRuntimeDeadFiles,
   copyRuntimeAssets,
+  verifyExternalsResolve,
 } = require('../../../scripts/bundle-production-deps.cjs');
-const { buildServer, SERVER_EXTERNAL } = require('../../../scripts/esbuild-server-config.cjs');
+const {
+  buildServer,
+  SERVER_EXTERNAL,
+  externalDependencySpecs,
+  findMissingRuntimeAssets,
+} = require('../../../scripts/esbuild-server-config.cjs');
+const {
+  distBackupDir,
+  nodeModulesBackupDir,
+  restoreDist,
+  restoreNodeModules,
+} = require('./pack-state.cjs');
 
 const serverPkgDir = path.resolve(__dirname, '..');
 const repoRoot = path.resolve(serverPkgDir, '..', '..');
@@ -115,19 +129,6 @@ const fileDepDirs = [
   { prefix: 'file:../../bin/', absDir: path.join(repoRoot, 'bin') },
   { prefix: 'file:../../deps/', absDir: path.join(repoRoot, 'deps') },
   { prefix: 'file:../../resources/', absDir: path.join(repoRoot, 'resources') },
-];
-
-// These are exactly the assets the bundled code resolves at runtime via
-// resolveAsset's package-root fallback (see
-// packages/zowe-mcp-server/src/runtime/asset-root.ts) once its module code
-// has been esbuild-bundled and no longer lives next to the asset on disk. If
-// copy-resources.cjs (which populates the tsc dist/) or copyRuntimeAssets
-// drifts and stops shipping one of these, we want the BUILD to fail here,
-// not the installed package at first tool invocation.
-const REQUIRED_RUNTIME_ASSETS = [
-  path.join('tools', 'tso', 'tso-command-patterns.json'),
-  path.join('tools', 'console', 'console-command-patterns.json'),
-  path.join('resources', 'dslevel-pattern.txt'),
 ];
 
 /**
@@ -182,6 +183,8 @@ async function main() {
   // original package.json and removes scratch dirs — otherwise a crash here
   // leaves the repo half-rewritten (postpack, which restores, only runs
   // after a *successful* pack).
+  let nodeModulesInstalled = false;
+  let isoDir;
   try {
     // 2. esbuild-bundle the tsc dist/ into a staging directory, copy the
     //    runtime assets alongside it, then swap it in as the new dist/.
@@ -192,33 +195,29 @@ async function main() {
     copyRuntimeAssets(distDir, distStagingDir);
     copyTypeDeclarations(distDir, distStagingDir);
 
-    const missingAssets = REQUIRED_RUNTIME_ASSETS.filter(
-      relPath => !fs.existsSync(path.join(distStagingDir, relPath))
-    );
+    // The staging directory becomes dist/, and dist/ is exactly where the
+    // bundled code looks for these at runtime (resolveAsset falls back to
+    // <packageRoot>/dist/<path>; see src/runtime/asset-root.ts), so checking
+    // it here checks the shipped location.
+    const missingAssets = findMissingRuntimeAssets(distStagingDir);
     if (missingAssets.length > 0) {
       throw new Error(
         `Missing required runtime asset(s) under dist/ after bundling: ${missingAssets.join(', ')}`
       );
     }
 
-    fs.rmSync(distDir, { recursive: true, force: true });
+    // Keep the tsc build output aside instead of deleting it: postpack moves
+    // it back, so packing leaves dist/ (used by `npm run inspector`, the e2e
+    // suites, ...) exactly as it was.
+    fs.rmSync(distBackupDir, { recursive: true, force: true });
+    fs.renameSync(distDir, distBackupDir);
     fs.renameSync(distStagingDir, distDir);
 
     // 3. Prune dependencies down to SERVER_EXTERNAL's own packages —
     //    everything else is now inlined into dist/ by esbuild and would
     //    otherwise be npm-installed (and shipped) for nothing.
     const pkg = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
-    const externalDeps = {};
-    for (const name of SERVER_EXTERNAL) {
-      if (name === 'cpu-features' || name === 'nan') continue; // ssh2's own optional deps, not ours
-      const spec = pkg.dependencies?.[name];
-      if (!spec) {
-        throw new Error(
-          `SERVER_EXTERNAL lists "${name}" but it isn't a dependency of ${packageJsonPath}`
-        );
-      }
-      externalDeps[name] = spec;
-    }
+    const externalDeps = externalDependencySpecs(pkg, packageJsonPath);
     pkg.dependencies = externalDeps;
     fs.writeFileSync(packageJsonPath, JSON.stringify(pkg, null, 2));
 
@@ -234,7 +233,7 @@ async function main() {
     //    package.json plus the .unpack/ directory into it. This is outside
     //    the monorepo so npm install doesn't hoist deps to the workspace
     //    root.
-    const isoDir = fs.mkdtempSync(path.join(os.tmpdir(), 'zowe-mcp-pack-'));
+    isoDir = fs.mkdtempSync(path.join(os.tmpdir(), 'zowe-mcp-pack-'));
     fs.cpSync(packageJsonPath, path.join(isoDir, 'package.json'));
     const unpackDir = path.join(serverPkgDir, '.unpack');
     if (fs.existsSync(unpackDir)) {
@@ -261,12 +260,20 @@ async function main() {
       pruneEsmVariants: true,
     });
     console.log(`Pruned ${deadFilesPruned} runtime-dead files.`);
+    // cpu-features/nan are dropped by --omit=optional on purpose.
+    verifyExternalsResolve(path.join(isoDir, 'node_modules'), SERVER_EXTERNAL, {
+      optional: ['cpu-features', 'nan'],
+    });
 
     // 9. Copy the node_modules tree into the server package directory.
     const targetNodeModules = path.join(serverPkgDir, 'node_modules');
     if (fs.existsSync(targetNodeModules)) {
-      fs.rmSync(targetNodeModules, { recursive: true, force: true });
+      // Keep any development node_modules aside; postpack (or the catch
+      // block below) puts it back.
+      fs.rmSync(nodeModulesBackupDir, { recursive: true, force: true });
+      fs.renameSync(targetNodeModules, nodeModulesBackupDir);
     }
+    nodeModulesInstalled = true;
     fs.cpSync(path.join(isoDir, 'node_modules'), targetNodeModules, { recursive: true });
 
     // Clean up the temp directory.
@@ -283,20 +290,25 @@ async function main() {
       'Prepack complete — bundledDependencies will include node_modules/ in the tarball.'
     );
   } catch (err) {
-    // Restore the original package.json and remove scratch dirs so a failed
-    // prepack doesn't leave the working tree broken (which then breaks npm
-    // ci). dist/ is intentionally left alone here even if the swap already
-    // happened — restore-after-pack.cjs (postpack) removes it unconditionally
-    // so the next `npm run build` produces a clean tsc output either way.
+    // postpack does not run when prepack fails, so undo everything here:
+    // put the tsc dist/ and any development node_modules back, restore the
+    // original package.json, and remove scratch dirs. Otherwise the working
+    // tree is left holding the esbuild bundle as dist/, a production-only
+    // node_modules and a rewritten package.json, which then breaks the next
+    // build or `npm ci`.
+    restoreDist();
+    restoreNodeModules({ prepackCreatedIt: nodeModulesInstalled });
     if (fs.existsSync(backupPath)) {
       fs.writeFileSync(packageJsonPath, fs.readFileSync(backupPath, 'utf-8'));
       fs.unlinkSync(backupPath);
     }
-    for (const dir of ['.local', '.unpack', '.extract-tmp', distStagingDir]) {
-      fs.rmSync(path.isAbsolute(dir) ? dir : path.join(serverPkgDir, dir), {
-        recursive: true,
-        force: true,
-      });
+    if (isoDir) fs.rmSync(isoDir, { recursive: true, force: true });
+    for (const dir of [
+      path.join(serverPkgDir, '.unpack'),
+      path.join(serverPkgDir, '.extract-tmp'),
+      distStagingDir,
+    ]) {
+      fs.rmSync(dir, { recursive: true, force: true });
     }
     throw err;
   }

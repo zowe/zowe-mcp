@@ -46,6 +46,7 @@ const {
   pruneNapiRsCli,
   pruneRuntimeDeadFiles,
   copyRuntimeAssets,
+  verifyExternalsResolve,
 } = require('../../../scripts/bundle-production-deps.cjs');
 
 const extDir = path.resolve(__dirname, '..');
@@ -73,7 +74,8 @@ const fileDepDirs = [
 async function main() {
   // esbuild.mjs is ESM (the package has no "type": "module"), so it must be
   // loaded via dynamic import() from this CommonJS script.
-  const { buildServer, SERVER_EXTERNAL } = await import('./esbuild.mjs');
+  const { buildServer, externalDependencySpecs, findMissingRuntimeAssets, SERVER_EXTERNAL } =
+    await import('./esbuild.mjs');
 
   if (fs.existsSync(targetDir)) {
     fs.rmSync(targetDir, { recursive: true, maxRetries: 3, retryDelay: 100 });
@@ -86,21 +88,9 @@ async function main() {
   console.log('Copying runtime assets into server/...');
   copyRuntimeAssets(path.join(serverPkg, 'dist'), targetDir);
 
-  // These are exactly the assets the bundled code resolves at runtime via
-  // resolveAsset's package-root fallback (see
-  // packages/zowe-mcp-server/src/runtime/asset-root.ts) once its module code
-  // has been esbuild-bundled and no longer lives next to the asset on disk.
-  // If copy-resources.cjs (which populates dist/) or copyRuntimeAssets above
-  // drifts and stops shipping one of these, we want the BUILD to fail here,
-  // not the installed VSIX at first tool invocation.
-  const REQUIRED_RUNTIME_ASSETS = [
-    path.join('tools', 'tso', 'tso-command-patterns.json'),
-    path.join('tools', 'console', 'console-command-patterns.json'),
-    path.join('resources', 'dslevel-pattern.txt'),
-  ];
-  const missingAssets = REQUIRED_RUNTIME_ASSETS.filter(
-    relPath => !fs.existsSync(path.join(targetDir, relPath))
-  );
+  // Fail the BUILD (not the installed VSIX at first tool call) if an asset
+  // the bundled code resolves at runtime drifted out of the bundle.
+  const missingAssets = findMissingRuntimeAssets(targetDir);
   if (missingAssets.length > 0) {
     throw new Error(
       `Missing required runtime asset(s) under server/ after copyRuntimeAssets: ${missingAssets.join(', ')}`
@@ -134,15 +124,7 @@ async function main() {
   const serverPackageJson = JSON.parse(
     fs.readFileSync(path.join(serverPkg, 'package.json'), 'utf-8')
   );
-  const externalDeps = {};
-  for (const name of SERVER_EXTERNAL) {
-    if (name === 'cpu-features' || name === 'nan') continue; // ssh2's own optional deps
-    const spec = serverPackageJson.dependencies?.[name];
-    if (!spec) {
-      throw new Error(`SERVER_EXTERNAL lists "${name}" but it isn't a dependency of ${serverPkg}`);
-    }
-    externalDeps[name] = spec;
-  }
+  const externalDeps = externalDependencySpecs(serverPackageJson, serverPkg);
   const targetPackageJson = path.join(targetDir, 'package.json');
   fs.writeFileSync(
     targetPackageJson,
@@ -167,7 +149,6 @@ async function main() {
 
   console.log('Pruning unpack staging and stray devDependency leaks...');
   fs.rmSync(path.join(targetDir, '.unpack'), { recursive: true, force: true });
-  fs.rmSync(path.join(targetDir, '.local'), { recursive: true, force: true });
   fs.rmSync(path.join(targetDir, 'package-lock.json'), { force: true });
   pruneNapiRsCli(path.join(targetDir, 'node_modules'));
 
@@ -179,6 +160,9 @@ async function main() {
     pruneEsmVariants: true,
   });
   console.log(`Pruned ${deadFilesPruned} runtime-dead files.`);
+  verifyExternalsResolve(path.join(targetDir, 'node_modules'), SERVER_EXTERNAL, {
+    optional: ['cpu-features', 'nan'],
+  });
 
   // Install zowe-mcp-common into out/node_modules/ so the extension code
   // (out/extension.js, used by the VS Code integration test suite) can

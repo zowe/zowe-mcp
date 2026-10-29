@@ -18,6 +18,7 @@
 const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
+const { restoreDist, restoreNodeModules } = require('./pack-state.cjs');
 
 const serverPkgDir = path.resolve(__dirname, '..');
 const repoRoot = path.resolve(serverPkgDir, '..', '..');
@@ -35,14 +36,7 @@ if (fs.existsSync(backupPath)) {
 }
 
 // Clean up temporary directories created by prepack
-const dirsToClean = [
-  '.local',
-  '.unpack',
-  '.extract-tmp',
-  '.tgz',
-  '.temp-extract',
-  '.dist-esbuild-staging',
-];
+const dirsToClean = ['.unpack', '.extract-tmp', '.tgz', '.temp-extract', '.dist-esbuild-staging'];
 for (const dir of dirsToClean) {
   const dirPath = path.join(serverPkgDir, dir);
   if (fs.existsSync(dirPath)) {
@@ -51,27 +45,17 @@ for (const dir of dirsToClean) {
   }
 }
 
-// Remove the production node_modules tree that prepack created and
-// restore workspace state with a fresh npm install from the repo root.
-const nodeModulesPath = path.join(serverPkgDir, 'node_modules');
-if (fs.existsSync(nodeModulesPath)) {
-  fs.rmSync(nodeModulesPath, { recursive: true, force: true });
+// Put the development node_modules (moved aside by prepack) back, discarding
+// the production-only tree prepack created, and the tsc dist/ likewise —
+// packing must not leave the esbuild bundle behind as dist/ (it would break
+// `npm run inspector`, the e2e suites, ... until the next build).
+if (restoreNodeModules({ prepackCreatedIt: true })) {
+  console.log('Restored development node_modules/');
+} else {
   console.log('Removed prepack node_modules/');
 }
-
-// Remove the esbuild-bundled dist/ prepack left behind. tsc's incremental
-// output only ever adds/updates files for current source modules — it never
-// deletes stray files (like the bundle's dist/chunks/*.js, which have no
-// corresponding source module) that are no longer part of its output. Left
-// in place, those would silently linger through the next `npm run build`
-// instead of being cleaned up, so we remove dist/ entirely here and let the
-// next build regenerate it from scratch.
-const distPath = path.join(serverPkgDir, 'dist');
-if (fs.existsSync(distPath)) {
-  fs.rmSync(distPath, { recursive: true, force: true });
-  console.log(
-    'Removed prepack-bundled dist/ (run "npm run build -w @zowe/mcp-server" to rebuild)'
-  );
+if (restoreDist()) {
+  console.log('Restored tsc-built dist/');
 }
 
 console.log('Restoring workspace dependencies...');

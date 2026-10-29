@@ -42,6 +42,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   buildServer as buildServerShared,
+  externalDependencySpecs,
+  findMissingRuntimeAssets,
   SERVER_EXTERNAL,
 } from '../../../scripts/esbuild-server-config.cjs';
 
@@ -50,7 +52,7 @@ const serverPkgDir = path.resolve(extDir, '..', 'zowe-mcp-server');
 
 const NODE_TARGET = 'node20';
 
-export { SERVER_EXTERNAL };
+export { externalDependencySpecs, findMissingRuntimeAssets, SERVER_EXTERNAL };
 
 /**
  * Bundles the extension host into a single CJS file at `dist/extension.js`.

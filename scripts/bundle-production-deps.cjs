@@ -43,44 +43,6 @@ function stripIntegrityDeep(obj) {
 }
 
 /**
- * Bundle a workspace package into <targetDir>/.local/<depName> and rewrite the
- * dependency in the target package.json to point to the local copy.
- *
- * @param {object} opts
- * @param {string} opts.targetDir       Directory that will contain .local/
- * @param {string} opts.targetPackageJsonPath  package.json to rewrite
- * @param {string} opts.depName         Dependency name (e.g. "zowe-mcp-common")
- * @param {string} opts.depSourceDir    Source package directory (must have dist/)
- */
-function bundleWorkspaceDep({ targetDir, targetPackageJsonPath, depName, depSourceDir }) {
-  const pkg = JSON.parse(fs.readFileSync(targetPackageJsonPath, 'utf-8'));
-  const deps = pkg.dependencies || {};
-  if (!(depName in deps)) return;
-
-  const localDir = path.join(targetDir, '.local', depName);
-  fs.mkdirSync(localDir, { recursive: true });
-
-  const depPkg = JSON.parse(fs.readFileSync(path.join(depSourceDir, 'package.json'), 'utf-8'));
-  const distDir = path.join(depSourceDir, 'dist');
-  if (!fs.existsSync(distDir)) {
-    throw new Error(`Workspace dependency ${depName} has no dist/ — run "npm run build" first.`);
-  }
-
-  fs.cpSync(distDir, path.join(localDir, 'dist'), { recursive: true });
-  fs.writeFileSync(
-    path.join(localDir, 'package.json'),
-    JSON.stringify(
-      { name: depPkg.name, version: depPkg.version, main: depPkg.main, types: depPkg.types },
-      null,
-      2
-    )
-  );
-
-  deps[depName] = 'file:.local/' + depName;
-  fs.writeFileSync(targetPackageJsonPath, JSON.stringify(pkg, null, 2));
-}
-
-/**
  * Expand file:../../{bin,deps,resources}/*.tgz dependencies into <targetDir>/.unpack/<name>/,
  * strip integrity from embedded npm-shrinkwrap.json (avoids EINTEGRITY vs registry tarballs),
  * and rewrite package.json deps to file:.unpack/<name> so "npm install" resolves them locally.
@@ -221,14 +183,14 @@ function dereferenceSymlinks(dir) {
  *      back to a pure-JS implementation without them. If a future change
  *      turns `useNativeSsh` on by default, this flag must come back off (or
  *      `russh` must be pulled in some other way) or that path breaks.
- *    - `bundle-server.js` (VSIX) already avoids installing `cpu-features`/
- *      `nan`/`russh` a different way — it writes its own minimal
- *      `server/package.json` listing only `SERVER_EXTERNAL`'s own runtime
- *      dependencies, which doesn't include russh in the first place (it's
- *      zowex's optional dep, and zowex itself is already the thing being
- *      installed, not a fresh consumer of it) — so this flag would be a
- *      no-op there today; leaving the default off keeps that path's
- *      behavior unchanged and avoids two functions needing to agree on why.
+ *    - `bundle-server.js` (VSIX) does not pass it today, so it keeps
+ *      installing optional dependencies. Its minimal `server/package.json`
+ *      lists only `SERVER_EXTERNAL`'s own runtime dependencies, but
+ *      `@zowe/zowex-for-zowe-sdk`'s optional `russh` (and ssh2's
+ *      `cpu-features`/`nan`) are still pulled in by npm, so passing the flag
+ *      there WOULD shrink the VSIX. That is a separate decision from the npm
+ *      package's (VSIX size is tracked on its own), so the default stays off
+ *      to leave the VSIX's behavior unchanged.
  */
 function npmInstallProduction(cwd, { omitOptional = false } = {}) {
   const omitFlags = omitOptional ? '--omit=dev --omit=optional' : '--omit=dev';
@@ -412,14 +374,68 @@ function pruneRuntimeDeadFiles(dir, { pruneEsmVariants }) {
   return pruned;
 }
 
+/**
+ * Verifies, after pruning, that every external can still be `require()`-resolved
+ * from the pruned tree and that so can each of its own non-optional
+ * dependencies and peer dependencies, resolved from the external's own
+ * directory (which is how its `require()` calls find them at runtime).
+ *
+ * `pruneRuntimeDeadFiles({ pruneEsmVariants: true })` deletes `.mjs` files on
+ * the argument that CJS `require()` never reaches them. If a package's
+ * `main`/`exports."require"` condition points at an `.mjs` file, that argument
+ * is wrong for it, and the failure would otherwise surface only when the
+ * native SSH path is first used (mock-mode tests never load these packages).
+ * A cheap resolve check here turns that into a build failure.
+ *
+ * @param {string} nodeModulesDir  The pruned node_modules directory
+ * @param {string[]} externalNames  Packages that must resolve (e.g. SERVER_EXTERNAL)
+ * @param {{ optional?: string[] }} [opts]  Names allowed to be absent
+ *   (ssh2's optional `cpu-features`/`nan`, which are deliberately not installed)
+ */
+function verifyExternalsResolve(nodeModulesDir, externalNames, { optional = [] } = {}) {
+  const failures = [];
+  const resolveFrom = (name, fromDir) => {
+    try {
+      return require.resolve(name, { paths: [fromDir] });
+    } catch (err) {
+      failures.push(`${name} (from ${fromDir}): ${err.message.split('\n')[0]}`);
+      return undefined;
+    }
+  };
+  const parentDir = path.dirname(nodeModulesDir);
+  for (const name of externalNames) {
+    if (optional.includes(name)) continue;
+    if (!resolveFrom(name, parentDir)) continue;
+    const pkgJsonPath = path.join(nodeModulesDir, ...name.split('/'), 'package.json');
+    if (!fs.existsSync(pkgJsonPath)) continue;
+    const pkg = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf-8'));
+    const optionalPeers = Object.entries(pkg.peerDependenciesMeta ?? {})
+      .filter(([, meta]) => meta?.optional)
+      .map(([peer]) => peer);
+    const needed = [
+      ...Object.keys(pkg.dependencies ?? {}),
+      ...Object.keys(pkg.peerDependencies ?? {}).filter(peer => !optionalPeers.includes(peer)),
+    ];
+    // @types/* packages are type-only and have nothing to resolve at runtime.
+    for (const dep of needed.filter(d => !d.startsWith('@types/'))) {
+      resolveFrom(dep, path.dirname(pkgJsonPath));
+    }
+  }
+  if (failures.length > 0) {
+    throw new Error(
+      `Pruned node_modules is missing or cannot resolve required package(s):\n  ${failures.join('\n  ')}`
+    );
+  }
+}
+
 module.exports = {
   safeDepFolderName,
   stripIntegrityDeep,
-  bundleWorkspaceDep,
   prepareFileDepsForBundle,
   dereferenceSymlinks,
   npmInstallProduction,
   pruneNapiRsCli,
   pruneRuntimeDeadFiles,
+  verifyExternalsResolve,
   copyRuntimeAssets,
 };

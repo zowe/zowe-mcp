@@ -177,9 +177,22 @@ jobs:
         if: ${{ !cancelled() && steps.build-for-lint.outcome == 'success' }}
         continue-on-error: true
         run: npm run lint:sarif
+
+      # The SARIF formatter emits rules silenced by an inline `eslint-disable` comment as
+      # ordinary `level: "error"` results tagged `suppressions: [{ kind: "inSource" }]`, and
+      # GitHub does not honour that tag — so every reviewed suppression became a permanently
+      # open alert that `npm run lint` (the actual gate, above) is happy with. Strip them so
+      # the Security tab agrees with the lint gate.
+      # Fails closed: no continue-on-error, and the upload below runs only when this step
+      # succeeded, so a crash here can never ship the unfiltered report.
+      - name: Drop suppressed results from SARIF
+        id: filter-sarif
+        if: ${{ !cancelled() && hashFiles('eslint-results.sarif') != '' }}
+        run: node scripts/filter-sarif-suppressions.mjs
+
       - name: Upload ESLint SARIF
         # security-events:write is unavailable to fork-PR tokens — skip there.
-        if: ${{ !cancelled() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
+        if: ${{ !cancelled() && steps.filter-sarif.outcome == 'success' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
         uses: github/codeql-action/upload-sarif@v4.38.3
         with:
           sarif_file: eslint-results.sarif

@@ -25,14 +25,16 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import * as fs from 'node:fs/promises';
-import { dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { resolve } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { toPasswordEnvVarName } from '../src/zos/native/connection-spec.js';
+import { resolveE2eServerPath } from './helpers/e2e-server-path.js';
 import { disposeMockZos, spawnMockZos, type SpawnedMockZos } from './helpers/spawn-mock-zos.js';
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const serverPath = resolve(__dirname, '..', 'dist', 'index.js');
+// Server under test: repo build by default; set ZOWE_MCP_E2E_SERVER_PATH to use
+// another build (see helpers/e2e-server-path.ts), e.g. to run this suite by hand against
+// an installed npm-pack tarball. Nothing in CI sets the override.
+const serverPath = resolveE2eServerPath();
 
 /** Parsed tool result content. */
 interface ToolContent {

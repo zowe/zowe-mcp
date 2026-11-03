@@ -17,6 +17,7 @@
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import ssh2 from 'ssh2';
 import type { MockLogger } from '../log.js';
 import { createDispatcher } from '../rpc/dispatcher.js';
@@ -76,8 +77,8 @@ function loadChecksums(): Record<string, string> {
     try {
       // CommonJS-resolution-style trick: import.meta.url isn't available here; rely
       // on require.resolve via createRequire if needed. Simplest: walk node_modules
-      // upward.
-      let dir = path.dirname(new URL(import.meta.url).pathname);
+      // upward. fileURLToPath, not URL.pathname: on Windows the latter is `/C:/...`.
+      let dir = path.dirname(fileURLToPath(import.meta.url));
       for (let i = 0; i < 8; i++) {
         const candidate = path.join(dir, 'node_modules', 'zowex-sdk', 'bin', 'checksums.asc');
         candidates.push(candidate);
@@ -153,7 +154,10 @@ export function loadServerVersion(): string {
 function candidateSdkDirs(): string[] {
   const candidates: string[] = [];
   try {
-    let dir = path.dirname(new URL(import.meta.url).pathname);
+    // fileURLToPath, not URL.pathname: on Windows the latter is `/C:/...`, which path.join turns
+    // into `\C:\...`, so no candidate resolved and the mock reported the 0.0.0 fallback — an
+    // "outdated" server that made every Windows connection redeploy.
+    let dir = path.dirname(fileURLToPath(import.meta.url));
     for (let i = 0; i < 8; i++) {
       candidates.push(path.join(dir, 'node_modules', '@zowe', 'zowex-for-zowe-sdk'));
       const parent = path.dirname(dir);

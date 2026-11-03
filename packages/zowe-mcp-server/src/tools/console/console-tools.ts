@@ -74,7 +74,7 @@ export function registerConsoleTools(
       _meta: { resourceEffectLevel: ResourceEffect.EXECUTE },
       description:
         'Run a z/OS operator console command (e.g. DISPLAY T, DISPLAY A). ' +
-        'Prefer a dedicated tool when one exists (listProclib, listApfLibraries, listLinklist, viewSyslog, dataset/job tools): ' +
+        'Prefer a dedicated tool when one exists (listProclib, listParmlib, listApfLibraries, listLinklist, viewSyslog, dataset/job tools): ' +
         'dedicated tools return structured output and need less authorization than console commands. ' +
         'System-shutdown commands (HALT, SHUTDOWN, QUIESCE, Z EOD) are blocked. ' +
         'Other non-display commands (SET, VARY, CANCEL, FORCE, START, STOP, MODIFY) require user approval. ' +

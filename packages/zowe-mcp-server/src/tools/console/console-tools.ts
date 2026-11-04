@@ -244,8 +244,10 @@ export function registerConsoleTools(
  * Characters permitted in DISPLAY operands. Only a literal space is allowed as
  * whitespace, so newlines, tabs, and other control characters are rejected,
  * as is anything else that could terminate or chain a command (e.g. `;`).
+ * Every character IBM allows as a CONSOLxx CMDDELIM (`< > & ; % ? : "`) is excluded,
+ * so a site's multiple-command delimiter can never appear in an operand.
  */
-const DISPLAY_OPERANDS_PATTERN = /^[A-Z0-9$#@.,=()*:+_' -]+$/i;
+const DISPLAY_OPERANDS_PATTERN = /^[A-Z0-9$#@.,=()*+_' -]+$/i;
 
 /**
  * Builds a `DISPLAY` console command from operands, rejecting anything that is
@@ -257,7 +259,7 @@ export function buildDisplayCommand(operands: string): string {
   if (!DISPLAY_OPERANDS_PATTERN.test(trimmed)) {
     throw new Error(
       'Invalid DISPLAY operands. Provide only the operands (e.g. "T", "A,L", "IPLINFO") using letters, ' +
-        "digits, and the characters $ # @ . , = ( ) * : + _ ' - and spaces."
+        "digits, and the characters $ # @ . , = ( ) * + _ ' - and spaces."
     );
   }
   return `DISPLAY ${trimmed.replace(/ +/g, ' ')}`;

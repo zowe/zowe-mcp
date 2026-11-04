@@ -260,6 +260,10 @@ describe('buildDisplayCommand', () => {
       expect(() => buildDisplayCommand(operands)).toThrow('Invalid DISPLAY operands');
     }
   );
+
+  it.each([...'<>&;%?:"'])('rejects the CMDDELIM character %j', delimiter => {
+    expect(() => buildDisplayCommand(`T${delimiter}D T`)).toThrow('Invalid DISPLAY operands');
+  });
 });
 
 describe('decorateConsoleError', () => {

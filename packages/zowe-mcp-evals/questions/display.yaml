@@ -29,12 +29,12 @@ questions:
   - id: display-active
     prompt: Show me the active jobs and address spaces on the z/OS system using a console command.
     assertions:
-      - name: display is called with A or A,L, without the verb
+      - name: display is called with A,L (a bare A returns only summary counts), without the verb
         toolCall:
           tool: display
           args:
             operands:
-              pattern: '^\s*A(,\s*\w+)*\s*$'
+              pattern: '^\s*A\s*,\s*L(IST)?\s*$'
       - answerContains:
           pattern: 'MOCKJOB'
 

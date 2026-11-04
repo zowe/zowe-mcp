@@ -194,7 +194,8 @@ export function registerConsoleTools(
           .string()
           .describe(
             'Operands of the DISPLAY command, without the DISPLAY verb. ' +
-              'Common operands: "T" (time and date), "A,L" (active jobs and address spaces), "M=STOR" (storage), "IPLINFO" (IPL information), "PROG,APF" (APF list).'
+              'Common operands: "T" (local and UTC time and date), "A,L" (detailed list of active jobs, started tasks and TSO users; "A" alone gives only summary counts), "M=STOR" (central storage status), "IPLINFO" (IPL date, release, parmlib members, IPL device), "PROG,APF" (APF-authorized libraries). ' +
+              'Full syntax: z/OS MVS System Commands, DISPLAY command.'
           ),
         consoleName: z.string().optional().describe('Console name (optional).'),
         system: z.string().optional().describe(SYSTEM_PARAM_DESCRIPTION),

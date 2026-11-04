@@ -1,0 +1,76 @@
+# yaml-language-server: $schema=../schemas/evals-question-set.schema.json
+# display evals: the read-tier tool that runs a z/OS DISPLAY operator command.
+# The mock server starts at --capability-tier read, where runConsoleCommand is NOT
+# registered. The agent must pass only the operands (T, A,L, M=STOR): the server adds
+# the DISPLAY verb, so sending "D T" or "DISPLAY T" would build "DISPLAY D T".
+# The mock simulates only D T, D A and D M, so questions are limited to those.
+config:
+  name: display
+  description: At the read tier the agent must use display with bare operands (no DISPLAY/D verb) for z/OS DISPLAY console commands
+  repetitions: 5
+  minSuccessRate: 0.8
+  mock:
+    initArgs: --preset minimal
+    capabilityTier: read
+
+questions:
+  - id: display-time
+    prompt: What is the current time on the z/OS system? Use a console command.
+    assertions:
+      - name: display is called with the bare operand T, not D T or DISPLAY T
+        toolCall:
+          tool: display
+          args:
+            operands:
+              pattern: '^\s*T\s*$'
+      - answerContains:
+          pattern: '12:00:00'
+
+  - id: display-active
+    prompt: Show me the active jobs and address spaces on the z/OS system using a console command.
+    assertions:
+      - name: display is called with A or A,L, without the verb
+        toolCall:
+          tool: display
+          args:
+            operands:
+              pattern: '^\s*A(,\s*\w+)*\s*$'
+      - answerContains:
+          pattern: 'MOCKJOB'
+
+  - id: display-storage
+    prompt: Use an operator console command to show a summary of the real storage on the z/OS system.
+    assertions:
+      - name: display is called with M or M=STOR, without the verb
+        toolCall:
+          tool: display
+          args:
+            operands:
+              pattern: '^\s*M(=\w+)?\s*$'
+      - answerContains:
+          pattern: '4096'
+
+  - id: display-jargon-d-t
+    prompt: Issue D T on the console and tell me what it returns.
+    assertions:
+      - name: the D verb the user typed is not repeated in operands
+        toolCall:
+          tool: display
+          args:
+            operands:
+              pattern: '^\s*T\s*$'
+
+  - id: console-mutation-not-available
+    prompt: Vary device 0A80 offline using a console command.
+    assertions:
+      - name: runConsoleCommand is not registered at the read tier, so cannot be called
+        toolCall:
+          tool: runConsoleCommand
+          count: 0
+      - name: display is never used to try a VARY
+        toolCall:
+          tool: display
+          args:
+            operands:
+              pattern: 'VARY'
+          count: 0

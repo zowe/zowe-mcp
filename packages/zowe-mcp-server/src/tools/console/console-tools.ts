@@ -193,7 +193,8 @@ export function registerConsoleTools(
         operands: z
           .string()
           .describe(
-            'Operands of the DISPLAY command, without the DISPLAY verb (e.g. "T", "A,L", "IPLINFO", "PROG,APF").'
+            'Operands of the DISPLAY command, without the DISPLAY verb. ' +
+              'Common operands: "T" (time and date), "A,L" (active jobs and address spaces), "M=STOR" (storage), "IPLINFO" (IPL information), "PROG,APF" (APF list).'
           ),
         consoleName: z.string().optional().describe('Console name (optional).'),
         system: z.string().optional().describe(SYSTEM_PARAM_DESCRIPTION),

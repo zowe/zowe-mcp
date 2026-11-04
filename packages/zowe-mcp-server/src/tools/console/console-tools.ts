@@ -282,9 +282,12 @@ export function validateConsoleName(consoleName: string | undefined): void {
 /**
  * Message IDs z/OS answers with when it refuses a command's syntax, as a single
  * response line (verified on z/OS 3.1: `IEE305I DISPLAY  COMMAND INVALID` for an
- * unknown operand, `IEE453I UNIT STATUS INVALID OPERAND RE-ENTER` for bad `D U` operands).
+ * unknown operand, `IEE453I UNIT STATUS INVALID OPERAND RE-ENTER` for bad `D U` operands) or
+ * refuses the user's authority (`IEE345I DISPLAY  AUTHORITY INVALID, FAILED BY SECURITY PRODUCT`
+ * when an OPERCMDS profile such as MVS.DISPLAY.PROG denies the user; verified on z/OS 3.1).
+ * The host returns all of these as ordinary response text, not as a failed request.
  */
-const REJECTED_COMMAND_PATTERN = /^\s*(IEE305I|IEE453I)\b/;
+const REJECTED_COMMAND_PATTERN = /^\s*(IEE305I|IEE453I|IEE345I)\b/;
 
 /**
  * Returns the first response line when z/OS rejected the command as invalid, so the

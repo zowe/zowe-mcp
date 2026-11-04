@@ -216,6 +216,19 @@ describe('findRejectedCommandMessage', () => {
     ).toContain('IEE453I');
   });
 
+  it('flags an OPERCMDS authority denial and maps it to the permit guidance', () => {
+    // Exact response seen on z/OS 3.1 when MVS.DISPLAY.PROG denied the user.
+    const rejected = findRejectedCommandMessage(
+      ' IEE345I DISPLAY  AUTHORITY INVALID, FAILED BY SECURITY PRODUCT'
+    );
+    expect(rejected).toContain('IEE345I');
+    const decorated = decorateConsoleError(
+      `z/OS rejected the command "DISPLAY PROG,APF": ${rejected}`
+    );
+    expect(decorated).toContain('OPERCMDS');
+    expect(decorated).toContain('Do not retry until access is granted');
+  });
+
   it('does not flag genuine command output', () => {
     expect(
       findRejectedCommandMessage(' IEE136I LOCAL: TIME=16.13.54 DATE=2026.308')

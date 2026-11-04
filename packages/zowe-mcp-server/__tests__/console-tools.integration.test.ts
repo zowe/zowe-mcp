@@ -140,6 +140,24 @@ describe('display tool at the read capability tier', () => {
     if (mockDir) await fs.rm(mockDir, { recursive: true, force: true }).catch(() => undefined);
   });
 
+  it('lists display but not runConsoleCommand', async () => {
+    const { tools } = await client.listTools();
+    const names = tools.map(t => t.name);
+    expect(names).toContain('display');
+    expect(names).not.toContain('runConsoleCommand');
+  });
+
+  it('runs a DISPLAY command from its operands', async () => {
+    const result = await client.callTool({ name: 'display', arguments: { operands: 'T' } });
+    expect(result.isError ?? false).toBe(false);
+    const envelope = JSON.parse(getResultText(result)) as {
+      _context: { system: string };
+      data: { lines: string[] };
+    };
+    expect(envelope._context.system).toBe(SYSTEM_HOST);
+    expect(envelope.data.lines.join('\n')).toContain('IEE136I');
+  });
+
   it('rejects operands that would chain or inject another command', async () => {
     for (const operands of ['T\nV 0A80,OFFLINE', 'T; HALT', 'T\r\nHALT', '']) {
       const result = await client.callTool({ name: 'display', arguments: { operands } });

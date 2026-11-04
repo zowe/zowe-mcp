@@ -152,6 +152,8 @@ listApfLibraries:
 
 listProclib:
 
+listParmlib:
+
 listLinklist:
 
 viewSyslog:

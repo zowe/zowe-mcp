@@ -81,17 +81,18 @@ Time Sharing Option — run TSO commands interactively on z/OS.
 
 ## System Information
 
-The server provides **5** tools.
+The server provides **6** tools.
 
-Read-only information about the z/OS system itself — APF-authorized data sets, the PROCLIB concatenation, the link list (LNKLST) concatenation, the operations SYSLOG, and operator DISPLAY command output.
+Read-only information about the z/OS system itself — APF-authorized data sets, the PROCLIB concatenation, the PARMLIB concatenation, the link list (LNKLST) concatenation, the operations SYSLOG, and operator DISPLAY command output.
 
 | # | Tool                                    | Description                                                                                                                                                                |
 |---|-----------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | 1 | [`listApfLibraries`](#listapflibraries) | List the APF-authorized (Authorized Program Facility) data sets on the z/OS system, each with its volume serial                                                            |
 | 2 | [`listProclib`](#listproclib)           | List the PROCLIB concatenation on the z/OS system (the data sets searched for JCL procedures, in order)                                                                    |
-| 3 | [`listLinklist`](#listlinklist)         | List the link list (LNKLST) concatenation on the z/OS system (the data sets searched for load modules, in order), each with its volume serial and APF-authorization status |
-| 4 | [`viewSyslog`](#viewsyslog)             | View the z/OS SYSLOG (the system operations log)                                                                                                                           |
-| 5 | [`display`](#display)                   | Run a read-only z/OS DISPLAY operator console command and return its output                                                                                                |
+| 3 | [`listParmlib`](#listparmlib)           | List the PARMLIB concatenation on the z/OS system (the data sets searched for system parameter members like IEASYSxx, in order)                                            |
+| 4 | [`listLinklist`](#listlinklist)         | List the link list (LNKLST) concatenation on the z/OS system (the data sets searched for load modules, in order), each with its volume serial and APF-authorization status |
+| 5 | [`viewSyslog`](#viewsyslog)             | View the z/OS SYSLOG (the system operations log)                                                                                                                           |
+| 6 | [`display`](#display)                   | Run a read-only z/OS DISPLAY operator console command and return its output                                                                                                |
 
 ## Certificates
 
@@ -2447,6 +2448,63 @@ List the PROCLIB concatenation on the z/OS system (the data sets searched for JC
 
 ---
 
+### `listParmlib`
+
+> Read-only
+
+List the PARMLIB concatenation on the z/OS system (the data sets searched for system parameter members like IEASYSxx, in order). Results are paginated (default 500, max 1000 per page); follow the pagination instructions in the server instructions. Use this to find where system parmlib members live.
+
+#### Parameters
+
+| Parameter | Type      | Required | Description                                                                                                                                                                                                                                                                                                         |
+|-----------|-----------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `system`  | `string`  | No       | Optional. Target z/OS system (a host, or user@host when several connections exist). Omit it to use the active/default connection — you do not need to select or set a system first, and you should still call the tool when no system has been chosen yet. Specify it only to target a different configured system. |
+| `offset`  | `integer` | No       | 0-based index of the first item to return. Default: 0.                                                                                                                                                                                                                                                              |
+| `limit`   | `integer` | No       | Maximum items to return. Default: 500, max 1000.                                                                                                                                                                                                                                                                    |
+
+<a id="listparmlib-output-schema"></a>
+
+#### Output Schema
+
+| Field      | Type       | Required | Description                                                                                                             |
+|------------|------------|----------|-------------------------------------------------------------------------------------------------------------------------|
+| `_context` | `object`   | Yes      | Resolution context: target z/OS system. *(same as [`runSafeTsoCommand`](#runsafetsocommand-output-schema))*             |
+| `_result`  | `object`   | Yes      | Pagination metadata: count, totalAvailable, offset, hasMore. *(same as [`listDatasets`](#listdatasets-output-schema))*  |
+| `messages` | `string`[] | No       | Operational messages (e.g. pagination/line-window hints). Omitted when empty.                                           |
+| `data`     | `object`[] | Yes      | PARMLIB data sets (in concatenation order) for this page. *(same as [`restoreDataset`](#restoredataset-output-schema))* |
+
+#### Example Output
+
+```json
+{
+  "_context": {
+    "system": "mainframe-dev.example.com"
+  },
+  "_result": {
+    "count": 4,
+    "totalAvailable": 4,
+    "offset": 0,
+    "hasMore": false
+  },
+  "data": [
+    {
+      "dsn": "SYS1.PARMLIB"
+    },
+    {
+      "dsn": "SYS1.IBM.PARMLIB"
+    },
+    {
+      "dsn": "USER.PARMLIB"
+    },
+    {
+      "dsn": "CPAC.PARMLIB"
+    }
+  ]
+}
+```
+
+---
+
 ### `listLinklist`
 
 > Read-only
@@ -3833,7 +3891,7 @@ Remove a z/OS SSH connection (user@host or user@host:port) from your per-user sa
 
 > Destructive
 
-Run a z/OS operator console command (e.g. DISPLAY T, DISPLAY A). Prefer a dedicated tool when one exists (listProclib, listApfLibraries, listLinklist, viewSyslog, dataset/job tools): dedicated tools return structured output and need less authorization than console commands. System-shutdown commands (HALT, SHUTDOWN, QUIESCE, Z EOD) are blocked. Other non-display commands (SET, VARY, CANCEL, FORCE, START, STOP, MODIFY) require user approval. Unknown commands also require user approval.
+Run a z/OS operator console command (e.g. DISPLAY T, DISPLAY A). Prefer a dedicated tool when one exists (listProclib, listParmlib, listApfLibraries, listLinklist, viewSyslog, dataset/job tools): dedicated tools return structured output and need less authorization than console commands. System-shutdown commands (HALT, SHUTDOWN, QUIESCE, Z EOD) are blocked. Other non-display commands (SET, VARY, CANCEL, FORCE, START, STOP, MODIFY) require user approval. Unknown commands also require user approval.
 
 #### Parameters
 
@@ -4000,7 +4058,7 @@ See [Safety and security principles](mcp-safety-security-principles.md) for deta
 
 Read-only with client confirmation prompts for every read operation. Safest tier for exploration.
 
-**37** tools available.
+**38** tools available.
 
 | Tool                                              | Effect Level |
 |---------------------------------------------------|--------------|
@@ -4023,6 +4081,7 @@ Read-only with client confirmation prompts for every read operation. Safest tier
 | [`getUssTempPath`](#getusstemppath)               | read         |
 | [`listApfLibraries`](#listapflibraries)           | read         |
 | [`listProclib`](#listproclib)                     | read         |
+| [`listParmlib`](#listparmlib)                     | read         |
 | [`listLinklist`](#listlinklist)                   | read         |
 | [`viewSyslog`](#viewsyslog)                       | read         |
 | [`display`](#display)                             | read         |
@@ -4046,13 +4105,13 @@ Read-only with client confirmation prompts for every read operation. Safest tier
 
 Read-only with auto-approved reads. No confirmation prompts for read operations.
 
-**37** tools available.
+**38** tools available.
 
 ### `update`
 
 Adds tools that create, write, copy, rename, and modify resources.
 
-**62** tools available (25 new at this tier).
+**63** tools available (25 new at this tier).
 
 | Tool                                                  | Effect Level |
 |-------------------------------------------------------|--------------|
@@ -4086,7 +4145,7 @@ Adds tools that create, write, copy, rename, and modify resources.
 
 Adds tools that delete or cancel resources.
 
-**69** tools available (7 new at this tier).
+**70** tools available (7 new at this tier).
 
 | Tool                                                      | Effect Level |
 |-----------------------------------------------------------|--------------|
@@ -4102,7 +4161,7 @@ Adds tools that delete or cancel resources.
 
 Adds tools that execute commands and submit jobs. Full access to all operations.
 
-**77** tools available (8 new at this tier).
+**78** tools available (8 new at this tier).
 
 | Tool                                            | Effect Level |
 |-------------------------------------------------|--------------|

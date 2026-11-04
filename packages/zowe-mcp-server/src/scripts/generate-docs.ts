@@ -818,6 +818,7 @@ function generateDefaultInputs(tools: ToolInfo[]): Record<string, Record<string,
     getUssHome: {},
     listApfLibraries: {},
     listProclib: {},
+    listParmlib: {},
     listLinklist: {},
     viewSyslog: {},
     display: { operands: 'T' },
@@ -991,8 +992,15 @@ async function main(): Promise<void> {
         {
           label: 'System Information',
           description:
-            'Read-only information about the z/OS system itself — APF-authorized data sets, the PROCLIB concatenation, the link list (LNKLST) concatenation, the operations SYSLOG, and operator DISPLAY command output.',
-          toolNames: ['listApfLibraries', 'listProclib', 'listLinklist', 'viewSyslog', 'display'],
+            'Read-only information about the z/OS system itself — APF-authorized data sets, the PROCLIB concatenation, the PARMLIB concatenation, the link list (LNKLST) concatenation, the operations SYSLOG, and operator DISPLAY command output.',
+          toolNames: [
+            'listApfLibraries',
+            'listProclib',
+            'listParmlib',
+            'listLinklist',
+            'viewSyslog',
+            'display',
+          ],
         },
         {
           label: 'Certificates',

@@ -24,7 +24,6 @@
 - [ ] Linting passes (`npm run lint`)
 - [ ] PR description clearly explains the purpose and implementation
 
-
 ### Evaluations (for MCP tool/prompt changes)
 
 - [ ] New/updated eval questions added for new functionality

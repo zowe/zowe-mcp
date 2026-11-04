@@ -40,6 +40,9 @@ import {
 import { ensureContext, errorResult } from '../tool-utils.js';
 import { runConsoleCommandOutputSchema } from './console-output-schemas.js';
 
+const CONSOLE_NAME_DESCRIPTION =
+  'Console name (optional): 1-8 characters from A-Z, 0-9, $, #, @. Defaults to a name derived from the user ID.';
+
 let cachedPatterns: CommandPatterns | undefined;
 
 function getPatterns(): CommandPatterns {
@@ -86,7 +89,7 @@ export function registerConsoleTools(
         commandText: z
           .string()
           .describe('Console command to execute (e.g. "D T", "D A,L", "DISPLAY IPLINFO").'),
-        consoleName: z.string().optional().describe('Console name (optional).'),
+        consoleName: z.string().optional().describe(CONSOLE_NAME_DESCRIPTION),
         system: z.string().optional().describe(SYSTEM_PARAM_DESCRIPTION),
         startLine: z
           .number()
@@ -197,7 +200,7 @@ export function registerConsoleTools(
               'Common operands: "T" (local and UTC time and date), "A,L" (detailed list of active jobs, started tasks and TSO users; "A" alone gives only summary counts), "M=STOR" (central storage status), "IPLINFO" (IPL date, release, parmlib members, IPL device), "PROG,APF" (APF-authorized libraries). ' +
               'Full syntax: z/OS MVS System Commands, DISPLAY command.'
           ),
-        consoleName: z.string().optional().describe('Console name (optional).'),
+        consoleName: z.string().optional().describe(CONSOLE_NAME_DESCRIPTION),
         system: z.string().optional().describe(SYSTEM_PARAM_DESCRIPTION),
         startLine: z
           .number()
@@ -260,6 +263,40 @@ export function buildDisplayCommand(operands: string): string {
   return `DISPLAY ${trimmed.replace(/ +/g, ' ')}`;
 }
 
+/**
+ * EMCS console names are 1-8 characters. Restricting them to alphanumerics and the
+ * national characters keeps a caller from smuggling anything else into the
+ * `MVS.MCSOPER.<console-name>` profile check or the console-activation request.
+ */
+const CONSOLE_NAME_PATTERN = /^[A-Z0-9$#@]{1,8}$/i;
+
+/** Throws when a console name is not a plausible 1-8 character EMCS console name. */
+export function validateConsoleName(consoleName: string | undefined): void {
+  if (consoleName !== undefined && !CONSOLE_NAME_PATTERN.test(consoleName)) {
+    throw new Error(
+      `Invalid console name "${consoleName.slice(0, 40)}". Use 1-8 characters from A-Z, 0-9, $, #, and @, or omit it to use the default.`
+    );
+  }
+}
+
+/**
+ * Message IDs z/OS answers with when it refuses a command's syntax, as a single
+ * response line (verified on z/OS 3.1: `IEE305I DISPLAY  COMMAND INVALID` for an
+ * unknown operand, `IEE453I UNIT STATUS INVALID OPERAND RE-ENTER` for bad `D U` operands).
+ */
+const REJECTED_COMMAND_PATTERN = /^\s*(IEE305I|IEE453I)\b/;
+
+/**
+ * Returns the first response line when z/OS rejected the command as invalid, so the
+ * tool can report an error instead of presenting the rejection as command output.
+ */
+export function findRejectedCommandMessage(output: string): string | undefined {
+  const firstLine = output.split(/\r?\n/).find(line => line.trim() !== '');
+  return firstLine !== undefined && REJECTED_COMMAND_PATTERN.test(firstLine)
+    ? firstLine.trim()
+    : undefined;
+}
+
 /** Runs a console command (with caching and line windowing) and wraps the response. */
 async function executeConsoleCommand(
   deps: ConsoleToolDeps,
@@ -272,6 +309,7 @@ async function executeConsoleCommand(
   }
 ) {
   const { commandText, consoleName, system, startLine, lineCount } = args;
+  validateConsoleName(consoleName);
   const { systemId, userId: resolvedUserId } = resolveSystemForTool(
     deps.systemRegistry,
     deps.sessionState,
@@ -288,9 +326,15 @@ async function executeConsoleCommand(
   const scope = buildScopeSystem(systemId);
   const isPaging = startLine !== undefined || lineCount !== undefined;
 
-  const fetchCmd = async () => ({
-    text: await deps.backend.runConsoleCommand(systemId, commandText, consoleName, userId),
-  });
+  const fetchCmd = async () => {
+    const text = await deps.backend.runConsoleCommand(systemId, commandText, consoleName, userId);
+    const rejected = findRejectedCommandMessage(text);
+    if (rejected) {
+      // Thrown inside the fetch so a rejection is never cached.
+      throw new Error(`z/OS rejected the command "${commandText.trim()}": ${rejected}`);
+    }
+    return { text };
+  };
   let fullOutput: string;
   if (!isPaging && deps.responseCache) {
     const result = await fetchCmd();
@@ -317,15 +361,19 @@ async function executeConsoleCommand(
 export function decorateConsoleError(message: string): string {
   if (/unrecognized command|-32601/i.test(message)) {
     return (
-      `${message}\nThe z/OS server does not support console commands (needs zowex 0.9.0 or later). ` +
+      `${message}\nThe z/OS server does not support console commands (needs zowex 0.9.0 or later, including zo 1.0+). ` +
       'It is normally updated automatically on the next connection; reconnect and retry.'
     );
   }
-  if (/command not found|permission denied.*zoweax|zoweax.*command not found/i.test(message)) {
+  if (
+    /command not found|permission denied.*zo(?:a|weax)|zo(?:a|weax).*command not found/i.test(
+      message
+    )
+  ) {
     return (
-      `${message}\nConsole commands run through the separately installed APF-authorized zoweax binary, ` +
+      `${message}\nConsole commands run through the separately installed APF-authorized zoa binary (named zoweax before zowex 1.0), ` +
       'which was not found or is not executable on the host. A system programmer must install it — ' +
-      'see doc/zoweax-security.md in the zowe/zowex repository.'
+      'see doc/zoa-security.md in the zowe/zowex repository.'
     );
   }
   // IEE345I "... AUTHORITY INVALID, FAILED BY SECURITY PRODUCT": an OPERCMDS profile
@@ -334,7 +382,7 @@ export function decorateConsoleError(message: string): string {
     return (
       `${message}\nThe security product (RACF/ACF2/TSS) denied this command: an OPERCMDS profile ` +
       'covers it and your user is not permitted. A security administrator must grant access to the ' +
-      'matching MVS.* OPERCMDS profile — see doc/zoweax-security.md in the zowe/zowex repository. ' +
+      'matching MVS.* OPERCMDS profile — see doc/zoa-security.md in the zowe/zowex repository. ' +
       'Do not retry until access is granted; permits do not affect an already established session, ' +
       'so reconnect after one is added.'
     );
@@ -346,22 +394,22 @@ export function decorateConsoleError(message: string): string {
       `${message}\nMVS console command authority was insufficient and the security product made no ` +
       'decision: normally no OPERCMDS profile matches this command, or the OPERCMDS class is not ' +
       'active. A security administrator must define and permit the profile — see ' +
-      'doc/zoweax-security.md in the zowe/zowex repository. Do not retry until access is granted.'
+      'doc/zoa-security.md in the zowe/zowex repository. Do not retry until access is granted.'
     );
   }
-  // SAF denial on console activation (MCSOPER) reported by zoweax as service_rc 12.
+  // SAF denial on console activation (MCSOPER) reported by zoa (zoweax before zowex 1.0) as service_rc 12.
   if (/service_rc\W{0,4}12\b/i.test(message)) {
     return (
       `${message}\nThe security product denied the console activation (SAF return code 12): your user ` +
       'lacks access to the MVS.MCSOPER.<console-name> profile in the OPERCMDS class. ' +
-      'See doc/zoweax-security.md in the zowe/zowex repository. Do not retry until access is granted.'
+      'See doc/zoa-security.md in the zowe/zowex repository. Do not retry until access is granted.'
     );
   }
   if (/not authorized|authority invalid/i.test(message)) {
     return (
-      `${message}\nEither the zoweax binary is not APF-authorized (extattr +ap, set by a system programmer) ` +
+      `${message}\nEither the zoa binary (zoweax before zowex 1.0) is not APF-authorized (extattr +ap, set by a system programmer) ` +
       'or the ESM denied the console activation/command (OPERCMDS class). ' +
-      'See doc/zoweax-security.md in the zowe/zowex repository. Do not retry until access is granted.'
+      'See doc/zoa-security.md in the zowe/zowex repository. Do not retry until access is granted.'
     );
   }
   return message;

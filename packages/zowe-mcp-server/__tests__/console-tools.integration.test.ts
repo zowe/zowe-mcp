@@ -20,7 +20,12 @@ import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { buildDisplayCommand, decorateConsoleError } from '../src/tools/console/console-tools.js';
+import {
+  buildDisplayCommand,
+  decorateConsoleError,
+  findRejectedCommandMessage,
+  validateConsoleName,
+} from '../src/tools/console/console-tools.js';
 import type { MockSystemsConfig } from '../src/zos/mock/mock-types.js';
 import { createMockIntegrationClient, getResultText } from './helpers/integration-test-utils.js';
 
@@ -165,6 +170,61 @@ describe('display tool at the read capability tier', () => {
       expect(getResultText(result)).toContain('Invalid DISPLAY operands');
     }
   });
+
+  it('rejects a console name that is not a plain EMCS name', async () => {
+    for (const consoleName of ['BAD;NAME', 'TOOLONGNAME', 'A B']) {
+      const result = await client.callTool({
+        name: 'display',
+        arguments: { operands: 'T', consoleName },
+      });
+      expect(result.isError).toBe(true);
+      expect(getResultText(result)).toContain('Invalid console name');
+    }
+  });
+
+  it('accepts a valid console name', async () => {
+    const result = await client.callTool({
+      name: 'display',
+      arguments: { operands: 'T', consoleName: 'ZMCPTST1' },
+    });
+    expect(result.isError ?? false).toBe(false);
+  });
+});
+
+describe('console name validation', () => {
+  it('accepts 1-8 character EMCS names, or none', () => {
+    for (const name of [undefined, 'A', 'ZMCPTST1', 'plape1', '$#@A1']) {
+      expect(() => validateConsoleName(name)).not.toThrow();
+    }
+  });
+
+  it.each(['', 'TOOLONGNAME', 'BAD;NAME', 'A B', 'A\nB', 'A-B', 'A.B', "A'B"])(
+    'rejects %j',
+    name => {
+      expect(() => validateConsoleName(name)).toThrow('Invalid console name');
+    }
+  );
+});
+
+describe('findRejectedCommandMessage', () => {
+  it('flags the single-line syntax rejections z/OS returns', () => {
+    expect(findRejectedCommandMessage(' IEE305I DISPLAY  COMMAND INVALID')).toBe(
+      'IEE305I DISPLAY  COMMAND INVALID'
+    );
+    expect(
+      findRejectedCommandMessage('\n IEE453I UNIT STATUS INVALID OPERAND RE-ENTER\n')
+    ).toContain('IEE453I');
+  });
+
+  it('does not flag genuine command output', () => {
+    expect(
+      findRejectedCommandMessage(' IEE136I LOCAL: TIME=16.13.54 DATE=2026.308')
+    ).toBeUndefined();
+    expect(
+      findRejectedCommandMessage(' IEE254I  IPLINFO DISPLAY 738\n  IEE305I in a later line')
+    ).toBeUndefined();
+    expect(findRejectedCommandMessage('')).toBeUndefined();
+  });
 });
 
 describe('buildDisplayCommand', () => {
@@ -200,7 +260,15 @@ describe('decorateConsoleError', () => {
     const out = decorateConsoleError(
       "Error: console command failed via 'zoweax', rc: '255'\n  Details: zut_private_run_program: zoweax: command not found"
     );
-    expect(out).toContain('zoweax-security.md');
+    expect(out).toContain('zoa-security.md');
+    expect(out).toContain('system programmer');
+  });
+
+  it('maps a missing zoa (zowex 1.0+) to the same install pointer', () => {
+    const out = decorateConsoleError(
+      "Error: console command failed via 'zoa', rc: '255'\n  Details: zut_private_run_program: zoa: command not found"
+    );
+    expect(out).toContain('zoa-security.md');
     expect(out).toContain('system programmer');
   });
 

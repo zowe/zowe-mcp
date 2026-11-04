@@ -34,9 +34,10 @@ import * as vscode from 'vscode';
 import { getNativePasswordKey } from './secrets';
 import { updateCliPluginActiveProfiles, updateZoweMcpStatusBar } from './status-bar';
 import {
+  type ExplorerProfileApi,
   getAllZosmfProfileNames,
   getDefaultZosmfProfileName,
-  getZosmfProfilesFromZoweCli,
+  getExplorerProfileInfo,
   resolveProfileFromSystem,
 } from './zowe-profile';
 
@@ -93,12 +94,12 @@ const sessionProfileBySystem = new Map<string, string>();
 
 /**
  * Resolves Zowe profile for opening a resource in Zowe Explorer.
- * Returns profile name or null if user cancelled. Uses session cache, team config default, CLI default, system match, or prompts (quick pick / input).
+ * Returns profile name or null if user cancelled. Uses session cache, Explorer's configured default, system match, or prompts (quick pick / input).
  */
 async function resolveProfileForZoweEditor(
   log: vscode.LogOutputChannel,
   logLabel: string,
-  workspaceDir: string | undefined,
+  explorer: vscode.Extension<ExplorerProfileApi>,
   sessionKey: string,
   systemId: string | undefined,
   connectionKind: 'zowex' | 'zosmf' | 'native' | undefined
@@ -112,24 +113,17 @@ async function resolveProfileForZoweEditor(
       profile,
     });
   }
+  const profileInfo = profile ? null : await getExplorerProfileInfo(explorer);
   if (!profile) {
-    profile = (await getDefaultZosmfProfileName()) ?? undefined;
+    profile = getDefaultZosmfProfileName(profileInfo) ?? undefined;
     if (profile) {
       sessionProfileBySystem.set(sessionKey, profile);
       log.info(`${logLabel}: using default zosmf profile from team config`, { profile });
     }
   }
-  if (!profile) {
-    const cliResult = await getZosmfProfilesFromZoweCli(workspaceDir);
-    if (cliResult.defaultName) {
-      profile = cliResult.defaultName;
-      sessionProfileBySystem.set(sessionKey, profile);
-      log.info(`${logLabel}: using default zosmf profile from zowe config list`, { profile });
-    }
-  }
   if (!profile && (systemId ?? '').trim()) {
     const preferSshProfile = connectionKind === 'zowex' || connectionKind === 'native';
-    const resolved = await resolveProfileFromSystem(systemId!, preferSshProfile);
+    const resolved = resolveProfileFromSystem(profileInfo, systemId!, preferSshProfile);
     profile = resolved ?? undefined;
     if (profile) {
       sessionProfileBySystem.set(sessionKey, profile);
@@ -138,7 +132,7 @@ async function resolveProfileForZoweEditor(
   }
   if (!profile) {
     log.info(`${logLabel}: no profile found; listing profiles or prompting for name`);
-    const names = await getAllZosmfProfileNames(workspaceDir);
+    const names = getAllZosmfProfileNames(profileInfo);
     if (names.length > 0) {
       const picked = await vscode.window.showQuickPick(names, {
         title: 'Choose Zowe Explorer profile for this session',
@@ -151,8 +145,7 @@ async function resolveProfileForZoweEditor(
     } else {
       const entered = await vscode.window.showInputBox({
         title: 'Zowe Explorer profile',
-        prompt:
-          'Enter the zosmf profile name (e.g. zosmf). Used when config is project-local or not detected.',
+        prompt: 'Enter the zosmf profile name to open the resource.',
         placeHolder: 'e.g. zosmf',
         validateInput: value => {
           const t = value?.trim() ?? '';
@@ -496,17 +489,19 @@ async function handleOpenInEditor(
   data: { system?: string; connectionKind?: 'zowex' | 'zosmf' | 'native' },
   buildSpec: () => OpenInEditorSpec
 ): Promise<void> {
-  if (!vscode.extensions.getExtension('Zowe.vscode-extension-for-zowe')) {
+  const explorer = vscode.extensions.getExtension<ExplorerProfileApi>(
+    'Zowe.vscode-extension-for-zowe'
+  );
+  if (!explorer) {
     void vscode.window.showWarningMessage(ZOWE_EDITOR_REQUIRED_MSG);
     return;
   }
 
-  const workspaceDir = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
   const sessionKey = (data.system ?? '').trim();
   const profile = await resolveProfileForZoweEditor(
     log,
     logLabel,
-    workspaceDir,
+    explorer,
     sessionKey,
     data.system,
     data.connectionKind

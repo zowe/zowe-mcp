@@ -9,19 +9,10 @@
  *
  */
 
-/**
- * Resolves Zowe Explorer profile names from Zowe team config (ProfileInfo API or CLI).
- * Used when opening data sets in the editor so the extension can build zowe-ds URIs.
- */
+import type { Extension } from 'vscode';
 
-import * as childProcess from 'child_process';
-import * as util from 'util';
-
-const execAsync = util.promisify(childProcess.exec);
-
-/** Minimal ProfileInfo interface for profile resolution (from @zowe/imperative). */
-interface IProfileInfo {
-  readProfilesFromDisk(): Promise<void>;
+/** Profile lookup used by Zowe Explorer when opening resources. */
+interface ProfileInfo {
   getDefaultProfile(profileType: string): { profName: string } | null;
   getAllProfiles(profileType: string): { profName: string }[];
   mergeArgsForProfile(profile: { profName: string }): {
@@ -29,24 +20,23 @@ interface IProfileInfo {
   };
 }
 
-let profileInfoClass: (new (app: string) => IProfileInfo) | null | undefined = undefined;
+export interface ExplorerProfileApi {
+  getExplorerExtenderApi(): {
+    getProfilesCache(): { getProfileInfo(): Promise<ProfileInfo> };
+  };
+}
 
-/**
- * Returns the ProfileInfo constructor from @zowe/imperative, or null if the package is not installed.
- * Lazy-loaded so the extension can activate when the dependency is not bundled (e.g. VSIX --no-dependencies).
- */
-function getProfileInfoClass(): (new (app: string) => IProfileInfo) | null {
-  if (profileInfoClass !== undefined) return profileInfoClass;
+/** Uses Explorer's own profile cache, including its workspace team configuration. */
+export async function getExplorerProfileInfo(
+  extension: Pick<Extension<ExplorerProfileApi>, 'activate'>
+): Promise<ProfileInfo | null> {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const imperative = require('@zowe/imperative') as {
-      ProfileInfo: new (app: string) => IProfileInfo;
-    };
-    profileInfoClass = imperative?.ProfileInfo ?? null;
+    const api = await extension.activate();
+    return await api.getExplorerExtenderApi().getProfilesCache().getProfileInfo();
   } catch {
-    profileInfoClass = null;
+    // Older or unavailable Explorer APIs leave manual profile entry available.
+    return null;
   }
-  return profileInfoClass;
 }
 
 /** Parsed MCP system (user@host or user@host:port). */
@@ -80,95 +70,23 @@ function parseSystem(system: string): ParsedSystem | null {
   return { user, host, port };
 }
 
-/**
- * Returns the default zosmf profile name from Zowe team config, or null if none or on error.
- * Returns null if @zowe/imperative is not installed (e.g. extension packaged with --no-dependencies).
- */
-export async function getDefaultZosmfProfileName(): Promise<string | null> {
-  const ProfileInfoClass = getProfileInfoClass();
-  if (!ProfileInfoClass) return null;
+/** Returns the default zosmf profile name, if configured. */
+export function getDefaultZosmfProfileName(profileInfo: ProfileInfo | null): string | null {
   try {
-    const profInfo = new ProfileInfoClass('zowe');
-    await profInfo.readProfilesFromDisk();
-    const defaultProf = profInfo.getDefaultProfile('zosmf');
-    if (!defaultProf?.profName) return null;
-    return defaultProf.profName;
+    const name = profileInfo?.getDefaultProfile('zosmf')?.profName;
+    if (!name) return null;
+    return name;
   } catch {
     return null;
   }
 }
 
-/**
- * Returns all zosmf profile names from Zowe team config for use in a profile picker.
- * Tries ProfileInfo first, then falls back to `zowe config list --rfj`.
- * Pass workspaceDir so the CLI uses project-local zowe.config.json (e.g. workspace/zowe.config.json).
- */
-export async function getAllZosmfProfileNames(workspaceDir?: string): Promise<string[]> {
-  const fromImperative = await getAllZosmfProfileNamesFromImperative();
-  if (fromImperative.length > 0) return fromImperative;
-  const fromCli = await getZosmfProfilesFromZoweCli(workspaceDir);
-  return fromCli.names;
-}
-
-/**
- * Returns zosmf profile names from @zowe/imperative ProfileInfo only.
- */
-async function getAllZosmfProfileNamesFromImperative(): Promise<string[]> {
-  const ProfileInfoClass = getProfileInfoClass();
-  if (!ProfileInfoClass) return [];
+/** Returns the configured zosmf profile names for the profile picker. */
+export function getAllZosmfProfileNames(profileInfo: ProfileInfo | null): string[] {
   try {
-    const profInfo = new ProfileInfoClass('zowe');
-    await profInfo.readProfilesFromDisk();
-    const profiles = (profInfo.getAllProfiles?.('zosmf') ?? []) as { profName: string }[];
-    return profiles.map(p => p.profName).filter(Boolean);
+    return (profileInfo?.getAllProfiles('zosmf') ?? []).map(p => p.profName).filter(Boolean);
   } catch {
     return [];
-  }
-}
-
-/** Result of running `zowe config list --rfj`: zosmf profile names and default. */
-export interface ZoweCliProfilesResult {
-  names: string[];
-  defaultName: string | null;
-}
-
-/**
- * Runs `zowe config list --rfj` and parses zosmf profile names and default.
- * Uses workspace directory as cwd when provided so project-local zowe.config.json is found.
- * Returns { names: [], defaultName: null } on any error (CLI not found, non-zero exit, parse error).
- */
-export async function getZosmfProfilesFromZoweCli(
-  workspaceDir?: string
-): Promise<ZoweCliProfilesResult> {
-  const cwd = workspaceDir?.trim() ? workspaceDir.trim() : undefined;
-  try {
-    const { stdout } = await execAsync('zowe config list --rfj', {
-      cwd,
-      maxBuffer: 2 * 1024 * 1024,
-      encoding: 'utf8',
-    });
-    const json = JSON.parse(stdout) as {
-      success?: boolean;
-      data?: {
-        profiles?: Record<string, { type?: string }>;
-        defaults?: { zosmf?: string };
-      };
-    };
-    const profiles = json?.data?.profiles;
-    const defaults = json?.data?.defaults;
-    if (!profiles || typeof profiles !== 'object') {
-      return { names: [], defaultName: null };
-    }
-    const names = Object.keys(profiles).filter(
-      key => (profiles[key]?.type ?? '').toLowerCase() === 'zosmf'
-    );
-    const defaultName =
-      typeof defaults?.zosmf === 'string' && defaults.zosmf.trim() !== ''
-        ? defaults.zosmf.trim()
-        : null;
-    return { names, defaultName };
-  } catch {
-    return { names: [], defaultName: null };
   }
 }
 
@@ -176,21 +94,17 @@ export async function getZosmfProfilesFromZoweCli(
  * Finds a Zowe profile (zosmf or ssh) whose host and user match the given MCP system.
  * When preferSsh is true and both zosmf and ssh match, returns the ssh profile name.
  */
-export async function resolveProfileFromSystem(
+export function resolveProfileFromSystem(
+  profileInfo: ProfileInfo | null,
   system: string,
   preferSsh?: boolean
-): Promise<string | null> {
+): string | null {
   const parsed = parseSystem(system);
-  if (!parsed) return null;
+  if (!parsed || !profileInfo) return null;
   const { user, host } = parsed;
   const hostLower = host.toLowerCase();
 
-  const ProfileInfoClass = getProfileInfoClass();
-  if (!ProfileInfoClass) return null;
   try {
-    const profInfo = new ProfileInfoClass('zowe');
-    await profInfo.readProfilesFromDisk();
-
     interface ProfWithName {
       profName: string;
       host?: string;
@@ -198,7 +112,7 @@ export async function resolveProfileFromSystem(
     }
     const getMerged = (prof: { profName: string }): ProfWithName => {
       try {
-        const merged = profInfo.mergeArgsForProfile(prof);
+        const merged = profileInfo.mergeArgsForProfile(prof);
         const known = merged?.knownArgs;
         if (!Array.isArray(known)) return { profName: prof.profName };
         let h: string | undefined;
@@ -217,8 +131,8 @@ export async function resolveProfileFromSystem(
     const matches = (p: ProfWithName): boolean =>
       (p.host?.toLowerCase() ?? '') === hostLower && (p.user ?? '').trim() === user.trim();
 
-    const zosmfProfiles = (profInfo.getAllProfiles?.('zosmf') ?? []) as { profName: string }[];
-    const sshProfiles = (profInfo.getAllProfiles?.('ssh') ?? []) as { profName: string }[];
+    const zosmfProfiles = profileInfo.getAllProfiles('zosmf');
+    const sshProfiles = profileInfo.getAllProfiles('ssh');
 
     const zosmfMatch = zosmfProfiles.map(getMerged).find(matches);
     const sshMatch = sshProfiles.map(getMerged).find(matches);

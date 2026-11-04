@@ -106,7 +106,7 @@ For the full security model see [Safety & Security principles](https://github.co
 
 ## User-facing options reference
 
-All options that affect the MCP server are documented below. The extension uses the **VS Code settings**; when running the server standalone you use **CLI options** and **environment variables**.
+The extension uses the **VS Code settings** below. To run the server without VS Code, see its [CLI options and environment variables](https://github.com/zowe/zowe-mcp/blob/main/docs/roo-or-standalone-mcp.md#server-cli-options).
 
 ### VS Code settings (Zowe MCP)
 
@@ -122,38 +122,6 @@ All options that affect the MCP server are documented below. The extension uses 
 | `zoweMCP.defaultMainframeMvsEncoding` | string | `"IBM-037"` | Default EBCDIC encoding for data set read/write. |
 | `zoweMCP.defaultMainframeUssEncoding` | string | `"IBM-1047"` | Default EBCDIC encoding for USS file operations. |
 | `zoweMCP.jobCards` | object | `{}` | JCL job cards per connection spec; keys `user@host` or `user@host:port`, value array of lines or string. Placeholders: `{jobname}`, `{programmer}`. |
-
-### Server CLI options (standalone)
-
-When running the bundled server, or the `zowe-mcp-server` binary from a
-standalone install, outside VS Code — `@zowe/mcp-server` is not yet on a
-public npm registry, so the bare `npx @zowe/mcp-server …` form fails with a
-404; install from a packed tarball (`npm run pack:server` produces it) or use
-the in-repo workspace form:
-
-- **Transport:** `--stdio` (default), `--http`, `--port <N>` (default 7542 for HTTP)
-- **Safety:** `--capability-tier <tier>` (`read-strict`, `read`, `update`, `delete`, `full`; default: `read-strict`)
-- **Backend:** `--mock <dir>`, `--native`, `--config <path>`, `--system <spec>` (repeatable). Config file may include `jobCards` per connection.
-- **Native:** `--native-server-auto-install=true|false` (default: true), `--native-server-path <path>`, `--native-response-timeout <seconds>` (default 60)
-- **Encoding:** `--default-mvs-encoding <name>` (e.g. IBM-037), `--default-uss-encoding <name>` (e.g. IBM-1047)
-- **Response cache:** `--response-cache-disable`, `--response-cache-ttl-minutes N`, `--response-cache-max-mb N`
-- **Subcommands:** `init-mock [--output <dir>] [--preset ...]`, `call-tool [--mock=<dir>] [tool-name key=value ...]`
-- **Help:** `-h`, `--help`, `--version`
-
-### Environment variables (standalone)
-
-- `ZOWE_MCP_CAPABILITY_TIER` — Capability tier (`read-strict`, `read`, `update`, `delete`, `full`; default: `read-strict`)
-- `ZOWE_MCP_MOCK_DIR` — Mock data directory (same as `--mock <dir>`)
-- `ZOWE_MCP_LOG_LEVEL` — Log level (e.g. `info`, `debug`)
-- `ZOWE_MCP_NATIVE_SERVER_AUTO_INSTALL` — `false` or `0` to disable auto-install
-- `ZOWE_MCP_NATIVE_SERVER_PATH` — Remote path for Zowe Remote SSH z/OS server
-- `ZOWE_MCP_NATIVE_RESPONSE_TIMEOUT` — Response timeout in seconds for Zowe Remote SSH (default 60)
-- `ZOWE_MCP_DEFAULT_MVS_ENCODING` — Default EBCDIC for data sets (e.g. IBM-037)
-- `ZOWE_MCP_DEFAULT_USS_ENCODING` — Default EBCDIC for USS (e.g. IBM-1047)
-- `ZOWE_MCP_RESPONSE_CACHE_DISABLE` — `1` or `true` to disable response cache
-- `ZOWE_MCP_RESPONSE_CACHE_TTL_MINUTES` — Cache entry TTL in minutes (default 10). Legacy: `ZOWE_MCP_RESPONSE_CACHE_TTL_MS` (milliseconds) is still supported.
-- `ZOWE_MCP_RESPONSE_CACHE_MAX_BYTES` — Max cache size in bytes
-- `ZOWE_MCP_PASSWORD_<USER>_<HOST>` — Password for native SSH (e.g. `ZOWE_MCP_PASSWORD_MYUSER_MYHOST_EXAMPLE_COM`)
 
 ## Zowe Explorer integration
 

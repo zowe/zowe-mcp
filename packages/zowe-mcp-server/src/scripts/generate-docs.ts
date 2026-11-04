@@ -29,6 +29,7 @@
 
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
+import { CliPrettify } from 'markdown-table-prettify';
 import { spawnSync } from 'node:child_process';
 import {
   existsSync,
@@ -39,7 +40,6 @@ import {
   rmSync,
   writeFileSync,
 } from 'node:fs';
-import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -466,16 +466,11 @@ function stabilizeOutput(text: string): string {
   );
 }
 
-const require = createRequire(import.meta.url);
-
 /**
  * Format all Markdown tables in the given text using markdown-table-prettify
  * so columns are consistently aligned.
  */
 function formatMarkdownTables(markdown: string): string {
-  const { CliPrettify } = require('markdown-table-prettify') as {
-    CliPrettify: { prettify: (text: string) => string };
-  };
   return CliPrettify.prettify(markdown);
 }
 
@@ -823,6 +818,7 @@ function generateDefaultInputs(tools: ToolInfo[]): Record<string, Record<string,
     getUssHome: {},
     listApfLibraries: {},
     listProclib: {},
+    listParmlib: {},
     listLinklist: {},
     viewSyslog: {},
     showCertificate: { owner: 'USER01', keyring: 'RING02', label: 'CERT03' },
@@ -995,8 +991,14 @@ async function main(): Promise<void> {
         {
           label: 'System Information',
           description:
-            'Read-only information about the z/OS system itself — APF-authorized data sets, the PROCLIB concatenation, the link list (LNKLST) concatenation, and the operations SYSLOG.',
-          toolNames: ['listApfLibraries', 'listProclib', 'listLinklist', 'viewSyslog'],
+            'Read-only information about the z/OS system itself — APF-authorized data sets, the PROCLIB concatenation, the PARMLIB concatenation, the link list (LNKLST) concatenation, and the operations SYSLOG.',
+          toolNames: [
+            'listApfLibraries',
+            'listProclib',
+            'listParmlib',
+            'listLinklist',
+            'viewSyslog',
+          ],
         },
         {
           label: 'Certificates',

@@ -59,7 +59,6 @@ describe('runQuestion', () => {
       cache: { enabled: false, dir: cacheDir, stats: { hits: 0, writes: 0 } },
       systemPrompt: 'You are a helper.',
       repetitions: 1,
-      minSuccessRate: 0.8,
       runLabel: r => `run ${r}`,
       verboseAnswers: false,
       ...overrides,
@@ -176,12 +175,16 @@ describe('runQuestion', () => {
       prompt: 'cached prompt',
       assertionBlock: block([{ type: 'answerContains', substring: 'cached' }]),
     };
-    const key = buildCacheKey({
-      systemPrompt: 'You are a helper.',
-      prompt: 'cached prompt',
-      toolDefs: {},
-    });
-    await cacheSet(cacheDir, key, { finalText: 'a cached answer', toolCalls: [] });
+    // Entries are per repetition, so every rep needs its own seeded entry.
+    for (const repIndex of [0, 1]) {
+      const key = buildCacheKey({
+        systemPrompt: 'You are a helper.',
+        prompt: 'cached prompt',
+        toolDefs: {},
+        repIndex,
+      });
+      await cacheSet(cacheDir, key, { finalText: 'a cached answer', toolCalls: [] });
+    }
     const runOne = vi.fn();
     const harness = fakeHarness({ runOne });
     const stats = { hits: 0, writes: 0 };
@@ -199,6 +202,67 @@ describe('runQuestion', () => {
     expect(results).toHaveLength(2);
     expect(results.every(r => r.passed)).toBe(true);
     expect(stats.hits).toBe(2);
+  });
+
+  it('runs live for reps that have no cache entry, so a partial cache is not extrapolated', async () => {
+    const q: Question = {
+      id: 'cache-1b',
+      prompt: 'cached prompt',
+      assertionBlock: block([{ type: 'answerContains', substring: 'cached' }]),
+    };
+    // Only rep 0 is cached. Rep 1 must still call the harness: replaying one stored run
+    // across every rep is what previously pinned cached questions to a 100% pass rate.
+    const key = buildCacheKey({
+      systemPrompt: 'You are a helper.',
+      prompt: 'cached prompt',
+      toolDefs: {},
+      repIndex: 0,
+    });
+    await cacheSet(cacheDir, key, { finalText: 'a cached answer', toolCalls: [] });
+    const runOne = vi.fn(() => Promise.resolve(fakeAgentRunResult('a live answer')));
+    const harness = fakeHarness({ runOne });
+    const stats = { hits: 0, writes: 0 };
+
+    const results = await runQuestion(
+      q,
+      baseCtx({
+        harness,
+        cache: { enabled: true, dir: cacheDir, stats },
+        repetitions: 2,
+      })
+    );
+
+    expect(runOne).toHaveBeenCalledTimes(1);
+    expect(stats.hits).toBe(1);
+    expect(results).toHaveLength(2);
+    // The cached rep passes ("cached"); the live rep does not contain the substring.
+    expect(results[0].passed).toBe(true);
+    expect(results[1].passed).toBe(false);
+  });
+
+  it('does not cache a run whose provider response was empty on every attempt', async () => {
+    const q: Question = {
+      id: 'cache-empty',
+      prompt: 'empty prompt',
+      assertionBlock: block([{ type: 'answerContains', substring: 'anything' }]),
+    };
+    const runOne = vi.fn(() =>
+      Promise.resolve({ ...fakeAgentRunResult(''), emptyResponse: true })
+    );
+    const harness = fakeHarness({ runOne });
+    const stats = { hits: 0, writes: 0 };
+
+    const results = await runQuestion(
+      q,
+      baseCtx({
+        harness,
+        cache: { enabled: true, dir: cacheDir, stats },
+        repetitions: 2,
+      })
+    );
+
+    expect(stats.writes).toBe(0);
+    expect(results.every(r => r.emptyResponse === true)).toBe(true);
   });
 
   it('multi-turn cache hit replays cached.turns through per-turn assertions', async () => {
@@ -275,7 +339,7 @@ describe('runQuestion', () => {
     expect(results[0].assertionFailed).toMatch(/^turn 2:/);
   });
 
-  it('does not write to cache when the pass rate is below minSuccessRate', async () => {
+  it('caches each rep independently, including reps that failed', async () => {
     const q: Question = {
       id: 'write-1',
       prompt: 'flaky prompt',
@@ -289,26 +353,31 @@ describe('runQuestion', () => {
     const harness = fakeHarness({ runOne });
     const stats = { hits: 0, writes: 0 };
 
-    await runQuestion(
+    const results = await runQuestion(
       q,
       baseCtx({
         harness,
         cache: { enabled: true, dir: cacheDir, stats },
         repetitions: 2,
-        minSuccessRate: 0.8, // 1/2 = 0.5 < 0.8
       })
     );
 
-    expect(stats.writes).toBe(0);
-    const key = buildCacheKey({
-      systemPrompt: 'You are a helper.',
-      prompt: 'flaky prompt',
-      toolDefs: {},
-    });
-    expect(await cacheGet(cacheDir, key)).toBeNull();
+    // Both reps are stored, pass and fail alike, so a replay reproduces the same 1/2 rate
+    // rather than collapsing onto the single passing run.
+    expect(stats.writes).toBe(2);
+    expect(results.map(r => r.passed)).toEqual([true, false]);
+    const keyFor = (repIndex: number): string =>
+      buildCacheKey({
+        systemPrompt: 'You are a helper.',
+        prompt: 'flaky prompt',
+        toolDefs: {},
+        repIndex,
+      });
+    expect((await cacheGet(cacheDir, keyFor(0)))?.finalText).toBe('ok');
+    expect((await cacheGet(cacheDir, keyFor(1)))?.finalText).toBe('nope');
   });
 
-  it('writes to cache once the pass rate reaches minSuccessRate', async () => {
+  it('writes a cache entry for a completed rep', async () => {
     const q: Question = {
       id: 'write-2',
       prompt: 'reliable prompt',
@@ -324,7 +393,6 @@ describe('runQuestion', () => {
         harness,
         cache: { enabled: true, dir: cacheDir, stats },
         repetitions: 1,
-        minSuccessRate: 0.8,
       })
     );
 
@@ -333,6 +401,7 @@ describe('runQuestion', () => {
       systemPrompt: 'You are a helper.',
       prompt: 'reliable prompt',
       toolDefs: {},
+      repIndex: 0,
     });
     const cached = await cacheGet(cacheDir, key);
     expect(cached?.finalText).toBe('ok');

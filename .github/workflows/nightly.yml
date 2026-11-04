@@ -62,15 +62,20 @@ jobs:
 
       # Everything above passed against the newest nightly, so that build is a safe
       # candidate for the committed pin. Open (or update) a PR rather than pushing to
-      # main: moving the pin is a dependency change and should be reviewed, and the PR's
-      # own CI re-runs the whole suite against the proposed pin.
+      # main: moving the pin is a dependency change and should be reviewed.
+      #
+      # GitHub deliberately does not trigger workflow runs for PRs opened with the default
+      # GITHUB_TOKEN, so a PR created with `github.token` gets no CI at all — the validation
+      # of record is this job's own build/test steps above. Configure the PIN_BUMP_TOKEN
+      # secret (a PAT or GitHub App token with contents + pull-requests write) to get real
+      # CI on the bump PR itself; without it, the PR still opens, just without checks.
       #
       # This also keeps the pin from ageing out — upstream prunes nightly snapshots after
       # roughly six weeks, at which point `sdk-switch.js pin` would start failing to fetch.
       - name: Open pin bump PR
         if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.PIN_BUMP_TOKEN || github.token }}
         run: |
           set -euo pipefail
 
@@ -102,6 +107,6 @@ jobs:
 
           Review notes:
           - Check the \`upstream\` block for which zowex commits are newly included.
-          - CI on this PR re-runs the full suite against the proposed pin.
+          - The nightly job above already built and tested this exact SDK build; this PR's own CI re-runs the suite only when the \`PIN_BUMP_TOKEN\` secret is configured, since GitHub does not trigger workflow runs for PRs opened with the default token.
           - Nightly snapshots are pruned upstream after roughly six weeks, so letting the pin drift too far will eventually break \`sdk-switch.js pin\`." \
             --label dependencies

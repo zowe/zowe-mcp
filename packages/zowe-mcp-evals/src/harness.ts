@@ -97,7 +97,52 @@ const MAX_STEPS = 10;
 
 // Gemini occasionally returns an empty candidate (0 output tokens, no tool calls, no text).
 // Such runs are provider pathology, not a model answer, so they are retried rather than scored.
-const EMPTY_RESPONSE_RETRIES = 2;
+// Retries are spaced with exponential backoff + jitter: without a delay all attempts hit the
+// same transient window and fail together, which turns provider flakiness into an apparent
+// behavioral regression (the run yields no tool calls, so assertions report "expected tool X
+// to be called"). A run still empty after every attempt is flagged via
+// AgentRunResult.emptyResponse so callers can report it as infrastructure noise.
+const EMPTY_RESPONSE_RETRIES = 4;
+const EMPTY_RESPONSE_BACKOFF_BASE_MS = 750;
+const EMPTY_RESPONSE_BACKOFF_MAX_MS = 8000;
+
+/** Delay before empty-response retry `attempt` (1-based): exponential with +/-25% jitter. */
+function emptyResponseBackoffMs(attempt: number): number {
+  const exponential = EMPTY_RESPONSE_BACKOFF_BASE_MS * Math.pow(2, attempt - 1);
+  const capped = Math.min(exponential, EMPTY_RESPONSE_BACKOFF_MAX_MS);
+  return Math.round(capped * (0.75 + Math.random() * 0.5));
+}
+
+const sleep = (ms: number): Promise<void> => new Promise(res => setTimeout(res, ms));
+
+/**
+ * Calls `attempt` until it produces a non-empty result, up to EMPTY_RESPONSE_RETRIES extra
+ * tries with backoff between them. `attempt` is responsible for resetting any state it
+ * accumulates (e.g. tool-call records) at the start of each call. Returns the last result
+ * and whether it was still empty after every attempt.
+ */
+async function retryWhileEmpty<T>(
+  attempt: () => Promise<T>,
+  isEmpty: (result: T) => boolean,
+  finishReasonOf: (result: T) => string | undefined
+): Promise<{ result: T; emptyResponse: boolean }> {
+  let result = await attempt();
+  for (let n = 1; n <= EMPTY_RESPONSE_RETRIES && isEmpty(result); n++) {
+    const delayMs = emptyResponseBackoffMs(n);
+    log.warning(
+      `Empty model response (finishReason=${finishReasonOf(result) ?? 'unknown'}), retrying in ${delayMs.toString()}ms (retry ${n.toString()}/${EMPTY_RESPONSE_RETRIES.toString()})`
+    );
+    await sleep(delayMs);
+    result = await attempt();
+  }
+  const emptyResponse = isEmpty(result);
+  if (emptyResponse) {
+    log.warning(
+      `Model returned an empty response on all ${(EMPTY_RESPONSE_RETRIES + 1).toString()} attempts — recording as infrastructure noise, not a behavioral failure`
+    );
+  }
+  return { result, emptyResponse };
+}
 
 export interface HarnessOptions {
   serverPath: string;
@@ -123,6 +168,13 @@ export interface AgentRunResult {
   tokenUsage?: TokenUsage;
   /** Number of agent steps taken. */
   stepCount: number;
+  /**
+   * True when the provider returned an empty candidate (no text, no tool calls) on every
+   * attempt, including retries. Such a run carries no model answer, so scoring it against
+   * assertions measures provider availability rather than behavior — callers should report
+   * it as infrastructure noise instead of a behavioral failure.
+   */
+  emptyResponse?: boolean;
 }
 
 /** Result of a multi-turn conversation: per-turn results plus cumulative totals. */
@@ -480,7 +532,6 @@ export class McpEvalHarness {
     const messages: ModelMessage[] = [{ role: 'user', content: prompt }];
 
     const t0 = Date.now();
-    const totalAttempts = 1 + EMPTY_RESPONSE_RETRIES;
     const attemptGeneration = async () => {
       toolCallRecords.length = 0;
       const attemptResult = await generateText({
@@ -515,13 +566,11 @@ export class McpEvalHarness {
     const isEmptyResponse = (r: Awaited<ReturnType<typeof attemptGeneration>>): boolean =>
       (toolCallRecords.length === 0 && (r.text ?? '').trim() === '') || r.finishReason === 'error';
 
-    let result = await attemptGeneration();
-    for (let attempt = 1; attempt < totalAttempts && isEmptyResponse(result); attempt++) {
-      log.warning(
-        `Empty model response (finishReason=${result.finishReason}), retrying (attempt ${attempt}/${totalAttempts})`
-      );
-      result = await attemptGeneration();
-    }
+    const { result, emptyResponse } = await retryWhileEmpty(
+      attemptGeneration,
+      isEmptyResponse,
+      r => r.finishReason
+    );
     const durationMs = Date.now() - t0;
 
     return {
@@ -530,6 +579,7 @@ export class McpEvalHarness {
       durationMs,
       tokenUsage: toTokenUsage(result.usage),
       stepCount: result.steps?.length ?? 0,
+      ...(emptyResponse ? { emptyResponse: true } : {}),
     };
   }
 
@@ -547,24 +597,38 @@ export class McpEvalHarness {
     const messages: ModelMessage[] = [];
     const turns: AgentRunResult[] = [];
     const t0 = Date.now();
+    let anyEmptyTurn = false;
     for (const prompt of prompts) {
       const start = toolCallRecords.length;
       const turnT0 = Date.now();
       messages.push({ role: 'user', content: prompt });
-      const result = await generateText({
-        model,
-        instructions,
-        messages,
-        tools,
-        stopWhen: stepCountIs(MAX_STEPS),
-        prepareStep(options) {
-          log.debug('AI SDK prepareStep (before request)', prepareStepPayload(options));
-          return {};
-        },
-        onStepFinish(stepResult: StepFinishInfo) {
-          log.debug('AI SDK onStepFinish', stepFinishPayload(stepResult));
-        },
-      });
+      const attemptTurn = async () => {
+        // Roll back this turn's tool calls so a retry does not double-count them.
+        toolCallRecords.length = start;
+        return generateText({
+          model,
+          instructions,
+          messages,
+          tools,
+          stopWhen: stepCountIs(MAX_STEPS),
+          prepareStep(options) {
+            log.debug('AI SDK prepareStep (before request)', prepareStepPayload(options));
+            return {};
+          },
+          onStepFinish(stepResult: StepFinishInfo) {
+            log.debug('AI SDK onStepFinish', stepFinishPayload(stepResult));
+          },
+        });
+      };
+      const isEmptyTurn = (r: Awaited<ReturnType<typeof attemptTurn>>): boolean =>
+        (toolCallRecords.length === start && (r.text ?? '').trim() === '') ||
+        r.finishReason === 'error';
+      const { result, emptyResponse } = await retryWhileEmpty(
+        attemptTurn,
+        isEmptyTurn,
+        r => r.finishReason
+      );
+      if (emptyResponse) anyEmptyTurn = true;
       // Carry the assistant + tool messages into the next turn's context.
       messages.push(...(result.response.messages as ModelMessage[]));
       turns.push({
@@ -573,6 +637,7 @@ export class McpEvalHarness {
         durationMs: Date.now() - turnT0,
         tokenUsage: toTokenUsage(result.usage),
         stepCount: result.steps?.length ?? 0,
+        ...(emptyResponse ? { emptyResponse: true } : {}),
       });
     }
 
@@ -583,6 +648,7 @@ export class McpEvalHarness {
       durationMs: Date.now() - t0,
       tokenUsage: sumTokenUsage(turns),
       stepCount: turns.reduce((a, t) => a + t.stepCount, 0),
+      ...(anyEmptyTurn ? { emptyResponse: true } : {}),
     };
   }
 

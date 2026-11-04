@@ -14,6 +14,76 @@ don't warrant an entry (CI, chores, internal refactors, docs-only) can carry the
 
 ## [Unreleased]
 
+### Added
+
+- Enabled the `runConsoleCommand` tool (z/OS operator console commands) at capability tier `full`. Requires zowex 0.9.0+ on the host and the separately installed APF-authorized `zoweax` binary; each command is authorized by the site ESM (OPERCMDS). Safe DISPLAY commands run directly, state-changing commands require user confirmation via elicitation, and system-stopping commands are blocked. Failures map to actionable guidance (server too old, zoweax missing, not authorized).
+- New `listParmlib` tool: lists the PARMLIB concatenation (the data sets searched for system parameter members like IEASYSxx), modeled on `listProclib` (`{ dsn }` entries, list-paginated). Requires the 0.9.0-nightly-2026-09-02+ SDK build.
+- Binary (base64, no-conversion) transfer on `readDataset`, `writeDataset`, `readUssFile`, and `writeUssFile` via a new optional `binary` input: reads return `data.contentBase64`, writes take `contentBase64` instead of `lines`. For non-text content (tersed files, load modules) that the UTF-8/EBCDIC text path would corrupt. Binary dataset writes require a preallocated target. Note that the z/OS server writes the byte stream as fixed-length records, NUL-pads the last record, and does not preserve the target's RECFM/LRECL (validated on a real z/OS: an FB/1024 sequential data set came back FB/80 after a binary write) — the bytes read back through `readDataset` are exact, but re-check the DCB attributes if another z/OS program consumes the data set. USS binary transfer is byte-exact with no such caveat.
+
+### Changed
+
+- Bundled zowex SDK pin moved to the 0.9.0 nightly (2026-08-25): brings the `consoleCommand` JSON-RPC support and the slimmed APF-authorized `zoweax` companion; hosts running older auto-deployed servers are redeployed on next connect. Also fixed the `sdk-switch.js nightly` resolver picking stale pre-rename artifacts (lexical sort) — it now filters to the current package name and sorts by datestamp.
+- Bundled zowex SDK pin moved to the 0.9.0 nightly (2026-09-04). Also fixed `sdk-switch.js` recording the wrong version in `resources/zowex-pin.json`: it read the tarball's `package.json` with `tar --include=`, a bsdtar-only flag that GNU tar rejects outright, and the failure was swallowed so the function silently returned its fallback. Pins generated on CI therefore recorded `"version": "nightly"` and derived the doubled filename `zowe-zowex-for-zowe-sdk-nightly-nightly-<datestamp>.tgz`, while pins written on macOS were correct. It now extracts to stdout (`tar -xzOf`), which works on both, and warns instead of falling back silently. Also cleared the three CodeQL findings standing against `scripts/sdk-switch.js`: the tarball is read via `execFileSync` with an argument list so the path never reaches a shell, command-line arguments (version, PR number, branch name) are validated against an allow-list before being interpolated into any shell command, and `removeSdkIntegrityFromLockfile` no longer checks the lockfile's existence before reading it (a check-then-use file-system race) — it reads and treats `ENOENT` as "nothing to do".
+- Console command elicitation (dormant tool) brought to parity with TSO: client-capability pre-check, form mode, and a required boolean confirmation.
+- Console authorization failures now distinguish the security-product cases instead of only matching "not authorized": an ESM profile denial (IEE345I `AUTHORITY INVALID, FAILED BY SECURITY PRODUCT`) asks for a permit on the matching `MVS.*` OPERCMDS profile, a no-profile-matched denial (`FAILED BY MVS`) asks for the profile to be defined, and a SAF console-activation denial (`service_rc 12`) points at `MVS.MCSOPER.<console-name>`. Each says not to retry until access is granted.
+- Hardened the console command safety patterns (dormant tool): official abbreviations (`V`, `C`, `E`, `RO`, `K`, `T`, `M`, `U`, `G`, `I`), `DUMP`, `SLIP`, `CONFIG`/`CF`, dump/page management (`CHNGDUMP`/`CD`, `DUMPDS`/`DD`, `PAGEADD`/`PA`, `PAGEDEL`/`PD`, `IOACTION`/`IO`), and WTOR replies elicit confirmation; the SET pattern now also covers `SETPROG`/`SETXCF`/`SETSMF` and friends; system-stopping commands smuggled through `ROUTE` are blocked — including a routed `VARY XCF,...,OFFLINE` (sysplex partitioning) and the `RO T=nnn,...` and `RO (SYS1,SYS2),...` operand forms, which previously downgraded to a confirmation prompt.
+- **Much faster installs: esbuild-bundled VSIX and slimmer npm tarball.** The
+  VS Code extension no longer ships a full `npm install` of every production
+  dependency (25,521 files, 172 MB unpacked): the extension host and the MCP
+  server are now esbuild-bundled, with only native-binding packages (`ssh2`,
+  `@zowe/zowex-for-zowe-sdk`) and `hardstop-patterns` kept as real
+  `node_modules`, and files Node never loads at runtime (TypeScript sources,
+  typings, sourcemaps, docs) pruned from what remains. The VSIX drops to
+  7,575 files / 27 MB, which cuts install time substantially, especially on
+  Windows. The `@zowe/mcp-server` release tarball gets the same pruning
+  (minus `.mjs` files, which its unbundled ESM build still loads), shrinking
+  it from ~19,000 to ~10,300 files. ([#54](https://github.com/zowe/zowe-mcp/issues/54))
+
+### Fixed
+
+- **Cleared three production dependency advisories** published on 2026-10-20
+  that fail the `audit` gate on `main`: `hono` 4.13.7 → 4.13.13 (moderate:
+  `serveStatic` decodes the request path twice, letting static paths bypass
+  middleware; reached through `@modelcontextprotocol/sdk`), `markdown-it`
+  14.3.2 → 14.3.3 (high: quadratic-time denial of service in link reference
+  definitions and inline HTML; reached through `@zowe/imperative`), and
+  `sanitize-html` 2.17.7 → 2.18.1 (moderate: `<noscript>` content, SMIL
+  namespace-prefix and `meta http-equiv=refresh` URL bypasses; reached through
+  `@zowe/imperative`). Transitive upgrades only; no direct dependency ranges
+  changed.
+- **Cleared the remaining production dependency advisories** failing the `audit`
+  gate: `body-parser` → 2.4.0 (high, via `express`), `undici` → 7.30.1 (high, via
+  `@ai-sdk/provider-utils`), `zod` → 4.6.7 (high), `@hono/node-server` → 2.1.5,
+  `fast-uri` → 3.1.9, `ip-address` → 10.7.5 and `qs` → 6.17.1 (moderate).
+  Lockfile only; no dependency ranges changed.
+- Updated production dependencies to address the MCP SDK OAuth credential
+  disclosure, proxy-address IP spoofing, and source-map denial-of-service
+  advisories. The MCP SDK minimum is now 1.32.1 for the server and eval runner.
+- Fatal `call-tool` failures now log the error message and stack instead of an
+  empty object, making connection and authentication failures diagnosable.
+- Certificate tool errors now name SAF codes `productReturnCode`/`productReasonCode`,
+  matching successful responses. A failing call (for example `showCertificate` on a
+  missing label) used to pass the SDK's `esmReturnCode`/`esmReasonCode` keys through
+  in the error details. ([#70](https://github.com/zowe/zowe-mcp/issues/70))
+- The `mock-zos` daemon now recognizes the `zo` server binary that zowex SDK 1.0
+  starts (the SDK renamed it from `zowex`), so an SDK 1.0 client no longer gets
+  `Server not found` from the mock. This is what had failed the nightly SDK
+  workflow since 2026-09-05. On Windows the daemon also reports the installed SDK's
+  version instead of `0.0.0`, which had made every connection redeploy the server.
+  ([#131](https://github.com/zowe/zowe-mcp/pull/131))
+- **Cleared three production dependency advisories** that had been failing the
+  `audit` gate on `main` since 2026-09-02 and therefore blocking every PR:
+  `fast-uri` 3.1.5 → 3.1.7 (high — host confusion and SSRF via IDN/IPv6/percent-decoding
+  handling, reached through `ajv`), `sanitize-html` 2.17.6 → 2.17.7 (moderate — stored
+  XSS via SVG SMIL URI-list scheme-policy bypass, reached through `@zowe/imperative`),
+  and `qs` 6.15.2 → 6.16.0 (moderate — array-limit bypass and DoS via attacker-controlled
+  `isBuffer`, reached through `express`). Transitive upgrades only; no direct dependency
+  ranges changed.
+- **`generate-docs` could crash outside the monorepo.** `markdown-table-prettify`
+  was loaded through an undeclared (phantom) dependency that only resolved via
+  monorepo hoisting; it is now a declared dependency and statically bundled, so
+  the `generate-docs` subcommand works from the installed VSIX and tarball.
+
 ## [0.10.0] - 2026-08-13
 
 ### Added

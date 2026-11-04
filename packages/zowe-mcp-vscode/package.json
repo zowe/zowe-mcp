@@ -12,89 +12,20 @@
   },
   "categories": [
     "AI",
-    "Other",
-    "Themes"
+    "Other"
   ],
   "keywords": [
     "zowe",
     "mcp",
     "z/OS",
     "mainframe",
-    "model-context-protocol",
-    "theme"
+    "model-context-protocol"
   ],
   "activationEvents": [
     "onStartupFinished"
   ],
-  "main": "./out/extension.js",
+  "main": "./dist/extension.js",
   "contributes": {
-    "iconThemes": [
-      {
-        "id": "zowe-mainframe",
-        "label": "Zowe Mainframe",
-        "path": "./themes/fileicons/zowe-file-icon-theme.json"
-      },
-      {
-        "id": "ispf-file-icons",
-        "label": "ISPF",
-        "path": "./themes/fileicons/ispf-file-icon-theme.json"
-      },
-      {
-        "id": "ispf-modern-file-icons",
-        "label": "ISPF Modern",
-        "path": "./themes/fileicons/ispf-modern-file-icon-theme.json"
-      }
-    ],
-    "themes": [
-      {
-        "id": "zowe-dark-classic",
-        "label": "Zowe Dark (Classic)",
-        "path": "./themes/zowe-dark-classic-color-theme.json",
-        "uiTheme": "vs-dark"
-      },
-      {
-        "id": "zowe-light-classic",
-        "label": "Zowe Light (Classic)",
-        "path": "./themes/zowe-light-classic-color-theme.json",
-        "uiTheme": "vs"
-      },
-      {
-        "id": "zowe-dark-official",
-        "label": "Zowe Dark (Official)",
-        "path": "./themes/zowe-dark-official-color-theme.json",
-        "uiTheme": "vs-dark"
-      },
-      {
-        "id": "zowe-light-official",
-        "label": "Zowe Light (Official)",
-        "path": "./themes/zowe-light-official-color-theme.json",
-        "uiTheme": "vs"
-      },
-      {
-        "id": "ispf-classic-dark",
-        "label": "ISPF Classic (Dark)",
-        "path": "./themes/ispf-classic-dark-color-theme.json",
-        "uiTheme": "vs-dark"
-      },
-      {
-        "id": "ispf-green",
-        "label": "ISPF Green (Dark)",
-        "path": "./themes/ispf-green-color-theme.json",
-        "uiTheme": "vs-dark"
-      },
-      {
-        "id": "ispf-modern-dark",
-        "label": "ISPF Modern (Dark)",
-        "path": "./themes/ispf-modern-dark-color-theme.json",
-        "uiTheme": "vs-dark"
-      },
-      {
-        "id": "ispf-modern-light",
-        "label": "ISPF Modern (Light)",
-        "path": "./themes/ispf-modern-light-color-theme.json",
-        "uiTheme": "vs"
-      }
-    ],
     "mcpServerDefinitionProviders": [
       {
         "id": "zowe",
@@ -351,9 +282,10 @@
     "vscode:prepublish": "npm run build:all",
     "build": "tsc -p ./",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "build:server": "npm run build -w @zowe/mcp-server && npm run bundle:server",
+    "build:server": "npm run build -w zowe-mcp-common && npm run build -w @zowe/mcp-server && npm run bundle:server",
     "bundle:server": "node scripts/bundle-server.js",
-    "build:all": "npm run build:server && npm run build",
+    "bundle:extension": "node scripts/esbuild.mjs extension",
+    "build:all": "npm run build:server && npm run build && npm run bundle:extension",
     "dev": "tsc -watch -p ./",
     "pretest": "npm run build:all",
     "test": "vscode-test",
@@ -367,16 +299,17 @@
     "postinstall": "npm run download-api"
   },
   "dependencies": {
-    "@zowe/imperative": "^8.35.3",
-    "zowe-mcp-common": "*",
-    "@zowe/mcp-server": "0.11.0-dev"
+    "@zowe/imperative": "^8.37.0",
+    "@zowe/mcp-server": "0.11.0-dev",
+    "zowe-mcp-common": "*"
   },
   "devDependencies": {
-    "@types/node": "^26.1.1",
+    "@types/node": "^26.4.0",
     "@vscode/dts": "^0.4.1",
-    "@vscode/vsce": "^3.9.2",
     "@vscode/test-cli": "^0.0.15",
     "@vscode/test-electron": "^3.1.0",
+    "@vscode/vsce": "^3.9.2",
+    "esbuild": "^0.28.2",
     "typescript": "^5.9.2"
   }
 }

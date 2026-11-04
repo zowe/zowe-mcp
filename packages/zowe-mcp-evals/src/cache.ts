@@ -44,8 +44,21 @@ export interface CacheKeyPayload {
   systemPrompt: string;
   prompt: string;
   toolDefs: Record<string, { description?: string; inputSchema?: unknown }>;
+  /**
+   * Names of every tool offered to the model, not just the tools under test. The full
+   * list is part of the real prompt, so registering or removing an unrelated tool must
+   * invalidate the entry — otherwise a cached run replays a result produced with a
+   * different tool set and hides the effect of adding a tool.
+   */
+  allToolNames?: string[];
   /** Optional model id so cache entries are per-model. */
   modelId?: string;
+  /**
+   * Zero-based repetition index. Entries are per-repetition so replaying the cache
+   * reproduces the original distribution of outcomes across reps instead of collapsing
+   * every rep onto one stored run.
+   */
+  repIndex?: number;
 }
 
 const KEY_LENGTH = 16;
@@ -120,7 +133,9 @@ export function buildCacheKey(payload: CacheKeyPayload): string {
     systemPrompt: payload.systemPrompt,
     prompt: payload.prompt,
     tools: payload.toolDefs,
+    allToolNames: payload.allToolNames ?? [],
     modelId: payload.modelId ?? '',
+    repIndex: payload.repIndex ?? 0,
   });
   const hash = createHash('sha256').update(json).digest('hex');
   return hash.slice(0, KEY_LENGTH);

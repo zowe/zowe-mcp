@@ -15,6 +15,7 @@
  *   1. `<path>/zowex server [args]`   →  start the JSON-RPC dispatcher on this channel
  *   1b. `<path>/zowex -v|--version`   →  post-deploy smoke test (verifyZowexBinary /
  *      ZSshUtils.verifyServerBinary): report a fake version line and exit 0
+ *      (SDK 1.0 renamed the binary to `zo`, so 1 and 1b accept `zo` as well as `zowex`)
  *   2. `cat > /tmp/zrs-pipe-*`        →  client is uploading bytes for a PUT streaming RPC
  *      `cat /tmp/zrs-pipe-*`          →  client is downloading bytes for a GET streaming RPC
  *   3. anything else (e.g. `pax -rzf server.pax.Z`, `mkdir -p`, `ls -la /u/USER`)
@@ -45,7 +46,12 @@ export interface ExecRouterCtx {
   log: MockLogger;
 }
 
-const ZOWEX_RE = /(?:^|\/)zowex\s+server\b/;
+// The server binary is `zowex` up to SDK 0.9 and `zo` from SDK 1.0 (`ZSshClient.BIN_NAME`).
+// SDK 1.0 sends the path through `ZSshClient.quoteRemotePath`, which single-quotes a path with
+// unsafe characters but leaves a leading `~` outside (`~'/my dir/zo' server`), hence the
+// optional closing quote. It also appends `|| echo "@@ZOWE_EXIT_CODE@@$?" >&2`, which the
+// unanchored end of the pattern already tolerates.
+const ZOWEX_RE = /(?:^|\/)(?:zowex|zo)['"]?\s+server\b/;
 // Two callers run the freshly deployed binary to confirm it loads, with different flags:
 //   - zowex-deploy-check.ts's verifyZowexBinary uses `<path>/zowex -v` (see issue #47)
 //   - zowex-sdk 0.7.1's ZSshUtils.verifyServerBinary uses `./zowex --version`, cwd-wrapped
@@ -54,7 +60,7 @@ const ZOWEX_RE = /(?:^|\/)zowex\s+server\b/;
 // returns FSUM7351 (rc=127) — making every mock-backed deploy look like it failed to start.
 // Not start-anchored on purpose: `./zowex` matches via the `/` alternative, which also covers
 // the `cd '<dir>' ; ` prefix node-ssh adds for `execCommand(..., { cwd })`.
-const ZOWEX_VERSION_RE = /(?:^|\/)zowex\s+(?:-v|--version)\b/;
+const ZOWEX_VERSION_RE = /(?:^|\/)(?:zowex|zo)['"]?\s+(?:-v|--version)\b/;
 const CAT_WRITE_RE = /^cat\s*>\s*(\/tmp\/zrs-pipe-\S+)\s*$/;
 const CAT_READ_RE = /^cat\s+(\/tmp\/zrs-pipe-\S+)\s*$/;
 // zowex-sdk 0.7.1's ZSshUtils.installServer extracts the PAX archive via

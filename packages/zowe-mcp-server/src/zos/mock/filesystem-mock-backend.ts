@@ -55,6 +55,7 @@ import type {
   ListApfResult,
   ListJobsOptions,
   ListLinklistResult,
+  ListParmlibResult,
   ListProclibResult,
   ListUssFilesOptions,
   MemberEntry,
@@ -335,6 +336,17 @@ export class FilesystemMockBackend implements ZosBackend {
       filePath = dsPath;
     }
 
+    if (encoding === 'binary') {
+      // Binary mode: text carries the file's raw bytes as base64
+      const buf = await fs.readFile(filePath);
+      const binStat = await fs.stat(filePath);
+      return {
+        text: buf.toString('base64'),
+        etag: computeEtag(binStat.mtimeMs),
+        encoding: 'binary',
+      };
+    }
+
     const text = await fs.readFile(filePath, 'utf-8');
     const stat = await fs.stat(filePath);
     const etag = computeEtag(stat.mtimeMs);
@@ -449,15 +461,17 @@ export class FilesystemMockBackend implements ZosBackend {
 
     // Ensure parent directory exists
     await fs.mkdir(path.dirname(filePath), { recursive: true });
-    await fs.writeFile(filePath, content, 'utf-8');
+    if (encoding === 'binary') {
+      // Binary mode: content is base64 of the raw bytes
+      await fs.writeFile(filePath, Buffer.from(content, 'base64'));
+    } else {
+      await fs.writeFile(filePath, content, 'utf-8');
+    }
 
     const stat = await fs.stat(filePath);
     return {
       etag: computeEtag(stat.mtimeMs),
     };
-
-    // encoding is ignored in mock mode (files are stored as UTF-8)
-    void encoding;
   }
 
   async createDataset(
@@ -748,7 +762,7 @@ export class FilesystemMockBackend implements ZosBackend {
   async readUssFile(
     systemId: SystemId,
     ussPath: string,
-    _encoding?: string,
+    encoding?: string,
     _userId?: string,
     _progress?: BackendProgressCallback
   ): Promise<ReadUssFileResult> {
@@ -758,6 +772,16 @@ export class FilesystemMockBackend implements ZosBackend {
     }
     if (await isDirectory(localPath)) {
       throw new Error(`USS path '${ussPath}' is a directory on ${systemId}, not a file.`);
+    }
+    if (encoding === 'binary') {
+      // Binary mode: text carries the file's raw bytes as base64
+      const buf = await fs.readFile(localPath);
+      const binStat = await fs.stat(localPath);
+      return {
+        text: buf.toString('base64'),
+        etag: computeEtag(binStat.mtimeMs),
+        encoding: 'binary',
+      };
     }
     const content = await fs.readFile(localPath, 'utf-8');
     const stat = await fs.stat(localPath);
@@ -770,7 +794,7 @@ export class FilesystemMockBackend implements ZosBackend {
     ussPath: string,
     content: string,
     etag?: string,
-    _encoding?: string,
+    encoding?: string,
     _userId?: string,
     _progress?: BackendProgressCallback
   ): Promise<WriteUssFileResult> {
@@ -783,7 +807,12 @@ export class FilesystemMockBackend implements ZosBackend {
       }
     }
     await fs.mkdir(path.dirname(localPath), { recursive: true });
-    await fs.writeFile(localPath, content, 'utf-8');
+    if (encoding === 'binary') {
+      // Binary mode: content is base64 of the raw bytes
+      await fs.writeFile(localPath, Buffer.from(content, 'base64'));
+    } else {
+      await fs.writeFile(localPath, content, 'utf-8');
+    }
     const stat = await fs.stat(localPath);
     return { etag: computeEtag(stat.mtimeMs), created: !existed };
   }
@@ -1058,10 +1087,9 @@ export class FilesystemMockBackend implements ZosBackend {
   ): Promise<string> {
     const upper = commandText.trim().toUpperCase();
     if (upper.startsWith('D T') || upper.startsWith('DISPLAY T')) {
-      const now = new Date();
-      return Promise.resolve(
-        `IEE136I LOCAL: TIME=12:00:00 DATE=${now.getFullYear()}.${String(now.getMonth() + 1).padStart(2, '0')}.${String(now.getDate()).padStart(2, '0')} UTC`
-      );
+      // Fixed timestamp: generated docs (mcp-reference.md) capture this output,
+      // so it must not change from day to day.
+      return Promise.resolve('IEE136I LOCAL: TIME=12:00:00 DATE=2026.01.01 UTC');
     }
     if (upper.startsWith('D A') || upper.startsWith('DISPLAY A')) {
       return Promise.resolve(
@@ -1115,6 +1143,21 @@ export class FilesystemMockBackend implements ZosBackend {
         { dsn: 'USER.PROCLIB' },
         { dsn: 'CPAC.PROCLIB' },
         { dsn: 'SYS2.PROCLIB' },
+      ],
+    });
+  }
+
+  listParmlib(
+    _systemId: SystemId,
+    _userId?: string,
+    _progress?: BackendProgressCallback
+  ): Promise<ListParmlibResult> {
+    return Promise.resolve({
+      items: [
+        { dsn: 'SYS1.PARMLIB' },
+        { dsn: 'SYS1.IBM.PARMLIB' },
+        { dsn: 'USER.PARMLIB' },
+        { dsn: 'CPAC.PARMLIB' },
       ],
     });
   }

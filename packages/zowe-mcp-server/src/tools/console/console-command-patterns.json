@@ -15,10 +15,29 @@
       "id": "console-shutdown",
       "message": "SHUTDOWN stops the system.",
       "pattern": "^SHUTDOWN\\b"
+    },
+    {
+      "id": "console-vary-xcf-offline",
+      "message": "VARY XCF,...,OFFLINE removes a system from the sysplex.",
+      "pattern": "^(V|VARY)\\s+XCF\\b.*\\bOFFLINE\\b"
+    },
+    {
+      "id": "console-route-dangerous",
+      "message": "ROUTE would send a system-stopping command (QUIESCE/HALT/Z EOD/SHUTDOWN/VARY XCF,...,OFFLINE) to another system.",
+      "pattern": "^(RO|ROUTE)\\s+(T=\\d+\\s*,\\s*)?(\\([^)]*\\)|[^,\\s]+)\\s*,\\s*(QUIESCE\\b|HALT\\b|Z\\s+EOD\\b|SHUTDOWN\\b|V(?:ARY)?\\s+XCF\\b.*\\bOFFLINE\\b)"
     }
   ],
   "elicit": [
-    { "id": "console-set", "message": "SET modifies system parameters.", "pattern": "^SET\\b" },
+    {
+      "id": "console-set",
+      "message": "SET and SETxxx commands (SETPROG, SETXCF, SETSMF, ...) modify system parameters.",
+      "pattern": "^SET"
+    },
+    {
+      "id": "console-t-set",
+      "message": "T (SET) modifies system parameters.",
+      "pattern": "^T\\s+"
+    },
     {
       "id": "console-vary",
       "message": "VARY changes device/subsystem status.",
@@ -48,6 +67,118 @@
       "id": "console-route",
       "message": "ROUTE sends commands to other systems.",
       "pattern": "^ROUTE\\b"
+    },
+    {
+      "id": "console-ro",
+      "message": "RO (ROUTE) sends commands to other systems.",
+      "pattern": "^RO\\s+"
+    },
+    {
+      "id": "console-v",
+      "message": "V (VARY) changes device/subsystem status.",
+      "pattern": "^V\\s+"
+    },
+    { "id": "console-c", "message": "C (CANCEL) terminates address spaces.", "pattern": "^C\\s+" },
+    {
+      "id": "console-e",
+      "message": "E (RESET) changes the performance attributes of running work.",
+      "pattern": "^E\\s+"
+    },
+    {
+      "id": "console-reply",
+      "message": "REPLY answers an outstanding operator request (WTOR).",
+      "pattern": "^REPLY\\b"
+    },
+    {
+      "id": "console-r-reply",
+      "message": "R (REPLY) answers an outstanding operator request (WTOR).",
+      "pattern": "^R\\s+\\d"
+    },
+    { "id": "console-dump", "message": "DUMP takes a system dump.", "pattern": "^DUMP\\b" },
+    {
+      "id": "console-slip",
+      "message": "SLIP sets, modifies, or deletes serviceability traps.",
+      "pattern": "^SLIP\\b"
+    },
+    {
+      "id": "console-config",
+      "message": "CONFIG changes processor/storage configuration.",
+      "pattern": "^CONFIG\\b"
+    },
+    {
+      "id": "console-cf",
+      "message": "CF (CONFIG) changes processor/storage configuration.",
+      "pattern": "^CF\\s+"
+    },
+    {
+      "id": "console-k",
+      "message": "K (CONTROL) changes console configuration.",
+      "pattern": "^K\\s+"
+    },
+    {
+      "id": "console-mount",
+      "message": "MOUNT allocates a volume to a device.",
+      "pattern": "^MOUNT\\b"
+    },
+    {
+      "id": "console-m-mount",
+      "message": "M (MOUNT) allocates a volume to a device.",
+      "pattern": "^M\\s+"
+    },
+    {
+      "id": "console-unload",
+      "message": "UNLOAD removes a volume from a device.",
+      "pattern": "^UNLOAD\\b"
+    },
+    {
+      "id": "console-u-unload",
+      "message": "U (UNLOAD) removes a volume from a device.",
+      "pattern": "^U\\s+"
+    },
+    {
+      "id": "console-swap",
+      "message": "SWAP performs dynamic device reconfiguration.",
+      "pattern": "^SWAP\\b"
+    },
+    {
+      "id": "console-g-swap",
+      "message": "G (SWAP) performs dynamic device reconfiguration.",
+      "pattern": "^G\\s+"
+    },
+    {
+      "id": "console-switch",
+      "message": "SWITCH switches SMF recording data sets.",
+      "pattern": "^SWITCH\\b"
+    },
+    {
+      "id": "console-i-switch",
+      "message": "I (SWITCH) switches SMF recording data sets.",
+      "pattern": "^I\\s+"
+    },
+    {
+      "id": "console-chngdump",
+      "message": "CHNGDUMP changes system dump options.",
+      "pattern": "^(CHNGDUMP\\b|CD\\s+)"
+    },
+    {
+      "id": "console-dumpds",
+      "message": "DUMPDS manages dump data sets.",
+      "pattern": "^(DUMPDS\\b|DD\\s+)"
+    },
+    {
+      "id": "console-pageadd",
+      "message": "PAGEADD adds page or swap data sets.",
+      "pattern": "^(PAGEADD\\b|PA\\s+)"
+    },
+    {
+      "id": "console-pagedel",
+      "message": "PAGEDEL removes page or swap data sets.",
+      "pattern": "^(PAGEDEL\\b|PD\\s+)"
+    },
+    {
+      "id": "console-ioaction",
+      "message": "IOACTION stops or resumes device I/O.",
+      "pattern": "^(IOACTION\\b|IO\\s+)"
     }
   ],
   "safe": [

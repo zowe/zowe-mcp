@@ -97,7 +97,36 @@ Pass **`--help`** for usage. Exit code **1** if any request fails or if there ar
 
 ### Cache (development)
 
-When cache is enabled (default), successful eval results are stored under `.evals-cache/` at the repo root. The cache key includes the system prompt, question text, tool descriptions for the tools under test, and the model id (when using multi-model config), so changing a tool description, the question, or the model invalidates the cache for that question. Only **passing** runs are cached; failed runs are never stored. Repeated evals with the same questions, tooling, and model reuse cached results and skip LLM calls. At the end of a run you see a line like: `Cache: N hits, M writes, K LLM calls (T runs)`. To run without cache (e.g. in CI or for a clean run), pass **`--no-cache`**.
+When cache is enabled (default), eval results are stored under `.evals-cache/` at the repo root. The cache key includes the system prompt, question text, tool descriptions for the tools under test, **the names of every registered tool**, the model id (when using multi-model config), and **the repetition index** — so changing a tool description, registering or removing any tool, changing the question, or changing the model invalidates the cache for that question. Repeated evals with the same questions, tooling, and model reuse cached results and skip LLM calls. At the end of a run you see a line like: `Cache: N hits, M writes, K LLM calls (T runs)`. To run without cache (e.g. in CI or for a clean run), pass **`--no-cache`**.
+
+Caching is **per repetition**, and **every completed repetition is stored — passing or failing**. This matters for comparisons: an earlier version stored only the first *passing* run and replayed it for all repetitions, which pinned any cached question to a 100% pass rate and made repetitions stop measuring variance. It also meant that merely editing a tool schema — which invalidates the entry and forces a live run — looked like a behavioral regression. Runs where the provider returned an empty response on every attempt are never cached, so provider noise is not frozen into the baseline.
+
+**Always use `--no-cache` for before/after comparisons and for any run you intend to record on the scoreboard.** A cached run and a live run are not comparable. `eval-compare` now records `cache=on`/`cache=off` in the scoreboard Settings column, plus `dirty` when the working tree has uncommitted changes (in which case the recorded Git SHA does not identify what was measured).
+
+### Empty provider responses
+
+Some providers occasionally return an empty candidate — `finishReason: stop` with zero output tokens, no text and no tool calls. Such a run contains no model answer, so scoring it against assertions measures provider availability rather than server behavior (it surfaces as `Expected tool X to be called`). The harness retries these with exponential backoff and jitter, and any run still empty after every attempt is flagged and summarized at the end of the run:
+
+```text
+Empty provider responses: 20/85 runs (23.5%), 20 scored as failures — infrastructure noise, not behavior.
+```
+
+They are still counted in the headline pass rate (so historical numbers stay comparable), but a run with a material share should not be compared against another run. Subtract them to get the behavior-only rate — e.g. `61/85` with 20 empty is `61/65` = 93.8% among runs that actually produced an answer.
+
+### Model suitability vs. capability tier
+
+`gemini-2.5-flash` degrades as the number of registered tools grows, and past a threshold it stops responding entirely — returning `finishReason: stop` with zero output tokens. Measured with the `datasets` question `list-systems` (5 reps per point, `--no-cache`):
+
+| Tier | Tools | Prompt tokens | `list-systems` |
+|------|-------|---------------|----------------|
+| `read` | 31 | 10,817 | 5/5, no empty responses |
+| `update` | 56 | 17,283 | 5/5, no empty responses |
+| `delete` | 63 | 18,507 | 4/5, 20% empty |
+| `full` | 69 | 20,337 | 0/5, 100% empty |
+
+The driver is the **number of tools, not prompt size**: capping every tool description at 100 characters brings `full` down to 17,715 tokens — below the `update` measurement that passes 5/5 — and `list-systems` still fails 0/5 with all 69 tools present. Shortening tool descriptions therefore does not help; only reducing the tool count does.
+
+**Recommendation:** use `gemini-2.5-flash` only for `read`-tier sets, and for `update` only after confirming the set's tools stay within its range. For `full`-tier sets use a newer model — `gemini-3-flash` handles all 69 tools at 21,002 tokens with 5/5 and no empty responses. Do not read a `full`-tier `gemini-2.5-flash` regression as a server behavior change without first checking the empty-response count.
 
 ## Question sets
 
@@ -109,7 +138,7 @@ Question sets are YAML files in `questions/`. Each file has:
 ### Set config
 
 - **repetitions** — Runs per question (default: 5).
-- **minSuccessRate** — Threshold in [0, 1]; a question passes if its pass rate ≥ this (default: 0.8).
+- **minSuccessRate** — Threshold in [0, 1], intended as "a question passes if its pass rate ≥ this" (default: 0.8). **Currently advisory only:** no code reads it. It previously gated cache writes, which was unrelated to its documented meaning and is no longer done; the per-question `✓`/`✗` in the run output still requires *all* repetitions to pass. Treat it as documentation of intent until it is wired into reporting.
 - **mock** — Use mock backend. One string `initArgs` passed to init-mock (after `--output <dir>`). Example: `initArgs: --preset default` or one line per option in YAML.
 - **native** — Use native z/OS backend. One string `serverArgs` (e.g. `--native --config native-config.json`). Passwords from env (`ZOWE_MCP_PASSWORD_*`, `ZOS_PASSWORD`).
 - **systemPrompt** — Full system prompt for the agent (replaces default).
@@ -134,7 +163,7 @@ Assertions use Ansible-style key-based format. Each assertion is an object with 
 
 Composites: `allOf` (all must pass) and `anyOf` (at least one must pass) for logical grouping.
 
-**Multi-turn questions.** Instead of a single `prompt`/`assertions`, a question may declare `turns` — a list of `{ prompt, assertions }` run as one conversation. The turns share an accumulating context (assistant and tool-result messages carry forward), so a later turn can refer to earlier results ("that data set", "it"). Each turn's `assertions` are checked against **that turn's own** tool calls and final answer; the question passes only if every turn passes. `assertions` on a turn is optional (e.g. a setup turn). Multi-turn questions are cached like single-turn ones: the cache key joins all turn prompts, and a passing run's per-turn results are stored and replayed through each turn's assertions on later runs; use `--no-cache` to force live conversations. Example:
+**Multi-turn questions.** Instead of a single `prompt`/`assertions`, a question may declare `turns` — a list of `{ prompt, assertions }` run as one conversation. The turns share an accumulating context (assistant and tool-result messages carry forward), so a later turn can refer to earlier results ("that data set", "it"). Each turn's `assertions` are checked against **that turn's own** tool calls and final answer; the question passes only if every turn passes. `assertions` on a turn is optional (e.g. a setup turn). Multi-turn questions are cached like single-turn ones: the cache key joins all turn prompts, and each stored repetition's per-turn results are replayed through each turn's assertions on later runs; use `--no-cache` to force live conversations. Empty-response retries apply per turn, and a retried turn rolls back that turn's tool-call records so a retry is not double-counted. Example:
 
 ```yaml
 questions:

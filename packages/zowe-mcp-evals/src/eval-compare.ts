@@ -30,7 +30,13 @@ import { plural } from 'zowe-mcp-common';
 import type { JudgeFn } from './assertions.js';
 import { usesAnswerJudge } from './cache.js';
 import { getConfigDir, loadEvalsConfig, type EvalsConfig } from './config.js';
-import { errorMessage, FAIL, PASS, resolveNativeServerArgs } from './evals-utils.js';
+import {
+  errorMessage,
+  FAIL,
+  PASS,
+  reportEmptyResponses,
+  resolveNativeServerArgs,
+} from './evals-utils.js';
 import { getSystemPrompt, initMockData, McpEvalHarness, prepareEvalWorkspace } from './harness.js';
 import { listSetNames, loadAndValidateAllSets } from './load-questions.js';
 import { log } from './log.js';
@@ -153,7 +159,6 @@ async function runSetForModel(
   const config = questionSet.config;
   const questions = questionSet.questions.filter(q => !q.skip);
   const repetitions = cli.repetitions ?? config.repetitions ?? 5;
-  const minSuccessRate = config.minSuccessRate ?? 0.8;
 
   const effectiveConfig: SetConfig = { ...config };
   if (cli.systemPromptAddition) {
@@ -216,7 +221,6 @@ async function runSetForModel(
         toolDefinitions,
         modelId: evalsConfig.modelId,
         repetitions,
-        minSuccessRate,
         runLabel: r =>
           `${progressTag}[${evalsConfig.modelId ?? 'default'}] ${setName}/${q.id} (${r + 1}/${repetitions})`,
         verboseAnswers: false,
@@ -468,6 +472,12 @@ async function main(): Promise<void> {
   const nonDefaultSettings: string[] = [];
   if (cli.repetitions != null) nonDefaultSettings.push(`reps=${cli.repetitions.toString()}`);
   if (cli.systemPromptAddition) nonDefaultSettings.push('sysPrompt+');
+  // Cache state is the single biggest confounder between two rows: a cached run replays
+  // stored results, so a cached row and a live row are not comparable. Record it always,
+  // not only when non-default. Likewise flag a dirty tree — with uncommitted changes the
+  // Git SHA alone does not identify what was measured, so the row is not reproducible.
+  nonDefaultSettings.push(useCache ? 'cache=on' : 'cache=off');
+  if (diffHash) nonDefaultSettings.push('dirty');
   const settingsStr = nonDefaultSettings.join(', ');
 
   let totalQuestions = 0;
@@ -574,6 +584,7 @@ async function main(): Promise<void> {
 
   log.info('');
   log.info(`Overall: ${totalPassed}/${totalRuns} (${overallRate}%)`);
+  reportEmptyResponses(allSetResults.flatMap(sr => sr.results));
   if (useCache) {
     const llmCalls = totalRuns - cacheStats.hits;
     log.notice(

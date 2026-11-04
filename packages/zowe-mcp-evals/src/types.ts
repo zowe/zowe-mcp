@@ -383,4 +383,10 @@ export interface RunResult {
   tokenUsage?: TokenUsage;
   /** Number of agent steps (tool call rounds) taken. */
   stepCount?: number;
+  /**
+   * True when the provider returned an empty candidate on every attempt, so this run
+   * carries no model answer. Such runs are provider pathology rather than behavior:
+   * they are reported separately so they are not mistaken for behavioral failures.
+   */
+  emptyResponse?: boolean;
 }

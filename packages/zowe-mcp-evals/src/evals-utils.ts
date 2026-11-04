@@ -14,6 +14,7 @@ import type { JudgeFn } from './assertions.js';
 import { runAssertions } from './assertions.js';
 import { getConfigDir } from './config.js';
 import type { AgentRunResult, ToolDefinition } from './harness.js';
+import { log } from './log.js';
 import type { Question, QuestionTurn, RunResult, TokenUsage } from './types.js';
 
 export const PASS = '\u2713';
@@ -49,6 +50,27 @@ export function resolveNativeServerArgs(serverArgs: string): string {
 }
 
 /**
+ * Logs how many runs ended with an empty provider response, and how many of those were
+ * scored as failures.
+ *
+ * These runs contain no model answer, so their assertion failures ("expected tool X to be
+ * called") measure provider availability rather than server behavior. Surfacing the count
+ * keeps a flaky run from being read as a behavioral regression — if it is more than a
+ * couple of percent, the pass rate should not be compared against another run.
+ */
+export function reportEmptyResponses(results: RunResult[]): void {
+  const empty = results.filter(r => r.emptyResponse);
+  if (empty.length === 0) return;
+  const emptyFailures = empty.filter(r => !r.passed).length;
+  const pct = ((empty.length / results.length) * 100).toFixed(1);
+  log.notice(
+    `Empty provider responses: ${empty.length.toString()}/${results.length.toString()} runs (${pct}%), ` +
+      `${emptyFailures.toString()} scored as failures — infrastructure noise, not behavior. ` +
+      `Treat this run as non-comparable if the share is material.`
+  );
+}
+
+/**
  * Build a subset of tool definitions keyed by name, for cache-key computation.
  */
 export function buildToolDefsSubset(
@@ -75,6 +97,8 @@ interface AssertAndRecordInput {
   durationMs?: number;
   tokenUsage?: TokenUsage;
   stepCount?: number;
+  /** True when the provider returned an empty candidate on every attempt. */
+  emptyResponse?: boolean;
 }
 
 /**
@@ -102,6 +126,7 @@ export async function assertAndRecord(
     durationMs: input.durationMs,
     tokenUsage: input.tokenUsage,
     stepCount: input.stepCount,
+    ...(input.emptyResponse ? { emptyResponse: true } : {}),
   };
 }
 
@@ -131,6 +156,7 @@ export async function assertConversation(
     durationMs: input.conversation.durationMs,
     tokenUsage: input.conversation.tokenUsage,
     stepCount: input.conversation.stepCount,
+    ...(input.conversation.emptyResponse ? { emptyResponse: true } : {}),
   };
   for (let i = 0; i < input.questionTurns.length; i++) {
     const turnRun = input.conversation.turns[i];

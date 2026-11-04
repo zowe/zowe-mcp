@@ -68,7 +68,6 @@ export interface QuestionRunContext {
   /** evalsConfig.modelId, folded into the cache key so entries are per-model. */
   modelId?: string;
   repetitions: number;
-  minSuccessRate: number;
   /** Label for the (r+1/repetitions) log line for a given zero-based rep index. */
   runLabel: (repIndex: number) => string;
   /** Whether to print the "  Answer:" preview block after each pass/fail log line (run.ts: yes; eval-compare: no). */
@@ -93,128 +92,141 @@ function logRunOutcome(result: RunResult, label: string, suffix: string, verbose
 /**
  * Runs one question for `ctx.repetitions` repetitions: multi-turn questions are driven
  * via `harness.runConversation` and asserted per turn; single-turn questions via
- * `harness.runOne`. Cache hits (when `ctx.cache.enabled`) replay the cached result(s)
- * instead of calling the harness. On a live run, the first passing result is cached
- * once the question's overall pass rate reaches `ctx.minSuccessRate`.
+ * `harness.runOne`.
+ *
+ * Caching is per repetition: each rep has its own cache key and its own entry, and every
+ * completed rep is stored regardless of whether it passed. That keeps a cached re-run
+ * statistically identical to the original run. (Storing only the first *passing* run and
+ * replaying it for every rep — the previous behavior — pinned any cached question to a
+ * 100% pass rate, so repetitions stopped measuring variance and a schema edit that merely
+ * invalidated the entry looked like a behavioral regression.)
+ *
+ * Runs where the provider returned an empty candidate on every attempt are never cached:
+ * they carry no model answer, so memoizing them would freeze provider noise into the
+ * baseline.
  */
 export async function runQuestion(q: Question, ctx: QuestionRunContext): Promise<RunResult[]> {
   const questionResults: RunResult[] = [];
   const isMultiTurn = Array.isArray(q.turns) && q.turns.length > 0;
   const toolNames = getToolsUnderTest(q.assertionBlock);
   const toolDefs = buildToolDefsSubset(ctx.toolDefinitions, toolNames);
+  // The whole tool list is part of the prompt, so it belongs in the key even though only
+  // the tools under test have their schemas hashed.
+  const allToolNames = (ctx.toolDefinitions ?? []).map(t => t.name).sort();
   // Multi-turn questions key on all turn prompts joined, so two conversations that
   // share a first turn but differ later get distinct cache entries.
   const cachePrompt = isMultiTurn ? q.turns!.map(t => t.prompt).join('\n<<turn>>\n') : q.prompt;
-  const cacheKey = ctx.cache.enabled
-    ? buildCacheKey({
-        systemPrompt: ctx.systemPrompt,
-        prompt: cachePrompt,
-        toolDefs,
-        modelId: ctx.modelId,
-      })
-    : '';
+  const cacheKeyFor = (repIndex: number): string =>
+    buildCacheKey({
+      systemPrompt: ctx.systemPrompt,
+      prompt: cachePrompt,
+      toolDefs,
+      allToolNames,
+      modelId: ctx.modelId,
+      repIndex,
+    });
 
-  const cached = ctx.cache.enabled ? await cacheGet(ctx.cache.dir, cacheKey) : null;
+  /** Runs the multi-turn assertions over a conversation (live or cache-replayed). */
+  const assertTurns = (
+    conversation: { turns: AgentRunResult[] } & AgentRunResult,
+    r: number
+  ): Promise<RunResult> =>
+    assertConversation(
+      {
+        questionId: q.id,
+        displayPrompt: q.prompt,
+        runIndex: r,
+        questionTurns: q.turns!,
+        conversation,
+      },
+      ctx.judge
+    );
 
-  if (cached) {
-    for (let r = 0; r < ctx.repetitions; r++) {
-      let result: RunResult;
-      if (isMultiTurn && cached.turns) {
-        // Replay per-turn cached results through the multi-turn assertions.
-        const conversation = {
-          turns: cached.turns.map(t => ({
-            finalText: t.finalText,
-            toolCalls: t.toolCalls,
-            durationMs: 0,
-            stepCount: 0,
-          })),
-          finalText: cached.finalText,
-          toolCalls: cached.toolCalls,
+  const assertCached = async (cached: CachedRunResult, r: number): Promise<RunResult> => {
+    if (isMultiTurn && cached.turns) {
+      // Replay per-turn cached results through the multi-turn assertions.
+      const conversation = {
+        turns: cached.turns.map(t => ({
+          finalText: t.finalText,
+          toolCalls: t.toolCalls,
           durationMs: 0,
           stepCount: 0,
-        };
-        ctx.onToolCalls?.(conversation.toolCalls);
-        result = await assertConversation(
-          {
-            questionId: q.id,
-            displayPrompt: q.prompt,
-            runIndex: r,
-            questionTurns: q.turns!,
-            conversation,
-          },
-          ctx.judge
-        );
-      } else {
-        const { finalText, toolCalls } = cached;
-        ctx.onToolCalls?.(toolCalls);
-        result = await assertAndRecord(
-          {
-            questionId: q.id,
-            prompt: q.prompt,
-            runIndex: r,
-            finalText,
-            toolCalls,
-            assertionBlock: q.assertionBlock,
-          },
-          ctx.judge
-        );
-      }
+        })),
+        finalText: cached.finalText,
+        toolCalls: cached.toolCalls,
+        durationMs: 0,
+        stepCount: 0,
+      };
+      ctx.onToolCalls?.(conversation.toolCalls);
+      return assertTurns(conversation, r);
+    }
+    ctx.onToolCalls?.(cached.toolCalls);
+    return assertAndRecord(
+      {
+        questionId: q.id,
+        prompt: q.prompt,
+        runIndex: r,
+        finalText: cached.finalText,
+        toolCalls: cached.toolCalls,
+        assertionBlock: q.assertionBlock,
+      },
+      ctx.judge
+    );
+  };
+
+  for (let r = 0; r < ctx.repetitions; r++) {
+    const cacheKey = ctx.cache.enabled ? cacheKeyFor(r) : '';
+    const cached = ctx.cache.enabled ? await cacheGet(ctx.cache.dir, cacheKey) : null;
+    if (cached) {
+      const result = await assertCached(cached, r);
       questionResults.push(result);
       ctx.cache.stats.hits++;
       logRunOutcome(result, ctx.runLabel(r), ' cache hit', ctx.verboseAnswers);
+      continue;
     }
-    return questionResults;
-  }
 
-  // First passing run's result, cached after the loop (per-turn for multi-turn).
-  let cacheCandidate: CachedRunResult | undefined;
-  for (let r = 0; r < ctx.repetitions; r++) {
     try {
       let result: RunResult;
+      let toStore: CachedRunResult;
+      let emptyResponse: boolean;
       if (isMultiTurn) {
         const conversation = await ctx.harness.runConversation(q.turns!.map(t => t.prompt));
         ctx.onToolCalls?.(conversation.toolCalls);
-        result = await assertConversation(
-          {
-            questionId: q.id,
-            displayPrompt: q.prompt,
-            runIndex: r,
-            questionTurns: q.turns!,
-            conversation,
-          },
-          ctx.judge
-        );
-        if (result.passed && !cacheCandidate) {
-          cacheCandidate = {
-            finalText: conversation.finalText,
-            toolCalls: conversation.toolCalls,
-            turns: conversation.turns.map(t => ({
-              finalText: t.finalText,
-              toolCalls: t.toolCalls,
-            })),
-          };
-        }
+        result = await assertTurns(conversation, r);
+        emptyResponse = conversation.emptyResponse === true;
+        toStore = {
+          finalText: conversation.finalText,
+          toolCalls: conversation.toolCalls,
+          turns: conversation.turns.map(t => ({
+            finalText: t.finalText,
+            toolCalls: t.toolCalls,
+          })),
+        };
       } else {
         const runResult = await ctx.harness.runOne(q.prompt);
-        const { finalText, toolCalls } = runResult;
-        ctx.onToolCalls?.(toolCalls);
+        ctx.onToolCalls?.(runResult.toolCalls);
         result = await assertAndRecord(
           {
             questionId: q.id,
             prompt: q.prompt,
             runIndex: r,
-            finalText,
-            toolCalls,
+            finalText: runResult.finalText,
+            toolCalls: runResult.toolCalls,
             assertionBlock: q.assertionBlock,
             durationMs: runResult.durationMs,
             tokenUsage: runResult.tokenUsage,
             stepCount: runResult.stepCount,
+            emptyResponse: runResult.emptyResponse,
           },
           ctx.judge
         );
-        if (result.passed && !cacheCandidate) {
-          cacheCandidate = { finalText, toolCalls };
-        }
+        emptyResponse = runResult.emptyResponse === true;
+        toStore = { finalText: runResult.finalText, toolCalls: runResult.toolCalls };
+      }
+
+      if (ctx.cache.enabled && !emptyResponse) {
+        await cacheSet(ctx.cache.dir, cacheKey, toStore);
+        ctx.cache.stats.writes++;
       }
       questionResults.push(result);
       logRunOutcome(result, ctx.runLabel(r), '', ctx.verboseAnswers);
@@ -226,14 +238,6 @@ export async function runQuestion(q: Question, ctx: QuestionRunContext): Promise
       log.info('  Answer: (error)');
       for (const line of msg.trim().split(/\n/)) log.info(`    ${line}`);
     }
-  }
-
-  const qPassed = questionResults.filter(x => x.passed).length;
-  const qTotal = questionResults.length;
-  const questionPassRate = qTotal > 0 ? qPassed / qTotal : 0;
-  if (ctx.cache.enabled && questionPassRate >= ctx.minSuccessRate && cacheCandidate) {
-    await cacheSet(ctx.cache.dir, cacheKey, cacheCandidate);
-    ctx.cache.stats.writes++;
   }
 
   return questionResults;

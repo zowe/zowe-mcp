@@ -47,6 +47,7 @@ import type {
   ListApfResult,
   ListJobsOptions,
   ListLinklistResult,
+  ListParmlibResult,
   ListProclibResult,
   ListUssFilesOptions,
   MemberEntry,
@@ -226,13 +227,17 @@ interface NativeConsoleApi {
   issueCmd(req: { commandText: string; consoleName?: string }): Promise<{ data?: string }>;
 }
 
-/** Subset of ZSshClient.system we use (ZNP system RPCs — SDK 0.6.0+; listLinklist requires 0.6.1+). */
+/** Subset of ZSshClient.system we use (ZNP system RPCs — SDK 0.6.0+; listLinklist requires 0.6.1+; listParmlib requires 0.9.0-nightly-2026-09-02+). */
 interface NativeSystemApi {
   listApf(req: Record<string, never>): Promise<{
     items?: { dsname: string; volume: string }[];
     returnedRows?: number;
   }>;
   listProclib(req: Record<string, never>): Promise<{
+    items?: string[];
+    returnedRows?: number;
+  }>;
+  listParmlib(req: Record<string, never>): Promise<{
     items?: string[];
     returnedRows?: number;
   }>;
@@ -984,6 +989,9 @@ export class NativeBackend {
       async client => {
         const resolvedDsn = member ? `${dsn}(${member})` : dsn;
         const mainframeEncoding = encoding ?? 'IBM-1047';
+        // 'binary' selects the server's raw byte mode: no EBCDIC conversion,
+        // and the returned text is the content as base64 rather than UTF-8
+        const binary = mainframeEncoding === 'binary';
         const ds = (
           client as unknown as {
             ds: {
@@ -991,20 +999,28 @@ export class NativeBackend {
                 dsname: string;
                 /** Local (client) encoding for the result: UTF-8. */
                 localEncoding?: string;
-                /** Mainframe (EBCDIC) encoding for conversion. */
+                /** Mainframe (EBCDIC) encoding for conversion, or 'binary'. */
                 encoding?: string;
               }): Promise<{ etag?: string; data?: string }>;
             };
           }
         ).ds;
-        const response = await ds.readDataset({
-          dsname: resolvedDsn,
-          localEncoding: LOCAL_ENCODING_UTF8,
-          encoding: mainframeEncoding,
-        });
+        const response = await ds.readDataset(
+          binary
+            ? { dsname: resolvedDsn, encoding: 'binary' }
+            : {
+                dsname: resolvedDsn,
+                localEncoding: LOCAL_ENCODING_UTF8,
+                encoding: mainframeEncoding,
+              }
+        );
 
         const raw = response.data ?? '';
-        const text = raw.length > 0 ? Buffer.from(raw, 'base64').toString('utf-8') : '';
+        const text = binary
+          ? raw
+          : raw.length > 0
+            ? Buffer.from(raw, 'base64').toString('utf-8')
+            : '';
 
         return {
           text,
@@ -1029,6 +1045,12 @@ export class NativeBackend {
     progress?: BackendProgressCallback
   ): Promise<WriteDatasetResult> {
     const mainframeEncoding = encoding ?? 'IBM-1047';
+    const binary = mainframeEncoding === 'binary';
+    if (binary && (startLine != null || endLine != null)) {
+      throw new Error(
+        'Binary writes replace the whole data set; startLine/endLine are not supported.'
+      );
+    }
     if (startLine != null) {
       const readResult = await this.readDataset(
         systemId,
@@ -1067,14 +1089,20 @@ export class NativeBackend {
       async client => {
         const targetDsn = member ? `${dsn}(${member})` : dsn;
         const ds = (client as unknown as { ds: NativeDsApi }).ds;
-        const data = Buffer.from(content, 'utf-8').toString('base64');
-        const response = await ds.writeDataset({
-          dsname: targetDsn,
-          data,
-          localEncoding: LOCAL_ENCODING_UTF8,
-          encoding: mainframeEncoding,
-          etag,
-        });
+        // In binary mode the caller supplies base64 content; pass it through
+        // untouched with the server's raw byte mode (no EBCDIC conversion)
+        const data = binary ? content : Buffer.from(content, 'utf-8').toString('base64');
+        const response = await ds.writeDataset(
+          binary
+            ? { dsname: targetDsn, data, encoding: 'binary', etag }
+            : {
+                dsname: targetDsn,
+                data,
+                localEncoding: LOCAL_ENCODING_UTF8,
+                encoding: mainframeEncoding,
+                etag,
+              }
+        );
         return { etag: response.etag };
       },
       progress
@@ -1446,17 +1474,28 @@ export class NativeBackend {
       async client => {
         const uss = this.getUss(client);
         const mainframeEncoding = encoding ?? 'IBM-1047';
-        const response = await uss.readFile({
-          fspath: path,
-          encoding: mainframeEncoding,
-          localEncoding: LOCAL_ENCODING_UTF8,
-        });
+        // 'binary' selects the server's raw byte mode: no conversion, and the
+        // returned text is the content as base64 rather than UTF-8
+        const binary = mainframeEncoding === 'binary';
+        const response = await uss.readFile(
+          binary
+            ? { fspath: path, encoding: 'binary' }
+            : {
+                fspath: path,
+                encoding: mainframeEncoding,
+                localEncoding: LOCAL_ENCODING_UTF8,
+              }
+        );
         const raw = response.data ?? '';
-        const text = raw.length > 0 ? Buffer.from(raw, 'base64').toString('utf-8') : '';
+        const text = binary
+          ? raw
+          : raw.length > 0
+            ? Buffer.from(raw, 'base64').toString('utf-8')
+            : '';
         return {
           text,
           etag: response.etag ?? '',
-          encoding: response.encoding ?? mainframeEncoding,
+          encoding: binary ? 'binary' : (response.encoding ?? mainframeEncoding),
         };
       },
       progress
@@ -1478,14 +1517,21 @@ export class NativeBackend {
       async client => {
         const uss = this.getUss(client);
         const mainframeEncoding = encoding ?? 'IBM-1047';
-        const data = Buffer.from(content, 'utf-8').toString('base64');
-        const response = await uss.writeFile({
-          fspath: path,
-          data,
-          etag,
-          encoding: mainframeEncoding,
-          localEncoding: LOCAL_ENCODING_UTF8,
-        });
+        // In binary mode the caller supplies base64 content; pass it through
+        // untouched with the server's raw byte mode (no conversion)
+        const binary = mainframeEncoding === 'binary';
+        const data = binary ? content : Buffer.from(content, 'utf-8').toString('base64');
+        const response = await uss.writeFile(
+          binary
+            ? { fspath: path, data, etag, encoding: 'binary' }
+            : {
+                fspath: path,
+                data,
+                etag,
+                encoding: mainframeEncoding,
+                localEncoding: LOCAL_ENCODING_UTF8,
+              }
+        );
         return {
           etag: response.etag,
           created: response.created ?? false,
@@ -1736,7 +1782,11 @@ export class NativeBackend {
         const response = await consoleApi.issueCmd({ commandText, consoleName });
         return response.data ?? '';
       },
-      progress
+      progress,
+      {
+        operation: 'runConsoleCommand',
+        params: { commandText: commandText.slice(0, 80), consoleName },
+      }
     );
   }
 
@@ -1801,6 +1851,27 @@ export class NativeBackend {
       },
       progress,
       { operation: 'listProclib', params: {} }
+    );
+  }
+
+  async listParmlib(
+    systemId: SystemId,
+    userId?: string,
+    progress?: BackendProgressCallback
+  ): Promise<ListParmlibResult> {
+    return this.withNativeClient(
+      systemId,
+      userId,
+      async client => {
+        const system = this.getSystem(client);
+        const response = await system.listParmlib({});
+        const items = (response.items ?? []).map(i => ({
+          dsn: (sanitizeZowexString(i) ?? i).trim(),
+        }));
+        return { items };
+      },
+      progress,
+      { operation: 'listParmlib', params: {} }
     );
   }
 

@@ -29,7 +29,6 @@
 import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import ssh2 from 'ssh2';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import {
   parseConnectionSpec,
@@ -42,6 +41,7 @@ import { NativeBackend } from '../src/zos/native/native-backend.js';
 import { NativeCredentialProvider } from '../src/zos/native/native-credential-provider.js';
 import { SshClientCache } from '../src/zos/native/ssh-client-cache.js';
 import { spawnMockZos, type SpawnedMockZos } from './helpers/spawn-mock-zos.js';
+import { generateTestKeyPair } from './helpers/ssh-test-keys.js';
 
 const PASSWORD = 'password';
 const PASSPHRASE = 'pw1234';
@@ -55,16 +55,12 @@ let encPublic: string;
 beforeAll(async () => {
   keyDir = await fs.mkdtemp(path.join(os.tmpdir(), 'ssh-key-auth-'));
 
-  const plain = ssh2.utils.generateKeyPairSync('ed25519');
+  const plain = generateTestKeyPair();
   plainKeyPath = path.join(keyDir, 'id_plain');
   plainPublic = plain.public;
   await fs.writeFile(plainKeyPath, plain.private, { mode: 0o600 });
 
-  const enc = ssh2.utils.generateKeyPairSync('ed25519', {
-    passphrase: PASSPHRASE,
-    cipher: 'aes256-cbc',
-    rounds: 16,
-  });
+  const enc = generateTestKeyPair({ passphrase: PASSPHRASE });
   encKeyPath = path.join(keyDir, 'id_enc');
   encPublic = enc.public;
   await fs.writeFile(encKeyPath, enc.private, { mode: 0o600 });

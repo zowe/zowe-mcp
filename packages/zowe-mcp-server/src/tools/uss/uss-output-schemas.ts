@@ -87,7 +87,13 @@ const ussListEntrySchema = z.object({
 const readUssFileDataSchema = z.object({
   lines: z
     .array(z.string())
-    .describe('File content as UTF-8 array of lines; may be a line window.'),
+    .describe(
+      'File content as UTF-8 array of lines; may be a line window. Empty for binary reads.'
+    ),
+  contentBase64: z
+    .string()
+    .optional()
+    .describe('Raw content as base64. Present only for binary reads (binary: true).'),
   etag: z.string().describe('Opaque version token for optimistic locking on write.'),
   mimeType: z.string().describe('Inferred content type (e.g. text/plain, text/x-cobol).'),
 });

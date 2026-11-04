@@ -81,16 +81,17 @@ Time Sharing Option — run TSO commands interactively on z/OS.
 
 ## System Information
 
-The server provides **4** tools.
+The server provides **5** tools.
 
-Read-only information about the z/OS system itself — APF-authorized data sets, the PROCLIB concatenation, the link list (LNKLST) concatenation, and the operations SYSLOG.
+Read-only information about the z/OS system itself — APF-authorized data sets, the PROCLIB concatenation, the PARMLIB concatenation, the link list (LNKLST) concatenation, and the operations SYSLOG.
 
 | # | Tool                                    | Description                                                                                                                                                                |
 |---|-----------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | 1 | [`listApfLibraries`](#listapflibraries) | List the APF-authorized (Authorized Program Facility) data sets on the z/OS system, each with its volume serial                                                            |
 | 2 | [`listProclib`](#listproclib)           | List the PROCLIB concatenation on the z/OS system (the data sets searched for JCL procedures, in order)                                                                    |
-| 3 | [`listLinklist`](#listlinklist)         | List the link list (LNKLST) concatenation on the z/OS system (the data sets searched for load modules, in order), each with its volume serial and APF-authorization status |
-| 4 | [`viewSyslog`](#viewsyslog)             | View the z/OS SYSLOG (the system operations log)                                                                                                                           |
+| 3 | [`listParmlib`](#listparmlib)           | List the PARMLIB concatenation on the z/OS system (the data sets searched for system parameter members like IEASYSxx, in order)                                            |
+| 4 | [`listLinklist`](#listlinklist)         | List the link list (LNKLST) concatenation on the z/OS system (the data sets searched for load modules, in order), each with its volume serial and APF-authorization status |
+| 5 | [`viewSyslog`](#viewsyslog)             | View the z/OS SYSLOG (the system operations log)                                                                                                                           |
 
 ## Certificates
 
@@ -149,11 +150,12 @@ Transfer files between z/OS (data sets and USS paths) and the local workspace.
 
 ## Other
 
-The server provides **1** tool.
+The server provides **2** tools.
 
 | # | Tool                                          | Description                                                                                             |
 |---|-----------------------------------------------|---------------------------------------------------------------------------------------------------------|
 | 1 | [`removeZosConnection`](#removezosconnection) | Remove a z/OS SSH connection (user@host or user@host:port) from your per-user saved list (OIDC subject) |
+| 2 | [`runConsoleCommand`](#runconsolecommand)     | Run a z/OS operator console command (e.g. DISPLAY T, DISPLAY A)                                         |
 
 ## db2 CLI Plugin Tools
 
@@ -1003,6 +1005,7 @@ Read the content of a sequential data set or PDS/E member. Results may be line-w
 | `encoding`  | `string`  | No       | Mainframe encoding (EBCDIC) for this read. Overrides system and server default when set. Default: from system or MCP server default.                                                                                                                                                                                |
 | `startLine` | `integer` | No       | 1-based starting line number for random access — use this to jump directly to any line without reading from the beginning. Default: 1.                                                                                                                                                                              |
 | `lineCount` | `integer` | No       | Number of lines to return from startLine. Use with startLine to read an exact range (e.g. startLine: 20, lineCount: 10 for lines 20–29). Default: all remaining lines up to the auto-truncation limit.                                                                                                              |
+| `binary`    | `boolean` | No       | Return raw bytes base64-encoded in data.contentBase64 instead of data.lines, with no EBCDIC conversion. For non-text content (tersed files, load modules). Excludes encoding, startLine, lineCount.                                                                                                                 |
 
 <a id="readdataset-output-schema"></a>
 
@@ -1020,7 +1023,8 @@ Read the content of a sequential data set or PDS/E member. Results may be line-w
 | &ensp;└─ `hasMore`       | `boolean`  | Yes      | True if more lines exist. Call the tool again with startLine and lineCount to fetch the next window.                                      |
 | `messages`               | `string`[] | No       | Operational messages: pagination hints (e.g. call again with offset/limit), resolution notes, or allocation messages. Omitted when empty. |
 | `data`                   | `object`   | Yes      |                                                                                                                                           |
-| &ensp;├─ `lines`         | `string`[] | Yes      | Content as array of lines (UTF-8). When _result.hasMore is true, call again with startLine/lineCount to get more.                         |
+| &ensp;├─ `lines`         | `string`[] | Yes      | Content as array of lines (UTF-8). When _result.hasMore is true, call again with startLine/lineCount to get more. Empty for binary reads. |
+| &ensp;├─ `contentBase64` | `string`   | No       | Raw content as base64. Present only for binary reads (binary: true).                                                                      |
 | &ensp;├─ `etag`          | `string`   | Yes      | Opaque version token. Pass to writeDataset for optimistic locking so the write fails if the data set changed since the read.              |
 | &ensp;└─ `encoding`      | `string`   | Yes      | Mainframe (EBCDIC) encoding used to convert to UTF-8 (e.g. IBM-037, IBM-1047).                                                            |
 
@@ -1160,16 +1164,18 @@ Write UTF-8 content to a sequential data set or PDS/E member. When startLine and
 
 #### Parameters
 
-| Parameter   | Type       | Required | Description                                                                                                                                                                                                                                                                                                         |
-|-------------|------------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `dsn`       | `string`   | Yes      | Fully qualified data set name (e.g. USER.SRC.COBOL).                                                                                                                                                                                                                                                                |
-| `lines`     | `string`[] | Yes      | UTF-8 content to write as an array of lines (one string per record).                                                                                                                                                                                                                                                |
-| `member`    | `string`   | No       | Member name for PDS or PDS/E data sets.                                                                                                                                                                                                                                                                             |
-| `system`    | `string`   | No       | Optional. Target z/OS system (a host, or user@host when several connections exist). Omit it to use the active/default connection — you do not need to select or set a system first, and you should still call the tool when no system has been chosen yet. Specify it only to target a different configured system. |
-| `etag`      | `string`   | No       | ETag from a previous readDataset call for optimistic locking.                                                                                                                                                                                                                                                       |
-| `encoding`  | `string`   | No       | Mainframe encoding (EBCDIC) for this write. Overrides system and server default when set. Default: from system or MCP server default.                                                                                                                                                                               |
-| `startLine` | `number`   | No       | 1-based first line of the block to replace; use with endLine to replace a range (content line count can differ).                                                                                                                                                                                                    |
-| `endLine`   | `number`   | No       | 1-based last line of the block to replace (inclusive). When provided with startLine, the replaced block can grow or shrink to match the number of lines in the lines array.                                                                                                                                         |
+| Parameter       | Type       | Required | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+|-----------------|------------|----------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `dsn`           | `string`   | Yes      | Fully qualified data set name (e.g. USER.SRC.COBOL).                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `lines`         | `string`[] | No       | UTF-8 content to write as an array of lines (one string per record). Required unless binary is true.                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `member`        | `string`   | No       | Member name for PDS or PDS/E data sets.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `system`        | `string`   | No       | Optional. Target z/OS system (a host, or user@host when several connections exist). Omit it to use the active/default connection — you do not need to select or set a system first, and you should still call the tool when no system has been chosen yet. Specify it only to target a different configured system.                                                                                                                                                                                                         |
+| `etag`          | `string`   | No       | ETag from a previous readDataset call for optimistic locking.                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `binary`        | `boolean`  | No       | Write raw bytes from contentBase64 instead of lines, with no EBCDIC conversion. For non-text content (tersed files, load modules). Excludes lines, encoding, startLine, endLine. Target must already exist; the whole content is replaced. The z/OS server writes the bytes as fixed-length records, NUL-pads the last record, and does not preserve the target RECFM/LRECL — after writing, re-check the attributes with getDatasetAttributes if a downstream consumer (TRSMAIN, IEBCOPY, a load library) depends on them. |
+| `contentBase64` | `string`   | No       | Base64-encoded raw content to write when binary is true.                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `encoding`      | `string`   | No       | Mainframe encoding (EBCDIC) for this write. Overrides system and server default when set. Default: from system or MCP server default.                                                                                                                                                                                                                                                                                                                                                                                       |
+| `startLine`     | `number`   | No       | 1-based first line of the block to replace; use with endLine to replace a range (content line count can differ).                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `endLine`       | `number`   | No       | 1-based last line of the block to replace (inclusive). When provided with startLine, the replaced block can grow or shrink to match the number of lines in the lines array.                                                                                                                                                                                                                                                                                                                                                 |
 
 <a id="writedataset-output-schema"></a>
 
@@ -1718,20 +1724,22 @@ Read the content of a USS file (the z/OS UNIX equivalent of "cat"). Results may 
 | `encoding`  | `string`  | No       | Mainframe (EBCDIC) encoding for the file. Omit to use system default or file tag.                                                                                                                                                                                                                                   |
 | `startLine` | `integer` | No       | 1-based first line to return. Default: 1.                                                                                                                                                                                                                                                                           |
 | `lineCount` | `integer` | No       | Number of lines to return. Omit for default window size.                                                                                                                                                                                                                                                            |
+| `binary`    | `boolean` | No       | Return raw bytes base64-encoded in data.contentBase64 instead of data.lines, with no encoding conversion. For non-text files. Excludes encoding, startLine, lineCount.                                                                                                                                              |
 
 <a id="readussfile-output-schema"></a>
 
 #### Output Schema
 
-| Field               | Type       | Required | Description                                                                                                         |
-|---------------------|------------|----------|---------------------------------------------------------------------------------------------------------------------|
-| `_context`          | `object`   | Yes      | Resolution context: system and optional normalized USS paths. *(same as [`getUssHome`](#getusshome-output-schema))* |
-| `_result`           | `object`   | Yes      | Result metadata (pagination, line window, or success). *(same as [`readDataset`](#readdataset-output-schema))*      |
-| `messages`          | `string`[] | No       | Operational messages: pagination hints, resolution notes, or path warnings. Omitted when empty.                     |
-| `data`              | `object`   | Yes      |                                                                                                                     |
-| &ensp;├─ `lines`    | `string`[] | Yes      | File content as UTF-8 array of lines; may be a line window.                                                         |
-| &ensp;├─ `etag`     | `string`   | Yes      | Opaque version token for optimistic locking on write.                                                               |
-| &ensp;└─ `mimeType` | `string`   | Yes      | Inferred content type (e.g. text/plain, text/x-cobol).                                                              |
+| Field                    | Type       | Required | Description                                                                                                         |
+|--------------------------|------------|----------|---------------------------------------------------------------------------------------------------------------------|
+| `_context`               | `object`   | Yes      | Resolution context: system and optional normalized USS paths. *(same as [`getUssHome`](#getusshome-output-schema))* |
+| `_result`                | `object`   | Yes      | Result metadata (pagination, line window, or success). *(same as [`readDataset`](#readdataset-output-schema))*      |
+| `messages`               | `string`[] | No       | Operational messages: pagination hints, resolution notes, or path warnings. Omitted when empty.                     |
+| `data`                   | `object`   | Yes      |                                                                                                                     |
+| &ensp;├─ `lines`         | `string`[] | Yes      | File content as UTF-8 array of lines; may be a line window. Empty for binary reads.                                 |
+| &ensp;├─ `contentBase64` | `string`   | No       | Raw content as base64. Present only for binary reads (binary: true).                                                |
+| &ensp;├─ `etag`          | `string`   | Yes      | Opaque version token for optimistic locking on write.                                                               |
+| &ensp;└─ `mimeType`      | `string`   | Yes      | Inferred content type (e.g. text/plain, text/x-cobol).                                                              |
 
 #### Example Outputs
 
@@ -1799,13 +1807,15 @@ Write or overwrite a USS file. Creates the file if it does not exist.
 
 #### Parameters
 
-| Parameter  | Type       | Required | Description                                                                                                                                                                                                                                                                                                         |
-|------------|------------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `path`     | `string`   | Yes      | USS file path: absolute (starts with /) or relative to current working directory (see getContext.ussCwd).                                                                                                                                                                                                           |
-| `lines`    | `string`[] | Yes      | UTF-8 content to write as an array of lines (one string per line).                                                                                                                                                                                                                                                  |
-| `system`   | `string`   | No       | Optional. Target z/OS system (a host, or user@host when several connections exist). Omit it to use the active/default connection — you do not need to select or set a system first, and you should still call the tool when no system has been chosen yet. Specify it only to target a different configured system. |
-| `etag`     | `string`   | No       | ETag for optimistic locking.                                                                                                                                                                                                                                                                                        |
-| `encoding` | `string`   | No       | Mainframe encoding. Omit for default.                                                                                                                                                                                                                                                                               |
+| Parameter       | Type       | Required | Description                                                                                                                                                                                                                                                                                                         |
+|-----------------|------------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `path`          | `string`   | Yes      | USS file path: absolute (starts with /) or relative to current working directory (see getContext.ussCwd).                                                                                                                                                                                                           |
+| `lines`         | `string`[] | No       | UTF-8 content to write as an array of lines (one string per line). Required unless binary is true.                                                                                                                                                                                                                  |
+| `system`        | `string`   | No       | Optional. Target z/OS system (a host, or user@host when several connections exist). Omit it to use the active/default connection — you do not need to select or set a system first, and you should still call the tool when no system has been chosen yet. Specify it only to target a different configured system. |
+| `etag`          | `string`   | No       | ETag for optimistic locking.                                                                                                                                                                                                                                                                                        |
+| `encoding`      | `string`   | No       | Mainframe encoding. Omit for default.                                                                                                                                                                                                                                                                               |
+| `binary`        | `boolean`  | No       | Write raw bytes from contentBase64 instead of lines, with no encoding conversion. For non-text files. Excludes lines, encoding.                                                                                                                                                                                     |
+| `contentBase64` | `string`   | No       | Base64-encoded raw content to write when binary is true.                                                                                                                                                                                                                                                            |
 
 <a id="writeussfile-output-schema"></a>
 
@@ -2430,6 +2440,63 @@ List the PROCLIB concatenation on the z/OS system (the data sets searched for JC
     },
     {
       "dsn": "SYS2.PROCLIB"
+    }
+  ]
+}
+```
+
+---
+
+### `listParmlib`
+
+> Read-only
+
+List the PARMLIB concatenation on the z/OS system (the data sets searched for system parameter members like IEASYSxx, in order). Results are paginated (default 500, max 1000 per page); follow the pagination instructions in the server instructions. Use this to find where system parmlib members live.
+
+#### Parameters
+
+| Parameter | Type      | Required | Description                                                                                                                                                                                                                                                                                                         |
+|-----------|-----------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `system`  | `string`  | No       | Optional. Target z/OS system (a host, or user@host when several connections exist). Omit it to use the active/default connection — you do not need to select or set a system first, and you should still call the tool when no system has been chosen yet. Specify it only to target a different configured system. |
+| `offset`  | `integer` | No       | 0-based index of the first item to return. Default: 0.                                                                                                                                                                                                                                                              |
+| `limit`   | `integer` | No       | Maximum items to return. Default: 500, max 1000.                                                                                                                                                                                                                                                                    |
+
+<a id="listparmlib-output-schema"></a>
+
+#### Output Schema
+
+| Field      | Type       | Required | Description                                                                                                             |
+|------------|------------|----------|-------------------------------------------------------------------------------------------------------------------------|
+| `_context` | `object`   | Yes      | Resolution context: target z/OS system. *(same as [`runSafeTsoCommand`](#runsafetsocommand-output-schema))*             |
+| `_result`  | `object`   | Yes      | Pagination metadata: count, totalAvailable, offset, hasMore. *(same as [`listDatasets`](#listdatasets-output-schema))*  |
+| `messages` | `string`[] | No       | Operational messages (e.g. pagination/line-window hints). Omitted when empty.                                           |
+| `data`     | `object`[] | Yes      | PARMLIB data sets (in concatenation order) for this page. *(same as [`restoreDataset`](#restoredataset-output-schema))* |
+
+#### Example Output
+
+```json
+{
+  "_context": {
+    "system": "mainframe-dev.example.com"
+  },
+  "_result": {
+    "count": 4,
+    "totalAvailable": 4,
+    "offset": 0,
+    "hasMore": false
+  },
+  "data": [
+    {
+      "dsn": "SYS1.PARMLIB"
+    },
+    {
+      "dsn": "SYS1.IBM.PARMLIB"
+    },
+    {
+      "dsn": "USER.PARMLIB"
+    },
+    {
+      "dsn": "CPAC.PARMLIB"
     }
   ]
 }
@@ -3790,6 +3857,90 @@ Remove a z/OS SSH connection (user@host or user@host:port) from your per-user sa
 
 ---
 
+### `runConsoleCommand`
+
+> Destructive
+
+Run a z/OS operator console command (e.g. DISPLAY T, DISPLAY A). Prefer a dedicated tool when one exists (listProclib, listParmlib, listApfLibraries, listLinklist, viewSyslog, dataset/job tools): dedicated tools return structured output and need less authorization than console commands. System-shutdown commands (HALT, SHUTDOWN, QUIESCE, Z EOD) are blocked. Other non-display commands (SET, VARY, CANCEL, FORCE, START, STOP, MODIFY) require user approval. Unknown commands also require user approval.
+
+#### Parameters
+
+| Parameter     | Type      | Required | Description                                                                                                                                                                                                                                                                                                         |
+|---------------|-----------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `commandText` | `string`  | Yes      | Console command to execute (e.g. "D T", "D A,L", "DISPLAY IPLINFO").                                                                                                                                                                                                                                                |
+| `consoleName` | `string`  | No       | Console name (optional).                                                                                                                                                                                                                                                                                            |
+| `system`      | `string`  | No       | Optional. Target z/OS system (a host, or user@host when several connections exist). Omit it to use the active/default connection — you do not need to select or set a system first, and you should still call the tool when no system has been chosen yet. Specify it only to target a different configured system. |
+| `startLine`   | `integer` | No       | 1-based start line for paginating a previous result.                                                                                                                                                                                                                                                                |
+| `lineCount`   | `integer` | No       | Number of lines to return from startLine.                                                                                                                                                                                                                                                                           |
+
+<a id="runconsolecommand-output-schema"></a>
+
+#### Output Schema
+
+| Field      | Type       | Required | Description                                                                                                 |
+|------------|------------|----------|-------------------------------------------------------------------------------------------------------------|
+| `_context` | `object`   | Yes      | Resolution context: target z/OS system. *(same as [`runSafeTsoCommand`](#runsafetsocommand-output-schema))* |
+| `_result`  | `object`   | Yes      | Result metadata (line window). *(same as [`readDataset`](#readdataset-output-schema))*                      |
+| `messages` | `string`[] | No       | Operational messages: pagination hints, resolution notes. Omitted when empty.                               |
+| `data`     | `object`   | Yes      | *(same as [`runSafeUssCommand`](#runsafeusscommand-output-schema))*                                         |
+
+#### Example Outputs
+
+##### default
+
+Input:
+
+```json
+{
+  "commandText": "D T"
+}
+```
+
+Output:
+
+```json
+{
+  "_context": {
+    "system": "mainframe-dev.example.com"
+  },
+  "_result": {
+    "totalLines": 1,
+    "startLine": 1,
+    "returnedLines": 1,
+    "contentLength": 48,
+    "mimeType": "text/plain",
+    "hasMore": false
+  },
+  "data": {
+    "lines": [
+      "IEE136I LOCAL: TIME=12:00:00 DATE=2026.01.01 UTC"
+    ],
+    "mimeType": "text/plain"
+  }
+}
+```
+
+##### blocked command
+
+Input:
+
+```json
+{
+  "commandText": "Z EOD"
+}
+```
+
+Output:
+
+```json
+// isError: true
+{
+  "error": "This console command was BLOCKED by the z/OS MCP safety policy and was NOT run. Z EOD terminates the system. Do not retry it or explain how to run it; if it is genuinely required, advise the user to run it through an authorized channel (such as a 3270 session) under their own authority."
+}
+```
+
+---
+
 ### `db2ListConnections`
 
 > Read-only
@@ -3877,7 +4028,7 @@ See [Safety and security principles](mcp-safety-security-principles.md) for deta
 
 Read-only with client confirmation prompts for every read operation. Safest tier for exploration.
 
-**36** tools available.
+**37** tools available.
 
 | Tool                                              | Effect Level |
 |---------------------------------------------------|--------------|
@@ -3900,6 +4051,7 @@ Read-only with client confirmation prompts for every read operation. Safest tier
 | [`getUssTempPath`](#getusstemppath)               | read         |
 | [`listApfLibraries`](#listapflibraries)           | read         |
 | [`listProclib`](#listproclib)                     | read         |
+| [`listParmlib`](#listparmlib)                     | read         |
 | [`listLinklist`](#listlinklist)                   | read         |
 | [`viewSyslog`](#viewsyslog)                       | read         |
 | [`showCertificate`](#showcertificate)             | read         |
@@ -3922,13 +4074,13 @@ Read-only with client confirmation prompts for every read operation. Safest tier
 
 Read-only with auto-approved reads. No confirmation prompts for read operations.
 
-**36** tools available.
+**37** tools available.
 
 ### `update`
 
 Adds tools that create, write, copy, rename, and modify resources.
 
-**61** tools available (25 new at this tier).
+**62** tools available (25 new at this tier).
 
 | Tool                                                  | Effect Level |
 |-------------------------------------------------------|--------------|
@@ -3962,7 +4114,7 @@ Adds tools that create, write, copy, rename, and modify resources.
 
 Adds tools that delete or cancel resources.
 
-**68** tools available (7 new at this tier).
+**69** tools available (7 new at this tier).
 
 | Tool                                                      | Effect Level |
 |-----------------------------------------------------------|--------------|
@@ -3978,7 +4130,7 @@ Adds tools that delete or cancel resources.
 
 Adds tools that execute commands and submit jobs. Full access to all operations.
 
-**75** tools available (7 new at this tier).
+**77** tools available (8 new at this tier).
 
 | Tool                                            | Effect Level |
 |-------------------------------------------------|--------------|
@@ -3987,6 +4139,7 @@ Adds tools that execute commands and submit jobs. Full access to all operations.
 | [`submitJob`](#submitjob)                       | execute      |
 | [`submitJobFromDataset`](#submitjobfromdataset) | execute      |
 | [`submitJobFromUss`](#submitjobfromuss)         | execute      |
+| [`runConsoleCommand`](#runconsolecommand)       | execute      |
 | [`db2ExecuteSql`](#db2executesql)               | execute      |
 | [`db2CallProcedure`](#db2callprocedure)         | execute      |
 

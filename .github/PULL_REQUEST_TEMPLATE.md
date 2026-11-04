@@ -44,6 +44,11 @@ Document how AI was used in this pull request:
 
 - **Tool**: Which AI assistant was used (e.g. Cursor, GitHub Copilot, Claude
   Code, Cline)
-- **Model**: Which model(s) were used (e.g. Claude Sonnet 4, GPT-4.1)
+- **Model**: Exact model ID(s) used (e.g. `claude-sonnet-4-5`, `gpt-4.1`), not
+  just the vendor name
 - **Scope**: What parts of the PR were AI-assisted vs. manually written
 - **Review**: How the AI-generated code was reviewed and validated
+- **Verified**: What was tested or run, and what was not
+
+Rules for AI agents working in this repository are in
+[AGENTS.md](../AGENTS.md).

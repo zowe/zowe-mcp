@@ -189,6 +189,7 @@ describe('validateTsoCommand', () => {
 describe('buildTsoQueryCommand', () => {
   it('trims and collapses spaces, preserving the command', () => {
     expect(buildTsoQueryCommand('  LISTUSER   USER01   TSO ')).toBe('LISTUSER USER01 TSO');
+    expect(buildTsoQueryCommand('LISTUSER * OMVS NORACF')).toBe('LISTUSER * OMVS NORACF');
     expect(buildTsoQueryCommand("listdsd dataset('USER.DATA') all")).toBe(
       "listdsd dataset('USER.DATA') all"
     );

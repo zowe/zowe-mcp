@@ -105,9 +105,21 @@ describe('validateTsoCommand', () => {
   });
 
   it('returns elicit for SEARCH ... CLIST, which writes a data set', () => {
-    const r = validateTsoCommand('SEARCH CLASS(USER) CLIST');
-    expect(r.action).toBe('elicit');
-    expect(r.pattern?.id).toBe('tso-search-clist');
+    // TSO accepts any unambiguous keyword abbreviation; CLI and CLIS are unique
+    // among SEARCH's operands (CL alone is ambiguous with CLASS).
+    for (const cmd of [
+      'SEARCH CLASS(USER) CLIST',
+      "SR CLASS(FACILITY) CLIST('RLIST FACILITY ')",
+      "SEARCH CLI('LISTUSER ')",
+      'search clis',
+    ]) {
+      const r = validateTsoCommand(cmd);
+      expect({ cmd, action: r.action, id: r.pattern?.id }).toEqual({
+        cmd,
+        action: 'elicit',
+        id: 'tso-search-clist',
+      });
+    }
   });
 
   it('returns elicit with a specific warning for security administration commands', () => {
@@ -208,5 +220,6 @@ describe('buildTsoQueryCommand', () => {
 
   it('rejects a query verb whose arguments need approval under the safety policy', () => {
     expect(() => buildTsoQueryCommand('SEARCH CLASS(USER) CLIST')).toThrow('needs user approval');
+    expect(() => buildTsoQueryCommand("SEARCH CLI('LISTUSER ')")).toThrow('needs user approval');
   });
 });

@@ -74,8 +74,8 @@
     },
     {
       "id": "tso-search-clist",
-      "message": "SEARCH with CLIST writes a CLIST data set; user approval required.",
-      "pattern": "^(SEARCH|SR)\\b.*\\bCLIST\\b"
+      "message": "SEARCH with CLIST (or its TSO abbreviation CLI or CLIS) writes a CLIST data set; user approval required.",
+      "pattern": "^(SEARCH|SR)\\b.*\\bCLI(S|ST)?\\b"
     }
   ],
   "safe": [

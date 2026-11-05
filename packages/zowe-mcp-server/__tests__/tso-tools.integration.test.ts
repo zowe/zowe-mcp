@@ -195,6 +195,21 @@ describe('queryTso at the read capability tier', () => {
     expect(envelope.data.lines.join('\n')).toContain('USER=USER01');
   });
 
+  it('labels TSO output text/plain even when it looks like source code', async () => {
+    const result = await client.callTool({
+      name: 'queryTso',
+      arguments: { commandText: 'LISTGRP SYS1' },
+    });
+    const envelope = JSON.parse(getResultText(result)) as {
+      _result: { mimeType: string };
+      data: { mimeType: string };
+    };
+    expect({ result: envelope._result.mimeType, data: envelope.data.mimeType }).toEqual({
+      result: 'text/plain',
+      data: 'text/plain',
+    });
+  });
+
   it('rejects commands that chain or modify', async () => {
     for (const commandText of [
       'LISTUSER A;ALTUSER A SPECIAL',

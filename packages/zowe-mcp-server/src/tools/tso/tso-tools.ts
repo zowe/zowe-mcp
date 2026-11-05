@@ -275,11 +275,14 @@ async function executeTsoCommand(
   }
 
   const sanitized = sanitizeTextForDisplay(fullOutput);
-  const { text, meta, mimeType } = windowContent(
+  const { text, meta: windowMeta } = windowContent(
     sanitized,
     startLine ?? 1,
     lineCount ?? (isPaging ? undefined : MAX_READ_LINES)
   );
+  // Command output is never source code; content sniffing labels RACF listings text/x-cobol.
+  const mimeType = 'text/plain';
+  const meta = { ...windowMeta, mimeType };
   const lines = textToLines(text);
 
   const ctx = buildContext(systemId, {});

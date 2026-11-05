@@ -360,3 +360,5 @@ Automatically updated by `npm run eval-compare`.
 | 2026-08-28 | before-console-binary-g3  | gemini-3-flash        | gemini-3-flash-preview          | uss                      | 8         | 97.5%     | 39     | 40    | 2020f2c | a36747b1  | cache=off, dirty |
 | 2026-09-03 | before-listParmlib        | gemini-2.5-flash      | gemini-2.5-flash                | system                   | 11        | 96.4%     | 53     | 55    | e6b97cf |           | cache=off        |
 | 2026-09-03 | after-listParmlib         | gemini-2.5-flash      | gemini-2.5-flash                | system                   | 13        | 93.8%     | 61     | 65    | 6012c13 | 680a1c81  | cache=off, dirty |
+| 2026-11-04 | display tool baseline     | qwen3.6-35b-a3b       | qwen/qwen3.6-35b-a3b            | display                  | 5         | 100.0%    | 25     | 25    | 08ad3a1 |           | cache=off        |
+| 2026-11-04 | display ibm-verified      | qwen3.6-35b-a3b       | qwen/qwen3.6-35b-a3b            | display                  | 5         | 100.0%    | 25     | 25    | 21006e4 |           | cache=off        |

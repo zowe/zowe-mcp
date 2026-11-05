@@ -75,10 +75,10 @@ The server provides **2** tools.
 
 Time Sharing Option — run TSO commands interactively on z/OS.
 
-| # | Tool                                      | Description                                                                                                                                                        |
-|---|-------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| 1 | [`queryTso`](#querytso)                   | Run a read-only TSO query command on z/OS, such as LISTUSER, LISTGRP, LISTDSD, RLIST, SEARCH, LISTDS, LISTALC, LISTCAT, LISTBC, STATUS, WHO, TIME, SYSTEM, or HELP |
-| 2 | [`runSafeTsoCommand`](#runsafetsocommand) | Run a TSO command on z/OS                                                                                                                                          |
+| # | Tool                                      | Description                                                                                                                                           |
+|---|-------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------|
+| 1 | [`queryTso`](#querytso)                   | Run a read-only TSO query command on z/OS, such as LISTUSER, LISTGRP, LISTDSD, RLIST, SEARCH, LISTDS, LISTALC, LISTCAT, LISTBC, STATUS, TIME, or HELP |
+| 2 | [`runSafeTsoCommand`](#runsafetsocommand) | Run a TSO command on z/OS                                                                                                                             |
 
 ## System Information
 
@@ -2222,13 +2222,13 @@ Delete all files and directories under the given USS path (the path itself is re
 
 > Read-only
 
-Run a read-only TSO query command on z/OS, such as LISTUSER, LISTGRP, LISTDSD, RLIST, SEARCH, LISTDS, LISTALC, LISTCAT, LISTBC, STATUS, WHO, TIME, SYSTEM, or HELP. Results may be line-windowed; follow the pagination instructions in the server instructions. Only these commands are accepted (no confirmation prompts, nothing that changes the system), so it is available to read-only users; use runSafeTsoCommand for anything else. RACF commands list only what the signed-in user is authorized to see
+Run a read-only TSO query command on z/OS, such as LISTUSER, LISTGRP, LISTDSD, RLIST, SEARCH, LISTDS, LISTALC, LISTCAT, LISTBC, STATUS, TIME, or HELP. Results may be line-windowed; follow the pagination instructions in the server instructions. Only these commands are accepted (no confirmation prompts, nothing that changes the system), so it is available to read-only users; use runSafeTsoCommand for anything else. RACF output is limited to what the signed-in user is authorized to see, and command direction (AT/ONLYAT), SEARCH CLIST and LISTCAT OUTFILE are refused. RACF verbs: LISTUSER = user profile; LISTGRP = group profile and members; LISTDSD = data set profile, e.g. LISTDSD DATASET('USER.DATA') ALL; RLIST = profile in a general resource class such as FACILITY (not for data sets); SEARCH = list profile names, e.g. SEARCH CLASS(DATASET) MASK(USER) or SEARCH FILTER(USER.**)
 
 #### Parameters
 
 | Parameter     | Type      | Required | Description                                                                                                                                                                                                                                                                                                         |
 |---------------|-----------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `commandText` | `string`  | Yes      | The TSO query command, e.g. LISTUSER USER01 TSO, LISTGRP SYS1, RLIST FACILITY BPX.SUPERUSER ALL, LISTDS 'USER.DATA'.                                                                                                                                                                                                |
+| `commandText` | `string`  | Yes      | The TSO query command, e.g. LISTUSER USER01 TSO, LISTGRP SYS1, LISTDSD DATASET('USER.DATA') ALL, RLIST FACILITY BPX.SUPERUSER ALL, SEARCH CLASS(DATASET) MASK(USER), LISTDS 'USER.DATA'.                                                                                                                            |
 | `system`      | `string`  | No       | Optional. Target z/OS system (a host, or user@host when several connections exist). Omit it to use the active/default connection — you do not need to select or set a system first, and you should still call the tool when no system has been chosen yet. Specify it only to target a different configured system. |
 | `startLine`   | `integer` | No       | 1-based first line of output to return. Default: 1.                                                                                                                                                                                                                                                                 |
 | `lineCount`   | `integer` | No       | Number of lines to return. Omit for default window size.                                                                                                                                                                                                                                                            |
@@ -2299,7 +2299,7 @@ Output:
 ```json
 // isError: true
 {
-  "error": "\"ALTUSER\" is not a read-only TSO query command. Allowed: LISTUSER, LISTGRP, LISTDSD, RLIST, SEARCH, LISTDS, LISTALC, LISTCAT, LISTBC, STATUS, HELP, WHO, TIME, SYSTEM. Use runSafeTsoCommand for other commands."
+  "error": "\"ALTUSER\" is not a read-only TSO query command. Allowed: LISTUSER, LISTGRP, LISTDSD, RLIST, SEARCH, LISTDS, LISTALC, LISTCAT, LISTBC, STATUS, HELP, TIME. Use runSafeTsoCommand for other commands."
 }
 ```
 

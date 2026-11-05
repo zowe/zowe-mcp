@@ -223,3 +223,64 @@ describe('buildTsoQueryCommand', () => {
     expect(() => buildTsoQueryCommand("SEARCH CLI('LISTUSER ')")).toThrow('needs user approval');
   });
 });
+
+describe('RACF command direction, SEARCH CLIST and LISTCAT OUTFILE patterns', () => {
+  const cases: [string, 'allow' | 'elicit', string | undefined][] = [
+    ['LISTUSER U1 AT(.U2)', 'elicit', 'tso-racf-command-direction'],
+    ['LG SYS1 ONLYAT(NODEB.U2)', 'elicit', 'tso-racf-command-direction'],
+    ['SR CLASS(USER) O(.U2)', 'elicit', 'tso-racf-command-direction'],
+    ['RLIST FACILITY X.Y ON(NODE.U)', 'elicit', 'tso-racf-command-direction'],
+    ['LISTDSD DATASET(A.B) ONLYA(.U2)', 'elicit', 'tso-racf-command-direction'],
+    ['LISTDSD DATASET(A.B) ALL', 'allow', undefined],
+    ['SEARCH MASK(SYS1.AT)', 'allow', undefined],
+    ["LISTDSD DATASET('X.AT(Y)')", 'allow', undefined],
+    ['SEARCH CLIST', 'elicit', 'tso-search-clist'],
+    ["SEARCH CLASS(USER) CLI('LISTUSER ')", 'elicit', 'tso-search-clist'],
+    ['SR CLASS(USER),CLIS', 'elicit', 'tso-search-clist'],
+    ['SEARCH CLASS(USER)CLIST', 'elicit', 'tso-search-clist'],
+    ['SEARCH MASK(SYS1.CLIST)', 'allow', undefined],
+    ['SEARCH FILTER(USER.**.CLIST)', 'allow', undefined],
+    ['LISTCAT OUTFILE(DD1)', 'elicit', 'tso-listcat-outfile'],
+    ['LISTC ENTRIES(A.B) OFILE(DD1)', 'elicit', 'tso-listcat-outfile'],
+    ['LISTCAT ENT(A.B) OU (DD1)', 'elicit', 'tso-listcat-outfile'],
+    ["LISTCAT ENTRIES('A.OFILE(B)')", 'allow', undefined],
+    ['LISTCAT ENTRIES(A.B) ALL', 'allow', undefined],
+    ['ST', 'allow', undefined],
+    ['LISTB', 'allow', undefined],
+  ];
+
+  it.each(cases)('%s', (cmd, action, id) => {
+    const r = validateTsoCommand(cmd);
+    expect({ cmd, action: r.action, id: r.pattern?.id }).toEqual({
+      cmd,
+      action,
+      id,
+    });
+  });
+});
+
+describe('buildTsoQueryCommand hardening', () => {
+  it.each([
+    'WHO',
+    'SYSTEM',
+    'LISTUSER U1 AT(.U2)',
+    'LG SYS1 ONLYAT(NODEB.U2)',
+    'SR CLASS(USER) O(.U2)',
+    'LISTCAT OUTFILE(DD1)',
+    'LISTC ENTRIES(A.B) OFILE(DD1)',
+  ])('rejects %j', commandText => {
+    expect(() => buildTsoQueryCommand(commandText)).toThrow();
+  });
+
+  it('includes the matched pattern message in the error', () => {
+    expect(() => buildTsoQueryCommand('LISTUSER U1 AT(.U2)')).toThrow(/AT\/ONLYAT directs/);
+    expect(() => buildTsoQueryCommand('LISTCAT OUTFILE(DD1)')).toThrow(/OUTFILE\/OFILE writes/);
+  });
+
+  it.each(['ST', 'LISTB', 'SEARCH MASK(SYS1.CLIST)', 'SEARCH FILTER(USER.**.CLIST)'])(
+    'accepts %j',
+    commandText => {
+      expect(buildTsoQueryCommand(commandText)).toBe(commandText);
+    }
+  );
+});

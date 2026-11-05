@@ -185,6 +185,16 @@ describe('queryTso at the read capability tier', () => {
     expect(envelope.data.lines.join('\n')).toContain('USER=USER01');
   });
 
+  it('parses a parenthesized RACF target name', async () => {
+    const result = await client.callTool({
+      name: 'queryTso',
+      arguments: { commandText: 'LISTUSER (USER01)' },
+    });
+    expect(result.isError).toBeFalsy();
+    const envelope = JSON.parse(getResultText(result)) as { data: { lines: string[] } };
+    expect(envelope.data.lines.join('\n')).toContain('USER=USER01');
+  });
+
   it('rejects commands that chain or modify', async () => {
     for (const commandText of [
       'LISTUSER A;ALTUSER A SPECIAL',

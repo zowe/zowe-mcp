@@ -71,12 +71,12 @@ const TSO_QUERY_VERBS = new Set([
   'LISTCAT',
   'LISTC',
   'LISTBC',
+  'LISTB',
   'STATUS',
+  'ST',
   'HELP',
   'H',
-  'WHO',
   'TIME',
-  'SYSTEM',
 ]);
 
 /**
@@ -105,12 +105,14 @@ export function buildTsoQueryCommand(commandText: string): string {
   if (!TSO_QUERY_VERBS.has(verb)) {
     throw new Error(
       `"${verb}" is not a read-only TSO query command. Allowed: LISTUSER, LISTGRP, LISTDSD, RLIST, SEARCH, ` +
-        'LISTDS, LISTALC, LISTCAT, LISTBC, STATUS, HELP, WHO, TIME, SYSTEM. Use runSafeTsoCommand for other commands.'
+        'LISTDS, LISTALC, LISTCAT, LISTBC, STATUS, HELP, TIME. Use runSafeTsoCommand for other commands.'
     );
   }
-  if (validateTsoCommand(normalized).action !== 'allow') {
+  const verdict = validateTsoCommand(normalized);
+  if (verdict.action !== 'allow') {
+    const reason = verdict.pattern?.message ? `: ${verdict.pattern.message}` : '.';
     throw new Error(
-      'This command needs user approval or is blocked by the TSO safety policy, so queryTso will not run it. ' +
+      `This command needs user approval or is blocked by the TSO safety policy, so queryTso will not run it${reason} ` +
         'Use runSafeTsoCommand if it is genuinely required.'
     );
   }

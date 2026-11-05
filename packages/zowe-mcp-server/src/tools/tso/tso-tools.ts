@@ -181,10 +181,14 @@ export function registerTsoTools(server: McpServer, deps: TsoToolDeps, logger: L
     {
       outputSchema: runSafeTsoCommandOutputSchema,
       description: withPaginationNote(
-        'Run a read-only TSO query command on z/OS, such as LISTUSER, LISTGRP, LISTDSD, RLIST, SEARCH, LISTDS, LISTALC, LISTCAT, LISTBC, STATUS, WHO, TIME, SYSTEM, or HELP. ' +
+        'Run a read-only TSO query command on z/OS, such as LISTUSER, LISTGRP, LISTDSD, RLIST, SEARCH, LISTDS, LISTALC, LISTCAT, LISTBC, STATUS, TIME, or HELP. ' +
           'Only these commands are accepted (no confirmation prompts, nothing that changes the system), ' +
           'so it is available to read-only users; use runSafeTsoCommand for anything else. ' +
-          'RACF commands list only what the signed-in user is authorized to see',
+          'RACF output is limited to what the signed-in user is authorized to see, and command direction (AT/ONLYAT), SEARCH CLIST and LISTCAT OUTFILE are refused. ' +
+          'RACF verbs: LISTUSER = user profile; LISTGRP = group profile and members; ' +
+          "LISTDSD = data set profile, e.g. LISTDSD DATASET('USER.DATA') ALL; " +
+          'RLIST = profile in a general resource class such as FACILITY (not for data sets); ' +
+          'SEARCH = list profile names, e.g. SEARCH CLASS(DATASET) MASK(USER) or SEARCH FILTER(USER.**)',
         PAGINATION_NOTE_LINES
       ),
       _meta: { resourceEffectLevel: ResourceEffect.READ },
@@ -192,7 +196,7 @@ export function registerTsoTools(server: McpServer, deps: TsoToolDeps, logger: L
         commandText: z
           .string()
           .describe(
-            "The TSO query command, e.g. LISTUSER USER01 TSO, LISTGRP SYS1, RLIST FACILITY BPX.SUPERUSER ALL, LISTDS 'USER.DATA'."
+            "The TSO query command, e.g. LISTUSER USER01 TSO, LISTGRP SYS1, LISTDSD DATASET('USER.DATA') ALL, RLIST FACILITY BPX.SUPERUSER ALL, SEARCH CLASS(DATASET) MASK(USER), LISTDS 'USER.DATA'."
           ),
         system: z.string().optional().describe(SYSTEM_PARAM_DESCRIPTION),
         startLine: z

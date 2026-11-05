@@ -181,9 +181,10 @@ export function registerTsoTools(server: McpServer, deps: TsoToolDeps, logger: L
     {
       outputSchema: runSafeTsoCommandOutputSchema,
       description: withPaginationNote(
-        'Run a read-only TSO query command on z/OS, such as LISTUSER, LISTGRP, LISTDSD, RLIST, SEARCH, LISTDS, LISTALC, LISTCAT, LISTBC, STATUS, TIME, or HELP. ' +
-          'Only these commands are accepted (no confirmation prompts, nothing that changes the system), ' +
+        'Run a read-only TSO query command on z/OS, such as LISTUSER, LISTGRP, LISTDSD, RLIST, SEARCH, LISTDS, LISTCAT, or TIME. ' +
+          'Only read-only query commands are accepted (no confirmation prompts, nothing that changes the system), ' +
           'so it is available to read-only users; use runSafeTsoCommand for anything else. ' +
+          'Commands run through tsocmd in a z/OS UNIX environment with no TSO session allocations or help data sets, so LISTALC, HELP and STATUS return little there. ' +
           'RACF output is limited to what the signed-in user is authorized to see, and command direction (AT/ONLYAT), SEARCH CLIST and LISTCAT OUTFILE are refused. ' +
           'RACF verbs: LISTUSER = user profile; LISTGRP = group profile and members; ' +
           "LISTDSD = data set profile, e.g. LISTDSD DATASET('USER.DATA') ALL; " +

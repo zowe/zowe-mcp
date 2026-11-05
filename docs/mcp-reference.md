@@ -2222,7 +2222,7 @@ Delete all files and directories under the given USS path (the path itself is re
 
 > Read-only
 
-Run a read-only TSO query command on z/OS, such as LISTUSER, LISTGRP, LISTDSD, RLIST, SEARCH, LISTDS, LISTALC, LISTCAT, LISTBC, STATUS, WHO, TIME, SYSTEM, or HELP. Results may be line-windowed; follow the pagination instructions in the server instructions. Only these commands are accepted (no confirmation prompts, nothing that changes the system), so it is available to read-only users; use runSafeTsoCommand for anything else. RACF commands list only what the signed-in user is authorized to see. LISTUSER accepts one user ID, a parenthesized list such as (A B), or a bare * for every user; it does not accept prefix masks (use SEARCH CLASS(USER) MASK(prefix) to find user IDs by prefix). To see segment fields such as OMVS HOME for all users, run LISTUSER * OMVS NORACF and filter the output yourself, but only on a small registry: the output has several lines per user, and a registry with hundreds of thousands of users will not return
+Run a read-only TSO query command on z/OS, such as LISTUSER, LISTGRP, LISTDSD, RLIST, SEARCH, LISTDS, LISTALC, LISTCAT, LISTBC, STATUS, WHO, TIME, SYSTEM, or HELP. Results may be line-windowed; follow the pagination instructions in the server instructions. Only these commands are accepted (no confirmation prompts, nothing that changes the system), so it is available to read-only users; use runSafeTsoCommand for anything else. RACF commands list only what the signed-in user is authorized to see. LISTUSER accepts one user ID, a parenthesized list such as (A B), or a bare * for every user; it does not accept prefix masks (use SEARCH CLASS(USER) MASK(prefix) to find user IDs by prefix)
 
 #### Parameters
 

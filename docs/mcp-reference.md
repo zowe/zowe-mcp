@@ -75,10 +75,10 @@ The server provides **2** tools.
 
 Time Sharing Option — run TSO commands interactively on z/OS.
 
-| # | Tool                                      | Description                                                                                                                                           |
-|---|-------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------|
-| 1 | [`queryTso`](#querytso)                   | Run a read-only TSO query command on z/OS, such as LISTUSER, LISTGRP, LISTDSD, RLIST, SEARCH, LISTDS, LISTALC, LISTCAT, LISTBC, STATUS, TIME, or HELP |
-| 2 | [`runSafeTsoCommand`](#runsafetsocommand) | Run a TSO command on z/OS                                                                                                                             |
+| # | Tool                                      | Description                                                                                                            |
+|---|-------------------------------------------|------------------------------------------------------------------------------------------------------------------------|
+| 1 | [`queryTso`](#querytso)                   | Run a read-only TSO query command on z/OS, such as LISTUSER, LISTGRP, LISTDSD, RLIST, SEARCH, LISTDS, LISTCAT, or TIME |
+| 2 | [`runSafeTsoCommand`](#runsafetsocommand) | Run a TSO command on z/OS                                                                                              |
 
 ## System Information
 
@@ -2222,7 +2222,7 @@ Delete all files and directories under the given USS path (the path itself is re
 
 > Read-only
 
-Run a read-only TSO query command on z/OS, such as LISTUSER, LISTGRP, LISTDSD, RLIST, SEARCH, LISTDS, LISTALC, LISTCAT, LISTBC, STATUS, TIME, or HELP. Results may be line-windowed; follow the pagination instructions in the server instructions. Only these commands are accepted (no confirmation prompts, nothing that changes the system), so it is available to read-only users; use runSafeTsoCommand for anything else. RACF output is limited to what the signed-in user is authorized to see, and command direction (AT/ONLYAT), SEARCH CLIST and LISTCAT OUTFILE are refused. RACF verbs: LISTUSER = user profile; LISTGRP = group profile and members; LISTDSD = data set profile, e.g. LISTDSD DATASET('USER.DATA') ALL; RLIST = profile in a general resource class such as FACILITY (not for data sets); SEARCH = list profile names, e.g. SEARCH CLASS(DATASET) MASK(USER) or SEARCH FILTER(USER.**)
+Run a read-only TSO query command on z/OS, such as LISTUSER, LISTGRP, LISTDSD, RLIST, SEARCH, LISTDS, LISTCAT, or TIME. Results may be line-windowed; follow the pagination instructions in the server instructions. Only read-only query commands are accepted (no confirmation prompts, nothing that changes the system), so it is available to read-only users; use runSafeTsoCommand for anything else. Commands run through tsocmd in a z/OS UNIX environment with no TSO session allocations or help data sets, so LISTALC, HELP and STATUS return little there. RACF output is limited to what the signed-in user is authorized to see, and command direction (AT/ONLYAT), SEARCH CLIST and LISTCAT OUTFILE are refused. RACF verbs: LISTUSER = user profile; LISTGRP = group profile and members; LISTDSD = details of one known data set profile, e.g. LISTDSD DATASET('USER.DATA') ALL; RLIST = profile in a general resource class such as FACILITY (not for data sets); SEARCH = find which profiles exist (lists names you can see), e.g. SEARCH CLASS(DATASET) MASK(USER) or SEARCH FILTER(USER.**)
 
 #### Parameters
 

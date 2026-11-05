@@ -185,11 +185,7 @@ export function registerTsoTools(server: McpServer, deps: TsoToolDeps, logger: L
           'Only read-only query commands are accepted (no confirmation prompts, nothing that changes the system), ' +
           'so it is available to read-only users; use runSafeTsoCommand for anything else. ' +
           'Commands run through tsocmd in a z/OS UNIX environment with no TSO session allocations or help data sets, so LISTALC, HELP and STATUS return little there. ' +
-          'RACF output is limited to what the signed-in user is authorized to see, and command direction (AT/ONLYAT), SEARCH CLIST and LISTCAT OUTFILE are refused. ' +
-          'RACF verbs: LISTUSER = user profile; LISTGRP = group profile and members; ' +
-          "LISTDSD = details of one known data set profile, e.g. LISTDSD DATASET('USER.DATA') ALL; " +
-          'RLIST = profile in a general resource class such as FACILITY (not for data sets); ' +
-          'SEARCH = find which profiles exist (lists names you can see), e.g. SEARCH CLASS(DATASET) MASK(USER) or SEARCH FILTER(USER.**)',
+          'RACF output is limited to what the signed-in user is authorized to see, and command direction (AT/ONLYAT), SEARCH CLIST and LISTCAT OUTFILE are refused',
         PAGINATION_NOTE_LINES
       ),
       _meta: { resourceEffectLevel: ResourceEffect.READ },

@@ -19,8 +19,13 @@
  * That fell through to the USS shell interpreter, which has no `zowex` builtin, so it came back
  * FSUM7351/rc=127 and every fresh deploy looked like a binary that would not load. It only
  * surfaced on one CI platform, because the check runs solely after an actual (re)install.
+ *
+ * SDK 1.0 renamed the binary from `zowex` to `zo` (`ZSshClient.BIN_NAME`). Until the router
+ * learned the new name, `zo server` hit the same fall-through, the SDK reported "Server not
+ * found", and the nightly SDK workflow failed on every run from 2026-09-05.
  */
 
+import { createRequire } from 'node:module';
 import type ssh2 from 'ssh2';
 import { describe, expect, it, vi } from 'vitest';
 import { handleExec } from '../src/mock-host/channels/exec-router.js';
@@ -60,11 +65,22 @@ describe('mock host exec router', () => {
     // Both spellings are in live use: `-v` from our zowex-deploy-check.ts, `--version` from
     // the SDK. The cwd-wrapped form is what actually reaches the wire from the SDK.
     const versionCommands = [
+      'zo -v',
+      './zo -v',
+      './zo --version',
+      '~/.zowe-server/zo --version',
+      "cd '~/.zowe-server' ; ./zo --version",
+      'cd "~/.zowe-server" ; ./zo -v',
       './zowex -v',
       './zowex --version',
       '~/.zowe-server/zowex --version',
       "cd '~/.zowe-server' ; ./zowex --version",
       'cd "~/.zowe-server" ; ./zowex -v',
+      // SDK 1.0 (`zo`)
+      './zo -v',
+      './zo --version',
+      '~/.zowe-server/zo -v',
+      "cd '~/.zowe-server' ; ./zo --version",
     ];
 
     for (const cmd of versionCommands) {
@@ -79,12 +95,48 @@ describe('mock host exec router', () => {
       });
     }
 
-    it('does not mistake the RPC server command for a version check', () => {
-      // `zowex server` must reach the RPC dispatcher, which takes over the channel and
-      // neither exits nor writes a version line.
-      const { channel } = runExec('~/.zowe-server/zowex server');
+    it.each(['zo', 'zowex'])('routes %s server to the RPC dispatcher', binary => {
+      const { channel, written } = runExec(`~/.zowe-server/${binary} server`);
 
-      expect(channel.exit).not.toHaveBeenCalledWith(0);
+      expect(JSON.parse(written.join(''))).toMatchObject({ status: 'ready' });
+      expect(channel.on).toHaveBeenCalledWith('data', expect.any(Function));
+      expect(channel.exit).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('server start command', () => {
+    // The RPC dispatcher answers with its readiness line on the same tick; a fall-through to
+    // the USS shell would answer FSUM7351/rc=127 asynchronously instead.
+    const startCommands = [
+      '~/.zowe-server/zowex server',
+      // SDK 1.0 (`zo`): plain, wrapped by ZSshClient.execAsync, and with a quoted path
+      '~/.zowe-server/zo server',
+      '~/.zowe-server/zo server || echo "@@ZOWE_EXIT_CODE@@$?" >&2',
+      "~'/my dir/zo' server",
+    ];
+
+    for (const cmd of startCommands) {
+      it(`starts the RPC dispatcher for: ${cmd}`, () => {
+        const { channel, written } = runExec(cmd);
+
+        expect(written.join('')).toContain('"status":"ready"');
+        expect(channel.exit).not.toHaveBeenCalled();
+      });
+    }
+
+    it('reports the installed SDK version, so checkIfOutdated does not force a redeploy', () => {
+      // The version is looked up by walking node_modules up from the mock's own file. On Windows
+      // that walk once built its paths from URL.pathname (`/C:/...`), matched nothing, and fell
+      // back to 0.0.0, which every SDK treats as outdated.
+      const sdkVersion = (
+        createRequire(import.meta.url)('@zowe/zowex-for-zowe-sdk/package.json') as {
+          version: string;
+        }
+      ).version;
+      const { written } = runExec('~/.zowe-server/zo server');
+      const ready = JSON.parse(written[0]) as { data: { version: string } };
+
+      expect(ready.data.version).toBe(sdkVersion);
     });
   });
 

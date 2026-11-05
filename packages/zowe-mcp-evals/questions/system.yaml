@@ -1,10 +1,10 @@
 # yaml-language-server: $schema=../schemas/evals-question-set.schema.json
-# z/OS system information evals: listApfLibraries, listProclib, listLinklist, viewSyslog
+# z/OS system information evals: listApfLibraries, listProclib, listParmlib, listLinklist, viewSyslog
 # Mock preset "minimal" (one system, auto-activated) so questions test tool/argument
 # selection rather than multi-system disambiguation.
 config:
   name: system
-  description: Agent must use listApfLibraries/listProclib/listLinklist/viewSyslog for z/OS system information
+  description: Agent must use listApfLibraries/listProclib/listParmlib/listLinklist/viewSyslog for z/OS system information
   repetitions: 5
   minSuccessRate: 0.8
   mock:
@@ -32,6 +32,14 @@ questions:
           tool: listProclib
       - answerContains:
           pattern: 'PROCLIB'
+
+  - id: list-parmlib
+    prompt: What data sets make up the PARMLIB concatenation? I need to find where system parameter members like IEASYSxx live.
+    assertions:
+      - toolCall:
+          tool: listParmlib
+      - answerContains:
+          pattern: 'PARMLIB'
 
   - id: list-linklist
     prompt: Show me the LNKLST (link list) concatenation, including which of those libraries are APF-authorized.
@@ -80,6 +88,12 @@ questions:
     assertions:
       - toolCall:
           tool: listProclib
+
+  - id: parmlib-concept-mapping
+    prompt: Where would I find the system parameter members like IEASYSxx that get read at IPL time?
+    assertions:
+      - toolCall:
+          tool: listParmlib
 
   - id: apf-membership-check
     prompt: Is CEE.SCEERUN APF-authorized on this system?

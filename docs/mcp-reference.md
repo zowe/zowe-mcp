@@ -82,16 +82,18 @@ Time Sharing Option — run TSO commands interactively on z/OS.
 
 ## System Information
 
-The server provides **4** tools.
+The server provides **6** tools.
 
-Read-only information about the z/OS system itself — APF-authorized data sets, the PROCLIB concatenation, the link list (LNKLST) concatenation, and the operations SYSLOG.
+Read-only information about the z/OS system itself — APF-authorized data sets, the PROCLIB concatenation, the PARMLIB concatenation, the link list (LNKLST) concatenation, the operations SYSLOG, and operator DISPLAY command output.
 
 | # | Tool                                    | Description                                                                                                                                                                |
 |---|-----------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | 1 | [`listApfLibraries`](#listapflibraries) | List the APF-authorized (Authorized Program Facility) data sets on the z/OS system, each with its volume serial                                                            |
 | 2 | [`listProclib`](#listproclib)           | List the PROCLIB concatenation on the z/OS system (the data sets searched for JCL procedures, in order)                                                                    |
-| 3 | [`listLinklist`](#listlinklist)         | List the link list (LNKLST) concatenation on the z/OS system (the data sets searched for load modules, in order), each with its volume serial and APF-authorization status |
-| 4 | [`viewSyslog`](#viewsyslog)             | View the z/OS SYSLOG (the system operations log)                                                                                                                           |
+| 3 | [`listParmlib`](#listparmlib)           | List the PARMLIB concatenation on the z/OS system (the data sets searched for system parameter members like IEASYSxx, in order)                                            |
+| 4 | [`listLinklist`](#listlinklist)         | List the link list (LNKLST) concatenation on the z/OS system (the data sets searched for load modules, in order), each with its volume serial and APF-authorization status |
+| 5 | [`viewSyslog`](#viewsyslog)             | View the z/OS SYSLOG (the system operations log)                                                                                                                           |
+| 6 | [`display`](#display)                   | Run a read-only z/OS DISPLAY operator console command and return its output                                                                                                |
 
 ## Certificates
 
@@ -2533,6 +2535,63 @@ List the PROCLIB concatenation on the z/OS system (the data sets searched for JC
 
 ---
 
+### `listParmlib`
+
+> Read-only
+
+List the PARMLIB concatenation on the z/OS system (the data sets searched for system parameter members like IEASYSxx, in order). Results are paginated (default 500, max 1000 per page); follow the pagination instructions in the server instructions. Use this to find where system parmlib members live.
+
+#### Parameters
+
+| Parameter | Type      | Required | Description                                                                                                                                                                                                                                                                                                         |
+|-----------|-----------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `system`  | `string`  | No       | Optional. Target z/OS system (a host, or user@host when several connections exist). Omit it to use the active/default connection — you do not need to select or set a system first, and you should still call the tool when no system has been chosen yet. Specify it only to target a different configured system. |
+| `offset`  | `integer` | No       | 0-based index of the first item to return. Default: 0.                                                                                                                                                                                                                                                              |
+| `limit`   | `integer` | No       | Maximum items to return. Default: 500, max 1000.                                                                                                                                                                                                                                                                    |
+
+<a id="listparmlib-output-schema"></a>
+
+#### Output Schema
+
+| Field      | Type       | Required | Description                                                                                                             |
+|------------|------------|----------|-------------------------------------------------------------------------------------------------------------------------|
+| `_context` | `object`   | Yes      | Resolution context: target z/OS system. *(same as [`queryTso`](#querytso-output-schema))*                               |
+| `_result`  | `object`   | Yes      | Pagination metadata: count, totalAvailable, offset, hasMore. *(same as [`listDatasets`](#listdatasets-output-schema))*  |
+| `messages` | `string`[] | No       | Operational messages (e.g. pagination/line-window hints). Omitted when empty.                                           |
+| `data`     | `object`[] | Yes      | PARMLIB data sets (in concatenation order) for this page. *(same as [`restoreDataset`](#restoredataset-output-schema))* |
+
+#### Example Output
+
+```json
+{
+  "_context": {
+    "system": "mainframe-dev.example.com"
+  },
+  "_result": {
+    "count": 4,
+    "totalAvailable": 4,
+    "offset": 0,
+    "hasMore": false
+  },
+  "data": [
+    {
+      "dsn": "SYS1.PARMLIB"
+    },
+    {
+      "dsn": "SYS1.IBM.PARMLIB"
+    },
+    {
+      "dsn": "USER.PARMLIB"
+    },
+    {
+      "dsn": "CPAC.PARMLIB"
+    }
+  ]
+}
+```
+
+---
+
 ### `listLinklist`
 
 > Read-only
@@ -2719,6 +2778,35 @@ Output:
   }
 }
 ```
+
+---
+
+### `display`
+
+> Read-only
+
+Run a read-only z/OS DISPLAY operator console command and return its output. Results may be line-windowed; follow the pagination instructions in the server instructions. Pass only the operands (such as T, A,L, IPLINFO, or PROG,APF): the server adds the DISPLAY verb, so no other console command can be issued. Use runConsoleCommand (requires the full capability tier) for any other console command. Prefer a dedicated tool when one exists (listProclib, listApfLibraries, listLinklist, viewSyslog)
+
+#### Parameters
+
+| Parameter     | Type      | Required | Description                                                                                                                                                                                                                                                                                                                                                                                                          |
+|---------------|-----------|----------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `operands`    | `string`  | Yes      | Operands of the DISPLAY command, without the DISPLAY verb. Common operands: "T" (local and UTC time and date), "A,L" (detailed list of active jobs, started tasks and TSO users; "A" alone gives only summary counts), "M=STOR" (central storage status), "IPLINFO" (IPL date, release, parmlib members, IPL device), "PROG,APF" (APF-authorized libraries). Full syntax: z/OS MVS System Commands, DISPLAY command. |
+| `consoleName` | `string`  | No       | Console name (optional): 1-8 characters from A-Z, 0-9, $, #, @. Defaults to a name derived from the user ID.                                                                                                                                                                                                                                                                                                         |
+| `system`      | `string`  | No       | Optional. Target z/OS system (a host, or user@host when several connections exist). Omit it to use the active/default connection — you do not need to select or set a system first, and you should still call the tool when no system has been chosen yet. Specify it only to target a different configured system.                                                                                                  |
+| `startLine`   | `integer` | No       | 1-based start line for paginating a previous result.                                                                                                                                                                                                                                                                                                                                                                 |
+| `lineCount`   | `integer` | No       | Number of lines to return from startLine.                                                                                                                                                                                                                                                                                                                                                                            |
+
+<a id="display-output-schema"></a>
+
+#### Output Schema
+
+| Field      | Type       | Required | Description                                                                               |
+|------------|------------|----------|-------------------------------------------------------------------------------------------|
+| `_context` | `object`   | Yes      | Resolution context: target z/OS system. *(same as [`queryTso`](#querytso-output-schema))* |
+| `_result`  | `object`   | Yes      | Result metadata (line window). *(same as [`readDataset`](#readdataset-output-schema))*    |
+| `messages` | `string`[] | No       | Operational messages: pagination hints, resolution notes. Omitted when empty.             |
+| `data`     | `object`   | Yes      | *(same as [`runSafeUssCommand`](#runsafeusscommand-output-schema))*                       |
 
 ---
 
@@ -3890,14 +3978,14 @@ Remove a z/OS SSH connection (user@host or user@host:port) from your per-user sa
 
 > Destructive
 
-Run a z/OS operator console command (e.g. DISPLAY T, DISPLAY A). Prefer a dedicated tool when one exists (listProclib, listApfLibraries, listLinklist, viewSyslog, dataset/job tools): dedicated tools return structured output and need less authorization than console commands. System-shutdown commands (HALT, SHUTDOWN, QUIESCE, Z EOD) are blocked. Other non-display commands (SET, VARY, CANCEL, FORCE, START, STOP, MODIFY) require user approval. Unknown commands also require user approval.
+Run a z/OS operator console command (e.g. DISPLAY T, DISPLAY A). Prefer a dedicated tool when one exists (listProclib, listParmlib, listApfLibraries, listLinklist, viewSyslog, dataset/job tools): dedicated tools return structured output and need less authorization than console commands. System-shutdown commands (HALT, SHUTDOWN, QUIESCE, Z EOD) are blocked. Other non-display commands (SET, VARY, CANCEL, FORCE, START, STOP, MODIFY) require user approval. Unknown commands also require user approval.
 
 #### Parameters
 
 | Parameter     | Type      | Required | Description                                                                                                                                                                                                                                                                                                         |
 |---------------|-----------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `commandText` | `string`  | Yes      | Console command to execute (e.g. "D T", "D A,L", "DISPLAY IPLINFO").                                                                                                                                                                                                                                                |
-| `consoleName` | `string`  | No       | Console name (optional).                                                                                                                                                                                                                                                                                            |
+| `consoleName` | `string`  | No       | Console name (optional): 1-8 characters from A-Z, 0-9, $, #, @. Defaults to a name derived from the user ID.                                                                                                                                                                                                        |
 | `system`      | `string`  | No       | Optional. Target z/OS system (a host, or user@host when several connections exist). Omit it to use the active/default connection — you do not need to select or set a system first, and you should still call the tool when no system has been chosen yet. Specify it only to target a different configured system. |
 | `startLine`   | `integer` | No       | 1-based start line for paginating a previous result.                                                                                                                                                                                                                                                                |
 | `lineCount`   | `integer` | No       | Number of lines to return from startLine.                                                                                                                                                                                                                                                                           |
@@ -4057,7 +4145,7 @@ See [Safety and security principles](mcp-safety-security-principles.md) for deta
 
 Read-only with client confirmation prompts for every read operation. Safest tier for exploration.
 
-**37** tools available.
+**39** tools available.
 
 | Tool                                              | Effect Level |
 |---------------------------------------------------|--------------|
@@ -4081,8 +4169,10 @@ Read-only with client confirmation prompts for every read operation. Safest tier
 | [`queryTso`](#querytso)                           | read         |
 | [`listApfLibraries`](#listapflibraries)           | read         |
 | [`listProclib`](#listproclib)                     | read         |
+| [`listParmlib`](#listparmlib)                     | read         |
 | [`listLinklist`](#listlinklist)                   | read         |
 | [`viewSyslog`](#viewsyslog)                       | read         |
+| [`display`](#display)                             | read         |
 | [`showCertificate`](#showcertificate)             | read         |
 | [`getJobStatus`](#getjobstatus)                   | read         |
 | [`listJobFiles`](#listjobfiles)                   | read         |
@@ -4103,13 +4193,13 @@ Read-only with client confirmation prompts for every read operation. Safest tier
 
 Read-only with auto-approved reads. No confirmation prompts for read operations.
 
-**37** tools available.
+**39** tools available.
 
 ### `update`
 
 Adds tools that create, write, copy, rename, and modify resources.
 
-**62** tools available (25 new at this tier).
+**64** tools available (25 new at this tier).
 
 | Tool                                                  | Effect Level |
 |-------------------------------------------------------|--------------|
@@ -4143,7 +4233,7 @@ Adds tools that create, write, copy, rename, and modify resources.
 
 Adds tools that delete or cancel resources.
 
-**69** tools available (7 new at this tier).
+**71** tools available (7 new at this tier).
 
 | Tool                                                      | Effect Level |
 |-----------------------------------------------------------|--------------|
@@ -4159,7 +4249,7 @@ Adds tools that delete or cancel resources.
 
 Adds tools that execute commands and submit jobs. Full access to all operations.
 
-**77** tools available (8 new at this tier).
+**79** tools available (8 new at this tier).
 
 | Tool                                            | Effect Level |
 |-------------------------------------------------|--------------|

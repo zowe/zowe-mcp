@@ -42,9 +42,14 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { parseConnectionSpec, toPasswordEnvVarName } from '../src/zos/native/connection-spec.js';
+import { resolveE2eServerPath } from './helpers/e2e-server-path.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const serverPath = resolve(__dirname, '..', 'dist', 'index.js');
+// Server under test: repo build by default; set ZOWE_MCP_E2E_SERVER_PATH to use
+// another build (see helpers/e2e-server-path.ts). Pointed at an installed npm-pack
+// tarball, this suite — which runs against a real LPAR — can check the shipped
+// bundle by hand; nothing in CI sets the override.
+const serverPath = resolveE2eServerPath();
 
 /** Load .env from the given path; set process.env for each KEY=value line (existing env not overwritten). */
 function loadEnvFile(path: string): void {

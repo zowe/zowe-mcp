@@ -14,7 +14,10 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { validateTsoCommand } from '../src/tools/tso/tso-command-validation.js';
+import {
+  buildTsoQueryCommand,
+  validateTsoCommand,
+} from '../src/tools/tso/tso-command-validation.js';
 
 describe('validateTsoCommand', () => {
   it('returns block for system dataset DELETE (SYS1, SYSL, SYS2)', () => {
@@ -93,6 +96,32 @@ describe('validateTsoCommand', () => {
     expect(validateTsoCommand('LU KELDA16 TSO').action).toBe('allow');
   });
 
+  it('returns allow for read-only RACF queries (LISTGRP, LISTDSD, RLIST, SEARCH)', () => {
+    expect(validateTsoCommand('LISTGRP SYS1').action).toBe('allow');
+    expect(validateTsoCommand('LG SYS1').action).toBe('allow');
+    expect(validateTsoCommand("LISTDSD DATASET('USER.DATA') ALL").action).toBe('allow');
+    expect(validateTsoCommand('RLIST FACILITY BPX.SUPERUSER').action).toBe('allow');
+    expect(validateTsoCommand('SEARCH CLASS(USER)').action).toBe('allow');
+  });
+
+  it('returns elicit for SEARCH ... CLIST, which writes a data set', () => {
+    // TSO accepts any unambiguous keyword abbreviation; CLI and CLIS are unique
+    // among SEARCH's operands (CL alone is ambiguous with CLASS).
+    for (const cmd of [
+      'SEARCH CLASS(USER) CLIST',
+      "SR CLASS(FACILITY) CLIST('RLIST FACILITY ')",
+      "SEARCH CLI('LISTUSER ')",
+      'search clis',
+    ]) {
+      const r = validateTsoCommand(cmd);
+      expect({ cmd, action: r.action, id: r.pattern?.id }).toEqual({
+        cmd,
+        action: 'elicit',
+        id: 'tso-search-clist',
+      });
+    }
+  });
+
   it('returns elicit with a specific warning for security administration commands', () => {
     for (const cmd of [
       // RACF
@@ -155,4 +184,104 @@ describe('validateTsoCommand', () => {
     expect(r.action).toBe('elicit');
     expect(r.pattern).toBeUndefined();
   });
+});
+
+describe('buildTsoQueryCommand', () => {
+  it('trims and collapses spaces, preserving the command', () => {
+    expect(buildTsoQueryCommand('  LISTUSER   USER01   TSO ')).toBe('LISTUSER USER01 TSO');
+    expect(buildTsoQueryCommand('LISTUSER * OMVS NORACF')).toBe('LISTUSER * OMVS NORACF');
+    expect(buildTsoQueryCommand("listdsd dataset('USER.DATA') all")).toBe(
+      "listdsd dataset('USER.DATA') all"
+    );
+    expect(buildTsoQueryCommand('LISTALC')).toBe('LISTALC');
+  });
+
+  it.each([
+    'LISTUSER A;DELETE X',
+    'LISTUSER A\nDELETE X',
+    'LISTUSER A|B',
+    'LISTUSER A&B',
+    'LISTUSER `x`',
+    'LISTUSER <x',
+    'LISTUSER >x',
+    '',
+  ])('rejects characters that could chain commands: %j', commandText => {
+    expect(() => buildTsoQueryCommand(commandText)).toThrow('Invalid TSO query command');
+  });
+
+  it.each([
+    'DELETE USER.DATA',
+    'ALTUSER X SPECIAL',
+    'PERMIT A.B ID(X)',
+    'SUBMIT USER.JCL',
+    'EXEC X',
+  ])('rejects non-query verb %j', commandText => {
+    expect(() => buildTsoQueryCommand(commandText)).toThrow('not a read-only TSO query command');
+  });
+
+  it('rejects a query verb whose arguments need approval under the safety policy', () => {
+    expect(() => buildTsoQueryCommand('SEARCH CLASS(USER) CLIST')).toThrow('needs user approval');
+    expect(() => buildTsoQueryCommand("SEARCH CLI('LISTUSER ')")).toThrow('needs user approval');
+  });
+});
+
+describe('RACF command direction, SEARCH CLIST and LISTCAT OUTFILE patterns', () => {
+  const cases: [string, 'allow' | 'elicit', string | undefined][] = [
+    ['LISTUSER U1 AT(.U2)', 'elicit', 'tso-racf-command-direction'],
+    ['LG SYS1 ONLYAT(NODEB.U2)', 'elicit', 'tso-racf-command-direction'],
+    ['SR CLASS(USER) O(.U2)', 'elicit', 'tso-racf-command-direction'],
+    ['RLIST FACILITY X.Y ON(NODE.U)', 'elicit', 'tso-racf-command-direction'],
+    ['LISTDSD DATASET(A.B) ONLYA(.U2)', 'elicit', 'tso-racf-command-direction'],
+    ['LISTDSD DATASET(A.B) ALL', 'allow', undefined],
+    ['SEARCH MASK(SYS1.AT)', 'allow', undefined],
+    ["LISTDSD DATASET('X.AT(Y)')", 'allow', undefined],
+    ['SEARCH CLIST', 'elicit', 'tso-search-clist'],
+    ["SEARCH CLASS(USER) CLI('LISTUSER ')", 'elicit', 'tso-search-clist'],
+    ['SR CLASS(USER),CLIS', 'elicit', 'tso-search-clist'],
+    ['SEARCH CLASS(USER)CLIST', 'elicit', 'tso-search-clist'],
+    ['SEARCH MASK(SYS1.CLIST)', 'allow', undefined],
+    ['SEARCH FILTER(USER.**.CLIST)', 'allow', undefined],
+    ['LISTCAT OUTFILE(DD1)', 'elicit', 'tso-listcat-outfile'],
+    ['LISTC ENTRIES(A.B) OFILE(DD1)', 'elicit', 'tso-listcat-outfile'],
+    ['LISTCAT ENT(A.B) OU (DD1)', 'elicit', 'tso-listcat-outfile'],
+    ["LISTCAT ENTRIES('A.OFILE(B)')", 'allow', undefined],
+    ['LISTCAT ENTRIES(A.B) ALL', 'allow', undefined],
+    ['ST', 'allow', undefined],
+    ['LISTB', 'allow', undefined],
+  ];
+
+  it.each(cases)('%s', (cmd, action, id) => {
+    const r = validateTsoCommand(cmd);
+    expect({ cmd, action: r.action, id: r.pattern?.id }).toEqual({
+      cmd,
+      action,
+      id,
+    });
+  });
+});
+
+describe('buildTsoQueryCommand hardening', () => {
+  it.each([
+    'WHO',
+    'SYSTEM',
+    'LISTUSER U1 AT(.U2)',
+    'LG SYS1 ONLYAT(NODEB.U2)',
+    'SR CLASS(USER) O(.U2)',
+    'LISTCAT OUTFILE(DD1)',
+    'LISTC ENTRIES(A.B) OFILE(DD1)',
+  ])('rejects %j', commandText => {
+    expect(() => buildTsoQueryCommand(commandText)).toThrow();
+  });
+
+  it('includes the matched pattern message in the error', () => {
+    expect(() => buildTsoQueryCommand('LISTUSER U1 AT(.U2)')).toThrow(/AT\/ONLYAT directs/);
+    expect(() => buildTsoQueryCommand('LISTCAT OUTFILE(DD1)')).toThrow(/OUTFILE\/OFILE writes/);
+  });
+
+  it.each(['ST', 'LISTB', 'SEARCH MASK(SYS1.CLIST)', 'SEARCH FILTER(USER.**.CLIST)'])(
+    'accepts %j',
+    commandText => {
+      expect(buildTsoQueryCommand(commandText)).toBe(commandText);
+    }
+  );
 });

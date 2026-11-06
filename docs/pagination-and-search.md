@@ -255,7 +255,7 @@ The `detail` parameter filters fields after pagination. The backend always fetch
 | `readUssFile` | USS | Lines of a USS file |
 | `readJobFile` | Jobs | Lines of a spool file |
 | `runSafeUssCommand` | USS | Lines of USS command output |
-| `runSafeTsoCommand` | TSO | Lines of TSO command output |
+| `runSafeTsoCommand`, `queryTso` | TSO | Lines of TSO command output |
 
 ### 4.2 Input parameters
 
@@ -276,7 +276,7 @@ On subsequent calls (explicit `startLine`/`lineCount`):
 - Any line range is returned exactly as requested.
 - `hasMore` is true until `startLine + returnedLines >= totalLines`.
 
-**Special case for TSO**: `runSafeTsoCommand` re-executes the command on every call that omits both `startLine` and `lineCount`. Providing `startLine` or `lineCount` pages the cached output from the previous execution. This matches user expectation — a bare call runs fresh; a paginated call continues the previous result.
+**Special case for TSO**: `runSafeTsoCommand` and `queryTso` re-execute the command on every call that omits both `startLine` and `lineCount`. Providing `startLine` or `lineCount` pages the cached output from the previous execution. This matches user expectation — a bare call runs fresh; a paginated call continues the previous result.
 
 ### 4.4 Content sanitization
 
@@ -468,7 +468,7 @@ listJobs, listJobFiles, getJobOutput, searchJobOutput):
   offset = current offset + _result.count and the same limit.
 
 Line-windowed pagination (readDataset, readUssFile, readJobFile,
-runSafeUssCommand, runSafeTsoCommand):
+runSafeUssCommand, runSafeTsoCommand, queryTso):
 - When _result.hasMore is true, call the tool again with
   startLine = _result.startLine + _result.returnedLines and the same lineCount.
 

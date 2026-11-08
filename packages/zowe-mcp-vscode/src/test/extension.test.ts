@@ -426,7 +426,8 @@ suite('Zowe MCP VS Code Extension', () => {
     });
   });
 
-  suite('buildServerConfig with real workspace settings', () => {
+  suite('buildServerConfig with real workspace settings', function (this: Mocha.Suite) {
+    this.timeout(10000); // Real settings writes can exceed Mocha's 2s default on slow CI runners.
     let previousZowexConnections: string[] | undefined;
 
     suiteSetup(async () => {

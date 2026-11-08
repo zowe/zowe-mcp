@@ -108,6 +108,10 @@ This is an npm workspaces monorepo with four packages:
 
 Pattern-based command validation for TSO and console tools uses the shared `evaluateCommandSafety()` function from `src/tools/command-safety.ts`. Each component provides its own JSON patterns file (`tso-command-patterns.json`, `console-command-patterns.json`) with `dangerous`, `elicit`, and `safe` arrays. Pattern entries have `id`, optional `message`, and `pattern` (regex). Evaluation order: dangerous → block, elicit → elicit, safe → allow, unknown → elicit. The TSO wrapper is `validateTsoCommand()` in `src/tools/tso/tso-command-validation.ts`; console calls `evaluateCommandSafety()` directly. To add a new command safety domain, create a patterns JSON file with the `CommandPatterns` shape and call `evaluateCommandSafety()`.
 
+**Keyword abbreviations (TSO/RACF)**: TSO accepts any unambiguous prefix of an operand keyword, so a pattern that matches only the full keyword can be bypassed (proven on z/OS 3.1: `SEARCH ... CLI(...)` wrote `EXEC.RACF.CLIST` through `queryTso` before the rule matched `CLI`/`CLIS`). Match every unambiguous abbreviation, and match operand keywords only at top level (preceded by blank, comma or `)`), never inside values like `MASK(SYS1.CLIST)`. Verify keyword sets in the IBM RACF / TSO/E command references.
+
+**ESM-specific context in evals**: tool descriptions stay ESM-neutral (RACF, ACF2 and Top Secret all exist at customer sites; ESM detection is issue #143). Eval sets that need ESM knowledge state the ESM and its commands in `config.systemPromptAddition`, standing in for what the user and docs provide (see `questions/tso-query.yaml`).
+
 ### Response Envelope for Dataset Tools
 
 All data set tool responses use the envelope from `src/tools/response.ts`:

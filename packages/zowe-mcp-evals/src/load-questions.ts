@@ -211,6 +211,7 @@ function parseQuestion(raw: unknown): Question {
       turns,
       preset: o.preset as 'default' | 'inventory' | undefined,
       skip: typeof o.skip === 'string' ? o.skip : undefined,
+      acceptRefusal: typeof o.acceptRefusal === 'boolean' ? o.acceptRefusal : undefined,
     };
   }
 
@@ -226,6 +227,7 @@ function parseQuestion(raw: unknown): Question {
     preset: o.preset as 'default' | 'inventory' | undefined,
     assertionBlock,
     skip: typeof o.skip === 'string' ? o.skip : undefined,
+    acceptRefusal: typeof o.acceptRefusal === 'boolean' ? o.acceptRefusal : undefined,
   };
 }
 
@@ -251,6 +253,7 @@ function parseSetConfig(raw: unknown): SetConfig {
   if (typeof o.description === 'string') config.description = o.description;
   if (typeof o.repetitions === 'number') config.repetitions = o.repetitions;
   if (typeof o.minSuccessRate === 'number') config.minSuccessRate = o.minSuccessRate;
+  if (typeof o.acceptRefusal === 'boolean') config.acceptRefusal = o.acceptRefusal;
   if (o.mock && typeof o.mock === 'object') {
     const m = o.mock as Record<string, unknown>;
     if (typeof m.initArgs === 'string') {

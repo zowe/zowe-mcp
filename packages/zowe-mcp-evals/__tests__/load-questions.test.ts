@@ -212,6 +212,64 @@ questions:
   });
 });
 
+describe('acceptRefusal parsing', () => {
+  let tmpDir: string;
+
+  beforeEach(() => {
+    tmpDir = mkdtempSync(join(tmpdir(), 'evals-accept-refusal-test-'));
+  });
+
+  afterEach(() => {
+    rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('parses acceptRefusal at set and question level and leaves it undefined otherwise', () => {
+    const path = join(tmpDir, 'refusal.yaml');
+    writeFileSync(
+      path,
+      `
+config:
+  acceptRefusal: true
+questions:
+  - id: inherits
+    prompt: Hello
+    assertions:
+      - toolCall:
+          tool: info
+  - id: overrides
+    prompt: Hello
+    acceptRefusal: false
+    assertions:
+      - toolCall:
+          tool: info
+`,
+      'utf-8'
+    );
+    const set = loadSetYaml(path);
+    expect(set.config.acceptRefusal).toBe(true);
+    expect(set.questions[0].acceptRefusal).toBeUndefined();
+    expect(set.questions[1].acceptRefusal).toBe(false);
+  });
+
+  it('rejects a non-boolean acceptRefusal', () => {
+    const path = join(tmpDir, 'bad-refusal.yaml');
+    writeFileSync(
+      path,
+      `
+questions:
+  - id: q
+    prompt: Hello
+    acceptRefusal: "yes"
+    assertions:
+      - toolCall:
+          tool: info
+`,
+      'utf-8'
+    );
+    expect(() => loadSetYaml(path)).toThrow('JSON Schema validation failed');
+  });
+});
+
 describe('all question set YAML files pass schema validation', () => {
   const setNames = listSetNames();
 

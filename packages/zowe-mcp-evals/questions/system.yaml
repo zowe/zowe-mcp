@@ -78,7 +78,7 @@ questions:
   # failing the positive assertion. A notCalled assertion would strengthen them.
 
   - id: linklist-load-module-search
-    prompt: In what order does z/OS search system libraries for load modules?
+    prompt: Look up the actual link list on this system and tell me in what order z/OS searches those libraries for load modules.
     assertions:
       - toolCall:
           tool: listLinklist

@@ -153,6 +153,11 @@ export interface SetConfig {
   description?: string;
   repetitions?: number;
   minSuccessRate?: number;
+  /**
+   * Set-level default for {@link Question.acceptRefusal}: when true, a provider refusal
+   * counts as a pass for questions that do not override it.
+   */
+  acceptRefusal?: boolean;
   mock?: SetMockConfig;
   native?: SetNativeConfig;
   /**
@@ -329,6 +334,11 @@ export interface Question {
   turns?: QuestionTurn[];
   /** When set, this question is skipped with this reason. */
   skip?: string;
+  /**
+   * When true, a provider refusal (finishReason 'content-filter') passes without evaluating
+   * assertions. Overrides the set-level `acceptRefusal`; default false.
+   */
+  acceptRefusal?: boolean;
 }
 
 /**
@@ -389,4 +399,10 @@ export interface RunResult {
    * they are reported separately so they are not mistaken for behavioral failures.
    */
   emptyResponse?: boolean;
+  /**
+   * True when the provider refused server-side: Anthropic returns `stop_reason: "refusal"`,
+   * which the Vercel AI SDK surfaces as `finishReason: 'content-filter'` with empty output.
+   * Never retried and never set together with `emptyResponse`.
+   */
+  refused?: boolean;
 }

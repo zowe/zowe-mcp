@@ -35,6 +35,7 @@ import {
   FAIL,
   PASS,
   reportEmptyResponses,
+  reportRefusals,
   resolveNativeServerArgs,
 } from './evals-utils.js';
 import { getSystemPrompt, initMockData, McpEvalHarness, prepareEvalWorkspace } from './harness.js';
@@ -224,6 +225,7 @@ async function runSetForModel(
         runLabel: r =>
           `${progressTag}[${evalsConfig.modelId ?? 'default'}] ${setName}/${q.id} (${r + 1}/${repetitions})`,
         verboseAnswers: false,
+        acceptRefusal: effectiveConfig.acceptRefusal,
       });
       allResults.push(...questionResults);
     }
@@ -408,8 +410,10 @@ function writeComparisonReport(
     const passed = sr.results.filter(r => r.passed).length;
     const total = sr.results.length;
     const rate = total > 0 ? ((passed / total) * 100).toFixed(1) : '0';
+    const refusals = sr.results.filter(r => r.refused).length;
+    const refusalNote = refusals > 0 ? `, ${refusals} provider refusals` : '';
     lines.push(
-      `- **${sr.modelId}** / ${sr.setName}: ${passed}/${total} (${rate}%) — ${sr.questionCount} questions`
+      `- **${sr.modelId}** / ${sr.setName}: ${passed}/${total} (${rate}%) — ${sr.questionCount} questions${refusalNote}`
     );
   }
   lines.push('');
@@ -626,6 +630,7 @@ async function main(): Promise<void> {
   log.info('');
   log.info(`Overall: ${totalPassed}/${totalRuns} (${overallRate}%)`);
   reportEmptyResponses(allSetResults.flatMap(sr => sr.results));
+  reportRefusals(allSetResults.flatMap(sr => sr.results));
   if (useCache) {
     const llmCalls = totalRuns - cacheStats.hits;
     log.notice(

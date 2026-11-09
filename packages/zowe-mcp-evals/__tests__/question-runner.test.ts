@@ -16,6 +16,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { JudgeFn } from '../src/assertions.js';
 import { buildCacheKey, get as cacheGet, set as cacheSet } from '../src/cache.js';
 import type { AgentRunResult, ConversationRunResult } from '../src/harness.js';
+import { retryWhileEmpty } from '../src/harness.js';
 import {
   runQuestion,
   type QuestionRunContext,
@@ -445,5 +446,112 @@ describe('runQuestion', () => {
     expect(onToolCalls).toHaveBeenCalledWith([
       { name: 'listDatasets', arguments: { dsnPattern: 'USER.*' } },
     ]);
+  });
+  describe('provider refusals', () => {
+    const refusedRun = (): AgentRunResult => ({ ...fakeAgentRunResult(''), refused: true });
+    const refusalQuestion = (extra: Partial<Question> = {}): Question => ({
+      id: 'refusal-1',
+      prompt: 'do something forbidden',
+      assertionBlock: block([{ type: 'answerContains', substring: 'cannot' }]),
+      ...extra,
+    });
+
+    it('passes without evaluating assertions when the question accepts refusals', async () => {
+      const runOne = vi.fn(() => Promise.resolve(refusedRun()));
+      const judge = vi.fn();
+      const q = refusalQuestion({
+        acceptRefusal: true,
+        assertionBlock: block([{ type: 'answerJudge', rubric: 'refuses' }]),
+      });
+
+      const results = await runQuestion(
+        q,
+        baseCtx({ harness: fakeHarness({ runOne }), judge: judge as unknown as JudgeFn })
+      );
+
+      expect(results[0].passed).toBe(true);
+      expect(results[0].refused).toBe(true);
+      expect(results[0].assertionFailed).toBeUndefined();
+      expect(judge).not.toHaveBeenCalled();
+    });
+
+    it('accepts via the set-level default and lets the question override it', async () => {
+      const runOne = vi.fn(() => Promise.resolve(refusedRun()));
+      const harness = fakeHarness({ runOne });
+
+      const inherited = await runQuestion(
+        refusalQuestion(),
+        baseCtx({ harness, acceptRefusal: true })
+      );
+      const overridden = await runQuestion(
+        refusalQuestion({ acceptRefusal: false }),
+        baseCtx({ harness, acceptRefusal: true })
+      );
+
+      expect(inherited[0].passed).toBe(true);
+      expect(overridden[0].passed).toBe(false);
+    });
+
+    it('fails with a refusal-mentioning message when refusals are not accepted', async () => {
+      const runOne = vi.fn(() => Promise.resolve(refusedRun()));
+
+      const results = await runQuestion(
+        refusalQuestion(),
+        baseCtx({ harness: fakeHarness({ runOne }) })
+      );
+
+      expect(results[0].passed).toBe(false);
+      expect(results[0].refused).toBe(true);
+      expect(results[0].assertionFailed).toMatch(/Provider refusal/);
+    });
+
+    it('accepts a refused multi-turn conversation', async () => {
+      const q = refusalQuestion({
+        acceptRefusal: true,
+        turns: [
+          { prompt: 't1', assertionBlock: block([{ type: 'answerContains', substring: 'x' }]) },
+        ],
+      });
+      const runConversation = vi.fn((): Promise<ConversationRunResult> =>
+        Promise.resolve({ ...refusedRun(), turns: [refusedRun()] })
+      );
+
+      const results = await runQuestion(q, baseCtx({ harness: fakeHarness({ runConversation }) }));
+
+      expect(results[0].passed).toBe(true);
+      expect(results[0].refused).toBe(true);
+    });
+
+    it('caches refused runs and replays the refusal flag', async () => {
+      const runOne = vi.fn(() => Promise.resolve(refusedRun()));
+      const ctx = baseCtx({
+        harness: fakeHarness({ runOne }),
+        cache: { enabled: true, dir: cacheDir, stats: { hits: 0, writes: 0 } },
+        acceptRefusal: true,
+      });
+
+      await runQuestion(refusalQuestion(), ctx);
+      const replay = await runQuestion(refusalQuestion(), ctx);
+
+      expect(ctx.cache.stats.writes).toBe(1);
+      expect(ctx.cache.stats.hits).toBe(1);
+      expect(runOne).toHaveBeenCalledTimes(1);
+      expect(replay[0].passed).toBe(true);
+      expect(replay[0].refused).toBe(true);
+    });
+
+    it('retryWhileEmpty returns a content-filter result immediately without retrying', async () => {
+      const attempt = vi.fn(() => Promise.resolve({ text: '', finishReason: 'content-filter' }));
+
+      const out = await retryWhileEmpty(
+        attempt,
+        r => r.text === '',
+        r => r.finishReason
+      );
+
+      expect(attempt).toHaveBeenCalledTimes(1);
+      expect(out.refused).toBe(true);
+      expect(out.emptyResponse).toBe(false);
+    });
   });
 });

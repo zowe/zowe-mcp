@@ -105,6 +105,7 @@ const MAX_STEPS = 10;
 const EMPTY_RESPONSE_RETRIES = 4;
 const EMPTY_RESPONSE_BACKOFF_BASE_MS = 750;
 const EMPTY_RESPONSE_BACKOFF_MAX_MS = 8000;
+const REFUSAL_FINISH_REASON = 'content-filter';
 
 /** Delay before empty-response retry `attempt` (1-based): exponential with +/-25% jitter. */
 function emptyResponseBackoffMs(attempt: number): number {
@@ -121,12 +122,18 @@ const sleep = (ms: number): Promise<void> => new Promise(res => setTimeout(res, 
  * accumulates (e.g. tool-call records) at the start of each call. Returns the last result
  * and whether it was still empty after every attempt.
  */
-async function retryWhileEmpty<T>(
+export async function retryWhileEmpty<T>(
   attempt: () => Promise<T>,
   isEmpty: (result: T) => boolean,
   finishReasonOf: (result: T) => string | undefined
-): Promise<{ result: T; emptyResponse: boolean }> {
+): Promise<{ result: T; emptyResponse: boolean; refused: boolean }> {
   let result = await attempt();
+  // A provider refusal (Anthropic stop_reason "refusal" -> AI SDK 'content-filter') is final:
+  // retrying only repeats the refusal, and it is not provider flakiness.
+  if (finishReasonOf(result) === REFUSAL_FINISH_REASON) {
+    log.info('Model response was refused by the provider (finishReason=content-filter)');
+    return { result, emptyResponse: false, refused: true };
+  }
   for (let n = 1; n <= EMPTY_RESPONSE_RETRIES && isEmpty(result); n++) {
     const delayMs = emptyResponseBackoffMs(n);
     log.warning(
@@ -134,6 +141,9 @@ async function retryWhileEmpty<T>(
     );
     await sleep(delayMs);
     result = await attempt();
+    if (finishReasonOf(result) === REFUSAL_FINISH_REASON) {
+      return { result, emptyResponse: false, refused: true };
+    }
   }
   const emptyResponse = isEmpty(result);
   if (emptyResponse) {
@@ -141,7 +151,7 @@ async function retryWhileEmpty<T>(
       `Model returned an empty response on all ${(EMPTY_RESPONSE_RETRIES + 1).toString()} attempts — recording as infrastructure noise, not a behavioral failure`
     );
   }
-  return { result, emptyResponse };
+  return { result, emptyResponse, refused: false };
 }
 
 export interface HarnessOptions {
@@ -175,6 +185,13 @@ export interface AgentRunResult {
    * it as infrastructure noise instead of a behavioral failure.
    */
   emptyResponse?: boolean;
+  /**
+   * True when the provider refused to answer server-side: the AI SDK reports
+   * `finishReason: 'content-filter'` (Anthropic `stop_reason: "refusal"`) with no output.
+   * A refusal is a deterministic provider decision, not flakiness, so it is never retried
+   * and never flagged as `emptyResponse`. For multi-turn runs, true if any turn was refused.
+   */
+  refused?: boolean;
 }
 
 /** Result of a multi-turn conversation: per-turn results plus cumulative totals. */
@@ -566,7 +583,7 @@ export class McpEvalHarness {
     const isEmptyResponse = (r: Awaited<ReturnType<typeof attemptGeneration>>): boolean =>
       (toolCallRecords.length === 0 && (r.text ?? '').trim() === '') || r.finishReason === 'error';
 
-    const { result, emptyResponse } = await retryWhileEmpty(
+    const { result, emptyResponse, refused } = await retryWhileEmpty(
       attemptGeneration,
       isEmptyResponse,
       r => r.finishReason
@@ -580,6 +597,7 @@ export class McpEvalHarness {
       tokenUsage: toTokenUsage(result.usage),
       stepCount: result.steps?.length ?? 0,
       ...(emptyResponse ? { emptyResponse: true } : {}),
+      ...(refused ? { refused: true } : {}),
     };
   }
 
@@ -598,6 +616,7 @@ export class McpEvalHarness {
     const turns: AgentRunResult[] = [];
     const t0 = Date.now();
     let anyEmptyTurn = false;
+    let anyRefusedTurn = false;
     for (const prompt of prompts) {
       const start = toolCallRecords.length;
       const turnT0 = Date.now();
@@ -623,12 +642,13 @@ export class McpEvalHarness {
       const isEmptyTurn = (r: Awaited<ReturnType<typeof attemptTurn>>): boolean =>
         (toolCallRecords.length === start && (r.text ?? '').trim() === '') ||
         r.finishReason === 'error';
-      const { result, emptyResponse } = await retryWhileEmpty(
+      const { result, emptyResponse, refused } = await retryWhileEmpty(
         attemptTurn,
         isEmptyTurn,
         r => r.finishReason
       );
       if (emptyResponse) anyEmptyTurn = true;
+      if (refused) anyRefusedTurn = true;
       // Carry the assistant + tool messages into the next turn's context.
       messages.push(...(result.response.messages as ModelMessage[]));
       turns.push({
@@ -638,6 +658,7 @@ export class McpEvalHarness {
         tokenUsage: toTokenUsage(result.usage),
         stepCount: result.steps?.length ?? 0,
         ...(emptyResponse ? { emptyResponse: true } : {}),
+        ...(refused ? { refused: true } : {}),
       });
     }
 
@@ -649,6 +670,7 @@ export class McpEvalHarness {
       tokenUsage: sumTokenUsage(turns),
       stepCount: turns.reduce((a, t) => a + t.stepCount, 0),
       ...(anyEmptyTurn ? { emptyResponse: true } : {}),
+      ...(anyRefusedTurn ? { refused: true } : {}),
     };
   }
 

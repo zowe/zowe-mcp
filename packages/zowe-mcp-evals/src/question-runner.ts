@@ -67,6 +67,8 @@ export interface QuestionRunContext {
   toolDefinitions?: ToolDefinition[];
   /** evalsConfig.modelId, folded into the cache key so entries are per-model. */
   modelId?: string;
+  /** Set-level default for `Question.acceptRefusal` (a question's own value wins). */
+  acceptRefusal?: boolean;
   repetitions: number;
   /** Label for the (r+1/repetitions) log line for a given zero-based rep index. */
   runLabel: (repIndex: number) => string;
@@ -78,7 +80,8 @@ export interface QuestionRunContext {
 
 function logRunOutcome(result: RunResult, label: string, suffix: string, verbose: boolean): void {
   const icon = result.passed ? PASS : FAIL;
-  const detail = result.passed ? suffix : ` ${result.assertionFailed ?? 'assertion failed'}`;
+  const passDetail = result.refused ? ` refused by provider, accepted${suffix}` : suffix;
+  const detail = result.passed ? passDetail : ` ${result.assertionFailed ?? 'assertion failed'}`;
   const msg = `${label} ${icon}${detail}`;
   if (result.passed) log.pass(msg);
   else log.fail(msg);
@@ -88,6 +91,9 @@ function logRunOutcome(result: RunResult, label: string, suffix: string, verbose
   log.info('  Answer:');
   for (const line of answerPreview.trim().split(/\n/)) log.info(`    ${line}`);
 }
+
+const REFUSAL_FAILURE_PREFIX =
+  'Provider refusal (finishReason=content-filter, empty output) — not a wrong answer:';
 
 /**
  * Runs one question for `ctx.repetitions` repetitions: multi-turn questions are driven
@@ -127,6 +133,35 @@ export async function runQuestion(q: Question, ctx: QuestionRunContext): Promise
     });
 
   /** Runs the multi-turn assertions over a conversation (live or cache-replayed). */
+  const acceptRefusal = q.acceptRefusal ?? ctx.acceptRefusal ?? false;
+
+  /** Passing result for a refused run that is accepted; assertions are not evaluated. */
+  const acceptedRefusal = (
+    run: AgentRunResult,
+    r: number,
+    cacheable: Pick<RunResult, 'toolCalls' | 'finalText'> = run
+  ): RunResult => ({
+    questionId: q.id,
+    prompt: q.prompt,
+    runIndex: r,
+    passed: true,
+    toolCalls: cacheable.toolCalls,
+    finalText: cacheable.finalText,
+    durationMs: run.durationMs,
+    tokenUsage: run.tokenUsage,
+    stepCount: run.stepCount,
+    refused: true,
+  });
+
+  /** Makes a refusal-caused assertion failure identifiable as a provider refusal. */
+  const markRefusalFailure = (result: RunResult): RunResult =>
+    result.refused && !result.passed
+      ? {
+          ...result,
+          assertionFailed: `${REFUSAL_FAILURE_PREFIX} ${result.assertionFailed ?? 'assertion failed'}`,
+        }
+      : result;
+
   const assertTurns = (
     conversation: { turns: AgentRunResult[] } & AgentRunResult,
     r: number
@@ -142,7 +177,18 @@ export async function runQuestion(q: Question, ctx: QuestionRunContext): Promise
       ctx.judge
     );
 
+  const fakeRun = (cached: CachedRunResult): AgentRunResult => ({
+    finalText: cached.finalText,
+    toolCalls: cached.toolCalls,
+    durationMs: 0,
+    stepCount: 0,
+  });
+
   const assertCached = async (cached: CachedRunResult, r: number): Promise<RunResult> => {
+    if (cached.refused && acceptRefusal) {
+      ctx.onToolCalls?.(cached.toolCalls);
+      return acceptedRefusal({ ...fakeRun(cached), refused: true }, r);
+    }
     if (isMultiTurn && cached.turns) {
       // Replay per-turn cached results through the multi-turn assertions.
       const conversation = {
@@ -156,21 +202,25 @@ export async function runQuestion(q: Question, ctx: QuestionRunContext): Promise
         toolCalls: cached.toolCalls,
         durationMs: 0,
         stepCount: 0,
+        ...(cached.refused ? { refused: true } : {}),
       };
       ctx.onToolCalls?.(conversation.toolCalls);
-      return assertTurns(conversation, r);
+      return markRefusalFailure(await assertTurns(conversation, r));
     }
     ctx.onToolCalls?.(cached.toolCalls);
-    return assertAndRecord(
-      {
-        questionId: q.id,
-        prompt: q.prompt,
-        runIndex: r,
-        finalText: cached.finalText,
-        toolCalls: cached.toolCalls,
-        assertionBlock: q.assertionBlock,
-      },
-      ctx.judge
+    return markRefusalFailure(
+      await assertAndRecord(
+        {
+          questionId: q.id,
+          prompt: q.prompt,
+          runIndex: r,
+          finalText: cached.finalText,
+          toolCalls: cached.toolCalls,
+          assertionBlock: q.assertionBlock,
+          refused: cached.refused,
+        },
+        ctx.judge
+      )
     );
   };
 
@@ -192,9 +242,13 @@ export async function runQuestion(q: Question, ctx: QuestionRunContext): Promise
       if (isMultiTurn) {
         const conversation = await ctx.harness.runConversation(q.turns!.map(t => t.prompt));
         ctx.onToolCalls?.(conversation.toolCalls);
-        result = await assertTurns(conversation, r);
+        result =
+          conversation.refused && acceptRefusal
+            ? acceptedRefusal(conversation, r)
+            : markRefusalFailure(await assertTurns(conversation, r));
         emptyResponse = conversation.emptyResponse === true;
         toStore = {
+          ...(conversation.refused ? { refused: true } : {}),
           finalText: conversation.finalText,
           toolCalls: conversation.toolCalls,
           turns: conversation.turns.map(t => ({
@@ -205,23 +259,33 @@ export async function runQuestion(q: Question, ctx: QuestionRunContext): Promise
       } else {
         const runResult = await ctx.harness.runOne(q.prompt);
         ctx.onToolCalls?.(runResult.toolCalls);
-        result = await assertAndRecord(
-          {
-            questionId: q.id,
-            prompt: q.prompt,
-            runIndex: r,
-            finalText: runResult.finalText,
-            toolCalls: runResult.toolCalls,
-            assertionBlock: q.assertionBlock,
-            durationMs: runResult.durationMs,
-            tokenUsage: runResult.tokenUsage,
-            stepCount: runResult.stepCount,
-            emptyResponse: runResult.emptyResponse,
-          },
-          ctx.judge
-        );
+        result =
+          runResult.refused && acceptRefusal
+            ? acceptedRefusal(runResult, r)
+            : markRefusalFailure(
+                await assertAndRecord(
+                  {
+                    questionId: q.id,
+                    prompt: q.prompt,
+                    runIndex: r,
+                    finalText: runResult.finalText,
+                    toolCalls: runResult.toolCalls,
+                    assertionBlock: q.assertionBlock,
+                    durationMs: runResult.durationMs,
+                    tokenUsage: runResult.tokenUsage,
+                    stepCount: runResult.stepCount,
+                    emptyResponse: runResult.emptyResponse,
+                    refused: runResult.refused,
+                  },
+                  ctx.judge
+                )
+              );
         emptyResponse = runResult.emptyResponse === true;
-        toStore = { finalText: runResult.finalText, toolCalls: runResult.toolCalls };
+        toStore = {
+          finalText: runResult.finalText,
+          toolCalls: runResult.toolCalls,
+          ...(runResult.refused ? { refused: true } : {}),
+        };
       }
 
       if (ctx.cache.enabled && !emptyResponse) {

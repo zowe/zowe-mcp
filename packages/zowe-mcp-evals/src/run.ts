@@ -23,6 +23,7 @@ import {
   FAIL,
   PASS,
   reportEmptyResponses,
+  reportRefusals,
   resolveNativeServerArgs,
 } from './evals-utils.js';
 import { getSystemPrompt, initMockData, McpEvalHarness, prepareEvalWorkspace } from './harness.js';
@@ -247,6 +248,7 @@ async function main(): Promise<void> {
           repetitions,
           runLabel: r => `Running ${setName}/${q.id} (${r + 1}/${repetitions})`,
           verboseAnswers: true,
+          acceptRefusal: config.acceptRefusal,
           onToolCalls: toolCalls => {
             for (const tc of toolCalls)
               allToolCalls.push({ name: tc.name, arguments: tc.arguments });
@@ -281,6 +283,7 @@ async function main(): Promise<void> {
   else log.fail(runsMsg);
 
   reportEmptyResponses(allResults);
+  reportRefusals(allResults);
 
   const resultsWithTokens = allResults.filter(r => r.tokenUsage != null);
   if (resultsWithTokens.length > 0) {

@@ -37,6 +37,8 @@ export interface CachedRunResult {
   finalText: string;
   toolCalls: ToolCallRecord[];
   turns?: CachedTurn[];
+  /** True when the provider refused (finishReason 'content-filter'); replayed on a cache hit. */
+  refused?: boolean;
 }
 
 /** Payload used to build a stable cache key. */
@@ -162,6 +164,7 @@ export async function get(cacheDir: string, key: string): Promise<CachedRunResul
     const result: CachedRunResult = {
       finalText: parsed.finalText,
       toolCalls: parsed.toolCalls,
+      ...(parsed.refused === true ? { refused: true } : {}),
     };
     // Multi-turn entries carry a per-turn breakdown. If present it must be well-formed
     // (each turn has finalText + toolCalls); a malformed breakdown is a cache miss

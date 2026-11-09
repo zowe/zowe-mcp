@@ -1060,5 +1060,60 @@ describe('NativeBackend', () => {
         productReasonCode: 0,
       });
     });
+
+    /**
+     * #70: when a certificate call throws instead of warning, the SDK error's `additionalDetails`
+     * reaches the tool error. It must use the same product names as `safReturnCodes` above.
+     * Fixture: the details reported in #70 for `showCertificate` on a nonexistent label against
+     * real RACF. Every certificate call formats a thrown error the same way.
+     */
+    it('uses product return/reason code names in thrown error details (#70)', async () => {
+      const message = 'IRRSDL64 GETCERT failed: SAF rc: 8, ESM rc: 8, ESM rsn: 8';
+      const sdkError = Object.assign(new Error(message), {
+        additionalDetails:
+          '{"message":"IRRSDL64 GETCERT failed: SAF rc: 8, ESM rc: 8, ESM rsn: 8","safReturns":{"esmReasonCode":8,"esmReturnCode":8,"functionCode":1,"safReturnCode":8},"service":"IRRSDL64 GETCERT","success":false}',
+      });
+      const backend = createBackendWithClient({
+        trustCertificate: () => Promise.reject(sdkError),
+      });
+
+      await expect(backend.trustCertificate(SYSTEM_ID, TRUST_OPTIONS)).rejects.toHaveProperty(
+        'message',
+        `${message}\nDetails:\n` +
+          '{"message":"IRRSDL64 GETCERT failed: SAF rc: 8, ESM rc: 8, ESM rsn: 8","safReturns":{"productReasonCode":8,"productReturnCode":8,"functionCode":1,"safReturnCode":8},"service":"IRRSDL64 GETCERT","success":false}'
+      );
+    });
+
+    it('renames SAF code keys in pretty-printed error details', async () => {
+      const sdkError = Object.assign(new Error('IRRSDL64 GETCERT failed'), {
+        additionalDetails:
+          '{\n  "safReturns": {\n    "esmReasonCode" : 8,\n    "esmReturnCode": 4\n  }\n}',
+      });
+      const backend = createBackendWithClient({
+        trustCertificate: () => Promise.reject(sdkError),
+      });
+
+      await expect(backend.trustCertificate(SYSTEM_ID, TRUST_OPTIONS)).rejects.toHaveProperty(
+        'message',
+        'IRRSDL64 GETCERT failed\nDetails:\n' +
+          '{\n  "safReturns": {\n    "productReasonCode" : 8,\n    "productReturnCode": 4\n  }\n}'
+      );
+    });
+
+    it('leaves error details without SAF code keys unchanged', async () => {
+      const details =
+        '{"message":"IRRSDL64 GETCERT failed: SAF rc: 8, ESM rc: 8, ESM rsn: 8","service":"IRRSDL64 GETCERT","success":false}';
+      const sdkError = Object.assign(new Error('IRRSDL64 GETCERT failed'), {
+        additionalDetails: details,
+      });
+      const backend = createBackendWithClient({
+        trustCertificate: () => Promise.reject(sdkError),
+      });
+
+      await expect(backend.trustCertificate(SYSTEM_ID, TRUST_OPTIONS)).rejects.toHaveProperty(
+        'message',
+        `IRRSDL64 GETCERT failed\nDetails:\n${details}`
+      );
+    });
   });
 });

@@ -7,6 +7,7 @@
     "packages/*"
   ],
   "scripts": {
+    "audit:prod": "node scripts/audit-prod.mjs",
     "build-and-install": "npm run build-and-install -w packages/zowe-mcp-vscode",
     "build": "npm run build --workspaces",
     "call-tool": "npx @zowe/mcp-server call-tool",
@@ -33,6 +34,7 @@
     "lint:md": "markdownlint-cli2",
     "markdownlint:fix": "markdownlint-cli2 --fix",
     "test:all": "npm run test --workspaces",
+    "test:audit": "node --test scripts/audit-prod.test.mjs",
     "test:server": "npm run test -w @zowe/mcp-server",
     "test:native-stdio-e2e": "npm run test:native-stdio-e2e -w @zowe/mcp-server",
     "test:keycloak-jwt-e2e": "npm run test:keycloak-jwt-e2e -w @zowe/mcp-server",

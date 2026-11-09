@@ -96,11 +96,15 @@ function getGitSha(): string {
   }
 }
 
+// The scoreboard is written by eval-compare itself, so a second model run in the same
+// session would otherwise be marked "dirty" merely because the first one recorded its rows.
+const SCOREBOARD_REL = 'docs/eval-scoreboard.md';
+
 function getDiffHash(): string {
   try {
-    const diff = execSync('git diff HEAD', { encoding: 'utf-8' });
+    const diff = execSync(`git diff HEAD -- . ':!${SCOREBOARD_REL}'`, { encoding: 'utf-8' });
     if (!diff.trim()) return '';
-    const hash = execSync('git diff HEAD | shasum -a 256 | cut -c1-8', {
+    const hash = execSync(`git diff HEAD -- . ':!${SCOREBOARD_REL}' | shasum -a 256 | cut -c1-8`, {
       encoding: 'utf-8',
     }).trim();
     return hash;

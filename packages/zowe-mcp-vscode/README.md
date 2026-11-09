@@ -74,11 +74,13 @@ for the full security model.
 
 ## Try it without a mainframe
 
-1. Run **Zowe MCP: Generate Mock Data** from the Command Palette and select a
-   folder.
-2. Select **Use as Mock Data** in the notification, and then **Reload Window**.
-3. If you have already configured z/OS connections, also set **Backend** to
-   `mock`.
+1. Open a folder or workspace in VS Code. The command saves its setting in the
+   workspace.
+2. Run **Zowe MCP: Generate Mock Data** from the Command Palette. Choose a
+   preset, and then the folder for the data.
+3. Select **Use as Mock Data** in the notification, and then **Reload Window**.
+4. If you have already configured z/OS connections, also set **Backend** to
+   `mock` and reload the window again.
 
 Mock mode provides sample data sets and USS files. Job tools are not available
 in mock mode.
@@ -109,7 +111,7 @@ the choice for the session.
 
 - **Extension log:** open the Output panel and select **Zowe MCP**.
 - **Server log:** run **MCP: List Servers**, select **Zowe**, and select **Show
-  Output**.
+  Output**. The Output panel lists it as **MCP: Zowe**.
 - **Tools are missing:** check the capability tier, and reload the window after
   you change the backend, the tier, or the SSH key preference.
 - **No connections are configured:** the extension shows a notification with an

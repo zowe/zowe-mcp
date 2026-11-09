@@ -53,8 +53,9 @@ To try Zowe MCP without z/OS, run **Zowe MCP: Generate Mock Data**. See
 2. Open the tools picker and ensure the **Zowe** server is enabled.
 3. Ask: *“Use the getContext tool to show the Zowe MCP server version.”*
 
-Tool names appear with an `mcp_zowe_` prefix in Copilot, such as
-`mcp_zowe_getContext` and `mcp_zowe_listDatasets`.
+The tools are listed under the **Zowe** server, with names such as
+`getContext` and `listDatasets`. In logs and chat session files, Copilot adds a
+prefix to the name, such as `mcp_zowe-mcp-serv_listDatasets`.
 
 ## 5. Copilot and MCP tips
 

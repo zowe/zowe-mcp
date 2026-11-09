@@ -219,7 +219,7 @@ iteration fits a 32K-token context.
 ### Context and core
 
 - **Set** `context` (run with `--set context`): getContext and setSystem/listSystems then getContext. Mock, default preset.
-- **Set** `core` (run with `--set core`): info tool to report server and backend type. Mock, default preset.
+- **Set** `core` (run with `--set core`): `getContext` to report the server and backend type. Mock, default preset.
 
 ### Data set attributes and copy/rename
 

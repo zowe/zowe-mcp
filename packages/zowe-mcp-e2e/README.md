@@ -77,6 +77,7 @@ call. Select a stronger tool-capable model when S4 fails for that reason.
 | `VSCODE_E2E_APP` | Installed macOS VS Code binary | Electron binary launched by Playwright |
 | `VSCODE_E2E_CLI` | `code` | VS Code CLI used for extension installation and `code chat` |
 | `VSCODE_E2E_SQLITE3` | `sqlite3` | SQLite executable used to seed isolated VS Code state |
+| `VSCODE_E2E_SSH_KEYGEN` | `ssh-keygen` | Key generator used to create the throwaway SSH key for S3 |
 | `VSCODE_E2E_KEEP_SCRATCH` | Unset | Set to `1` to retain profiles, logs, sessions, and screenshots |
 | `ZOWE_E2E_OLLAMA` | Unset | Set to `1` to enable S4 |
 | `ZOWE_E2E_OLLAMA_URL` | `http://localhost:11434` | Ollama endpoint for S4 |

@@ -51,17 +51,19 @@ editor CLI cannot install into a profile that does not yet exist.
    Use the getContext tool and report the Zowe MCP server version from its response.
    ```
 
-The test passes when Copilot invokes `getContext` (usually displayed as
-`mcp_zowe_getContext`) and reports the installed server version.
+The test passes when Copilot invokes `getContext` and reports the installed
+server version.
 
 ## Mock backend smoke test
 
 Use this test when no mainframe is available.
 
-1. In Zowe MCP settings, set **Backend** to **mock**.
-2. Run **Zowe MCP: Generate Mock Data**.
-3. Choose an empty or new output folder, allow the command to configure the
-   mock data directory, and reload when prompted.
+1. Open a folder or workspace. The command saves the mock data directory in
+   the workspace settings.
+2. Run **Zowe MCP: Generate Mock Data** and choose a preset.
+3. Choose an empty or new output folder, select **Use as Mock Data**, and then
+   **Reload Window**. When no connections are configured, **Backend** switches
+   to `mock` by itself; otherwise set it to `mock`.
 4. Run **MCP: List Servers** and confirm that **Zowe** is running.
 5. Ask Copilot:
 

@@ -414,6 +414,47 @@ function writeComparisonReport(
   }
   lines.push('');
 
+  lines.push('## Per-Model Token Usage', '');
+  lines.push(
+    '| Model | Runs | Runs w/ metrics | Input tokens | Output tokens | Cache read | Cache write | Avg input/run | Avg output/run | Avg steps |'
+  );
+  lines.push('| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |');
+  const fmt = (n: number): string => n.toLocaleString('en-US');
+  for (const modelId of models) {
+    const modelResults = allSetResults
+      .filter(sr => sr.modelId === modelId)
+      .flatMap(sr => sr.results);
+    const measured = modelResults.filter(r => r.tokenUsage != null);
+    const input = measured.reduce((s, r) => s + (r.tokenUsage?.input ?? 0), 0);
+    const output = measured.reduce((s, r) => s + (r.tokenUsage?.output ?? 0), 0);
+    const cacheRead = measured.reduce((s, r) => s + (r.tokenUsage?.cacheReadInputTokens ?? 0), 0);
+    const cacheWrite = measured.reduce(
+      (s, r) => s + (r.tokenUsage?.cacheCreationInputTokens ?? 0),
+      0
+    );
+    const withSteps = measured.filter(r => r.stepCount != null);
+    const n = measured.length;
+    const avgSteps =
+      withSteps.length > 0
+        ? (withSteps.reduce((s, r) => s + (r.stepCount ?? 0), 0) / withSteps.length).toFixed(1)
+        : '—';
+    lines.push(
+      `| ${[
+        modelId,
+        fmt(modelResults.length),
+        fmt(n),
+        fmt(input),
+        fmt(output),
+        fmt(cacheRead),
+        fmt(cacheWrite),
+        n > 0 ? fmt(Math.round(input / n)) : '—',
+        n > 0 ? fmt(Math.round(output / n)) : '—',
+        avgSteps,
+      ].join(' | ')} |`
+    );
+  }
+  lines.push('');
+
   const allResults = allSetResults.flatMap(r => r.results);
   const allToolCalls = allResults.flatMap(r =>
     r.toolCalls.map(tc => ({ name: tc.name, arguments: tc.arguments }))

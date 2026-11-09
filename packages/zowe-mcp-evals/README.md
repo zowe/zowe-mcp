@@ -359,7 +359,7 @@ Each eval-compare run produces two things:
 
 Written to `evals-report/<label>-<timestamp>/`. Contains:
 
-- **`comparison.md`** — When multiple models are compared, includes a per-question matrix showing pass rates for each model side by side, plus a per-model summary.
+- **`comparison.md`** — When multiple models are compared, includes a per-question matrix showing pass rates for each model side by side, plus a per-model summary and a **Per-Model Token Usage** table (input/output token totals and per-run averages for each model; the cache read/write columns are populated for providers that report them, e.g. Anthropic prompt caching).
 - **`report.md`** — Standard eval report (same as `npm run evals`): summary, per-question results, per-tool coverage, and failures.
 - **`failures.md`** — Detailed failure information when there are failures.
 

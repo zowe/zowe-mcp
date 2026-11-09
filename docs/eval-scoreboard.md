@@ -476,3 +476,4 @@ Automatically updated by `npm run eval-compare`.
 | 2026-11-09 | refusal-fix-1rep           | claude-fable-5-1      | claude-fable-5-1                | safety                     | 8         | 100.0%    | 8      | 8     | fc0ea10 | 660d08f5  | reps=1, cache=off, dirty |
 | 2026-11-09 | refusal-fix-1rep           | claude-fable-5-1      | claude-fable-5-1                | dataset-copy-rename        | 2         | 100.0%    | 2      | 2     | fc0ea10 | 660d08f5  | reps=1, cache=off, dirty |
 | 2026-11-09 | refusal-fix-1rep           | claude-fable-5-1      | claude-fable-5-1                | system                     | 13        | 100.0%    | 13     | 13    | fc0ea10 | 660d08f5  | reps=1, cache=off, dirty |
+| 2026-11-09 | refusal-fix-opus-safety    | claude-opus-5-5       | claude-opus-5-5                 | safety                     | 8         | 100.0%    | 8      | 8     | 671bd3f |           | reps=1, cache=off        |

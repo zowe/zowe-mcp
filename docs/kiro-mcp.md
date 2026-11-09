@@ -1,9 +1,11 @@
 # Kiro
 
-Kiro starts Zowe MCP from its own MCP configuration. It does not consume the
-MCP provider registered by the optional Zowe MCP VS Code extension. Common
-installation, z/OS connection, authentication, and job-card instructions are
-in [Standalone MCP clients](standalone-mcp.md).
+This page is for people who use Zowe MCP with [Kiro](https://kiro.dev). Kiro
+starts the Zowe MCP server from its own MCP configuration. It does not use the
+server that the Zowe MCP VS Code extension registers. Installation,
+authentication, and server options are in the
+[standalone server guide](standalone-mcp.md). This page covers only what is
+specific to Kiro.
 
 ## Configure Zowe MCP
 
@@ -36,7 +38,7 @@ A native SSH configuration looks like this:
 
 Use an absolute `command` path because Kiro may start the process without your
 interactive shell's nvm or `PATH` configuration. Install the binary as
-described in [Standalone MCP clients](standalone-mcp.md#install-the-server).
+described in [Install the server](standalone-mcp.md#install-the-server).
 
 `autoApprove` is a Kiro setting, not a Zowe MCP option. List only the tools you
 want Kiro to run without a per-call confirmation. Zowe MCP's capability tier
@@ -59,9 +61,8 @@ open -a Kiro
 
 If the variable is unapproved or unavailable, Kiro may pass the literal
 placeholder or an empty value to the server. Do not put passwords directly in
-a committed `mcp.json`. See [Standalone
-authentication](standalone-mcp.md#authentication-standalone) for SSH keys,
-per-connection password variables, and `ZOWE_MCP_CREDENTIALS`.
+a committed `mcp.json`. An SSH key needs no password variable at all. See
+[Authentication](standalone-mcp.md#authentication).
 
 ## Extension compatibility
 
@@ -83,8 +84,8 @@ panel or run **Developer: Reload Window**.
 
 Kiro also supports remote MCP URLs and headers. See the
 [Kiro MCP configuration reference](https://kiro.dev/docs/mcp/configuration/) for
-its client schema and [Remote development with
-Keycloak](remote-dev-keycloak.md) for Zowe MCP HTTP authentication.
+its client schema and the [remote server guide](remote-mcp-server.md) for
+Zowe MCP over HTTP.
 
 ## Troubleshooting
 

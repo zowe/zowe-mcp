@@ -4,7 +4,8 @@ ZOWE MCP gives AI assistants tools for working with z/OS systems.
 
 ## Project Documentation
 
-- [CONTRIBUTING.md](CONTRIBUTING.md): pull request, AI usage, evaluation, dependency, and security policies.
+- [CONTRIBUTING.md](CONTRIBUTING.md): development setup, validation commands, and pull request, AI usage, evaluation, dependency, and security policies.
+- [docs/README.md](docs/README.md): index of all documentation by audience (users, remote server administrators, contributors).
 - [README.md](README.md): installation and user-facing behavior.
 - [RELEASING.md](RELEASING.md): release preparation, publishing, and recovery procedure.
 - [docs/mcp-reference.md](docs/mcp-reference.md): generated MCP tool, prompt, and resource reference.

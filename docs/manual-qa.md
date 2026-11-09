@@ -1,5 +1,8 @@
 # Manual QA
 
+This page is for contributors and testers who check the VS Code extension by
+hand.
+
 Use this checklist for behavior that requires a person to interact with VS Code,
 GitHub Copilot Chat, or a live z/OS system. Server tool contracts, transports,
 and extension-host behavior are covered by automated tests.
@@ -22,9 +25,11 @@ editor CLI cannot install into a profile that does not yet exist.
 
 ## Install and run the core smoke test
 
-1. Install the extension as described in the
-   [README](../README.md#install-the-extension). To build and install from the
-   repository into an existing named profile, run:
+1. Install the extension from a release as described in the
+   [extension README](../packages/zowe-mcp-vscode/README.md#installation), or
+   build and install it from your clone as described in
+   [Run your build](../CONTRIBUTING.md#run-your-build). To build and install
+   into an existing named profile, run:
 
    ```bash
    VSCODE_PROFILE=ZoweMcpManualClean npm run build-and-install
@@ -72,7 +77,7 @@ fails, see [Mock mode](mock-mode.md) and capture both logs.
 
 Run this optional test only with an approved z/OS account and host.
 
-1. In Zowe MCP settings, set **Backend** to **Zowe Remote SSH** (`zowex`).
+1. In Zowe MCP settings, set **Backend** to `zowex`.
 2. Add `USER@host` or `USER@host:port` under **Zowe MCP: Zowex Connections**
    (`zoweMCP.zowexConnections`).
 3. Reload VS Code if prompted.

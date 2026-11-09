@@ -1,10 +1,14 @@
 # Mock z/OS host
 
+This page is for contributors who test the SSH connection path. To try Zowe MCP
+without a mainframe as a user, see [Mock mode](mock-mode.md).
+
 The mock z/OS host is a local test daemon. It provides an SSH service and an
 optional z/OSMF HTTP service.
 
 Use it to test the native Zowe MCP connection path without a z/OS system. The
-MCP server uses `--native` and connects through SSH and `zowex-sdk`.
+MCP server uses `--native` and connects through SSH and the Zowe Remote SSH SDK
+(`@zowe/zowex-for-zowe-sdk`).
 
 Do not use this daemon in production. It stores test passwords in plain text,
 and its HTTP service does not use TLS.
@@ -16,7 +20,7 @@ Zowe MCP provides two mock options:
 | Option | Server argument | Use |
 | --- | --- | --- |
 | Direct mock backend | `--mock <dir>` | Test MCP tools quickly with local files. |
-| Mock z/OS host | `--native --config <file>` | Test the native SSH and `zowex-sdk` path. |
+| Mock z/OS host | `--native --config <file>` | Test the SSH connection path. |
 
 Start with the [direct mock backend](mock-mode.md) for most development work.
 Use the mock host for SSH, authentication, deployment, and protocol tests.
@@ -31,7 +35,7 @@ The SSH service provides:
 - Password and public-key authentication.
 - Authentication failure scenarios.
 - A small interactive USS shell.
-- The SFTP operations that `zowex-sdk` uses to upload its server package.
+- The SFTP operations that the SDK uses to upload its server package.
 - The `zowex server` JSON-RPC channel.
 - Native operations for data sets, USS files, jobs, TSO commands, and console commands.
 
@@ -55,13 +59,8 @@ See the [MCP reference](mcp-reference.md) for the available MCP tools.
 
 ## Build and generate fixtures
 
-The examples in this document use a source checkout. First, install the
-packages and build the server:
-
-```bash
-npm install
-npm run build -w @zowe/mcp-server
-```
+The examples in this document use a clone of the repository. Build it first as
+described in [Development setup](../CONTRIBUTING.md#development-setup).
 
 Generate the host fixtures:
 
@@ -189,7 +188,7 @@ The MCP server now uses its native client path. It connects to the mock host,
 starts `zowex server`, and sends JSON-RPC requests through SSH.
 
 You can use the same command in an MCP client configuration. See
-[Standalone MCP clients](standalone-mcp.md) for client examples and other
+[standalone server guide](standalone-mcp.md) for client examples and other
 credential options.
 
 ### Call one MCP tool
@@ -250,7 +249,7 @@ To use public-key authentication, add OpenSSH public keys to the user's
 ```
 
 For native client key settings, see
-[Standalone authentication](standalone-mcp.md#authentication-standalone).
+[Standalone authentication](standalone-mcp.md#authentication).
 
 ## Start the z/OSMF service
 
@@ -281,7 +280,7 @@ proxy when a client requires HTTPS.
 | Method | Path | Result |
 | --- | --- | --- |
 | `POST` | `/zosmf/services/authenticate` | Create an `LtpaToken2` cookie. |
-| `DELETE` | `/zosmf/services/authenticate` | Revoke the token and clear the cookie. |
+| `DELETE` | `/zosmf/services/authenticate` | Revoke the token and clear the cookie. Returns `204 No Content`. |
 | `GET` | `/zosmf/info` | Return mock system information. |
 | `GET` | `/zosmf/restfiles/ds?dslevel=<pattern>` | List matching data sets. |
 | `GET` | `/zosmf/restfiles/ds/<dsn>` | Read a sequential data set. |

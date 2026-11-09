@@ -2,6 +2,9 @@
 
 This stack uses **TLS in nginx for MCP only** and **TLS inside the Keycloak container** (PEM mounts). HTTP **18080:8080** stays available for **`keycloak-init`** and **`patch-keycloak-mcp-dev-redirects.mjs`** (admin API). Keycloak HTTPS is on host port **`ZOWE_MCP_KEYCLOAK_HTTPS_BIND_PORT`** (default **18443** → container **8443**).
 
+Prerequisites (hosts entries, certificates, tools) are in
+[First-time setup](../../docs/remote-dev-keycloak.md#first-time-setup).
+
 **Do not** put a second nginx or reverse proxy in front of Keycloak for this profile unless you know you need it — DCR and CORS are tuned for direct Keycloak HTTPS (see below).
 
 ## Layout
@@ -14,7 +17,7 @@ Use **`cert.pem`** / **`key.pem`** from **`certs/`** (default **`ZOWE_MCP_TLS_CE
 
 ## JWT issuer alignment
 
-Access tokens use an **`iss`** that matches the **authorization server URL** used at sign-in. **`ZOWE_MCP_JWT_ISSUER`** must equal that issuer exactly (see server **`bearer-jwt.ts`**). **`npm run start:remote-https-dev-native-zos`** sets **`KC_HOSTNAME`** and JWT env vars from **`https://<Keycloak host>:<bind port>`** (port omitted only when **443**).
+Access tokens use an **`iss`** that matches the **authorization server URL** used at sign-in. **`ZOWE_MCP_JWT_ISSUER`** must equal that issuer exactly. **`npm run start:remote-https-dev-native-zos`** sets **`KC_HOSTNAME`** and JWT env vars from **`https://<Keycloak host>:<bind port>`** (port omitted only when **443**).
 
 If you **change** Keycloak hostname or HTTPS port, obtain a new token (or full browser sign-in) so **`iss`** matches — otherwise you may see **401 JWT issuer mismatch**.
 
@@ -70,7 +73,7 @@ chmod a+r docker/remote-https-dev/certs/key.pem docker/remote-https-dev/certs/ce
 docker compose -f docker/remote-dev/docker-compose.yml -f docker/remote-https-dev/docker-compose.keycloak-native-tls.yml up -d --force-recreate keycloak
 ```
 
-`npm run start:remote-https-dev-native-zos` runs a **preflight check** (same image, `cat` the mounted PEMs as uid 1000) and fails fast with this hint if reads would fail.
+`npm run start:remote-https-dev-native-zos` runs a **preflight check** (a Keycloak image that runs as uid 1000, `cat` the mounted PEMs) and fails fast with this hint if reads would fail.
 
 ## Run
 
@@ -100,3 +103,9 @@ docker compose -f docker/remote-dev/docker-compose.yml -f docker/remote-https-de
 | `KEYCLOAK_HOST_PORT` | `18080` | Keycloak HTTP (init / admin API) |
 | `ZOWE_MCP_MCP_TLS_PORT` | `7542` | MCP HTTPS (nginx) |
 | `ZOWE_MCP_HTTP_BACKEND_PORT` | `7543` | Node MCP HTTP |
+| `ZOWE_MCP_HTTPS_HOST` | `zowe.mcp.example.com` | Hostname of the MCP HTTPS endpoint (nginx) |
+| `ZOWE_MCP_TENANT_STORE_DIR` | `.zowe-mcp-tenant-store` in the repository root | Directory for per-user connection files |
+| `ZOWE_MCP_PUBLIC_BASE_URL` | `https://<ZOWE_MCP_HTTPS_HOST>:<ZOWE_MCP_MCP_TLS_PORT>` | Public base URL for password prompt pages and Keycloak redirect URIs |
+| `ZOWE_MCP_OAUTH_RESOURCE` | `<public base URL>/mcp` | `resource` URL in the OAuth protected resource metadata |
+| `ZOWE_MCP_KEYCLOAK_REALM` | `demo` | Keycloak realm in the JWT issuer |
+| `ZOWE_MCP_KEYCLOAK_CLIENT` | `demo` | Keycloak OAuth client that gets the redirect URIs |

@@ -2,7 +2,7 @@
 
 Nginx, Keycloak, and the **local MCP registry** HTTPS front all read **`cert.pem`** and **`key.pem`** in this directory (PEM format). Those two names are usually **symlinks** to the leaf files [mkcert](https://github.com/FiloSottile/mkcert) writes when you generate **one** certificate that covers every dev hostname — **including the registry** — so we do not maintain a separate “MCP + Keycloak only” mkcert story.
 
-Generate (from repo root or this directory):
+Generate (from the repository root):
 
 ```bash
 mkcert -install

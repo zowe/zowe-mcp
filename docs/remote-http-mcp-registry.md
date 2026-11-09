@@ -1,5 +1,11 @@
 # Remote HTTP MCP: registry registration and local coexistence
 
+This page is for administrators of a remote Zowe MCP server and for publishers
+of MCP registry entries. Start with the
+[remote server guide](remote-mcp-server.md). If you only need to connect a
+client to an existing server, go to
+[Manual client config](#4-manual-client-config-cursor--vs-code-mcpjson).
+
 This document describes how to **register** a Zowe MCP server deployed as an **HTTP Streamable** endpoint in an MCP registry (or client config), and how to **use it next to** a **local stdio** server without conflicts.
 
 ## On-premises and per-organization URLs
@@ -58,8 +64,8 @@ flowchart TB
 - **TLS reverse proxy or ingress** — Terminates **HTTPS** from clients and forwards plain HTTP to the Node listener (or balances across replicas). Sets **`Host`** and **`X-Forwarded-Proto`** so OAuth discovery and password-elicit URLs match the public URL. Further reading: [HTTPS, reverse proxies, and public URLs](#https-reverse-proxies-and-public-urls) below, [local HTTPS dev with Docker nginx](../docker/remote-https-dev/README.md).
 - **Zowe MCP resource server** — The **`@zowe/mcp-server`** process in **`--http`** mode: **MCP Streamable HTTP** session handling, optional Bearer JWT verification, tools, and native SSH to z/OS. It validates tokens but does **not** issue them. See [Protect a remote HTTP server](mcp-authentication-oauth.md#protect-a-remote-http-server) and the [MCP tool reference](mcp-reference.md).
 - **Connection store per user** — On-disk state for each OIDC `sub`. It contains saved `user@host` connection strings and job cards. See [Save connections per user](mcp-authentication-oauth.md#save-connections-per-user).
-- **Secrets for z/OS SSH** — Platform-supplied **passwords or key material** for SSH (for example **`ZOWE_MCP_CREDENTIALS`**, **`ZOWE_MCP_PASSWORD_*`**, Vault KV, Kubernetes secrets), **not** the OAuth access token. Further reading: [Standalone credentials and Vault KV](standalone-mcp.md#authentication-standalone). Chat identity and SAF user remain separate concerns.
-- **z/OS SSH** — The mainframe side reached by **Zowe Remote SSH** over **SSH** from the MCP server only; **no OAuth** on the wire to z/OS. See [Native SSH backend](../README.md#native-ssh-backend).
+- **Secrets for z/OS SSH** — Platform-supplied **passwords or key material** for SSH (for example **`ZOWE_MCP_CREDENTIALS`**, **`ZOWE_MCP_PASSWORD_*`**, Vault KV, Kubernetes secrets), **not** the OAuth access token. Further reading: [Standalone credentials and Vault KV](standalone-mcp.md#authentication). Chat identity and SAF user remain separate concerns.
+- **z/OS SSH** — The mainframe side reached by **Zowe Remote SSH** over **SSH** from the MCP server only; **no OAuth** on the wire to z/OS. See [Native SSH backend](../README.md#connect-to-zos).
 
 The **IdP** is only used for **OAuth tokens and JWKS** at the MCP HTTP layer. **z/OS** is reached by **SSH from the MCP server** only; LPARs do not participate in OIDC.
 
@@ -190,7 +196,7 @@ Using **different server names** avoids tool ID collisions and makes it obvious 
 
 **TLS in production** is usually handled **outside** the Node process: terminate HTTPS at a **reverse proxy** (for example **nginx**, HAProxy, or a cloud load balancer) and forward to the MCP HTTP listener on **`http://`** upstream (same host/port or internal network). That matches common Zowe and enterprise patterns and avoids embedding certificate management in `@zowe/mcp-server`.
 
-**Running behind a proxy:** Ensure the proxy forwards **`Host`** and **`X-Forwarded-Proto`** (and other forwarded headers your org standardizes) so discovery and URLs stay correct. The server uses **`X-Forwarded-Proto`** when building the OAuth 2.0 protected resource **`resource`** URL for `GET /.well-known/oauth-protected-resource` **unless** you set **`ZOWE_MCP_OAUTH_RESOURCE`** explicitly (see `src/transports/http.ts`). For **URL-mode password elicitation** (`/zowe-mcp/password-elicit/…`), set **`ZOWE_MCP_PUBLIC_BASE_URL`** to the **exact base URL clients use in the browser** (typically `https://your-hostname` with no trailing slash), which may differ from the process bind address when TLS is terminated in front.
+**Running behind a proxy:** The server builds the **`resource`** URL in its OAuth metadata from the **`Host`** header, including the port, and from **`X-Forwarded-Proto`**. Set **`ZOWE_MCP_OAUTH_RESOURCE`** to the public URL so that the metadata does not depend on proxy headers. For **URL-mode password elicitation** (`/zowe-mcp/password-elicit/…`), set **`ZOWE_MCP_PUBLIC_BASE_URL`** to the **exact base URL clients use in the browser** (typically `https://your-hostname` with no trailing slash), which may differ from the process bind address when TLS is terminated in front.
 
 If discovery or elicit links show the wrong scheme or hostname, fix **`ZOWE_MCP_OAUTH_RESOURCE`** and **`ZOWE_MCP_PUBLIC_BASE_URL`** first before changing application code.
 

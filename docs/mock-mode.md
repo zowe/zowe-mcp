@@ -1,91 +1,84 @@
 # Mock mode
 
-The server includes a filesystem-backed mock z/OS backend for testing without a
-mainframe. The server reads fixture files directly and does not use SSH.
+Mock mode lets you try Zowe MCP without a mainframe. The server reads sample
+data sets and USS files from a directory on your workstation instead of
+connecting to z/OS.
 
-To test the native SSH and `zowex-sdk` path, use the
-[mock z/OS host](mock-zos-host.md).
+Mock mode does not include jobs. The job tools return an error.
 
-## Generate mock data
+## In VS Code
 
-```bash
-# Default preset (2 systems, 2 users each, ~8 data sets per user)
-npx @zowe/mcp-server init-mock --output ./zowe-mcp-mock-data
+Run **Zowe MCP: Generate Mock Data** from the Command Palette. See
+[Try it without a mainframe](../packages/zowe-mcp-vscode/README.md#try-it-without-a-mainframe)
+in the extension README.
 
-# Minimal (1 system, 1 user, 5 data sets)
-npx @zowe/mcp-server init-mock --output ./zowe-mcp-mock-data --preset minimal
+## With any other MCP client
 
-# Large (5 systems, 3 users each, 20 data sets per user)
-npx @zowe/mcp-server init-mock --output ./zowe-mcp-mock-data --preset large
+These steps use the `zowe-mcp-server` program from the
+[standalone server guide](standalone-mcp.md#install-the-server).
 
-# Custom scale
-npx @zowe/mcp-server init-mock --output ./zowe-mcp-mock-data \
-  --systems 3 --users-per-system 2 --datasets-per-user 10 --members-per-pds 8
-```
+1. Create the mock data:
 
-If the server is installed globally or in a project, use its binary:
+   ```bash
+   zowe-mcp-server init-mock --output ./zowe-mcp-mock-data
+   ```
 
-```bash
-zowe-mcp-server init-mock --output ./zowe-mcp-mock-data
+2. In your MCP client configuration, replace `--native --system ...` with
+   `--mock` and the absolute path of the directory:
 
-# Or generate directly from a local tarball
-npx --package=file:/absolute/path/to/zowe-mcp-server-<version>.tgz \
-  zowe-mcp-server init-mock --output ./zowe-mcp-mock-data
-```
+   ```json
+   {
+     "mcpServers": {
+       "zowe": {
+         "command": "zowe-mcp-server",
+         "args": ["--stdio", "--mock", "/absolute/path/to/zowe-mcp-mock-data"]
+       }
+     }
+   }
+   ```
 
-The generated directory looks like:
+   You can set the `ZOWE_MCP_MOCK_DIR` environment variable instead of
+   `--mock`.
+
+3. Restart the client and ask the assistant:
+
+   ```text
+   Set the active system to mainframe-dev.example.com and list the data sets that match USER.**
+   ```
+
+The server does not start when both a mock directory and `--native` are set.
+
+## Choose the amount of mock data
+
+| Command | Result |
+| --- | --- |
+| `init-mock --output <dir>` | 2 systems, 2 users on each, 8 data sets for each user |
+| `init-mock --output <dir> --preset minimal` | 1 system, 1 user, 5 data sets |
+| `init-mock --output <dir> --preset large` | 5 systems, 3 users on each, 20 data sets for each user |
+
+Each preset also adds a few `SYS1` data sets. To set the numbers yourself, use
+`--systems`, `--users-per-system`, `--datasets-per-user`, and
+`--members-per-pds`.
+
+## Directory layout
 
 ```text
 zowe-mcp-mock-data/
-  systems.json                          # System definitions + credentials
-  mainframe-dev.example.com/            # One directory per system
-    USER/                               # HLQ directory
-      SRC.COBOL/                        # PDS — directory with members
-        CUSTFILE.cbl                    # Member file
+  systems.json                          # Systems, user IDs, and mock passwords
+  mainframe-dev.example.com/            # One directory for each system
+    USER/                               # High-level qualifier
+      SRC.COBOL/                        # PDS or PDS/E: a directory of members
+        CUSTFILE.cbl                    # Member
         _meta.json                      # Data set attributes
-      DATA.INPUT                        # Sequential data set — plain file
+      DATA.INPUT                        # Sequential data set: a file
   uss/
-    mainframe-dev.example.com/u/USER/   # USS home tree per system
+    mainframe-dev.example.com/u/USER/   # USS home directory
 ```
 
-## Run the server with mock data
+You can edit the files, or add your own, to test with other content.
 
-Inside this repository after `npm install`:
+## For contributors
 
-```bash
-# Via CLI flag
-npx @zowe/mcp-server --stdio --mock ./zowe-mcp-mock-data
-
-# Via environment variable
-ZOWE_MCP_MOCK_DIR=./zowe-mcp-mock-data npx @zowe/mcp-server --stdio
-```
-
-In an MCP client configuration, replace the `--native --system …` arguments
-with `--mock` and the absolute mock-data path:
-
-```jsonc
-"args": [
-  "/absolute/path/to/zowe-mcp/packages/zowe-mcp-server/dist/index.js",
-  "--stdio",
-  "--mock",
-  "/absolute/path/to/zowe-mcp/zowe-mcp-mock-data"
-]
-```
-
-Outside this repository, install the server from a tarball first. See
-[Standalone MCP clients](standalone-mcp.md#obtaining-the-tgz). Then run the
-installed binary directly:
-
-```bash
-zowe-mcp-server --stdio --mock ./zowe-mcp-mock-data
-
-# Or run directly from a local tarball
-npx --package=file:/abs/path/to/zowe-mcp-server-<version>.tgz \
-  zowe-mcp-server --stdio --mock ./zowe-mcp-mock-data
-```
-
-Native and mock backends cannot be configured together: if both `--mock` (or
-`ZOWE_MCP_MOCK_DIR`) and `--native` are set, the server logs an error and exits.
-
-For the VS Code extension workflow, see the
-[mock backend smoke test](manual-qa.md#mock-backend-smoke-test).
+To test the SSH connection path without a mainframe, use the
+[mock z/OS host](mock-zos-host.md). It is a local SSH server that the native
+backend connects to.

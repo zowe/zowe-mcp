@@ -1,200 +1,195 @@
-# Standalone MCP clients
+# Standalone server guide
 
-Standalone MCP clients start `@zowe/mcp-server` directly from their own
-configuration instead of relying on the optional VS Code extension to register
-the server. Use stdio mode with `command`, `args`, and optional `env` fields, as
-shown below.
+This guide is for people who use Zowe MCP with an MCP client other than GitHub
+Copilot in VS Code, such as Claude Code, Cursor, Kiro, or Roo Code. The client
+starts the `zowe-mcp-server` program on your workstation and talks to it over
+standard input and output (stdio).
 
-For **Streamable HTTP** with Bearer JWT, local Keycloak, or another remote URL,
-see [Remote development with Keycloak](remote-dev-keycloak.md).
-
-## Package identity
-
-| Item                 | Value                                                                |
-| -------------------- | -------------------------------------------------------------------- |
-| **npm package**      | `@zowe/mcp-server`                                                   |
-| **CLI / `bin` name** | `zowe-mcp-server` (what you run after `npm install -g` or via `npx`) |
-| **`npx`**            | `npx @zowe/mcp-server …` or `npx -y @zowe/mcp-server@<version> …`    |
+- If you use GitHub Copilot in VS Code, install the
+  [VS Code extension](../packages/zowe-mcp-vscode/README.md) instead. It
+  contains the server.
+- If you run one server for many users, see the
+  [remote server guide](remote-mcp-server.md).
 
 ## Install the server
 
-1. **Ephemeral** — `npx -y @zowe/mcp-server` (pin a version in production). **Requires the package to be published to npm or mirrored in a registry your `npm` can resolve `@zowe/*` from — not the case while `@zowe/mcp-server` is unpublished. Until then, use the tarball-npx form in [Obtaining the `.tgz`](#obtaining-the-tgz).**
-2. **Project-local** — `npm install @zowe/mcp-server` → `node_modules/.bin/zowe-mcp-server`. Same publication requirement as above; otherwise install from the `.tgz`.
-3. **Global** — `npm install -g @zowe/mcp-server` → run `zowe-mcp-server` (on `PATH`). Same publication requirement as above; otherwise install the `.tgz` globally (`npm install -g ./zowe-mcp-server-<version>.tgz`).
+You need [Node.js](https://nodejs.org) 24 or later, which is the version the
+project is built and tested with.
 
-Ensure your npm registry can resolve `@zowe/*` (public npm or your org’s mirror; see root `.npmrc` if applicable).
+The npm package `@zowe/mcp-server` is not yet published to a public registry,
+so `npx @zowe/mcp-server` and `npm install @zowe/mcp-server` do not work
+outside a clone of this repository. Install the package file from a release:
 
-## Obtaining the `.tgz`
+1. Download `zowe-mcp-server-<version>.tgz` from the
+   [latest release](https://github.com/zowe/zowe-mcp/releases/latest).
+2. Install it globally:
 
-- **CI** — Successful [GitHub Actions](../.github/workflows/ci.yml) runs upload **`zowe-mcp-server-npm`** (`zowe-mcp-server-*.tgz`). Download from the workflow run’s **Artifacts**.
-- **From a clone** — `npm run pack:server` at the repo root writes `zowe-mcp-server-<version>.tgz` (gitignored).
-- **Install from tarball** — `npm install -g ./zowe-mcp-server-0.x.y.tgz` or `npm install ./zowe-mcp-server-*.tgz`.
+   ```bash
+   npm install -g ./zowe-mcp-server-<version>.tgz
+   zowe-mcp-server --version
+   ```
 
-Run from a local tarball without publishing:
+The package file contains all of its dependencies, so the installation does not
+download anything else.
+
+To run the server without installing it, point `npx` at the file. The name
+after the package is the program name, `zowe-mcp-server`:
 
 ```bash
-npx --package=file:/absolute/path/to/zowe-mcp-server-0.8.0-dev.tgz zowe-mcp-server --stdio --native --system USER@host
+npx --package=file:/absolute/path/to/zowe-mcp-server-<version>.tgz zowe-mcp-server --version
 ```
 
-The argument after the package is the **`bin` name** (`zowe-mcp-server`), not the scoped package name.
+To test a build that is not released yet, download the `zowe-mcp-server-npm`
+artifact from a [CI run](https://github.com/zowe/zowe-mcp/actions/workflows/ci.yml),
+or build the file from a clone as described in
+[CONTRIBUTING.md](../CONTRIBUTING.md#build-the-release-files).
 
-## Roo Code: `.roo/mcp.json` (native SSH)
+## Configure your MCP client
 
-Roo Code loads MCP servers from its own configuration and does not use VS
-Code's `vscode.lm.registerMcpServerDefinitionProvider`. If the Zowe MCP VS Code
-extension is installed only for Roo, uninstall it and use the server package
-directly through Roo's `mcp.json`. The extension's helper commands are thin
-wrappers around equivalent server CLI subcommands.
-
-**Prefer the installed binary** (no `npx`, no registry): if `@zowe/mcp-server` is already installed globally or in a project, run the **`zowe-mcp-server`** executable directly. Put only server flags in `args` — do **not** pass `npx`, `-y`, or `@zowe/mcp-server`.
+Add the server to the client's MCP configuration:
 
 ```json
 {
   "mcpServers": {
     "zowe": {
       "command": "zowe-mcp-server",
-      "args": [
-        "--stdio",
-        "--native",
-        "--system",
-        "USERID@zos.example.com"
-      ],
-      "env": {
-        "ZOWE_MCP_PASSWORD_USERID_ZOS_EXAMPLE_COM": "replace-with-secret"
-      },
-      "timeout": 120
+      "args": ["--stdio", "--native", "--system", "USERID@sys1.example.com"]
     }
   }
 }
 ```
 
-If `zowe-mcp-server` is not on `PATH`, set `"command"` to the **absolute path** to the binary (for example `.../node_modules/.bin/zowe-mcp-server` after a project install, or your global npm bin from `npm prefix -g` + `/bin/zowe-mcp-server` on Unix).
+- `--native` selects the SSH backend. `--system` names one connection in the
+  form `user@host` or `user@host:port`. The default port is 22. Repeat
+  `--system` for more connections.
+- Some clients start the server without your shell's `PATH`, for example when
+  Node.js is installed with nvm. If the client cannot find `zowe-mcp-server`,
+  set `command` to the absolute path that `which zowe-mcp-server` prints.
 
-**Optional — `npx`:** only when you want npm to download/run the package each time; requires a registry that can resolve `@zowe/mcp-server`.
+Client-specific notes: [Claude Code](claude-code-mcp.md), [Kiro](kiro-mcp.md),
+and [VS Code and GitHub Copilot](copilot-setup-guide.md).
 
-## Authentication (standalone)
+## Authentication
 
-The server authenticates in this order, falling back automatically:
-**SSH key → password env var → Vault KV → interactive prompt (when supported).**
+Zowe MCP connects to z/OS over SSH with your own user ID. The server tries
+these methods in order:
 
-### Preferred: SSH key (most secure, zero-config)
+1. SSH key
+2. Password from an environment variable
+3. Password from HashiCorp Vault
+4. Password prompt in the client
 
-If you already use an SSH key to reach z/OS, the server uses it automatically from
-your existing `~/.ssh` setup (a `~/.ssh/config` `IdentityFile` for the host, or a
-default `~/.ssh/id_*` key) — no password env var needed. A private key, especially
-a passphrase-protected one, is safer than a password in an environment variable.
+### SSH key (recommended)
+
+If you can already run `ssh USERID@sys1.example.com` with a key, the server
+uses the same key without any Zowe MCP configuration. It looks for a key in
+this order:
+
+1. The file named by `ZOWE_MCP_PRIVATE_KEY_<USER>_<HOST>`, if you set it.
+2. The `IdentityFile` of the `Host` entry in `~/.ssh/config` whose alias or
+   `HostName` matches the host.
+3. A default key in `~/.ssh`: `id_ed25519`, `id_rsa`, `id_ecdsa`, or `id_dsa`.
+
+Optional settings:
 
 ```bash
-# Optional overrides (only if needed)
-export ZOWE_MCP_PRIVATE_KEY_USERID_ZOS_EXAMPLE_COM=~/.ssh/id_mainframe
-export ZOWE_MCP_KEY_PASSPHRASE_USERID_ZOS_EXAMPLE_COM='key passphrase'
-export ZOWE_MCP_DISABLE_SSH_KEY=1   # disable key auth, always use a password
+# Use a specific key for one connection
+export ZOWE_MCP_PRIVATE_KEY_USERID_SYS1_EXAMPLE_COM=~/.ssh/id_mainframe
+
+# Passphrase for an encrypted key
+export ZOWE_MCP_KEY_PASSPHRASE_USERID_SYS1_EXAMPLE_COM='key passphrase'
+
+# Never use SSH keys
+export ZOWE_MCP_DISABLE_SSH_KEY=1
 ```
 
-ssh-agent keys are not supported in this release — only key files on disk.
+The server reads key files only. It does not use keys that are held only in
+`ssh-agent`. An encrypted key without a passphrase variable is skipped, and the
+server continues with the password methods.
 
-### Fallback: passwords
+### Password in an environment variable
 
-The password sources below apply when the VS Code extension pipe is unavailable,
-including standalone stdio, server-side HTTP, CLI bridge plugins, and
-`call-tool`. For native SSH, the server can use MCP elicitation after checking
-the configured password sources.
+Set one variable per connection. The name is `ZOWE_MCP_PASSWORD_<USER>_<HOST>`
+with the user ID and host in uppercase and every character other than a letter
+or digit replaced by `_`. The port is not part of the name.
 
-### Per-connection env vars: `ZOWE_MCP_PASSWORD_<USER>_<HOST>`
+| Connection | Variable |
+| --- | --- |
+| `USERID@sys1.example.com` | `ZOWE_MCP_PASSWORD_USERID_SYS1_EXAMPLE_COM` |
+| `USER1@127.0.0.1:4022` | `ZOWE_MCP_PASSWORD_USER1_127_0_0_1` |
 
-**Format:** `ZOWE_MCP_PASSWORD_<USER>_<HOST>`
-
-- User: uppercased; host: dots replaced with underscores (see [`connection-spec.ts`](../packages/zowe-mcp-server/src/zos/native/connection-spec.ts) — `toPasswordEnvVarName`).
-
-Example: `USERID@zos.example.com` → `ZOWE_MCP_PASSWORD_USERID_ZOS_EXAMPLE_COM`.
-
-### Alternative: `ZOWE_MCP_CREDENTIALS` (JSON)
-
-Set a **single** env var to a JSON object whose keys are connection specs (`user@host` or `user@host:port`) and whose values are passwords:
-
-```json
-{
-  "userid@zos.example.com": "your-password",
-  "otheruser@other.host.example.com:2222": "other-password"
-}
-```
-
-In `.roo/mcp.json`, pass the JSON as a **string** value (escape quotes as required by JSON):
+Put the variable in the `env` block of the client configuration, or in the
+environment that starts the client:
 
 ```json
 {
   "mcpServers": {
     "zowe": {
       "command": "zowe-mcp-server",
-      "args": ["--stdio", "--native", "--system", "USERID@zos.example.com"],
+      "args": ["--stdio", "--native", "--system", "USERID@sys1.example.com"],
       "env": {
-        "ZOWE_MCP_CREDENTIALS": "{\"userid@zos.example.com\":\"replace-with-secret\"}"
-      },
-      "timeout": 120
+        "ZOWE_MCP_PASSWORD_USERID_SYS1_EXAMPLE_COM": "replace-with-secret"
+      }
     }
   }
 }
 ```
 
-**Password-source precedence:** `ZOWE_MCP_PASSWORD_<USER>_<HOST>` wins for
-the same connection, followed by `ZOWE_MCP_CREDENTIALS`, then optional
-HashiCorp Vault KV. For native SSH, MCP elicitation follows when no configured
-source provides a password.
+Do not commit a configuration file that contains a password.
 
-### Optional: HashiCorp Vault KV
+To supply several passwords in one variable, set `ZOWE_MCP_CREDENTIALS` to a
+JSON object that maps each connection to its password:
 
-Vault KV provides passwords for automation and server-side deployments without
-putting them directly in the MCP process environment. Set all three required
-Vault variables to enable lookup:
+```json
+{
+  "USERID@sys1.example.com": "password-1",
+  "OTHER@sys2.example.com:2222": "password-2"
+}
+```
+
+A per-connection `ZOWE_MCP_PASSWORD_<USER>_<HOST>` variable takes precedence
+over `ZOWE_MCP_CREDENTIALS`.
+
+If z/OS rejects a password, the server does not try that password again until
+you restart the server.
+
+### Password in HashiCorp Vault
+
+The server can read passwords from a
+[HashiCorp Vault](https://developer.hashicorp.com/vault) KV version 2 secret.
+Set the first three variables to enable the lookup:
 
 | Variable | Purpose |
 | --- | --- |
-| `ZOWE_MCP_VAULT_ADDR` | Vault base URL, for example `https://vault.example.com`. |
-| `ZOWE_MCP_VAULT_TOKEN` | Token sent to Vault in the `X-Vault-Token` header. Treat it as a secret. |
-| `ZOWE_MCP_VAULT_KV_PATH` | KV v2 API path after `/v1/`, for example `secret/data/myapp/zowe-mcp`. |
-| `ZOWE_MCP_VAULT_CACHE_TTL_MS` | Optional in-process cache duration in milliseconds. The default is `60000`; set it to `0` to disable caching. |
+| `ZOWE_MCP_VAULT_ADDR` | Vault base URL, such as `https://vault.example.com`. |
+| `ZOWE_MCP_VAULT_TOKEN` | Vault token. Treat it as a secret. |
+| `ZOWE_MCP_VAULT_KV_PATH` | KV version 2 API path after `/v1/`, such as `secret/data/myapp/zowe-mcp`. |
+| `ZOWE_MCP_VAULT_CACHE_TTL_MS` | Optional. How long the server caches the secret in memory. The default is `60000`. Set `0` to disable the cache. |
 
-The secret data uses the same connection map as `ZOWE_MCP_CREDENTIALS`:
+The secret uses the same JSON object as `ZOWE_MCP_CREDENTIALS`. The server only
+reads from Vault. It never writes passwords to Vault.
 
-```json
-{
-  "userid@zos.example.com": "your-password",
-  "otheruser@other.host.example.com:2222": "other-password"
-}
-```
+### Password prompt
 
-The server reads this secret but never writes passwords to Vault. Vault values
-are cached only in memory. Elicited passwords are also held only for the server
-process lifetime and are cleared after failed authentication; use Vault or
-environment variables when credentials must remain available across restarts.
+When no other method supplies a password, the server asks the client to prompt
+you. This works only in clients that support
+[MCP elicitation](https://modelcontextprotocol.io/specification/2025-06-18/client/elicitation).
+In other clients the tool call fails, and you need a key or a password
+variable.
 
-Do not commit Vault tokens or passwords. Inject the token through your secret
-manager, deployment platform, or protected process environment.
+A password that you enter in a prompt is kept in memory until the server
+stops.
 
-### Why `ZOWE_MCP_CREDENTIALS` matters for MCP registries
+## Multiple systems and job cards
 
-[MCP registry](https://github.com/modelcontextprotocol/registry) entries (`server.json`) list **fixed** environment variable names so IDEs and installers can show “required secrets” and prompt users. The per-connection pattern `ZOWE_MCP_PASSWORD_*` **cannot be fully enumerated** in that metadata: the suffix depends on each site’s `user@host`, which the registry does not know at publish time.
-
-`ZOWE_MCP_CREDENTIALS` is a **single, stable name** that:
-
-- Fits registry schemas and “one secret field” UIs (VS Code gallery, Copilot, Claude Desktop, etc.).
-- Maps cleanly to enterprise secret stores (inject one variable from Vault, Kubernetes `Secret`, CI, etc.).
-- Covers **multiple** connections in one value when you use `--config` with several systems.
-
-The shipped [`server.json`](../packages/zowe-mcp-server/server.json) documents `ZOWE_MCP_CREDENTIALS` for that reason. For more background on credentials and HTTP authentication, see
-[`mcp-authentication-oauth.md`](mcp-authentication-oauth.md).
-
-Prefer injecting secrets from the OS or a vault; do not commit real passwords into `.roo/mcp.json`.
-
-## Job cards and multiple systems (no extension)
-
-The VS Code extension can send job cards over a pipe. In standalone mode, use **`--config`** with a JSON file:
+For more than one connection, or to supply JCL job cards, create a JSON
+configuration file and pass it with `--config` instead of `--system`:
 
 ```json
 {
-  "systems": ["user@host", "user2@host2.example.com:22"],
+  "systems": ["USERID@sys1.example.com", "USERID@sys2.example.com:2222"],
   "jobCards": {
-    "user@host": [
+    "USERID@sys1.example.com": [
       "//{jobname}  JOB (ACCT),'{programmer}',CLASS=A,MSGCLASS=X,NOTIFY=&SYSUID",
       "/*JOBPARM S=*"
     ]
@@ -202,19 +197,81 @@ The VS Code extension can send job cards over a pipe. In standalone mode, use **
 }
 ```
 
-Then add to your MCP `args`: `"--config", "/absolute/path/to/native-config.json"`.
+```json
+"args": ["--stdio", "--native", "--config", "/absolute/path/to/zowe-mcp-config.json"]
+```
 
-See the server CLI in [`index.ts`](../packages/zowe-mcp-server/src/index.ts) (`--native`, `--system`, `--config`).
+- When a tool call does not name a system, the server uses the first
+  connection in the list until the assistant calls `setSystem`. Set
+  `ZOWE_MCP_REQUIRE_EXPLICIT_SYSTEM=1` to make the assistant choose a system
+  explicitly. This is safer when the list mixes test and production systems.
+- The server adds the job card when submitted JCL has no `JOB` statement. It
+  replaces `{jobname}` and `{programmer}` with values from the tool call.
 
-## Mock mode
+## Local file transfers
 
-For standalone testing without a mainframe, see [Mock mode](mock-mode.md).
+The upload and download tools read and write files only inside your workspace
+folders. Most clients tell the server which folders are open. If your client
+does not, set `ZOWE_MCP_WORKSPACE_DIR` to the absolute path of your workspace
+folder.
 
-## Local file tools
+## Try it without a mainframe
 
-If the client does not expose MCP workspace roots, set **`ZOWE_MCP_WORKSPACE_DIR`** in `env` to your workspace folder so upload/download tools can resolve paths.
+Replace `--native --system ...` with `--mock <directory>` to use sample data.
+See [Mock mode](mock-mode.md).
 
-## See also
+## Server reference
 
-- [README.md](../README.md) — Standalone mode, `native-config.json`, VS Code `.vscode/mcp.json`
-- [copilot-setup-guide.md](copilot-setup-guide.md) — Extension-based setup with Copilot
+Run `zowe-mcp-server --help` for the complete and current list of options. The
+tables below describe the options that users set most often.
+
+### Command-line options
+
+| Option | Purpose |
+| --- | --- |
+| `--stdio` | Use the stdio transport. This is the default. |
+| `--native` | Use the SSH backend. `--zowex` is the same option. |
+| `--system <user@host[:port]>` | Add a z/OS connection. Repeat it for more connections. |
+| `--config <file>` | Read connections and job cards from a JSON file. |
+| `--mock <directory>` | Use the mock backend with the data in this directory. Cannot be combined with `--native`. |
+| `--capability-tier <tier>` | Limit what the assistant can do: `read-strict` (default), `read`, `update`, `delete`, or `full`. |
+| `--zowex-response-timeout <seconds>` | Time to wait for each z/OS request. The default is 60. |
+| `--zowex-server-path <path>` | Location of the Zowe Remote SSH server component on z/OS. The default is `~/.zowe-server`. |
+| `--zowex-server-auto-install=false` | Do not install the Zowe Remote SSH server component on z/OS when it is missing. |
+| `--default-mvs-encoding <name>` | EBCDIC code page for data sets. The default is `IBM-037`. |
+| `--default-uss-encoding <name>` | EBCDIC code page for USS files. The default is `IBM-1047`. |
+| `--local-files-root <directory>` | Allow local file transfers in this directory. Repeat it for more directories. |
+| `--response-cache-disable` | Turn off the cache of z/OS responses. By default, the server caches responses for 10 minutes. |
+| `--version`, `--help` | Show the version or the help text. |
+
+The options for the HTTP transport (`--http`, `--port`, `--http-host`, and
+`--http-allow-no-auth`) are described in the
+[remote server guide](remote-mcp-server.md).
+
+### Subcommands
+
+| Subcommand | Purpose |
+| --- | --- |
+| `zowe-mcp-server init-mock --output <directory>` | Create mock data. See [Mock mode](mock-mode.md). |
+| `zowe-mcp-server call-tool --mock=<directory> [tool] [key=value ...]` | Call one tool from the command line, without an AI client. Without a tool name, it lists the tools. |
+
+### Environment variables
+
+| Variable | Purpose |
+| --- | --- |
+| `ZOWE_MCP_CAPABILITY_TIER` | Same as `--capability-tier`. |
+| `ZOWE_MCP_MOCK_DIR` | Same as `--mock`. |
+| `ZOWE_MCP_PASSWORD_<USER>_<HOST>` | Password for one connection. |
+| `ZOWE_MCP_CREDENTIALS` | JSON object of passwords for several connections. |
+| `ZOWE_MCP_PRIVATE_KEY_<USER>_<HOST>` | Private key file for one connection. |
+| `ZOWE_MCP_KEY_PASSPHRASE_<USER>_<HOST>` | Passphrase for the private key of one connection. |
+| `ZOWE_MCP_DISABLE_SSH_KEY` | Set to `1` to never use SSH keys. |
+| `ZOWE_MCP_VAULT_ADDR`, `ZOWE_MCP_VAULT_TOKEN`, `ZOWE_MCP_VAULT_KV_PATH`, `ZOWE_MCP_VAULT_CACHE_TTL_MS` | HashiCorp Vault lookup. |
+| `ZOWE_MCP_REQUIRE_EXPLICIT_SYSTEM` | Set to `1` to make the assistant choose a system explicitly. |
+| `ZOWE_MCP_WORKSPACE_DIR` | Folder for local file transfers when the client does not report its folders. |
+| `ZOWE_MCP_LOCAL_FILES_ROOT` | Same as `--local-files-root`. Separate several directories with commas. |
+| `ZOWE_MCP_DEFAULT_MVS_ENCODING`, `ZOWE_MCP_DEFAULT_USS_ENCODING` | Same as the encoding options. |
+| `ZOWE_MCP_ZOWEX_RESPONSE_TIMEOUT`, `ZOWE_MCP_ZOWEX_SERVER_PATH`, `ZOWE_MCP_ZOWEX_SERVER_AUTO_INSTALL` | Same as the `--zowex-*` options. |
+| `ZOWE_MCP_LOG_LEVEL` | Minimum log level: `debug`, `info` (default), `notice`, `warning`, or `error`. The server writes its log to standard error. |
+| `ZOWE_MCP_LOG_TOOL_CALLS` | Set to `1` to log the full input and output of every tool call. The log then contains mainframe data. |
+| `ZOWE_MCP_DATA_MARKING` | Set to `0` to turn off the instruction that tells the assistant to treat mainframe content as data. |

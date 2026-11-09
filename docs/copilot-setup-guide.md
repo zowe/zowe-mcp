@@ -1,10 +1,9 @@
 # VS Code and GitHub Copilot
 
-The optional Zowe MCP VS Code extension registers the MCP server with GitHub
-Copilot Chat and manages settings, logs, and password prompts. The extension's
-canonical configuration reference is
-[`packages/zowe-mcp-vscode/README.md`](../packages/zowe-mcp-vscode/README.md).
-This page covers the Copilot setup flow.
+This page is for people who use Zowe MCP with GitHub Copilot Chat in VS Code.
+It walks through the Copilot side of the setup. The
+[extension README](../packages/zowe-mcp-vscode/README.md) describes the
+extension's settings.
 
 ## Who can use Copilot with Zowe MCP
 
@@ -26,32 +25,27 @@ This changes the chat model, not the Zowe MCP tools registered with Copilot.
 
 ## 2. Download and install the Zowe MCP extension
 
-The extension is not yet on the VS Code Marketplace. Either:
+The extension is not yet on the VS Code Marketplace.
 
-- follow the [source build and installation
-  instructions](../README.md#install-the-extension), or
-- download the `.vsix` from a repository release and run **Extensions: Install
-  from VSIX** from the Command Palette.
+1. Download `zowe-mcp-vscode-<version>.vsix` from the
+   [latest release](https://github.com/zowe/zowe-mcp/releases/latest).
+2. Run **Extensions: Install from VSIX...** from the Command Palette and select
+   the file.
 
-Reload VS Code after installation. The extension registers a **Zowe** MCP
-server.
+The extension registers an MCP server named **Zowe**.
 
 ## 3. Define your z/OS system
 
 Open Settings and search for **Zowe MCP**.
 
-For native SSH access:
+Add `user@host` or `user@host:port` entries under **Zowe MCP: Zowex
+Connections** (`zoweMCP.zowexConnections`).
 
-1. Set **Backend** to `zowex`.
-2. Add `user@host` or `user@host:port` entries under **Zowe MCP: Zowex
-   Connections** (`zoweMCP.zowexConnections`).
-3. Reload the window when prompted.
+The server uses your SSH key when you have one. Otherwise, the extension
+prompts for your password and stores it in VS Code Secret Storage.
 
-The extension requests a password when needed and stores it in VS Code Secret
-Storage. SSH keys are preferred when available.
-
-For testing without z/OS, set **Backend** to `mock` and run **Zowe MCP:
-Generate Mock Data**, or select an existing mock-data directory.
+To try Zowe MCP without z/OS, run **Zowe MCP: Generate Mock Data**. See
+[Try it without a mainframe](../packages/zowe-mcp-vscode/README.md#try-it-without-a-mainframe).
 
 ## 4. Check that Copilot sees the Zowe tools
 
@@ -71,6 +65,5 @@ Tool names appear with an `mcp_zowe_` prefix in Copilot, such as
 - If updated tools do not appear, restart the server. Use **MCP: Reset Cached
   Tools** when restarting is insufficient.
 
-For repeatable human test procedures, see the [Manual QA
-checklist](manual-qa.md). For general safety guidance, see [Safety and
-security](mcp-safety-security-principles.md).
+To control what the assistant can do, see
+[Choose what the assistant can do](../packages/zowe-mcp-vscode/README.md#choose-what-the-assistant-can-do).

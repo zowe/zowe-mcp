@@ -4,9 +4,9 @@ name: Changelog
 # a CHANGELOG.md (root or any package), or carries the `no-changelog` label for
 # changes that don't warrant an entry (CI, chore, internal refactors, docs).
 #
-# Not a required check (see CONTRIBUTING.md) — it's an advisory gate that pairs
-# with later release-automation work. The `labeled`/`unlabeled` triggers let the
-# check re-run the moment the escape-hatch label is added or removed.
+# Required check on main (see CONTRIBUTING.md, Required checks). The
+# `labeled`/`unlabeled` triggers let the check re-run the moment the
+# escape-hatch label is added or removed.
 on:
   pull_request:
     types: [opened, synchronize, reopened, labeled, unlabeled]

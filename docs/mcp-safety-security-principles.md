@@ -2,6 +2,10 @@
 
 This document adapts general MCP safety and security ideas to **Zowe MCP**: an MCP server that exposes z/OS-oriented tools (data sets, jobs, USS, TSO, local file bridge, and context) over **stdio** or **HTTP (Streamable)**, with optional **JWT validation** at the HTTP layer and **separate SSH credentials** for the native (Zowe Remote SSH) backend.
 
+This page is for administrators and security reviewers who decide how Zowe MCP
+may be used at their site. Users only need the short
+[Safety and security](../README.md#safety-and-security) section of the README.
+
 For how identity and secrets work in this project, see
 [mcp-authentication-oauth.md](./mcp-authentication-oauth.md). For registry and
 remote HTTP topology, see
@@ -17,7 +21,7 @@ remote HTTP topology, see
 
 In the context of Zowe MCP and LLM agents:
 
-- **Safety example:** VS Code’s MCP confirmation flow, or Zowe MCP’s **pattern-based command gates** (`runSafeTsoCommand`, `runSafeUssCommand`), catch or elicit approval before a risky TSO/USS command runs. That reduces accidental damage when the model “meant well.”
+- **Safety example:** VS Code’s MCP confirmation flow, or Zowe MCP’s **pattern-based command gates** (`runSafeTsoCommand`, `runSafeUssCommand`, `runConsoleCommand`), catch or elicit approval before a risky TSO, USS, or console command runs. That reduces accidental damage when the model “meant well.”
 - **Security example:** The SSH principal used by the server **cannot** alter production catalog entries or purge system data sets because **SAF** denies it—through resource profiles and related controls—regardless of what the model asks for.
 
 Safety is a net. Security is the fence. You need both, but you must not mistake one for the other.
@@ -47,7 +51,7 @@ Agents should only receive access needed for the task. Apply least privilege at 
 | **z/OS credentials** | Prefer a **dedicated SSH user** with narrow data set / USS / job profiles over a personal ID with broad ALTER and special attributes. **Prefer SSH key authentication** (ideally passphrase-protected) over passwords: a key is harder to exfiltrate than a password in an environment variable, which can leak via process listings, shell history, and crash dumps. The native backend resolves credentials in order — **SSH key** (auto-detected from `~/.ssh/config` / default `~/.ssh/id_*`, or pinned via `ZOWE_MCP_PRIVATE_KEY_*` / `ZOWE_MCP_KEY_PASSPHRASE_*`), then password via env (`ZOWE_MCP_PASSWORD_*`, `ZOWE_MCP_CREDENTIALS`), Vault KV, Kubernetes secrets, MCP elicitation, or (HTTP + JWT) per-tenant connection storage — not from the OAuth token by default. ssh-agent is not yet supported. |
 | **OAuth / HTTP** | JWT validation (`ZOWE_MCP_JWT_ISSUER`, `ZOWE_MCP_JWKS_URI`, optional audience) answers “who may call this MCP HTTP API?” It does **not** replace SSH user authority on the mainframe. See [mcp-authentication-oauth.md](./mcp-authentication-oauth.md). |
 | **Tool exposure** | MCP today surfaces **one flat tool list** per server instance. Zowe MCP does not ship **scope-based tool hiding** tied to OAuth claims; operational mitigations are architectural (see §5–§6). |
-| **Data scope** | Restrict which systems appear in config (`--system` / `--config`, VS Code `zoweMCP.nativeConnections`, tenant `addZosConnection`). Consider HLQ / path conventions and SAF resource profiles so even a confused agent cannot name arbitrary high-impact objects. |
+| **Data scope** | Restrict which systems appear in config (`--system` / `--config`, VS Code `zoweMCP.zowexConnections`, tenant `addZosConnection`). Consider HLQ / path conventions and SAF resource profiles so even a confused agent cannot name arbitrary high-impact objects. |
 | **Local file bridge** | Workspace-relative operations use MCP `roots/list` when available, or `ZOWE_MCP_WORKSPACE_DIR`, `ZOWE_MCP_LOCAL_FILES_ROOT`, or `--local-files-root`. Misconfiguration here expands blast radius to the IDE host. |
 
 Least privilege limits **blast radius** whether the failure mode is accident or exploitation.
@@ -126,13 +130,14 @@ Level 0 tools (MCP server management) always have `readOnlyHint: true` regardles
 
 ### Configuration
 
-Set the tier via (in priority order):
+Set the tier with one of these, in priority order:
 
 - `CreateServerOptions.capabilityTier` (programmatic)
 - `--capability-tier <tier>` CLI flag
 - `ZOWE_MCP_CAPABILITY_TIER` environment variable
-- VS Code setting `zoweMCP.capabilityTier`
 - Default: `read-strict`
+
+In VS Code, the `zoweMCP.capabilityTier` setting supplies the CLI flag.
 
 ### How it works
 
@@ -194,6 +199,7 @@ This section states **explicitly** what this repository already provides versus 
 | **Progressive capability tiers** (§7) | `--capability-tier` / `ZOWE_MCP_CAPABILITY_TIER` / VS Code `zoweMCP.capabilityTier`. Default `read-strict`. Filters tools at registration and derives hints. |
 | **Command safety** | Pattern-based evaluation for TSO, USS, and console command tools (`tso-command-patterns.json`, `console-command-patterns.json`, USS path/command gates); block vs elicit vs allow paths. These patterns are UX guardrails, not the security boundary: for console commands the boundary is the site ESM's OPERCMDS check under the invoking user's identity, plus the separately installed APF-authorized `zoweax` binary (see `doc/zoweax-security.md` in the zowe/zowex repository). |
 | **Audit / debug** | Optional full tool-call logging (`ZOWE_MCP_LOG_TOOL_CALLS` / `CreateServerOptions.logToolCalls`)—operational risk if secrets appear in arguments. |
+| **Tool-result data marking** | Server instructions tell the model to treat mainframe content as data, not as instructions. On by default; `ZOWE_MCP_DATA_MARKING=0` turns it off. A mitigation for prompt injection, not a guarantee. |
 | **Backend choice** | Mock filesystem backend vs native (Zowe Remote SSH) to limit real system exposure during learning or CI. |
 | **Local file bridge** | Paths constrained via MCP `roots/list` or `ZOWE_MCP_WORKSPACE_DIR`, `ZOWE_MCP_LOCAL_FILES_ROOT`, `--local-files-root`. |
 
@@ -203,7 +209,6 @@ These are **not** provided as first-class Zowe MCP features today. Some could be
 
 | Topic | In Zowe MCP today | Notes |
 | --- | --- | --- |
-| **Progressive capability levels** (§7) | **Implemented** — see §7 and `capability-level.ts`. | ✅ Done |
 | **OAuth / JWT scope → tool list** (§6) | JWT validates caller identity; **no** mapping from token scopes/claims to subsets of tools | Not implemented |
 | **In-server functional scoping** (§7) | No “datasets-only / jobs-only / USS-only” switch on one server process | Not implemented |
 | **In-server data scope policy** (§7) | No built-in HLQ or USS path allowlist enforced in tool handlers | Not implemented |

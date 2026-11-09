@@ -1,5 +1,8 @@
 # Authentication and z/OS access
 
+This page is for administrators of a remote Zowe MCP server. Start with the
+[remote server guide](remote-mcp-server.md).
+
 Zowe MCP authenticates two connections:
 
 | Connection | Authentication | Purpose |
@@ -46,7 +49,9 @@ metadata format.
 
 Do not expose an HTTP server without authentication. The
 `--http-allow-no-auth` option is for local development. Without JWT
-configuration, the server binds to loopback unless you set another host.
+configuration, the server binds to `127.0.0.1`. With JWT configuration, it
+listens on all interfaces unless you set `--http-host` or
+`ZOWE_MCP_HTTP_HOST`.
 
 For TLS and reverse proxy settings, see
 [Remote HTTP MCP](remote-http-mcp-registry.md#https-reverse-proxies-and-public-urls).
@@ -118,9 +123,13 @@ The files contain plaintext JSON by default. Set `ZOWE_MCP_TENANT_STORE_KEY` to
 encrypt them with AES-256-GCM.
 
 Use a random 32-byte key. Supply it as 64 hexadecimal characters or as base64.
+Any other value is used as a passphrase. The server then creates a
+`.tenant-store-salt` file in the store directory; back up that file with the
+user files.
 
 Keep the same key after a restart. If you lose or change the key, the server
-cannot read the existing files. Keep the key and file backups in separate
+treats each user's file as empty, and the next `addZosConnection` call replaces
+the file. The user's saved connections and job cards are then lost. Keep the key and file backups in separate
 locations.
 
 The server does not rotate keys or delete old user files. Removing a connection
@@ -146,15 +155,23 @@ The native backend tries these methods in order:
 3. HashiCorp Vault KV; and
 4. MCP password prompt.
 
+Credentials that you place on the server (SSH keys, password variables, and
+Vault) are found by the connection name (`user@host`), not by the signed-in
+user. Any signed-in user who adds that connection uses that credential. On a
+shared server, let each user enter a password in the prompt. Set
+`ZOWE_MCP_PUBLIC_BASE_URL` to the public HTTPS URL of the server so that the
+prompt can open a browser page.
+
 For variable names, Vault settings, and password prompts, see
-[Standalone MCP authentication](standalone-mcp.md#authentication-standalone).
+[Standalone server guide: Authentication](standalone-mcp.md#authentication).
 
 ## Related documentation
 
 | Task | Document |
 | --- | --- |
+| Start a remote server | [Remote server guide](remote-mcp-server.md) |
 | Register or configure a remote HTTP server | [Remote HTTP MCP](remote-http-mcp-registry.md) |
 | Run the local Keycloak environment | [Remote HTTP MCP with local Keycloak](remote-dev-keycloak.md) |
 | Configure a local registry | [Local registry setup](local-registry-setup.md) |
-| Configure SSH keys, passwords, or Vault | [Standalone MCP clients](standalone-mcp.md#authentication-standalone) |
+| Configure SSH keys, passwords, or Vault | [Standalone server guide: Authentication](standalone-mcp.md#authentication) |
 | Review the security model | [MCP safety and security principles](mcp-safety-security-principles.md) |

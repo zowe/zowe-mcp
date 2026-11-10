@@ -618,9 +618,13 @@ describe('runQuestion', () => {
     });
 
     describe('retryWhileEmpty', () => {
-      const isEmpty = (r: { text: string }): boolean => r.text === '';
-      const reasonOf = (r: { finishReason: string }): string => r.finishReason;
-      const blocked = { text: '', finishReason: 'content-filter' };
+      interface FakeAttempt {
+        text: string;
+        finishReason: string;
+      }
+      const isEmpty = (r: FakeAttempt): boolean => r.text === '';
+      const reasonOf = (r: FakeAttempt): string => r.finishReason;
+      const blocked: FakeAttempt = { text: '', finishReason: 'content-filter' };
 
       beforeEach(() => {
         vi.useFakeTimers();
@@ -630,7 +634,7 @@ describe('runQuestion', () => {
       });
 
       it('returns a content-filter result immediately when the refusal is final', async () => {
-        const attempt = vi.fn(() => Promise.resolve(blocked));
+        const attempt = vi.fn<() => Promise<FakeAttempt>>(() => Promise.resolve(blocked));
 
         const out = await retryWhileEmpty(attempt, isEmpty, reasonOf, true);
 
@@ -640,8 +644,11 @@ describe('runQuestion', () => {
       });
 
       it('retries a content-filter result when the refusal is not final', async () => {
-        const ok = { text: 'hello', finishReason: 'stop' };
-        const attempt = vi.fn().mockResolvedValueOnce(blocked).mockResolvedValue(ok);
+        const ok: FakeAttempt = { text: 'hello', finishReason: 'stop' };
+        const attempt = vi
+          .fn<() => Promise<FakeAttempt>>()
+          .mockResolvedValueOnce(blocked)
+          .mockResolvedValue(ok);
 
         const pending = retryWhileEmpty(attempt, isEmpty, reasonOf, false);
         await vi.runAllTimersAsync();
@@ -654,7 +661,7 @@ describe('runQuestion', () => {
       });
 
       it('reports a refusal when content-filter persists across every attempt', async () => {
-        const attempt = vi.fn(() => Promise.resolve(blocked));
+        const attempt = vi.fn<() => Promise<FakeAttempt>>(() => Promise.resolve(blocked));
 
         const pending = retryWhileEmpty(attempt, isEmpty, reasonOf, false);
         await vi.runAllTimersAsync();
@@ -666,7 +673,9 @@ describe('runQuestion', () => {
       });
 
       it('reports an empty response when every attempt is plain empty', async () => {
-        const attempt = vi.fn(() => Promise.resolve({ text: '', finishReason: 'stop' }));
+        const attempt = vi.fn<() => Promise<FakeAttempt>>(() =>
+          Promise.resolve({ text: '', finishReason: 'stop' })
+        );
 
         const pending = retryWhileEmpty(attempt, isEmpty, reasonOf, false);
         await vi.runAllTimersAsync();

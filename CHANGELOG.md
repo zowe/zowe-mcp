@@ -42,7 +42,8 @@ don't warrant an entry (CI, chores, internal refactors, docs-only) can carry the
 ### Fixed
 
 - Opening data sets, USS files, and jobs in Zowe Explorer now uses Explorer's
-  configured profiles without requiring the Zowe CLI.
+  configured profiles without requiring the Zowe CLI. Profiles matching the
+  target system take precedence over Explorer's default.
   ([#124](https://github.com/zowe/zowe-mcp/issues/124))
 
 - **Cleared three production dependency advisories** published on 2026-10-20

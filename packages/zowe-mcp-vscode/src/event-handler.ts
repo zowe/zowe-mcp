@@ -89,45 +89,45 @@ function emitJobCardEvent(
   log.info(`Sent job card for ${user}@${host} to MCP server`);
 }
 
-/** Session cache: profile name per system key (empty string = default). Cleared when extension deactivates. */
-const sessionProfileBySystem = new Map<string, string>();
+/** Session cache: profile name per system and transport preference. */
+const sessionEditorProfiles = new Map<string, string>();
 
 /**
  * Resolves Zowe profile for opening a resource in Zowe Explorer.
- * Returns profile name or null if user cancelled. Uses session cache, Explorer's configured default, system match, or prompts (quick pick / input).
+ * Returns profile name or null if user cancelled. Uses session cache, system match, Explorer's configured default, or prompts (quick pick / input).
  */
 async function resolveProfileForZoweEditor(
   log: vscode.LogOutputChannel,
   logLabel: string,
   explorer: vscode.Extension<ExplorerProfileApi>,
-  sessionKey: string,
   systemId: string | undefined,
   connectionKind: 'zowex' | 'zosmf' | 'native' | undefined
 ): Promise<string | null> {
-  let profile: string | undefined;
+  const system = systemId?.trim() ?? '';
+  const preferSshProfile = connectionKind === 'zowex' || connectionKind === 'native';
+  const sessionKey = `${preferSshProfile ? 'ssh' : 'zosmf'}:${system}`;
+  let profile = sessionEditorProfiles.get(sessionKey);
 
-  if (sessionProfileBySystem.has(sessionKey)) {
-    profile = sessionProfileBySystem.get(sessionKey)!;
+  if (profile) {
     log.info(`${logLabel}: using session profile for system`, {
-      system: sessionKey === '' ? '(default)' : sessionKey,
+      system: system === '' ? '(default)' : system,
       profile,
     });
   }
   const profileInfo = profile ? null : await getExplorerProfileInfo(explorer);
+  if (!profile && system) {
+    const resolved = resolveProfileFromSystem(profileInfo, system, preferSshProfile);
+    profile = resolved ?? undefined;
+    if (profile) {
+      sessionEditorProfiles.set(sessionKey, profile);
+      log.info(`${logLabel}: resolved profile from system`, { system, profile });
+    }
+  }
   if (!profile) {
     profile = getDefaultZosmfProfileName(profileInfo) ?? undefined;
     if (profile) {
-      sessionProfileBySystem.set(sessionKey, profile);
+      sessionEditorProfiles.set(sessionKey, profile);
       log.info(`${logLabel}: using default zosmf profile from team config`, { profile });
-    }
-  }
-  if (!profile && (systemId ?? '').trim()) {
-    const preferSshProfile = connectionKind === 'zowex' || connectionKind === 'native';
-    const resolved = resolveProfileFromSystem(profileInfo, systemId!, preferSshProfile);
-    profile = resolved ?? undefined;
-    if (profile) {
-      sessionProfileBySystem.set(sessionKey, profile);
-      log.info(`${logLabel}: resolved profile from system`, { system: systemId, profile });
     }
   }
   if (!profile) {
@@ -155,9 +155,9 @@ async function resolveProfileForZoweEditor(
       if (entered == null || entered.trim() === '') return null;
       profile = entered.trim();
     }
-    sessionProfileBySystem.set(sessionKey, profile);
+    sessionEditorProfiles.set(sessionKey, profile);
     log.info(`${logLabel}: user selected profile, remembered for session`, {
-      system: sessionKey === '' ? '(default)' : sessionKey,
+      system: system === '' ? '(default)' : system,
       profile,
     });
   }
@@ -497,12 +497,10 @@ async function handleOpenInEditor(
     return;
   }
 
-  const sessionKey = (data.system ?? '').trim();
   const profile = await resolveProfileForZoweEditor(
     log,
     logLabel,
     explorer,
-    sessionKey,
     data.system,
     data.connectionKind
   );

@@ -1122,8 +1122,7 @@ export function registerDatasetTools(
     {
       description:
         'Return a unique DSN prefix (HLQ) under which temporary data sets can be created. ' +
-        `The prefix is verified not to exist on the system. Default: current user + .${REQUIRED_SAFETY_QUALIFIER}.` +
-        ' To create a single temporary data set in one call, use createTempDataset.',
+        `The prefix is verified not to exist on the system. Default: current user + .${REQUIRED_SAFETY_QUALIFIER}.`,
       _meta: { resourceEffectLevel: ResourceEffect.READ },
       outputSchema: getTempDatasetPrefixOutputSchema,
       inputSchema: {

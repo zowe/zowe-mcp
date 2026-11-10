@@ -1270,7 +1270,7 @@ Creates a new data set with a unique temporary name in a single call. Returns th
 
 > Read-only
 
-Return a unique DSN prefix (HLQ) under which temporary data sets can be created. The prefix is verified not to exist on the system. Default: current user + .TMP. To create a single temporary data set in one call, use createTempDataset.
+Return a unique DSN prefix (HLQ) under which temporary data sets can be created. The prefix is verified not to exist on the system. Default: current user + .TMP.
 
 #### Parameters
 

@@ -135,7 +135,10 @@ export function getServerPackageJson(importMetaUrl: string): ServerPackageJsonWi
  * module's code has been esbuild-bundled and no longer lives next to the
  * asset on disk (inlined into an entry file or hoisted into a shared
  * chunk). Assets are copied into the bundled `server/` layout at exactly
- * this path (see `packages/zowe-mcp-vscode/scripts/bundle-server.js`).
+ * this path (see `packages/zowe-mcp-vscode/scripts/bundle-server.js`); in the
+ * npm tarball, whose bundle lives in `dist/`, the same relative path is
+ * looked up under `<packageRoot>/dist/` (see
+ * `packages/zowe-mcp-server/scripts/bundle-for-pack.cjs`).
  *
  * The direct probe is only accepted if the resulting path both exists AND
  * resolves inside the server package directory. Existence alone isn't
@@ -171,5 +174,16 @@ export function resolveAsset(
     if (isContained) return direct;
   }
 
-  return join(packageDir, ...packageRootRelativeParts);
+  // Bundled layouts ship the assets in one of two places relative to the
+  // package root, depending on who laid the package out:
+  //  - the VSIX's `server/` directory has its own package.json, with assets
+  //    directly beside it;
+  //  - the npm tarball keeps `package.json` at the package root and the
+  //    esbuild bundle plus assets under `dist/` (`main`/`bin` point there).
+  // Prefer the package-root path, fall back to `dist/`, and if neither exists
+  // return the package-root path so the resulting ENOENT names it.
+  const atPackageRoot = join(packageDir, ...packageRootRelativeParts);
+  if (existsSync(atPackageRoot)) return atPackageRoot;
+  const underDist = join(packageDir, 'dist', ...packageRootRelativeParts);
+  return existsSync(underDist) ? underDist : atPackageRoot;
 }

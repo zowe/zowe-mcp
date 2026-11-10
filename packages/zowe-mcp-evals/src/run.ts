@@ -26,7 +26,13 @@ import {
   reportRefusals,
   resolveNativeServerArgs,
 } from './evals-utils.js';
-import { getSystemPrompt, initMockData, McpEvalHarness, prepareEvalWorkspace } from './harness.js';
+import {
+  createMockResetter,
+  getSystemPrompt,
+  initMockData,
+  McpEvalHarness,
+  prepareEvalWorkspace,
+} from './harness.js';
 import { listSetNames, loadAndValidateAllSets } from './load-questions.js';
 import { log } from './log.js';
 import { maybeBuildJudge, runQuestion } from './question-runner.js';
@@ -209,6 +215,8 @@ async function main(): Promise<void> {
       workspaceDir,
     });
 
+    const resetter = createMockResetter(harness, serverPath, config.mock);
+
     try {
       log.info('Starting MCP server');
       await harness.start();
@@ -249,6 +257,7 @@ async function main(): Promise<void> {
           runLabel: r => `Running ${setName}/${q.id} (${r + 1}/${repetitions})`,
           verboseAnswers: true,
           acceptRefusal: config.acceptRefusal,
+          beforeRepetition: resetter?.beforeRepetition,
           onToolCalls: toolCalls => {
             for (const tc of toolCalls)
               allToolCalls.push({ name: tc.name, arguments: tc.arguments });
@@ -266,6 +275,7 @@ async function main(): Promise<void> {
     } finally {
       log.info('Stopping MCP server');
       await harness.stop();
+      resetter?.dispose();
       if (mockDir) rmSync(mockDir, { recursive: true, force: true });
       rmSync(workspaceDir, { recursive: true, force: true });
     }

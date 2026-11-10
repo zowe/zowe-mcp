@@ -259,6 +259,8 @@ function parseSetConfig(raw: unknown): SetConfig {
     if (typeof m.initArgs === 'string') {
       config.mock = { initArgs: m.initArgs };
       if (typeof m.capabilityTier === 'string') config.mock.capabilityTier = m.capabilityTier;
+      if (typeof m.resetPerRepetition === 'boolean')
+        config.mock.resetPerRepetition = m.resetPerRepetition;
     }
   }
   if (o.native && typeof o.native === 'object') {

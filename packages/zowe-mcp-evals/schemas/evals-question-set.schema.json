@@ -45,6 +45,11 @@
               "type": "string",
               "description": "Arguments passed to init-mock (after --output <dir>). Typical: '--preset default' or '--preset pagination'."
             },
+            "resetPerRepetition": {
+              "type": "boolean",
+              "default": false,
+              "description": "When true, every repetition of every question starts from freshly initialized mock data and a fresh MCP server process, so a run that destroys data cannot affect later repetitions. Costs one init-mock plus one server start per live repetition."
+            },
             "capabilityTier": {
               "type": "string",
               "enum": ["read-strict", "read", "update", "delete", "full"],

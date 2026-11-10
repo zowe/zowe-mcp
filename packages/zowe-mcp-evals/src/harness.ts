@@ -29,6 +29,7 @@ import type {
   CliPluginConnection,
   MockServerDef,
   SetConfig,
+  SetMockConfig,
   TokenUsage,
   ToolCallRecord,
 } from './types.js';
@@ -529,6 +530,17 @@ export class McpEvalHarness {
   }
 
   /**
+   * Stops the server (and any external mock servers), points it at a new mock data
+   * directory, and starts it again. Tools and instructions are unchanged because the
+   * set config is the same. The caller owns both directories.
+   */
+  async restart(mockDir: string): Promise<void> {
+    await this.stop();
+    this.options = { ...this.options, mockDir };
+    await this.start();
+  }
+
+  /**
    * Returns the MCP server instructions received during initialization.
    * Call after start().
    */
@@ -898,6 +910,45 @@ export function initMockData(serverPath: string, initArgs: string): string {
     throw new Error(`init-mock failed: ${r.stderr ?? r.stdout}`);
   }
   return tmpDir;
+}
+
+/** Hook plus cleanup returned by {@link createMockResetter}. */
+export interface MockResetter {
+  /** Gives the next repetition freshly initialized mock data and a fresh server process. */
+  beforeRepetition: (r: number) => Promise<void>;
+  /** Removes the mock directory created by the latest reset (no-op if none was created). */
+  dispose: () => void;
+}
+
+/**
+ * Builds the `beforeRepetition` hook for `mock.resetPerRepetition`. The harness's initial
+ * state counts as fresh, so the first live repetition does not reset; every later one
+ * does. Returns undefined when the set does not enable the option.
+ */
+export function createMockResetter(
+  harness: Pick<McpEvalHarness, 'restart'>,
+  serverPath: string,
+  mock: SetMockConfig | undefined
+): MockResetter | undefined {
+  if (!mock?.resetPerRepetition) return undefined;
+  let dirty = false;
+  let created: string | undefined;
+  return {
+    beforeRepetition: async r => {
+      if (dirty) {
+        const previous = created;
+        created = initMockData(serverPath, mock.initArgs);
+        await harness.restart(created);
+        if (previous) rmSync(previous, { recursive: true, force: true });
+        log.debug('Reset mock data and MCP server', { repetition: r + 1 });
+      }
+      dirty = true;
+    },
+    dispose: () => {
+      if (created) rmSync(created, { recursive: true, force: true });
+      created = undefined;
+    },
+  };
 }
 
 /** Seed file written by {@link prepareEvalWorkspace} for upload eval questions. */

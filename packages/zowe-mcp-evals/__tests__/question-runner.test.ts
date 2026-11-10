@@ -447,6 +447,83 @@ describe('runQuestion', () => {
       { name: 'listDatasets', arguments: { dsnPattern: 'USER.*' } },
     ]);
   });
+  describe('beforeRepetition hook', () => {
+    it('is awaited once per live repetition, before the run, in order', async () => {
+      const q: Question = { id: 'hook-1', prompt: 'p', assertionBlock: block([]) };
+      const events: string[] = [];
+      const runOne = vi.fn(() => {
+        events.push('run');
+        return Promise.resolve(fakeAgentRunResult('ok'));
+      });
+      const beforeRepetition = vi.fn(async (r: number) => {
+        await Promise.resolve();
+        events.push(`reset${r.toString()}`);
+      });
+
+      await runQuestion(
+        q,
+        baseCtx({ harness: fakeHarness({ runOne }), repetitions: 3, beforeRepetition })
+      );
+
+      expect(beforeRepetition).toHaveBeenCalledTimes(3);
+      expect(events).toEqual(['reset0', 'run', 'reset1', 'run', 'reset2', 'run']);
+    });
+
+    it('is not called for cache-hit replays', async () => {
+      const q: Question = { id: 'hook-2', prompt: 'hook prompt', assertionBlock: block([]) };
+      const key = buildCacheKey({
+        systemPrompt: 'You are a helper.',
+        prompt: 'hook prompt',
+        toolDefs: {},
+        repIndex: 0,
+      });
+      await cacheSet(cacheDir, key, { finalText: 'cached', toolCalls: [] });
+      const runOne = vi.fn(() => Promise.resolve(fakeAgentRunResult('live')));
+      const beforeRepetition = vi.fn(() => Promise.resolve());
+
+      await runQuestion(
+        q,
+        baseCtx({
+          harness: fakeHarness({ runOne }),
+          cache: { enabled: true, dir: cacheDir, stats: { hits: 0, writes: 0 } },
+          repetitions: 2,
+          beforeRepetition,
+        })
+      );
+
+      expect(runOne).toHaveBeenCalledTimes(1);
+      expect(beforeRepetition).toHaveBeenCalledTimes(1);
+      expect(beforeRepetition).toHaveBeenCalledWith(1);
+    });
+
+    it('is called once per repetition for a multi-turn question, not per turn', async () => {
+      const q: Question = {
+        id: 'hook-3',
+        prompt: 't1',
+        assertionBlock: block([]),
+        turns: [
+          { prompt: 't1', assertionBlock: block([]) },
+          { prompt: 't2', assertionBlock: block([]) },
+        ],
+      };
+      const runConversation = vi.fn(() =>
+        Promise.resolve({
+          ...fakeAgentRunResult('done'),
+          turns: [fakeAgentRunResult('a'), fakeAgentRunResult('b')],
+        })
+      );
+      const beforeRepetition = vi.fn(() => Promise.resolve());
+
+      await runQuestion(
+        q,
+        baseCtx({ harness: fakeHarness({ runConversation }), repetitions: 2, beforeRepetition })
+      );
+
+      expect(runConversation).toHaveBeenCalledTimes(2);
+      expect(beforeRepetition).toHaveBeenCalledTimes(2);
+    });
+  });
+
   describe('provider refusals', () => {
     const refusedRun = (): AgentRunResult => ({ ...fakeAgentRunResult(''), refused: true });
     const refusalQuestion = (extra: Partial<Question> = {}): Question => ({

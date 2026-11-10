@@ -38,7 +38,13 @@ import {
   reportRefusals,
   resolveNativeServerArgs,
 } from './evals-utils.js';
-import { getSystemPrompt, initMockData, McpEvalHarness, prepareEvalWorkspace } from './harness.js';
+import {
+  createMockResetter,
+  getSystemPrompt,
+  initMockData,
+  McpEvalHarness,
+  prepareEvalWorkspace,
+} from './harness.js';
 import { listSetNames, loadAndValidateAllSets } from './load-questions.js';
 import { log } from './log.js';
 import { maybeBuildJudge, runQuestion } from './question-runner.js';
@@ -193,6 +199,7 @@ async function runSetForModel(
   });
 
   const allResults: RunResult[] = [];
+  const resetter = createMockResetter(harness, SERVER_PATH, config.mock);
 
   try {
     await harness.start();
@@ -230,11 +237,13 @@ async function runSetForModel(
           `${progressTag}[${evalsConfig.modelId ?? 'default'}] ${setName}/${q.id} (${r + 1}/${repetitions})`,
         verboseAnswers: false,
         acceptRefusal: effectiveConfig.acceptRefusal,
+        beforeRepetition: resetter?.beforeRepetition,
       });
       allResults.push(...questionResults);
     }
   } finally {
     await harness.stop();
+    resetter?.dispose();
     if (mockDir) rmSync(mockDir, { recursive: true, force: true });
     rmSync(workspaceDir, { recursive: true, force: true });
   }

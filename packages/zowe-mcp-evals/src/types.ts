@@ -24,6 +24,13 @@ export interface SetMockConfig {
    * because it was never registered).
    */
   capabilityTier?: string;
+  /**
+   * When true, every repetition of every question starts from freshly initialized mock
+   * data and a fresh MCP server process (clean data, response cache, and session state).
+   * Use it for sets where one run can destroy data later repetitions depend on (e.g.
+   * deletes). Costs one init-mock plus one server start per live repetition. Default false.
+   */
+  resetPerRepetition?: boolean;
 }
 
 /**

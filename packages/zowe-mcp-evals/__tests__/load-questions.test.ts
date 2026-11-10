@@ -212,6 +212,49 @@ questions:
   });
 });
 
+describe('mock.resetPerRepetition parsing', () => {
+  let tmpDir: string;
+
+  beforeEach(() => {
+    tmpDir = mkdtempSync(join(tmpdir(), 'evals-reset-rep-test-'));
+  });
+
+  afterEach(() => {
+    rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  const yamlWith = (mockExtra: string): string => `
+config:
+  mock:
+    initArgs: --preset minimal
+${mockExtra}
+questions:
+  - id: q
+    prompt: Hello
+    assertions:
+      - toolCall:
+          tool: info
+`;
+
+  it('parses resetPerRepetition when true', () => {
+    const path = join(tmpDir, 'reset.yaml');
+    writeFileSync(path, yamlWith('    resetPerRepetition: true'), 'utf-8');
+    expect(loadSetYaml(path).config.mock?.resetPerRepetition).toBe(true);
+  });
+
+  it('leaves resetPerRepetition undefined when absent', () => {
+    const path = join(tmpDir, 'no-reset.yaml');
+    writeFileSync(path, yamlWith(''), 'utf-8');
+    expect(loadSetYaml(path).config.mock?.resetPerRepetition).toBeUndefined();
+  });
+
+  it('rejects a non-boolean resetPerRepetition', () => {
+    const path = join(tmpDir, 'bad-reset.yaml');
+    writeFileSync(path, yamlWith('    resetPerRepetition: "yes"'), 'utf-8');
+    expect(() => loadSetYaml(path)).toThrow('JSON Schema validation failed');
+  });
+});
+
 describe('acceptRefusal parsing', () => {
   let tmpDir: string;
 

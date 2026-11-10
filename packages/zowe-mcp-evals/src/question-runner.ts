@@ -75,6 +75,12 @@ export interface QuestionRunContext {
   /** Whether to print the "  Answer:" preview block after each pass/fail log line (run.ts: yes; eval-compare: no). */
   verboseAnswers: boolean;
   /** Called with every tool call made during a run (live or cache-replayed), single- or multi-turn. */
+  /**
+   * Awaited at the top of each live (non-cache-hit) repetition, before any model call. For
+   * multi-turn questions it runs once per repetition, never between turns. A throw is
+   * recorded as a failed run for that repetition.
+   */
+  beforeRepetition?: (repIndex: number) => Promise<void>;
   onToolCalls?: (toolCalls: { name: string; arguments: Record<string, unknown> }[]) => void;
 }
 
@@ -236,6 +242,7 @@ export async function runQuestion(q: Question, ctx: QuestionRunContext): Promise
     }
 
     try {
+      await ctx.beforeRepetition?.(r);
       let result: RunResult;
       let toStore: CachedRunResult;
       let emptyResponse: boolean;

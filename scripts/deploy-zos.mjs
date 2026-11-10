@@ -13,7 +13,7 @@
  * Deploys a workspace package (the SAF IdP or the MCP server) to a z/OS LPAR
  * over SSH (key auth) and restarts it.
  *
- *   npm run deploy:zos -- <target> [--skip-pack] [--no-restart] [--launch=shell|jcl]
+ *   npm run deploy:zos -- <target> [--skip-build] [--skip-pack] [--no-restart] [--launch=shell|jcl]
  *
  * <target> names a JSON file in deploy/<target>.json — per-system, per-service
  * configuration (package, hosts, paths, ports, environment contract, start
@@ -262,8 +262,10 @@ function tarballName(name, version) {
 async function main() {
   const args = process.argv.slice(2);
   const target = args.find(a => !a.startsWith('--'));
-  if (!target) fail('usage: npm run deploy:zos -- <target> [--skip-pack] [--no-restart]');
+  if (!target)
+    fail('usage: npm run deploy:zos -- <target> [--skip-build] [--skip-pack] [--no-restart]');
   const skipPack = args.includes('--skip-pack');
+  const skipBuild = args.includes('--skip-build');
   const noRestart = args.includes('--no-restart');
 
   loadDotEnv(join(repoRoot, 'deploy', '.env'));
@@ -314,6 +316,31 @@ async function main() {
   }
   if (config.prependPath?.length) {
     console.log(`  PATH prepend: ${config.prependPath.join(':')}`);
+  }
+
+  // The service port, for stop/liveness checks that work across users: on z/OS
+  // a deploy user can neither see (`ps -ef`) nor probe (`kill -0` → EPERM, which
+  // the shell reports as failure) a process owned by the STC user, so pid-based
+  // checks are blind there. `onetstat -P <port>` shows every listener to every
+  // user, so the port is the one cross-user source of truth.
+  const portArgIdx = (config.startArgs ?? []).indexOf('--port');
+  const servicePort =
+    config.port ??
+    (portArgIdx >= 0 ? Number(config.startArgs[portArgIdx + 1]) : undefined) ??
+    (config.verifyUrl ? Number(new URL(config.verifyUrl).port) || undefined : undefined);
+
+  // 0. Build. `npm pack`'s prepack only BUNDLES the existing dist/ — it does not
+  // compile. Without this step a dist/ built on another branch ships silently
+  // (found 2026-11-10: a main-era dist deployed from the feat/zos-saf-idp
+  // checkout crashed at startup on a connection spec the branch supports).
+  if (skipPack || skipBuild) {
+    console.log(`[0/6] build: skipped (${skipPack ? '--skip-pack' : '--skip-build'})`);
+  } else {
+    console.log(`[0/6] npm run build -w ${packageName} ...`);
+    const build = run('npm', ['run', 'build', '-w', packageName, '--if-present'], {
+      cwd: repoRoot,
+    });
+    if (build.status !== 0) fail(`workspace build failed:\n${build.output}`);
   }
 
   // 1. Pack (prepack bundles the production dependency tree into the tarball).
@@ -380,13 +407,34 @@ node ${nodeFlags} ${entry} doctor`,
   // The stop half is identical in both modes: in JCL mode the job's shell
   // wrote its own pid to .deploy.pid before exec'ing node, and killing that
   // pid also ends the batch job (BPXBATCH is waiting on it).
+  // Both stop mechanisms are blind to a process owned by the STC user: that
+  // pid is invisible to the deploy user's `ps -ef`, and `kill` on it fails
+  // EDC5139I (found 2026-11-10: an old STC-owned server survived two deploys
+  // and kept answering with the old build while each new start fail-closed
+  // exited). The port-free gate below is what actually guarantees the stop.
+  const portFreeGate = servicePort
+    ? `
+tries=0
+while onetstat -P ${servicePort} 2>/dev/null | grep -q Listen; do
+  tries=$((tries+1))
+  if [ "$tries" -ge 6 ]; then
+    echo "STOP_FAILED: a listener still owns port ${servicePort} after the stop step:"
+    onetstat -P ${servicePort} 2>/dev/null | head -5
+    echo "it likely runs as the STC user; stop it as root (su):"
+    echo "  kill <pid of the listener>   # find it: ps -ef | grep <pattern> (as root)"
+    exit 7
+  fi
+  sleep 2
+done
+echo "port ${servicePort} is free"`
+    : '';
   const stopScript = `cd ${shellQuote(config.remoteDir)}
 if [ -f .deploy.pid ] && kill -0 "$(cat .deploy.pid)" 2>/dev/null; then
   echo "stopping (pidfile): $(cat .deploy.pid)"; kill "$(cat .deploy.pid)"; sleep 2
 fi
 PIDS=$(ps -ef | grep -F ${shellQuote(config.stopPattern)} | grep -v grep | awk '{print $2}')
 if [ -n "$PIDS" ]; then echo "stopping (ps match): $PIDS"; kill $PIDS; sleep 2; else echo "no ps-matched process"; fi
-rm -f .deploy.pid`;
+rm -f .deploy.pid${portFreeGate}`;
   const startScript =
     launch === 'jcl'
       ? `cat > ${JCL_ENV_FILE} <<'ZMCP_EOF_ENV'
@@ -410,8 +458,16 @@ echo "$SUBMIT_OUT" | awk '{print $2}' > .deploy.jobid`
       : `nohup node ${nodeFlags} ${entry} ${(config.startArgs ?? []).map(shellQuote).join(' ')} < /dev/null >> ${shellQuote(config.logFile)} 2>&1 &
 echo $! > .deploy.pid
 echo "started pid $!"`;
-  const restart = sshScript(config, `${envPrelude}\n${stopScript}\n${startScript}`);
+  const restart = sshScript(config, `${envPrelude}\n${stopScript}\n${startScript}`, {
+    allowFailure: true,
+  });
   console.log(restart.output);
+  if (restart.output.includes('STOP_FAILED')) {
+    fail(
+      'the old process could not be stopped (see above) — it would keep the port and keep ' +
+        'serving the old build. Stop it as root on the LPAR, then re-run with --skip-pack.'
+    );
+  }
 
   // 6. Verify: process alive, the startup log line, then the discovery endpoint.
   console.log('[6/6] verify ...');
@@ -420,11 +476,17 @@ echo "started pid $!"`;
   await sleep(launch === 'jcl' ? 12_000 : 4000);
   // The env contract matters here too: the log is ASCII-tagged (written by
   // node), so reading it needs _BPXK_AUTOCVT to come out as text.
+  // Liveness: `kill -0` on an STC-owned pid fails with EPERM for the deploy
+  // user, so a perfectly alive started task reads as "PROCESS DIED" (observed
+  // 2026-11-10). When the service port is known, the listener is the truth.
+  const aliveCheck = servicePort
+    ? `if onetstat -P ${servicePort} 2>/dev/null | grep -q Listen; then echo "listener alive on port ${servicePort}"; else echo "PROCESS DIED"; fi`
+    : `if kill -0 "$(cat .deploy.pid)" 2>/dev/null; then echo "process alive: $(cat .deploy.pid)"; else echo "PROCESS DIED"; fi`;
   const logCheck = sshScript(
     config,
     `${envPrelude}
 cd ${shellQuote(config.remoteDir)}
-if kill -0 "$(cat .deploy.pid)" 2>/dev/null; then echo "process alive: $(cat .deploy.pid)"; else echo "PROCESS DIED"; fi
+${aliveCheck}
 tail -20 ${shellQuote(config.logFile)}`,
     { allowFailure: true }
   );

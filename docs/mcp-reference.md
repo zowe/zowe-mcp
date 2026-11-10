@@ -2221,7 +2221,7 @@ Delete all files and directories under the given USS path (the path itself is re
 
 > Destructive
 
-Run a TSO command on z/OS. Results may be line-windowed; follow the pagination instructions in the server instructions. Only allowlisted (safe) commands run automatically; unknown commands require user confirmation via elicitation. Requesting the same command without startLine and lineCount re-executes the command
+Run a TSO command on z/OS. Results may be line-windowed; follow the pagination instructions in the server instructions. The server checks every command before it runs. Allowlisted read-only commands such as LISTDS, LISTCAT and STATUS run immediately. A fixed set is always blocked and never runs: PASSWORD, PROFILE, ALTER, OSHELL, and DELETE or RENAME of system data sets (SYS1, SYS2, SYSL). Any other command needs the approval of the user, which the server requests itself through elicitation. Requesting the same command without startLine and lineCount re-executes the command
 
 #### Parameters
 

@@ -1,8 +1,8 @@
 # yaml-language-server: $schema=../schemas/evals-question-set.schema.json
-# TSO evals: runSafeTsoCommand with LISTALC, LISTDS, WHO (mock returns canned output)
+# TSO evals: runSafeTsoCommand or queryTso (read-only verbs) with LISTALC, LISTDS, WHO (mock returns canned output)
 config:
   name: tso
-  description: Agent must use runSafeTsoCommand for LISTALC, LISTDS, WHO
+  description: Agent must use runSafeTsoCommand (or queryTso for read-only query verbs) for LISTALC, LISTDS, WHO
   repetitions: 5
   minSuccessRate: 0.8
   mock:
@@ -13,12 +13,19 @@ questions:
     prompt: What data sets are currently allocated in my TSO session?
     assertions:
       - toolCall:
-          tool: runSafeTsoCommand
-          args:
-            commandText:
-              - 'LISTALC'
-              - 'LISTA'
-              - 'LISTDS'
+          oneOf:
+            - tool: runSafeTsoCommand
+              args:
+                commandText:
+                  - 'LISTALC'
+                  - 'LISTA'
+                  - 'LISTDS'
+            - tool: queryTso
+              args:
+                commandText:
+                  - 'LISTALC'
+                  - 'LISTA'
+                  - 'LISTDS'
       - answerContains:
           pattern: 'SYSIN|USER.INPUT|Allocations|allocated'
 
@@ -30,6 +37,12 @@ questions:
       - anyOf:
           - toolCall:
               tool: runSafeTsoCommand
+              args:
+                commandText:
+                  - 'LISTDS'
+                  - 'LISTD'
+          - toolCall:
+              tool: queryTso
               args:
                 commandText:
                   - 'LISTDS'
@@ -57,11 +70,17 @@ questions:
     prompt: Use a TSO command to list catalog entries.
     assertions:
       - toolCall:
-          tool: runSafeTsoCommand
-          args:
-            commandText:
-              - 'LISTCAT'
-              - 'LISTC'
+          oneOf:
+            - tool: runSafeTsoCommand
+              args:
+                commandText:
+                  - 'LISTCAT'
+                  - 'LISTC'
+            - tool: queryTso
+              args:
+                commandText:
+                  - 'LISTCAT'
+                  - 'LISTC'
       - answerContains:
           pattern: 'USER.MOCK|Catalog|LISTCAT'
 
@@ -75,6 +94,9 @@ questions:
             - tool: runSafeTsoCommand
               args:
                 commandText: 'STATUS'
+            - tool: queryTso
+              args:
+                commandText: 'STATUS'
       - answerContains:
           pattern: 'READY|STATUS'
 
@@ -82,9 +104,13 @@ questions:
     prompt: What time does TSO report right now?
     assertions:
       - toolCall:
-          tool: runSafeTsoCommand
-          args:
-            commandText: 'TIME'
+          oneOf:
+            - tool: runSafeTsoCommand
+              args:
+                commandText: 'TIME'
+            - tool: queryTso
+              args:
+                commandText: 'TIME'
       - answerContains:
           pattern: 'TIME|CPU|:'
 
@@ -92,11 +118,17 @@ questions:
     prompt: Show the TSO HELP output.
     assertions:
       - toolCall:
-          tool: runSafeTsoCommand
-          args:
-            commandText:
-              - 'HELP'
-              - 'H'
+          oneOf:
+            - tool: runSafeTsoCommand
+              args:
+                commandText:
+                  - 'HELP'
+                  - 'H'
+            - tool: queryTso
+              args:
+                commandText:
+                  - 'HELP'
+                  - 'H'
       - answerContains:
           pattern: 'command|HELP|LISTDS'
 
@@ -118,9 +150,13 @@ questions:
     prompt: Run the TSO LISTBC command to check for any broadcast messages waiting for me.
     assertions:
       - toolCall:
-          tool: runSafeTsoCommand
-          args:
-            commandText: { pattern: 'LISTBC' }
+          oneOf:
+            - tool: runSafeTsoCommand
+              args:
+                commandText: { pattern: 'LISTBC' }
+            - tool: queryTso
+              args:
+                commandText: { pattern: 'LISTBC' }
       - answerContains:
           pattern: 'broadcast|IKJM026I|message'
 
@@ -128,8 +164,12 @@ questions:
     prompt: Which data sets are tied up in my current session right now?
     assertions:
       - toolCall:
-          tool: runSafeTsoCommand
-          args:
-            commandText: { pattern: 'LISTALC|LISTA' }
+          oneOf:
+            - tool: runSafeTsoCommand
+              args:
+                commandText: { pattern: 'LISTALC|LISTA' }
+            - tool: queryTso
+              args:
+                commandText: { pattern: 'LISTALC|LISTA' }
       - answerContains:
           pattern: 'DDNAME|SYSIN|allocat'

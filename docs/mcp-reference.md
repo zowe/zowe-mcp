@@ -71,13 +71,14 @@ UNIX System Services — navigate directories, read/write files, manage permissi
 
 ## TSO
 
-The server provides **1** tool.
+The server provides **2** tools.
 
 Time Sharing Option — run TSO commands interactively on z/OS.
 
-| # | Tool                                      | Description               |
-|---|-------------------------------------------|---------------------------|
-| 1 | [`runSafeTsoCommand`](#runsafetsocommand) | Run a TSO command on z/OS |
+| # | Tool                                      | Description                                                                                                            |
+|---|-------------------------------------------|------------------------------------------------------------------------------------------------------------------------|
+| 1 | [`queryTso`](#querytso)                   | Run a read-only TSO query command on z/OS, such as LISTUSER, LISTGRP, LISTDSD, RLIST, SEARCH, LISTDS, LISTCAT, or TIME |
+| 2 | [`runSafeTsoCommand`](#runsafetsocommand) | Run a TSO command on z/OS                                                                                              |
 
 ## System Information
 
@@ -2080,7 +2081,7 @@ Output:
 ```json
 // isError: true
 {
-  "error": "Deletes root filesystem"
+  "error": "This USS command was BLOCKED by the z/OS MCP safety policy and was NOT run. Deletes root filesystem Do not retry it or explain how to run it; if it is genuinely required, advise the user to run it through an authorized channel (such as an SSH or OMVS session) under their own authority."
 }
 ```
 
@@ -2217,6 +2218,93 @@ Delete all files and directories under the given USS path (the path itself is re
 
 ---
 
+### `queryTso`
+
+> Read-only
+
+Run a read-only TSO query command on z/OS, such as LISTUSER, LISTGRP, LISTDSD, RLIST, SEARCH, LISTDS, LISTCAT, or TIME. Results may be line-windowed; follow the pagination instructions in the server instructions. Only read-only query commands are accepted (no confirmation prompts, nothing that changes the system), so it is available to read-only users; use runSafeTsoCommand for anything else. Commands run through tsocmd in a z/OS UNIX environment with no TSO session allocations or help data sets, so LISTALC, HELP and STATUS return little there. RACF output is limited to what the signed-in user is authorized to see, and command direction (AT/ONLYAT), SEARCH CLIST and LISTCAT OUTFILE are refused
+
+#### Parameters
+
+| Parameter     | Type      | Required | Description                                                                                                                                                                                                                                                                                                         |
+|---------------|-----------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `commandText` | `string`  | Yes      | The TSO query command, e.g. LISTUSER USER01 TSO, LISTGRP SYS1, LISTDSD DATASET('USER.DATA') ALL, RLIST FACILITY BPX.SUPERUSER ALL, SEARCH CLASS(DATASET) MASK(USER), LISTDS 'USER.DATA'.                                                                                                                            |
+| `system`      | `string`  | No       | Optional. Target z/OS system (a host, or user@host when several connections exist). Omit it to use the active/default connection — you do not need to select or set a system first, and you should still call the tool when no system has been chosen yet. Specify it only to target a different configured system. |
+| `startLine`   | `integer` | No       | 1-based first line of output to return. Default: 1.                                                                                                                                                                                                                                                                 |
+| `lineCount`   | `integer` | No       | Number of lines to return. Omit for default window size.                                                                                                                                                                                                                                                            |
+
+<a id="querytso-output-schema"></a>
+
+#### Output Schema
+
+| Field             | Type       | Required | Description                                                                                             |
+|-------------------|------------|----------|---------------------------------------------------------------------------------------------------------|
+| `_context`        | `object`   | Yes      | Resolution context: target z/OS system.                                                                 |
+| &ensp;└─ `system` | `string`   | Yes      | Resolved z/OS system hostname (target of the operation).                                                |
+| `_result`         | `object`   | Yes      | Line-window metadata for TSO output. *(same as [`readDataset`](#readdataset-output-schema))*            |
+| `messages`        | `string`[] | No       | Operational messages: line-window hints (e.g. call again with startLine/lineCount). Omitted when empty. |
+| `data`            | `object`   | Yes      | *(same as [`runSafeUssCommand`](#runsafeusscommand-output-schema))*                                     |
+
+#### Example Outputs
+
+##### default
+
+Input:
+
+```json
+{
+  "commandText": "LISTUSER USER01"
+}
+```
+
+Output:
+
+```json
+{
+  "_context": {
+    "system": "mainframe-dev.example.com"
+  },
+  "_result": {
+    "totalLines": 4,
+    "startLine": 1,
+    "returnedLines": 4,
+    "contentLength": 169,
+    "mimeType": "text/plain",
+    "hasMore": false
+  },
+  "data": {
+    "lines": [
+      "USER=USER01  NAME=MOCK USER  OWNER=SYS1  CREATED=24.001",
+      " DEFAULT-GROUP=SYS1  PASSDATE=26.001 PASS-INTERVAL=N/A",
+      " ATTRIBUTES=NONE",
+      " GROUP=SYS1  AUTH=USE  CONNECT-OWNER=SYS1"
+    ],
+    "mimeType": "text/plain"
+  }
+}
+```
+
+##### blocked command
+
+Input:
+
+```json
+{
+  "commandText": "ALTUSER USER01 SPECIAL"
+}
+```
+
+Output:
+
+```json
+// isError: true
+{
+  "error": "\"ALTUSER\" is not a read-only TSO query command. Allowed: LISTUSER, LISTGRP, LISTDSD, RLIST, SEARCH, LISTDS, LISTALC, LISTCAT, LISTBC, STATUS, HELP, TIME. Use runSafeTsoCommand for other commands."
+}
+```
+
+---
+
 ### `runSafeTsoCommand`
 
 > Destructive
@@ -2236,13 +2324,12 @@ Run a TSO command on z/OS. Results may be line-windowed; follow the pagination i
 
 #### Output Schema
 
-| Field             | Type       | Required | Description                                                                                             |
-|-------------------|------------|----------|---------------------------------------------------------------------------------------------------------|
-| `_context`        | `object`   | Yes      | Resolution context: target z/OS system.                                                                 |
-| &ensp;└─ `system` | `string`   | Yes      | Resolved z/OS system hostname (target of the operation).                                                |
-| `_result`         | `object`   | Yes      | Line-window metadata for TSO output. *(same as [`readDataset`](#readdataset-output-schema))*            |
-| `messages`        | `string`[] | No       | Operational messages: line-window hints (e.g. call again with startLine/lineCount). Omitted when empty. |
-| `data`            | `object`   | Yes      | *(same as [`runSafeUssCommand`](#runsafeusscommand-output-schema))*                                     |
+| Field      | Type       | Required | Description                                                                                             |
+|------------|------------|----------|---------------------------------------------------------------------------------------------------------|
+| `_context` | `object`   | Yes      | Resolution context: target z/OS system. *(same as [`queryTso`](#querytso-output-schema))*               |
+| `_result`  | `object`   | Yes      | Line-window metadata for TSO output. *(same as [`readDataset`](#readdataset-output-schema))*            |
+| `messages` | `string`[] | No       | Operational messages: line-window hints (e.g. call again with startLine/lineCount). Omitted when empty. |
+| `data`     | `object`   | Yes      | *(same as [`runSafeUssCommand`](#runsafeusscommand-output-schema))*                                     |
 
 #### Example Outputs
 
@@ -2321,7 +2408,7 @@ List the APF-authorized (Authorized Program Facility) data sets on the z/OS syst
 
 | Field             | Type       | Required | Description                                                                                                            |
 |-------------------|------------|----------|------------------------------------------------------------------------------------------------------------------------|
-| `_context`        | `object`   | Yes      | Resolution context: target z/OS system. *(same as [`runSafeTsoCommand`](#runsafetsocommand-output-schema))*            |
+| `_context`        | `object`   | Yes      | Resolution context: target z/OS system. *(same as [`queryTso`](#querytso-output-schema))*                              |
 | `_result`         | `object`   | Yes      | Pagination metadata: count, totalAvailable, offset, hasMore. *(same as [`listDatasets`](#listdatasets-output-schema))* |
 | `messages`        | `string`[] | No       | Operational messages (e.g. pagination/line-window hints). Omitted when empty.                                          |
 | `data`            | `object`[] | Yes      | APF-authorized data sets for this page.                                                                                |
@@ -2408,7 +2495,7 @@ List the PROCLIB concatenation on the z/OS system (the data sets searched for JC
 
 | Field      | Type       | Required | Description                                                                                                             |
 |------------|------------|----------|-------------------------------------------------------------------------------------------------------------------------|
-| `_context` | `object`   | Yes      | Resolution context: target z/OS system. *(same as [`runSafeTsoCommand`](#runsafetsocommand-output-schema))*             |
+| `_context` | `object`   | Yes      | Resolution context: target z/OS system. *(same as [`queryTso`](#querytso-output-schema))*                               |
 | `_result`  | `object`   | Yes      | Pagination metadata: count, totalAvailable, offset, hasMore. *(same as [`listDatasets`](#listdatasets-output-schema))*  |
 | `messages` | `string`[] | No       | Operational messages (e.g. pagination/line-window hints). Omitted when empty.                                           |
 | `data`     | `object`[] | Yes      | PROCLIB data sets (in concatenation order) for this page. *(same as [`restoreDataset`](#restoredataset-output-schema))* |
@@ -2468,7 +2555,7 @@ List the PARMLIB concatenation on the z/OS system (the data sets searched for sy
 
 | Field      | Type       | Required | Description                                                                                                             |
 |------------|------------|----------|-------------------------------------------------------------------------------------------------------------------------|
-| `_context` | `object`   | Yes      | Resolution context: target z/OS system. *(same as [`runSafeTsoCommand`](#runsafetsocommand-output-schema))*             |
+| `_context` | `object`   | Yes      | Resolution context: target z/OS system. *(same as [`queryTso`](#querytso-output-schema))*                               |
 | `_result`  | `object`   | Yes      | Pagination metadata: count, totalAvailable, offset, hasMore. *(same as [`listDatasets`](#listdatasets-output-schema))*  |
 | `messages` | `string`[] | No       | Operational messages (e.g. pagination/line-window hints). Omitted when empty.                                           |
 | `data`     | `object`[] | Yes      | PARMLIB data sets (in concatenation order) for this page. *(same as [`restoreDataset`](#restoredataset-output-schema))* |
@@ -2525,7 +2612,7 @@ List the link list (LNKLST) concatenation on the z/OS system (the data sets sear
 
 | Field                    | Type       | Required | Description                                                                                                            |
 |--------------------------|------------|----------|------------------------------------------------------------------------------------------------------------------------|
-| `_context`               | `object`   | Yes      | Resolution context: target z/OS system. *(same as [`runSafeTsoCommand`](#runsafetsocommand-output-schema))*            |
+| `_context`               | `object`   | Yes      | Resolution context: target z/OS system. *(same as [`queryTso`](#querytso-output-schema))*                              |
 | `_result`                | `object`   | Yes      | Pagination metadata: count, totalAvailable, offset, hasMore. *(same as [`listDatasets`](#listdatasets-output-schema))* |
 | `messages`               | `string`[] | No       | Operational messages (e.g. pagination/line-window hints). Omitted when empty.                                          |
 | `data`                   | `object`[] | Yes      | Link list (LNKLST) data sets (in concatenation order) for this page.                                                   |
@@ -2602,7 +2689,7 @@ View the z/OS SYSLOG (the system operations log). Results may be line-windowed; 
 
 | Field                | Type       | Required | Description                                                                                                                  |
 |----------------------|------------|----------|------------------------------------------------------------------------------------------------------------------------------|
-| `_context`           | `object`   | Yes      | Resolution context: target z/OS system. *(same as [`runSafeTsoCommand`](#runsafetsocommand-output-schema))*                  |
+| `_context`           | `object`   | Yes      | Resolution context: target z/OS system. *(same as [`queryTso`](#querytso-output-schema))*                                    |
 | `_result`            | `object`   | Yes      | Line-window metadata: totalLines, startLine, returnedLines, hasMore. *(same as [`readDataset`](#readdataset-output-schema))* |
 | `messages`           | `string`[] | No       | Operational messages (e.g. pagination/line-window hints). Omitted when empty.                                                |
 | `data`               | `object`   | Yes      |                                                                                                                              |
@@ -2714,12 +2801,12 @@ Run a read-only z/OS DISPLAY operator console command and return its output. Res
 
 #### Output Schema
 
-| Field      | Type       | Required | Description                                                                                                 |
-|------------|------------|----------|-------------------------------------------------------------------------------------------------------------|
-| `_context` | `object`   | Yes      | Resolution context: target z/OS system. *(same as [`runSafeTsoCommand`](#runsafetsocommand-output-schema))* |
-| `_result`  | `object`   | Yes      | Result metadata (line window). *(same as [`readDataset`](#readdataset-output-schema))*                      |
-| `messages` | `string`[] | No       | Operational messages: pagination hints, resolution notes. Omitted when empty.                               |
-| `data`     | `object`   | Yes      | *(same as [`runSafeUssCommand`](#runsafeusscommand-output-schema))*                                         |
+| Field      | Type       | Required | Description                                                                               |
+|------------|------------|----------|-------------------------------------------------------------------------------------------|
+| `_context` | `object`   | Yes      | Resolution context: target z/OS system. *(same as [`queryTso`](#querytso-output-schema))* |
+| `_result`  | `object`   | Yes      | Result metadata (line window). *(same as [`readDataset`](#readdataset-output-schema))*    |
+| `messages` | `string`[] | No       | Operational messages: pagination hints, resolution notes. Omitted when empty.             |
+| `data`     | `object`   | Yes      | *(same as [`runSafeUssCommand`](#runsafeusscommand-output-schema))*                       |
 
 ---
 
@@ -2742,22 +2829,22 @@ Show a certificate's owner, usage, trust status, default flag, key size, serial 
 
 #### Output Schema
 
-| Field                   | Type       | Required | Description                                                                                                 |
-|-------------------------|------------|----------|-------------------------------------------------------------------------------------------------------------|
-| `_context`              | `object`   | Yes      | Resolution context: target z/OS system. *(same as [`runSafeTsoCommand`](#runsafetsocommand-output-schema))* |
-| `messages`              | `string`[] | No       | Operational messages (e.g. a non-fatal SAF warning). Omitted when empty.                                    |
-| `data`                  | `object`   | Yes      |                                                                                                             |
-| &ensp;├─ `label`        | `string`   | Yes      | Certificate label.                                                                                          |
-| &ensp;├─ `owner`        | `string`   | Yes      | Owning user ID.                                                                                             |
-| &ensp;├─ `usage`        | `string`   | Yes      | Usage: PERSONAL, CERTAUTH, or OTHER.                                                                        |
-| &ensp;├─ `status`       | `string`   | Yes      | Trust status: TRUST, HIGHTRUST, NOTRUST, or UNKNOWN.                                                        |
-| &ensp;├─ `isDefault`    | `boolean`  | Yes      | Whether this certificate is the ring's default.                                                             |
-| &ensp;├─ `keyType`      | `number`   | Yes      | Private-key type code.                                                                                      |
-| &ensp;├─ `keySize`      | `number`   | Yes      | Private-key size in bits (0 if no private key).                                                             |
-| &ensp;├─ `serialNumber` | `string`   | No       | Certificate serial number (hex).                                                                            |
-| &ensp;├─ `notBefore`    | `string`   | No       | Validity start (ISO-8601).                                                                                  |
-| &ensp;├─ `notAfter`     | `string`   | No       | Validity end (ISO-8601).                                                                                    |
-| &ensp;└─ `recordId`     | `string`   | No       | Security-database record ID (serial + issuer identifier).                                                   |
+| Field                   | Type       | Required | Description                                                                               |
+|-------------------------|------------|----------|-------------------------------------------------------------------------------------------|
+| `_context`              | `object`   | Yes      | Resolution context: target z/OS system. *(same as [`queryTso`](#querytso-output-schema))* |
+| `messages`              | `string`[] | No       | Operational messages (e.g. a non-fatal SAF warning). Omitted when empty.                  |
+| `data`                  | `object`   | Yes      |                                                                                           |
+| &ensp;├─ `label`        | `string`   | Yes      | Certificate label.                                                                        |
+| &ensp;├─ `owner`        | `string`   | Yes      | Owning user ID.                                                                           |
+| &ensp;├─ `usage`        | `string`   | Yes      | Usage: PERSONAL, CERTAUTH, or OTHER.                                                      |
+| &ensp;├─ `status`       | `string`   | Yes      | Trust status: TRUST, HIGHTRUST, NOTRUST, or UNKNOWN.                                      |
+| &ensp;├─ `isDefault`    | `boolean`  | Yes      | Whether this certificate is the ring's default.                                           |
+| &ensp;├─ `keyType`      | `number`   | Yes      | Private-key type code.                                                                    |
+| &ensp;├─ `keySize`      | `number`   | Yes      | Private-key size in bits (0 if no private key).                                           |
+| &ensp;├─ `serialNumber` | `string`   | No       | Certificate serial number (hex).                                                          |
+| &ensp;├─ `notBefore`    | `string`   | No       | Validity start (ISO-8601).                                                                |
+| &ensp;├─ `notAfter`     | `string`   | No       | Validity end (ISO-8601).                                                                  |
+| &ensp;└─ `recordId`     | `string`   | No       | Security-database record ID (serial + issuer identifier).                                 |
 
 #### Example Output
 
@@ -2818,18 +2905,18 @@ Connect a certificate to a key ring. The underlying SAF call requires the certif
 
 #### Output Schema
 
-| Field                     | Type       | Required | Description                                                                                                 |
-|---------------------------|------------|----------|-------------------------------------------------------------------------------------------------------------|
-| `_context`                | `object`   | Yes      | Resolution context: target z/OS system. *(same as [`runSafeTsoCommand`](#runsafetsocommand-output-schema))* |
-| `_result`                 | `object`   | Yes      | Result of a mutation. success is true. *(same as [`writeDataset`](#writedataset-output-schema))*            |
-| `messages`                | `string`[] | No       | Operational messages (e.g. a non-fatal SAF warning). Omitted when empty.                                    |
-| `data`                    | `object`   | Yes      |                                                                                                             |
-| &ensp;├─ `owner`          | `string`   | Yes      | Certificate owner (user ID).                                                                                |
-| &ensp;├─ `keyring`        | `string`   | Yes      | Target key ring name.                                                                                       |
-| &ensp;├─ `label`          | `string`   | Yes      | Certificate label.                                                                                          |
-| &ensp;├─ `warning`        | `string`   | No       | Human-readable note for a non-fatal warning, when one occurred.                                             |
-| &ensp;├─ `safReturnCodes` | `object`   | No       | SAF codes behind a warning or error, when a non-zero code was returned.                                     |
-| &ensp;└─ `gskReturnCode`  | `number`   | No       | System SSL / GSKCMS status code, when a GSK call failed.                                                    |
+| Field                     | Type       | Required | Description                                                                                      |
+|---------------------------|------------|----------|--------------------------------------------------------------------------------------------------|
+| `_context`                | `object`   | Yes      | Resolution context: target z/OS system. *(same as [`queryTso`](#querytso-output-schema))*        |
+| `_result`                 | `object`   | Yes      | Result of a mutation. success is true. *(same as [`writeDataset`](#writedataset-output-schema))* |
+| `messages`                | `string`[] | No       | Operational messages (e.g. a non-fatal SAF warning). Omitted when empty.                         |
+| `data`                    | `object`   | Yes      |                                                                                                  |
+| &ensp;├─ `owner`          | `string`   | Yes      | Certificate owner (user ID).                                                                     |
+| &ensp;├─ `keyring`        | `string`   | Yes      | Target key ring name.                                                                            |
+| &ensp;├─ `label`          | `string`   | Yes      | Certificate label.                                                                               |
+| &ensp;├─ `warning`        | `string`   | No       | Human-readable note for a non-fatal warning, when one occurred.                                  |
+| &ensp;├─ `safReturnCodes` | `object`   | No       | SAF codes behind a warning or error, when a non-zero code was returned.                          |
+| &ensp;└─ `gskReturnCode`  | `number`   | No       | System SSL / GSKCMS status code, when a GSK call failed.                                         |
 
 #### Example Output
 
@@ -2885,19 +2972,19 @@ Disconnect a certificate from a key ring, or delete it from the security databas
 
 #### Output Schema
 
-| Field                     | Type       | Required | Description                                                                                                 |
-|---------------------------|------------|----------|-------------------------------------------------------------------------------------------------------------|
-| `_context`                | `object`   | Yes      | Resolution context: target z/OS system. *(same as [`runSafeTsoCommand`](#runsafetsocommand-output-schema))* |
-| `_result`                 | `object`   | Yes      | Result of a mutation. success is true. *(same as [`writeDataset`](#writedataset-output-schema))*            |
-| `messages`                | `string`[] | No       | Operational messages (e.g. a non-fatal SAF warning). Omitted when empty.                                    |
-| `data`                    | `object`   | Yes      |                                                                                                             |
-| &ensp;├─ `owner`          | `string`   | Yes      | Certificate owner (user ID).                                                                                |
-| &ensp;├─ `label`          | `string`   | Yes      | Certificate label.                                                                                          |
-| &ensp;├─ `keyring`        | `string`   | No       | Key ring the certificate was disconnected from.                                                             |
-| &ensp;├─ `database`       | `boolean`  | No       | True when the certificate was deleted from the security database.                                           |
-| &ensp;├─ `warning`        | `string`   | No       | Human-readable note for a non-fatal warning, when one occurred.                                             |
-| &ensp;├─ `safReturnCodes` | `object`   | No       | SAF codes behind a warning or error, when a non-zero code was returned.                                     |
-| &ensp;└─ `gskReturnCode`  | `number`   | No       | System SSL / GSKCMS status code, when a GSK call failed.                                                    |
+| Field                     | Type       | Required | Description                                                                                      |
+|---------------------------|------------|----------|--------------------------------------------------------------------------------------------------|
+| `_context`                | `object`   | Yes      | Resolution context: target z/OS system. *(same as [`queryTso`](#querytso-output-schema))*        |
+| `_result`                 | `object`   | Yes      | Result of a mutation. success is true. *(same as [`writeDataset`](#writedataset-output-schema))* |
+| `messages`                | `string`[] | No       | Operational messages (e.g. a non-fatal SAF warning). Omitted when empty.                         |
+| `data`                    | `object`   | Yes      |                                                                                                  |
+| &ensp;├─ `owner`          | `string`   | Yes      | Certificate owner (user ID).                                                                     |
+| &ensp;├─ `label`          | `string`   | Yes      | Certificate label.                                                                               |
+| &ensp;├─ `keyring`        | `string`   | No       | Key ring the certificate was disconnected from.                                                  |
+| &ensp;├─ `database`       | `boolean`  | No       | True when the certificate was deleted from the security database.                                |
+| &ensp;├─ `warning`        | `string`   | No       | Human-readable note for a non-fatal warning, when one occurred.                                  |
+| &ensp;├─ `safReturnCodes` | `object`   | No       | SAF codes behind a warning or error, when a non-zero code was returned.                          |
+| &ensp;└─ `gskReturnCode`  | `number`   | No       | System SSL / GSKCMS status code, when a GSK call failed.                                         |
 
 ---
 
@@ -2922,18 +3009,18 @@ Export a certificate from a key ring in PEM (certificate only) or PKCS#12 (certi
 
 #### Output Schema
 
-| Field                   | Type       | Required | Description                                                                                                 |
-|-------------------------|------------|----------|-------------------------------------------------------------------------------------------------------------|
-| `_context`              | `object`   | Yes      | Resolution context: target z/OS system. *(same as [`runSafeTsoCommand`](#runsafetsocommand-output-schema))* |
-| `messages`              | `string`[] | No       | Operational messages (e.g. a non-fatal SAF warning). Omitted when empty.                                    |
-| `data`                  | `object`   | Yes      |                                                                                                             |
-| &ensp;├─ `label`        | `string`   | Yes      | Certificate label.                                                                                          |
-| &ensp;├─ `owner`        | `string`   | Yes      | Key ring owner (user ID).                                                                                   |
-| &ensp;├─ `keyring`      | `string`   | Yes      | Key ring name.                                                                                              |
-| &ensp;├─ `format`       | `string`   | Yes      | Export format that was produced ("pem" or "p12").                                                           |
-| &ensp;├─ `file`         | `string`   | No       | Output file path, when written to disk on z/OS.                                                             |
-| &ensp;├─ `bytesWritten` | `number`   | No       | Number of bytes written to the output file.                                                                 |
-| &ensp;└─ `content`      | `string`   | No       | Exported certificate text (PEM), when not written to a file.                                                |
+| Field                   | Type       | Required | Description                                                                               |
+|-------------------------|------------|----------|-------------------------------------------------------------------------------------------|
+| `_context`              | `object`   | Yes      | Resolution context: target z/OS system. *(same as [`queryTso`](#querytso-output-schema))* |
+| `messages`              | `string`[] | No       | Operational messages (e.g. a non-fatal SAF warning). Omitted when empty.                  |
+| `data`                  | `object`   | Yes      |                                                                                           |
+| &ensp;├─ `label`        | `string`   | Yes      | Certificate label.                                                                        |
+| &ensp;├─ `owner`        | `string`   | Yes      | Key ring owner (user ID).                                                                 |
+| &ensp;├─ `keyring`      | `string`   | Yes      | Key ring name.                                                                            |
+| &ensp;├─ `format`       | `string`   | Yes      | Export format that was produced ("pem" or "p12").                                         |
+| &ensp;├─ `file`         | `string`   | No       | Output file path, when written to disk on z/OS.                                           |
+| &ensp;├─ `bytesWritten` | `number`   | No       | Number of bytes written to the output file.                                               |
+| &ensp;└─ `content`      | `string`   | No       | Exported certificate text (PEM), when not written to a file.                              |
 
 #### Example Output
 
@@ -2988,18 +3075,18 @@ Import a certificate (and its private key, when present) into a key ring from a 
 
 #### Output Schema
 
-| Field                     | Type       | Required | Description                                                                                                 |
-|---------------------------|------------|----------|-------------------------------------------------------------------------------------------------------------|
-| `_context`                | `object`   | Yes      | Resolution context: target z/OS system. *(same as [`runSafeTsoCommand`](#runsafetsocommand-output-schema))* |
-| `_result`                 | `object`   | Yes      | Result of a mutation. success is true. *(same as [`writeDataset`](#writedataset-output-schema))*            |
-| `messages`                | `string`[] | No       | Operational messages (e.g. a non-fatal SAF warning). Omitted when empty.                                    |
-| `data`                    | `object`   | Yes      |                                                                                                             |
-| &ensp;├─ `label`          | `string`   | Yes      | Certificate label.                                                                                          |
-| &ensp;├─ `owner`          | `string`   | Yes      | Key ring owner (user ID).                                                                                   |
-| &ensp;├─ `keyring`        | `string`   | Yes      | Key ring name.                                                                                              |
-| &ensp;├─ `warning`        | `string`   | No       | Human-readable note for a non-fatal warning, when one occurred.                                             |
-| &ensp;├─ `safReturnCodes` | `object`   | No       | SAF codes behind a warning or error, when a non-zero code was returned.                                     |
-| &ensp;└─ `gskReturnCode`  | `number`   | No       | System SSL / GSKCMS status code, when a GSK call failed.                                                    |
+| Field                     | Type       | Required | Description                                                                                      |
+|---------------------------|------------|----------|--------------------------------------------------------------------------------------------------|
+| `_context`                | `object`   | Yes      | Resolution context: target z/OS system. *(same as [`queryTso`](#querytso-output-schema))*        |
+| `_result`                 | `object`   | Yes      | Result of a mutation. success is true. *(same as [`writeDataset`](#writedataset-output-schema))* |
+| `messages`                | `string`[] | No       | Operational messages (e.g. a non-fatal SAF warning). Omitted when empty.                         |
+| `data`                    | `object`   | Yes      |                                                                                                  |
+| &ensp;├─ `label`          | `string`   | Yes      | Certificate label.                                                                               |
+| &ensp;├─ `owner`          | `string`   | Yes      | Key ring owner (user ID).                                                                        |
+| &ensp;├─ `keyring`        | `string`   | Yes      | Key ring name.                                                                                   |
+| &ensp;├─ `warning`        | `string`   | No       | Human-readable note for a non-fatal warning, when one occurred.                                  |
+| &ensp;├─ `safReturnCodes` | `object`   | No       | SAF codes behind a warning or error, when a non-zero code was returned.                          |
+| &ensp;└─ `gskReturnCode`  | `number`   | No       | System SSL / GSKCMS status code, when a GSK call failed.                                         |
 
 #### Example Output
 
@@ -3054,12 +3141,12 @@ Set a certificate that is already connected to a key ring as that ring's default
 
 #### Output Schema
 
-| Field      | Type       | Required | Description                                                                                                 |
-|------------|------------|----------|-------------------------------------------------------------------------------------------------------------|
-| `_context` | `object`   | Yes      | Resolution context: target z/OS system. *(same as [`runSafeTsoCommand`](#runsafetsocommand-output-schema))* |
-| `_result`  | `object`   | Yes      | Result of a mutation. success is true. *(same as [`writeDataset`](#writedataset-output-schema))*            |
-| `messages` | `string`[] | No       | Operational messages (e.g. a non-fatal SAF warning). Omitted when empty.                                    |
-| `data`     | `object`   | Yes      | *(same as [`connectCertificate`](#connectcertificate-output-schema))*                                       |
+| Field      | Type       | Required | Description                                                                                      |
+|------------|------------|----------|--------------------------------------------------------------------------------------------------|
+| `_context` | `object`   | Yes      | Resolution context: target z/OS system. *(same as [`queryTso`](#querytso-output-schema))*        |
+| `_result`  | `object`   | Yes      | Result of a mutation. success is true. *(same as [`writeDataset`](#writedataset-output-schema))* |
+| `messages` | `string`[] | No       | Operational messages (e.g. a non-fatal SAF warning). Omitted when empty.                         |
+| `data`     | `object`   | Yes      | *(same as [`connectCertificate`](#connectcertificate-output-schema))*                            |
 
 #### Example Output
 
@@ -3111,18 +3198,18 @@ Change a certificate's trust status. A key ring is not required; the certificate
 
 #### Output Schema
 
-| Field                     | Type       | Required | Description                                                                                                 |
-|---------------------------|------------|----------|-------------------------------------------------------------------------------------------------------------|
-| `_context`                | `object`   | Yes      | Resolution context: target z/OS system. *(same as [`runSafeTsoCommand`](#runsafetsocommand-output-schema))* |
-| `_result`                 | `object`   | Yes      | Result of a mutation. success is true. *(same as [`writeDataset`](#writedataset-output-schema))*            |
-| `messages`                | `string`[] | No       | Operational messages (e.g. a non-fatal SAF warning). Omitted when empty.                                    |
-| `data`                    | `object`   | Yes      |                                                                                                             |
-| &ensp;├─ `owner`          | `string`   | Yes      | Certificate owner (user ID).                                                                                |
-| &ensp;├─ `label`          | `string`   | Yes      | Certificate label.                                                                                          |
-| &ensp;├─ `status`         | `string`   | Yes      | New trust status: TRUST, HIGHTRUST, or NOTRUST.                                                             |
-| &ensp;├─ `warning`        | `string`   | No       | Human-readable note for a non-fatal warning, when one occurred.                                             |
-| &ensp;├─ `safReturnCodes` | `object`   | No       | SAF codes behind a warning or error, when a non-zero code was returned.                                     |
-| &ensp;└─ `gskReturnCode`  | `number`   | No       | System SSL / GSKCMS status code, when a GSK call failed.                                                    |
+| Field                     | Type       | Required | Description                                                                                      |
+|---------------------------|------------|----------|--------------------------------------------------------------------------------------------------|
+| `_context`                | `object`   | Yes      | Resolution context: target z/OS system. *(same as [`queryTso`](#querytso-output-schema))*        |
+| `_result`                 | `object`   | Yes      | Result of a mutation. success is true. *(same as [`writeDataset`](#writedataset-output-schema))* |
+| `messages`                | `string`[] | No       | Operational messages (e.g. a non-fatal SAF warning). Omitted when empty.                         |
+| `data`                    | `object`   | Yes      |                                                                                                  |
+| &ensp;├─ `owner`          | `string`   | Yes      | Certificate owner (user ID).                                                                     |
+| &ensp;├─ `label`          | `string`   | Yes      | Certificate label.                                                                               |
+| &ensp;├─ `status`         | `string`   | Yes      | New trust status: TRUST, HIGHTRUST, or NOTRUST.                                                  |
+| &ensp;├─ `warning`        | `string`   | No       | Human-readable note for a non-fatal warning, when one occurred.                                  |
+| &ensp;├─ `safReturnCodes` | `object`   | No       | SAF codes behind a warning or error, when a non-zero code was returned.                          |
+| &ensp;└─ `gskReturnCode`  | `number`   | No       | System SSL / GSKCMS status code, when a GSK call failed.                                         |
 
 #### Example Output
 
@@ -3174,18 +3261,18 @@ Change a certificate's label. A key ring is not required; the certificate is ide
 
 #### Output Schema
 
-| Field                     | Type       | Required | Description                                                                                                 |
-|---------------------------|------------|----------|-------------------------------------------------------------------------------------------------------------|
-| `_context`                | `object`   | Yes      | Resolution context: target z/OS system. *(same as [`runSafeTsoCommand`](#runsafetsocommand-output-schema))* |
-| `_result`                 | `object`   | Yes      | Result of a mutation. success is true. *(same as [`writeDataset`](#writedataset-output-schema))*            |
-| `messages`                | `string`[] | No       | Operational messages (e.g. a non-fatal SAF warning). Omitted when empty.                                    |
-| `data`                    | `object`   | Yes      |                                                                                                             |
-| &ensp;├─ `owner`          | `string`   | Yes      | Certificate owner (user ID).                                                                                |
-| &ensp;├─ `label`          | `string`   | Yes      | Previous certificate label.                                                                                 |
-| &ensp;├─ `newLabel`       | `string`   | Yes      | New certificate label.                                                                                      |
-| &ensp;├─ `warning`        | `string`   | No       | Human-readable note for a non-fatal warning, when one occurred.                                             |
-| &ensp;├─ `safReturnCodes` | `object`   | No       | SAF codes behind a warning or error, when a non-zero code was returned.                                     |
-| &ensp;└─ `gskReturnCode`  | `number`   | No       | System SSL / GSKCMS status code, when a GSK call failed.                                                    |
+| Field                     | Type       | Required | Description                                                                                      |
+|---------------------------|------------|----------|--------------------------------------------------------------------------------------------------|
+| `_context`                | `object`   | Yes      | Resolution context: target z/OS system. *(same as [`queryTso`](#querytso-output-schema))*        |
+| `_result`                 | `object`   | Yes      | Result of a mutation. success is true. *(same as [`writeDataset`](#writedataset-output-schema))* |
+| `messages`                | `string`[] | No       | Operational messages (e.g. a non-fatal SAF warning). Omitted when empty.                         |
+| `data`                    | `object`   | Yes      |                                                                                                  |
+| &ensp;├─ `owner`          | `string`   | Yes      | Certificate owner (user ID).                                                                     |
+| &ensp;├─ `label`          | `string`   | Yes      | Previous certificate label.                                                                      |
+| &ensp;├─ `newLabel`       | `string`   | Yes      | New certificate label.                                                                           |
+| &ensp;├─ `warning`        | `string`   | No       | Human-readable note for a non-fatal warning, when one occurred.                                  |
+| &ensp;├─ `safReturnCodes` | `object`   | No       | SAF codes behind a warning or error, when a non-zero code was returned.                          |
+| &ensp;└─ `gskReturnCode`  | `number`   | No       | System SSL / GSKCMS status code, when a GSK call failed.                                         |
 
 #### Example Output
 
@@ -3234,15 +3321,15 @@ Refresh the DIGTCERT class so that certificate and key ring changes take effect.
 
 #### Output Schema
 
-| Field                     | Type       | Required | Description                                                                                                 |
-|---------------------------|------------|----------|-------------------------------------------------------------------------------------------------------------|
-| `_context`                | `object`   | Yes      | Resolution context: target z/OS system. *(same as [`runSafeTsoCommand`](#runsafetsocommand-output-schema))* |
-| `_result`                 | `object`   | Yes      | Result of a mutation. success is true. *(same as [`writeDataset`](#writedataset-output-schema))*            |
-| `messages`                | `string`[] | No       | Operational messages (e.g. a non-fatal SAF warning). Omitted when empty.                                    |
-| `data`                    | `object`   | Yes      |                                                                                                             |
-| &ensp;├─ `warning`        | `string`   | No       | Human-readable note for a non-fatal warning, when one occurred.                                             |
-| &ensp;├─ `safReturnCodes` | `object`   | No       | SAF codes behind a warning or error, when a non-zero code was returned.                                     |
-| &ensp;└─ `gskReturnCode`  | `number`   | No       | System SSL / GSKCMS status code, when a GSK call failed.                                                    |
+| Field                     | Type       | Required | Description                                                                                      |
+|---------------------------|------------|----------|--------------------------------------------------------------------------------------------------|
+| `_context`                | `object`   | Yes      | Resolution context: target z/OS system. *(same as [`queryTso`](#querytso-output-schema))*        |
+| `_result`                 | `object`   | Yes      | Result of a mutation. success is true. *(same as [`writeDataset`](#writedataset-output-schema))* |
+| `messages`                | `string`[] | No       | Operational messages (e.g. a non-fatal SAF warning). Omitted when empty.                         |
+| `data`                    | `object`   | Yes      |                                                                                                  |
+| &ensp;├─ `warning`        | `string`   | No       | Human-readable note for a non-fatal warning, when one occurred.                                  |
+| &ensp;├─ `safReturnCodes` | `object`   | No       | SAF codes behind a warning or error, when a non-zero code was returned.                          |
+| &ensp;└─ `gskReturnCode`  | `number`   | No       | System SSL / GSKCMS status code, when a GSK call failed.                                         |
 
 #### Example Output
 
@@ -3281,28 +3368,28 @@ Submit JCL to the current (or specified) z/OS system. When JCL has no JOB statem
 
 #### Output Schema
 
-| Field                         | Type       | Required | Description                                                                                                 |
-|-------------------------------|------------|----------|-------------------------------------------------------------------------------------------------------------|
-| `_context`                    | `object`   | Yes      | Resolution context: target z/OS system. *(same as [`runSafeTsoCommand`](#runsafetsocommand-output-schema))* |
-| `_result`                     | `object`   | Yes      | Result metadata (pagination or success). *(same as [`writeDataset`](#writedataset-output-schema))*          |
-| `messages`                    | `string`[] | No       | Operational messages: pagination hints, job card notice, or other notes. Omitted when empty.                |
-| `data`                        | `object`   | Yes      |                                                                                                             |
-| &ensp;├─ `jobId`              | `string`   | Yes      | Job ID assigned by JES (e.g. JOB00123).                                                                     |
-| &ensp;├─ `jobName`            | `string`   | Yes      | Job name from the JOB statement.                                                                            |
-| &ensp;├─ `jobCardAddedLines`  | `string`[] | No       | Job card lines that were prepended when JCL had no job card.                                                |
-| &ensp;├─ `id`                 | `string`   | No       | Job ID.                                                                                                     |
-| &ensp;├─ `name`               | `string`   | No       | Job name.                                                                                                   |
-| &ensp;├─ `owner`              | `string`   | No       | Job owner.                                                                                                  |
-| &ensp;├─ `status`             | `string`   | No       | Status: INPUT, ACTIVE, or OUTPUT.                                                                           |
-| &ensp;├─ `type`               | `string`   | No       | Job type: JOB, STC, TSU.                                                                                    |
-| &ensp;├─ `class`              | `string`   | No       | Execution class.                                                                                            |
-| &ensp;├─ `retcode`            | `string`   | No       | Return code when complete (e.g. CC 0000).                                                                   |
-| &ensp;├─ `subsystem`          | `string`   | No       | Subsystem.                                                                                                  |
-| &ensp;├─ `phase`              | `number`   | No       | Phase number.                                                                                               |
-| &ensp;├─ `phaseName`          | `string`   | No       | Phase name.                                                                                                 |
-| &ensp;├─ `correlator`         | `string`   | No       | Correlator (JES3).                                                                                          |
-| &ensp;├─ `timedOut`           | `boolean`  | No       | True if wait for OUTPUT timed out; job continues on z/OS.                                                   |
-| &ensp;└─ `failedStepJobFiles` | `object`[] | No       | Job file entries for failed steps when retcode is non-zero.                                                 |
+| Field                         | Type       | Required | Description                                                                                        |
+|-------------------------------|------------|----------|----------------------------------------------------------------------------------------------------|
+| `_context`                    | `object`   | Yes      | Resolution context: target z/OS system. *(same as [`queryTso`](#querytso-output-schema))*          |
+| `_result`                     | `object`   | Yes      | Result metadata (pagination or success). *(same as [`writeDataset`](#writedataset-output-schema))* |
+| `messages`                    | `string`[] | No       | Operational messages: pagination hints, job card notice, or other notes. Omitted when empty.       |
+| `data`                        | `object`   | Yes      |                                                                                                    |
+| &ensp;├─ `jobId`              | `string`   | Yes      | Job ID assigned by JES (e.g. JOB00123).                                                            |
+| &ensp;├─ `jobName`            | `string`   | Yes      | Job name from the JOB statement.                                                                   |
+| &ensp;├─ `jobCardAddedLines`  | `string`[] | No       | Job card lines that were prepended when JCL had no job card.                                       |
+| &ensp;├─ `id`                 | `string`   | No       | Job ID.                                                                                            |
+| &ensp;├─ `name`               | `string`   | No       | Job name.                                                                                          |
+| &ensp;├─ `owner`              | `string`   | No       | Job owner.                                                                                         |
+| &ensp;├─ `status`             | `string`   | No       | Status: INPUT, ACTIVE, or OUTPUT.                                                                  |
+| &ensp;├─ `type`               | `string`   | No       | Job type: JOB, STC, TSU.                                                                           |
+| &ensp;├─ `class`              | `string`   | No       | Execution class.                                                                                   |
+| &ensp;├─ `retcode`            | `string`   | No       | Return code when complete (e.g. CC 0000).                                                          |
+| &ensp;├─ `subsystem`          | `string`   | No       | Subsystem.                                                                                         |
+| &ensp;├─ `phase`              | `number`   | No       | Phase number.                                                                                      |
+| &ensp;├─ `phaseName`          | `string`   | No       | Phase name.                                                                                        |
+| &ensp;├─ `correlator`         | `string`   | No       | Correlator (JES3).                                                                                 |
+| &ensp;├─ `timedOut`           | `boolean`  | No       | True if wait for OUTPUT timed out; job continues on z/OS.                                          |
+| &ensp;└─ `failedStepJobFiles` | `object`[] | No       | Job file entries for failed steps when retcode is non-zero.                                        |
 
 ---
 
@@ -3325,27 +3412,27 @@ Submit a job from a data set or PDS or PDS/E member containing JCL. The data set
 
 #### Output Schema
 
-| Field                         | Type       | Required | Description                                                                                                 |
-|-------------------------------|------------|----------|-------------------------------------------------------------------------------------------------------------|
-| `_context`                    | `object`   | Yes      | Resolution context: target z/OS system. *(same as [`runSafeTsoCommand`](#runsafetsocommand-output-schema))* |
-| `_result`                     | `object`   | Yes      | Result metadata (pagination or success). *(same as [`writeDataset`](#writedataset-output-schema))*          |
-| `messages`                    | `string`[] | No       | Operational messages: pagination hints, job card notice, or other notes. Omitted when empty.                |
-| `data`                        | `object`   | Yes      |                                                                                                             |
-| &ensp;├─ `jobId`              | `string`   | Yes      | Job ID assigned by JES.                                                                                     |
-| &ensp;├─ `jobName`            | `string`   | Yes      | Job name from the JOB statement.                                                                            |
-| &ensp;├─ `id`                 | `string`   | No       | Job ID.                                                                                                     |
-| &ensp;├─ `name`               | `string`   | No       | Job name.                                                                                                   |
-| &ensp;├─ `owner`              | `string`   | No       | Job owner.                                                                                                  |
-| &ensp;├─ `status`             | `string`   | No       | Status: INPUT, ACTIVE, or OUTPUT.                                                                           |
-| &ensp;├─ `type`               | `string`   | No       | Job type: JOB, STC, TSU.                                                                                    |
-| &ensp;├─ `class`              | `string`   | No       | Execution class.                                                                                            |
-| &ensp;├─ `retcode`            | `string`   | No       | Return code when complete (e.g. CC 0000).                                                                   |
-| &ensp;├─ `subsystem`          | `string`   | No       | Subsystem.                                                                                                  |
-| &ensp;├─ `phase`              | `number`   | No       | Phase number.                                                                                               |
-| &ensp;├─ `phaseName`          | `string`   | No       | Phase name.                                                                                                 |
-| &ensp;├─ `correlator`         | `string`   | No       | Correlator (JES3).                                                                                          |
-| &ensp;├─ `timedOut`           | `boolean`  | No       | True if wait for OUTPUT timed out; job continues on z/OS.                                                   |
-| &ensp;└─ `failedStepJobFiles` | `object`[] | No       | Job file entries for failed steps when retcode is non-zero.                                                 |
+| Field                         | Type       | Required | Description                                                                                        |
+|-------------------------------|------------|----------|----------------------------------------------------------------------------------------------------|
+| `_context`                    | `object`   | Yes      | Resolution context: target z/OS system. *(same as [`queryTso`](#querytso-output-schema))*          |
+| `_result`                     | `object`   | Yes      | Result metadata (pagination or success). *(same as [`writeDataset`](#writedataset-output-schema))* |
+| `messages`                    | `string`[] | No       | Operational messages: pagination hints, job card notice, or other notes. Omitted when empty.       |
+| `data`                        | `object`   | Yes      |                                                                                                    |
+| &ensp;├─ `jobId`              | `string`   | Yes      | Job ID assigned by JES.                                                                            |
+| &ensp;├─ `jobName`            | `string`   | Yes      | Job name from the JOB statement.                                                                   |
+| &ensp;├─ `id`                 | `string`   | No       | Job ID.                                                                                            |
+| &ensp;├─ `name`               | `string`   | No       | Job name.                                                                                          |
+| &ensp;├─ `owner`              | `string`   | No       | Job owner.                                                                                         |
+| &ensp;├─ `status`             | `string`   | No       | Status: INPUT, ACTIVE, or OUTPUT.                                                                  |
+| &ensp;├─ `type`               | `string`   | No       | Job type: JOB, STC, TSU.                                                                           |
+| &ensp;├─ `class`              | `string`   | No       | Execution class.                                                                                   |
+| &ensp;├─ `retcode`            | `string`   | No       | Return code when complete (e.g. CC 0000).                                                          |
+| &ensp;├─ `subsystem`          | `string`   | No       | Subsystem.                                                                                         |
+| &ensp;├─ `phase`              | `number`   | No       | Phase number.                                                                                      |
+| &ensp;├─ `phaseName`          | `string`   | No       | Phase name.                                                                                        |
+| &ensp;├─ `correlator`         | `string`   | No       | Correlator (JES3).                                                                                 |
+| &ensp;├─ `timedOut`           | `boolean`  | No       | True if wait for OUTPUT timed out; job continues on z/OS.                                          |
+| &ensp;└─ `failedStepJobFiles` | `object`[] | No       | Job file entries for failed steps when retcode is non-zero.                                        |
 
 ---
 
@@ -3368,12 +3455,12 @@ Submit a job from a USS file path. The file must contain valid JCL including a j
 
 #### Output Schema
 
-| Field      | Type       | Required | Description                                                                                                 |
-|------------|------------|----------|-------------------------------------------------------------------------------------------------------------|
-| `_context` | `object`   | Yes      | Resolution context: target z/OS system. *(same as [`runSafeTsoCommand`](#runsafetsocommand-output-schema))* |
-| `_result`  | `object`   | Yes      | Result metadata (pagination or success). *(same as [`writeDataset`](#writedataset-output-schema))*          |
-| `messages` | `string`[] | No       | Operational messages: pagination hints, job card notice, or other notes. Omitted when empty.                |
-| `data`     | `object`   | Yes      | *(same as [`submitJobFromDataset`](#submitjobfromdataset-output-schema))*                                   |
+| Field      | Type       | Required | Description                                                                                        |
+|------------|------------|----------|----------------------------------------------------------------------------------------------------|
+| `_context` | `object`   | Yes      | Resolution context: target z/OS system. *(same as [`queryTso`](#querytso-output-schema))*          |
+| `_result`  | `object`   | Yes      | Result metadata (pagination or success). *(same as [`writeDataset`](#writedataset-output-schema))* |
+| `messages` | `string`[] | No       | Operational messages: pagination hints, job card notice, or other notes. Omitted when empty.       |
+| `data`     | `object`   | Yes      | *(same as [`submitJobFromDataset`](#submitjobfromdataset-output-schema))*                          |
 
 ---
 
@@ -3394,22 +3481,22 @@ Get the current status of a z/OS job (INPUT, ACTIVE, or OUTPUT) and its return c
 
 #### Output Schema
 
-| Field                 | Type       | Required | Description                                                                                                 |
-|-----------------------|------------|----------|-------------------------------------------------------------------------------------------------------------|
-| `_context`            | `object`   | Yes      | Resolution context: target z/OS system. *(same as [`runSafeTsoCommand`](#runsafetsocommand-output-schema))* |
-| `messages`            | `string`[] | No       | Operational messages: pagination hints, job card notice, or other notes. Omitted when empty.                |
-| `data`                | `object`   | Yes      |                                                                                                             |
-| &ensp;├─ `id`         | `string`   | Yes      | Job ID.                                                                                                     |
-| &ensp;├─ `name`       | `string`   | Yes      | Job name.                                                                                                   |
-| &ensp;├─ `owner`      | `string`   | Yes      | Job owner.                                                                                                  |
-| &ensp;├─ `status`     | `string`   | Yes      | Status: INPUT, ACTIVE, or OUTPUT.                                                                           |
-| &ensp;├─ `type`       | `string`   | Yes      | Job type: JOB, STC, TSU.                                                                                    |
-| &ensp;├─ `class`      | `string`   | Yes      | Execution class.                                                                                            |
-| &ensp;├─ `retcode`    | `string`   | No       | Return code when complete (e.g. CC 0000).                                                                   |
-| &ensp;├─ `subsystem`  | `string`   | No       | Subsystem.                                                                                                  |
-| &ensp;├─ `phase`      | `number`   | Yes      | Phase number.                                                                                               |
-| &ensp;├─ `phaseName`  | `string`   | Yes      | Phase name.                                                                                                 |
-| &ensp;└─ `correlator` | `string`   | No       | Correlator (JES3).                                                                                          |
+| Field                 | Type       | Required | Description                                                                                  |
+|-----------------------|------------|----------|----------------------------------------------------------------------------------------------|
+| `_context`            | `object`   | Yes      | Resolution context: target z/OS system. *(same as [`queryTso`](#querytso-output-schema))*    |
+| `messages`            | `string`[] | No       | Operational messages: pagination hints, job card notice, or other notes. Omitted when empty. |
+| `data`                | `object`   | Yes      |                                                                                              |
+| &ensp;├─ `id`         | `string`   | Yes      | Job ID.                                                                                      |
+| &ensp;├─ `name`       | `string`   | Yes      | Job name.                                                                                    |
+| &ensp;├─ `owner`      | `string`   | Yes      | Job owner.                                                                                   |
+| &ensp;├─ `status`     | `string`   | Yes      | Status: INPUT, ACTIVE, or OUTPUT.                                                            |
+| &ensp;├─ `type`       | `string`   | Yes      | Job type: JOB, STC, TSU.                                                                     |
+| &ensp;├─ `class`      | `string`   | Yes      | Execution class.                                                                             |
+| &ensp;├─ `retcode`    | `string`   | No       | Return code when complete (e.g. CC 0000).                                                    |
+| &ensp;├─ `subsystem`  | `string`   | No       | Subsystem.                                                                                   |
+| &ensp;├─ `phase`      | `number`   | Yes      | Phase number.                                                                                |
+| &ensp;├─ `phaseName`  | `string`   | Yes      | Phase name.                                                                                  |
+| &ensp;└─ `correlator` | `string`   | No       | Correlator (JES3).                                                                           |
 
 ---
 
@@ -3432,17 +3519,17 @@ List output files (spools) for a z/OS job. The job must be in OUTPUT status. Use
 
 #### Output Schema
 
-| Field               | Type       | Required | Description                                                                                                 |
-|---------------------|------------|----------|-------------------------------------------------------------------------------------------------------------|
-| `_context`          | `object`   | Yes      | Resolution context: target z/OS system. *(same as [`runSafeTsoCommand`](#runsafetsocommand-output-schema))* |
-| `_result`           | `object`   | Yes      | Result metadata (pagination or success). *(same as [`listDatasets`](#listdatasets-output-schema))*          |
-| `messages`          | `string`[] | No       | Operational messages: pagination hints, job card notice, or other notes. Omitted when empty.                |
-| `data`              | `object`[] | Yes      | Array of job file (spool) entries. Each entry has id, optional ddname, stepname, dsname, procstep.          |
-| &ensp;├─ `id`       | `number`   | Yes      | Job file (spool) ID.                                                                                        |
-| &ensp;├─ `ddname`   | `string`   | No       | DD name (e.g. SYSOUT, JESJCL).                                                                              |
-| &ensp;├─ `stepname` | `string`   | No       | Step name.                                                                                                  |
-| &ensp;├─ `dsname`   | `string`   | No       | Data set name when applicable.                                                                              |
-| &ensp;└─ `procstep` | `string`   | No       | Procedure step name.                                                                                        |
+| Field               | Type       | Required | Description                                                                                        |
+|---------------------|------------|----------|----------------------------------------------------------------------------------------------------|
+| `_context`          | `object`   | Yes      | Resolution context: target z/OS system. *(same as [`queryTso`](#querytso-output-schema))*          |
+| `_result`           | `object`   | Yes      | Result metadata (pagination or success). *(same as [`listDatasets`](#listdatasets-output-schema))* |
+| `messages`          | `string`[] | No       | Operational messages: pagination hints, job card notice, or other notes. Omitted when empty.       |
+| `data`              | `object`[] | Yes      | Array of job file (spool) entries. Each entry has id, optional ddname, stepname, dsname, procstep. |
+| &ensp;├─ `id`       | `number`   | Yes      | Job file (spool) ID.                                                                               |
+| &ensp;├─ `ddname`   | `string`   | No       | DD name (e.g. SYSOUT, JESJCL).                                                                     |
+| &ensp;├─ `stepname` | `string`   | No       | Step name.                                                                                         |
+| &ensp;├─ `dsname`   | `string`   | No       | Data set name when applicable.                                                                     |
+| &ensp;└─ `procstep` | `string`   | No       | Procedure step name.                                                                               |
 
 ---
 
@@ -3466,18 +3553,18 @@ Read the content of one job output file (spool); use listJobFiles to get job fil
 
 #### Output Schema
 
-| Field                    | Type       | Required | Description                                                                                                 |
-|--------------------------|------------|----------|-------------------------------------------------------------------------------------------------------------|
-| `_context`               | `object`   | Yes      | Resolution context: target z/OS system. *(same as [`runSafeTsoCommand`](#runsafetsocommand-output-schema))* |
-| `_result`                | `object`   | Yes      | Result metadata (pagination or success). *(same as [`readDataset`](#readdataset-output-schema))*            |
-| `messages`               | `string`[] | No       | Operational messages: pagination hints, job card notice, or other notes. Omitted when empty.                |
-| `data`                   | `object`   | Yes      |                                                                                                             |
-| &ensp;├─ `lines`         | `string`[] | Yes      | File content as array of lines; may be a line window when _result.hasMore is true.                          |
-| &ensp;├─ `totalLines`    | `number`   | Yes      | Total lines in the full file.                                                                               |
-| &ensp;├─ `startLine`     | `number`   | Yes      | 1-based first line in this window.                                                                          |
-| &ensp;├─ `returnedLines` | `number`   | Yes      | Number of lines returned.                                                                                   |
-| &ensp;├─ `hasMore`       | `boolean`  | Yes      | True if more lines exist.                                                                                   |
-| &ensp;└─ `mimeType`      | `string`   | Yes      | Content type (e.g. text/plain, text/x-jcl).                                                                 |
+| Field                    | Type       | Required | Description                                                                                      |
+|--------------------------|------------|----------|--------------------------------------------------------------------------------------------------|
+| `_context`               | `object`   | Yes      | Resolution context: target z/OS system. *(same as [`queryTso`](#querytso-output-schema))*        |
+| `_result`                | `object`   | Yes      | Result metadata (pagination or success). *(same as [`readDataset`](#readdataset-output-schema))* |
+| `messages`               | `string`[] | No       | Operational messages: pagination hints, job card notice, or other notes. Omitted when empty.     |
+| `data`                   | `object`   | Yes      |                                                                                                  |
+| &ensp;├─ `lines`         | `string`[] | Yes      | File content as array of lines; may be a line window when _result.hasMore is true.               |
+| &ensp;├─ `totalLines`    | `number`   | Yes      | Total lines in the full file.                                                                    |
+| &ensp;├─ `startLine`     | `number`   | Yes      | 1-based first line in this window.                                                               |
+| &ensp;├─ `returnedLines` | `number`   | Yes      | Number of lines returned.                                                                        |
+| &ensp;├─ `hasMore`       | `boolean`  | Yes      | True if more lines exist.                                                                        |
+| &ensp;└─ `mimeType`      | `string`   | Yes      | Content type (e.g. text/plain, text/x-jcl).                                                      |
 
 ---
 
@@ -3502,16 +3589,16 @@ Get aggregated output from job files for a completed job. By default returns out
 
 #### Output Schema
 
-| Field              | Type       | Required | Description                                                                                                 |
-|--------------------|------------|----------|-------------------------------------------------------------------------------------------------------------|
-| `_context`         | `object`   | Yes      | Resolution context: target z/OS system. *(same as [`runSafeTsoCommand`](#runsafetsocommand-output-schema))* |
-| `_result`          | `object`   | Yes      | Result metadata (pagination or success). *(same as [`listDatasets`](#listdatasets-output-schema))*          |
-| `messages`         | `string`[] | No       | Operational messages: pagination hints, job card notice, or other notes. Omitted when empty.                |
-| `data`             | `object`   | Yes      |                                                                                                             |
-| &ensp;├─ `jobId`   | `string`   | Yes      | Job ID.                                                                                                     |
-| &ensp;├─ `status`  | `string`   | Yes      | Job status (e.g. OUTPUT).                                                                                   |
-| &ensp;├─ `retcode` | `string`   | No       | Job return code when complete (e.g. CC 0000).                                                               |
-| &ensp;└─ `files`   | `object`[] | Yes      | Output from job files in this page.                                                                         |
+| Field              | Type       | Required | Description                                                                                        |
+|--------------------|------------|----------|----------------------------------------------------------------------------------------------------|
+| `_context`         | `object`   | Yes      | Resolution context: target z/OS system. *(same as [`queryTso`](#querytso-output-schema))*          |
+| `_result`          | `object`   | Yes      | Result metadata (pagination or success). *(same as [`listDatasets`](#listdatasets-output-schema))* |
+| `messages`         | `string`[] | No       | Operational messages: pagination hints, job card notice, or other notes. Omitted when empty.       |
+| `data`             | `object`   | Yes      |                                                                                                    |
+| &ensp;├─ `jobId`   | `string`   | Yes      | Job ID.                                                                                            |
+| &ensp;├─ `status`  | `string`   | Yes      | Job status (e.g. OUTPUT).                                                                          |
+| &ensp;├─ `retcode` | `string`   | No       | Job return code when complete (e.g. CC 0000).                                                      |
+| &ensp;└─ `files`   | `object`[] | Yes      | Output from job files in this page.                                                                |
 
 ---
 
@@ -3537,17 +3624,17 @@ Search for a substring in a job's output files (all files or one by jobFileId). 
 
 #### Output Schema
 
-| Field                 | Type       | Required | Description                                                                                                 |
-|-----------------------|------------|----------|-------------------------------------------------------------------------------------------------------------|
-| `_context`            | `object`   | Yes      | Resolution context: target z/OS system. *(same as [`runSafeTsoCommand`](#runsafetsocommand-output-schema))* |
-| `_result`             | `object`   | Yes      | Result metadata (pagination or success). *(same as [`listDatasets`](#listdatasets-output-schema))*          |
-| `messages`            | `string`[] | No       | Operational messages: pagination hints, job card notice, or other notes. Omitted when empty.                |
-| `data`                | `object`[] | Yes      | Array of search matches in job output. Each entry has jobFileId, ddname, stepname, lineNumber, lineText.    |
-| &ensp;├─ `jobFileId`  | `number`   | Yes      | Job file (spool) ID where the match was found.                                                              |
-| &ensp;├─ `ddname`     | `string`   | No       | DD name.                                                                                                    |
-| &ensp;├─ `stepname`   | `string`   | No       | Step name.                                                                                                  |
-| &ensp;├─ `lineNumber` | `number`   | Yes      | 1-based line number.                                                                                        |
-| &ensp;└─ `lineText`   | `string`   | Yes      | The line content.                                                                                           |
+| Field                 | Type       | Required | Description                                                                                              |
+|-----------------------|------------|----------|----------------------------------------------------------------------------------------------------------|
+| `_context`            | `object`   | Yes      | Resolution context: target z/OS system. *(same as [`queryTso`](#querytso-output-schema))*                |
+| `_result`             | `object`   | Yes      | Result metadata (pagination or success). *(same as [`listDatasets`](#listdatasets-output-schema))*       |
+| `messages`            | `string`[] | No       | Operational messages: pagination hints, job card notice, or other notes. Omitted when empty.             |
+| `data`                | `object`[] | Yes      | Array of search matches in job output. Each entry has jobFileId, ddname, stepname, lineNumber, lineText. |
+| &ensp;├─ `jobFileId`  | `number`   | Yes      | Job file (spool) ID where the match was found.                                                           |
+| &ensp;├─ `ddname`     | `string`   | No       | DD name.                                                                                                 |
+| &ensp;├─ `stepname`   | `string`   | No       | Step name.                                                                                               |
+| &ensp;├─ `lineNumber` | `number`   | Yes      | 1-based line number.                                                                                     |
+| &ensp;└─ `lineText`   | `string`   | Yes      | The line content.                                                                                        |
 
 ---
 
@@ -3574,7 +3661,7 @@ List jobs on the z/OS system with optional filters (owner, prefix, status). Use 
 
 | Field      | Type       | Required | Description                                                                                                                                                            |
 |------------|------------|----------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `_context` | `object`   | Yes      | Resolution context: target z/OS system. *(same as [`runSafeTsoCommand`](#runsafetsocommand-output-schema))*                                                            |
+| `_context` | `object`   | Yes      | Resolution context: target z/OS system. *(same as [`queryTso`](#querytso-output-schema))*                                                                              |
 | `_result`  | `object`   | Yes      | Result metadata (pagination or success). *(same as [`listDatasets`](#listdatasets-output-schema))*                                                                     |
 | `messages` | `string`[] | No       | Operational messages: pagination hints, job card notice, or other notes. Omitted when empty.                                                                           |
 | `data`     | `object`[] | Yes      | Array of job status entries. Each entry has id, name, owner, status, type, class, retcode, phase, phaseName. *(same as [`getJobStatus`](#getjobstatus-output-schema))* |
@@ -3598,12 +3685,12 @@ Get the JCL for a job.
 
 #### Output Schema
 
-| Field            | Type       | Required | Description                                                                                                 |
-|------------------|------------|----------|-------------------------------------------------------------------------------------------------------------|
-| `_context`       | `object`   | Yes      | Resolution context: target z/OS system. *(same as [`runSafeTsoCommand`](#runsafetsocommand-output-schema))* |
-| `messages`       | `string`[] | No       | Operational messages: pagination hints, job card notice, or other notes. Omitted when empty.                |
-| `data`           | `object`   | Yes      |                                                                                                             |
-| &ensp;└─ `lines` | `string`[] | Yes      | JCL for the job as array of lines.                                                                          |
+| Field            | Type       | Required | Description                                                                                  |
+|------------------|------------|----------|----------------------------------------------------------------------------------------------|
+| `_context`       | `object`   | Yes      | Resolution context: target z/OS system. *(same as [`queryTso`](#querytso-output-schema))*    |
+| `messages`       | `string`[] | No       | Operational messages: pagination hints, job card notice, or other notes. Omitted when empty. |
+| `data`           | `object`   | Yes      |                                                                                              |
+| &ensp;└─ `lines` | `string`[] | Yes      | JCL for the job as array of lines.                                                           |
 
 ---
 
@@ -3624,13 +3711,13 @@ Cancel a job on the z/OS system.
 
 #### Output Schema
 
-| Field              | Type       | Required | Description                                                                                                 |
-|--------------------|------------|----------|-------------------------------------------------------------------------------------------------------------|
-| `_context`         | `object`   | Yes      | Resolution context: target z/OS system. *(same as [`runSafeTsoCommand`](#runsafetsocommand-output-schema))* |
-| `_result`          | `object`   | Yes      | Result metadata (pagination or success). *(same as [`writeDataset`](#writedataset-output-schema))*          |
-| `messages`         | `string`[] | No       | Operational messages: pagination hints, job card notice, or other notes. Omitted when empty.                |
-| `data`             | `object`   | Yes      |                                                                                                             |
-| &ensp;└─ `success` | `boolean`  | Yes      | Operation completed successfully.                                                                           |
+| Field              | Type       | Required | Description                                                                                        |
+|--------------------|------------|----------|----------------------------------------------------------------------------------------------------|
+| `_context`         | `object`   | Yes      | Resolution context: target z/OS system. *(same as [`queryTso`](#querytso-output-schema))*          |
+| `_result`          | `object`   | Yes      | Result metadata (pagination or success). *(same as [`writeDataset`](#writedataset-output-schema))* |
+| `messages`         | `string`[] | No       | Operational messages: pagination hints, job card notice, or other notes. Omitted when empty.       |
+| `data`             | `object`   | Yes      |                                                                                                    |
+| &ensp;└─ `success` | `boolean`  | Yes      | Operation completed successfully.                                                                  |
 
 ---
 
@@ -3650,12 +3737,12 @@ Hold a job on the z/OS system.
 
 #### Output Schema
 
-| Field      | Type       | Required | Description                                                                                                 |
-|------------|------------|----------|-------------------------------------------------------------------------------------------------------------|
-| `_context` | `object`   | Yes      | Resolution context: target z/OS system. *(same as [`runSafeTsoCommand`](#runsafetsocommand-output-schema))* |
-| `_result`  | `object`   | Yes      | Result metadata (pagination or success). *(same as [`writeDataset`](#writedataset-output-schema))*          |
-| `messages` | `string`[] | No       | Operational messages: pagination hints, job card notice, or other notes. Omitted when empty.                |
-| `data`     | `object`   | Yes      | *(same as [`cancelJob`](#canceljob-output-schema))*                                                         |
+| Field      | Type       | Required | Description                                                                                        |
+|------------|------------|----------|----------------------------------------------------------------------------------------------------|
+| `_context` | `object`   | Yes      | Resolution context: target z/OS system. *(same as [`queryTso`](#querytso-output-schema))*          |
+| `_result`  | `object`   | Yes      | Result metadata (pagination or success). *(same as [`writeDataset`](#writedataset-output-schema))* |
+| `messages` | `string`[] | No       | Operational messages: pagination hints, job card notice, or other notes. Omitted when empty.       |
+| `data`     | `object`   | Yes      | *(same as [`cancelJob`](#canceljob-output-schema))*                                                |
 
 ---
 
@@ -3675,12 +3762,12 @@ Release a held job on the z/OS system.
 
 #### Output Schema
 
-| Field      | Type       | Required | Description                                                                                                 |
-|------------|------------|----------|-------------------------------------------------------------------------------------------------------------|
-| `_context` | `object`   | Yes      | Resolution context: target z/OS system. *(same as [`runSafeTsoCommand`](#runsafetsocommand-output-schema))* |
-| `_result`  | `object`   | Yes      | Result metadata (pagination or success). *(same as [`writeDataset`](#writedataset-output-schema))*          |
-| `messages` | `string`[] | No       | Operational messages: pagination hints, job card notice, or other notes. Omitted when empty.                |
-| `data`     | `object`   | Yes      | *(same as [`cancelJob`](#canceljob-output-schema))*                                                         |
+| Field      | Type       | Required | Description                                                                                        |
+|------------|------------|----------|----------------------------------------------------------------------------------------------------|
+| `_context` | `object`   | Yes      | Resolution context: target z/OS system. *(same as [`queryTso`](#querytso-output-schema))*          |
+| `_result`  | `object`   | Yes      | Result metadata (pagination or success). *(same as [`writeDataset`](#writedataset-output-schema))* |
+| `messages` | `string`[] | No       | Operational messages: pagination hints, job card notice, or other notes. Omitted when empty.       |
+| `data`     | `object`   | Yes      | *(same as [`cancelJob`](#canceljob-output-schema))*                                                |
 
 ---
 
@@ -3701,12 +3788,12 @@ Delete a job from the output queue.
 
 #### Output Schema
 
-| Field      | Type       | Required | Description                                                                                                 |
-|------------|------------|----------|-------------------------------------------------------------------------------------------------------------|
-| `_context` | `object`   | Yes      | Resolution context: target z/OS system. *(same as [`runSafeTsoCommand`](#runsafetsocommand-output-schema))* |
-| `_result`  | `object`   | Yes      | Result metadata (pagination or success). *(same as [`writeDataset`](#writedataset-output-schema))*          |
-| `messages` | `string`[] | No       | Operational messages: pagination hints, job card notice, or other notes. Omitted when empty.                |
-| `data`     | `object`   | Yes      | *(same as [`cancelJob`](#canceljob-output-schema))*                                                         |
+| Field      | Type       | Required | Description                                                                                        |
+|------------|------------|----------|----------------------------------------------------------------------------------------------------|
+| `_context` | `object`   | Yes      | Resolution context: target z/OS system. *(same as [`queryTso`](#querytso-output-schema))*          |
+| `_result`  | `object`   | Yes      | Result metadata (pagination or success). *(same as [`writeDataset`](#writedataset-output-schema))* |
+| `messages` | `string`[] | No       | Operational messages: pagination hints, job card notice, or other notes. Omitted when empty.       |
+| `data`     | `object`   | Yes      | *(same as [`cancelJob`](#canceljob-output-schema))*                                                |
 
 ---
 
@@ -3907,12 +3994,12 @@ Run a z/OS operator console command (e.g. DISPLAY T, DISPLAY A). Prefer a dedica
 
 #### Output Schema
 
-| Field      | Type       | Required | Description                                                                                                 |
-|------------|------------|----------|-------------------------------------------------------------------------------------------------------------|
-| `_context` | `object`   | Yes      | Resolution context: target z/OS system. *(same as [`runSafeTsoCommand`](#runsafetsocommand-output-schema))* |
-| `_result`  | `object`   | Yes      | Result metadata (line window). *(same as [`readDataset`](#readdataset-output-schema))*                      |
-| `messages` | `string`[] | No       | Operational messages: pagination hints, resolution notes. Omitted when empty.                               |
-| `data`     | `object`   | Yes      | *(same as [`runSafeUssCommand`](#runsafeusscommand-output-schema))*                                         |
+| Field      | Type       | Required | Description                                                                               |
+|------------|------------|----------|-------------------------------------------------------------------------------------------|
+| `_context` | `object`   | Yes      | Resolution context: target z/OS system. *(same as [`queryTso`](#querytso-output-schema))* |
+| `_result`  | `object`   | Yes      | Result metadata (line window). *(same as [`readDataset`](#readdataset-output-schema))*    |
+| `messages` | `string`[] | No       | Operational messages: pagination hints, resolution notes. Omitted when empty.             |
+| `data`     | `object`   | Yes      | *(same as [`runSafeUssCommand`](#runsafeusscommand-output-schema))*                       |
 
 #### Example Outputs
 
@@ -4058,7 +4145,7 @@ See [Safety and security principles](mcp-safety-security-principles.md) for deta
 
 Read-only with client confirmation prompts for every read operation. Safest tier for exploration.
 
-**38** tools available.
+**39** tools available.
 
 | Tool                                              | Effect Level |
 |---------------------------------------------------|--------------|
@@ -4079,6 +4166,7 @@ Read-only with client confirmation prompts for every read operation. Safest tier
 | [`readUssFile`](#readussfile)                     | read         |
 | [`getUssTempDir`](#getusstempdir)                 | read         |
 | [`getUssTempPath`](#getusstemppath)               | read         |
+| [`queryTso`](#querytso)                           | read         |
 | [`listApfLibraries`](#listapflibraries)           | read         |
 | [`listProclib`](#listproclib)                     | read         |
 | [`listParmlib`](#listparmlib)                     | read         |
@@ -4105,13 +4193,13 @@ Read-only with client confirmation prompts for every read operation. Safest tier
 
 Read-only with auto-approved reads. No confirmation prompts for read operations.
 
-**38** tools available.
+**39** tools available.
 
 ### `update`
 
 Adds tools that create, write, copy, rename, and modify resources.
 
-**63** tools available (25 new at this tier).
+**64** tools available (25 new at this tier).
 
 | Tool                                                  | Effect Level |
 |-------------------------------------------------------|--------------|
@@ -4145,7 +4233,7 @@ Adds tools that create, write, copy, rename, and modify resources.
 
 Adds tools that delete or cancel resources.
 
-**70** tools available (7 new at this tier).
+**71** tools available (7 new at this tier).
 
 | Tool                                                      | Effect Level |
 |-----------------------------------------------------------|--------------|
@@ -4161,7 +4249,7 @@ Adds tools that delete or cancel resources.
 
 Adds tools that execute commands and submit jobs. Full access to all operations.
 
-**78** tools available (8 new at this tier).
+**79** tools available (8 new at this tier).
 
 | Tool                                            | Effect Level |
 |-------------------------------------------------|--------------|

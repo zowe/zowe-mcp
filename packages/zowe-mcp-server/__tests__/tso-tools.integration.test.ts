@@ -182,3 +182,80 @@ describe('TSO tools integration', () => {
     }
   });
 });
+
+describe('queryTso at the read capability tier', () => {
+  let mockDir: string;
+  let client: Client;
+  let server: Awaited<ReturnType<typeof createMockIntegrationClient>>['server'];
+
+  beforeAll(async () => {
+    mockDir = await fs.mkdtemp(path.join(os.tmpdir(), 'zowe-mcp-querytso-'));
+    await fs.writeFile(path.join(mockDir, 'systems.json'), JSON.stringify(mockConfig));
+    await fs.mkdir(path.join(mockDir, 'uss', SYSTEM_HOST, 'u', DEFAULT_USER), {
+      recursive: true,
+    });
+
+    ({ client, server } = await createMockIntegrationClient(
+      mockDir,
+      mockConfig,
+      'querytso-test',
+      'read'
+    ));
+  });
+
+  afterAll(async () => {
+    await client?.close();
+    await server?.close();
+    if (mockDir) await fs.rm(mockDir, { recursive: true, force: true }).catch(() => undefined);
+  });
+
+  it('runs a RACF query that runSafeTsoCommand would not offer at this tier', async () => {
+    const { tools } = await client.listTools();
+    expect(tools.map(t => t.name)).not.toContain('runSafeTsoCommand');
+
+    const result = await client.callTool({
+      name: 'queryTso',
+      arguments: { commandText: 'LISTUSER USER01' },
+    });
+    expect(result.isError).toBeFalsy();
+    const envelope = JSON.parse(getResultText(result)) as { data: { lines: string[] } };
+    expect(envelope.data.lines.join('\n')).toContain('USER=USER01');
+  });
+
+  it('parses a parenthesized RACF target name', async () => {
+    const result = await client.callTool({
+      name: 'queryTso',
+      arguments: { commandText: 'LISTUSER (USER01)' },
+    });
+    expect(result.isError).toBeFalsy();
+    const envelope = JSON.parse(getResultText(result)) as { data: { lines: string[] } };
+    expect(envelope.data.lines.join('\n')).toContain('USER=USER01');
+  });
+
+  it('labels TSO output text/plain even when it looks like source code', async () => {
+    const result = await client.callTool({
+      name: 'queryTso',
+      arguments: { commandText: 'LISTGRP SYS1' },
+    });
+    const envelope = JSON.parse(getResultText(result)) as {
+      _result: { mimeType: string };
+      data: { mimeType: string };
+    };
+    expect({ result: envelope._result.mimeType, data: envelope.data.mimeType }).toEqual({
+      result: 'text/plain',
+      data: 'text/plain',
+    });
+  });
+
+  it('rejects commands that chain or modify', async () => {
+    for (const commandText of [
+      'LISTUSER A;ALTUSER A SPECIAL',
+      'LISTUSER A\nDELETE X',
+      'DELETE USER.DATA',
+    ]) {
+      const result = await client.callTool({ name: 'queryTso', arguments: { commandText } });
+      expect(result.isError).toBe(true);
+      expect(getResultText(result)).toMatch(/Invalid TSO query command|not a read-only/);
+    }
+  });
+});

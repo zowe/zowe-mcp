@@ -71,15 +71,34 @@
       "id": "tso-submit",
       "message": "SUBMIT submits jobs; user approval required.",
       "pattern": "\\bSUBMIT\\b"
+    },
+    {
+      "id": "tso-search-clist",
+      "message": "SEARCH with CLIST (or its TSO abbreviation CLI or CLIS) writes a CLIST data set; user approval required.",
+      "pattern": "^(SEARCH|SR)\\b.*[\\s,)]CLI(?:ST?)?(?=[\\s,(]|$)"
+    },
+    {
+      "id": "tso-racf-command-direction",
+      "message": "AT/ONLYAT directs the RACF command to another node or user and writes the output to an RRSFLIST data set; user approval required.",
+      "pattern": "^(LISTUSER|LU|LISTGRP|LG|LISTDSD|LD|RLIST|RL|SEARCH|SR)\\b.*[\\s,)](A|AT|O|ON|ONL|ONLY|ONLYA|ONLYAT)\\s*\\("
+    },
+    {
+      "id": "tso-listcat-outfile",
+      "message": "LISTCAT OUTFILE/OFILE writes the listing to a data set; user approval required.",
+      "pattern": "^(LISTCAT|LISTC)\\b.*[\\s,)](OU|OF)[A-Z]*\\s*\\("
     }
   ],
   "safe": [
     { "id": "tso-listds", "pattern": "^(LISTDS|LISTD)\\b" },
     { "id": "tso-listalc", "pattern": "^(LISTALC|LISTA)\\b" },
     { "id": "tso-listcat", "pattern": "^(LISTCAT|LISTC)\\b" },
-    { "id": "tso-listbc", "pattern": "^LISTBC\\b" },
+    { "id": "tso-listbc", "pattern": "^(LISTBC|LISTB)\\b" },
     { "id": "tso-listuser", "pattern": "^(LISTUSER|LU)\\b" },
-    { "id": "tso-status", "pattern": "^STATUS\\b" },
+    { "id": "tso-listgrp", "pattern": "^(LISTGRP|LG)\\b" },
+    { "id": "tso-listdsd", "pattern": "^(LISTDSD|LD)\\b" },
+    { "id": "tso-rlist", "pattern": "^(RLIST|RL)\\b" },
+    { "id": "tso-search", "pattern": "^(SEARCH|SR)\\b" },
+    { "id": "tso-status", "pattern": "^(STATUS|ST)\\b" },
     { "id": "tso-help", "pattern": "^(HELP|H)\\b" },
     { "id": "tso-who", "pattern": "^WHO\\b" },
     { "id": "tso-time", "pattern": "^TIME\\b" },

@@ -217,8 +217,23 @@ export async function startHttp(
   const allowedHosts: string[] = [];
   const allowedOrigins: string[] = [];
 
-  /** Base URL as the client sees it (honors X-Forwarded-Proto behind a proxy). */
+  /**
+   * Base URL as the client sees it (honors X-Forwarded-Proto behind a proxy).
+   * Behind AT-TLS the TLS layer is invisible to Express — no forwarded header,
+   * `req.protocol` is `http` — so when the operator declares the external URL
+   * through `ZOWE_MCP_OAUTH_RESOURCE` its origin wins. Without this, the 401
+   * challenge points clients at a cleartext URL on a TLS-only port, and a
+   * spec-following client's discovery fetch is reset by the TLS layer.
+   */
   const deriveBaseUrl = (req: Request): string => {
+    const explicit = process.env.ZOWE_MCP_OAUTH_RESOURCE?.trim();
+    if (explicit) {
+      try {
+        return new URL(explicit).origin;
+      } catch {
+        // unparsable override: fall back to the request-derived URL
+      }
+    }
     const host = req.get('host') ?? `127.0.0.1:${String(req.socket.localPort ?? port)}`;
     const xfProto = req.headers['x-forwarded-proto'];
     const proto =

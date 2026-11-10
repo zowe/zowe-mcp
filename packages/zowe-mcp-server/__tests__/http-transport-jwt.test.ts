@@ -189,6 +189,45 @@ describe('startHttp with jwtAuth', () => {
     }
   });
 
+  it('builds the 401 challenge URL from ZOWE_MCP_OAUTH_RESOURCE behind AT-TLS', async () => {
+    // Behind AT-TLS the request arrives looking like plain http (no
+    // X-Forwarded-Proto), but the operator-declared resource URL is https.
+    // The challenge must carry the external origin, or the client's
+    // RFC 9728 discovery fetch goes out in cleartext to a TLS-only port.
+    const logger = getLogger();
+    const prev = process.env.ZOWE_MCP_OAUTH_RESOURCE;
+    process.env.ZOWE_MCP_OAUTH_RESOURCE = 'https://mcp.example.test:8443/mcp';
+    const handle = await startHttp(
+      () => {
+        const r = createServer();
+        return getServer(r);
+      },
+      0,
+      logger,
+      {
+        jwtAuth: {
+          issuer: TEST_ISSUER,
+          jwksUri: TEST_JWKS_URI,
+          audience: TEST_AUDIENCE,
+        },
+      }
+    );
+    try {
+      const res = await postMcpLocal(handle.port, MCP_INIT_BODY);
+      expect(res.statusCode).toBe(401);
+      expect(res.headers['www-authenticate']).toContain(
+        'resource_metadata="https://mcp.example.test:8443/.well-known/oauth-protected-resource/mcp"'
+      );
+    } finally {
+      if (prev === undefined) {
+        delete process.env.ZOWE_MCP_OAUTH_RESOURCE;
+      } else {
+        process.env.ZOWE_MCP_OAUTH_RESOURCE = prev;
+      }
+      await handle.close();
+    }
+  });
+
   it('returns 401 with error="invalid_token" challenge for a bad Bearer token', async () => {
     const logger = getLogger();
     const expiredToken = sign({

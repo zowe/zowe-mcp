@@ -538,8 +538,10 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
     {
       outputSchema: runSafeUssCommandOutputSchema,
       description: withPaginationNote(
-        'Run a Unix command on z/OS USS. Only allowlisted (safe) commands run automatically; ' +
-          'unknown commands require user confirmation via elicitation',
+        'Run a Unix command on z/OS USS. The server checks every command before it runs. ' +
+          'Allowlisted read-only commands such as ls, pwd and whoami run immediately. ' +
+          'Commands that match known destructive patterns, such as rm -rf /, chmod -R 777 / or piping a download into a shell, are always blocked and never run. ' +
+          'Any other command needs the approval of the user, which the server requests itself through elicitation',
         PAGINATION_NOTE_LINES
       ),
       _meta: { resourceEffectLevel: ResourceEffect.EXECUTE },

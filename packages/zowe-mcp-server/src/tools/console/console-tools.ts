@@ -81,7 +81,7 @@ export function registerConsoleTools(
         'Run a z/OS operator console command (e.g. DISPLAY T, DISPLAY A). ' +
         'Prefer a dedicated tool when one exists (listProclib, listParmlib, listApfLibraries, listLinklist, viewSyslog, dataset/job tools): ' +
         'dedicated tools return structured output and need less authorization than console commands. ' +
-        'System-shutdown commands (HALT, SHUTDOWN, QUIESCE, Z EOD) are blocked. ' +
+        'System-shutdown commands (HALT, SHUTDOWN, QUIESCE, Z EOD), VARY XCF,...,OFFLINE, and ROUTE of any of these to other systems are always blocked and never run. ' +
         'Other non-display commands (SET, VARY, CANCEL, FORCE, START, STOP, MODIFY) require user approval. ' +
         'Unknown commands also require user approval.',
       outputSchema: runConsoleCommandOutputSchema,

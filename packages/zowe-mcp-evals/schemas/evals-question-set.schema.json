@@ -32,6 +32,11 @@
           "default": 0.8,
           "description": "Minimum fraction of runs that must pass (0–1) for the set to be considered successful."
         },
+        "acceptRefusal": {
+          "type": "boolean",
+          "default": false,
+          "description": "Set-level default: when true, a server-side provider refusal (Anthropic stop_reason 'refusal', AI SDK finishReason 'content-filter') counts as a pass without evaluating assertions. A question can override it."
+        },
         "mock": {
           "type": "object",
           "description": "Use the mock backend. A temporary mock data directory is created via init-mock before starting the server.",
@@ -39,6 +44,11 @@
             "initArgs": {
               "type": "string",
               "description": "Arguments passed to init-mock (after --output <dir>). Typical: '--preset default' or '--preset pagination'."
+            },
+            "resetPerRepetition": {
+              "type": "boolean",
+              "default": false,
+              "description": "When true, every repetition of every question starts from freshly initialized mock data and a fresh MCP server process, so a run that destroys data cannot affect later repetitions. Costs one init-mock plus one server start per live repetition."
             },
             "capabilityTier": {
               "type": "string",
@@ -233,6 +243,10 @@
           "skip": {
             "type": "string",
             "description": "When set, this question is skipped with this reason shown in the log."
+          },
+          "acceptRefusal": {
+            "type": "boolean",
+            "description": "When true, a server-side provider refusal (finishReason 'content-filter') passes without evaluating assertions. Overrides the set-level acceptRefusal."
           },
           "assertions": { "$ref": "#/$defs/Assertions" },
           "turns": {

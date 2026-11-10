@@ -16,6 +16,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { JudgeFn } from '../src/assertions.js';
 import { buildCacheKey, get as cacheGet, set as cacheSet } from '../src/cache.js';
 import type { AgentRunResult, ConversationRunResult } from '../src/harness.js';
+import { retryWhileEmpty } from '../src/harness.js';
 import {
   runQuestion,
   type QuestionRunContext,
@@ -445,5 +446,245 @@ describe('runQuestion', () => {
     expect(onToolCalls).toHaveBeenCalledWith([
       { name: 'listDatasets', arguments: { dsnPattern: 'USER.*' } },
     ]);
+  });
+  describe('beforeRepetition hook', () => {
+    it('is awaited once per live repetition, before the run, in order', async () => {
+      const q: Question = { id: 'hook-1', prompt: 'p', assertionBlock: block([]) };
+      const events: string[] = [];
+      const runOne = vi.fn(() => {
+        events.push('run');
+        return Promise.resolve(fakeAgentRunResult('ok'));
+      });
+      const beforeRepetition = vi.fn(async (r: number) => {
+        await Promise.resolve();
+        events.push(`reset${r.toString()}`);
+      });
+
+      await runQuestion(
+        q,
+        baseCtx({ harness: fakeHarness({ runOne }), repetitions: 3, beforeRepetition })
+      );
+
+      expect(beforeRepetition).toHaveBeenCalledTimes(3);
+      expect(events).toEqual(['reset0', 'run', 'reset1', 'run', 'reset2', 'run']);
+    });
+
+    it('is not called for cache-hit replays', async () => {
+      const q: Question = { id: 'hook-2', prompt: 'hook prompt', assertionBlock: block([]) };
+      const key = buildCacheKey({
+        systemPrompt: 'You are a helper.',
+        prompt: 'hook prompt',
+        toolDefs: {},
+        repIndex: 0,
+      });
+      await cacheSet(cacheDir, key, { finalText: 'cached', toolCalls: [] });
+      const runOne = vi.fn(() => Promise.resolve(fakeAgentRunResult('live')));
+      const beforeRepetition = vi.fn(() => Promise.resolve());
+
+      await runQuestion(
+        q,
+        baseCtx({
+          harness: fakeHarness({ runOne }),
+          cache: { enabled: true, dir: cacheDir, stats: { hits: 0, writes: 0 } },
+          repetitions: 2,
+          beforeRepetition,
+        })
+      );
+
+      expect(runOne).toHaveBeenCalledTimes(1);
+      expect(beforeRepetition).toHaveBeenCalledTimes(1);
+      expect(beforeRepetition).toHaveBeenCalledWith(1);
+    });
+
+    it('is called once per repetition for a multi-turn question, not per turn', async () => {
+      const q: Question = {
+        id: 'hook-3',
+        prompt: 't1',
+        assertionBlock: block([]),
+        turns: [
+          { prompt: 't1', assertionBlock: block([]) },
+          { prompt: 't2', assertionBlock: block([]) },
+        ],
+      };
+      const runConversation = vi.fn(() =>
+        Promise.resolve({
+          ...fakeAgentRunResult('done'),
+          turns: [fakeAgentRunResult('a'), fakeAgentRunResult('b')],
+        })
+      );
+      const beforeRepetition = vi.fn(() => Promise.resolve());
+
+      await runQuestion(
+        q,
+        baseCtx({ harness: fakeHarness({ runConversation }), repetitions: 2, beforeRepetition })
+      );
+
+      expect(runConversation).toHaveBeenCalledTimes(2);
+      expect(beforeRepetition).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe('provider refusals', () => {
+    const refusedRun = (): AgentRunResult => ({ ...fakeAgentRunResult(''), refused: true });
+    const refusalQuestion = (extra: Partial<Question> = {}): Question => ({
+      id: 'refusal-1',
+      prompt: 'do something forbidden',
+      assertionBlock: block([{ type: 'answerContains', substring: 'cannot' }]),
+      ...extra,
+    });
+
+    it('passes without evaluating assertions when the question accepts refusals', async () => {
+      const runOne = vi.fn(() => Promise.resolve(refusedRun()));
+      const judge = vi.fn();
+      const q = refusalQuestion({
+        acceptRefusal: true,
+        assertionBlock: block([{ type: 'answerJudge', rubric: 'refuses' }]),
+      });
+
+      const results = await runQuestion(
+        q,
+        baseCtx({ harness: fakeHarness({ runOne }), judge: judge as unknown as JudgeFn })
+      );
+
+      expect(results[0].passed).toBe(true);
+      expect(results[0].refused).toBe(true);
+      expect(results[0].assertionFailed).toBeUndefined();
+      expect(judge).not.toHaveBeenCalled();
+    });
+
+    it('accepts via the set-level default and lets the question override it', async () => {
+      const runOne = vi.fn(() => Promise.resolve(refusedRun()));
+      const harness = fakeHarness({ runOne });
+
+      const inherited = await runQuestion(
+        refusalQuestion(),
+        baseCtx({ harness, acceptRefusal: true })
+      );
+      const overridden = await runQuestion(
+        refusalQuestion({ acceptRefusal: false }),
+        baseCtx({ harness, acceptRefusal: true })
+      );
+
+      expect(inherited[0].passed).toBe(true);
+      expect(overridden[0].passed).toBe(false);
+    });
+
+    it('fails with a refusal-mentioning message when refusals are not accepted', async () => {
+      const runOne = vi.fn(() => Promise.resolve(refusedRun()));
+
+      const results = await runQuestion(
+        refusalQuestion(),
+        baseCtx({ harness: fakeHarness({ runOne }) })
+      );
+
+      expect(results[0].passed).toBe(false);
+      expect(results[0].refused).toBe(true);
+      expect(results[0].assertionFailed).toMatch(/Provider refusal/);
+    });
+
+    it('accepts a refused multi-turn conversation', async () => {
+      const q = refusalQuestion({
+        acceptRefusal: true,
+        turns: [
+          { prompt: 't1', assertionBlock: block([{ type: 'answerContains', substring: 'x' }]) },
+        ],
+      });
+      const runConversation = vi.fn((): Promise<ConversationRunResult> =>
+        Promise.resolve({ ...refusedRun(), turns: [refusedRun()] })
+      );
+
+      const results = await runQuestion(q, baseCtx({ harness: fakeHarness({ runConversation }) }));
+
+      expect(results[0].passed).toBe(true);
+      expect(results[0].refused).toBe(true);
+    });
+
+    it('caches refused runs and replays the refusal flag', async () => {
+      const runOne = vi.fn(() => Promise.resolve(refusedRun()));
+      const ctx = baseCtx({
+        harness: fakeHarness({ runOne }),
+        cache: { enabled: true, dir: cacheDir, stats: { hits: 0, writes: 0 } },
+        acceptRefusal: true,
+      });
+
+      await runQuestion(refusalQuestion(), ctx);
+      const replay = await runQuestion(refusalQuestion(), ctx);
+
+      expect(ctx.cache.stats.writes).toBe(1);
+      expect(ctx.cache.stats.hits).toBe(1);
+      expect(runOne).toHaveBeenCalledTimes(1);
+      expect(replay[0].passed).toBe(true);
+      expect(replay[0].refused).toBe(true);
+    });
+
+    describe('retryWhileEmpty', () => {
+      interface FakeAttempt {
+        text: string;
+        finishReason: string;
+      }
+      const isEmpty = (r: FakeAttempt): boolean => r.text === '';
+      const reasonOf = (r: FakeAttempt): string => r.finishReason;
+      const blocked: FakeAttempt = { text: '', finishReason: 'content-filter' };
+
+      beforeEach(() => {
+        vi.useFakeTimers();
+      });
+      afterEach(() => {
+        vi.useRealTimers();
+      });
+
+      it('returns a content-filter result immediately when the refusal is final', async () => {
+        const attempt = vi.fn<() => Promise<FakeAttempt>>(() => Promise.resolve(blocked));
+
+        const out = await retryWhileEmpty(attempt, isEmpty, reasonOf, true);
+
+        expect(attempt).toHaveBeenCalledTimes(1);
+        expect(out.refused).toBe(true);
+        expect(out.emptyResponse).toBe(false);
+      });
+
+      it('retries a content-filter result when the refusal is not final', async () => {
+        const ok: FakeAttempt = { text: 'hello', finishReason: 'stop' };
+        const attempt = vi
+          .fn<() => Promise<FakeAttempt>>()
+          .mockResolvedValueOnce(blocked)
+          .mockResolvedValue(ok);
+
+        const pending = retryWhileEmpty(attempt, isEmpty, reasonOf, false);
+        await vi.runAllTimersAsync();
+        const out = await pending;
+
+        expect(attempt).toHaveBeenCalledTimes(2);
+        expect(out.result).toBe(ok);
+        expect(out.refused).toBe(false);
+        expect(out.emptyResponse).toBe(false);
+      });
+
+      it('reports a refusal when content-filter persists across every attempt', async () => {
+        const attempt = vi.fn<() => Promise<FakeAttempt>>(() => Promise.resolve(blocked));
+
+        const pending = retryWhileEmpty(attempt, isEmpty, reasonOf, false);
+        await vi.runAllTimersAsync();
+        const out = await pending;
+
+        expect(attempt).toHaveBeenCalledTimes(5);
+        expect(out.refused).toBe(true);
+        expect(out.emptyResponse).toBe(false);
+      });
+
+      it('reports an empty response when every attempt is plain empty', async () => {
+        const attempt = vi.fn<() => Promise<FakeAttempt>>(() =>
+          Promise.resolve({ text: '', finishReason: 'stop' })
+        );
+
+        const pending = retryWhileEmpty(attempt, isEmpty, reasonOf, false);
+        await vi.runAllTimersAsync();
+        const out = await pending;
+
+        expect(attempt).toHaveBeenCalledTimes(5);
+        expect(out.emptyResponse).toBe(true);
+        expect(out.refused).toBe(false);
+      });
+    });
   });
 });

@@ -73,12 +73,11 @@ questions:
                 maxLines: 5
 
   # --- Disambiguation / negative cases -------------------------------------
-  # NOTE: the harness has no "tool NOT called" assertion (the loader requires
-  # tool/tools/oneOf on every toolCall), so these rely on the wrong-tool answer
-  # failing the positive assertion. A notCalled assertion would strengthen them.
+  # These rely on the wrong-tool answer failing the positive assertion. A
+  # `count: 0` toolCall on the tempting wrong tool would strengthen them.
 
   - id: linklist-load-module-search
-    prompt: In what order does z/OS search system libraries for load modules?
+    prompt: Which libraries does this system search for a load module that is not in STEPLIB or JOBLIB?
     assertions:
       - toolCall:
           tool: listLinklist

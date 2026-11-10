@@ -201,6 +201,10 @@ export function writeReport(
       const runLabel = `Run ${run.runIndex + 1}/${totalRunsForQuestion}`;
       failures.push(`#### ${qid} - ${runLabel}`);
       failures.push('');
+      if (run.refused) {
+        failures.push('- **Refused by provider** (finishReason `content-filter`, empty output)');
+        failures.push('');
+      }
       failures.push('- Tool calls:');
       for (let i = 0; i < run.toolCalls.length; i++) {
         const tc = run.toolCalls[i];

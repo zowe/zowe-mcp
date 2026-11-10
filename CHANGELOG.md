@@ -24,6 +24,7 @@ don't warrant an entry (CI, chores, internal refactors, docs-only) can carry the
 
 ### Changed
 
+- The `runSafeTsoCommand` and `runSafeUssCommand` descriptions now state all three outcomes (runs immediately, needs user approval, always blocked) and name the always-blocked commands; `runConsoleCommand` now lists every blocked command group.
 - Update the bundled Zowe Remote SSH SDK to support the upstream rename from zowex to zo. The mock z/OS host currently rejects the new executable name, causing server startup and version checks to fail. This change supports zo while preserving compatibility with older zowex clients.
 - Bundled zowex SDK pin moved to the 0.9.0 nightly (2026-08-25): brings the `consoleCommand` JSON-RPC support and the slimmed APF-authorized `zoweax` companion; hosts running older auto-deployed servers are redeployed on next connect. Also fixed the `sdk-switch.js nightly` resolver picking stale pre-rename artifacts (lexical sort) — it now filters to the current package name and sorts by datestamp.
 - Bundled zowex SDK pin moved to the 0.9.0 nightly (2026-09-04). Also fixed `sdk-switch.js` recording the wrong version in `resources/zowex-pin.json`: it read the tarball's `package.json` with `tar --include=`, a bsdtar-only flag that GNU tar rejects outright, and the failure was swallowed so the function silently returned its fallback. Pins generated on CI therefore recorded `"version": "nightly"` and derived the doubled filename `zowe-zowex-for-zowe-sdk-nightly-nightly-<datestamp>.tgz`, while pins written on macOS were correct. It now extracts to stdout (`tar -xzOf`), which works on both, and warns instead of falling back silently. Also cleared the three CodeQL findings standing against `scripts/sdk-switch.js`: the tarball is read via `execFileSync` with an argument list so the path never reaches a shell, command-line arguments (version, PR number, branch name) are validated against an allow-list before being interpolated into any shell command, and `removeSdkIntegrityFromLockfile` no longer checks the lockfile's existence before reading it (a check-then-use file-system race) — it reads and treats `ENOENT` as "nothing to do".
@@ -44,6 +45,7 @@ don't warrant an entry (CI, chores, internal refactors, docs-only) can carry the
 
 ### Fixed
 
+- A command blocked by `runSafeUssCommand` now returns the same explicit "blocked by the safety policy and not run" message as the TSO and console tools, instead of only the pattern's reason (for example `Pipes URL content to shell`), which models reported as a tool error rather than a policy block.
 - **Cleared three production dependency advisories** published on 2026-10-20
   that fail the `audit` gate on `main`: `hono` 4.13.7 → 4.13.13 (moderate:
   `serveStatic` decodes the request path twice, letting static paths bypass

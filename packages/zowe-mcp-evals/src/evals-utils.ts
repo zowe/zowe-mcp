@@ -71,6 +71,22 @@ export function reportEmptyResponses(results: RunResult[]): void {
 }
 
 /**
+ * Logs how many runs were refused server-side by the provider (finishReason
+ * 'content-filter'), and how many of those were accepted as a pass versus scored as
+ * failures. Prints nothing when there were no refusals.
+ */
+export function reportRefusals(results: RunResult[]): void {
+  const refused = results.filter(r => r.refused);
+  if (refused.length === 0) return;
+  const failures = refused.filter(r => !r.passed).length;
+  const accepted = refused.length - failures;
+  log.notice(
+    `Provider refusals: ${refused.length.toString()}/${results.length.toString()} runs ` +
+      `(${accepted.toString()} accepted as pass, ${failures.toString()} scored as failures)`
+  );
+}
+
+/**
  * Build a subset of tool definitions keyed by name, for cache-key computation.
  */
 export function buildToolDefsSubset(
@@ -99,6 +115,8 @@ interface AssertAndRecordInput {
   stepCount?: number;
   /** True when the provider returned an empty candidate on every attempt. */
   emptyResponse?: boolean;
+  /** True when the provider refused server-side (finishReason 'content-filter'). */
+  refused?: boolean;
 }
 
 /**
@@ -127,6 +145,7 @@ export async function assertAndRecord(
     tokenUsage: input.tokenUsage,
     stepCount: input.stepCount,
     ...(input.emptyResponse ? { emptyResponse: true } : {}),
+    ...(input.refused ? { refused: true } : {}),
   };
 }
 
@@ -157,6 +176,7 @@ export async function assertConversation(
     tokenUsage: input.conversation.tokenUsage,
     stepCount: input.conversation.stepCount,
     ...(input.conversation.emptyResponse ? { emptyResponse: true } : {}),
+    ...(input.conversation.refused ? { refused: true } : {}),
   };
   for (let i = 0; i < input.questionTurns.length; i++) {
     const turnRun = input.conversation.turns[i];

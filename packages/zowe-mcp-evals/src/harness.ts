@@ -105,6 +105,12 @@ const MAX_STEPS = 10;
 const EMPTY_RESPONSE_RETRIES = 4;
 const EMPTY_RESPONSE_BACKOFF_BASE_MS = 750;
 const EMPTY_RESPONSE_BACKOFF_MAX_MS = 8000;
+/**
+ * The AI SDK's finish reason for provider-side blocks. On Anthropic it is the mapping of
+ * `stop_reason: "refusal"` and is deterministic; other providers map transient blocks to it too
+ * (Google: SAFETY, RECITATION, BLOCKLIST, PROHIBITED_CONTENT, SPII), so it is only final there
+ * after the retries are exhausted.
+ */
 const REFUSAL_FINISH_REASON = 'content-filter';
 
 /** Delay before empty-response retry `attempt` (1-based): exponential with +/-25% jitter. */
@@ -121,19 +127,26 @@ const sleep = (ms: number): Promise<void> => new Promise(res => setTimeout(res, 
  * tries with backoff between them. `attempt` is responsible for resetting any state it
  * accumulates (e.g. tool-call records) at the start of each call. Returns the last result
  * and whether it was still empty after every attempt.
+ *
+ * A `content-filter` finish reason is a refusal. When `refusalIsFinal` is true (Anthropic,
+ * where it is deterministic) it is returned immediately without retrying. Otherwise an empty
+ * `content-filter` result is retried like any empty response, and counts as a refusal only if
+ * it persists across every attempt.
  */
 export async function retryWhileEmpty<T>(
   attempt: () => Promise<T>,
   isEmpty: (result: T) => boolean,
-  finishReasonOf: (result: T) => string | undefined
+  finishReasonOf: (result: T) => string | undefined,
+  refusalIsFinal: boolean
 ): Promise<{ result: T; emptyResponse: boolean; refused: boolean }> {
-  let result = await attempt();
-  // A provider refusal (Anthropic stop_reason "refusal" -> AI SDK 'content-filter') is final:
-  // retrying only repeats the refusal, and it is not provider flakiness.
-  if (finishReasonOf(result) === REFUSAL_FINISH_REASON) {
+  const refusedFinal = (r: T): boolean => finishReasonOf(r) === REFUSAL_FINISH_REASON;
+  const refusedResult = (r: T) => {
     log.info('Model response was refused by the provider (finishReason=content-filter)');
-    return { result, emptyResponse: false, refused: true };
-  }
+    return { result: r, emptyResponse: false, refused: true };
+  };
+
+  let result = await attempt();
+  if (refusalIsFinal && refusedFinal(result)) return refusedResult(result);
   for (let n = 1; n <= EMPTY_RESPONSE_RETRIES && isEmpty(result); n++) {
     const delayMs = emptyResponseBackoffMs(n);
     log.warning(
@@ -141,11 +154,10 @@ export async function retryWhileEmpty<T>(
     );
     await sleep(delayMs);
     result = await attempt();
-    if (finishReasonOf(result) === REFUSAL_FINISH_REASON) {
-      return { result, emptyResponse: false, refused: true };
-    }
+    if (refusalIsFinal && refusedFinal(result)) return refusedResult(result);
   }
   const emptyResponse = isEmpty(result);
+  if (emptyResponse && refusedFinal(result)) return refusedResult(result);
   if (emptyResponse) {
     log.warning(
       `Model returned an empty response on all ${(EMPTY_RESPONSE_RETRIES + 1).toString()} attempts — recording as infrastructure noise, not a behavioral failure`
@@ -187,9 +199,10 @@ export interface AgentRunResult {
   emptyResponse?: boolean;
   /**
    * True when the provider refused to answer server-side: the AI SDK reports
-   * `finishReason: 'content-filter'` (Anthropic `stop_reason: "refusal"`) with no output.
-   * A refusal is a deterministic provider decision, not flakiness, so it is never retried
-   * and never flagged as `emptyResponse`. For multi-turn runs, true if any turn was refused.
+   * `finishReason: 'content-filter'` with no output. On Anthropic (`stop_reason: "refusal"`)
+   * that is deterministic and never retried; on other providers the block may be transient,
+   * so it is retried and flagged only if it persists across all attempts. Never set together
+   * with `emptyResponse`. For multi-turn runs, true if any turn was refused.
    */
   refused?: boolean;
 }
@@ -586,7 +599,8 @@ export class McpEvalHarness {
     const { result, emptyResponse, refused } = await retryWhileEmpty(
       attemptGeneration,
       isEmptyResponse,
-      r => r.finishReason
+      r => r.finishReason,
+      this.options.evalsConfig.provider === 'anthropic'
     );
     const durationMs = Date.now() - t0;
 
@@ -645,7 +659,8 @@ export class McpEvalHarness {
       const { result, emptyResponse, refused } = await retryWhileEmpty(
         attemptTurn,
         isEmptyTurn,
-        r => r.finishReason
+        r => r.finishReason,
+        this.options.evalsConfig.provider === 'anthropic'
       );
       if (emptyResponse) anyEmptyTurn = true;
       if (refused) anyRefusedTurn = true;

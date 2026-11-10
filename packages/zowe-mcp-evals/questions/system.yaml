@@ -78,7 +78,7 @@ questions:
   # failing the positive assertion. A notCalled assertion would strengthen them.
 
   - id: linklist-load-module-search
-    prompt: Look up the actual link list on this system and tell me in what order z/OS searches those libraries for load modules.
+    prompt: Which libraries does this system search for a load module that is not in STEPLIB or JOBLIB?
     assertions:
       - toolCall:
           tool: listLinklist

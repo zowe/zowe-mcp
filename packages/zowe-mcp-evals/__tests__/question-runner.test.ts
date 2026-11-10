@@ -540,18 +540,65 @@ describe('runQuestion', () => {
       expect(replay[0].refused).toBe(true);
     });
 
-    it('retryWhileEmpty returns a content-filter result immediately without retrying', async () => {
-      const attempt = vi.fn(() => Promise.resolve({ text: '', finishReason: 'content-filter' }));
+    describe('retryWhileEmpty', () => {
+      const isEmpty = (r: { text: string }): boolean => r.text === '';
+      const reasonOf = (r: { finishReason: string }): string => r.finishReason;
+      const blocked = { text: '', finishReason: 'content-filter' };
 
-      const out = await retryWhileEmpty(
-        attempt,
-        r => r.text === '',
-        r => r.finishReason
-      );
+      beforeEach(() => {
+        vi.useFakeTimers();
+      });
+      afterEach(() => {
+        vi.useRealTimers();
+      });
 
-      expect(attempt).toHaveBeenCalledTimes(1);
-      expect(out.refused).toBe(true);
-      expect(out.emptyResponse).toBe(false);
+      it('returns a content-filter result immediately when the refusal is final', async () => {
+        const attempt = vi.fn(() => Promise.resolve(blocked));
+
+        const out = await retryWhileEmpty(attempt, isEmpty, reasonOf, true);
+
+        expect(attempt).toHaveBeenCalledTimes(1);
+        expect(out.refused).toBe(true);
+        expect(out.emptyResponse).toBe(false);
+      });
+
+      it('retries a content-filter result when the refusal is not final', async () => {
+        const ok = { text: 'hello', finishReason: 'stop' };
+        const attempt = vi.fn().mockResolvedValueOnce(blocked).mockResolvedValue(ok);
+
+        const pending = retryWhileEmpty(attempt, isEmpty, reasonOf, false);
+        await vi.runAllTimersAsync();
+        const out = await pending;
+
+        expect(attempt).toHaveBeenCalledTimes(2);
+        expect(out.result).toBe(ok);
+        expect(out.refused).toBe(false);
+        expect(out.emptyResponse).toBe(false);
+      });
+
+      it('reports a refusal when content-filter persists across every attempt', async () => {
+        const attempt = vi.fn(() => Promise.resolve(blocked));
+
+        const pending = retryWhileEmpty(attempt, isEmpty, reasonOf, false);
+        await vi.runAllTimersAsync();
+        const out = await pending;
+
+        expect(attempt).toHaveBeenCalledTimes(5);
+        expect(out.refused).toBe(true);
+        expect(out.emptyResponse).toBe(false);
+      });
+
+      it('reports an empty response when every attempt is plain empty', async () => {
+        const attempt = vi.fn(() => Promise.resolve({ text: '', finishReason: 'stop' }));
+
+        const pending = retryWhileEmpty(attempt, isEmpty, reasonOf, false);
+        await vi.runAllTimersAsync();
+        const out = await pending;
+
+        expect(attempt).toHaveBeenCalledTimes(5);
+        expect(out.emptyResponse).toBe(true);
+        expect(out.refused).toBe(false);
+      });
     });
   });
 });

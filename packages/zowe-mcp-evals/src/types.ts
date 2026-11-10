@@ -402,7 +402,9 @@ export interface RunResult {
   /**
    * True when the provider refused server-side: Anthropic returns `stop_reason: "refusal"`,
    * which the Vercel AI SDK surfaces as `finishReason: 'content-filter'` with empty output.
-   * Never retried and never set together with `emptyResponse`.
+   * Deterministic on Anthropic, so never retried there; other providers' blocks may be
+   * transient, so they are retried and flagged only if they persist across all attempts.
+   * Never set together with `emptyResponse`.
    */
   refused?: boolean;
 }

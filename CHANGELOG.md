@@ -44,6 +44,7 @@ don't warrant an entry (CI, chores, internal refactors, docs-only) can carry the
 
 ### Fixed
 
+- A command blocked by `runSafeUssCommand` now returns the same explicit "blocked by the safety policy and not run" message as the TSO and console tools, instead of only the pattern's reason (for example `Pipes URL content to shell`), which models reported as a tool error rather than a policy block.
 - **Cleared three production dependency advisories** published on 2026-10-20
   that fail the `audit` gate on `main`: `hono` 4.13.7 → 4.13.13 (moderate:
   `serveStatic` decodes the request path twice, letting static paths bypass

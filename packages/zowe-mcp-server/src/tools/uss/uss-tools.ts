@@ -29,6 +29,7 @@ import { buildCacheKey, buildScopeSystem, withCache } from '../../zos/response-c
 import { resolveSystemForTool, type SessionState } from '../../zos/session.js';
 import type { SystemRegistry } from '../../zos/system.js';
 import { relativizeForDisplay, resolveUssPath } from '../../zos/uss-path.js';
+import { formatBlockedCommandMessage } from '../command-safety.js';
 import { createToolProgress } from '../progress.js';
 import {
   buildContext,
@@ -576,9 +577,11 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
       try {
         const validation = validateCommand(commandText);
         if (validation.action === 'block') {
-          const msg =
-            validation.pattern?.message ?? 'This command is not allowed for security reasons.';
-          await progress.complete(msg);
+          const msg = formatBlockedCommandMessage(
+            'USS',
+            validation.pattern?.message ?? 'This command is not allowed for security reasons.'
+          );
+          await progress.complete('blocked');
           return errorResult(msg);
         }
         if (validation.action === 'elicit') {

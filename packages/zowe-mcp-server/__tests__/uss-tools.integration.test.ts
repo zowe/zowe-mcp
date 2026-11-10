@@ -212,6 +212,20 @@ describe('USS tools integration', () => {
     expect(parsed.error).toBeDefined();
   });
 
+  it('runSafeUssCommand blocked command states it was blocked by policy and not run', async () => {
+    const result = await client.callTool({
+      name: 'runSafeUssCommand',
+      arguments: { commandText: 'rm -rf /' },
+    });
+    expect(result.isError).toBe(true);
+    const reason = validateCommand('rm -rf /').pattern?.message;
+    expect(reason).toBeTruthy();
+    const { error } = JSON.parse(getResultText(result)) as { error: string };
+    expect(error).toContain('BLOCKED');
+    expect(error).toContain('NOT run');
+    expect(error).toContain(reason);
+  });
+
   it('runSafeUssCommand unknown command returns elicit-denied error', async () => {
     const result = await client.callTool({
       name: 'runSafeUssCommand',

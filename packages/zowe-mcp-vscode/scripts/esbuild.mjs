@@ -14,10 +14,7 @@
  *
  * Produces two bundles:
  *  - The extension host (`src/extension.ts` -> `dist/extension.js`), a
- *    single CJS file. `vscode` and `@zowe/imperative` stay external:
- *    `vscode` is provided by the host at runtime, and `@zowe/imperative` is
- *    deliberately absent from the VSIX (src/zowe-profile.ts lazy-requires
- *    it in a try/catch and degrades gracefully when it's missing).
+ *    single CJS file. `vscode` stays external because the host provides it at runtime.
  *  - The MCP server (`@zowe/mcp-server`'s compiled `dist/index.js` and
  *    `dist/scripts/*.js`) -> the extension's `server/` directory, as ESM
  *    with code-splitting so the five entry points share one copy of their
@@ -107,7 +104,7 @@ export async function buildExtension() {
     platform: 'node',
     format: 'cjs',
     target: NODE_TARGET,
-    external: ['vscode', '@zowe/imperative'],
+    external: ['vscode'],
     // No sourcemaps: keeping them out of server/ entirely avoids relying on
     // .vscodeignore's directory re-include (`!server/**`) also correctly
     // re-excluding `**/*.map` underneath it, which isn't reliable across

@@ -18,7 +18,7 @@ When the extension is configured with a backend (**zowex** or **mock**), your AI
 - **UNIX System Services (USS)** — List, read, write, create, and delete USS files; run safe USS commands; temp dir/path helpers; chmod/chown/chtag
 - **TSO** — Run safe TSO commands (block/elicit/safe patterns)
 - **Context** — Switch between z/OS systems; get current system and USS working directory
-- **Open in Zowe Explorer** — When [Zowe Explorer](https://marketplace.visualstudio.com/items?itemName=Zowe.vscode-extension-for-zowe) is installed, the AI can open data sets, USS files, and jobs in the editor: `openDatasetInEditor`, `openUssFileInEditor`, `openJobInEditor`. Each opens the resource in Zowe Explorer's editor (zowe-ds, zowe-uss, or zowe-jobs URI). The extension resolves the Zowe profile (session cache, default from team config or `zowe config list --rfj`, or match by system) or prompts you to pick or type a profile name and remembers it for the session.
+- **Open in Zowe Explorer** — When [Zowe Explorer](https://marketplace.visualstudio.com/items?itemName=Zowe.vscode-extension-for-zowe) is installed, the AI can open data sets, USS files, and jobs in the editor: `openDatasetInEditor`, `openUssFileInEditor`, `openJobInEditor`. Each opens the resource in Zowe Explorer's editor (zowe-ds, zowe-uss, or zowe-jobs URI). The extension resolves the Zowe profile (session cache, default from Explorer's team configuration, or match by system) or prompts you to pick or type a profile name and remembers it for the session.
 - **Slash commands** — Use prompts such as “review JCL” or “explain data set” in chat
 
 Without a backend, only the server **info** tool is available; the extension will prompt you to set up mock data or a connection.
@@ -165,7 +165,7 @@ When the **Zowe Explorer** extension (`Zowe.vscode-extension-for-zowe`) is insta
 | **openUssFileInEditor** | Open a USS file or directory (zowe-uss URI). |
 | **openJobInEditor** | Open a job or a specific job spool file (zowe-jobs URI). Use `jobFileId` from `listJobFiles` to open a spool; omit to open the job node. |
 
-Profile resolution (which Zowe profile to use for the URI) runs in this order: (1) session cache for the current system, (2) default zosmf profile from team config (ProfileInfo or `zowe config list --rfj` with workspace cwd), (3) profile matched by MCP system (host/user), (4) if none found — quick pick of zosmf profiles or an input box to type the profile name. The chosen profile is remembered for the session so the next open is immediate. Path segments in URIs are percent-encoded so names like member `###` work correctly; documents open with **preview: false** so multiple opens do not replace the previous tab.
+Profile resolution (which Zowe profile to use for the URI) runs in this order: (1) session cache for the current system, (2) default zosmf profile from Explorer's team configuration, (3) profile matched by MCP system (host/user), (4) if none found — quick pick of zosmf profiles or an input box to type the profile name. The chosen profile is remembered for the session so the next open is immediate. Path segments in URIs are percent-encoded so names like member `###` work correctly; documents open with **preview: false** so multiple opens do not replace the previous tab.
 
 ## Commands
 

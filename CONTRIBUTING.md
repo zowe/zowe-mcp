@@ -33,19 +33,24 @@ that documents how AI was used:
 
 - **Tool**: Which AI assistant was used (e.g. Cursor, GitHub Copilot, Claude
   Code, Cline)
-- **Model**: Which model(s) were used (e.g. Claude Sonnet 4, GPT-4.1)
+- **Model**: Exact model ID(s) used (e.g. `claude-sonnet-4-5`, `gpt-4.1`), not
+  just the vendor name
 - **Scope**: What parts of the PR were AI-assisted vs. manually written
 - **Review**: How the AI-generated code was reviewed and validated
+- **Verified**: What was tested or run, and what was not
+
+Rules for AI agents working in this repository are in [AGENTS.md](AGENTS.md).
 
 Example:
 
 ```markdown
 ## AI Usage
 - **Tool**: Cursor (Agent mode)
-- **Model**: Claude Sonnet 4
+- **Model**: claude-sonnet-4-5
 - **Scope**: All code changes were AI-generated; test cases were reviewed
   and adjusted manually
 - **Review**: Ran full test suite, verified with evals, manual code review
+- **Verified**: `npm test` and `npm run lint` pass; not run against real z/OS
 ```
 
 ## Sign All of Your Git Commits
@@ -121,11 +126,19 @@ the required status checks are green and the branch rules are satisfied.
 | Check | Workflow | What it covers |
 | ----- | -------- | -------------- |
 | `ci-ok` | `ci.yml` | Aggregate gate over the Linux `build` job (lint, format, duplication, type-check, server tests + coverage, VS Code tests, pack, airgap, docs-drift, VSIX) **and** the `cross-platform` matrix (Windows + macOS build/type-check/tests). One stable name, so the CI jobs can be reorganized without touching branch protection. |
-| `audit` | `audit.yml` | `npm audit` on production dependencies (moderate+). |
+| `audit` | `audit.yml` | Production dependency audit (moderate+), with reviewed, expiring advisory exceptions. |
 | `gitleaks` | `secret-scan.yml` | Secret scanning. |
 | `headers` | `license-headers.yml` | EPL-2.0 license header on every `.ts` file. |
 | `Analyze (javascript-typescript)` | `codeql.yml` | CodeQL static analysis (security-extended). |
 | `DCO` | (GitHub app) | Every commit is signed off (`git commit -s`). |
+
+Run `npm run audit:prod` to reproduce the production audit locally. Its only
+temporary exception is **GHSA-vfj7-8cjw-p6xm** in `braces`, reached through
+`@zowe/imperative` configuration and plug-in discovery. There is no patched
+version available; the exception expires after **2026-12-10**. A different
+advisory, an expired exception, or an audit execution/report error still fails
+the check. Changes to exceptions require code-owner review. The policy tests
+(`npm run test:audit`) run in the audit workflow before the live scan.
 
 `ci-ok` runs with `if: always()` and only fails if a required CI job actually
 failed or was cancelled. A `[ci skip]` push skips `build`/`cross-platform`, which

@@ -815,11 +815,14 @@ function generateDefaultInputs(tools: ToolInfo[]): Record<string, Record<string,
     listUssFiles: { path: '/' },
     readUssFile: { path: '/etc/profile' },
     runSafeTsoCommand: { command: 'TIME' },
+    queryTso: { commandText: 'LISTUSER USER01' },
     getUssHome: {},
     listApfLibraries: {},
     listProclib: {},
+    listParmlib: {},
     listLinklist: {},
     viewSyslog: {},
+    display: { operands: 'T' },
     showCertificate: { owner: 'USER01', keyring: 'RING02', label: 'CERT03' },
     connectCertificate: {
       owner: 'USER01',
@@ -985,13 +988,20 @@ async function main(): Promise<void> {
         {
           label: 'TSO',
           description: 'Time Sharing Option — run TSO commands interactively on z/OS.',
-          toolNames: ['runSafeTsoCommand'],
+          toolNames: ['queryTso', 'runSafeTsoCommand'],
         },
         {
           label: 'System Information',
           description:
-            'Read-only information about the z/OS system itself — APF-authorized data sets, the PROCLIB concatenation, the link list (LNKLST) concatenation, and the operations SYSLOG.',
-          toolNames: ['listApfLibraries', 'listProclib', 'listLinklist', 'viewSyslog'],
+            'Read-only information about the z/OS system itself — APF-authorized data sets, the PROCLIB concatenation, the PARMLIB concatenation, the link list (LNKLST) concatenation, the operations SYSLOG, and operator DISPLAY command output.',
+          toolNames: [
+            'listApfLibraries',
+            'listProclib',
+            'listParmlib',
+            'listLinklist',
+            'viewSyslog',
+            'display',
+          ],
         },
         {
           label: 'Certificates',

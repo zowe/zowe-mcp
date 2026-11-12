@@ -55,6 +55,7 @@ import type {
   ListApfResult,
   ListJobsOptions,
   ListLinklistResult,
+  ListParmlibResult,
   ListProclibResult,
   ListUssFilesOptions,
   MemberEntry,
@@ -1025,13 +1026,42 @@ export class FilesystemMockBackend implements ZosBackend {
         `LISTCAT mock output\n-- Catalog (mock) --\nUSER.MOCK.DATA\nUSER.MOCK.PDS`
       );
     }
-    if (verb === 'STATUS') {
+    if (verb === 'STATUS' || verb === 'ST') {
       return Promise.resolve(`STATUS mock output\nREADY`);
     }
-    if (verb === 'LISTBC') {
+    if (verb === 'LISTBC' || verb === 'LISTB') {
       return Promise.resolve(
         `LISTBC mock output\n-- Broadcast messages (mock) --\nUSER=${_userId ?? 'mockuser'}\nSYSTEM MESSAGES FOR JUL 04,2026\nIKJM026I MOCK SYSTEM WILL BE UNAVAILABLE FOR MAINTENANCE THIS WEEKEND`
       );
+    }
+    if (verb === 'LISTUSER' || verb === 'LU') {
+      const target = (firstOperandName(parts[1]) ?? _userId ?? 'mockuser').toUpperCase();
+      return Promise.resolve(
+        `USER=${target}  NAME=MOCK USER  OWNER=SYS1  CREATED=24.001\n DEFAULT-GROUP=SYS1  PASSDATE=26.001 PASS-INTERVAL=N/A\n ATTRIBUTES=NONE\n GROUP=SYS1  AUTH=USE  CONNECT-OWNER=SYS1`
+      );
+    }
+    if (verb === 'LISTGRP' || verb === 'LG') {
+      const target = (firstOperandName(parts[1]) ?? 'SYS1').toUpperCase();
+      return Promise.resolve(
+        `INFORMATION FOR GROUP ${target}\n    SUPERIOR GROUP=SYS1  OWNER=SYS1  CREATED=24.001\n    NO INSTALLATION DATA\n    NO MODEL DATA SET\n    SUBGROUPS= NONE\n    USER(S)=      ACCESS=      ACCESS COUNT=      UNIVERSAL ACCESS=\n      MOCKUSER      USE          000000             NONE`
+      );
+    }
+    if (verb === 'LISTDSD' || verb === 'LD') {
+      const dsdMatch = /\b(?:DATASET|DA)\s*\(\s*['"]?([^'")\s,]+)/.exec(upper);
+      const dsdName = dsdMatch?.[1] ?? firstOperandName(parts[1]) ?? 'USER.MOCK.DATA';
+      return Promise.resolve(
+        `INFORMATION FOR DATASET ${dsdName}\n\nLEVEL  OWNER      UNIVERSAL ACCESS  WARNING  ERASE\n-----  --------   ----------------  -------  -----\n00     MOCKUSER   NONE              NO       NO`
+      );
+    }
+    if (verb === 'RLIST' || verb === 'RL') {
+      const cls = (firstOperandName(parts[1]) ?? 'FACILITY').toUpperCase();
+      const profile = (firstOperandName(parts[2]) ?? 'MOCK.PROFILE').toUpperCase();
+      return Promise.resolve(
+        `CLASS      NAME\n-----      ----\n${cls.padEnd(10)} ${profile}\n\nLEVEL  OWNER      UNIVERSAL ACCESS  YOUR ACCESS  WARNING\n-----  --------   ----------------  -----------  -------\n00     MOCKUSER   NONE              READ         NO`
+      );
+    }
+    if (verb === 'SEARCH' || verb === 'SR') {
+      return Promise.resolve(`USER.MOCK.DATA\nUSER.MOCK.PDS`);
     }
     if (verb === 'HELP' || verb === 'H') {
       return Promise.resolve(
@@ -1142,6 +1172,21 @@ export class FilesystemMockBackend implements ZosBackend {
         { dsn: 'USER.PROCLIB' },
         { dsn: 'CPAC.PROCLIB' },
         { dsn: 'SYS2.PROCLIB' },
+      ],
+    });
+  }
+
+  listParmlib(
+    _systemId: SystemId,
+    _userId?: string,
+    _progress?: BackendProgressCallback
+  ): Promise<ListParmlibResult> {
+    return Promise.resolve({
+      items: [
+        { dsn: 'SYS1.PARMLIB' },
+        { dsn: 'SYS1.IBM.PARMLIB' },
+        { dsn: 'USER.PARMLIB' },
+        { dsn: 'CPAC.PARMLIB' },
       ],
     });
   }
@@ -1513,4 +1558,17 @@ export class FilesystemMockBackend implements ZosBackend {
     }
     return undefined;
   }
+}
+
+/**
+ * Extracts the first name from a TSO operand: strips surrounding parentheses and quotes and
+ * takes the first entry of a comma-separated list (e.g. `(USER01)` and `SYS1,SYS2`).
+ */
+function firstOperandName(operand: string | undefined): string | undefined {
+  if (!operand) return undefined;
+  const first = operand
+    .replace(/^[('"]+/, '')
+    .split(',')[0]
+    ?.replace(/[)'"]+$/, '');
+  return first ? first : undefined;
 }

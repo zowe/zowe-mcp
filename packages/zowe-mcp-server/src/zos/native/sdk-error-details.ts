@@ -24,9 +24,19 @@ export function getAdditionalDetails(err: unknown): string | undefined {
 }
 
 /**
+ * Matches the SDK's `esmReturnCode`/`esmReasonCode` JSON keys (quoted, then a colon), so the
+ * zowex prose "ESM rc: 8" in the same details is left alone.
+ */
+const ESM_CODE_KEY = /"esm(Return|Reason)Code"(\s*:)/g;
+
+/**
  * Builds a user-facing error message that includes additionalDetails when available.
+ *
+ * SAF return codes in the details use the same vendor-neutral `productReturnCode`/
+ * `productReasonCode` names as `CertActionResult.safReturnCodes` (#70). Only the returned text is
+ * renamed; callers still classify errors on the raw SDK details.
  */
 export function formatErrorWithDetails(message: string, details?: string): string {
   if (!details) return message;
-  return `${message}\nDetails:\n${details}`;
+  return `${message}\nDetails:\n${details.replace(ESM_CODE_KEY, '"product$1Code"$2')}`;
 }

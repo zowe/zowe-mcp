@@ -321,6 +321,19 @@ Following the established split (IdP doctor precedent): a
 probe for a configured userid; **RACF commands are printed for the
 administrator, never executed**.
 
+### Per-user onboarding
+
+The SURROGAT profiles above are **per target user**, so every account that will
+sign in needs one *before its first tool call*. The failure mode of a missing
+profile is deferred and easy to misread: sign-in itself succeeds (the IdP and
+the JWT know nothing of SURROGAT), and the problem surfaces only on that user's
+first tool call, as the launcher's `EPERM` (`EDC5139I … needs READ on
+BPX.SRV.<user>`) error. Deployment checklists and demo scripts should therefore
+treat the three commands (RDEFINE, PERMIT, RACLIST REFRESH) as a **per-user
+onboarding step** — run whenever an account is granted access, not once at
+install. No server restart is needed: the user's next tool call after the
+`SETROPTS RACLIST(SURROGAT) REFRESH` succeeds.
+
 ### Credential-handling rules (carried over from the IdP work)
 
 - The target userid crosses the process boundary via **stdin only** — never

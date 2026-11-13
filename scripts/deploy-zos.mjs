@@ -31,9 +31,9 @@
 
 import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
 const DEFAULT_PACKAGE = 'zowe-mcp-zos-saf-idp';
@@ -60,10 +60,38 @@ function loadDotEnv(path) {
   }
 }
 
+const ENV_REF = /\$\{ENV:([A-Za-z_][A-Za-z0-9_]*)\}/g;
+
+// Same name rule as the server's startup-log redaction (getRelevantEnv in
+// packages/zowe-mcp-server/src/server.ts), so both logs mask the same keys.
+const SENSITIVE_ENV_SUBSTRINGS = ['SECRET', 'TOKEN', 'PASSWORD', 'KEY', 'CREDENTIAL'];
+
+/** Keys of a raw (pre-interpolation) runtimeEnv whose value references ${ENV:...}. */
+export function envRefKeys(rawRuntimeEnv) {
+  return new Set(
+    Object.entries(rawRuntimeEnv ?? {})
+      .filter(([, value]) => typeof value === 'string' && new RegExp(ENV_REF).test(value))
+      .map(([key]) => key)
+  );
+}
+
+/**
+ * Printable lines for the env contract. A value is masked when it came from
+ * deploy/.env (where secrets live, per the header) or when its name looks
+ * secret, so a secret written inline in the JSON is not printed either.
+ */
+export function describeEnvContract(runtimeEnv, maskedKeys) {
+  return Object.entries(runtimeEnv ?? {}).map(([key, value]) => {
+    const upper = key.toUpperCase();
+    const masked = maskedKeys.has(key) || SENSITIVE_ENV_SUBSTRINGS.some(s => upper.includes(s));
+    return `  ${key}=${masked ? '***' : value}`;
+  });
+}
+
 /** Replaces "${ENV:NAME}" in any string value with process.env.NAME. */
 function interpolate(value) {
   if (typeof value === 'string') {
-    return value.replace(/\$\{ENV:([A-Za-z_][A-Za-z0-9_]*)\}/g, (_, name) => {
+    return value.replace(ENV_REF, (_, name) => {
       const resolved = process.env[name];
       if (resolved === undefined)
         fail(`config references \${ENV:${name}} but it is not set (deploy/.env?)`);
@@ -84,7 +112,10 @@ function loadConfig(target) {
       `no such target: ${path}\nCreate it from deploy/example-idp.json (see deploy/README.md).`
     );
   }
-  const config = interpolate(JSON.parse(readFileSync(path, 'utf8')));
+  const raw = JSON.parse(readFileSync(path, 'utf8'));
+  const config = interpolate(raw);
+  // Recorded before interpolation erases where each value came from.
+  config.maskedEnvKeys = envRefKeys(raw.runtimeEnv);
   for (const key of ['sshDest', 'remoteDir', 'startArgs', 'logFile', 'stopPattern']) {
     if (!config[key]) fail(`deploy/${target}.json is missing "${key}"`);
   }
@@ -311,8 +342,8 @@ async function main() {
     `deploying ${packageName}@${packageVersion} to ${config.sshDest}:${config.remoteDir}`
   );
   console.log('environment contract (set explicitly; everything else inherited untouched):');
-  for (const [key, value] of Object.entries(config.runtimeEnv ?? {})) {
-    console.log(`  ${key}=${value}`);
+  for (const line of describeEnvContract(config.runtimeEnv, config.maskedEnvKeys)) {
+    console.log(line);
   }
   if (config.prependPath?.length) {
     console.log(`  PATH prepend: ${config.prependPath.join(':')}`);
@@ -566,4 +597,6 @@ process.exit(res.status === 200 ? 0 : 1);
   console.log('Deployment complete.');
 }
 
-await main();
+if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
+  await main();
+}

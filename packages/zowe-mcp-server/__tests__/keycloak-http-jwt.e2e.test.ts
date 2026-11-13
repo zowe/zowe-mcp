@@ -36,6 +36,8 @@ const REALM = process.env.ZOWE_MCP_KEYCLOAK_REALM ?? 'demo';
 const CLIENT_ID = process.env.ZOWE_MCP_KEYCLOAK_CLIENT ?? 'demo';
 const KC_USER = process.env.ZOWE_MCP_KEYCLOAK_USER ?? 'user';
 const KC_PASSWORD = process.env.ZOWE_MCP_KEYCLOAK_PASSWORD ?? 'password';
+/** Keycloak puts `account` in `aud` of password-grant access tokens by default. */
+const KEYCLOAK_AUDIENCE = process.env.ZOWE_MCP_KEYCLOAK_AUDIENCE ?? 'account';
 
 const MCP_INIT_BODY = {
   jsonrpc: '2.0',
@@ -98,7 +100,7 @@ describe.skipIf(!KEYCLOAK_E2E)('Keycloak HTTP JWT e2e (opt-in)', () => {
       },
       0,
       logger,
-      { jwtAuth: { issuer, jwksUri } }
+      { jwtAuth: { issuer, jwksUri, audience: KEYCLOAK_AUDIENCE } }
     );
     try {
       const res = await postMcpLocal(handle.port, MCP_INIT_BODY);
@@ -126,7 +128,7 @@ describe.skipIf(!KEYCLOAK_E2E)('Keycloak HTTP JWT e2e (opt-in)', () => {
       },
       0,
       logger,
-      { jwtAuth: { issuer, jwksUri } }
+      { jwtAuth: { issuer, jwksUri, audience: KEYCLOAK_AUDIENCE } }
     );
     try {
       const res = await postMcpLocal(handle.port, MCP_INIT_BODY, {
@@ -150,7 +152,7 @@ describe.skipIf(!KEYCLOAK_E2E)('Keycloak HTTP JWT e2e (opt-in)', () => {
       },
       0,
       logger,
-      { jwtAuth: { issuer, jwksUri } }
+      { jwtAuth: { issuer, jwksUri, audience: KEYCLOAK_AUDIENCE } }
     );
     const transport = new StreamableHTTPClientTransport(
       new URL(`http://127.0.0.1:${handle.port}/mcp`),

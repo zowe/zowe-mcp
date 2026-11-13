@@ -1,0 +1,7 @@
+{
+  "name": "zos-attls-native",
+  "version": "0.0.0",
+  "private": true,
+  "description": "SIOCTTLSCTL query addon — built on-LPAR by build.sh, loaded via ZOWE_MCP_ATTLS_MODULE (this directory is the deployable module)",
+  "main": "build/Release/attls.node"
+}

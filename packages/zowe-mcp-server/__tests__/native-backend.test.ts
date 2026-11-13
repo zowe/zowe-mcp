@@ -119,19 +119,25 @@ function fakeParseSearchOutput(output: string) {
   };
 }
 
+/** Per-test override for the SDK's parseSearchOutput (null = real/fake parser). */
+const searchParseOverride = vi.hoisted(() => ({
+  fn: null as null | ((output: string) => unknown),
+}));
+
 vi.mock('@zowe/zowex-for-zowe-sdk', async importOriginal => {
   const actual = await importOriginal<Record<string, unknown>>();
-  if (!actual.UtilsApi) {
-    return {
-      ...actual,
-      UtilsApi: {
-        tools: {
-          parseSearchOutput: fakeParseSearchOutput,
-        },
+  const base =
+    (actual.UtilsApi as { tools: { parseSearchOutput: (output: string) => unknown } } | undefined)
+      ?.tools?.parseSearchOutput ?? fakeParseSearchOutput;
+  return {
+    ...actual,
+    UtilsApi: {
+      tools: {
+        parseSearchOutput: (output: string) =>
+          searchParseOverride.fn ? searchParseOverride.fn(output) : base(output),
       },
-    };
-  }
-  return actual;
+    },
+  };
 });
 
 const SYSTEM_ID = 'host.example.com';
@@ -874,6 +880,96 @@ describe('NativeBackend', () => {
 
     afterEach(() => {
       delete process.env.ZOWE_MCP_SEARCH_FORCE_FALLBACK;
+      searchParseOverride.fn = null;
+    });
+
+    it('merges parsed member rows without a name into the preceding member', async () => {
+      // Seen live on Host-A with SYS1.MACLIB: when a SuperC listing page break
+      // falls inside a member's match list, the SDK parser emits the
+      // continuation matches as a new member row with name undefined, which
+      // would fail MCP output-schema validation for the whole response. The
+      // nameless row is always the continuation of the member before it.
+      searchParseOverride.fn = () => ({
+        members: [
+          {
+            name: 'GOODMEM',
+            matches: [
+              { lineNumber: 5, content: 'HELLO THERE', beforeContext: [], afterContext: [] },
+            ],
+          },
+          {
+            name: undefined,
+            matches: [
+              { lineNumber: 9, content: 'CONTINUED', beforeContext: [], afterContext: [] },
+            ],
+          },
+          { name: '  ', matches: [] },
+          {
+            name: 'OTHERMEM',
+            matches: [
+              { lineNumber: 2, content: 'HELLO AGAIN', beforeContext: [], afterContext: [] },
+            ],
+          },
+        ],
+        summary: {
+          linesFound: 3,
+          linesProcessed: 100,
+          membersWithLines: 2,
+          membersWithoutLines: 0,
+          searchPattern: 'HELLO',
+          processOptions: 'ANYC',
+        },
+      });
+      const toolSearchMock = vi.fn().mockResolvedValue({ data: 'raw superc output' });
+      const backend = createBackendWithClient({ toolSearch: toolSearchMock });
+
+      const result = await backend.searchInDataset(SYSTEM_ID, 'SYS1.MACLIB', {
+        string: 'HELLO',
+        parms: 'ANYC',
+      });
+
+      expect(result.members).toHaveLength(2);
+      expect(result.members[0].name).toBe('GOODMEM');
+      expect(result.members[0].matches.map(m => m.lineNumber)).toEqual([5, 9]);
+      expect(result.members[0].matches[1].content).toBe('CONTINUED');
+      expect(result.members[1].name).toBe('OTHERMEM');
+      expect(result.summary.linesFound).toBe(3);
+    });
+
+    it('drops a nameless member row that has no preceding member', async () => {
+      searchParseOverride.fn = () => ({
+        members: [
+          {
+            name: undefined,
+            matches: [{ lineNumber: 9, content: 'ORPHANED', beforeContext: [], afterContext: [] }],
+          },
+          {
+            name: 'GOODMEM',
+            matches: [
+              { lineNumber: 5, content: 'HELLO THERE', beforeContext: [], afterContext: [] },
+            ],
+          },
+        ],
+        summary: {
+          linesFound: 2,
+          linesProcessed: 100,
+          membersWithLines: 2,
+          membersWithoutLines: 0,
+          searchPattern: 'HELLO',
+          processOptions: 'ANYC',
+        },
+      });
+      const toolSearchMock = vi.fn().mockResolvedValue({ data: 'raw superc output' });
+      const backend = createBackendWithClient({ toolSearch: toolSearchMock });
+
+      const result = await backend.searchInDataset(SYSTEM_ID, 'SYS1.MACLIB', {
+        string: 'HELLO',
+        parms: 'ANYC',
+      });
+
+      expect(result.members).toHaveLength(1);
+      expect(result.members[0].name).toBe('GOODMEM');
+      expect(result.members[0].matches.map(m => m.lineNumber)).toEqual([5]);
     });
 
     it('uses tool.search and returns mapped SearchInDatasetResult', async () => {

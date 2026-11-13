@@ -1,0 +1,41 @@
+{
+  "description": "Example deployment target (SAF IdP flavor; set \"package\" to @zowe/mcp-server for the MCP server). Copy to deploy/<target>.json (gitignored \u2014 real targets carry internal hostnames/userids) and run: npm run deploy:zos -- <target>",
+  "package": "zowe-mcp-zos-saf-idp",
+  "sshDest": "USERID@zos-host.example.com",
+  "remoteDir": "/u/users/userid/zmcp/saf-idp-oauth",
+  "runtimeEnv": {
+    "_BPXK_AUTOCVT": "ON",
+    "_CEE_RUNOPTS": "FILETAG(AUTOCVT,AUTOTAG) POSIX(ON)",
+    "_TAG_REDIR_IN": "txt",
+    "_TAG_REDIR_OUT": "txt",
+    "_TAG_REDIR_ERR": "txt",
+    "STEPLIB": "CEE.SCEERUN2.OVERRIDE",
+    "ZOWE_MCP_IDP_RACF_MODULE": "/u/users/userid/zmcp/node-racf/node_modules/racf"
+  },
+  "prependPath": ["/usr/lpp/IBM/cnj/node-v24/bin"],
+  "nodeFlags": ["--no-wasm-tier-up", "--no-wasm-dynamic-tiering"],
+  "startArgs": [
+    "--port",
+    "8045",
+    "--host",
+    "0.0.0.0",
+    "--allow-nonloopback",
+    "--issuer",
+    "http://zos-host.example.com:8045",
+    "--mcp-resource",
+    "http://zos-host.example.com:8044/mcp",
+    "--token-ttl",
+    "900",
+    "--saf-check",
+    "auto"
+  ],
+  "logFile": "idp-oauth-8045.log",
+  "stopPattern": "node_modules/zowe-mcp-zos-saf",
+  "expectLog": "SAF check backend: native",
+  "verifyUrl": "http://zos-host.example.com:8045/.well-known/openid-configuration",
+  "smokeLogin": {
+    "port": 8045,
+    "usernameEnv": "ZOWE_MCP_SMOKE_USER",
+    "passwordEnv": "ZOWE_MCP_SMOKE_PASSWORD"
+  }
+}

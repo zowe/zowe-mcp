@@ -48,22 +48,22 @@ describe('job-progress-text', () => {
     it('omits retcode when undefined', () => {
       expect(
         formatJobStatusProgressLine({
-          name: 'PLAPE03A',
+          name: 'USER03A',
           id: 'JOB62313',
           status: 'ACTIVE',
         })
-      ).toBe('Job PLAPE03A (JOB62313): ACTIVE');
+      ).toBe('Job USER03A (JOB62313): ACTIVE');
     });
 
     it('appends compact retcode when present', () => {
       expect(
         formatJobStatusProgressLine({
-          name: 'PLAPE03A',
+          name: 'USER03A',
           id: 'JOB62313',
           status: 'OUTPUT',
           retcode: 'CC 0000',
         })
-      ).toBe(`Job PLAPE03A (JOB62313): OUTPUT ${EN_DASH} CC 0000`);
+      ).toBe(`Job USER03A (JOB62313): OUTPUT ${EN_DASH} CC 0000`);
     });
   });
 });

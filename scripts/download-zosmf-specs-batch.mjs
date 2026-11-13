@@ -35,7 +35,7 @@
  *   },
  *   "instances": [
  *     {
- *       "host": "ca32.lvn.broadcom.net",
+ *       "host": "host.example.com",
  *       "user": "MYUSER",
  *       "port": 10443,                // optional, overrides defaults.port
  *       "insecure": true,             // optional, overrides defaults.insecure

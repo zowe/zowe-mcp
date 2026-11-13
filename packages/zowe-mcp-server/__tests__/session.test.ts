@@ -196,9 +196,7 @@ describe('resolveSystemForTool', () => {
     vi.stubEnv('WORKSPACE_ID', '');
     const registry = new SystemRegistry();
     const state = new SessionState();
-    expect(() => resolveSystemForTool(registry, state, 'ca32.lvn.broadcom.net')).toThrow(
-      /--config/
-    );
+    expect(() => resolveSystemForTool(registry, state, 'host.example.com')).toThrow(/--config/);
   });
 
   it('should mention VS Code settings when the registry is empty and extension env is set', () => {

@@ -97,6 +97,21 @@
           "name": "ZOWE_MCP_OAUTH_RESOURCE",
           "description": "Optional absolute MCP resource URL for OAuth protected resource metadata (resource field). Default: derived from request Host. Use behind reverse proxies if discovery shows the wrong URL.",
           "isRequired": false
+        },
+        {
+          "name": "ZOWE_MCP_AUTH_FAILURE_LIMIT",
+          "description": "HTTP Bearer JWT: maximum failed /mcp authentications per client IP per window before answering 429 (default 60; 0 disables). Successful requests are not counted.",
+          "isRequired": false
+        },
+        {
+          "name": "ZOWE_MCP_AUTH_FAILURE_WINDOW_SECONDS",
+          "description": "HTTP Bearer JWT: window in seconds for ZOWE_MCP_AUTH_FAILURE_LIMIT (default 60).",
+          "isRequired": false
+        },
+        {
+          "name": "ZOWE_MCP_TRUST_PROXY",
+          "description": "Express 'trust proxy' setting (hop count such as 1, or a subnet list) so the auth-failure limit keys on the real client IP behind a reverse proxy. Unset = trust none; set only when a proxy you control sets X-Forwarded-For.",
+          "isRequired": false
         }
       ]
     }

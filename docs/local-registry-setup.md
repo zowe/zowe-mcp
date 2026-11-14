@@ -1,5 +1,9 @@
 # Local MCP Registry — Setup Guide
 
+This page is for developers who test MCP registry entries on one machine. It is
+a test setup with public development credentials and a database that is reset
+on restart. Do not use it to publish production entries.
+
 This guide runs the official [MCP registry](https://github.com/modelcontextprotocol/registry) on your local machine and publishes the Zowe MCP Server to it so you can browse and install it directly from the VS Code Copilot gallery.
 
 Registry URL once running: **<http://localhost:8085>**
@@ -15,10 +19,10 @@ VS Code Copilot chat
 Local MCP Registry  (ghcr.io image + PostgreSQL, port 8080 on the Docker network)
   optional: nginx-registry-tls → registry:8080 (same cert.pem/key.pem as MCP/Keycloak; host registry.mcp.example.com)
   name: io.modelcontextprotocol.anonymous/zowe-mcp-server
-  package: @zowe/mcp-server (Zowe Artifactory)
+  package: @zowe/mcp-server
 ```
 
-**Ports:** **8085** maps the registry container to **`http://localhost:8085`** (no TLS). **8445** (default **`REGISTRY_TLS_PORT`**) maps **nginx** for **`https://registry.mcp.example.com:8445`** when you use the TLS profile — same idea as **`zowe.mcp.example.com`** for the MCP HTTP stack in **`docker/remote-https-dev`**.
+**Ports:** **8085** maps the registry container to **`http://localhost:8085`** (no TLS). **8445** (default **`REGISTRY_TLS_PORT`**) maps **nginx** for **`https://registry.mcp.example.com:8445`** through the `nginx-registry-tls` service — same idea as **`zowe.mcp.example.com`** for the MCP HTTP stack in **`docker/remote-https-dev`**.
 
 ## Prerequisites
 
@@ -102,9 +106,12 @@ Logging in with none...
 ## Step 3 — Publish the server
 
 ```bash
-# Still in packages/zowe-mcp-server/ (uses ./server.json by default)
-mcp-publisher publish server.json --registry=http://localhost:8085
+# Still in packages/zowe-mcp-server/
+mcp-publisher publish remote-server-example-dev.json --registry=http://localhost:8085
 ```
+
+`server.json` is named `io.github.zowe/zowe-mcp-server`, which an anonymous login
+cannot publish (HTTP 403); publishing it needs `mcp-publisher login github`.
 
 Put the **manifest path before** `--registry`. If you run `mcp-publisher publish --registry=… <file>.json`, the CLI **ignores** the file and publishes **`./server.json`** instead (you may see a **403** with the wrong `name`).
 
@@ -195,6 +202,10 @@ After install, configure the server in `.vscode/mcp.json`. For mock mode (no z/O
 }
 ```
 
+`npx @zowe/mcp-server` works only after the package is published. Until then,
+use the `zowe-mcp-server` program installed from a release, as described in the
+[standalone server guide](standalone-mcp.md#install-the-server).
+
 Generate mock data if you do not have it yet:
 
 ```bash
@@ -203,13 +214,16 @@ npx @zowe/mcp-server init-mock --output ./zowe-mcp-mock-data
 
 ## Updating the registry entry
 
-When the server version changes, update `server.json`, re-authenticate if the session expired,
-and re-publish:
+When the server version changes, update `remote-server-example-dev.json`,
+re-authenticate if the session expired, and re-publish:
 
 ```bash
 cd packages/zowe-mcp-server
-mcp-publisher publish server.json --registry=http://localhost:8085
+mcp-publisher publish remote-server-example-dev.json --registry=http://localhost:8085
 ```
+
+`server.json` is named `io.github.zowe/zowe-mcp-server`, which an anonymous login
+cannot publish (HTTP 403); publishing it needs `mcp-publisher login github`.
 
 ## Stopping the registry
 
@@ -267,7 +281,7 @@ Requires **Docker**, **`mcp-publisher`** on your **`PATH`**, and **`curl`**. Ove
 | Symptom | Fix |
 | --- | --- |
 | Browser or VS Code shows **SSL error** for **`https://registry.mcp.example.com:8445`** | Regenerate the leaf cert with **`registry.mcp.example.com`** in SAN (**`docker/remote-https-dev/certs/README.md`**), restart **`nginx-registry-tls`**, confirm **`/etc/hosts`**. |
-| `curl: connection refused` on port 8080 | Run `docker compose ps` — the registry container may still be waiting for Postgres to become healthy. Wait a few seconds and retry. |
+| `curl: connection refused` on port 8085 | Run `docker compose ps` — the registry container may still be waiting for Postgres to become healthy. Wait a few seconds and retry. |
 | `mcp-publisher login` returns 404 | Confirm the registry is up: `curl http://localhost:8085/version` |
 | `mcp-publisher publish` returns "permission denied" | Re-run `mcp-publisher login none --registry=http://localhost:8085` — the JWT may have expired. |
 | **403** with `io.github.zowe` while publishing `remote-server-example-dev.json` | You ran `publish --registry=… <file>`; the CLI used **`server.json`** instead. Use **`mcp-publisher publish <manifest.json> --registry=http://localhost:8085`** (manifest **before** `--registry`). |

@@ -1,5 +1,9 @@
 # Remote HTTP MCP with local Keycloak
 
+This page is for developers and administrators who want a complete remote test
+environment on one machine. It is not a production deployment. For production,
+start with the [remote server guide](remote-mcp-server.md).
+
 This guide runs **Zowe MCP** in **HTTP Streamable** mode with **Bearer JWT** validation against **Keycloak**. The supported one-command flow uses **HTTPS** for MCP (nginx) and **native TLS** for Keycloak — see **`docker/remote-https-dev/README.md`**.
 
 Defaults (remote HTTPS dev script):
@@ -22,7 +26,7 @@ Do these steps once per machine after cloning. Skip any step you have already co
 
 | Tool | Why |
 | --- | --- |
-| **Node.js ≥ 22 + npm ≥ 10** | Builds and runs the MCP server |
+| **Node.js 24 + npm** | Builds and runs the MCP server |
 | **Docker with Compose v2 (≥ 2.29)** | Keycloak and nginx TLS containers |
 | **mkcert** | Generates a locally-trusted dev TLS certificate |
 | **openssl** | Used by the start script to verify certificate SANs |
@@ -30,9 +34,11 @@ Do these steps once per machine after cloning. Skip any step you have already co
 
 ### 2. Install npm dependencies
 
-From the **repository root**:
+From the **repository root**. The first command stages the pinned Zowe Remote
+SSH SDK, which is not committed to the repository.
 
 ```bash
+node scripts/sdk-switch.js pin --no-install
 npm install
 ```
 
@@ -92,12 +98,14 @@ cp native-config.example.json native-config.json
 
 Without this file the server starts with no pre-loaded systems — users add connections at runtime via the **`addZosConnection`** tool.
 
-### 7. Set the z/OS SSH password
+### 7. (Optional) Set the z/OS SSH password
+
+Skip this step to enter the password in the browser prompt, which is the recommended way.
 
 The start script does **not** source `.env` automatically. Supply the password in the environment before running:
 
 ```bash
-# Option A — per-connection env var (user and host uppercased, dots → underscores)
+# Option A — per-connection env var (user ID and host in uppercase, every character other than a letter or digit replaced by `_`; the port is not part of the name)
 export ZOWE_MCP_PASSWORD_USERID_ZOS_HOSTNAME=yourpassword
 
 # Option B — JSON map (all connections at once)
@@ -160,6 +168,26 @@ docker compose -f docker/remote-dev/docker-compose.yml run --rm keycloak-init
 
 Set **`ZOWE_MCP_JWT_ISSUER`** and **`ZOWE_MCP_JWKS_URI`** to match your Keycloak base URL (see OIDC discovery), then build and run **`node packages/zowe-mcp-server/dist/index.js --http --mock …`** or **`--native …`** as needed.
 
+### Minimal Keycloak and JWT E2E
+
+With the minimal non-TLS Keycloak stack above running, run the opt-in JWT
+integration test:
+
+```bash
+npm run test:keycloak-jwt-e2e
+```
+
+The test defaults to `http://localhost:18080`, realm and client `demo`, and user
+`user` with password `password`. Override these with
+`ZOWE_MCP_KEYCLOAK_URL`, `ZOWE_MCP_KEYCLOAK_REALM`,
+`ZOWE_MCP_KEYCLOAK_CLIENT`, `ZOWE_MCP_KEYCLOAK_USER`, and
+`ZOWE_MCP_KEYCLOAK_PASSWORD`.
+
+Zowe MCP validates RS256 access tokens against `ZOWE_MCP_JWKS_URI`. The token's
+`iss` claim must exactly match `ZOWE_MCP_JWT_ISSUER`, `sub` is required, and
+`aud` is checked when `ZOWE_MCP_JWT_AUDIENCE` is configured. MCP clients send
+the token as `Authorization: Bearer <access-token>`.
+
 ## Keycloak host port
 
 The compose file maps **`KEYCLOAK_HOST_PORT`** (default **`18080`**) on the host to Keycloak’s container port **8080**. Keycloak always listens on **8080** inside the container; only the published host port changes.
@@ -171,6 +199,11 @@ The compose file maps **`KEYCLOAK_HOST_PORT`** (default **`18080`**) on the host
 2. **Inside Docker Compose**, services still reach Keycloak as **`http://keycloak:8080`** — only **host-facing** URLs change.
 
 The **`start:remote-https-dev-native-zos`** script sets **`ZOWE_MCP_JWT_*`** from the HTTPS Keycloak URL. If you set **`ZOWE_MCP_JWT_ISSUER`** / **`ZOWE_MCP_JWKS_URI`** yourself, they override the defaults.
+
+> **Note:** The sections below use plain HTTP on `localhost` (Keycloak on
+> `http://localhost:18080`, MCP on `http://localhost:7542`). With the one-command
+> HTTPS flow, use `https://zowe.mcp.example.com:7542/mcp` and the issuer
+> `https://keycloak.mcp.example.com:18443/realms/demo` instead.
 
 ## Browser OIDC and redirect URIs
 
@@ -204,7 +237,7 @@ node scripts/patch-keycloak-mcp-dev-redirects.mjs
 
 Optional env: **`MCP_INSPECTOR_PORT`** (default **`6274`**) if the Inspector uses another client port; **`KC_URL`** / **`KEYCLOAK_HOST_PORT`** to match your Keycloak base URL.
 
-In the Keycloak Admin Console: **Clients → demo → Settings** — confirm **Valid redirect URIs** and **Web origins** include your Inspector origin. Use **Standard flow** (authorization code) in your OAuth client; keep **Direct access grants** only for local dev password-grant smoke tests.
+Open the console at the Keycloak URL and sign in as `admin` with the password `admin` (development only). In the Keycloak Admin Console: **Clients → demo → Settings** — confirm **Valid redirect URIs** and **Web origins** include your Inspector origin. Use **Standard flow** (authorization code) in your OAuth client; keep **Direct access grants** only for local dev password-grant smoke tests.
 
 ### Local HTTP: “HTTPS required” and OIDC discovery wait
 
@@ -267,7 +300,7 @@ The **`zowe-mcp`** service in this compose file runs the **stock** image ([`dock
 
 ## Real z/OS (native SSH backend)
 
-Use this when the MCP server should connect to **real z/OS** through [Zowe Remote SSH](https://github.com/zowe/zowex) (`zowex-sdk`; `--native`), instead of `--mock`.
+Use this when the MCP server should connect to **real z/OS** through [Zowe Remote SSH](https://github.com/zowe/zowex) (the Zowe Remote SSH SDK, `@zowe/zowex-for-zowe-sdk`; `--native`), instead of `--mock`.
 
 **Prerequisites:**
 
@@ -281,7 +314,7 @@ Use this when the MCP server should connect to **real z/OS** through [Zowe Remot
 
 For **shared remote HTTP** with JWT and **`ZOWE_MCP_TENANT_STORE_DIR`**, **recommended:** each user adds their own z/OS systems with the **`addZosConnection`** tool (`user@host` or `user@host:port`). Connections are **persisted per OIDC `sub`** in separate files — they are **not** shared across users.
 
-**`--config <path>`** and **`--system`** at startup are **not** the recommended way to define production connection lists for multi-user HTTP; use them for **local testing, smoke tests, or a minimal bootstrap** list only. Optional startup lists are **merged** with each tenant’s file (see **`AGENTS.md`**).
+**`--config <path>`** and **`--system`** at startup are **not** the recommended way to define production connection lists for multi-user HTTP; use them for **local testing, smoke tests, or a minimal bootstrap** list only. Optional startup lists are **merged** with each tenant's file; see [Save connections per user](mcp-authentication-oauth.md#save-connections-per-user).
 
 ### Connection list format (`--config` or `--system`, testing / bootstrap)
 
@@ -302,7 +335,7 @@ Example file (also **[`native-config.example.json`](../native-config.example.jso
 }
 ```
 
-Optional **`jobCards`** supply default JCL when submitting jobs without a `JOB` statement (same shape as standalone stdio; see [`roo-or-standalone-mcp.md`](roo-or-standalone-mcp.md#job-cards-and-multiple-systems-no-extension)).
+Optional **`jobCards`** supply default JCL when submitting jobs without a `JOB` statement (same shape as standalone stdio; see [standalone server guide](standalone-mcp.md#multiple-systems-and-job-cards)).
 
 ### Start on the host (Keycloak in Docker, MCP native)
 
@@ -324,7 +357,7 @@ npm run build -w zowe-mcp-common -w @zowe/mcp-server
 
 Do **not** set **`ZOWE_MCP_CREDENTIALS`** / **`ZOWE_MCP_PASSWORD_*`** unless you need non-interactive operation (see [Passwords](#passwords-standalone-native)).
 
-Other useful standalone flags (see `zowe-mcp-server --help`): **`--native-response-timeout`**, **`--default-mvs-encoding`** / **`--default-uss-encoding`**, **`ZOWE_MCP_TENANT_STORE_DIR`** for per-user persisted connections on JWT-backed HTTP (see **`AGENTS.md`**).
+Other useful standalone flags (see `zowe-mcp-server --help`): **`--native-response-timeout`**, **`--default-mvs-encoding`** / **`--default-uss-encoding`**, and **`ZOWE_MCP_TENANT_STORE_DIR`** to [save connections per user](mcp-authentication-oauth.md#save-connections-per-user) on JWT-backed HTTP.
 
 ### Passwords (standalone native)
 
@@ -332,7 +365,7 @@ Without the VS Code extension pipe, the server resolves SSH passwords in this or
 
 1. **Recommended (interactive / remote):** **MCP elicitation** — if the client advertises elicitation support, the server prompts for the SSH password when a tool first needs it. Default **`ZOWE_MCP_PASSWORD_ELICIT_MODE`** is **`auto`**: **URL-mode** (browser to `/zowe-mcp/password-elicit/…` on the MCP HTTP server — password not shown in chat) when the client supports **`elicitation.url`**; **form** only as fallback. **Do not** inject mainframe passwords into Compose **`environment`** or **`secrets`** for production-style remote deployments; avoid baking them into images.
 
-2. **Optional (automation / CI / headless):** **`ZOWE_MCP_PASSWORD_<USER>_<HOST>`** or **`ZOWE_MCP_CREDENTIALS`** — inject from a secret manager or CI secrets at runtime, not committed files. Precedence and details: [`roo-or-standalone-mcp.md`](roo-or-standalone-mcp.md#passwords-standalone) and [`packages/zowe-mcp-server/server.json`](../packages/zowe-mcp-server/server.json).
+2. **Optional (automation / CI / headless):** **`ZOWE_MCP_PASSWORD_<USER>_<HOST>`** or **`ZOWE_MCP_CREDENTIALS`** — inject from a secret manager or CI secrets at runtime, not committed files. Precedence and details: [standalone server guide](standalone-mcp.md#authentication) and [`packages/zowe-mcp-server/server.json`](../packages/zowe-mcp-server/server.json).
 
 Env-based passwords take precedence when set; if they are **unset**, elicitation runs when the client supports it.
 
@@ -413,7 +446,7 @@ Shape (see also [MCP configuration reference](https://code.visualstudio.com/docs
 {
   "servers": {
     "zowe-mcp-http": {
-      "type": "streamable-http",
+      "type": "http",
       "url": "http://localhost:7542/mcp",
       "headers": {
         "Authorization": "Bearer <paste-access-token-here>"
@@ -426,8 +459,6 @@ Shape (see also [MCP configuration reference](https://code.visualstudio.com/docs
 Paste a token from the Keycloak token endpoint (same grant as the smoke test). Tokens expire — refresh from Keycloak when requests return **401**.
 
 **Note:** The published npm **`server.json`** describes **stdio**; remote HTTP is documented per deployment ([`remote-http-mcp-registry.md`](remote-http-mcp-registry.md)).
-
-A copy-paste template also lives at [`examples/mcp-remote-http-keycloak.json`](examples/mcp-remote-http-keycloak.json).
 
 ## Cursor
 
@@ -455,12 +486,12 @@ Example for **`.roo/mcp.json`** (or global Roo MCP settings — paths vary by OS
 }
 ```
 
-For **stdio-only** setups (no HTTP), see [`roo-or-standalone-mcp.md`](roo-or-standalone-mcp.md).
+For **stdio-only** setups (no HTTP), see [standalone server guide](standalone-mcp.md).
 
 ## Port conflicts
 
 - **Keycloak (host port):** default **`18080`**; override with **`KEYCLOAK_HOST_PORT`** as in [Keycloak host port](#keycloak-host-port).
-- **MCP HTTP (7542 busy):** change the **`7542:7542`** mapping for the **`zowe-mcp`** service in **`docker/remote-dev/docker-compose.yml`**, and pass **`--port <N>`** with **`--http`** when starting MCP on the host (`zowe-mcp-server --help`). Update client **`mcp.json`** URLs to match.
+- **MCP HTTP (7542 busy):** with the one-command script, set **`ZOWE_MCP_MCP_TLS_PORT`** (nginx, default 7542) and **`ZOWE_MCP_HTTP_BACKEND_PORT`** (Node.js, default 7543) to different free ports. Edit the **`7542:7542`** mapping only for the **`mcp-image`** container. Update client **`mcp.json`** URLs to match.
 
 In all cases, **`ZOWE_MCP_JWT_ISSUER`** must match the **`iss`** claim in tokens (the URL you use to call Keycloak’s token endpoint from the host).
 
@@ -470,9 +501,9 @@ This guide uses **local Keycloak** and **plain HTTP** to MCP for developer speed
 
 - Terminate **HTTPS** at a **reverse proxy** (e.g. **nginx**) or load balancer and forward **`http://`** to the MCP process; set **`ZOWE_MCP_PUBLIC_BASE_URL`** and often **`ZOWE_MCP_OAUTH_RESOURCE`** to the **external** `https://` URL users and browsers see (see **`remote-http-mcp-registry.md`** — *HTTPS, reverse proxies, and public URLs*).
 
-**Zowe API Mediation Layer (API ML):** Shops that standardize on **API ML** for OIDC and routing may eventually **register the MCP HTTP service** behind the gateway or align **JWT issuers** with the platform IdP. That is **not implemented** in this repo yet; it is tracked as future work in **`TODO.md`** and summarized in **`remote-http-mcp-registry.md`** (*Future: Zowe API ML and OIDC*).
+**Zowe API Mediation Layer (API ML):** Shops that standardize on **API ML** for OIDC and routing may eventually **register the MCP HTTP service** behind the gateway or align **JWT issuers** with the platform IdP. That is **not implemented** in this repo; see **`remote-http-mcp-registry.md`** (*Future: Zowe API Mediation Layer (API ML) and OIDC*) for the current direction.
 
 ## See also
 
-- [`dev-oidc-tinyauth.md`](dev-oidc-tinyauth.md) — OIDC details, optional audience, Vitest Keycloak E2E (`ZOWE_MCP_KEYCLOAK_URL`; use **`http://localhost:18080`** with this stack unless you override **`KEYCLOAK_HOST_PORT`**).
+- [`mcp-authentication-oauth.md`](mcp-authentication-oauth.md) — authentication architecture and deployment guidance.
 - [`remote-http-mcp-registry.md`](remote-http-mcp-registry.md) — production registry / headers shape.

@@ -12,7 +12,8 @@
 /**
  * Opt-in automated smoke: **Google Gemini** (API) + **Zowe MCP server** over stdio with **mock** data.
  *
- * This exercises the same MCP tools and prompt style as manual Copilot Chat + Zowe ([manual QA 04/05](../../docs/manual-qa/04-copilot-tools-picker.md))
+ * This exercises the same MCP tools and prompt style as the manual Copilot and
+ * mock checks ([manual QA](../../docs/manual-qa.md)).
  * but does **not** launch VS Code or GitHub Copilot Chat (those require interactive sign-in and BYOK in Manage Models).
  *
  * Requires: `GEMINI_API_KEY`, built `@zowe/mcp-server` (`dist/index.js`), network to Google AI.

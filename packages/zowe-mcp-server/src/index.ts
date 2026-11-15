@@ -291,7 +291,7 @@ function applyEnvOverrides(parsed: ParsedArgs): void {
   }
 }
 
-function parseArgs(): ParsedArgs {
+function parseArgs(): ParsedArgs | undefined {
   const parser = yargs(hideBin(process.argv))
     .scriptName('zowe-mcp-server')
     .version(SERVER_VERSION)
@@ -579,7 +579,11 @@ function parseArgs(): ParsedArgs {
     .alias('h', 'help')
     .help();
 
-  const argv = parser.parseSync() as Record<string, unknown>;
+  const result = parser.parseSync();
+  if (result._[0] === 'mock-zos') {
+    return undefined;
+  }
+  const argv = result as Record<string, unknown>;
 
   let responseCache: ResponseCacheConfig | false | undefined = argv['response-cache-disable']
     ? false
@@ -1151,7 +1155,11 @@ async function main(): Promise<void> {
     process.exit(result.status ?? 0);
   }
 
-  const parsed = parseArgs();
+  const args = parseArgs();
+  if (!args) {
+    return;
+  }
+  const parsed = args;
 
   if (parsed.transport === 'http') {
     process.env.ZOWE_MCP_TRANSPORT = 'http';

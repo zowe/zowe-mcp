@@ -65,9 +65,8 @@ jobs:
       # Pinned to a version the harness is verified against; bump
       # deliberately (and update the cache key below) after a local run of
       # S1-S3 against the new version. 1.132's apparent BYOK breakage was
-      # root-caused to a fake-server context_length issue and fixed — see
-      # docs/vscode-132-agent-host-investigation.md and the harness README's
-      # "Known gotchas".
+      # root-caused to a fake-server context_length issue and fixed — see the
+      # harness README's "Known gotchas".
       - name: Cache VS Code download
         uses: actions/cache@v6
         with:

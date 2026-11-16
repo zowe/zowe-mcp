@@ -1,329 +1,231 @@
-# Contribution Guidelines
+# Contributing to Zowe MCP
 
-This document is a living summary of conventions and best practices for
-development within Zowe MCP.
+This document is for people who change Zowe MCP: its code, tests, or
+documentation. To use Zowe MCP, start with the [README](README.md). To run it
+as a shared server, see the [remote server guide](docs/remote-mcp-server.md).
 
-- [AI-Assisted Development](#ai-assisted-development)
-- [Sign All of Your Git Commits](#sign-all-of-your-git-commits)
-- [Pull Request Guidelines](#pull-request-guidelines)
-- [Continuous Integration & Branch Protection](#continuous-integration--branch-protection)
-- [How Releases Work](#how-releases-work)
-- [AI Evaluation Requirements](#ai-evaluation-requirements)
-- [Code Style](#code-style)
-- [Testing Guidelines](#testing-guidelines)
-- [Dependencies](#dependencies)
-- [Reporting Security Issues](#reporting-security-issues)
-- [More Information](#more-information)
+## Development setup
 
-## AI-Assisted Development
+You need [Node.js](https://nodejs.org) 24, the version in `.nvmrc` that CI
+uses, and git.
 
-This project embraces AI-assisted development. The vast majority of the code
-has been written by AI coding assistants (primarily Cursor with Claude models)
-under experienced human guidance, testing, evaluation, and automated feedback
-loops.
+```bash
+git clone https://github.com/zowe/zowe-mcp.git
+cd zowe-mcp
 
-We encourage contributors to use AI coding assistants when contributing. Your
-domain expertise — mainframe experience, use cases, architectural insights, and
-bug reports — is invaluable and complements AI-generated code.
+# 1. Stage the pinned Zowe Remote SSH SDK. It is not committed to the repository.
+node scripts/sdk-switch.js pin --no-install
 
-### AI Usage Disclosure in Pull Requests
+# 2. Install dependencies
+npm install
 
-Every pull request must include an **AI Usage** section in the PR description
-that documents how AI was used:
+# 3. Build all packages
+npm run build
+```
 
-- **Tool**: Which AI assistant was used (e.g. Cursor, GitHub Copilot, Claude
-  Code, Cline)
-- **Model**: Exact model ID(s) used (e.g. `claude-sonnet-4-5`, `gpt-4.1`), not
-  just the vendor name
-- **Scope**: What parts of the PR were AI-assisted vs. manually written
-- **Review**: How the AI-generated code was reviewed and validated
-- **Verified**: What was tested or run, and what was not
+- Step 1 must come first. Without it, `npm install` fails because the SDK
+  package file that the server depends on is missing.
+- `npm install` also configures a git hook that adds the `Signed-off-by` line
+  to your commits. See [DCO sign-off](#dco-sign-off). It downloads the VS Code
+  API type definitions as well, so it needs internet access.
+- The built server is `packages/zowe-mcp-server/dist/index.js`. Inside the
+  clone, `npx @zowe/mcp-server` runs the same file.
 
-Rules for AI agents working in this repository are in [AGENTS.md](AGENTS.md).
+### Run your build
+
+```bash
+# Create mock data and call a tool from the command line
+npx @zowe/mcp-server init-mock --output ./zowe-mcp-mock-data --preset minimal
+npx @zowe/mcp-server call-tool --mock=./zowe-mcp-mock-data listDatasets dsnPattern='USER.**'
+
+# Explore the tools in the MCP Inspector
+npm run inspector:mock
+```
+
+To use your build from an MCP client, set the client's `command` to `node` and
+the first argument to the absolute path of
+`packages/zowe-mcp-server/dist/index.js`. The other arguments are the same as
+in the [standalone server guide](docs/standalone-mcp.md).
+
+To install your build of the VS Code extension, run `npm run build-and-install`.
+Set `VSCODE_CLONE=cursor` to install into Cursor instead.
+
+### Test without a mainframe
+
+| Tool | Use it to test |
+| --- | --- |
+| [Mock mode](docs/mock-mode.md) (`--mock`) | Tools and prompts against sample files. This is the fastest option. |
+| [Mock z/OS host](docs/mock-zos-host.md) (`mock-zos`) | The SSH path: authentication, deployment of the z/OS component, and the Zowe Remote SSH protocol. |
+
+### Build the release files
+
+```bash
+npm run pack:server          # zowe-mcp-server-<version>.tgz in the repository root
+npm run build-and-install    # builds the VSIX and installs it in VS Code
+```
+
+### Use another Zowe Remote SSH SDK build
+
+The server depends on `@zowe/zowex-for-zowe-sdk` from the
+[zowex](https://github.com/zowe/zowex) project. `resources/zowex-pin.json`
+names the tested build. To try another build, run one of these commands and
+then rebuild:
+
+| Command | SDK build |
+| --- | --- |
+| `node scripts/sdk-switch.js pin` | The pinned build |
+| `npm run sdk:nightly` | The latest nightly build |
+| `npm run sdk:pr -- <number>` | The build of a zowex pull request |
+| `npm run sdk:branch -- <branch>` | The latest build of a zowex branch |
+| `npm run sdk:local -- <path>` | A local package file or zowex clone |
+
+## Validate your change
+
+Run the checks that apply to your change before you open or update a pull
+request:
+
+```bash
+npm run check-format    # Prettier and shfmt
+npm run lint:md         # Markdown
+npm run typecheck
+npm run lint            # ESLint, including license headers
+npm test                # server tests
+npm run test:vscode     # VS Code extension tests; opens a VS Code window
+```
+
+- If `npm test` stalls on your machine, run
+  `npm test -- --no-file-parallelism`. To run one file, use
+  `npx vitest run <file>` in `packages/zowe-mcp-server`.
+- After you change a tool, prompt, or resource definition, run
+  `npm run generate-docs` and commit the updated
+  [MCP reference](docs/mcp-reference.md). CI fails when the reference is out of
+  date.
+- `npm run format` and `npm run lint:fix` fix most formatting and lint
+  findings.
+
+The `package.json` files list all scripts.
+
+## Pull requests
+
+A pull request must:
+
+- Explain its purpose and how it was tested
+- Include the [AI usage disclosure](#ai-usage-disclosure)
+- Follow the [evaluation policy](#evaluation-policy) when it changes what an
+  AI assistant sees: tools, prompts, descriptions, or parameters
+- Identify dependencies on unmerged changes in this or another repository
+- Add an entry under **Unreleased** in the root `CHANGELOG.md` when users can
+  notice the change. Otherwise, ask a maintainer to add the `no-changelog`
+  label.
+
+### Required checks
+
+Pull requests to `main` need one approval from a code owner and these checks:
+
+| Check | What it covers |
+| --- | --- |
+| `ci-ok` | Formatting, lint, type check, duplication, tests on Linux, Windows, and macOS, packaging, offline installation, and the generated MCP reference |
+| `audit` | Known vulnerabilities in production dependencies |
+| `gitleaks` | Secrets in the change |
+| `headers` | EPL-2.0 license header on every `.ts` file |
+| `Analyze (javascript-typescript)` | CodeQL static analysis |
+| `DCO` | Sign-off on every commit |
+| `changelog` | A `CHANGELOG.md` entry or the `no-changelog` label |
+
+Run `npm run audit:prod` to reproduce the `audit` check. Its only exception is
+**GHSA-vfj7-8cjw-p6xm** in `braces`, which is reached through
+`@zowe/imperative` and has no patched version. The exception expires after
+**2026-12-10**. Changes to the exceptions need a code-owner review.
+
+## AI usage disclosure
+
+We welcome contributions made with AI coding assistants. Every pull request
+must state in its description how AI was used:
+
+- **Tool**: the AI assistant, such as Cursor, GitHub Copilot, or Claude Code
+- **Model**: the exact model ID, such as `claude-sonnet-4-5` or `gpt-4.1`, not
+  only the vendor name
+- **Scope**: which parts were AI-assisted and which were written by hand
+- **Review**: how the generated work was reviewed
+- **Verified**: what was tested or run, and what was not
+
+If no AI was used, say so.
 
 Example:
 
 ```markdown
-## AI Usage
+### AI Usage Disclosure
+
 - **Tool**: Cursor (Agent mode)
 - **Model**: claude-sonnet-4-5
 - **Scope**: All code changes were AI-generated; test cases were reviewed
   and adjusted manually
-- **Review**: Ran full test suite, verified with evals, manual code review
+- **Review**: Manual review of the full diff
 - **Verified**: `npm test` and `npm run lint` pass; not run against real z/OS
 ```
 
-## Sign All of Your Git Commits
+The rules for AI agents that work in this repository are in
+[AGENTS.md](AGENTS.md).
 
-Whenever you make a commit, it is required to be signed. If you do not, you
-will have to re-write the git history to get all commits signed before they can
-be merged, which can be quite a pain.
+## DCO sign-off
 
-Use the `-s` or `--signoff` flags to sign a commit.
-
-> **Match your sign-off email to your commit author email.** DCO requires the
-> `Signed-off-by` email to equal the commit author email. If your local
-> `git config user.email` differs from the email on your GitHub account, a
-> **squash merge** can rewrite the author to your GitHub email while keeping the
-> original sign-off, which fails DCO on the squashed commit. Keep the two emails
-> the same (or add the other as a verified email on your GitHub account).
-
-Example calls:
+Every commit must include a
+[Developer Certificate of Origin](https://developercertificate.org) sign-off.
+The git hook from `npm install` adds it. Without the hook, use `-s`:
 
 ```bash
-git commit -s -m "Add a new MCP tool for USS file operations"
-git commit --signoff -m "Fix pagination in listDatasets"
+git commit -s -m "Add USS file search"
 ```
 
-Why? Sign-off is a line at the end of the commit message which certifies who is
-the author of the commit. Its main purpose is to improve tracking of who did
-what, especially with patches.
+The sign-off email must match the commit author email.
 
-Example commit in git history:
-
-```text
-Add tests for the searchInDataset tool.
-
-Signed-off-by: Jane Doe <jane.doe@example.com>
-```
-
-What to do if you forget to sign off on a commit?
+To sign off commits that you already made, rewrite them:
 
 ```bash
-git rebase --exec 'git commit --amend --no-edit --signoff' -i <commit-hash>
+git rebase --exec 'git commit --amend --no-edit --signoff' -i <base-commit>
 ```
 
-where `<commit-hash>` is the commit before your first unsigned commit in
-history.
+Use the commit immediately before the first unsigned commit as `<base-commit>`.
 
-## Pull Request Guidelines
+## Evaluation policy
 
-Consider the following when you interact with pull requests:
+Changes that can affect how an AI assistant selects or calls MCP tools must be
+validated with the evaluation harness.
 
-- Pull requests require approval from at least one maintainer before merging.
-- The code in the pull request must adhere to the [Code Style](#code-style)
-  guidelines.
-- The code must compile/transpile and pass all tests without breaking current
-  Zowe MCP functionality.
-- The pull request must describe the purpose and implementation clearly enough
-  for maintainers to understand what is being accomplished.
-- The pull request must explain how to test the change so maintainers or QA
-  teams can verify correctness.
-- If a pull request depends upon a pull request from the same or another
-  repository that is pending, this must be stated.
-- Pull requests must include the [AI Evaluation
-  Requirements](#ai-evaluation-requirements) checklist (see below).
-- Pull requests must include an [AI Usage](#ai-usage-disclosure-in-pull-requests)
-  section describing how AI was used.
+- New tools, prompts, and significant AI-facing features need new or updated
+  evaluation questions and a baseline result in `docs/eval-scoreboard.md`.
+- Changes that are intended to improve tool descriptions, parameter names,
+  prompts, or other model behavior need before-and-after results.
+- The after result must maintain or improve the pass rates. Explain any
+  accepted regression in the pull request.
 
-## Continuous Integration & Branch Protection
+See the [evaluation harness README](packages/zowe-mcp-evals/README.md) for the
+question format and commands.
 
-Both `main` and `develop` are protected. A pull request can be merged only when
-the required status checks are green and the branch rules are satisfied.
+## Dependencies and licensing
 
-### Required status checks
+Dependencies must be compatible with the Eclipse Public License 2.0. Add or
+update dependencies with npm instead of editing resolved versions by hand, and
+follow the existing version-range conventions:
 
-| Check | Workflow | What it covers |
-| ----- | -------- | -------------- |
-| `ci-ok` | `ci.yml` | Aggregate gate over the Linux `build` job (lint, format, duplication, type-check, server tests + coverage, VS Code tests, pack, airgap, docs-drift, VSIX) **and** the `cross-platform` matrix (Windows + macOS build/type-check/tests). One stable name, so the CI jobs can be reorganized without touching branch protection. |
-| `audit` | `audit.yml` | Production dependency audit (moderate+), with reviewed, expiring advisory exceptions. |
-| `gitleaks` | `secret-scan.yml` | Secret scanning. |
-| `headers` | `license-headers.yml` | EPL-2.0 license header on every `.ts` file. |
-| `Analyze (javascript-typescript)` | `codeql.yml` | CodeQL static analysis (security-extended). |
-| `DCO` | (GitHub app) | Every commit is signed off (`git commit -s`). |
+- Use `^` when updates within the same major version are acceptable.
+- Use `~` when updates should remain within the same minor version.
 
-Run `npm run audit:prod` to reproduce the production audit locally. Its only
-temporary exception is **GHSA-vfj7-8cjw-p6xm** in `braces`, reached through
-`@zowe/imperative` configuration and plug-in discovery. There is no patched
-version available; the exception expires after **2026-12-10**. A different
-advisory, an expired exception, or an audit execution/report error still fails
-the check. Changes to exceptions require code-owner review. The policy tests
-(`npm run test:audit`) run in the audit workflow before the live scan.
+See the Zowe guidance for
+[license and copyright requirements](https://github.com/zowe/community/blob/master/Technical-Steering-Committee/best-practices/license-copyright.md).
 
-`ci-ok` runs with `if: always()` and only fails if a required CI job actually
-failed or was cancelled. A `[ci skip]` push skips `build`/`cross-platform`, which
-counts as a pass — so trivial pushes still satisfy the check.
+## More documentation for contributors
 
-The **Changelog** check (`changelog.yml`) is **advisory, not required**: it asks
-each PR to update a `CHANGELOG.md` (root or a package), or to carry the
-`no-changelog` label for changes that don't need an entry (CI, chore, docs,
-internal refactors). Record user-facing changes under **[Unreleased]** in the
-root [CHANGELOG.md](CHANGELOG.md).
+| Topic | Document |
+| --- | --- |
+| Rules for code changes, written for AI agents and useful for people | [AGENTS.md](AGENTS.md) |
+| Add a Zowe CLI plug-in as MCP tools | [How to add a CLI plug-in](docs/how-to-add-cli-plugin.md) |
+| Manual test checklist for the VS Code extension | [Manual QA](docs/manual-qa.md) |
+| Automated VS Code and Copilot end-to-end tests | [End-to-end tests](packages/zowe-mcp-e2e/README.md) |
+| Release procedure | [RELEASING.md](RELEASING.md) |
 
-### Branch rules
+## Reporting security issues
 
-- **`main`** — requires a passing review from a code owner (see
-  [`.github/CODEOWNERS`](.github/CODEOWNERS)); rules are enforced for
-  administrators too.
-- **`develop`** — the integration branch; no review approval required, but only
-  members of the `zowe-mcp-administrators` team can merge.
-
-## How Releases Work
-
-Releases are prepared by an AI-assisted command (`/prepare-release`) that
-opens a reviewed PR (version bump, changelog rollover, regenerated docs).
-Merging that PR to `main` is the release approval — CI
-([`.github/workflows/release.yml`](.github/workflows/release.yml), via
-[Octorelease](https://github.com/zowe-actions/octorelease)) then builds,
-tags, and publishes the GitHub Release, and opens the follow-up PR that sets
-the next development version. See
-[docs/release-process.md](docs/release-process.md) for the full pipeline,
-including rehearsal paths and the one-time repo settings this depends on.
-
-## AI Evaluation Requirements
-
-Zowe MCP is an AI/MCP project. Every change that affects how an LLM interacts
-with MCP tools must be validated with evaluations. The project maintains 19+
-eval question sets in `packages/zowe-mcp-evals/questions/` and an
-[eval scoreboard](docs/eval-scoreboard.md) that tracks pass rates across
-models.
-
-### New Functionality
-
-Every new tool, prompt, or significant feature must be accompanied by new or
-updated evaluation question sets (YAML files in
-`packages/zowe-mcp-evals/questions/`). New eval sets must have a **baseline**
-entry in the scoreboard before the PR is merged:
-
-```bash
-npm run eval-compare -- --set <new-set> --label "baseline"
-```
-
-### Behavior Improvements
-
-Changes that aim to improve LLM behavior (e.g. better tool descriptions,
-parameter naming, prompt tuning) must run `eval-compare` before and after the
-change and update `docs/eval-scoreboard.md` to demonstrate improvement for at
-least one model:
-
-```bash
-# Before making the change
-npm run eval-compare -- --set <relevant-sets> --label "before-<change>"
-
-# Make the change
-
-# After making the change
-npm run eval-compare -- --set <relevant-sets> --label "after-<change>"
-```
-
-The scoreboard must show the "after" label with equal or better pass rates
-compared to the "before" label.
-
-### No Regressions Without Justification
-
-If a change causes a pass rate drop on any existing eval set, the PR must
-document why the regression is acceptable (e.g. a trade-off that improves a
-more important set).
-
-### Eval Set Conventions
-
-Eval question sets are YAML files in `packages/zowe-mcp-evals/questions/`.
-Each file defines questions with assertions. The three assertion types are:
-
-- **toolCall** — asserts which tool(s) the LLM calls (with optional argument
-  checks)
-- **toolCallOrder** — asserts an ordered sequence of tool calls
-- **answerContains** — asserts the LLM's text response contains a substring or
-  pattern
-
-Composites `allOf`/`anyOf` provide logical grouping. Each assertion can have an
-optional `name` for failure messages. See `AGENTS.md` for the full
-specification.
-
-### Key Commands
-
-| Command | Description |
-| ------- | ----------- |
-| `npm run evals -- --set <name>` | Run a single eval set |
-| `npm run eval-compare -- --set <sets> --label "<label>"` | Run and record results to the scoreboard |
-| `npm run eval-compare -- --set <sets> --model all --label "<label>"` | Run across all configured models |
-
-## Code Style
-
-The project enforces code style automatically through tooling:
-
-- **Prettier** formats TypeScript, JavaScript, JSON/JSONC, YAML, CSS, and HTML
-  (`.prettierrc.json` + `prettier-plugin-organize-imports`)
-- **shfmt** (via `@wasm-fmt/shfmt` and `scripts/shfmt-write.mjs`) formats shell
-  scripts (`.sh`, `.bash`)
-- **ESLint** enforces type-checked rules (`typescript-eslint`
-  `recommendedTypeChecked` + `stylisticTypeChecked`) and license headers
-  (`eslint-plugin-headers`)
-- **markdownlint-cli2** formats Markdown files
-- A Cursor hook (`.cursor/hooks/format.sh`) auto-formats files after Agent and
-  Tab edits
-
-Key conventions:
-
-- 2 spaces per indent (no tabs)
-- Tool names use **camelCase** (e.g. `listDatasets`, `setSystem`)
-- Avoid `any` — use `as` type assertions on `JSON.parse()` results
-- Prefer `T[]` over `Array<T>`, `interface` over `type` alias, `??` over `||`
-  for nullish values
-
-### License Headers
-
-Every `.ts` file must start with the EPL-2.0 license header. This is enforced
-by `eslint-plugin-headers` via `eslint.config.mjs` and auto-fixed by
-`eslint --fix`. You do not need to manually add the header — the format hook
-does it for you.
-
-### Manual Commands
-
-```bash
-npm run format        # Prettier + shfmt (tracked shell scripts)
-npm run check-format  # Verify formatting without modifying
-npm run lint          # Check all ESLint rules
-npm run lint:fix      # Auto-fix ESLint issues
-```
-
-## Testing Guidelines
-
-The project uses Vitest for MCP server tests and `@vscode/test-cli` +
-`@vscode/test-electron` for VS Code extension tests.
-
-```bash
-npm test          # Run server tests (Vitest)
-npm run test:all  # Run all tests (server + VS Code extension)
-npm run test:vscode  # Run VS Code extension tests
-```
-
-Server tests are organized into common (parameterized across transports) and
-transport-specific files. See `packages/zowe-mcp-server/__tests__/` for
-examples.
-
-For quick tool testing during development:
-
-```bash
-node packages/zowe-mcp-server/dist/index.js call-tool [--mock=<dir>] [<tool-name> [key=value ...]]
-```
-
-## Dependencies
-
-For Zowe organization repositories, all dependencies must be compatible with
-the EPL-2.0 license.
-
-When adding new dependencies, use the package manager (`npm`) to add the latest
-version. Do not make up dependency versions. Pin dependencies appropriately:
-
-- Use `^` for dependencies with the same major version
-- Use `~` for dependencies with the same minor version
-
-## Reporting Security Issues
-
-Please direct all security issues to
-<zowe-security@lists.openmainframeproject.org>. A member of the security group
-will reply to acknowledge receipt of the vulnerability and coordinate
-remediation.
-
-## More Information
-
-| For more information about ... | See: |
-| ------------------------------ | ---- |
-| General Zowe contribution guidelines | [Zowe Community](https://github.com/zowe/community/blob/master/README.md) |
-| Zowe code style guidelines | [General Code Style](https://docs.zowe.org/stable/contribute/guidelines-code/general/) |
-| Zowe license and copyright requirements | [License & Copyright](https://github.com/zowe/community/blob/master/Technical-Steering-Committee/best-practices/license-copyright.md) |
-| Project architecture and patterns | [AGENTS.md](AGENTS.md) |
-| MCP tools reference | [docs/mcp-reference.md](docs/mcp-reference.md) |
-| Eval scoreboard | [docs/eval-scoreboard.md](docs/eval-scoreboard.md) |
-| Development guide | [DEVELOPMENT.md](DEVELOPMENT.md) |
+Do not report security vulnerabilities in public issues. Email
+<zowe-security@lists.openmainframeproject.org>. The security group will
+acknowledge the report and coordinate remediation.

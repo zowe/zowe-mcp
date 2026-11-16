@@ -408,7 +408,7 @@ async function main(): Promise<void> {
           if (pw !== undefined) return pw;
           const envVar = toPasswordEnvVarName(spec.user, spec.host);
           throw new Error(
-            `No password for ${user}@${host}. Set ${envVar}, ZOWE_MCP_CREDENTIALS, or Vault KV (see AGENTS.md).`
+            `No password for ${user}@${host}. Set ${envVar}, ZOWE_MCP_CREDENTIALS, or Vault KV.`
           );
         },
       };

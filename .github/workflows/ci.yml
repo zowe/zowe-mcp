@@ -390,7 +390,7 @@ jobs:
         run: npm run typecheck --workspaces --if-present
 
       # --no-file-parallelism avoids the cross-platform integration-test
-      # contention documented in AGENTS.md (observed hanging on macOS).
+      # contention tracked in https://github.com/zowe/zowe-mcp/issues/97.
       - name: Test (server)
         run: npm run test -w @zowe/mcp-server -- --no-file-parallelism
 

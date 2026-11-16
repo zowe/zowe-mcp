@@ -65,7 +65,7 @@ const ROO_EXTENSION_IDS = [
 export const rooProfile: HostCompatProfile = {
   id: 'roo',
   displayName: 'Roo Code',
-  docsUrl: 'https://github.com/zowe/zowe-mcp/blob/main/docs/roo-or-standalone-mcp.md',
+  docsUrl: 'https://github.com/zowe/zowe-mcp/blob/main/docs/standalone-mcp.md',
   isActive: () => ROO_EXTENSION_IDS.some(id => vscode.extensions.getExtension(id) !== undefined),
 };
 

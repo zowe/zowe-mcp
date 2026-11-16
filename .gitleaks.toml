@@ -11,8 +11,8 @@ useDefault = true
 description = "Known-public dev/test values and non-source paths"
 regexTarget = "match"
 regexes = [
-  # infrastructure/local-registry + docs/mcp-registry-research.md — public dev
-  # credentials copied from the upstream MCP registry .env.example (no privileges).
+  # infrastructure/local-registry public dev credentials copied from the
+  # upstream MCP registry .env.example (no privileges).
   '''0e8db54879b02c29adef51795586f3c510a9341d''',
   '''bb2c6b424005acd5df47a9e2c87f446def86dd740c888ea3efb825b23f7ef47c''',
   # test fixtures (not real secrets)

@@ -129,7 +129,7 @@ interface ParsedArgs {
   transport: 'stdio' | 'http';
   port: number;
   mockDir?: string;
-  /** Zowe Remote SSH (zowex-sdk) backend; set by `--native` or `--zowex`. */
+  /** Zowe Remote SSH backend; set by `--native` or `--zowex`. */
   zowex?: boolean;
   configPath?: string;
   systemSpecs: string[];
@@ -140,7 +140,7 @@ interface ParsedArgs {
   zowexServerAutoInstall?: boolean;
   /** Override remote path for the zowex z/OS server. Default ~/.zowe-server. */
   zowexServerPath?: string;
-  /** Response timeout in seconds for zowex-sdk requests. Default 60. */
+  /** Response timeout in seconds for Zowe Remote SSH requests. Default 60. */
   zowexResponseTimeout?: number;
   /** Default mainframe encoding for MVS data sets (e.g. IBM-037). */
   defaultMvsEncoding?: string;
@@ -456,7 +456,7 @@ function parseArgs(): ParsedArgs | undefined {
         type: 'boolean',
         default: false,
         alias: 'zowex',
-        describe: 'Zowe Remote SSH backend (SSH to z/OS; zowex-sdk). Same as --zowex.',
+        describe: 'Zowe Remote SSH backend (SSH to z/OS). Same as --zowex.',
       },
       config: {
         type: 'string',

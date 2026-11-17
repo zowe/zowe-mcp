@@ -139,6 +139,12 @@ deleteUssTempUnderDir:
 runSafeTsoCommand:
   commandText: 'TIME'
 
+queryTso:
+  commandText: 'LISTUSER USER01'
+
+queryTso[blocked command]:
+  commandText: 'ALTUSER USER01 SPECIAL'
+
 runConsoleCommand:
   commandText: 'D T'
 

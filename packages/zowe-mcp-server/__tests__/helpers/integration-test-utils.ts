@@ -16,6 +16,7 @@
 
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
+import type { CapabilityTier } from '../../src/capability-level.js';
 import { createServer, getServer } from '../../src/server.js';
 import type { CredentialProvider } from '../../src/zos/credentials.js';
 import { FilesystemMockBackend } from '../../src/zos/mock/filesystem-mock-backend.js';
@@ -37,7 +38,8 @@ export function getResultText(result: Awaited<ReturnType<Client['callTool']>>): 
 export async function createMockIntegrationClient(
   mockDir: string,
   mockConfig: MockSystemsConfig,
-  clientName: string
+  clientName: string,
+  capabilityTier: CapabilityTier = 'full'
 ): Promise<{ client: Client; server: ReturnType<typeof getServer> }> {
   const backend = new FilesystemMockBackend(mockDir);
   const credentialProvider: CredentialProvider = new MockCredentialProvider(mockConfig);
@@ -56,7 +58,7 @@ export async function createMockIntegrationClient(
       systemRegistry,
       credentialProvider,
       logToolCalls: true,
-      capabilityTier: 'full',
+      capabilityTier,
     })
   );
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();

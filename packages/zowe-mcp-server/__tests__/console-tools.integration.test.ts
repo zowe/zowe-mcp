@@ -20,7 +20,12 @@ import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { decorateConsoleError } from '../src/tools/console/console-tools.js';
+import {
+  buildDisplayCommand,
+  decorateConsoleError,
+  findRejectedCommandMessage,
+  validateConsoleName,
+} from '../src/tools/console/console-tools.js';
 import type { MockSystemsConfig } from '../src/zos/mock/mock-types.js';
 import { createMockIntegrationClient, getResultText } from './helpers/integration-test-utils.js';
 
@@ -114,6 +119,153 @@ describe('console tools integration', () => {
   });
 });
 
+describe('display tool at the read capability tier', () => {
+  let mockDir: string;
+  let client: Client;
+  let server: Awaited<ReturnType<typeof createMockIntegrationClient>>['server'];
+
+  beforeAll(async () => {
+    mockDir = await fs.mkdtemp(path.join(os.tmpdir(), 'zowe-mcp-display-'));
+    await fs.writeFile(path.join(mockDir, 'systems.json'), JSON.stringify(mockConfig));
+    await fs.mkdir(path.join(mockDir, 'uss', SYSTEM_HOST, 'u', DEFAULT_USER), {
+      recursive: true,
+    });
+
+    ({ client, server } = await createMockIntegrationClient(
+      mockDir,
+      mockConfig,
+      'display-test',
+      'read'
+    ));
+  });
+
+  afterAll(async () => {
+    await client?.close();
+    await server?.close();
+    if (mockDir) await fs.rm(mockDir, { recursive: true, force: true }).catch(() => undefined);
+  });
+
+  it('lists display but not runConsoleCommand', async () => {
+    const { tools } = await client.listTools();
+    const names = tools.map(t => t.name);
+    expect(names).toContain('display');
+    expect(names).not.toContain('runConsoleCommand');
+  });
+
+  it('runs a DISPLAY command from its operands', async () => {
+    const result = await client.callTool({ name: 'display', arguments: { operands: 'T' } });
+    expect(result.isError ?? false).toBe(false);
+    const envelope = JSON.parse(getResultText(result)) as {
+      _context: { system: string };
+      data: { lines: string[] };
+    };
+    expect(envelope._context.system).toBe(SYSTEM_HOST);
+    expect(envelope.data.lines.join('\n')).toContain('IEE136I');
+  });
+
+  it('rejects operands that would chain or inject another command', async () => {
+    for (const operands of ['T\nV 0A80,OFFLINE', 'T; HALT', 'T\r\nHALT', '']) {
+      const result = await client.callTool({ name: 'display', arguments: { operands } });
+      expect(result.isError).toBe(true);
+      expect(getResultText(result)).toContain('Invalid DISPLAY operands');
+    }
+  });
+
+  it('rejects a console name that is not a plain EMCS name', async () => {
+    for (const consoleName of ['BAD;NAME', 'TOOLONGNAME', 'A B']) {
+      const result = await client.callTool({
+        name: 'display',
+        arguments: { operands: 'T', consoleName },
+      });
+      expect(result.isError).toBe(true);
+      expect(getResultText(result)).toContain('Invalid console name');
+    }
+  });
+
+  it('accepts a valid console name', async () => {
+    const result = await client.callTool({
+      name: 'display',
+      arguments: { operands: 'T', consoleName: 'ZMCPTST1' },
+    });
+    expect(result.isError ?? false).toBe(false);
+  });
+});
+
+describe('console name validation', () => {
+  it('accepts 1-8 character EMCS names, or none', () => {
+    for (const name of [undefined, 'A', 'ZMCPTST1', 'plape1', '$#@A1']) {
+      expect(() => validateConsoleName(name)).not.toThrow();
+    }
+  });
+
+  it.each(['', 'TOOLONGNAME', 'BAD;NAME', 'A B', 'A\nB', 'A-B', 'A.B', "A'B"])(
+    'rejects %j',
+    name => {
+      expect(() => validateConsoleName(name)).toThrow('Invalid console name');
+    }
+  );
+});
+
+describe('findRejectedCommandMessage', () => {
+  it('flags the single-line syntax rejections z/OS returns', () => {
+    expect(findRejectedCommandMessage(' IEE305I DISPLAY  COMMAND INVALID')).toBe(
+      'IEE305I DISPLAY  COMMAND INVALID'
+    );
+    expect(
+      findRejectedCommandMessage('\n IEE453I UNIT STATUS INVALID OPERAND RE-ENTER\n')
+    ).toContain('IEE453I');
+  });
+
+  it('flags an OPERCMDS authority denial and maps it to the permit guidance', () => {
+    // Exact response seen on z/OS 3.1 when MVS.DISPLAY.PROG denied the user.
+    const rejected = findRejectedCommandMessage(
+      ' IEE345I DISPLAY  AUTHORITY INVALID, FAILED BY SECURITY PRODUCT'
+    );
+    expect(rejected).toContain('IEE345I');
+    const decorated = decorateConsoleError(
+      `z/OS rejected the command "DISPLAY PROG,APF": ${rejected}`
+    );
+    expect(decorated).toContain('OPERCMDS');
+    expect(decorated).toContain('Do not retry until access is granted');
+  });
+
+  it('does not flag genuine command output', () => {
+    expect(
+      findRejectedCommandMessage(' IEE136I LOCAL: TIME=16.13.54 DATE=2026.308')
+    ).toBeUndefined();
+    expect(
+      findRejectedCommandMessage(' IEE254I  IPLINFO DISPLAY 738\n  IEE305I in a later line')
+    ).toBeUndefined();
+    expect(findRejectedCommandMessage('')).toBeUndefined();
+  });
+});
+
+describe('buildDisplayCommand', () => {
+  it('prefixes the DISPLAY verb and normalizes whitespace', () => {
+    expect(buildDisplayCommand('  A,L  ')).toBe('DISPLAY A,L');
+    expect(buildDisplayCommand('PROG,APF')).toBe('DISPLAY PROG,APF');
+    expect(buildDisplayCommand('GRS,   C')).toBe('DISPLAY GRS, C');
+  });
+
+  it('accepts operands that use = , ( ) * and wildcards, including L= routing', () => {
+    expect(buildDisplayCommand('A,L,L=CONSOLE1')).toBe('DISPLAY A,L,L=CONSOLE1');
+    expect(buildDisplayCommand('M=STOR')).toBe('DISPLAY M=STOR');
+    expect(buildDisplayCommand('J,(JOB1,JOB2)')).toBe('DISPLAY J,(JOB1,JOB2)');
+    expect(buildDisplayCommand('OMVS,O=*')).toBe('DISPLAY OMVS,O=*');
+  });
+
+  it.each(['T;HALT', 'T\nHALT', 'T\tHALT', 'T|HALT', 'T`HALT', 'T&HALT', 'T<x', ''])(
+    'rejects %j',
+    operands => {
+      expect(() => buildDisplayCommand(operands)).toThrow('Invalid DISPLAY operands');
+    }
+  );
+
+  it.each([...'<>&;%?:"'])('rejects the CMDDELIM character %j', delimiter => {
+    expect(() => buildDisplayCommand(`T${delimiter}D T`)).toThrow('Invalid DISPLAY operands');
+  });
+});
+
 describe('decorateConsoleError', () => {
   it('maps method-not-found to a server-version hint', () => {
     const out = decorateConsoleError('Unrecognized command consoleCommand');
@@ -125,7 +277,15 @@ describe('decorateConsoleError', () => {
     const out = decorateConsoleError(
       "Error: console command failed via 'zoweax', rc: '255'\n  Details: zut_private_run_program: zoweax: command not found"
     );
-    expect(out).toContain('zoweax-security.md');
+    expect(out).toContain('zoa-security.md');
+    expect(out).toContain('system programmer');
+  });
+
+  it('maps a missing zoa (zowex 1.0+) to the same install pointer', () => {
+    const out = decorateConsoleError(
+      "Error: console command failed via 'zoa', rc: '255'\n  Details: zut_private_run_program: zoa: command not found"
+    );
+    expect(out).toContain('zoa-security.md');
     expect(out).toContain('system programmer');
   });
 

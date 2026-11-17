@@ -1268,11 +1268,11 @@ is the `host` field in the connection profile (dots → underscores, uppercase).
 the profile uses the same hostname form as your env vars. If your `.env` has:
 
 ```bash
-ZOWE_MCP_PASSWORD_SAMPLE01_CA31_LVN_BROADCOM_NET=...
+ZOWE_MCP_PASSWORD_SAMPLE01_HOST_EXAMPLE_COM=...
 ```
 
-Then the connection profile must have `"host": "ca31.lvn.broadcom.net"` (not
-`usilca31.lvn.broadcom.net` or `ca31`). Choose the short canonical hostname that matches
+Then the connection profile must have `"host": "host.example.com"` (not
+`hostalias.example.com` or `host`). Choose the short canonical hostname that matches
 your env var naming convention and document it in the vendor `AGENTS.md`.
 
 ---

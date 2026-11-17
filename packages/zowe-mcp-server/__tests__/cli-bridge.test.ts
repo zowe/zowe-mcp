@@ -1546,7 +1546,7 @@ describe('classifyCliError', () => {
       retryableErrorPatterns: ['\\[IBM\\]\\[CLI Driver\\]\\[DB2\\]'],
     });
     const sqlError =
-      '[IBM][CLI Driver][DB2] SQL0204N "PLAPE03.NONEXISTENT_TABLE" is an undefined name. SQLSTATE=42704';
+      '[IBM][CLI Driver][DB2] SQL0204N "USER03.NONEXISTENT_TABLE" is an undefined name. SQLSTATE=42704';
     expect(classifyCliError(sqlError, noFlagsTool, config)).toBe('retryable');
   });
 

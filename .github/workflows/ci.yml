@@ -166,6 +166,9 @@ jobs:
 
       - run: npm run lint
 
+      - name: Test deploy-zos helpers (secret masking)
+        run: npm run test:deploy-zos
+
       # Emit an ESLint SARIF report and upload it to code scanning, so lint
       # findings appear in the Security tab and as inline PR annotations. Reuses
       # the eslint cache the gate above just populated (--cache), so this second

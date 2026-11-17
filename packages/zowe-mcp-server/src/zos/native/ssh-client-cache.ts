@@ -21,6 +21,8 @@ import { basename, posix } from 'node:path';
 import { getLogger } from '../../server.js';
 import type { Credentials } from '../credentials.js';
 import type { ParsedConnectionSpec } from './connection-spec.js';
+import { LocalClient } from './local-client.js';
+import { LOCAL_LAUNCHER_ENV, LOCAL_ZOWEX_ENV, resolveStdioZowexPath } from './local-system.js';
 import { passwordHash } from './password-hash.js';
 import { formatErrorWithDetails, getAdditionalDetails } from './sdk-error-details.js';
 import {
@@ -120,6 +122,15 @@ export interface SshClientCacheOptions {
   responseTimeout?: number;
   /** When set, options are read at getOrCreate time (allows runtime updates from extension). */
   getOptions?: () => ZowexClientOptions;
+  /** Test hook: replaces LocalClient.create for `local` specs (same-system zowex execution). */
+  createLocalClient?: (options: {
+    /** Absent for stdio same-user specs: zowex is spawned directly, no identity switch. */
+    launcherPath?: string;
+    zowexPath: string;
+    userid: string;
+    responseTimeout: number;
+    onClose: () => void;
+  }) => Promise<ZSshClient>;
 }
 
 /**
@@ -128,10 +139,21 @@ export interface SshClientCacheOptions {
  */
 export class SshClientCache {
   private readonly clients = new Map<string, ZSshClient>();
+  /** In-flight creations by cache key — see {@link singleFlight}. */
+  private readonly inflight = new Map<string, Promise<ZSshClient>>();
   private readonly staticOptions: ZowexClientOptions | undefined;
   private readonly getOptions: (() => ZowexClientOptions) | undefined;
+  private readonly createLocalClient: NonNullable<SshClientCacheOptions['createLocalClient']>;
 
   constructor(options: SshClientCacheOptions = {}) {
+    this.createLocalClient =
+      options.createLocalClient ??
+      (async localOpts =>
+        // Duck-typed at the cache boundary (docs/zos-local-zowex-identity.md):
+        // the backend only uses the RpcClientApi surface plus dispose()/serverVersion,
+        // which LocalClient provides. ZSshClient's private members block a
+        // structural assignment, hence the cast.
+        (await LocalClient.create(localOpts)) as unknown as ZSshClient);
     if (options.getOptions) {
       this.getOptions = options.getOptions;
       this.staticOptions = undefined;
@@ -148,6 +170,31 @@ export class SshClientCache {
   private options(): ZowexClientOptions {
     if (this.getOptions) return this.getOptions();
     return this.staticOptions!;
+  }
+
+  /**
+   * Coalesces concurrent creations for the same key: the first caller runs
+   * `create`, later callers await the same promise. Without this, parallel
+   * first requests each open their own connection and the losers fall into
+   * the password-request path even though key auth works (seen live on
+   * parallel tool calls against a cold server). A failed creation rejects
+   * every waiter and caches nothing, so the next request retries fresh.
+   */
+  private singleFlight(key: string, create: () => Promise<ZSshClient>): Promise<ZSshClient> {
+    const pending = this.inflight.get(key);
+    if (pending) {
+      log.debug('SSH client: creation already in flight, awaiting it', { key });
+      return pending;
+    }
+    const creation = (async () => {
+      try {
+        return await create();
+      } finally {
+        this.inflight.delete(key);
+      }
+    })();
+    this.inflight.set(key, creation);
+    return creation;
   }
 
   /** Caches a newly-created client under `key` and logs it. */
@@ -167,13 +214,22 @@ export class SshClientCache {
    * Returns an existing client or creates one for the given spec and credentials.
    * On connection failure the client is not cached; the caller may retry with new credentials.
    * When "Server not found" (z/OS server not deployed) is detected and autoInstallZowex is true, installs then retries once.
+   * A `local` spec (same-system zowex execution) takes the launcher path instead of
+   * credentials — pass undefined; for every other spec credentials are required.
    * @param progress - Optional callback for progress messages (e.g. "Connecting to host via SSH", "Deploying Zowe Remote SSH server to host").
    */
   async getOrCreate(
     spec: ParsedConnectionSpec,
-    credentials: Credentials,
+    credentials: Credentials | undefined,
     progress?: (message: string) => void
   ): Promise<ZSshClient> {
+    if (spec.local) {
+      return this.getOrCreateLocal(spec, progress);
+    }
+    if (!credentials) {
+      // Contract error: only local specs run without credentials.
+      throw new Error(`No credentials provided for connection to ${spec.user}@${spec.host}`);
+    }
     const key = cacheKey(spec);
     log.debug('SSH client getOrCreate: entry', {
       key,
@@ -194,6 +250,16 @@ export class SshClientCache {
       return existing;
     }
 
+    return this.singleFlight(key, () => this.createSshClient(key, spec, credentials, progress));
+  }
+
+  /** Opens the SSH session + ZSshClient for `key` and caches it. Only called via {@link singleFlight}. */
+  private async createSshClient(
+    key: string,
+    spec: ParsedConnectionSpec,
+    credentials: Credentials,
+    progress?: (message: string) => void
+  ): Promise<ZSshClient> {
     const opts = this.options();
     log.debug('SSH client: cache miss, creating new session and ZSshClient', {
       key,
@@ -367,6 +433,78 @@ export class SshClientCache {
       }
     }
 
+    return this.cache(key, client, spec);
+  }
+
+  /**
+   * Returns or creates the local zowex client for a `local` spec (same-system
+   * execution as the authenticated user — docs/zos-local-zowex-identity.md).
+   * No credentials exist on this path by design: the identity switch is the
+   * SURROGAT launcher's, authorized by RACF, and the userid is the JWT sub
+   * carried in `spec.user`. Cached under the same USERID@local key so locking,
+   * eviction, and the child's exit → evict flow all reuse the SSH machinery.
+   */
+  private async getOrCreateLocal(
+    spec: ParsedConnectionSpec,
+    progress?: (message: string) => void
+  ): Promise<ZSshClient> {
+    const key = cacheKey(spec);
+    const existing = this.clients.get(key);
+    if (existing) {
+      log.debug('Local client: cache hit', { key, user: spec.user });
+      return existing;
+    }
+    return this.singleFlight(key, () => this.createLocal(key, spec, progress));
+  }
+
+  /** Starts the local zowex server for `key` and caches it. Only called via {@link singleFlight}. */
+  private async createLocal(
+    key: string,
+    spec: ParsedConnectionSpec,
+    progress?: (message: string) => void
+  ): Promise<ZSshClient> {
+    // Read at call time, matching startup gating (checkLocalGating) — these are
+    // part of the explicit environment contract and were validated at startup.
+    let launcherPath: string | undefined;
+    let zowexPath: string;
+    if (spec.sameUser) {
+      // stdio same-user (deployment shape 2): zowex spawned directly as this
+      // process's user — no launcher, and the per-user default path applies.
+      zowexPath = resolveStdioZowexPath(process.env).path;
+    } else {
+      launcherPath = process.env[LOCAL_LAUNCHER_ENV]?.trim();
+      const fromEnv = process.env[LOCAL_ZOWEX_ENV]?.trim();
+      if (!launcherPath || !fromEnv) {
+        throw new Error(
+          `Local zowex execution needs ${LOCAL_LAUNCHER_ENV} and ${LOCAL_ZOWEX_ENV} set ` +
+            '(checked at startup — the environment changed since, or gating was bypassed).'
+        );
+      }
+      zowexPath = fromEnv;
+    }
+    const opts = this.options();
+    log.info(
+      spec.sameUser
+        ? 'Local client: starting zowex server as the invoking user (same-user)'
+        : 'Local client: starting zowex server as the authenticated user',
+      {
+        key,
+        user: spec.user,
+        launcherPath,
+        zowexPath,
+      }
+    );
+    progress?.(`Starting local Zowe Remote SSH server as ${spec.user}`);
+    const client = await this.createLocalClient({
+      launcherPath,
+      zowexPath,
+      userid: spec.user,
+      responseTimeout: opts.responseTimeout ?? DEFAULT_ZOWEX_RESPONSE_TIMEOUT_SEC,
+      onClose: () => {
+        log.debug('Local client: zowex server ended (onClose)', { key, user: spec.user });
+        this.evictKey(key);
+      },
+    });
     return this.cache(key, client, spec);
   }
 

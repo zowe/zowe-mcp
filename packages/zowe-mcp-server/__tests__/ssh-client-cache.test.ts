@@ -96,6 +96,8 @@ const detectServerOnPathMock = vi.hoisted(() =>
 );
 
 vi.mock('@zowe/zowex-for-zowe-sdk', () => ({
+  /** Base class of LocalClient (imported transitively via local-client.ts); the RPC namespaces are unused here. */
+  RpcClientApi: class MockRpcClientApi {},
   /** Re-exported from @zowe/zos-uss-for-zowe-sdk; production constructs before ZSshClient.create. */
   SshSession: class MockSshSession {
     constructor(_opts: unknown) {

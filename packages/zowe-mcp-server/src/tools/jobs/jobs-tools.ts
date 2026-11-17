@@ -25,6 +25,7 @@ import { ResourceEffect } from '../../capability-level.js';
 import type { Logger } from '../../log.js';
 import type { JobFileEntry, JobStatusResult, ZosBackend } from '../../zos/backend.js';
 import type { CredentialProvider } from '../../zos/credentials.js';
+import { resolveCredentialIdentity } from '../../zos/credentials.js';
 import type { JobCardStore } from '../../zos/job-cards.js';
 import { resolveSystemForTool, type SessionState } from '../../zos/session.js';
 import type { SystemRegistry } from '../../zos/system.js';
@@ -121,7 +122,7 @@ async function ensureContext(
 ): Promise<{ userId: string }> {
   const ctx = deps.sessionState.getContext(systemId);
   if (ctx) return { userId: ctx.userId };
-  const credentials = await deps.credentialProvider.getCredentials(systemId, userId);
+  const credentials = await resolveCredentialIdentity(deps.credentialProvider, systemId, userId);
   deps.sessionState.setActiveSystem(systemId, credentials.user);
   return { userId: credentials.user };
 }

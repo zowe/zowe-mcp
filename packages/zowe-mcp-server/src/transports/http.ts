@@ -28,6 +28,7 @@ import express, { type Request, type Response } from 'express';
 import { randomUUID } from 'node:crypto';
 import type { JwtAuthConfig, TenantJwtClaims } from '../auth/bearer-jwt.js';
 import { extractBearerToken, verifyBearerJwt } from '../auth/bearer-jwt.js';
+import { runWithVerifiedRequestIdentity } from '../auth/request-identity.js';
 import type { Logger } from '../log.js';
 import { registerPasswordUrlElicitRoutes } from './http-password-elicit.js';
 
@@ -189,6 +190,21 @@ export async function startHttp(
   /** Map of active session ID → transport and optional JWT subject. */
   const sessions: Record<string, SessionEntry> = {};
 
+  function handleVerifiedRequest(
+    transport: StreamableHTTPServerTransport,
+    req: Request,
+    res: Response,
+    claims: TenantJwtClaims | null,
+    body?: unknown
+  ): Promise<void> {
+    const accessToken =
+      jwtAuth && claims ? extractBearerToken(req.headers.authorization) : undefined;
+    return runWithVerifiedRequestIdentity(
+      claims && accessToken ? { claims, accessToken } : undefined,
+      () => transport.handleRequest(req, res, body)
+    );
+  }
+
   async function verifyBearerOrRespond(
     req: Request,
     res: Response,
@@ -241,6 +257,7 @@ export async function startHttp(
         log.debug('MCP request', { mcpSessionId: sessionId });
       }
       let transport: StreamableHTTPServerTransport;
+      let verifiedClaims: TenantJwtClaims | null = null;
 
       if (sessionId && sessions[sessionId]) {
         const entry = sessions[sessionId];
@@ -249,6 +266,7 @@ export async function startHttp(
           return;
         }
         transport = entry.transport;
+        verifiedClaims = claims;
       } else if (!sessionId && isInitializeRequest(req.body)) {
         const claims = await verifyBearerOrRespond(req, res, undefined);
         if (jwtAuth && claims === null) {
@@ -282,7 +300,7 @@ export async function startHttp(
 
         const server = createServer(tenant);
         await server.connect(transport);
-        await transport.handleRequest(req, res, req.body);
+        await handleVerifiedRequest(transport, req, res, claims, req.body);
         return;
       } else {
         res.status(400).json({
@@ -296,7 +314,7 @@ export async function startHttp(
         return;
       }
 
-      await transport.handleRequest(req, res, req.body);
+      await handleVerifiedRequest(transport, req, res, verifiedClaims, req.body);
     } catch (error) {
       log.error('Error handling MCP request', error);
       if (!res.headersSent) {
@@ -323,7 +341,7 @@ export async function startHttp(
     if (jwtAuth && claims === null) {
       return;
     }
-    await entry.transport.handleRequest(req, res);
+    await handleVerifiedRequest(entry.transport, req, res, claims);
   });
 
   // -----------------------------------------------------------------------
@@ -341,7 +359,7 @@ export async function startHttp(
       if (jwtAuth && claims === null) {
         return;
       }
-      await entry.transport.handleRequest(req, res);
+      await handleVerifiedRequest(entry.transport, req, res, claims);
     } catch (error) {
       log.error('Error handling session termination', error);
       if (!res.headersSent) {

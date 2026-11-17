@@ -57,6 +57,7 @@ import {
   createEmptyPluginState,
   loadAndRegisterPluginYaml,
 } from '../tools/cli-bridge/cli-tool-loader.js';
+import { registerBackendStatusTools } from '../tools/context/backend-status-tools.js';
 
 const log = new Logger({ name: 'generate-docs' });
 
@@ -902,6 +903,8 @@ async function main(): Promise<void> {
       },
     });
     const server = getServer(created);
+    // Include the optional REST status tool in the complete tool reference.
+    registerBackendStatusTools(server, { getConnectionStatuses: () => [] }, mock.systemRegistry);
 
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
     const client = new Client({ name: 'generate-docs', version: '1.0.0' });
@@ -937,7 +940,14 @@ async function main(): Promise<void> {
           label: 'Context',
           description:
             'Server information and session management — set the active z/OS system and query the current session state (systems, active connection, active user).',
-          toolNames: ['getContext', 'listSystems', 'setSystem', 'addZosConnection'],
+          toolNames: [
+            'getContext',
+            'getBackendStatus',
+            'listSystems',
+            'setSystem',
+            'addZosConnection',
+            'removeZosConnection',
+          ],
         },
         {
           label: 'Data Sets',

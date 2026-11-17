@@ -15,11 +15,7 @@
  * Implements listDatasets, listMembers, and readDataset; other methods throw "not implemented".
  */
 
-import {
-  ZSshUtils,
-  type ZSshClient,
-  type certificates as ZowexCerts,
-} from '@zowe/zowex-for-zowe-sdk';
+import { ZSshUtils, type ZSshClient } from '@zowe/zowex-for-zowe-sdk';
 import { dump as yamlDump } from 'js-yaml';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
@@ -72,6 +68,17 @@ import type { Credentials } from '../credentials.js';
 import { memberPatternToRegExp } from '../member-pattern.js';
 import { runSearchWithListAndRead, type SearchBackendAdapter } from '../search-runner.js';
 import type { SystemId } from '../system.js';
+import {
+  mapCertActionResult,
+  mapCertificateDetails,
+  mapCertificateExport,
+  mapDatasetToEntry,
+  mapJobToEntry,
+  mapMemberToEntry,
+  mapSearchSummary,
+  type ZoDatasetItem,
+  type ZoMemberItem,
+} from '../zo-mappers.js';
 import type { ParsedConnectionSpec } from './connection-spec.js';
 import type { NativeCredentialProvider } from './native-credential-provider.js';
 import { formatErrorWithDetails, getAdditionalDetails } from './sdk-error-details.js';
@@ -98,46 +105,10 @@ const LOCAL_ENCODING_UTF8 = 'utf-8';
 /** Subset of ZSshClient.ds we use (SDK types may be loose). */
 interface NativeDsApi {
   listDatasets(req: { pattern: string; attributes?: boolean }): Promise<{
-    items?: {
-      name: string;
-      dsorg?: string;
-      recfm?: string;
-      lrecl?: number;
-      blksize?: number;
-      cdate?: string;
-      volser?: string;
-      rdate?: string;
-      edate?: string;
-      multivolume?: boolean;
-      migrated?: boolean;
-      encrypted?: boolean;
-      dsntype?: string;
-      dataclass?: string;
-      mgmtclass?: string;
-      storclass?: string;
-      spacu?: string;
-      usedp?: number;
-      usedx?: number;
-      primary?: number;
-      secondary?: number;
-      devtype?: string;
-      volsers?: string[];
-    }[];
+    items?: ZoDatasetItem[];
   }>;
   listDsMembers(req: { dsname: string; pattern?: string; attributes?: boolean }): Promise<{
-    items?: {
-      name: string;
-      user?: string;
-      vers?: number;
-      mod?: number;
-      c4date?: string;
-      m4date?: string;
-      mtime?: string;
-      cnorc?: number;
-      inorc?: number;
-      mnorc?: number;
-      sclm?: string;
-    }[];
+    items?: ZoMemberItem[];
   }>;
   readDataset(req: {
     dsname: string;
@@ -363,87 +334,6 @@ interface ZowexJobItem {
   phase?: number;
   phaseName?: string;
   correlator?: string;
-}
-
-function mapDatasetToEntry(item: {
-  name: string;
-  dsorg?: string;
-  recfm?: string;
-  lrecl?: number;
-  blksize?: number;
-  cdate?: string;
-  volser?: string;
-  rdate?: string;
-  edate?: string;
-  multivolume?: boolean;
-  migrated?: boolean;
-  encrypted?: boolean;
-  dsntype?: string;
-  dataclass?: string;
-  mgmtclass?: string;
-  storclass?: string;
-  spacu?: string;
-  usedp?: number;
-  usedx?: number;
-  primary?: number;
-  secondary?: number;
-  devtype?: string;
-  volsers?: string[];
-}): DatasetEntry {
-  return {
-    dsn: item.name,
-    dsorg: item.dsorg as DatasetEntry['dsorg'],
-    recfm: item.recfm as DatasetEntry['recfm'],
-    lrecl: item.lrecl,
-    blksz: item.blksize,
-    volser: item.volser,
-    creationDate: item.cdate,
-    referenceDate: item.rdate,
-    expirationDate: item.edate,
-    multivolume: item.multivolume,
-    migrated: item.migrated,
-    encrypted: item.encrypted,
-    dsntype: item.dsntype,
-    dataclass: item.dataclass,
-    mgmtclass: item.mgmtclass,
-    storclass: item.storclass,
-    spaceUnits: item.spacu,
-    usedPercent: item.usedp,
-    usedExtents: item.usedx,
-    primary: item.primary,
-    secondary: item.secondary,
-    devtype: item.devtype,
-    volsers: item.volsers,
-  };
-}
-
-/** Maps a raw listDsMembers item (SDK DsMember shape) to MemberEntry, including ISPF statistics. */
-function mapMemberToEntry(item: {
-  name: string;
-  user?: string;
-  vers?: number;
-  mod?: number;
-  c4date?: string;
-  m4date?: string;
-  mtime?: string;
-  cnorc?: number;
-  inorc?: number;
-  mnorc?: number;
-  sclm?: string;
-}): MemberEntry {
-  return {
-    name: item.name.toUpperCase(),
-    user: item.user,
-    version: item.vers,
-    modLevel: item.mod,
-    createdDate: item.c4date,
-    modifiedDate: item.m4date,
-    modifiedTime: item.mtime,
-    currentRecords: item.cnorc,
-    initialRecords: item.inorc,
-    modifiedRecords: item.mnorc,
-    sclm: item.sclm,
-  };
 }
 
 /**
@@ -1392,14 +1282,7 @@ export class NativeBackend {
     return {
       dataset: dsn,
       members,
-      summary: {
-        linesFound: parsed.summary.linesFound,
-        linesProcessed: parsed.summary.linesProcessed,
-        membersWithLines: parsed.summary.membersWithLines,
-        membersWithoutLines: parsed.summary.membersWithoutLines,
-        searchPattern: parsed.summary.searchPattern ?? options.string,
-        processOptions: parsed.summary.processOptions ?? options.parms,
-      },
+      summary: mapSearchSummary(parsed.summary, options),
     };
   }
 
@@ -1748,24 +1631,6 @@ export class NativeBackend {
     return client.certificates;
   }
 
-  /** Maps a certificate/key ring action response to our RACF-neutral CertActionResult. */
-  private mapCertActionResult(response: ZowexCerts.CertCommandResponse): CertActionResult {
-    return {
-      ...(response.warning !== undefined && {
-        warning: sanitizeZowexString(response.warning) ?? response.warning,
-      }),
-      ...(response.safReturns !== undefined && {
-        safReturnCodes: {
-          functionCode: response.safReturns.functionCode,
-          safReturnCode: response.safReturns.safReturnCode,
-          productReturnCode: response.safReturns.esmReturnCode,
-          productReasonCode: response.safReturns.esmReasonCode,
-        },
-      }),
-      ...(response.gskReturnCode !== undefined && { gskReturnCode: response.gskReturnCode }),
-    };
-  }
-
   async runConsoleCommand(
     systemId: SystemId,
     commandText: string,
@@ -1950,7 +1815,7 @@ export class NativeBackend {
           usage: options.usage,
           default: options.isDefault,
         });
-        return this.mapCertActionResult(response);
+        return mapCertActionResult(response);
       },
       progress,
       {
@@ -1984,7 +1849,7 @@ export class NativeBackend {
           database: options.database,
           skipRefresh: options.skipRefresh,
         });
-        return this.mapCertActionResult(response);
+        return mapCertActionResult(response);
       },
       progress,
       {
@@ -2013,19 +1878,7 @@ export class NativeBackend {
           file: options.file,
           password: options.password,
         });
-        const format = sanitizeZowexString(response.format) ?? response.format;
-        return {
-          label: sanitizeZowexString(response.label) ?? response.label,
-          owner: sanitizeZowexString(response.owner) ?? response.owner,
-          keyring: sanitizeZowexString(response.keyring) ?? response.keyring,
-          format,
-          file: response.file !== undefined ? sanitizeZowexString(response.file) : undefined,
-          bytesWritten: response.bytesWritten,
-          data:
-            response.data !== undefined && format !== 'p12'
-              ? Buffer.from(response.data, 'base64').toString('utf-8')
-              : undefined,
-        };
+        return mapCertificateExport(response);
       },
       progress
     );
@@ -2052,7 +1905,7 @@ export class NativeBackend {
           skipRefresh: options.skipRefresh,
         });
         return {
-          ...this.mapCertActionResult(response),
+          ...mapCertActionResult(response),
           label: sanitizeZowexString(response.label) ?? response.label,
           owner: sanitizeZowexString(response.owner) ?? response.owner,
           keyring: sanitizeZowexString(response.keyring) ?? response.keyring,
@@ -2078,23 +1931,7 @@ export class NativeBackend {
           keyring: options.keyring,
           label: options.label,
         });
-        return {
-          label: sanitizeZowexString(response.label) ?? response.label,
-          owner: sanitizeZowexString(response.owner) ?? response.owner,
-          usage: sanitizeZowexString(response.usage) ?? response.usage,
-          status: sanitizeZowexString(response.status) ?? response.status,
-          isDefault: response.default,
-          keyType: response.keyType,
-          keySize: response.keySize,
-          serialNumber:
-            response.serialNumber !== undefined
-              ? sanitizeZowexString(response.serialNumber)
-              : undefined,
-          notBefore: response.notBefore,
-          notAfter: response.notAfter,
-          recordId:
-            response.recordId !== undefined ? sanitizeZowexString(response.recordId) : undefined,
-        };
+        return mapCertificateDetails(response);
       },
       progress,
       {
@@ -2120,7 +1957,7 @@ export class NativeBackend {
           keyring: options.keyring,
           label: options.label,
         });
-        return this.mapCertActionResult(response);
+        return mapCertActionResult(response);
       },
       progress,
       {
@@ -2146,7 +1983,7 @@ export class NativeBackend {
           label: options.label,
           status: options.status,
         });
-        return this.mapCertActionResult(response);
+        return mapCertActionResult(response);
       },
       progress,
       {
@@ -2172,7 +2009,7 @@ export class NativeBackend {
           label: options.label,
           newLabel: options.newLabel,
         });
-        return this.mapCertActionResult(response);
+        return mapCertActionResult(response);
       },
       progress,
       {
@@ -2193,7 +2030,7 @@ export class NativeBackend {
       async client => {
         const certificates = this.getCertificates(client);
         const response = await certificates.refreshDigtcert({});
-        return this.mapCertActionResult(response);
+        return mapCertActionResult(response);
       },
       progress,
       { operation: 'refreshCertificateClass', params: {} }
@@ -2346,22 +2183,6 @@ export class NativeBackend {
       'submitUss',
     ]);
     return jobs;
-  }
-
-  private mapZowexJobToEntry(item: ZowexJobItem, jobId: string): JobEntry {
-    return {
-      id: sanitizeZowexString(item.id) ?? jobId,
-      name: sanitizeZowexString(item.name) ?? '',
-      owner: sanitizeZowexString(item.owner) ?? '',
-      status: sanitizeZowexString(item.status) ?? '',
-      type: sanitizeZowexString(item.type) ?? '',
-      class: sanitizeZowexString(item.class) ?? '',
-      retcode: sanitizeZowexString(item.retcode) ?? item.retcode,
-      subsystem: sanitizeZowexString(item.subsystem) ?? item.subsystem,
-      phase: item.phase ?? 0,
-      phaseName: sanitizeZowexString(item.phaseName) ?? '',
-      correlator: sanitizeZowexString(item.correlator) ?? item.correlator,
-    };
   }
 
   async submitJob(
@@ -2537,7 +2358,7 @@ export class NativeBackend {
         const result: JobEntry[] = [];
         for (const item of items) {
           const id = sanitizeZowexString(item.id) ?? '';
-          result.push(this.mapZowexJobToEntry(item, id));
+          result.push(mapJobToEntry(item, id));
         }
         log.debug('listJobs', { systemId, count: result.length });
         return result;

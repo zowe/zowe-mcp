@@ -20,6 +20,7 @@
  * The tool and resource layer is completely backend-agnostic.
  */
 
+import type { RestSessionStatus } from '../auth/rest-session-auth.js';
 import type { SystemId } from './system.js';
 
 /** Optional progress callback for long-running backend operations (e.g. connect, deploy). */
@@ -186,6 +187,8 @@ export interface ReadDatasetResult {
 export interface WriteDatasetResult {
   /** New ETag after the write. */
   etag: string;
+  /** Server warning when records exceeded LRECL and were truncated. */
+  warning?: string;
 }
 
 /** Options for creating a new data set. */
@@ -754,6 +757,30 @@ export interface RenameCertificateOptions {
 // Backend interface
 // ---------------------------------------------------------------------------
 
+/** Safe connection diagnostics for frontend harnesses. Never includes a token or password. */
+export interface BackendConnectionStatus {
+  system: string;
+  backend: string;
+  endpoint: string;
+  configuredUser: string;
+  configuredDeployment: 'auto' | 'direct' | 'apiml';
+  detectedDeployment: 'unknown' | 'direct' | 'apiml';
+  discovery: 'not-attempted' | 'available' | 'unavailable';
+  unsupportedTools: readonly string[];
+  authentication: {
+    preferred: 'oidc';
+    active: 'not-tested' | 'oidc' | 'password' | 'session-token';
+    oidcAvailable: boolean;
+    oidcStatus: 'not-available' | 'not-tested' | 'accepted' | 'rejected' | 'forbidden';
+    passwordSource?: 'configured' | 'elicited' | 'editor';
+    fallbackReason?: 'no-frontend-token' | 'oidc-rejected';
+    verified: boolean;
+    lastHttpStatus?: number;
+    session?: RestSessionStatus;
+    message: string;
+  };
+}
+
 /**
  * Backend-agnostic interface for z/OS data set operations.
  *
@@ -762,6 +789,14 @@ export interface RenameCertificateOptions {
  * internally.
  */
 export interface ZosBackend {
+  /** Non-secret diagnostics; inspecting status does not collect credentials or contact z/OS. */
+  getConnectionStatuses?(): BackendConnectionStatus[];
+  /** Separate response caches when the request identity or downstream auth path changes. */
+  getCacheIdentity?(): string;
+  /** Backend-specific operating constraints sent to the MCP client during initialization. */
+  readonly instructions?: string;
+  /** Tool names unavailable on this backend; excluded before capability filtering. */
+  readonly unsupportedTools?: readonly string[];
   /**
    * List data sets matching a pattern.
    *

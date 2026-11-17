@@ -58,11 +58,13 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Logger } from '../log.js';
 import { createServer, getServer, type CreateServerOptions } from '../server.js';
+import { redactSecretsForLogging } from '../tool-call-logging.js';
 import {
   createEmptyPluginState,
   loadAndRegisterPluginYaml,
 } from '../tools/cli-bridge/cli-tool-loader.js';
 import type { CliPluginProfilesFile } from '../tools/cli-bridge/types.js';
+import { createJobCardStore } from '../zos/job-cards.js';
 import { loadMock } from '../zos/mock/load-mock.js';
 import {
   isEnvFlagSet,
@@ -71,6 +73,8 @@ import {
   toPasswordEnvVarName,
 } from '../zos/native/connection-spec.js';
 import { loadNative } from '../zos/native/load-native.js';
+import { loadRestConfig } from '../zos/rest/connection.js';
+import { loadRest } from '../zos/rest/load-rest.js';
 
 // Named `scriptDir` (not `__dirname`) so it can't collide with the ambient
 // `__dirname` that esbuild's bundled output synthesizes (via its banner)
@@ -91,6 +95,7 @@ function loadSystemsFromConfig(configPath: string): string[] {
 function parseArgs(): {
   mockDir: string | undefined;
   native: boolean;
+  zoRest: boolean;
   configPath: string | undefined;
   systemSpecs: string[];
   toolName: string | undefined;
@@ -107,6 +112,7 @@ function parseArgs(): {
   let i = 0;
   let mockDir: string | undefined;
   let native = false;
+  let zoRest = false;
   let configPath: string | undefined;
   const systemSpecs: string[] = [];
   const cliPluginConnections = new Map<string, string>();
@@ -124,8 +130,11 @@ function parseArgs(): {
         throw new Error('--mock= requires a non-empty path');
       }
       i += 1;
-    } else if (arg === '--native') {
+    } else if (arg === '--native' || arg === '--zowex') {
       native = true;
+      i += 1;
+    } else if (arg === '--zo-rest') {
+      zoRest = true;
       i += 1;
     } else if (arg === '--config' && i + 1 < args.length) {
       configPath = args[i + 1];
@@ -188,6 +197,7 @@ function parseArgs(): {
   return {
     mockDir,
     native,
+    zoRest,
     configPath,
     systemSpecs,
     toolName,
@@ -313,6 +323,7 @@ async function main(): Promise<void> {
   const {
     mockDir,
     native,
+    zoRest,
     configPath,
     systemSpecs,
     toolName,
@@ -321,10 +332,15 @@ async function main(): Promise<void> {
     cliPluginYamls,
     cliPluginDescVariant,
   } = parseArgs();
-  log.info('Parsed args', { mockDir, native, configPath, systemSpecs, toolName, argsRest });
+  log.info('Parsed args', { mockDir, native, zoRest, configPath, systemSpecs, toolName });
 
-  if (mockDir && native) {
-    throw new Error('Cannot use both --mock and --native. Choose one.');
+  if ([!!mockDir, native, zoRest].filter(Boolean).length > 1) {
+    throw new Error('Choose one backend: --mock, --native/--zowex, or --zo-rest.');
+  }
+  if (zoRest && (!configPath || systemSpecs.length > 0)) {
+    throw new Error(
+      'zo-rest requires --config with systems containing url and user. --system is for SSH.'
+    );
   }
 
   let serverOptions: CreateServerOptions | undefined;
@@ -337,6 +353,12 @@ async function main(): Promise<void> {
         systems: serverOptions.systemRegistry?.list() ?? [],
       });
     }
+  } else if (zoRest) {
+    const config = loadRestConfig(configPath!);
+    const rest = loadRest({ systems: config.systems, useEnvForPassword: true });
+    const jobCardStore = createJobCardStore();
+    if (config.jobCards) jobCardStore.mergeFromObject(config.jobCards);
+    serverOptions = { ...rest, jobCardStore };
   } else if (native) {
     let systems: string[] = [...systemSpecs];
     if (configPath) {
@@ -370,9 +392,7 @@ async function main(): Promise<void> {
 
   const created = serverOptions
     ? createServer({
-        backend: serverOptions.backend,
-        systemRegistry: serverOptions.systemRegistry,
-        credentialProvider: serverOptions.credentialProvider,
+        ...serverOptions,
       })
     : createServer();
   const server = getServer(created);
@@ -472,7 +492,7 @@ async function main(): Promise<void> {
     const args = buildToolArgs(argsRest);
     log.info('Calling tool', { tool: toolName });
     if (Object.keys(args).length > 0) {
-      log.info('Tool arguments', args);
+      log.info('Tool arguments', redactSecretsForLogging(args));
     }
 
     const result = await client.callTool({ name: toolName, arguments: args });

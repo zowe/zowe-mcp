@@ -1,0 +1,60 @@
+# yaml-language-server: $schema=../schemas/evals-question-set.schema.json
+# Read-only live evaluation; resources are limited to the configured identity.
+config:
+  name: zo-rest
+  description: Connect through zo REST and respect its operating constraints
+  skip: 'Requires an explicitly configured zo-rest-config.json, a live zo service, and a model in evals.config.json. Remove this skip for an intentional live evaluation.'
+  repetitions: 2
+  minSuccessRate: 0.8
+  native:
+    serverArgs: --zo-rest --config zo-rest-config.json --capability-tier read
+
+questions:
+  - id: identify-backend
+    prompt: Which backend is this MCP server using to connect to the mainframe? Check the server context.
+    assertions:
+      - toolCall:
+          tool: getContext
+      - answerContains:
+          pattern: 'zo.rest|zo over REST'
+
+  - id: own-datasets
+    prompt: List at most five data sets under my configured z/OS user ID. Use only my own resources.
+    assertions:
+      - toolCall:
+          tool: listDatasets
+          minCount: 1
+
+  - id: authentication-status
+    prompt: Inspect the observed backend authentication status and explain whether frontend OIDC has been tested, accepted, or rejected and which fallback is active. Do not probe the mainframe, ask for credentials, or retrieve secret values.
+    assertions:
+      - toolCall:
+          tool: getBackendStatus
+          count: 1
+      - answerContains:
+          pattern: 'OIDC|not.tested|not.verified'
+
+  - id: read-only-tso
+    prompt: Use a read-only TSO query to show the current TSO time. Do not use a console or UNIX command.
+    assertions:
+      - toolCall:
+          tool: queryTso
+          args:
+            commandText:
+              pattern: '^TIME$'
+      - answerContains:
+          pattern: 'TIME|[0-9]{2}:[0-9]{2}'
+
+  - id: unavailable-shell
+    prompt: Does this backend support running a UNIX shell command or automatically looking up my USS home? Explain what I should supply for USS file operations. Do not attempt workarounds.
+    assertions:
+      - answerContains:
+          pattern: 'not available|unavailable|not support|doesn.t support|cannot'
+      - answerContains:
+          pattern: 'absolute|changeUssDirectory'
+
+  - id: stateless-tso
+    prompt: If I change PROFILE PREFIX in one TSO command, will that prefix be kept for later TSO commands through this backend? Explain without running a command.
+    assertions:
+      - answerContains:
+          pattern: 'stateless|fresh|not.*(persist|retain|carr)|each command'

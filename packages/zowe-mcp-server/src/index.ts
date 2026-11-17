@@ -96,6 +96,8 @@ import {
 import type { NativeSetup } from './zos/native/load-native.js';
 import type { WaitablePasswordStoreLike } from './zos/native/native-credential-provider.js';
 import type { ZowexClientOptions } from './zos/native/ssh-client-cache.js';
+import { loadRestConfig, type RestConfig } from './zos/rest/connection.js';
+import { loadRest, loadRestForHttpTenant, type RestSetup } from './zos/rest/load-rest.js';
 
 /** Merge startup connection strings with tenant file entries (dedupe, preserve order). */
 function mergeConnectionStrings(base: string[], extra: string[]): string[] {
@@ -131,6 +133,8 @@ interface ParsedArgs {
   mockDir?: string;
   /** Zowe Remote SSH (zowex-sdk) backend; set by `--native` or `--zowex`. */
   zowex?: boolean;
+  /** Connect to zo over HTTPS rather than SSH. */
+  zoRest?: boolean;
   configPath?: string;
   systemSpecs: string[];
   subcommand?: string;
@@ -411,6 +415,7 @@ function parseArgs(): ParsedArgs {
         y.options({
           mock: { type: 'string', describe: 'Mock data directory (or --mock=<dir>)' },
           native: { type: 'boolean', describe: 'Use native (SSH) backend' },
+          'zo-rest': { type: 'boolean', describe: 'Use zo-over-REST backend with --config' },
           config: {
             type: 'string',
             describe:
@@ -458,10 +463,16 @@ function parseArgs(): ParsedArgs {
         alias: 'zowex',
         describe: 'Zowe Remote SSH backend (SSH to z/OS; zowex-sdk). Same as --zowex.',
       },
+      'zo-rest': {
+        type: 'boolean',
+        default: false,
+        describe:
+          'zo-over-REST backend (HTTPS, direct or APIML). Requires --config with systems containing url and user.',
+      },
       config: {
         type: 'string',
         describe:
-          'JSON file with { "systems": ["user@host", ...] } — connection specs (used with --native)',
+          'Backend JSON config: SSH systems are user@host strings; --zo-rest systems are objects with url and user.',
       },
       system: {
         type: 'array',
@@ -656,6 +667,7 @@ function parseArgs(): ParsedArgs {
     port: (argv.port as number) ?? 7542,
     mockDir: argv.mock as string | undefined,
     zowex: Boolean((argv.native as boolean) || (argv.zowex as boolean)),
+    zoRest: Boolean(argv['zo-rest']),
     configPath: argv.config as string | undefined,
     systemSpecs,
     responseCache,
@@ -805,7 +817,8 @@ function buildZowexExtensionCallbacks(
   extensionClient: ExtensionClient,
   nativePasswordLog: ReturnType<typeof getLogger>,
   serverRef: { current: CreateServerResult | null },
-  zowexOptionsRef: { current: ZowexClientOptions }
+  zowexOptionsRef: { current: ZowexClientOptions },
+  transientPasswords = false
 ): {
   requestPasswordCallback: (user: string, host: string, port?: number) => void;
   requestPasswordViaElicitation: (
@@ -832,7 +845,7 @@ function buildZowexExtensionCallbacks(
       });
       extensionClient.sendEvent({
         type: 'request-password',
-        data: { user, host, port },
+        data: { user, host, port, ...(transientPasswords ? { transient: true } : {}) },
         timestamp: Date.now(),
       });
     },
@@ -971,11 +984,11 @@ function setupExtensionEventHandlers(
             host,
             port: portNum,
             key,
-            passwordHash: opts.passwordHash(password),
+            ...(!event.data.transient ? { passwordHash: opts.passwordHash(password) } : {}),
           });
           opts.nativePasswordStore.set(key, password);
         }
-        if (opts.cliPluginPasswordStore) {
+        if (opts.cliPluginPasswordStore && !event.data.transient) {
           const { user, host, password } = event.data;
           opts.cliPluginPasswordStore.set(`${user}@${host}`, password);
         }
@@ -1172,13 +1185,20 @@ async function main(): Promise<void> {
   const tenantNativeCache = new Map<string, NativeSetup>();
   const baseSystemsRef: { current: string[] } = { current: [] };
   let getOrCreateTenantNativeSetup: ((sub: string) => NativeSetup) | undefined;
+  let getOrCreateTenantRestSetup: ((sub: string) => RestSetup) | undefined;
   let addTenantNativeConnectionHandler:
     ((tenantSub: string, spec: string) => Promise<void>) | undefined;
   let removeTenantNativeConnectionHandler:
     ((tenantSub: string, spec: string) => Promise<void>) | undefined;
 
-  if (mockDir && zowex) {
-    logger.error('Cannot use both --mock and --native/--zowex. Choose one.');
+  if ([!!mockDir, !!zowex, !!parsed.zoRest].filter(Boolean).length > 1) {
+    logger.error('Choose one backend: --mock, --native/--zowex, or --zo-rest.');
+    process.exit(1);
+  }
+  if (parsed.zoRest && (!configPath || systemSpecs.length > 0)) {
+    logger.error(
+      'zo-rest requires --config <path> with systems: [{ "url": "https://host:port", "user": "USER" }]. --system is for SSH connections.'
+    );
     process.exit(1);
   }
 
@@ -1255,13 +1275,24 @@ async function main(): Promise<void> {
       mockDir,
       systems: mock.systemRegistry.list(),
     });
-  } else if (zowex) {
+  } else if (zowex || parsed.zoRest) {
     let systems: string[] = [...systemSpecs];
+    let restConfig: RestConfig | undefined;
     const jobCardStore = createWaitableJobCardStore();
     if (configPath) {
       try {
-        const fromConfig = loadNativeConfig(configPath);
-        systems = [...(fromConfig.systems ?? []), ...systemSpecs];
+        const fromConfig = parsed.zoRest
+          ? loadRestConfig(configPath)
+          : loadNativeConfig(configPath);
+        if (parsed.zoRest) {
+          restConfig = fromConfig as RestConfig;
+          systems = restConfig.systems.map(connection => {
+            const url = new URL(connection.url);
+            return `${connection.user}@${url.hostname}:${url.port || 443}`;
+          });
+        } else {
+          systems = [...((fromConfig as NativeConfig).systems ?? []), ...systemSpecs];
+        }
         if (fromConfig.jobCards) {
           bootstrapJobCardsForHttp = fromConfig.jobCards;
           jobCardStore.mergeFromObject(fromConfig.jobCards);
@@ -1271,7 +1302,7 @@ async function main(): Promise<void> {
           });
         }
       } catch (err) {
-        logger.error('Failed to load native config', err);
+        logger.error('Failed to load backend config', err);
         process.exit(1);
       }
     }
@@ -1322,7 +1353,8 @@ async function main(): Promise<void> {
             extensionClient,
             nativePasswordLog,
             serverRef,
-            zowexOptionsRef
+            zowexOptionsRef,
+            !!parsed.zoRest
           )
         : {};
     const standalonePasswordElicitation = !extensionConnected
@@ -1334,17 +1366,25 @@ async function main(): Promise<void> {
           }),
         }
       : {};
-    const nativeSetup = loadNative({
-      systems,
+    const credentialOptions = {
       useEnvForPassword: !extensionConnected,
       passwordStore: nativePasswordStore,
       ...extensionCallbacks,
       ...standalonePasswordElicitation,
-      disableSshKey,
-      autoInstallZowex: parsed.zowexServerAutoInstall ?? true,
-      zowexServerPath: parsed.zowexServerPath,
-      responseTimeout: parsed.zowexResponseTimeout ?? defaultResponseTimeout,
-    });
+    };
+    const nativeSetup = parsed.zoRest
+      ? loadRest({
+          ...credentialOptions,
+          systems: restConfig!.systems,
+        })
+      : loadNative({
+          systems,
+          ...credentialOptions,
+          disableSshKey,
+          autoInstallZowex: parsed.zowexServerAutoInstall ?? true,
+          zowexServerPath: parsed.zowexServerPath,
+          responseTimeout: parsed.zowexResponseTimeout ?? defaultResponseTimeout,
+        });
     sharedNativeResolveJobCard = nativeSetup.resolveJobCardConnectionSpec;
 
     const persistJobCardToConfig: CreateServerOptions['persistJobCard'] = configPath
@@ -1383,9 +1423,29 @@ async function main(): Promise<void> {
       nativePasswordLog,
       jobCardStore,
       zowexOptionsRef,
-      updateSystems: nativeSetup.updateSystems,
+      updateSystems: zowex ? (nativeSetup as NativeSetup).updateSystems : undefined,
     };
     baseSystemsRef.current = systems;
+    if (parsed.zoRest && transport === 'http' && hasJwtAuthConfigured()) {
+      const restSetups = new Map<string, RestSetup>();
+      const requestPasswordViaElicitation = createStandalonePasswordElicitation({
+        serverRef,
+        getPublicBaseUrl: () => httpPublicBaseUrlRef.current,
+        log: nativePasswordLog,
+      });
+      getOrCreateTenantRestSetup = sub => {
+        const key = tenantKeyFromSub(sub);
+        let setup = restSetups.get(key);
+        if (!setup) {
+          setup = loadRestForHttpTenant({
+            systems: restConfig!.systems,
+            requestPasswordViaElicitation,
+          });
+          restSetups.set(key, setup);
+        }
+        return setup;
+      };
+    }
     if (zowex && transport === 'http' && hasJwtAuthConfigured()) {
       const nativeLoadBase = {
         useEnvForPassword: !extensionConnected,
@@ -1491,7 +1551,7 @@ async function main(): Promise<void> {
         return Promise.resolve();
       };
     }
-    logger.info('Native (SSH) mode enabled', {
+    logger.info(parsed.zoRest ? 'zo REST mode enabled' : 'Native (SSH) mode enabled', {
       systems: nativeSetup.systemRegistry.list(),
     });
   }
@@ -1499,7 +1559,7 @@ async function main(): Promise<void> {
   if (transport === 'http' && hasJwtAuthConfigured()) {
     if (!zowex) {
       logger.notice(
-        'addZosConnection is not registered: HTTP JWT + --mock has no z/OS SSH connections to add. Use --native/--zowex and ZOWE_MCP_TENANT_STORE_DIR to enable addZosConnection.'
+        'addZosConnection is available for SSH connections only. Use --native/--zowex and ZOWE_MCP_TENANT_STORE_DIR to enable addZosConnection.'
       );
     } else if (!tenantPersistenceDir) {
       logger.notice(
@@ -1978,6 +2038,12 @@ async function main(): Promise<void> {
               await removeTenantNativeConnectionHandler(tenant.sub, spec);
             };
           }
+        }
+        if (opts && tenant && httpJwtAuth && getOrCreateTenantRestSetup) {
+          const setup = getOrCreateTenantRestSetup(tenant.sub);
+          opts.backend = setup.backend;
+          opts.systemRegistry = setup.systemRegistry;
+          opts.credentialProvider = setup.credentialProvider;
         }
         const result = createServer(opts);
         const server = getServer(result);

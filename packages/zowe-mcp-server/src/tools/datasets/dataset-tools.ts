@@ -26,6 +26,7 @@ import type { Logger } from '../../log.js';
 import { resolveAsset } from '../../runtime/asset-root.js';
 import type { DatasetEntry, MemberEntry, ZosBackend } from '../../zos/backend.js';
 import type { CredentialProvider } from '../../zos/credentials.js';
+import { resolveCredentialIdentity } from '../../zos/credentials.js';
 import {
   buildDsUri,
   DsnError,
@@ -146,7 +147,7 @@ async function ensureContext(
   userId?: string
 ): Promise<void> {
   if (deps.sessionState.getContext(systemId)) return;
-  const credentials = await deps.credentialProvider.getCredentials(systemId, userId);
+  const credentials = await resolveCredentialIdentity(deps.credentialProvider, systemId, userId);
   deps.sessionState.setActiveSystem(systemId, credentials.user);
 }
 
@@ -1103,7 +1104,12 @@ export function registerDatasetTools(
 
         await progress.complete('written');
         const mutationMeta: MutationResultMeta = { success: true };
-        return wrapResponse(responseCtx, mutationMeta, { etag: result.etag }, []);
+        return wrapResponse(
+          responseCtx,
+          mutationMeta,
+          { etag: result.etag },
+          result.warning ? [result.warning] : []
+        );
       } catch (err) {
         await progress.complete(err instanceof Error ? err.message : String(err));
         if (err instanceof DsnError) {

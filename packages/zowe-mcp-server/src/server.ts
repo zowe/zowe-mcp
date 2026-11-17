@@ -79,7 +79,7 @@ List pagination (listDatasets, listMembers, searchInDataset, listUssFiles, listJ
 - When _result.hasMore is true, call the tool again with offset = current offset + _result.count and the same limit.
 - To report a TOTAL count ("how many members/data sets/matches"), use _result.totalAvailable (the full number of matching items) — NOT _result.count, which is only the items on the current page.
 
-Line-windowed pagination (readDataset, readUssFile, readJobFile, runSafeUssCommand, runSafeTsoCommand):
+Line-windowed pagination (readDataset, readUssFile, readJobFile, runSafeUssCommand, runSafeTsoCommand, queryTso):
 - When _result.hasMore is true, call the tool again with startLine = _result.startLine + _result.returnedLines and the same lineCount.
 
 If the task requires more data, do not answer with only the first page/window; keep calling you have the desired amount of data.

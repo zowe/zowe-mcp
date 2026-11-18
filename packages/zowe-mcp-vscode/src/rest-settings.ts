@@ -10,6 +10,7 @@
  */
 
 import type { RestConnection } from '@zowe/mcp-server/dist/zos/rest/connection.js';
+import { isAbsolute } from 'node:path';
 import type * as vscode from 'vscode';
 
 /** Read secret-free settings before writing the server's configuration snapshot. */
@@ -24,12 +25,13 @@ export function getRestConnections(config: vscode.WorkspaceConfiguration): RestC
     'caFile',
     'timeoutSeconds',
     'sessionLogin',
+    'oidcTokenExchange',
   ]);
   if (!Array.isArray(connections)) throw new Error('zoweMCP.zoRestConnections must be an array.');
   for (const entry of connections) {
     if (!entry || typeof entry !== 'object' || Object.keys(entry).some(key => !allowed.has(key))) {
       throw new Error(
-        'zoRestConnections accepts url, user, deployment, serviceId, rejectUnauthorized, caFile, timeoutSeconds, and sessionLogin only. Passwords are collected securely when connecting.'
+        'zoRestConnections accepts url, user, deployment, serviceId, rejectUnauthorized, caFile, timeoutSeconds, sessionLogin, and oidcTokenExchange only. Passwords are collected securely when connecting.'
       );
     }
     const connection = entry as Partial<RestConnection>;
@@ -46,6 +48,74 @@ export function getRestConnections(config: vscode.WorkspaceConfiguration): RestC
     }
     if (!connection.user || !/^[A-Za-z0-9@#$]{1,8}$/.test(connection.user))
       throw new Error('Each zo REST connection needs a z/OS user ID (1–8 characters).');
+    if (
+      connection.caFile !== undefined &&
+      (typeof connection.caFile !== 'string' || !isAbsolute(connection.caFile))
+    )
+      throw new Error(
+        'zoweMCP.zoRestConnections caFile must be an absolute path to a site CA file.'
+      );
+  }
+  for (const entry of connections as Partial<RestConnection>[]) {
+    if (!entry.oidcTokenExchange) continue;
+    const exchange = entry.oidcTokenExchange;
+    if (
+      typeof exchange !== 'object' ||
+      Object.keys(exchange).some(
+        key =>
+          !['url', 'audience', 'resource', 'scope', 'clientId', 'clientSecretEnv'].includes(key)
+      )
+    )
+      throw new Error('OIDC token exchange settings must not contain credentials.');
+    let exchangeUrl: URL;
+    try {
+      exchangeUrl = new URL(exchange.url);
+    } catch {
+      throw new Error('OIDC token exchange needs an absolute HTTPS URL.');
+    }
+    if (
+      exchangeUrl.protocol !== 'https:' ||
+      exchangeUrl.username ||
+      exchangeUrl.password ||
+      exchangeUrl.search ||
+      exchangeUrl.hash
+    )
+      throw new Error(
+        'OIDC token exchange URL must use HTTPS without credentials, query, or fragment.'
+      );
+    if (!exchange.audience && !exchange.resource)
+      throw new Error('OIDC token exchange requires a downstream audience or resource.');
+    for (const parameter of [
+      exchange.audience,
+      exchange.resource,
+      exchange.scope,
+      exchange.clientId,
+    ])
+      if (
+        parameter !== undefined &&
+        (typeof parameter !== 'string' || !parameter.trim() || /[\r\n]/.test(parameter))
+      )
+        throw new Error(
+          'OIDC token exchange parameters must be nonblank and have no line breaks.'
+        );
+    if (exchange.resource) {
+      try {
+        const resource = new URL(exchange.resource);
+        if (resource.username || resource.password || exchange.resource.includes('#'))
+          throw new Error();
+      } catch {
+        throw new Error(
+          'OIDC token exchange resource must be an absolute URI without credentials or a fragment.'
+        );
+      }
+    }
+    if (
+      exchange.clientSecretEnv !== undefined &&
+      (!exchange.clientId || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(exchange.clientSecretEnv))
+    )
+      throw new Error(
+        'OIDC token exchange clientSecretEnv needs an environment variable name and clientId.'
+      );
   }
   for (const entry of connections as Partial<RestConnection>[]) {
     if (!entry.sessionLogin) continue;

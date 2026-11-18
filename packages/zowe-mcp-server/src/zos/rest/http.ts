@@ -12,6 +12,7 @@
 import { readFileSync } from 'node:fs';
 import type { IncomingHttpHeaders } from 'node:http';
 import { request } from 'node:https';
+import { isAbsolute } from 'node:path';
 import type { RestConnection } from './connection.js';
 
 export interface RestResponse {
@@ -28,7 +29,7 @@ export class RestError extends Error {
   ) {
     const guidance =
       status === 401
-        ? ' Re-authenticate and restart the MCP server if using environment credentials.'
+        ? ' Re-authenticate through secure elicitation, or correct the configured credential source before retrying.'
         : status === 403
           ? ' Your SAF identity is not authorized for this resource.'
           : status === 412
@@ -42,6 +43,9 @@ export class RestError extends Error {
 }
 
 const MAX_CONTENT_BYTES = 100 * 1024 * 1024;
+
+/** Diagnostics generated locally, without request credentials or untrusted response content. */
+class RestClientError extends Error {}
 
 /** A gateway can echo request credentials in a diagnostic. Scrub only error responses. */
 function redactErrorResponse(
@@ -84,10 +88,38 @@ function redactErrorResponse(
     try {
       collect(JSON.parse(requestBody.toString('utf8')) as unknown);
     } catch {
-      /* Content is not a credential JSON request. */
+      if (
+        Object.entries(requestHeaders ?? {}).some(
+          ([name, value]) =>
+            name.toLowerCase() === 'content-type' &&
+            value.toLowerCase().startsWith('application/x-www-form-urlencoded')
+        )
+      )
+        collect(Object.fromEntries(new URLSearchParams(requestBody.toString('utf8'))));
     }
   }
   const values = [...secrets].filter(Boolean).sort((a, b) => b.length - a.length);
+  const responseText = response.body.toString('utf8');
+  // A one-character password can also occur in JSON keys and ordinary words. Do not
+  // publish it or corrupt the response structure with substring replacement. Keep a
+  // readable, locally generated diagnostic instead of the untrusted remote body.
+  if (
+    values.some(
+      value =>
+        value.length <= 3 &&
+        (responseText.includes(value) || responseText.includes(encodeURIComponent(value)))
+    )
+  )
+    return {
+      ...response,
+      body: Buffer.from(
+        JSON.stringify({
+          message:
+            'Service diagnostic omitted to protect a short credential. Check the HTTP status and backend authentication status.',
+        }),
+        'utf8'
+      ),
+    };
   const scrub = (value: string): string => {
     for (const secret of values)
       value = value
@@ -106,9 +138,9 @@ function redactErrorResponse(
   }
   let body: string;
   try {
-    body = JSON.stringify(redact(JSON.parse(response.body.toString('utf8')) as unknown));
+    body = JSON.stringify(redact(JSON.parse(responseText) as unknown));
   } catch {
-    body = scrub(response.body.toString('utf8'));
+    body = scrub(responseText);
   }
   return { ...response, body: Buffer.from(body, 'utf8') };
 }
@@ -118,7 +150,19 @@ export class RestHttpClient {
   private readonly ca?: Buffer;
 
   constructor(private readonly connection: RestConnection) {
-    if (connection.caFile) this.ca = readFileSync(connection.caFile);
+    if (connection.caFile) {
+      if (!isAbsolute(connection.caFile))
+        throw new RestClientError(
+          'REST caFile must be an absolute path. Relative paths are supported only in a standalone configuration file, where they resolve from that file.'
+        );
+      try {
+        this.ca = readFileSync(connection.caFile);
+      } catch {
+        throw new RestClientError(
+          'Unable to read REST caFile. Check that the configured site CA file exists and is readable.'
+        );
+      }
+    }
   }
 
   async send(
@@ -135,7 +179,7 @@ export class RestHttpClient {
     const method = options.method ?? 'GET';
     const body = options.body === undefined ? undefined : Buffer.from(options.body);
     if (body && body.length > MAX_CONTENT_BYTES)
-      throw new Error('zo-rest content exceeds the 100 MiB request limit.');
+      throw new RestClientError('zo-rest content exceeds the 100 MiB request limit.');
     for (let attempt = 0; ; attempt++) {
       try {
         const response = await this.once(url, authorization, method, options.headers, body);
@@ -144,6 +188,7 @@ export class RestHttpClient {
           continue;
         return redactErrorResponse(response, authorization, body, options.headers);
       } catch (error) {
+        if (error instanceof RestClientError) throw error;
         const code = (error as NodeJS.ErrnoException).code;
         if (
           method === 'GET' &&
@@ -187,14 +232,25 @@ export class RestHttpClient {
         res => {
           const chunks: Buffer[] = [];
           let size = 0;
+          res.on('error', reject);
+          res.on('aborted', () => reject(new RestClientError('Incomplete zo-rest response.')));
+          const rejectOversizeResponse = () => {
+            const error = new RestClientError(
+              'zo-rest response exceeds the 100 MiB content limit.'
+            );
+            reject(error);
+            req.destroy(error);
+          };
+          if (Number(res.headers['content-length']) > MAX_CONTENT_BYTES) {
+            rejectOversizeResponse();
+            return;
+          }
           res.on('data', (chunk: Buffer) => {
             size += chunk.length;
             if (size > MAX_CONTENT_BYTES) {
-              req.destroy(new Error('zo-rest response exceeds the 100 MiB content limit.'));
+              rejectOversizeResponse();
             } else chunks.push(chunk);
           });
-          res.on('error', reject);
-          res.on('aborted', () => reject(new Error('Incomplete zo-rest response.')));
           res.on('end', () =>
             resolve({
               status: res.statusCode ?? 0,

@@ -29,6 +29,7 @@ import {
   showNoConnectionsNotificationIfNeeded,
 } from '../extension';
 import { getDisplayName, getLog } from '../log';
+import { getRestConnections } from '../rest-settings';
 
 /**
  * Finds the Zowe MCP extension from the installed extensions list.
@@ -332,6 +333,69 @@ suite('Zowe MCP VS Code Extension', () => {
       } finally {
         fs.rmSync(storageDir, { recursive: true, force: true });
       }
+    });
+
+    test('REST settings require absolute CA paths with no process-directory dependency', () => {
+      for (const caFile of ['site-ca.pem', '', null, 42]) {
+        assert.throws(
+          () =>
+            getRestConnections(
+              makeMockConfig({
+                zoRestConnections: [{ url: 'https://zos.example.com', user: 'USER1', caFile }],
+              })
+            ),
+          /caFile must be an absolute path/
+        );
+      }
+      const caFile = path.resolve(tmpdir(), 'site-ca.pem');
+      assert.strictEqual(
+        getRestConnections(
+          makeMockConfig({
+            zoRestConnections: [{ url: 'https://zos.example.com', user: 'USER1', caFile }],
+          })
+        )[0].caFile,
+        caFile
+      );
+    });
+
+    test('REST settings accept secret references for the token-exchange proof of concept', () => {
+      const oidcTokenExchange = {
+        url: 'https://idp.example.com/token',
+        audience: 'zo-backend',
+        clientId: 'mcp-client',
+        clientSecretEnv: 'ZOWE_MCP_EXCHANGE_CLIENT_SECRET',
+      };
+      const config = (exchange: object) =>
+        makeMockConfig({
+          zoRestConnections: [
+            { url: 'https://zos.example.com', user: 'USER1', oidcTokenExchange: exchange },
+          ],
+        });
+      assert.deepStrictEqual(
+        getRestConnections(config(oidcTokenExchange))[0].oidcTokenExchange,
+        oidcTokenExchange
+      );
+      assert.throws(
+        () =>
+          getRestConnections(
+            config({ ...oidcTokenExchange, clientSecret: 'must-not-be-written' })
+          ),
+        /must not contain credentials/
+      );
+      for (const url of ['http://idp.example.com/token', 'https://secret@idp.example.com/token'])
+        assert.throws(
+          () => getRestConnections(config({ ...oidcTokenExchange, url })),
+          /must use HTTPS without credentials/
+        );
+      assert.throws(
+        () => getRestConnections(config({ ...oidcTokenExchange, audience: '   ' })),
+        /must be nonblank/
+      );
+      for (const resource of ['relative', 'https://zos.example.com/#fragment'])
+        assert.throws(
+          () => getRestConnections(config({ ...oidcTokenExchange, resource })),
+          /resource must be an absolute URI/
+        );
     });
 
     test('With fresh config (backend=native default, no connections), server gets native backend and zero systems', async () => {

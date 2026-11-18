@@ -106,7 +106,8 @@ export class RestSessionAuthentication {
   private login?: SessionLoginConfig;
   private bypassLogin?: string;
   private session?: CachedSession;
-  private pending?: Promise<SessionAuthentication>;
+  private pending?: { generation: number; promise: Promise<SessionAuthentication> };
+  private readonly authenticationGenerations = new WeakMap<SessionAuthentication, number>();
   private forceElicitation = false;
   private generation = 0;
   private readonly state: RestSessionStatus = {
@@ -168,23 +169,57 @@ export class RestSessionAuthentication {
     return this.session?.authentication;
   }
 
-  /** An explicit HTTP401 permits fresh interactive authentication; never silently refresh. */
-  invalidate(): void {
+  /** Reject only the authentication that failed; a delayed 401 must not discard its replacement. */
+  invalidate(expectedAuthentication?: SessionAuthentication): boolean {
+    if (
+      expectedAuthentication &&
+      this.authenticationGenerations.get(expectedAuthentication) !== this.generation
+    )
+      return false;
     this.session = undefined;
     this.state.token = 'rejected';
     this.state.credentialStorage = 'none';
     this.forceElicitation = true;
     this.options.forgetCredentials();
     this.generation++;
+    return true;
   }
 
   async getAuthentication(): Promise<SessionAuthentication> {
     const cached = this.getCachedAuthentication();
     if (cached) return cached;
-    this.pending ??= this.acquire().finally(() => {
-      this.pending = undefined;
+    const pending = this.pending;
+    if (pending) {
+      if (pending.generation === this.generation) return pending.promise;
+      // The old credential provider may still cache a password when its prompt resolves.
+      // Finish discarding it before a replacement acquisition can own fresh credentials.
+      await pending.promise.catch(() => undefined);
+      return this.getAuthentication();
+    }
+    const generation = this.generation;
+    const promise: Promise<SessionAuthentication> = this.acquire(generation).finally(() => {
+      if (this.pending?.promise === promise) this.pending = undefined;
     });
-    return this.pending;
+    this.pending = { generation, promise };
+    return promise;
+  }
+
+  private ensureCurrentAcquisition(generation: number): void {
+    if (generation === this.generation) return;
+    this.options.forgetCredentials();
+    this.state.credentialStorage = 'none';
+    throw new Error(
+      'REST authentication changed while credentials were being acquired. Retry the operation.'
+    );
+  }
+
+  private async acquisitionResult<T>(generation: number, result: Promise<T>): Promise<T> {
+    try {
+      return await result;
+    } catch (error) {
+      this.ensureCurrentAcquisition(generation);
+      throw error;
+    }
   }
 
   private async requestLogin(
@@ -201,36 +236,50 @@ export class RestSessionAuthentication {
     }
   }
 
-  private async acquire(): Promise<SessionAuthentication> {
-    const credentials = await this.options.getCredentials(this.forceElicitation);
+  private async acquire(generation: number): Promise<SessionAuthentication> {
+    const credentials = await this.acquisitionResult(
+      generation,
+      this.options.getCredentials(this.forceElicitation)
+    );
+    this.ensureCurrentAcquisition(generation);
     this.forceElicitation = false;
+    this.state.credentialStorage = credentials.source === 'configured' ? 'configured' : 'memory';
     const authorization = `Basic ${Buffer.from(`${credentials.user}:${credentials.password}`, 'utf8').toString('base64')}`;
     if (this.login && this.bypassLogin !== JSON.stringify(this.login)) {
-      const response = await this.requestLogin(
-        new URL(this.login.url),
-        this.login.method === 'basic' ? authorization : undefined,
-        {
-          method: 'POST',
-          ...(this.login.method === 'json'
-            ? {
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  username: credentials.user,
-                  password: credentials.password,
-                }),
-              }
-            : {}),
-        }
+      const response = await this.acquisitionResult(
+        generation,
+        this.requestLogin(
+          new URL(this.login.url),
+          this.login.method === 'basic' ? authorization : undefined,
+          {
+            method: 'POST',
+            ...(this.login.method === 'json'
+              ? {
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    username: credentials.user,
+                    password: credentials.password,
+                  }),
+                }
+              : {}),
+          }
+        )
       );
+      this.ensureCurrentAcquisition(generation);
       if ([404, 405, 501].includes(response.status)) {
         this.state.exchange = 'unavailable';
         this.bypassLogin = JSON.stringify(this.login);
       } else if (response.status < 200 || response.status >= 300) {
-        this.options.forgetCredentials();
-        this.forceElicitation = true;
-        this.state.credentialStorage = 'none';
+        if (response.status === 401 || response.status === 403) {
+          this.options.forgetCredentials();
+          this.forceElicitation = true;
+          this.state.credentialStorage = 'none';
+          throw new Error(
+            `REST session login failed (HTTP ${response.status}). Present credentials again through elicitation.`
+          );
+        }
         throw new Error(
-          `REST session login failed (HTTP ${response.status}). Present credentials again through elicitation.`
+          `REST session login failed (HTTP ${response.status}). Retry the operation when the login service is available.`
         );
       } else {
         const token = this.readToken(response);
@@ -251,6 +300,7 @@ export class RestSessionAuthentication {
             expiresAt: token.expiresAt,
           };
           this.generation++;
+          this.authenticationGenerations.set(this.session.authentication, this.generation);
           this.expire();
           if (!this.session)
             throw new Error(
@@ -262,8 +312,13 @@ export class RestSessionAuthentication {
         this.bypassLogin = JSON.stringify(this.login);
       }
     }
-    this.state.credentialStorage = credentials.source === 'configured' ? 'configured' : 'memory';
-    return { authorization, mode: 'password', source: credentials.source };
+    const authentication: SessionAuthentication = {
+      authorization,
+      mode: 'password',
+      source: credentials.source,
+    };
+    this.authenticationGenerations.set(authentication, this.generation);
+    return authentication;
   }
 
   private readToken(

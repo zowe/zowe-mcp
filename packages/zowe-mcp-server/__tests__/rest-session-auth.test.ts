@@ -68,6 +68,14 @@ function expiryToken(expiresAt: number): string {
   ].join('.');
 }
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>(complete => {
+    resolve = complete;
+  });
+  return { promise, resolve };
+}
+
 /** A minimal provider cache makes forget/fresh-elicitation behavior observable. */
 function setup(login?: SessionLoginConfig, source: SessionCredentialSource = 'elicited') {
   let currentTime = START;
@@ -367,20 +375,19 @@ describe('REST credential-to-session authentication', () => {
 
   it('deduplicates simultaneous credential requests and login exchanges', async () => {
     const fixture = setup(APIML_LOGIN);
-    let finishLogin: (value: SessionHttpResponse) => void = () => undefined;
-    fixture.send.mockImplementation(
-      () =>
-        new Promise(resolve => {
-          finishLogin = resolve;
-        })
-    );
+    const loginStarted = deferred<void>();
+    const loginResponse = deferred<SessionHttpResponse>();
+    fixture.send.mockImplementation(() => {
+      loginStarted.resolve();
+      return loginResponse.promise;
+    });
     const operations = Array.from({ length: 8 }, () => fixture.authentication.getAuthentication());
-    await Promise.resolve();
+    await loginStarted.promise;
     expect(fixture.send).toHaveBeenCalledTimes(1);
     expect(fixture.credentialRequests).toEqual([false]);
     expect(fixture.getProviderPassword()).toBe(PASSWORD);
     expect(fixture.forgetCredentials).not.toHaveBeenCalled();
-    finishLogin(cookieResponse());
+    loginResponse.resolve(cookieResponse());
     const results = await Promise.all(operations);
     expect(results).toHaveLength(8);
     expect(
@@ -389,6 +396,138 @@ describe('REST credential-to-session authentication', () => {
     expect(fixture.forgetCredentials).toHaveBeenCalledTimes(1);
     expect(fixture.getProviderPassword()).toBeUndefined();
     expect(fixture.send).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(['during-login', 'after-login'] as const)(
+    'ignores a delayed 401 from the old session %s without discarding replacement credentials',
+    async timing => {
+      const fixture = setup(APIML_LOGIN);
+      const replacementLogin = deferred<SessionHttpResponse>();
+      const replacementStarted = deferred<void>();
+      fixture.send.mockResolvedValueOnce(cookieResponse()).mockImplementationOnce(() => {
+        replacementStarted.resolve();
+        return replacementLogin.promise;
+      });
+      const original = await fixture.authentication.getAuthentication();
+      const firstInvalidation = fixture.authentication.invalidate(original);
+      fixture.setNextPassword(NEXT_PASSWORD);
+      const replacement = fixture.authentication.getAuthentication();
+      await replacementStarted.promise;
+      const beforeStaleResponse = fixture.forgetCredentials.mock.calls.length;
+      const staleInvalidations: boolean[] = [];
+      if (timing === 'during-login')
+        staleInvalidations.push(fixture.authentication.invalidate(original));
+      replacementLogin.resolve(cookieResponse('replacement-cookie'));
+      const accepted = await replacement;
+      if (timing === 'after-login')
+        staleInvalidations.push(fixture.authentication.invalidate(original));
+      const next = await fixture.authentication.getAuthentication();
+      expect(firstInvalidation).toBe(true);
+      expect(staleInvalidations).toEqual([false]);
+      expect(next).toBe(accepted);
+      expect(next.headers?.Cookie).toBe('apimlAuthenticationToken=replacement-cookie');
+      expect(fixture.credentialRequests).toEqual([false, true]);
+      expect(fixture.getPrompts()).toBe(2);
+      expect(fixture.forgetCredentials).toHaveBeenCalledTimes(beforeStaleResponse + 1);
+      expect(fixture.getProviderPassword()).toBeUndefined();
+    }
+  );
+
+  it('ignores an old Basic authentication failure after fresh password recovery', async () => {
+    const fixture = setup();
+    const original = await fixture.authentication.getAuthentication();
+    fixture.authentication.invalidate(original);
+    fixture.setNextPassword(NEXT_PASSWORD);
+    const replacement = await fixture.authentication.getAuthentication();
+    const staleInvalidation = fixture.authentication.invalidate(original);
+    const next = await fixture.authentication.getAuthentication();
+    expect(staleInvalidation).toBe(false);
+    expect(replacement.authorization).toBe(basic(NEXT_PASSWORD));
+    expect(next.authorization).toBe(basic(NEXT_PASSWORD));
+    expect(fixture.credentialRequests).toEqual([false, true, false]);
+    expect(fixture.getPrompts()).toBe(2);
+  });
+
+  it('discards an invalidated pending login response before starting a shared replacement acquisition', async () => {
+    const fixture = setup(APIML_LOGIN);
+    const firstLogin = deferred<SessionHttpResponse>();
+    const loginStarted = deferred<void>();
+    fixture.send
+      .mockImplementationOnce(() => {
+        loginStarted.resolve();
+        return firstLogin.promise;
+      })
+      .mockResolvedValueOnce(cookieResponse('replacement-cookie'));
+    const staleFailure = fixture.authentication
+      .getAuthentication()
+      .catch((error: unknown) => error);
+    await loginStarted.promise;
+    fixture.authentication.invalidate();
+    fixture.setNextPassword(NEXT_PASSWORD);
+    const replacements = Array.from({ length: 4 }, () =>
+      fixture.authentication.getAuthentication()
+    );
+    expect(fixture.send).toHaveBeenCalledTimes(1);
+    expect(fixture.credentialRequests).toEqual([false]);
+    firstLogin.resolve(cookieResponse('obsolete-cookie'));
+    const error = await staleFailure;
+    expect(error).toBeInstanceOf(Error);
+    expect((error as Error).message).toMatch(/authentication changed/i);
+    const accepted = await Promise.all(replacements);
+    expect(
+      accepted.every(
+        authentication =>
+          authentication.headers?.Cookie === 'apimlAuthenticationToken=replacement-cookie'
+      )
+    ).toBe(true);
+    expect(fixture.authentication.getCachedAuthentication()).toBe(accepted[0]);
+    expect(fixture.credentialRequests).toEqual([false, true]);
+    expect(fixture.getPrompts()).toBe(2);
+    expect(fixture.getProviderPassword()).toBeUndefined();
+  });
+
+  it('discards credentials that arrive after invalidation without sending them or retaining them in the provider', async () => {
+    const pendingCredentials =
+      deferred<Awaited<ReturnType<RestSessionAuthOptions['getCredentials']>>>();
+    let providerPassword: string | undefined;
+    const getCredentials = vi
+      .fn<RestSessionAuthOptions['getCredentials']>()
+      .mockImplementationOnce(async () => {
+        const credentials = await pendingCredentials.promise;
+        providerPassword = credentials.password;
+        return credentials;
+      })
+      .mockImplementationOnce(() => {
+        providerPassword = NEXT_PASSWORD;
+        return Promise.resolve({ user: USER, password: NEXT_PASSWORD, source: 'elicited' });
+      });
+    const send = vi
+      .fn<RestSessionAuthOptions['send']>()
+      .mockResolvedValue(cookieResponse('replacement-cookie'));
+    const authentication = new RestSessionAuthentication({
+      login: APIML_LOGIN,
+      getCredentials,
+      send,
+      forgetCredentials: () => {
+        providerPassword = undefined;
+      },
+    });
+    const staleFailure = authentication.getAuthentication().catch((error: unknown) => error);
+    authentication.invalidate();
+    const replacement = authentication.getAuthentication();
+    expect(getCredentials).toHaveBeenCalledTimes(1);
+    pendingCredentials.resolve({ user: USER, password: PASSWORD, source: 'elicited' });
+    const error = await staleFailure;
+    expect(error).toBeInstanceOf(Error);
+    expect((error as Error).message).toMatch(/authentication changed/i);
+    expect(await replacement).toMatchObject({
+      headers: { Cookie: 'apimlAuthenticationToken=replacement-cookie' },
+    });
+    expect(getCredentials.mock.calls).toEqual([[false], [true]]);
+    expect(send).toHaveBeenCalledExactlyOnceWith(new URL(APIML_LOGIN.url), basic(NEXT_PASSWORD), {
+      method: 'POST',
+    });
+    expect(providerPassword).toBeUndefined();
   });
 
   it.each([404, 405, 501])(
@@ -518,7 +657,7 @@ describe('REST credential-to-session authentication', () => {
     }
   );
 
-  it.each([401, 403, 500])(
+  it.each([401, 403])(
     'does not downgrade a failed login (HTTP %i) to Basic and redacts credential/cookie diagnostics',
     async status => {
       const fixture = setup(APIML_LOGIN);
@@ -547,6 +686,48 @@ describe('REST credential-to-session authentication', () => {
       expect(fixture.send).toHaveBeenCalledTimes(2);
     }
   );
+
+  it.each([400, 408, 409, 429, 500, 502, 503, 504])(
+    'retains the current credentials after login HTTP %i so a retry does not prompt again',
+    async status => {
+      const fixture = setup(APIML_LOGIN);
+      fixture.send
+        .mockResolvedValueOnce(response(status, { message: `Unavailable ${PASSWORD}` }))
+        .mockResolvedValueOnce(cookieResponse());
+      const error = await fixture.authentication
+        .getAuthentication()
+        .catch((failure: unknown) => failure);
+      expect(error).toBeInstanceOf(Error);
+      expect((error as Error).message).toContain(`HTTP ${status}`);
+      expect((error as Error).message).toMatch(/retry/i);
+      expect(fixture.forgetCredentials).not.toHaveBeenCalled();
+      expect(fixture.getProviderPassword()).toBe(PASSWORD);
+      expect(fixture.authentication.getStatus().credentialStorage).toBe('memory');
+      await fixture.authentication.getAuthentication();
+      expect(fixture.credentialRequests).toEqual([false, false]);
+      expect(fixture.getPrompts()).toBe(1);
+      expect(fixture.forgetCredentials).toHaveBeenCalledTimes(1);
+      expectSafeDiagnostics(fixture.authentication, [(error as Error).message]);
+    }
+  );
+
+  it('keeps freshly elicited replacement credentials through a transient login failure', async () => {
+    const fixture = setup(APIML_LOGIN);
+    fixture.send
+      .mockResolvedValueOnce(cookieResponse())
+      .mockResolvedValueOnce(response(429))
+      .mockResolvedValueOnce(cookieResponse('replacement-cookie'));
+    const original = await fixture.authentication.getAuthentication();
+    fixture.authentication.invalidate(original);
+    fixture.setNextPassword(NEXT_PASSWORD);
+    await expect(fixture.authentication.getAuthentication()).rejects.toThrow(/HTTP 429/);
+    expect(fixture.getProviderPassword()).toBe(NEXT_PASSWORD);
+    expect(await fixture.authentication.getAuthentication()).toMatchObject({
+      headers: { Cookie: 'apimlAuthenticationToken=replacement-cookie' },
+    });
+    expect(fixture.credentialRequests).toEqual([false, true, false]);
+    expect(fixture.getPrompts()).toBe(2);
+  });
 
   it('drops expired tokens returned by login instead of retaining or refreshing them', async () => {
     const fixture = setup(APIML_LOGIN);

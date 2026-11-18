@@ -12,14 +12,14 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { ElicitRequestSchema } from '@modelcontextprotocol/sdk/types.js';
-import { execFileSync } from 'node:child_process';
 import { generateKeyPairSync, type KeyObject } from 'node:crypto';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
-import { createServer as createHttpServer, type Server } from 'node:http';
+import {
+  createServer as createHttpServer,
+  type IncomingHttpHeaders,
+  type Server,
+} from 'node:http';
 import { createServer as createHttpsServer } from 'node:https';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { __clearJwtJwksCacheForTests } from '../src/auth/bearer-jwt.js';
 import { createServer, getLogger, getServer } from '../src/server.js';
 import { startHttp } from '../src/transports/http.js';
@@ -27,12 +27,14 @@ import type { BackendConnectionStatus } from '../src/zos/backend.js';
 import { createStandalonePasswordElicitation } from '../src/zos/native/password-elicitation.js';
 import { WaitablePasswordStore } from '../src/zos/native/password-store.js';
 import { cacheKey } from '../src/zos/native/ssh-client-cache.js';
+import type { RestConnection } from '../src/zos/rest/connection.js';
 import {
   loadRest,
   loadRestForHttpTenant,
   type LoadRestOptions,
   type RestSetup,
 } from '../src/zos/rest/load-rest.js';
+import { generateHttpsTestCertificate } from './helpers/https-test-certificate.js';
 import { postMcpLocal, signJwt } from './helpers/jwt-test-utils.js';
 
 const HOST = '127.0.0.1';
@@ -48,48 +50,25 @@ interface DownstreamRequest {
   pattern: string | null;
   authorization: string | undefined;
   cookie: string | undefined;
+  headers: IncomingHttpHeaders;
+  body: string;
 }
 
 interface DownstreamResponse {
   status?: number;
   headers?: Record<string, string | string[]>;
+  disconnect?: boolean;
   body: object;
 }
 
 const cleanups: (() => Promise<void>)[] = [];
-let certificateDirectory: string;
 let key: Buffer;
 let cert: Buffer;
 let signingKey: KeyObject;
 let jwk: Record<string, unknown>;
 
 beforeAll(() => {
-  certificateDirectory = mkdtempSync(join(tmpdir(), 'zo-rest-oidc-http-'));
-  const keyPath = join(certificateDirectory, 'key.pem');
-  const certPath = join(certificateDirectory, 'cert.pem');
-  execFileSync(
-    'openssl',
-    [
-      'req',
-      '-x509',
-      '-newkey',
-      'rsa:2048',
-      '-nodes',
-      '-days',
-      '1',
-      '-subj',
-      '/CN=localhost',
-      '-addext',
-      'subjectAltName=DNS:localhost,IP:127.0.0.1',
-      '-keyout',
-      keyPath,
-      '-out',
-      certPath,
-    ],
-    { stdio: 'ignore' }
-  );
-  key = readFileSync(keyPath);
-  cert = readFileSync(certPath);
+  ({ key, cert } = generateHttpsTestCertificate());
   const pair = generateKeyPairSync('rsa', { modulusLength: 2048 });
   signingKey = pair.privateKey;
   jwk = { ...pair.publicKey.export({ format: 'jwk' }), kid: KID, alg: 'RS256', use: 'sig' };
@@ -114,10 +93,6 @@ afterEach(async () => {
   __clearJwtJwksCacheForTests();
 });
 
-afterAll(() => {
-  rmSync(certificateDirectory, { recursive: true, force: true });
-});
-
 async function listen(server: Server): Promise<string> {
   cleanups.push(
     () =>
@@ -138,21 +113,31 @@ async function downstream(
 ) {
   const requests: DownstreamRequest[] = [];
   const server = createHttpsServer({ key, cert }, (req, res) => {
-    const url = new URL(req.url ?? '/', 'https://localhost');
-    const request = {
-      method: req.method ?? 'GET',
-      path: url.pathname,
-      pattern: url.searchParams.get('pattern'),
-      authorization: req.headers.authorization,
-      cookie: req.headers.cookie,
-    };
-    requests.push(request);
-    void Promise.resolve(handler(request)).then(response => {
-      res.writeHead(response.status ?? 200, {
-        'Content-Type': 'application/json',
-        ...response.headers,
+    const chunks: Buffer[] = [];
+    req.on('data', (chunk: Buffer) => chunks.push(chunk));
+    req.on('end', () => {
+      const url = new URL(req.url ?? '/', 'https://localhost');
+      const request = {
+        method: req.method ?? 'GET',
+        path: url.pathname,
+        pattern: url.searchParams.get('pattern'),
+        authorization: req.headers.authorization,
+        cookie: req.headers.cookie,
+        headers: req.headers,
+        body: Buffer.concat(chunks).toString('utf8'),
+      };
+      requests.push(request);
+      void Promise.resolve(handler(request)).then(response => {
+        if (response.disconnect) {
+          req.socket.destroy();
+          return;
+        }
+        res.writeHead(response.status ?? 200, {
+          'Content-Type': 'application/json',
+          ...response.headers,
+        });
+        res.end(JSON.stringify(response.body));
       });
-      res.end(JSON.stringify(response.body));
     });
   });
   return { origin: `https://${await listen(server)}`, requests };
@@ -173,6 +158,7 @@ async function harness(
     jwt?: boolean;
     cache?: boolean;
     deployment?: 'direct' | 'apiml';
+    oidcTokenExchange?: RestConnection['oidcTokenExchange'];
     httpTenantCredentials?: Pick<
       LoadRestOptions,
       'useEnvForPassword' | 'passwordStore' | 'requestPasswordCallback' | 'onElicitedPasswordUsed'
@@ -191,6 +177,7 @@ async function harness(
       user: USER,
       deployment: options.deployment ?? 'direct',
       rejectUnauthorized: false,
+      ...(options.oidcTokenExchange ? { oidcTokenExchange: options.oidcTokenExchange } : {}),
     },
   ];
   const rest = loadRest({
@@ -971,4 +958,353 @@ describe('zo-rest OIDC through authenticated HTTP MCP', () => {
     });
     expectNoSecrets([result, snapshot.result], [unverified]);
   });
+});
+
+describe('opt-in OIDC token exchange through signed HTTP MCP', () => {
+  it('exchanges only verified frontend tokens and uses the issued token for discovery and protected reads', async () => {
+    const backendToken = 'dummy-issued-backend-token';
+    const refreshToken = 'dummy-exchange-refresh-token';
+    const exchange = await downstream(() => ({
+      body: {
+        access_token: backendToken,
+        token_type: 'Bearer',
+        issued_token_type: 'urn:ietf:params:oauth:token-type:access_token',
+        expires_in: 300,
+        refresh_token: refreshToken,
+      },
+    }));
+    const business = await downstream(request => {
+      if (request.authorization !== `Bearer ${backendToken}`)
+        return {
+          status: 401,
+          body: { message: 'The backend requires the separately issued token' },
+        };
+      if (request.path.startsWith('/gateway/api/v1/services/'))
+        return { body: { apiml: { apiInfo: [{ basePath: '/zo/api/v1', defaultApi: true }] } } };
+      return info(request) ?? listing('USER1.EXCHANGE');
+    });
+    const app = await harness(business.origin, {
+      deployment: 'apiml',
+      oidcTokenExchange: {
+        url: `${exchange.origin}/token`,
+        audience: 'zo-backend',
+        resource: 'https://resource.example.test/zo',
+        scope: 'zos.read',
+        clientId: 'test-mcp-client',
+      },
+    });
+    const frontendToken = app.token('exchange-reader');
+    const { client, transport } = await app.connect(frontendToken);
+    const before = await status(client);
+    expect(before.connection.authentication).toMatchObject({
+      oidcFlow: 'token-exchange-poc',
+      active: 'not-tested',
+      verified: false,
+      tokenExchange: { stage: 'proof-of-concept', state: 'not-tested' },
+    });
+    expect(exchange.requests).toHaveLength(0);
+    expect(business.requests).toHaveLength(0);
+    expect(app.prompt).not.toHaveBeenCalled();
+
+    const forged = frontendToken.split('.');
+    forged[2] = (forged[2].startsWith('A') ? 'B' : 'A') + forged[2].slice(1);
+    const invalid = await postMcpLocal(
+      app.port,
+      {
+        jsonrpc: '2.0',
+        id: 91,
+        method: 'tools/call',
+        params: { name: 'listDatasets', arguments: { system: HOST, dsnPattern: 'USER1.*' } },
+      },
+      { Authorization: `Bearer ${forged.join('.')}`, 'mcp-session-id': transport.sessionId! }
+    );
+    expect(invalid.statusCode).toBe(401);
+    expect(exchange.requests).toHaveLength(0);
+    expect(business.requests).toHaveLength(0);
+
+    const result = await list(client);
+    expect(result.isError).not.toBe(true);
+    expect(JSON.stringify(result.structuredContent)).toContain('USER1.EXCHANGE');
+    const repeated = await list(client);
+    expect(repeated.isError).not.toBe(true);
+    expect(exchange.requests).toHaveLength(1);
+    const exchangeRequest = exchange.requests[0];
+    expect(exchangeRequest.method).toBe('POST');
+    expect(exchangeRequest.path).toBe('/token');
+    expect(exchangeRequest.headers['content-type']).toMatch(
+      /^application\/x-www-form-urlencoded/i
+    );
+    const form = new URLSearchParams(exchangeRequest.body);
+    expect(form.get('grant_type')).toBe('urn:ietf:params:oauth:grant-type:token-exchange');
+    expect(form.get('subject_token_type')).toBe('urn:ietf:params:oauth:token-type:access_token');
+    expect(form.get('subject_token')).toBe(frontendToken);
+    expect(form.get('audience')).toBe('zo-backend');
+    expect(form.get('resource')).toBe('https://resource.example.test/zo');
+    expect(form.get('scope')).toBe('zos.read');
+    expect(form.get('client_id')).toBe('test-mcp-client');
+    expect(
+      business.requests.every(request => request.authorization === `Bearer ${backendToken}`)
+    ).toBe(true);
+    expect(business.requests.filter(request => request.path.endsWith('/ds'))).toHaveLength(2);
+    expect(JSON.stringify(business.requests)).not.toContain(frontendToken);
+    const after = await status(client);
+    expect(after.connection.authentication).toMatchObject({
+      active: 'oidc',
+      oidcStatus: 'accepted',
+      oidcFlow: 'token-exchange-poc',
+      verified: true,
+      tokenExchange: {
+        stage: 'proof-of-concept',
+        state: 'valid',
+        lastHttpStatus: 200,
+      },
+    });
+    expect(after.connection.authentication.tokenExchange?.expiresAt).toBeGreaterThan(Date.now());
+    expect(app.prompt).not.toHaveBeenCalled();
+    expectNoSecrets(
+      [before.result, invalid.text, result, repeated, after.result],
+      [frontendToken, backendToken, refreshToken]
+    );
+  });
+
+  it('uses a separately exchanged token after a frontend refresh on the same cached MCP session', async () => {
+    const clientSecret = 'dummy-confidential-exchange-client-secret';
+    const clientAuthorization = `Basic ${Buffer.from(`test-mcp-client:${clientSecret}`).toString('base64')}`;
+    vi.stubEnv('ZOWE_MCP_TEST_EXCHANGE_CLIENT_SECRET', clientSecret);
+    const issued = new Map<string, string>();
+    const exchange = await downstream(request => ({
+      body: {
+        access_token: issued.get(new URLSearchParams(request.body).get('subject_token') ?? ''),
+        token_type: 'Bearer',
+        issued_token_type: 'urn:ietf:params:oauth:token-type:access_token',
+        expires_in: 300,
+      },
+    }));
+    const business = await downstream(request => {
+      if (request.authorization === 'Bearer dummy-before-exchange-token')
+        return info(request) ?? listing('USER1.BEFORE');
+      if (request.authorization === 'Bearer dummy-after-exchange-token')
+        return info(request) ?? listing('USER1.AFTER');
+      return { status: 401, body: { message: 'A backend token is required' } };
+    });
+    const app = await harness(business.origin, {
+      cache: true,
+      oidcTokenExchange: {
+        url: `${exchange.origin}/token`,
+        audience: 'zo-backend',
+        clientId: 'test-mcp-client',
+        clientSecretEnv: 'ZOWE_MCP_TEST_EXCHANGE_CLIENT_SECRET',
+      },
+    });
+    const first = app.token('exchanged-refresh-reader');
+    const next = app.token('exchanged-refresh-reader', 'refreshed');
+    issued.set(first, 'dummy-before-exchange-token');
+    issued.set(next, 'dummy-after-exchange-token');
+    const session = await app.connect(first);
+    await list(session.client);
+    await list(session.client);
+    const warmed = business.requests.length;
+    const cached = await list(session.client);
+    expect(JSON.stringify(cached.structuredContent)).toContain('USER1.BEFORE');
+    expect(business.requests).toHaveLength(warmed);
+    session.auth.token = next;
+    const before = await status(session.client);
+    expect(before.connection.authentication.tokenExchange).toMatchObject({
+      stage: 'proof-of-concept',
+      state: 'not-tested',
+    });
+    expect(exchange.requests).toHaveLength(1);
+    const result = await list(session.client);
+    expect(result.isError).not.toBe(true);
+    expect(JSON.stringify(result.structuredContent)).toContain('USER1.AFTER');
+    expect(JSON.stringify(result.structuredContent)).not.toContain('USER1.BEFORE');
+    expect(
+      exchange.requests.map(request => new URLSearchParams(request.body).get('subject_token'))
+    ).toEqual([first, next]);
+    expect(exchange.requests.every(request => request.authorization === clientAuthorization)).toBe(
+      true
+    );
+    expect(business.requests.at(-1)?.authorization).toBe('Bearer dummy-after-exchange-token');
+    expect(JSON.stringify(business.requests)).not.toContain(first);
+    expect(JSON.stringify(business.requests)).not.toContain(next);
+    expect(JSON.stringify(business.requests)).not.toContain(clientSecret);
+    expect(JSON.stringify(business.requests)).not.toContain(clientAuthorization);
+    expect(app.prompt).not.toHaveBeenCalled();
+    expectNoSecrets(
+      [cached, before.result, result],
+      [first, next, clientSecret, clientAuthorization, ...issued.values()]
+    );
+  });
+
+  it.each([400, 401, 404, 405, 501])(
+    'falls back to elicited credentials after exchange HTTP %i without frontend passthrough',
+    async exchangeStatus => {
+      const exchange = await downstream(() => ({
+        status: exchangeStatus,
+        body: {
+          error: 'unsupported_exchange',
+          error_description: 'Use interactive backend credentials',
+        },
+      }));
+      const business = await downstream(
+        request =>
+          info(request) ??
+          (request.authorization === BASIC
+            ? listing('USER1.FALLBACK')
+            : { status: 401, body: { message: 'Interactive credentials required' } })
+      );
+      const app = await harness(business.origin, {
+        oidcTokenExchange: { url: `${exchange.origin}/token`, audience: 'zo-backend' },
+      });
+      const frontendToken = app.token(`exchange-fallback-${exchangeStatus}`);
+      const { client } = await app.connect(frontendToken);
+      const result = await list(client);
+      expect(result.isError).not.toBe(true);
+      expect(JSON.stringify(result.structuredContent)).toContain('USER1.FALLBACK');
+      expect(app.prompt).toHaveBeenCalledTimes(1);
+      expect(exchange.requests.length).toBeGreaterThanOrEqual(1);
+      expect(
+        business.requests
+          .filter(request => request.path.endsWith('/ds'))
+          .every(request => request.authorization === BASIC)
+      ).toBe(true);
+      expect(JSON.stringify(business.requests)).not.toContain(frontendToken);
+      const snapshot = await status(client);
+      expect(snapshot.connection.authentication).toMatchObject({
+        active: 'password',
+        oidcFlow: 'token-exchange-poc',
+        fallbackReason: 'oidc-exchange-unavailable',
+        passwordSource: 'elicited',
+        verified: true,
+        tokenExchange: {
+          stage: 'proof-of-concept',
+          state: exchangeStatus === 400 || exchangeStatus === 401 ? 'rejected' : 'unavailable',
+          lastHttpStatus: exchangeStatus,
+        },
+      });
+      const activity = [exchange.requests.length, business.requests.length];
+      const again = await status(client);
+      expect([exchange.requests.length, business.requests.length]).toEqual(activity);
+      expect(app.prompt).toHaveBeenCalledTimes(1);
+      expectNoSecrets([result, snapshot.result, again.result], [frontendToken]);
+    }
+  );
+
+  it('does not switch identity after a delayed exchanged-token 401 when a replacement already succeeded', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    const previousBackendToken = 'dummy-stale-exchange-token';
+    const currentBackendToken = 'dummy-current-exchange-token';
+    let exchanges = 0;
+    const exchange = await downstream(() => ({
+      body: {
+        access_token: exchanges++ === 0 ? previousBackendToken : currentBackendToken,
+        token_type: 'Bearer',
+        issued_token_type: 'urn:ietf:params:oauth:token-type:access_token',
+        expires_in: exchanges === 1 ? 1 : 300,
+      },
+    }));
+    let markLateRequest!: () => void;
+    let releaseLateRequest!: () => void;
+    const lateRequestStarted = new Promise<void>(resolve => {
+      markLateRequest = resolve;
+    });
+    const lateResponse = new Promise<void>(resolve => {
+      releaseLateRequest = resolve;
+    });
+    const business = await downstream(async request => {
+      if (request.authorization === BASIC) return listing('USER1.PASSWORD');
+      if (
+        request.authorization === `Bearer ${previousBackendToken}` &&
+        request.pattern === 'USER1.LATE'
+      ) {
+        markLateRequest();
+        await lateResponse;
+        return { status: 401, body: { message: 'The old issued token expired' } };
+      }
+      if (
+        request.authorization === `Bearer ${previousBackendToken}` ||
+        request.authorization === `Bearer ${currentBackendToken}`
+      )
+        return info(request) ?? listing('USER1.CURRENT');
+      return { status: 403, body: { message: 'A separately issued backend token is required' } };
+    });
+    const app = await harness(business.origin, {
+      oidcTokenExchange: { url: `${exchange.origin}/token`, audience: 'zo-backend' },
+    });
+    const frontendToken = app.token('stale-exchanged-token-reader');
+    const { client } = await app.connect(frontendToken);
+    await list(client, 'USER1.WARM');
+    const late = list(client, 'USER1.LATE').catch((error: unknown) => error);
+    await lateRequestStarted;
+    vi.setSystemTime(Date.now() + 2000);
+    const fresh = await list(client, 'USER1.FRESH').finally(() => releaseLateRequest());
+    const lateResult = await late;
+    expect(fresh.isError).not.toBe(true);
+    expect(JSON.stringify(fresh.structuredContent)).toContain('USER1.CURRENT');
+    expect(exchanges).toBe(2);
+    expect(app.prompt).not.toHaveBeenCalled();
+    expect(lateResult).toMatchObject({ isError: true });
+    const beforeNext = await status(client);
+    expect(beforeNext.connection.authentication).toMatchObject({
+      active: 'oidc',
+      oidcStatus: 'accepted',
+      verified: true,
+      lastHttpStatus: 200,
+      tokenExchange: { state: 'valid' },
+    });
+    const next = await list(client, 'USER1.NEXT');
+    expect(next.isError).not.toBe(true);
+    expect(JSON.stringify(next.structuredContent)).toContain('USER1.CURRENT');
+    expect(business.requests.at(-1)?.authorization).toBe(`Bearer ${currentBackendToken}`);
+    expect(app.prompt).not.toHaveBeenCalled();
+    const snapshot = await status(client);
+    expect(snapshot.connection.authentication).toMatchObject({
+      active: 'oidc',
+      oidcStatus: 'accepted',
+      verified: true,
+      tokenExchange: { state: 'valid' },
+    });
+    expectNoSecrets(
+      [fresh, lateResult, beforeNext.result, next, snapshot.result],
+      [frontendToken, previousBackendToken, currentBackendToken]
+    );
+  });
+
+  it.each([403, 429, 503, 'network'] as const)(
+    'fails exchange %s without changing to a password identity or exposing the subject token',
+    async exchangeStatus => {
+      const exchange = await downstream(request => ({
+        ...(exchangeStatus === 'network' ? { disconnect: true } : { status: exchangeStatus }),
+        body: {
+          error: 'temporarily_unavailable',
+          error_description: `Diagnostic subject_token=${new URLSearchParams(request.body).get('subject_token') ?? ''}`,
+        },
+      }));
+      const business = await downstream(request => info(request) ?? listing('USER1.UNEXPECTED'));
+      const app = await harness(business.origin, {
+        oidcTokenExchange: { url: `${exchange.origin}/token`, audience: 'zo-backend' },
+      });
+      const frontendToken = app.token(`exchange-denial-${exchangeStatus}`);
+      const { client } = await app.connect(frontendToken);
+      const result = await list(client);
+      expect(result.isError).toBe(true);
+      expect(exchange.requests).toHaveLength(1);
+      expect(business.requests).toHaveLength(0);
+      expect(app.prompt).not.toHaveBeenCalled();
+      const snapshot = await status(client);
+      expect(snapshot.connection.authentication).toMatchObject({
+        oidcFlow: 'token-exchange-poc',
+        verified: false,
+        tokenExchange: {
+          stage: 'proof-of-concept',
+          state: exchangeStatus === 403 ? 'rejected' : 'unavailable',
+          ...(exchangeStatus === 'network' ? {} : { lastHttpStatus: exchangeStatus }),
+        },
+      });
+      expect(['password', 'session-token']).not.toContain(
+        snapshot.connection.authentication.active
+      );
+      expectNoSecrets([result, snapshot.result], [frontendToken]);
+    }
+  );
 });

@@ -14,6 +14,13 @@ import { dirname, resolve } from 'node:path';
 import { z } from 'zod';
 
 /** One explicitly selected transport per system. Secrets never belong in this configuration. */
+const exchangeParameterSchema = z
+  .string()
+  .min(1)
+  .refine(value => !!value.trim() && !/[\r\n]/.test(value), {
+    message: 'Token exchange parameters must be nonblank and have no line breaks.',
+  });
+
 const connectionSchema = z
   .object({
     url: z.string().url(),
@@ -29,6 +36,37 @@ const connectionSchema = z
     rejectUnauthorized: z.boolean().default(true),
     caFile: z.string().min(1).optional(),
     timeoutSeconds: z.number().int().min(1).max(3600).default(60),
+    oidcTokenExchange: z
+      .object({
+        url: z.string().url(),
+        audience: exchangeParameterSchema.optional(),
+        resource: z
+          .string()
+          .url()
+          .refine(value => {
+            try {
+              const resource = new URL(value);
+              return !resource.username && !resource.password && !value.includes('#');
+            } catch {
+              return false;
+            }
+          }, 'Token exchange resource must be an absolute URI without credentials or a fragment.')
+          .optional(),
+        scope: exchangeParameterSchema.optional(),
+        clientId: exchangeParameterSchema.optional(),
+        clientSecretEnv: z
+          .string()
+          .regex(/^[A-Za-z_][A-Za-z0-9_]*$/)
+          .optional(),
+      })
+      .strict()
+      .refine(exchange => !!(exchange.audience ?? exchange.resource), {
+        message: 'OIDC token exchange requires a downstream audience or resource.',
+      })
+      .refine(exchange => !exchange.clientSecretEnv || !!exchange.clientId, {
+        message: 'OIDC token exchange clientSecretEnv requires clientId.',
+      })
+      .optional(),
     sessionLogin: z
       .object({
         url: z.string().min(1),
@@ -73,6 +111,19 @@ export function parseRestConnections(input: unknown): RestConnection[] {
       );
     }
     hosts.add(url.hostname);
+    if (connection.oidcTokenExchange) {
+      const exchangeUrl = new URL(connection.oidcTokenExchange.url);
+      if (
+        exchangeUrl.protocol !== 'https:' ||
+        exchangeUrl.username ||
+        exchangeUrl.password ||
+        exchangeUrl.search ||
+        exchangeUrl.hash
+      )
+        throw new Error(
+          'OIDC token exchange URL must use HTTPS without credentials, query, or fragment.'
+        );
+    }
     let sessionLogin = connection.sessionLogin;
     if (sessionLogin) {
       const loginUrl = new URL(sessionLogin.url, url);

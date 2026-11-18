@@ -85,6 +85,9 @@ export class ZoRestBackend implements B.ZosBackend {
   }
 
   getCacheIdentity(): string {
+    // Conservatively scope the shared tool cache to the whole backend. A token rotation
+    // or one system's auth transition may cause cache misses for other systems; this
+    // protects results without changing backend-agnostic system routing.
     const identity = getVerifiedRequestIdentity();
     const modes = [...this.apis.values()].map(api => api.getCacheIdentity());
     return createHash('sha256')
@@ -507,7 +510,8 @@ export class ZoRestBackend implements B.ZosBackend {
     options?: B.CopyUssFileOptions,
     userId?: string
   ): Promise<void> {
-    // zo copy replaces writable targets even when force=false; match the interface's copy semantics.
+    // Like SSH's cp, writable targets may be replaced without force. The flag means
+    // cp -f (remove an unopenable target), not an atomic no-overwrite guarantee.
     await this.api(systemId, userId).request('zo', 'fs/copy', {
       method: 'POST',
       json: { from: sourcePath, to: targetPath, ...options },
@@ -524,7 +528,11 @@ export class ZoRestBackend implements B.ZosBackend {
       /^IKJ56644I NO VALID TSO USERID, DEFAULT USER ATTRIBUTES USED\s*\r?\n?/m,
       ''
     );
-    return response.rc === 0 ? output : `TSO return code: ${response.rc}\n${output}`;
+    // SSH reports every nonzero tsocmd RC as an execution error, including informative RC4.
+    // Throw so both TSO tools return isError while retaining the host's output.
+    if (response.rc !== 0)
+      throw new Error(`Error running command, rc '${response.rc}'\n${output}`);
+    return output;
   }
 
   runUnixCommand(): Promise<string> {
@@ -555,15 +563,22 @@ export class ZoRestBackend implements B.ZosBackend {
     prefix = 'mcp-',
     userId?: string
   ): Promise<string> {
-    const names = new Set(
-      (await this.listUssFiles(systemId, dirPath, { includeHidden: true }, userId)).map(item =>
-        posix.basename(item.name)
-      )
-    );
-    const candidate = `${prefix}${randomUUID()}`;
-    if (names.has(candidate))
-      throw new Error('Temporary path collision. Request a new temporary path.');
-    return posix.join(dirPath, candidate);
+    filePath(dirPath);
+    if (prefix.includes('/') || prefix.includes('\0'))
+      throw new Error('Temporary path prefix must be a filename prefix without a slash or NUL.');
+    const api = this.api(systemId, userId);
+    for (let attempt = 0; attempt < 20; attempt++) {
+      const candidate = posix.join(dirPath, `${prefix}${randomUUID()}`);
+      try {
+        // depth=0 lists the exact path itself, including an existing directory, without
+        // enumerating its contents. A 404 verifies absence; it does not reserve the name.
+        await api.request('zo', 'fs/list', { query: { path: candidate, depth: 0, maxItems: 1 } });
+      } catch (error) {
+        if (error instanceof RestError && error.status === 404) return candidate;
+        throw error;
+      }
+    }
+    throw new Error('Could not find a unique temporary USS path after 20 attempts.');
   }
 
   getUssTempDir(systemId: string, basePath: string, userId?: string): Promise<string> {

@@ -38,8 +38,19 @@ const connectionStatusSchema = z.object({
     active: z.enum(['not-tested', 'oidc', 'password', 'session-token']),
     oidcAvailable: z.boolean(),
     oidcStatus: z.enum(['not-available', 'not-tested', 'accepted', 'rejected', 'forbidden']),
+    oidcFlow: z.enum(['passthrough', 'token-exchange-poc']).optional(),
+    tokenExchange: z
+      .object({
+        stage: z.literal('proof-of-concept'),
+        state: z.enum(['not-tested', 'valid', 'expired', 'rejected', 'unavailable']),
+        expiresAt: z.number().optional(),
+        lastHttpStatus: z.number().optional(),
+      })
+      .optional(),
     passwordSource: z.enum(['configured', 'elicited', 'editor']).optional(),
-    fallbackReason: z.enum(['no-frontend-token', 'oidc-rejected']).optional(),
+    fallbackReason: z
+      .enum(['no-frontend-token', 'oidc-rejected', 'oidc-exchange-unavailable'])
+      .optional(),
     verified: z
       .boolean()
       .describe(

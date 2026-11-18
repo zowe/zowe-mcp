@@ -10,6 +10,7 @@
  */
 
 import { createHash } from 'node:crypto';
+import { OidcTokenExchange, OidcTokenExchangeError } from '../../auth/oidc-token-exchange.js';
 import { getVerifiedRequestIdentity } from '../../auth/request-identity.js';
 import {
   apimlSessionLogin,
@@ -58,6 +59,7 @@ export class ZoRestApi {
   >();
   private nextAuthenticationGeneration = 0;
   private readonly sessionAuthentication: RestSessionAuthentication;
+  private readonly oidcTokenExchange?: OidcTokenExchange;
 
   constructor(
     readonly connection: RestConnection,
@@ -65,6 +67,15 @@ export class ZoRestApi {
   ) {
     this.endpoint = new URL(connection.url);
     this.http = new RestHttpClient(connection);
+    if (connection.oidcTokenExchange)
+      this.oidcTokenExchange = new OidcTokenExchange({
+        config: connection.oidcTokenExchange,
+        send: (url, authorization, request) => this.http.send(url, authorization, request),
+        getClientSecret: () =>
+          connection.oidcTokenExchange?.clientSecretEnv
+            ? process.env[connection.oidcTokenExchange.clientSecretEnv]
+            : undefined,
+      });
     const spec = {
       user: connection.user,
       host: this.endpoint.hostname,
@@ -78,9 +89,13 @@ export class ZoRestApi {
         const credentials = await this.credentials.getCredentials(spec.host, spec.user, {
           forceElicitation,
         });
+        if (!credentials.password)
+          throw new Error(
+            'REST authentication requires a password. Provide credentials through secure elicitation or a configured credential source.'
+          );
         return {
           user: credentials.user,
-          password: credentials.password ?? '',
+          password: credentials.password,
           source: this.credentials.getCredentialSource(spec.host, spec.user) ?? 'elicited',
         };
       },
@@ -99,6 +114,7 @@ export class ZoRestApi {
         preferred: 'oidc',
         active: 'not-tested',
         oidcAvailable: !!accessToken,
+        oidcFlow: this.oidcTokenExchange ? 'token-exchange-poc' : 'passthrough',
         oidcStatus: accessToken ? 'not-tested' : 'not-available',
         verified: false,
         ...(!accessToken ? { fallbackReason: 'no-frontend-token' as const } : {}),
@@ -123,6 +139,7 @@ export class ZoRestApi {
       state.active,
       state.oidcStatus,
       this.sessionAuthentication.getCacheIdentity(),
+      this.oidcTokenExchange?.getCacheIdentity(getVerifiedRequestIdentity()?.accessToken),
     ]);
   }
 
@@ -130,14 +147,25 @@ export class ZoRestApi {
     BackendConnectionStatus,
     'detectedDeployment' | 'discovery' | 'authentication'
   > {
-    const state = this.authState(getVerifiedRequestIdentity()?.accessToken);
+    const accessToken = getVerifiedRequestIdentity()?.accessToken;
+    const state = this.authState(accessToken);
     const session = this.sessionAuthentication.getStatus();
+    const tokenExchange = this.oidcTokenExchange?.getStatus(accessToken);
     return {
       detectedDeployment: this.detectedDeployment,
       discovery: this.discoveryStatus,
       authentication: {
         ...state,
         session,
+        ...(tokenExchange ? { tokenExchange } : {}),
+        ...(state.active === 'oidc' && tokenExchange?.state === 'expired'
+          ? {
+              active: 'not-tested' as const,
+              verified: false,
+              message:
+                'The exchanged OIDC backend token expired or has no reusable lifetime. The next operation will exchange the current frontend token again (proof of concept).',
+            }
+          : {}),
         ...(state.active === 'session-token' && ['expired', 'rejected'].includes(session.token)
           ? {
               active: 'not-tested' as const,
@@ -168,40 +196,71 @@ export class ZoRestApi {
     };
     let rejectedOidc = false;
     if (accessToken && state.oidcStatus !== 'rejected') {
-      const response = await this.http.send(url, `Bearer ${accessToken}`, requestOptions);
-      // Discovery access is a separate permission; its denial does not reject OIDC for zo.
-      if (purpose === 'discovery') return response;
-      if (response.status !== 401) {
-        if (purpose === 'operation') {
-          state.active = 'oidc';
-          state.lastHttpStatus = response.status;
-          state.verified = response.status >= 200 && response.status < 300;
-          if (state.verified) {
-            this.credentials.forgetPassword({
-              user: this.connection.user,
-              host: this.endpoint.hostname,
-              port: Number(this.endpoint.port || 443),
-            });
-            state.oidcStatus = 'accepted';
-            state.message =
-              'Using the frontend OIDC token. APIML or the ESM determines the mapped z/OS identity; the configured user is the password fallback identity.';
-          } else if (response.status === 403) {
-            state.oidcStatus = 'forbidden';
-            state.message =
-              'The downstream service returned 403. Access was denied; password fallback was not attempted for an authorization denial.';
-          }
+      let oidcAuthentication: { authorization: string } | undefined;
+      try {
+        oidcAuthentication = this.oidcTokenExchange
+          ? await this.oidcTokenExchange.getAuthentication(accessToken)
+          : { authorization: `Bearer ${accessToken}` };
+      } catch (error) {
+        if (!(error instanceof OidcTokenExchangeError)) throw error;
+        state.verified = false;
+        state.lastHttpStatus = error.status;
+        state.message = error.message;
+        if (!error.fallbackAllowed) {
+          if (error.status === 403) state.oidcStatus = 'forbidden';
+          throw error;
         }
-        return response;
+        // Opt-in exchange never falls back to forwarding the original MCP token.
+        state.oidcStatus = 'rejected';
+        state.fallbackReason = 'oidc-exchange-unavailable';
+        rejectedOidc = true;
       }
-      // An explicit 401 rejects authentication before execution. Only this response
-      // permits a retry with fallback credentials; network failures and 5xx never do.
-      state.oidcStatus = 'rejected';
-      rejectedOidc = true;
-      state.fallbackReason = 'oidc-rejected';
-      state.lastHttpStatus = 401;
-      state.verified = false;
-      state.message =
-        'The downstream service rejected the OIDC token. Resolving existing credentials, including secure elicitation when needed.';
+      if (oidcAuthentication) {
+        const response = await this.http.send(
+          url,
+          oidcAuthentication.authorization,
+          requestOptions
+        );
+        // Discovery access is a separate permission; its denial does not reject OIDC for zo.
+        if (purpose === 'discovery') return response;
+        if (response.status !== 401) {
+          if (purpose === 'operation') {
+            state.active = 'oidc';
+            state.lastHttpStatus = response.status;
+            state.verified = response.status >= 200 && response.status < 300;
+            if (state.verified) {
+              this.credentials.forgetPassword({
+                user: this.connection.user,
+                host: this.endpoint.hostname,
+                port: Number(this.endpoint.port || 443),
+              });
+              state.oidcStatus = 'accepted';
+              state.message = this.oidcTokenExchange
+                ? 'Using an exchanged backend access token (OAuth token exchange proof of concept). The configured user is the password fallback identity.'
+                : 'Using the frontend OIDC token. APIML or the ESM determines the mapped z/OS identity; the configured user is the password fallback identity.';
+            } else if (response.status === 403) {
+              state.oidcStatus = 'forbidden';
+              state.message =
+                'The downstream service returned 403. Access was denied; password fallback was not attempted for an authorization denial.';
+            }
+          }
+          return response;
+        }
+        // An explicit 401 rejects authentication before execution. Only this response
+        // permits a retry with fallback credentials; network failures and 5xx never do.
+        if (
+          this.oidcTokenExchange &&
+          !this.oidcTokenExchange.invalidate(accessToken, oidcAuthentication)
+        )
+          return response;
+        state.oidcStatus = 'rejected';
+        rejectedOidc = true;
+        state.fallbackReason = 'oidc-rejected';
+        state.lastHttpStatus = 401;
+        state.verified = false;
+        state.message =
+          'The downstream service rejected OIDC authentication. Resolving existing credentials, including secure elicitation when needed.';
+      }
     }
     if (purpose === 'discovery') {
       const cached = this.sessionAuthentication.getCachedAuthentication();
@@ -225,7 +284,7 @@ export class ZoRestApi {
       headers: { ...requestOptions.headers, ...authentication.headers },
     });
     if (response.status === 401 && authentication.mode === 'session-token') {
-      this.sessionAuthentication.invalidate();
+      this.sessionAuthentication.invalidate(authentication);
       progress?.('Session token expired or rejected; waiting for fresh credentials');
       authentication = await this.sessionAuthentication.getAuthentication();
       response = await this.http.send(url, authentication.authorization, {
@@ -233,18 +292,24 @@ export class ZoRestApi {
         headers: { ...requestOptions.headers, ...authentication.headers },
       });
     }
+    // A delayed failure must not replace status for credentials that already succeeded.
+    if (response.status === 401 && !this.sessionAuthentication.invalidate(authentication))
+      return response;
     state.active = authentication.mode;
     state.lastHttpStatus = response.status;
     state.passwordSource = authentication.source;
     state.verified = response.status >= 200 && response.status < 300 && purpose === 'operation';
+    const fallbackDescription =
+      state.fallbackReason === 'oidc-rejected'
+        ? 'OIDC credentials were rejected downstream.'
+        : state.fallbackReason === 'oidc-exchange-unavailable'
+          ? 'The configured OIDC token exchange was rejected or is unsupported.'
+          : 'No frontend OIDC token is available.';
     state.message = state.verified
-      ? `${state.fallbackReason === 'oidc-rejected' ? 'OIDC credentials were rejected downstream.' : 'No frontend OIDC token is available.'} ${authentication.mode === 'session-token' ? 'Using an exchanged session token; elicited password references have been discarded.' : `Using ${state.passwordSource} credentials in memory because token exchange is unknown or unavailable.`}`
+      ? `${fallbackDescription} ${authentication.mode === 'session-token' ? 'Using an exchanged session token; elicited password references have been discarded.' : `Using ${state.passwordSource} credentials in memory because token exchange is unknown or unavailable.`}`
       : response.status === 401
-        ? 'Password credentials were rejected. Re-authenticate before retrying.'
-        : 'Password credentials selected; downstream authentication has not been verified by a successful operation.';
-    if (response.status === 401) {
-      this.sessionAuthentication.invalidate();
-    }
+        ? 'Backend credentials were rejected. Re-authenticate before retrying.'
+        : 'Backend credentials selected; downstream authentication has not been verified by a successful operation.';
     return response;
   }
 

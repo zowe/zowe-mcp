@@ -11,17 +11,18 @@
 
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
-import { execFileSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import type { IncomingHttpHeaders } from 'node:http';
 import { createServer as createHttpsServer, type Server } from 'node:https';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createServer, getServer } from '../src/server.js';
+import { NativeBackend, type NativeBackendOptions } from '../src/zos/native/native-backend.js';
 import { loadRestConfig, parseRestConnections } from '../src/zos/rest/connection.js';
 import { requireRestSuccess, RestHttpClient } from '../src/zos/rest/http.js';
 import { loadRest } from '../src/zos/rest/load-rest.js';
+import { generateHttpsTestCertificate } from './helpers/https-test-certificate.js';
 
 const HOST = '127.0.0.1';
 const USER = 'USER1';
@@ -43,38 +44,16 @@ interface FixtureResponse {
 
 type Handler = (request: RecordedRequest) => FixtureResponse;
 
-let certificateDirectory: string;
+let fixtureDirectory: string;
 let key: Buffer;
 let cert: Buffer;
 const servers: Server[] = [];
 
 beforeAll(() => {
-  certificateDirectory = mkdtempSync(join(tmpdir(), 'zowe-mcp-rest-tests-'));
-  const keyFile = join(certificateDirectory, 'key.pem');
-  const certFile = join(certificateDirectory, 'cert.pem');
-  execFileSync(
-    'openssl',
-    [
-      'req',
-      '-x509',
-      '-newkey',
-      'rsa:2048',
-      '-nodes',
-      '-days',
-      '1',
-      '-subj',
-      '/CN=localhost',
-      '-addext',
-      'subjectAltName=DNS:localhost,IP:127.0.0.1',
-      '-keyout',
-      keyFile,
-      '-out',
-      certFile,
-    ],
-    { stdio: 'ignore' }
-  );
-  key = readFileSync(keyFile);
-  cert = readFileSync(certFile);
+  ({ key, cert } = generateHttpsTestCertificate());
+  fixtureDirectory = mkdtempSync(join(tmpdir(), 'zowe-mcp-rest-tests-'));
+  // Only the public CA certificate is needed on disk for caFile/configuration tests.
+  writeFileSync(join(fixtureDirectory, 'cert.pem'), cert);
 });
 
 beforeEach(() => {
@@ -99,7 +78,7 @@ afterEach(async () => {
 });
 
 afterAll(() => {
-  rmSync(certificateDirectory, { recursive: true, force: true });
+  if (fixtureDirectory) rmSync(fixtureDirectory, { recursive: true, force: true });
 });
 
 /** Real HTTPS isolates protocol, TLS, encoding, and routing behavior from SDK mocks. */
@@ -155,6 +134,23 @@ function directInfo(request: RecordedRequest): FixtureResponse | undefined {
   return undefined;
 }
 
+/** Exercise SSH adapter parity using the same controlled RPC results, without an SSH connection. */
+function nativeBackend(client: object): NativeBackend {
+  return new NativeBackend({
+    getSpec: () => ({ user: USER, host: HOST, port: 22 }),
+    credentialProvider: {
+      getCredentials: vi
+        .fn()
+        .mockResolvedValue({ user: USER, password: PASSWORD, authMethod: 'password' }),
+    } as unknown as NativeBackendOptions['credentialProvider'],
+    clientCache: {
+      getOrCreate: vi.fn().mockResolvedValue(client),
+      hasKey: vi.fn().mockReturnValue(true),
+      evict: vi.fn(),
+    } as unknown as NativeBackendOptions['clientCache'],
+  });
+}
+
 describe('zo-rest configuration', () => {
   it('normalizes minimal connections and keeps certificate verification enabled', () => {
     expect(
@@ -192,14 +188,14 @@ describe('zo-rest configuration', () => {
   });
 
   it('resolves caFile relative to the configuration file', () => {
-    const path = join(certificateDirectory, 'rest-config.json');
+    const path = join(fixtureDirectory, 'rest-config.json');
     writeFileSync(
       path,
       JSON.stringify({
         systems: [{ url: 'https://zos.example.com', user: USER, caFile: 'cert.pem' }],
       })
     );
-    expect(loadRestConfig(path).systems[0].caFile).toBe(join(certificateDirectory, 'cert.pem'));
+    expect(loadRestConfig(path).systems[0].caFile).toBe(join(fixtureDirectory, 'cert.pem'));
   });
 });
 
@@ -319,6 +315,19 @@ describe('zo-rest HTTPS integration', () => {
     ]);
     expect(requests[1].url.pathname).toBe('/zo/api/v1/ds/USER1.JCL/members');
     expect(requests[1].url.searchParams.get('pattern')).toBe('JOB*');
+  });
+
+  it('uses the same member ordering as SSH for special characters and digits', async () => {
+    const items = ['A', '9LAST', '@FIRST', 'Z', '#FIRST', '0FIRST', '$FIRST'].map(name => ({
+      name,
+    }));
+    const { origin } = await target(
+      request => directInfo(request) ?? { body: { items, moreRows: false } }
+    );
+    const ssh = nativeBackend({ ds: { listDsMembers: vi.fn().mockResolvedValue({ items }) } });
+    expect(await setup(origin).backend.listMembers(HOST, 'USER1.JCL')).toEqual(
+      await ssh.listMembers(HOST, 'USER1.JCL')
+    );
   });
 
   it('uses direct restfiles bases, UTF-8, codepage and If-Match for content edits', async () => {
@@ -507,7 +516,7 @@ describe('zo-rest HTTPS integration', () => {
     expect(requests.every(request => request.url.pathname.startsWith('/zo/api/v1/'))).toBe(true);
   });
 
-  it('removes the expected stateless TSO warning while retaining command failure output', async () => {
+  it('rejects a nonzero TSO return code while retaining output and stripping the stateless warning', async () => {
     const { origin, requests } = await target(
       request =>
         directInfo(request) ?? {
@@ -519,11 +528,132 @@ describe('zo-rest HTTPS integration', () => {
           },
         }
     );
-    const output = await setup(origin).backend.runTsoCommand(HOST, 'LISTDS USER1.MISSING');
-    expect(output).toContain('DATA SET NOT FOUND');
-    expect(output).not.toContain('IKJ56644I');
+    const attempt = setup(origin).backend.runTsoCommand(HOST, 'LISTDS USER1.MISSING');
+    await expect(attempt).rejects.toThrow(/rc '8'.*DATA SET NOT FOUND/s);
+    await expect(attempt).rejects.not.toThrow('IKJ56644I');
     expect(requests[1].url.pathname).toBe('/zo/api/v1/tso/command');
     expect(requests[1].method).toBe('POST');
+  });
+
+  it('returns successful TSO output without the stateless warning', async () => {
+    const { origin } = await target(
+      request =>
+        directInfo(request) ?? {
+          body: {
+            command: 'TIME',
+            rc: 0,
+            output:
+              'IKJ56644I NO VALID TSO USERID, DEFAULT USER ATTRIBUTES USED\nTIME IS 12:34:56\n',
+          },
+        }
+    );
+    expect(await setup(origin).backend.runTsoCommand(HOST, 'TIME')).toBe('TIME IS 12:34:56\n');
+  });
+
+  it('verifies a temporary candidate without listing a busy directory', async () => {
+    const { origin, requests } = await target(
+      request =>
+        directInfo(request) ??
+        (request.url.pathname === '/zo/api/v1/fs/list' &&
+        request.url.searchParams.get('depth') === '0'
+          ? { status: 404, body: { message: 'Path does not exist' } }
+          : { body: { items: [{ name: 'unrelated' }], totalRows: 200_000 } })
+    );
+    const path = await setup(origin).backend.getUssTempPath(HOST, '/tmp', 'job-');
+    expect(path).toMatch(/^\/tmp\/job-[a-f0-9-]{36}$/);
+    const probes = requests.filter(request => request.url.pathname.endsWith('/fs/list'));
+    expect(probes).toHaveLength(1);
+    expect(probes[0].url.searchParams.get('path')).toBe(path);
+    expect(probes[0].url.searchParams.get('depth')).toBe('0');
+    expect(probes[0].url.searchParams.get('maxItems')).toBe('1');
+    expect(requests.every(request => request.method === 'GET')).toBe(true);
+  });
+
+  it('tries another temporary candidate when the exact path already exists', async () => {
+    const seen: string[] = [];
+    const { origin } = await target(request => {
+      const info = directInfo(request);
+      if (info) return info;
+      seen.push(request.url.searchParams.get('path') ?? '');
+      return seen.length === 1
+        ? { body: { items: [{ name: 'collision', mode: 'drwx------' }], totalRows: 1 } }
+        : { status: 404, body: { message: 'Path does not exist' } };
+    });
+    const path = await setup(origin).backend.getUssTempDir(HOST, '/tmp');
+    expect(seen).toHaveLength(2);
+    expect(seen[1]).toBe(path);
+    expect(seen[0]).not.toBe(path);
+  });
+
+  it.each([403, 500])(
+    'does not treat HTTP%i as proof that a temporary path is absent',
+    async status => {
+      const { origin } = await target(
+        request => directInfo(request) ?? { status, body: { message: 'Metadata check failed' } }
+      );
+      await expect(setup(origin).backend.getUssTempPath(HOST, '/tmp')).rejects.toThrow(
+        `HTTP ${status}`
+      );
+    }
+  );
+
+  it('bounds temporary path collision checks', async () => {
+    const { origin, requests } = await target(
+      request => directInfo(request) ?? { body: { items: [{ name: 'exists' }], totalRows: 1 } }
+    );
+    await expect(setup(origin).backend.getUssTempPath(HOST, '/tmp')).rejects.toThrow(
+      /unique temp/i
+    );
+    expect(requests.filter(request => request.url.pathname.endsWith('/fs/list'))).toHaveLength(20);
+  });
+
+  it.each(['../other/', 'bad\0prefix'])(
+    'rejects a temporary filename prefix that could escape its directory (%#)',
+    async prefix => {
+      await expect(
+        setup('https://127.0.0.1:8443').backend.getUssTempPath(HOST, '/tmp', prefix)
+      ).rejects.toThrow(/filename prefix/i);
+    }
+  );
+
+  it.each([false, true])(
+    'preserves SSH cp-style force=%s semantics for writable destinations',
+    async force => {
+      const copyUss = vi.fn().mockResolvedValue({ success: true });
+      const options = { recursive: false, followSymlinks: false, preserveAttributes: true, force };
+      const { origin, requests } = await target(request => directInfo(request) ?? { status: 201 });
+      await nativeBackend({ uss: { copyUss } }).copyUssFile(
+        HOST,
+        '/tmp/source',
+        '/tmp/destination',
+        options
+      );
+      await setup(origin).backend.copyUssFile(HOST, '/tmp/source', '/tmp/destination', options);
+      expect(copyUss).toHaveBeenCalledWith({
+        srcFsPath: '/tmp/source',
+        dstFsPath: '/tmp/destination',
+        ...options,
+      });
+      const copies = requests.filter(request => request.url.pathname.endsWith('/fs/copy'));
+      expect(copies).toHaveLength(1);
+      expect(JSON.parse(copies[0].body.toString())).toEqual({
+        from: '/tmp/source',
+        to: '/tmp/destination',
+        ...options,
+      });
+      expect(requests.some(request => request.url.pathname.endsWith('/fs/list'))).toBe(false);
+    }
+  );
+
+  it('copies to a new USS target using default options', async () => {
+    const { origin, requests } = await target(request => directInfo(request) ?? { status: 201 });
+    await setup(origin).backend.copyUssFile(HOST, '/tmp/source', '/tmp/new-target');
+    const copy = requests.find(request => request.url.pathname.endsWith('/fs/copy'));
+    expect(JSON.parse(copy?.body.toString() ?? '{}')).toEqual({
+      from: '/tmp/source',
+      to: '/tmp/new-target',
+    });
+    expect(copy?.method).toBe('POST');
   });
 
   it('accepts an explicitly trusted site CA', async () => {
@@ -532,7 +662,7 @@ describe('zo-rest HTTPS integration', () => {
     );
     const backend = setup(origin, {
       rejectUnauthorized: true,
-      caFile: join(certificateDirectory, 'cert.pem'),
+      caFile: join(fixtureDirectory, 'cert.pem'),
     }).backend;
     expect(await backend.listDatasets(HOST, 'USER1.*')).toEqual([]);
   });
@@ -845,6 +975,49 @@ describe('REST failures and retries', () => {
 });
 
 describe('MCP tools backed by zo REST', () => {
+  it.each([
+    { tool: 'queryTso', rc: 4 },
+    { tool: 'queryTso', rc: 8 },
+    { tool: 'runSafeTsoCommand', rc: 4 },
+    { tool: 'runSafeTsoCommand', rc: 8 },
+  ])('reports $tool RC$rc as isError with the host output intact', async ({ tool, rc }) => {
+    const { origin, requests } = await target(
+      request =>
+        directInfo(request) ?? {
+          body: {
+            command: 'LISTDS USER1.MISSING',
+            rc,
+            output:
+              'IKJ56644I NO VALID TSO USERID, DEFAULT USER ATTRIBUTES USED\nNO ENTRIES MEET SEARCH CRITERIA\n',
+          },
+        }
+    );
+    const rest = setup(origin);
+    const server = getServer(
+      createServer({ ...rest, capabilityTier: 'full', responseCache: false })
+    );
+    const client = new Client({ name: 'zo-rest-tso-return-code-test', version: '1.0.0' });
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    try {
+      await Promise.all([client.connect(clientTransport), server.connect(serverTransport)]);
+      const result = await client.callTool({
+        name: tool,
+        arguments: { system: HOST, commandText: 'LISTDS USER1.MISSING' },
+      });
+      const text = JSON.stringify(result.content);
+      expect(result.isError).toBe(true);
+      expect(text).toContain(`rc '${rc}'`);
+      expect(text).toContain('NO ENTRIES MEET SEARCH CRITERIA');
+      expect(text).not.toContain('IKJ56644I');
+      expect(
+        requests.filter(request => request.url.pathname.endsWith('/tso/command'))
+      ).toHaveLength(1);
+    } finally {
+      await client.close();
+      await server.close();
+    }
+  });
+
   it('projects richer native job responses into the advertised MCP job schemas', async () => {
     const job = {
       id: 'JOB00123',

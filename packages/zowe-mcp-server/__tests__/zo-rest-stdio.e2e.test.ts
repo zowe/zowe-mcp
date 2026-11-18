@@ -405,6 +405,28 @@ describe.skipIf(!enabled).sequential('zo REST live stdio E2E', () => {
     expect(binary.data.contentBase64 === bytes).toBe(true);
   });
 
+  it('verifies temporary candidates without listing the parent directory', async context => {
+    if (!scratchCreated) context.skip();
+    const file = await call<Envelope<{ path: string }>>('getUssTempPath', {
+      dirPath: scratch,
+      prefix: 'candidate-',
+    });
+    const directory = await call<Envelope<{ path: string }>>('getUssTempDir', {
+      basePath: scratch,
+    });
+    for (const candidate of [file.data.path, directory.data.path]) {
+      expect(candidate.startsWith(scratch + '/')).toBe(true);
+      const absent = await invoke('listUssFiles', { path: candidate });
+      expect(absent.isError && /HTTP\s+404/.test(resultText(absent))).toBe(true);
+    }
+  });
+
+  it('reports nonzero TSO return codes as errors for an owned missing data set', async () => {
+    const result = await invoke('queryTso', { commandText: `LISTDS '${prefix}.ABSENT'` });
+    expect(result.isError).toBe(true);
+    expect(/rc\s+['"]?[1-9]\d*/i.test(resultText(result))).toBe(true);
+  });
+
   it('reports observed authentication without exposing credentials', async () => {
     const payload = await call<unknown>('getBackendStatus');
     expect(getBackendStatusOutputSchema.safeParse(payload).success).toBe(true);

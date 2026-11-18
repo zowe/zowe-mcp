@@ -20,6 +20,7 @@
  * The tool and resource layer is completely backend-agnostic.
  */
 
+import type { OidcTokenExchangeStatus } from '../auth/oidc-token-exchange.js';
 import type { RestSessionStatus } from '../auth/rest-session-auth.js';
 import type { SystemId } from './system.js';
 
@@ -772,8 +773,10 @@ export interface BackendConnectionStatus {
     active: 'not-tested' | 'oidc' | 'password' | 'session-token';
     oidcAvailable: boolean;
     oidcStatus: 'not-available' | 'not-tested' | 'accepted' | 'rejected' | 'forbidden';
+    oidcFlow?: 'passthrough' | 'token-exchange-poc';
+    tokenExchange?: OidcTokenExchangeStatus;
     passwordSource?: 'configured' | 'elicited' | 'editor';
-    fallbackReason?: 'no-frontend-token' | 'oidc-rejected';
+    fallbackReason?: 'no-frontend-token' | 'oidc-rejected' | 'oidc-exchange-unavailable';
     verified: boolean;
     lastHttpStatus?: number;
     session?: RestSessionStatus;

@@ -86,8 +86,8 @@
             "Read + update + delete/cancel resources. Ensure z/OS least-privilege security controls are in place before enabling.",
             "Full access including job submission and command execution. Ensure z/OS least-privilege security controls are in place and review external content the agent may process."
           ],
-          "description": "Controls which tools the AI assistant can use. Follow the principle of least privilege: grant only the tier needed for the task, and raise it only when required. AI agents can make mistakes \u2014 a narrower tier limits the blast radius. Default is 'read-strict' (safest). Changes require running 'Developer: Reload Window' command. See the Safety & Security documentation for details.",
-          "markdownDescription": "Controls which tools the AI assistant can use. **Follow the principle of least privilege:** grant only the tier needed for the task, and raise it only when required. AI agents can make mistakes \u2014 a narrower tier limits the blast radius. Changes require running **Developer: Reload Window** command.\n\n- **read-strict** \u2014 read-only, client prompts for confirmation on every read (safest)\n- **read** \u2014 read-only, auto-approved by the client\n- **update** \u2014 read + create/write/modify resources\n- **delete** \u2014 read + update + delete/cancel resources\n- **full** \u2014 all tools including job submission and command execution\n\nSee [Safety & Security principles](https://github.com/zowe/zowe-mcp/blob/main/docs/mcp-safety-security-principles.md) for the full security model.",
+          "description": "Controls which tools the AI assistant can use. Follow the principle of least privilege: grant only the tier needed for the task, and raise it only when required. AI agents can make mistakes — a narrower tier limits the blast radius. Default is 'read-strict' (safest). Changes require running 'Developer: Reload Window' command. See the Safety & Security documentation for details.",
+          "markdownDescription": "Controls which tools the AI assistant can use. **Follow the principle of least privilege:** grant only the tier needed for the task, and raise it only when required. AI agents can make mistakes — a narrower tier limits the blast radius. Changes require running **Developer: Reload Window** command.\n\n- **read-strict** — read-only, client prompts for confirmation on every read (safest)\n- **read** — read-only, auto-approved by the client\n- **update** — read + create/write/modify resources\n- **delete** — read + update + delete/cancel resources\n- **full** — all tools including job submission and command execution\n\nSee [Safety & Security principles](https://github.com/zowe/zowe-mcp/blob/main/docs/mcp-safety-security-principles.md) for the full security model.",
           "order": 1
         },
         "zoweMCP.zowexConnections": {
@@ -187,6 +187,58 @@
                     "description": "Top-level JSON token property; defaults to access_token, token, or jwtToken."
                   }
                 }
+              },
+              "oidcTokenExchange": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "url"
+                ],
+                "anyOf": [
+                  {
+                    "required": [
+                      "audience"
+                    ]
+                  },
+                  {
+                    "required": [
+                      "resource"
+                    ]
+                  }
+                ],
+                "description": "Opt-in proof of concept: exchange the verified frontend OIDC token for a separate backend access token using OAuth RFC 8693. Requires a site-provided token endpoint and trust policy; leaves the default OIDC flow unchanged when omitted.",
+                "properties": {
+                  "url": {
+                    "type": "string",
+                    "pattern": "^https://",
+                    "description": "Explicit trusted HTTPS OAuth token endpoint. It is not discovered automatically."
+                  },
+                  "audience": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Audience identifying the downstream API."
+                  },
+                  "resource": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Resource URI identifying the downstream API."
+                  },
+                  "scope": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Optional space-delimited scopes for the exchanged token."
+                  },
+                  "clientId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "OAuth client registered for token exchange."
+                  },
+                  "clientSecretEnv": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "description": "Name of an environment variable containing the OAuth client secret. Keep the secret itself out of settings."
+                  }
+                }
               }
             }
           }
@@ -222,7 +274,7 @@
           "type": "boolean",
           "default": true,
           "description": "When true (default), authenticate to z/OS with an SSH key from your existing ~/.ssh setup (~/.ssh/config IdentityFile or default id_* keys) before prompting for a password. Set to false to always use a password. Changing this requires reloading the window.",
-          "markdownDescription": "When `true` (default), authenticate to z/OS with an **SSH key** from your existing `~/.ssh` setup (`~/.ssh/config` `IdentityFile` or default `id_*` keys) before prompting for a password \u2014 the most secure, zero-config option. Set to `false` to always use a password. Changing this requires **Developer: Reload Window**.",
+          "markdownDescription": "When `true` (default), authenticate to z/OS with an **SSH key** from your existing `~/.ssh` setup (`~/.ssh/config` `IdentityFile` or default `id_*` keys) before prompting for a password — the most secure, zero-config option. Set to `false` to always use a password. Changing this requires **Developer: Reload Window**.",
           "order": 5
         },
         "zoweMCP.installZoweNativeServerAutomatically": {
@@ -363,7 +415,7 @@
           },
           "default": {},
           "description": "Connection profiles for auto-discovered CLI plugins. Key = plugin name (e.g. \"endevor\"), value = profile configuration object. Passwords are not stored here; set ZOWE_MCP_PASSWORD_USER_HOST environment variables. Changes require restarting the MCP server (Reload Window).",
-          "markdownDescription": "Connection profiles for auto-discovered CLI plugins.\n\nKey = plugin name (e.g. `endevor`), value = an inline `CliPluginProfilesFile` object that maps profile type keys (e.g. `connection`, `location`) to `{ profiles: [{id, ...fields}], default?: id }`.\n\nPasswords are **not** stored here. Set `ZOWE_MCP_PASSWORD_<USER>_<HOST>` environment variables instead (uppercase, dots/special chars \u2192 `_`).\n\nExample (Endevor):\n```json\n{\n  \"endevor\": {\n    \"connection\": {\n      \"profiles\": [{\n        \"id\": \"prod\",\n        \"host\": \"zos.example.com\",\n        \"user\": \"USER\",\n        \"protocol\": \"https\",\n        \"basePath\": \"EndevorService/api/v2\",\n        \"instance\": \"ENDEVOR\"\n      }],\n      \"default\": \"prod\"\n    },\n    \"location\": {\n      \"profiles\": [{\n        \"id\": \"dev\",\n        \"environment\": \"DEV\",\n        \"stageNumber\": \"1\"\n      }]\n    }\n  }\n}\n```\n\nChanges require **Developer: Reload Window**.",
+          "markdownDescription": "Connection profiles for auto-discovered CLI plugins.\n\nKey = plugin name (e.g. `endevor`), value = an inline `CliPluginProfilesFile` object that maps profile type keys (e.g. `connection`, `location`) to `{ profiles: [{id, ...fields}], default?: id }`.\n\nPasswords are **not** stored here. Set `ZOWE_MCP_PASSWORD_<USER>_<HOST>` environment variables instead (uppercase, dots/special chars → `_`).\n\nExample (Endevor):\n```json\n{\n  \"endevor\": {\n    \"connection\": {\n      \"profiles\": [{\n        \"id\": \"prod\",\n        \"host\": \"zos.example.com\",\n        \"user\": \"USER\",\n        \"protocol\": \"https\",\n        \"basePath\": \"EndevorService/api/v2\",\n        \"instance\": \"ENDEVOR\"\n      }],\n      \"default\": \"prod\"\n    },\n    \"location\": {\n      \"profiles\": [{\n        \"id\": \"dev\",\n        \"environment\": \"DEV\",\n        \"stageNumber\": \"1\"\n      }]\n    }\n  }\n}\n```\n\nChanges require **Developer: Reload Window**.",
           "order": 11
         }
       }

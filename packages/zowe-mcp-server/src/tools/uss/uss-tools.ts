@@ -1045,6 +1045,7 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
       description:
         'Copy a USS file or directory within the same z/OS system. ' +
         'For directories, set recursive to true. ' +
+        'On SSH and REST, an existing writable target is replaced even when force is false. ' +
         'Paths can be absolute (starting with /) or relative to the current working directory (see getContext.ussCwd).',
       outputSchema: copyUssFileOutputSchema,
       inputSchema: {

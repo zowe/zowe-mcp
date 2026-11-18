@@ -43,10 +43,10 @@ function success(overrides: Record<string, unknown> = {}): SessionHttpResponse {
   });
 }
 
-function jwt(exp: unknown): string {
+function jwt(exp: unknown, claims: Record<string, unknown> = {}): string {
   return [
     Buffer.from('{"alg":"RS256"}').toString('base64url'),
-    Buffer.from(JSON.stringify({ exp })).toString('base64url'),
+    Buffer.from(JSON.stringify({ exp, aud: 'backend-service', ...claims })).toString('base64url'),
     'test-signature',
   ].join('.');
 }
@@ -160,6 +160,74 @@ describe('OIDC token exchange proof of concept', () => {
     const form = new URLSearchParams(fixture.send.mock.calls[0][2].body);
     expect(form.get('resource')).toBe('https://backend.example.test/api');
     expect(form.has('audience') || form.has('scope') || form.has('client_id')).toBe(false);
+  });
+
+  it.each([
+    { name: 'unrelated backend', aud: 'different-backend' },
+    { name: 'MCP-only resource', aud: 'mcp-resource' },
+    { name: 'missing audience', aud: undefined },
+    { name: 'empty audience array', aud: [] },
+    { name: 'unrelated audience array', aud: ['mcp-resource', 'different-backend'] },
+    { name: 'mixed-type array with matching target', aud: ['backend-service', 7] },
+    { name: 'non-string scalar', aud: 7 },
+    { name: 'null audience', aud: null },
+    { name: 'object audience', aud: { audience: 'backend-service' } },
+  ])('rejects an exchanged JWT with $name instead of silently forwarding it', async ({ aud }) => {
+    const fixture = setup();
+    const issued = jwt(START / 1000 + 60, { aud });
+    fixture.send.mockResolvedValueOnce(success({ access_token: issued }));
+    const failure = await fixture.exchange
+      .getAuthentication(SUBJECT)
+      .catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(OidcTokenExchangeError);
+    expect(failure).toMatchObject({ fallbackAllowed: false, status: 200 });
+    expect((failure as Error).message).toBe(
+      'OAuth token exchange returned a JWT for an unexpected audience. Check audience/resource and issuer policy.'
+    );
+    expect(fixture.exchange.getStatus(SUBJECT)).toMatchObject({
+      state: 'rejected',
+      lastHttpStatus: 200,
+    });
+    expect(fixture.send).toHaveBeenCalledTimes(1);
+    expect((failure as Error).message).not.toContain(issued);
+    expectPrivate(fixture.exchange, [failure]);
+  });
+
+  it.each([
+    { name: 'matching string audience', config: {}, aud: 'backend-service' },
+    { name: 'matching audience array', config: {}, aud: ['mcp-resource', 'backend-service'] },
+    {
+      name: 'resource-only URI',
+      config: { audience: undefined, resource: 'https://backend.example.test/api' },
+      aud: 'https://backend.example.test/api',
+    },
+    {
+      name: 'resource-only URN',
+      config: { audience: undefined, resource: 'urn:zo:backend' },
+      aud: 'urn:zo:backend',
+    },
+    {
+      name: 'resource alternative to configured audience',
+      config: { resource: 'urn:zo:backend' },
+      aud: 'urn:zo:backend',
+    },
+    {
+      name: 'resource in audience array',
+      config: { resource: 'urn:zo:backend' },
+      aud: ['mcp-resource', 'urn:zo:backend'],
+    },
+  ])('accepts an exchanged JWT with $name', async ({ config, aud }) => {
+    const fixture = setup(config);
+    const issued = jwt(START / 1000 + 60, { aud });
+    fixture.send.mockResolvedValueOnce(success({ access_token: issued }));
+    expect(await fixture.exchange.getAuthentication(SUBJECT)).toEqual({
+      authorization: `Bearer ${issued}`,
+    });
+    expect(fixture.exchange.getStatus(SUBJECT)).toMatchObject({
+      state: 'valid',
+      expiresAt: START + 60_000,
+    });
+    expectPrivate(fixture.exchange);
   });
 
   it('uses form-encoded Basic client authentication without duplicating client_id in the body', async () => {

@@ -21,6 +21,7 @@ import {
 import { createServer as createHttpsServer } from 'node:https';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { __clearJwtJwksCacheForTests } from '../src/auth/bearer-jwt.js';
+import { Logger } from '../src/log.js';
 import { createServer, getLogger, getServer } from '../src/server.js';
 import { startHttp } from '../src/transports/http.js';
 import type { BackendConnectionStatus } from '../src/zos/backend.js';
@@ -961,6 +962,94 @@ describe('zo-rest OIDC through authenticated HTTP MCP', () => {
 });
 
 describe('opt-in OIDC token exchange through signed HTTP MCP', () => {
+  it.each([
+    { name: 'MCP-only audience', aud: AUDIENCE },
+    { name: 'unrelated backend audience', aud: 'different-backend' },
+    { name: 'missing audience', aud: undefined },
+  ])(
+    'does not send an exchanged JWT with $name to the business API or elicit a password',
+    async ({ aud }) => {
+      let issuedToken = '';
+      const exchange = await downstream(() => ({
+        body: {
+          access_token: issuedToken,
+          token_type: 'Bearer',
+          issued_token_type: 'urn:ietf:params:oauth:token-type:access_token',
+          expires_in: 300,
+        },
+      }));
+      const business = await downstream(request => info(request) ?? listing('USER1.WRONG'));
+      const app = await harness(business.origin, {
+        oidcTokenExchange: { url: `${exchange.origin}/token`, audience: 'zo-backend' },
+      });
+      const frontendToken = app.token('audience-check-reader');
+      issuedToken = app.token('audience-check-reader', 'issued-backend-token', { aud });
+      expect(issuedToken).not.toBe(frontendToken);
+      const { client } = await app.connect(frontendToken);
+      const result = await list(client);
+      expect(result.isError).toBe(true);
+      expect(JSON.stringify(result.content)).toContain(
+        'OAuth token exchange returned a JWT for an unexpected audience. Check audience/resource and issuer policy.'
+      );
+      expect(business.requests).toHaveLength(0);
+      expect(app.prompt).not.toHaveBeenCalled();
+      expect(exchange.requests).toHaveLength(1);
+      const snapshot = await status(client);
+      expect(snapshot.connection.authentication).toMatchObject({
+        oidcFlow: 'token-exchange-poc',
+        verified: false,
+        tokenExchange: { stage: 'proof-of-concept', state: 'rejected', lastHttpStatus: 200 },
+      });
+      expect(['password', 'session-token']).not.toContain(
+        snapshot.connection.authentication.active
+      );
+      expectNoSecrets([result, snapshot.result], [frontendToken, issuedToken]);
+    }
+  );
+
+  it.each([400, 501])(
+    'logs a secret-free warning before credential fallback after exchange HTTP %i',
+    async exchangeStatus => {
+      const warning = vi.spyOn(Logger.prototype, 'warning');
+      try {
+        const exchange = await downstream(request => ({
+          status: exchangeStatus,
+          body: {
+            error: 'invalid_target',
+            error_description: `Untrusted diagnostics ${request.body}`,
+          },
+        }));
+        const business = await downstream(request => info(request) ?? listing('USER1.FALLBACK'));
+        const app = await harness(business.origin, {
+          oidcTokenExchange: { url: `${exchange.origin}/token`, audience: 'zo-backend' },
+        });
+        const frontendToken = app.token(`warn-exchange-fallback-${exchangeStatus}`);
+        const { client } = await app.connect(frontendToken);
+        const result = await list(client);
+        expect(result.isError).not.toBe(true);
+        expect(app.prompt).toHaveBeenCalledTimes(1);
+        const fallbackWarnings = warning.mock.calls.filter(
+          ([, data]) =>
+            data !== null &&
+            typeof data === 'object' &&
+            (data as Record<string, unknown>).fallbackReason === 'oidc-exchange-unavailable'
+        );
+        expect(fallbackWarnings).toHaveLength(1);
+        const data = fallbackWarnings[0][1] as Record<string, unknown>;
+        expect(Object.keys(data)).toHaveLength(2);
+        expect(Object.values(data)).toContain(exchangeStatus);
+        const snapshot = await status(client);
+        expect(snapshot.connection.authentication.fallbackReason).toBe(
+          'oidc-exchange-unavailable'
+        );
+        expectNoSecrets([fallbackWarnings, result, snapshot.result], [frontendToken]);
+        expect(JSON.stringify(fallbackWarnings)).not.toContain('Untrusted diagnostics');
+      } finally {
+        warning.mockRestore();
+      }
+    }
+  );
+
   it('exchanges only verified frontend tokens and uses the issued token for discovery and protected reads', async () => {
     const backendToken = 'dummy-issued-backend-token';
     const refreshToken = 'dummy-exchange-refresh-token';

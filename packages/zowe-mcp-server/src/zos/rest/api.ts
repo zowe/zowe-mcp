@@ -213,6 +213,15 @@ export class ZoRestApi {
         // Opt-in exchange never falls back to forwarding the original MCP token.
         state.oidcStatus = 'rejected';
         state.fallbackReason = 'oidc-exchange-unavailable';
+        getLogger()
+          .child('zo-rest')
+          .warning(
+            'OIDC token exchange (proof of concept) was rejected or is unsupported. Check audience/resource and issuer policy; falling back to existing credential handling.',
+            {
+              fallbackReason: 'oidc-exchange-unavailable',
+              status: error.status,
+            }
+          );
         rejectedOidc = true;
       }
       if (oidcAuthentication) {

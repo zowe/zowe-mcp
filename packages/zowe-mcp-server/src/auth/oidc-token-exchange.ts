@@ -86,8 +86,12 @@ function isBearerToken(token: string): boolean {
   return token.trim() === token && BEARER_TOKEN.test(token);
 }
 
-/** Expiry is only a retention bound, never proof of the returned token's identity or signature. */
-function jwtExpiry(token: string, status: number): number | undefined {
+/** Decoded claims provide target/lifetime consistency checks, not signature verification. */
+function validateJwtTargetAndExpiry(
+  token: string,
+  status: number,
+  expectedAudiences: readonly string[]
+): number | undefined {
   const parts = token.split('.');
   if (parts.length !== 3) return undefined;
   let payload: unknown;
@@ -96,7 +100,22 @@ function jwtExpiry(token: string, status: number): number | undefined {
   } catch {
     return undefined;
   }
-  if (!payload || typeof payload !== 'object' || !('exp' in payload)) return undefined;
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload))
+    throw invalidResponse(status);
+  const aud: unknown = 'aud' in payload ? payload.aud : undefined;
+  const audiences =
+    typeof aud === 'string'
+      ? [aud]
+      : Array.isArray(aud) && aud.length > 0 && aud.every(value => typeof value === 'string')
+        ? aud
+        : undefined;
+  if (!audiences?.some(audience => expectedAudiences.includes(audience)))
+    throw new OidcTokenExchangeError(
+      'OAuth token exchange returned a JWT for an unexpected audience. Check audience/resource and issuer policy.',
+      false,
+      status
+    );
+  if (!('exp' in payload)) return undefined;
   if (typeof payload.exp !== 'number' || !Number.isFinite(payload.exp * 1000))
     throw invalidResponse(status);
   return payload.exp * 1000;
@@ -354,7 +373,13 @@ export class OidcTokenExchange {
           throw invalidResponse(response.status);
         expiries.push(now + data.expires_in * 1000);
       }
-      const jwtExpiresAt = jwtExpiry(data.access_token, response.status);
+      const jwtExpiresAt = validateJwtTargetAndExpiry(
+        data.access_token,
+        response.status,
+        [this.config.audience, this.config.resource].filter(
+          (value): value is string => value !== undefined
+        )
+      );
       if (jwtExpiresAt !== undefined) expiries.push(jwtExpiresAt);
       const expiresAt = expiries.length ? Math.min(...expiries) : undefined;
       if (expiresAt !== undefined && expiresAt <= now) throw invalidResponse(response.status);

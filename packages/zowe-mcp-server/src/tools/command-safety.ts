@@ -78,14 +78,22 @@ export function evaluateCommandSafety(
  * reason in an unambiguous statement that the command was refused and not run, so
  * the assistant communicates the block clearly to the user.
  *
- * @param kind - "TSO" or "console", used in the message.
+ * The closing advice names a channel the user can actually use for that kind of
+ * command: a 3270 session for TSO and console commands, an SSH or OMVS session
+ * for USS shell commands.
+ *
+ * @param kind - "TSO", "console" or "USS", used in the message.
  * @param reason - The per-pattern reason, if any.
  */
-export function formatBlockedCommandMessage(kind: 'TSO' | 'console', reason?: string): string {
+export function formatBlockedCommandMessage(
+  kind: 'TSO' | 'console' | 'USS',
+  reason?: string
+): string {
   const why = reason ?? 'It is classified as dangerous.';
+  const channel = kind === 'USS' ? 'an SSH or OMVS session' : 'a 3270 session';
   return (
     `This ${kind} command was BLOCKED by the z/OS MCP safety policy and was NOT run. ${why} ` +
     `Do not retry it or explain how to run it; if it is genuinely required, advise the user to run it ` +
-    `through an authorized channel (such as a 3270 session) under their own authority.`
+    `through an authorized channel (such as ${channel}) under their own authority.`
   );
 }

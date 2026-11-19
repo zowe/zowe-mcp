@@ -35,9 +35,16 @@ import {
   FAIL,
   PASS,
   reportEmptyResponses,
+  reportRefusals,
   resolveNativeServerArgs,
 } from './evals-utils.js';
-import { getSystemPrompt, initMockData, McpEvalHarness, prepareEvalWorkspace } from './harness.js';
+import {
+  createMockResetter,
+  getSystemPrompt,
+  initMockData,
+  McpEvalHarness,
+  prepareEvalWorkspace,
+} from './harness.js';
 import { listSetNames, loadAndValidateAllSets } from './load-questions.js';
 import { log } from './log.js';
 import { maybeBuildJudge, runQuestion } from './question-runner.js';
@@ -95,11 +102,15 @@ function getGitSha(): string {
   }
 }
 
+// The scoreboard is written by eval-compare itself, so a second model run in the same
+// session would otherwise be marked "dirty" merely because the first one recorded its rows.
+const SCOREBOARD_REL = 'docs/eval-scoreboard.md';
+
 function getDiffHash(): string {
   try {
-    const diff = execSync('git diff HEAD', { encoding: 'utf-8' });
+    const diff = execSync(`git diff HEAD -- . ':!${SCOREBOARD_REL}'`, { encoding: 'utf-8' });
     if (!diff.trim()) return '';
-    const hash = execSync('git diff HEAD | shasum -a 256 | cut -c1-8', {
+    const hash = execSync(`git diff HEAD -- . ':!${SCOREBOARD_REL}' | shasum -a 256 | cut -c1-8`, {
       encoding: 'utf-8',
     }).trim();
     return hash;
@@ -188,6 +199,7 @@ async function runSetForModel(
   });
 
   const allResults: RunResult[] = [];
+  const resetter = createMockResetter(harness, SERVER_PATH, config.mock);
 
   try {
     await harness.start();
@@ -224,11 +236,14 @@ async function runSetForModel(
         runLabel: r =>
           `${progressTag}[${evalsConfig.modelId ?? 'default'}] ${setName}/${q.id} (${r + 1}/${repetitions})`,
         verboseAnswers: false,
+        acceptRefusal: effectiveConfig.acceptRefusal,
+        beforeRepetition: resetter?.beforeRepetition,
       });
       allResults.push(...questionResults);
     }
   } finally {
     await harness.stop();
+    resetter?.dispose();
     if (mockDir) rmSync(mockDir, { recursive: true, force: true });
     rmSync(workspaceDir, { recursive: true, force: true });
   }
@@ -408,8 +423,51 @@ function writeComparisonReport(
     const passed = sr.results.filter(r => r.passed).length;
     const total = sr.results.length;
     const rate = total > 0 ? ((passed / total) * 100).toFixed(1) : '0';
+    const refusals = sr.results.filter(r => r.refused).length;
+    const refusalNote = refusals > 0 ? `, ${refusals} provider refusals` : '';
     lines.push(
-      `- **${sr.modelId}** / ${sr.setName}: ${passed}/${total} (${rate}%) — ${sr.questionCount} questions`
+      `- **${sr.modelId}** / ${sr.setName}: ${passed}/${total} (${rate}%) — ${sr.questionCount} questions${refusalNote}`
+    );
+  }
+  lines.push('');
+
+  lines.push('## Per-Model Token Usage', '');
+  lines.push(
+    '| Model | Runs | Runs w/ metrics | Input tokens | Output tokens | Cache read | Cache write | Avg input/run | Avg output/run | Avg steps |'
+  );
+  lines.push('| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |');
+  const fmt = (n: number): string => n.toLocaleString('en-US');
+  for (const modelId of models) {
+    const modelResults = allSetResults
+      .filter(sr => sr.modelId === modelId)
+      .flatMap(sr => sr.results);
+    const measured = modelResults.filter(r => r.tokenUsage != null);
+    const input = measured.reduce((s, r) => s + (r.tokenUsage?.input ?? 0), 0);
+    const output = measured.reduce((s, r) => s + (r.tokenUsage?.output ?? 0), 0);
+    const cacheRead = measured.reduce((s, r) => s + (r.tokenUsage?.cacheReadInputTokens ?? 0), 0);
+    const cacheWrite = measured.reduce(
+      (s, r) => s + (r.tokenUsage?.cacheCreationInputTokens ?? 0),
+      0
+    );
+    const withSteps = measured.filter(r => r.stepCount != null);
+    const n = measured.length;
+    const avgSteps =
+      withSteps.length > 0
+        ? (withSteps.reduce((s, r) => s + (r.stepCount ?? 0), 0) / withSteps.length).toFixed(1)
+        : '—';
+    lines.push(
+      `| ${[
+        modelId,
+        fmt(modelResults.length),
+        fmt(n),
+        fmt(input),
+        fmt(output),
+        fmt(cacheRead),
+        fmt(cacheWrite),
+        n > 0 ? fmt(Math.round(input / n)) : '—',
+        n > 0 ? fmt(Math.round(output / n)) : '—',
+        avgSteps,
+      ].join(' | ')} |`
     );
   }
   lines.push('');
@@ -585,6 +643,7 @@ async function main(): Promise<void> {
   log.info('');
   log.info(`Overall: ${totalPassed}/${totalRuns} (${overallRate}%)`);
   reportEmptyResponses(allSetResults.flatMap(sr => sr.results));
+  reportRefusals(allSetResults.flatMap(sr => sr.results));
   if (useCache) {
     const llmCalls = totalRuns - cacheStats.hits;
     log.notice(

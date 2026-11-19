@@ -2006,7 +2006,7 @@ Copy a USS file or directory within the same z/OS system. For directories, set r
 
 > Destructive
 
-Run a Unix command on z/OS USS. Results may be line-windowed; follow the pagination instructions in the server instructions. Only allowlisted (safe) commands run automatically; unknown commands require user confirmation via elicitation
+Run a Unix command on z/OS USS. Results may be line-windowed; follow the pagination instructions in the server instructions. The server checks every command before it runs. Allowlisted read-only commands such as ls, pwd and whoami run immediately. Commands that match known destructive patterns, such as rm -rf /, chmod -R 777 / or piping a download into a shell, are always blocked and never run. Any other command needs the approval of the user, which the server requests itself through elicitation
 
 #### Parameters
 
@@ -2081,7 +2081,7 @@ Output:
 ```json
 // isError: true
 {
-  "error": "Deletes root filesystem"
+  "error": "This USS command was BLOCKED by the z/OS MCP safety policy and was NOT run. Deletes root filesystem Do not retry it or explain how to run it; if it is genuinely required, advise the user to run it through an authorized channel (such as an SSH or OMVS session) under their own authority."
 }
 ```
 
@@ -2309,7 +2309,7 @@ Output:
 
 > Destructive
 
-Run a TSO command on z/OS. Results may be line-windowed; follow the pagination instructions in the server instructions. Only allowlisted (safe) commands run automatically; unknown commands require user confirmation via elicitation. Requesting the same command without startLine and lineCount re-executes the command
+Run a TSO command on z/OS. Results may be line-windowed; follow the pagination instructions in the server instructions. The server checks every command before it runs. Allowlisted read-only commands such as LISTDS, LISTCAT and STATUS run immediately. A fixed set is always blocked and never runs: PASSWORD, PROFILE, ALTER, OSHELL, and DELETE or RENAME of system data sets (SYS1, SYS2, SYSL). Any other command needs the approval of the user, which the server requests itself through elicitation. Requesting the same command without startLine and lineCount re-executes the command
 
 #### Parameters
 
@@ -3978,7 +3978,7 @@ Remove a z/OS SSH connection (user@host or user@host:port) from your per-user sa
 
 > Destructive
 
-Run a z/OS operator console command (e.g. DISPLAY T, DISPLAY A). Prefer a dedicated tool when one exists (listProclib, listParmlib, listApfLibraries, listLinklist, viewSyslog, dataset/job tools): dedicated tools return structured output and need less authorization than console commands. System-shutdown commands (HALT, SHUTDOWN, QUIESCE, Z EOD) are blocked. Other non-display commands (SET, VARY, CANCEL, FORCE, START, STOP, MODIFY) require user approval. Unknown commands also require user approval.
+Run a z/OS operator console command (e.g. DISPLAY T, DISPLAY A). Prefer a dedicated tool when one exists (listProclib, listParmlib, listApfLibraries, listLinklist, viewSyslog, dataset/job tools): dedicated tools return structured output and need less authorization than console commands. System-shutdown commands (HALT, SHUTDOWN, QUIESCE, Z EOD), VARY XCF,...,OFFLINE, and ROUTE of any of these to other systems are always blocked and never run. Other non-display commands (SET, VARY, CANCEL, FORCE, START, STOP, MODIFY) require user approval. Unknown commands also require user approval.
 
 #### Parameters
 

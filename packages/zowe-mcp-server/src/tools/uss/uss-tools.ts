@@ -29,6 +29,7 @@ import { buildCacheKey, buildScopeSystem, withCache } from '../../zos/response-c
 import { resolveSystemForTool, type SessionState } from '../../zos/session.js';
 import type { SystemRegistry } from '../../zos/system.js';
 import { relativizeForDisplay, resolveUssPath } from '../../zos/uss-path.js';
+import { formatBlockedCommandMessage } from '../command-safety.js';
 import { createToolProgress } from '../progress.js';
 import {
   buildContext,
@@ -538,8 +539,10 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
     {
       outputSchema: runSafeUssCommandOutputSchema,
       description: withPaginationNote(
-        'Run a Unix command on z/OS USS. Only allowlisted (safe) commands run automatically; ' +
-          'unknown commands require user confirmation via elicitation',
+        'Run a Unix command on z/OS USS. The server checks every command before it runs. ' +
+          'Allowlisted read-only commands such as ls, pwd and whoami run immediately. ' +
+          'Commands that match known destructive patterns, such as rm -rf /, chmod -R 777 / or piping a download into a shell, are always blocked and never run. ' +
+          'Any other command needs the approval of the user, which the server requests itself through elicitation',
         PAGINATION_NOTE_LINES
       ),
       _meta: { resourceEffectLevel: ResourceEffect.EXECUTE },
@@ -574,9 +577,11 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
       try {
         const validation = validateCommand(commandText);
         if (validation.action === 'block') {
-          const msg =
-            validation.pattern?.message ?? 'This command is not allowed for security reasons.';
-          await progress.complete(msg);
+          const msg = formatBlockedCommandMessage(
+            'USS',
+            validation.pattern?.message ?? 'This command is not allowed for security reasons.'
+          );
+          await progress.complete('blocked');
           return errorResult(msg);
         }
         if (validation.action === 'elicit') {

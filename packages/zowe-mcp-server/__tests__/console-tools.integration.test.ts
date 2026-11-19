@@ -109,6 +109,33 @@ describe('console tools integration', () => {
     expect(text).toContain('NOT run');
   });
 
+  it('runConsoleCommand description names every always-blocked command', async () => {
+    const { tools } = await client.listTools();
+    const description = tools.find(t => t.name === 'runConsoleCommand')?.description ?? '';
+    const patterns = JSON.parse(
+      await fs.readFile(
+        new URL('../src/tools/console/console-command-patterns.json', import.meta.url),
+        'utf8'
+      )
+    ) as { dangerous: { id: string }[] };
+    expect(
+      patterns.dangerous.map(p => p.id).sort(),
+      'The dangerous console pattern list changed: update the runConsoleCommand description in console-tools.ts and this list'
+    ).toEqual(
+      [
+        'console-halt',
+        'console-quiesce',
+        'console-route-dangerous',
+        'console-shutdown',
+        'console-vary-xcf-offline',
+        'console-z-eod',
+      ].sort()
+    );
+    for (const word of ['HALT', 'SHUTDOWN', 'QUIESCE', 'Z EOD', 'XCF', 'ROUTE']) {
+      expect(description).toContain(word);
+    }
+  });
+
   it('denies elicit-class commands when the client has no elicitation support', async () => {
     const result = await client.callTool({
       name: 'runConsoleCommand',

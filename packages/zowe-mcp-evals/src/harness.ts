@@ -29,6 +29,7 @@ import type {
   CliPluginConnection,
   MockServerDef,
   SetConfig,
+  SetMockConfig,
   TokenUsage,
   ToolCallRecord,
 } from './types.js';
@@ -105,6 +106,13 @@ const MAX_STEPS = 10;
 const EMPTY_RESPONSE_RETRIES = 4;
 const EMPTY_RESPONSE_BACKOFF_BASE_MS = 750;
 const EMPTY_RESPONSE_BACKOFF_MAX_MS = 8000;
+/**
+ * The AI SDK's finish reason for provider-side blocks. On Anthropic it is the mapping of
+ * `stop_reason: "refusal"` and is deterministic; other providers map transient blocks to it too
+ * (Google: SAFETY, RECITATION, BLOCKLIST, PROHIBITED_CONTENT, SPII), so it is only final there
+ * after the retries are exhausted.
+ */
+const REFUSAL_FINISH_REASON = 'content-filter';
 
 /** Delay before empty-response retry `attempt` (1-based): exponential with +/-25% jitter. */
 function emptyResponseBackoffMs(attempt: number): number {
@@ -120,13 +128,26 @@ const sleep = (ms: number): Promise<void> => new Promise(res => setTimeout(res, 
  * tries with backoff between them. `attempt` is responsible for resetting any state it
  * accumulates (e.g. tool-call records) at the start of each call. Returns the last result
  * and whether it was still empty after every attempt.
+ *
+ * A `content-filter` finish reason is a refusal. When `refusalIsFinal` is true (Anthropic,
+ * where it is deterministic) it is returned immediately without retrying. Otherwise an empty
+ * `content-filter` result is retried like any empty response, and counts as a refusal only if
+ * it persists across every attempt.
  */
-async function retryWhileEmpty<T>(
+export async function retryWhileEmpty<T>(
   attempt: () => Promise<T>,
   isEmpty: (result: T) => boolean,
-  finishReasonOf: (result: T) => string | undefined
-): Promise<{ result: T; emptyResponse: boolean }> {
+  finishReasonOf: (result: T) => string | undefined,
+  refusalIsFinal: boolean
+): Promise<{ result: T; emptyResponse: boolean; refused: boolean }> {
+  const refusedFinal = (r: T): boolean => finishReasonOf(r) === REFUSAL_FINISH_REASON;
+  const refusedResult = (r: T) => {
+    log.info('Model response was refused by the provider (finishReason=content-filter)');
+    return { result: r, emptyResponse: false, refused: true };
+  };
+
   let result = await attempt();
+  if (refusalIsFinal && refusedFinal(result)) return refusedResult(result);
   for (let n = 1; n <= EMPTY_RESPONSE_RETRIES && isEmpty(result); n++) {
     const delayMs = emptyResponseBackoffMs(n);
     log.warning(
@@ -134,14 +155,16 @@ async function retryWhileEmpty<T>(
     );
     await sleep(delayMs);
     result = await attempt();
+    if (refusalIsFinal && refusedFinal(result)) return refusedResult(result);
   }
   const emptyResponse = isEmpty(result);
+  if (emptyResponse && refusedFinal(result)) return refusedResult(result);
   if (emptyResponse) {
     log.warning(
       `Model returned an empty response on all ${(EMPTY_RESPONSE_RETRIES + 1).toString()} attempts — recording as infrastructure noise, not a behavioral failure`
     );
   }
-  return { result, emptyResponse };
+  return { result, emptyResponse, refused: false };
 }
 
 export interface HarnessOptions {
@@ -175,6 +198,14 @@ export interface AgentRunResult {
    * it as infrastructure noise instead of a behavioral failure.
    */
   emptyResponse?: boolean;
+  /**
+   * True when the provider refused to answer server-side: the AI SDK reports
+   * `finishReason: 'content-filter'` with no output. On Anthropic (`stop_reason: "refusal"`)
+   * that is deterministic and never retried; on other providers the block may be transient,
+   * so it is retried and flagged only if it persists across all attempts. Never set together
+   * with `emptyResponse`. For multi-turn runs, true if any turn was refused.
+   */
+  refused?: boolean;
 }
 
 /** Result of a multi-turn conversation: per-turn results plus cumulative totals. */
@@ -499,6 +530,17 @@ export class McpEvalHarness {
   }
 
   /**
+   * Stops the server (and any external mock servers), points it at a new mock data
+   * directory, and starts it again. Tools and instructions are unchanged because the
+   * set config is the same. The caller owns both directories.
+   */
+  async restart(mockDir: string): Promise<void> {
+    await this.stop();
+    this.options = { ...this.options, mockDir };
+    await this.start();
+  }
+
+  /**
    * Returns the MCP server instructions received during initialization.
    * Call after start().
    */
@@ -566,10 +608,11 @@ export class McpEvalHarness {
     const isEmptyResponse = (r: Awaited<ReturnType<typeof attemptGeneration>>): boolean =>
       (toolCallRecords.length === 0 && (r.text ?? '').trim() === '') || r.finishReason === 'error';
 
-    const { result, emptyResponse } = await retryWhileEmpty(
+    const { result, emptyResponse, refused } = await retryWhileEmpty(
       attemptGeneration,
       isEmptyResponse,
-      r => r.finishReason
+      r => r.finishReason,
+      this.options.evalsConfig.provider === 'anthropic'
     );
     const durationMs = Date.now() - t0;
 
@@ -580,6 +623,7 @@ export class McpEvalHarness {
       tokenUsage: toTokenUsage(result.usage),
       stepCount: result.steps?.length ?? 0,
       ...(emptyResponse ? { emptyResponse: true } : {}),
+      ...(refused ? { refused: true } : {}),
     };
   }
 
@@ -598,6 +642,7 @@ export class McpEvalHarness {
     const turns: AgentRunResult[] = [];
     const t0 = Date.now();
     let anyEmptyTurn = false;
+    let anyRefusedTurn = false;
     for (const prompt of prompts) {
       const start = toolCallRecords.length;
       const turnT0 = Date.now();
@@ -623,12 +668,14 @@ export class McpEvalHarness {
       const isEmptyTurn = (r: Awaited<ReturnType<typeof attemptTurn>>): boolean =>
         (toolCallRecords.length === start && (r.text ?? '').trim() === '') ||
         r.finishReason === 'error';
-      const { result, emptyResponse } = await retryWhileEmpty(
+      const { result, emptyResponse, refused } = await retryWhileEmpty(
         attemptTurn,
         isEmptyTurn,
-        r => r.finishReason
+        r => r.finishReason,
+        this.options.evalsConfig.provider === 'anthropic'
       );
       if (emptyResponse) anyEmptyTurn = true;
+      if (refused) anyRefusedTurn = true;
       // Carry the assistant + tool messages into the next turn's context.
       messages.push(...(result.response.messages as ModelMessage[]));
       turns.push({
@@ -638,6 +685,7 @@ export class McpEvalHarness {
         tokenUsage: toTokenUsage(result.usage),
         stepCount: result.steps?.length ?? 0,
         ...(emptyResponse ? { emptyResponse: true } : {}),
+        ...(refused ? { refused: true } : {}),
       });
     }
 
@@ -649,6 +697,7 @@ export class McpEvalHarness {
       tokenUsage: sumTokenUsage(turns),
       stepCount: turns.reduce((a, t) => a + t.stepCount, 0),
       ...(anyEmptyTurn ? { emptyResponse: true } : {}),
+      ...(anyRefusedTurn ? { refused: true } : {}),
     };
   }
 
@@ -861,6 +910,45 @@ export function initMockData(serverPath: string, initArgs: string): string {
     throw new Error(`init-mock failed: ${r.stderr ?? r.stdout}`);
   }
   return tmpDir;
+}
+
+/** Hook plus cleanup returned by {@link createMockResetter}. */
+export interface MockResetter {
+  /** Gives the next repetition freshly initialized mock data and a fresh server process. */
+  beforeRepetition: (r: number) => Promise<void>;
+  /** Removes the mock directory created by the latest reset (no-op if none was created). */
+  dispose: () => void;
+}
+
+/**
+ * Builds the `beforeRepetition` hook for `mock.resetPerRepetition`. The harness's initial
+ * state counts as fresh, so the first live repetition does not reset; every later one
+ * does. Returns undefined when the set does not enable the option.
+ */
+export function createMockResetter(
+  harness: Pick<McpEvalHarness, 'restart'>,
+  serverPath: string,
+  mock: SetMockConfig | undefined
+): MockResetter | undefined {
+  if (!mock?.resetPerRepetition) return undefined;
+  let dirty = false;
+  let created: string | undefined;
+  return {
+    beforeRepetition: async r => {
+      if (dirty) {
+        const previous = created;
+        created = initMockData(serverPath, mock.initArgs);
+        await harness.restart(created);
+        if (previous) rmSync(previous, { recursive: true, force: true });
+        log.debug('Reset mock data and MCP server', { repetition: r + 1 });
+      }
+      dirty = true;
+    },
+    dispose: () => {
+      if (created) rmSync(created, { recursive: true, force: true });
+      created = undefined;
+    },
+  };
 }
 
 /** Seed file written by {@link prepareEvalWorkspace} for upload eval questions. */

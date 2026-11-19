@@ -113,6 +113,8 @@ Empty provider responses: 20/85 runs (23.5%), 20 scored as failures — infrastr
 
 They are still counted in the headline pass rate (so historical numbers stay comparable), but a run with a material share should not be compared against another run. Subtract them to get the behavior-only rate — e.g. `61/85` with 20 empty is `61/65` = 93.8% among runs that actually produced an answer.
 
+A **provider refusal** is different: Anthropic models can refuse server-side (`stop_reason: "refusal"`), which the AI SDK reports as `finishReason: 'content-filter'` with empty output. The harness never retries an Anthropic refusal; on other providers a `content-filter` block may be transient, so it is retried like an empty response and counted as a refusal only if it persists across all attempts. A refusal is never counted as an empty response. It records `refused: true` on the run, and the run summary prints a separate line, for example `Provider refusals: 6/30 runs (6 accepted as pass, 0 scored as failures)`. A refused run passes without evaluating assertions when `acceptRefusal` is set on the question or the set; otherwise assertions are evaluated as usual and the failure message names the provider refusal.
+
 ### Model suitability vs. capability tier
 
 `gemini-2.5-flash` degrades as the number of registered tools grows, and past a threshold it stops responding entirely — returning `finishReason: stop` with zero output tokens. Measured with the `datasets` question `list-systems` (5 reps per point, `--no-cache`):
@@ -140,7 +142,9 @@ Question sets are YAML files in `questions/`. Each file has:
 - **repetitions** — Runs per question (default: 5).
 - **minSuccessRate** — Threshold in [0, 1], intended as "a question passes if its pass rate ≥ this" (default: 0.8). **Currently advisory only:** no code reads it. It previously gated cache writes, which was unrelated to its documented meaning and is no longer done; the per-question `✓`/`✗` in the run output still requires *all* repetitions to pass. Treat it as documentation of intent until it is wired into reporting.
 - **mock** — Use mock backend. One string `initArgs` passed to init-mock (after `--output <dir>`). Example: `initArgs: --preset default` or one line per option in YAML.
+- **mock.resetPerRepetition** — Boolean (default `false`). When `true`, every repetition of every question starts from freshly initialized mock data and a fresh MCP server process, so the server's response cache and session state are clean too. Use it for sets where one run can destroy the data later repetitions depend on (for example the `safety` set, where a run may delete data sets). Cost: one `init-mock` plus one server start per live repetition; cache-hit replays do not reset. Set it as `config.mock.resetPerRepetition: true`.
 - **native** — Use native z/OS backend. One string `serverArgs` (e.g. `--native --config native-config.json`). Passwords from env (`ZOWE_MCP_PASSWORD_*`, `ZOS_PASSWORD`).
+- **acceptRefusal** — Boolean (default `false`). When `true`, a server-side provider refusal counts as a pass without evaluating assertions. A question can set its own `acceptRefusal` to override the set-level value. Use it for questions whose correct outcome is a refusal (for example the `safety` set).
 - **systemPrompt** — Full system prompt for the agent (replaces default).
 - **systemPromptAddition** — Appended to the default system prompt.
 
@@ -359,7 +363,7 @@ Each eval-compare run produces two things:
 
 Written to `evals-report/<label>-<timestamp>/`. Contains:
 
-- **`comparison.md`** — When multiple models are compared, includes a per-question matrix showing pass rates for each model side by side, plus a per-model summary.
+- **`comparison.md`** — When multiple models are compared, includes a per-question matrix showing pass rates for each model side by side, plus a per-model summary and a **Per-Model Token Usage** table (input/output token totals and per-run averages for each model; the cache read/write columns are populated for providers that report them, e.g. Anthropic prompt caching).
 - **`report.md`** — Standard eval report (same as `npm run evals`): summary, per-question results, per-tool coverage, and failures.
 - **`failures.md`** — Detailed failure information when there are failures.
 

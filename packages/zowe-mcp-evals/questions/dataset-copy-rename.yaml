@@ -14,7 +14,10 @@ questions:
     assertions:
       - name: create temp PDS, copy member, list, cleanup
         toolCallOrder:
-          - tool: createTempDataset
+          # Either route to a temporary PDS is fine: createTempDataset in one call, or
+          # getTempDatasetPrefix followed by createDataset under that prefix. Every Claude
+          # model took the second route and the outcome is identical.
+          - tools: [createTempDataset, createDataset]
             args:
               type:
                 - 'PO'

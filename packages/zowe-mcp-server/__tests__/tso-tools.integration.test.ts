@@ -144,6 +144,43 @@ describe('TSO tools integration', () => {
     expect(secondEnvelope._result.startLine).toBe(1);
     expect(secondEnvelope._result.returnedLines).toBeLessThanOrEqual(2);
   });
+
+  it('runSafeTsoCommand description names every always-blocked command', async () => {
+    const { tools } = await client.listTools();
+    const description = tools.find(t => t.name === 'runSafeTsoCommand')?.description ?? '';
+    const patterns = JSON.parse(
+      await fs.readFile(
+        new URL('../src/tools/tso/tso-command-patterns.json', import.meta.url),
+        'utf8'
+      )
+    ) as { dangerous: { id: string }[] };
+    expect(
+      patterns.dangerous.map(p => p.id).sort(),
+      'The dangerous TSO pattern list changed: update the runSafeTsoCommand description in tso-tools.ts and this list'
+    ).toEqual(
+      [
+        'tso-alter',
+        'tso-delete-system',
+        'tso-oshell',
+        'tso-password',
+        'tso-profile',
+        'tso-rename-system',
+      ].sort()
+    );
+    for (const word of [
+      'PASSWORD',
+      'PROFILE',
+      'ALTER',
+      'OSHELL',
+      'DELETE',
+      'RENAME',
+      'SYS1',
+      'SYS2',
+      'SYSL',
+    ]) {
+      expect(description).toContain(word);
+    }
+  });
 });
 
 describe('queryTso at the read capability tier', () => {

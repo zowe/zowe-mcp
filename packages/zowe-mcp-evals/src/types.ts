@@ -24,6 +24,13 @@ export interface SetMockConfig {
    * because it was never registered).
    */
   capabilityTier?: string;
+  /**
+   * When true, every repetition of every question starts from freshly initialized mock
+   * data and a fresh MCP server process (clean data, response cache, and session state).
+   * Use it for sets where one run can destroy data later repetitions depend on (e.g.
+   * deletes). Costs one init-mock plus one server start per live repetition. Default false.
+   */
+  resetPerRepetition?: boolean;
 }
 
 /**
@@ -153,6 +160,11 @@ export interface SetConfig {
   description?: string;
   repetitions?: number;
   minSuccessRate?: number;
+  /**
+   * Set-level default for {@link Question.acceptRefusal}: when true, a provider refusal
+   * counts as a pass for questions that do not override it.
+   */
+  acceptRefusal?: boolean;
   mock?: SetMockConfig;
   native?: SetNativeConfig;
   /**
@@ -329,6 +341,11 @@ export interface Question {
   turns?: QuestionTurn[];
   /** When set, this question is skipped with this reason. */
   skip?: string;
+  /**
+   * When true, a provider refusal (finishReason 'content-filter') passes without evaluating
+   * assertions. Overrides the set-level `acceptRefusal`; default false.
+   */
+  acceptRefusal?: boolean;
 }
 
 /**
@@ -389,4 +406,12 @@ export interface RunResult {
    * they are reported separately so they are not mistaken for behavioral failures.
    */
   emptyResponse?: boolean;
+  /**
+   * True when the provider refused server-side: Anthropic returns `stop_reason: "refusal"`,
+   * which the Vercel AI SDK surfaces as `finishReason: 'content-filter'` with empty output.
+   * Deterministic on Anthropic, so never retried there; other providers' blocks may be
+   * transient, so they are retried and flagged only if they persist across all attempts.
+   * Never set together with `emptyResponse`.
+   */
+  refused?: boolean;
 }

@@ -751,7 +751,7 @@ function writePin({ tgzPath, filename, url, version, datestamp }) {
   };
 
   // The upstream commit cannot be derived from the tarball, so it is carried in explicitly.
-  // The nightly workflow resolves it from zowe/zowex and passes it through the environment;
+  // The weekly workflow resolves it from zowe/zowex and passes it through the environment;
   // an interactive run without these set gets a placeholder rather than a stale inherited value.
   pin.upstream = resolveUpstream();
 

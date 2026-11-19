@@ -79,7 +79,7 @@ List pagination (listDatasets, listMembers, searchInDataset, listUssFiles, listJ
 - When _result.hasMore is true, call the tool again with offset = current offset + _result.count and the same limit.
 - To report a TOTAL count ("how many members/data sets/matches"), use _result.totalAvailable (the full number of matching items) — NOT _result.count, which is only the items on the current page.
 
-Line-windowed pagination (readDataset, readUssFile, readJobFile, runSafeUssCommand, runSafeTsoCommand):
+Line-windowed pagination (readDataset, readUssFile, readJobFile, runSafeUssCommand, runSafeTsoCommand, queryTso):
 - When _result.hasMore is true, call the tool again with startLine = _result.startLine + _result.returnedLines and the same lineCount.
 
 If the task requires more data, do not answer with only the first page/window; keep calling you have the desired amount of data.
@@ -322,7 +322,14 @@ export function createServer(options?: CreateServerOptions): CreateServerResult 
     arch: process.arch,
     pid: process.pid,
     env: getRelevantEnv(),
-    mockMode: !!options?.backend,
+    // The backend's class name (FilesystemMockBackend / NativeBackend / a test
+    // double), not a boolean. This used to be logged as `mockMode:
+    // !!options?.backend`, which was true for *any* injected backend — so a
+    // `--native` session logged `mockMode: true` and read as if it were talking
+    // to a mock instead of a real z/OS host. `createServer` has no other way to
+    // tell the implementations apart (ZosBackend carries no discriminator), and
+    // the class name is stable here because neither bundle minifies.
+    backend: options?.backend?.constructor?.name ?? 'none',
   });
 
   const capabilityTier = resolveCapabilityTier({

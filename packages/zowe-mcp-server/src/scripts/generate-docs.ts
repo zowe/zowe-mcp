@@ -165,6 +165,16 @@ interface ToolGroup {
 // YAML helpers (minimal, no dependency)
 // ---------------------------------------------------------------------------
 
+/** Escapes a string for a YAML double-quoted scalar (backslash, quote, newline, CR). */
+function escapeYamlDoubleQuoted(v: string): string {
+  return v.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n').replace(/\r/g, '\\r');
+}
+
+/** Inverse of escapeYamlDoubleQuoted. */
+function unescapeYamlDoubleQuoted(v: string): string {
+  return v.replace(/\\(["\\nr])/g, (_m, c: string) => (c === 'n' ? '\n' : c === 'r' ? '\r' : c));
+}
+
 function yamlStringify(obj: Record<string, Record<string, unknown>>): string {
   const lines: string[] = [];
   lines.push('# Sample inputs for generate-docs. Each key is a tool name.');
@@ -181,11 +191,7 @@ function yamlStringify(obj: Record<string, Record<string, unknown>>): string {
       } else if (typeof v === 'number') {
         lines.push(`  ${k}: ${v}`);
       } else if (typeof v === 'string') {
-        if (v.includes("'") || v.includes('"') || v.includes('\n')) {
-          lines.push(`  ${k}: "${v.replace(/"/g, '\\"')}"`);
-        } else {
-          lines.push(`  ${k}: "${v}"`);
-        }
+        lines.push(`  ${k}: "${escapeYamlDoubleQuoted(v)}"`);
       }
     }
     lines.push('');
@@ -236,8 +242,13 @@ function yamlParse(text: string): InputEntry[] {
       if (val === 'true') val = true;
       else if (val === 'false') val = false;
       else if (typeof val === 'string' && /^-?\d+(\.\d+)?$/.test(val)) val = Number(val);
-      else if (typeof val === 'string' && val.startsWith('"') && val.endsWith('"'))
-        val = val.slice(1, -1);
+      else if (
+        typeof val === 'string' &&
+        val.length >= 2 &&
+        val.startsWith('"') &&
+        val.endsWith('"')
+      )
+        val = unescapeYamlDoubleQuoted(val.slice(1, -1));
       else if (typeof val === 'string' && val.startsWith("'") && val.endsWith("'"))
         val = val.slice(1, -1);
       currentArgs[key] = val;
@@ -815,12 +826,14 @@ function generateDefaultInputs(tools: ToolInfo[]): Record<string, Record<string,
     listUssFiles: { path: '/' },
     readUssFile: { path: '/etc/profile' },
     runSafeTsoCommand: { command: 'TIME' },
+    queryTso: { commandText: 'LISTUSER USER01' },
     getUssHome: {},
     listApfLibraries: {},
     listProclib: {},
     listParmlib: {},
     listLinklist: {},
     viewSyslog: {},
+    display: { operands: 'T' },
     showCertificate: { owner: 'USER01', keyring: 'RING02', label: 'CERT03' },
     connectCertificate: {
       owner: 'USER01',
@@ -986,18 +999,19 @@ async function main(): Promise<void> {
         {
           label: 'TSO',
           description: 'Time Sharing Option — run TSO commands interactively on z/OS.',
-          toolNames: ['runSafeTsoCommand'],
+          toolNames: ['queryTso', 'runSafeTsoCommand'],
         },
         {
           label: 'System Information',
           description:
-            'Read-only information about the z/OS system itself — APF-authorized data sets, the PROCLIB concatenation, the PARMLIB concatenation, the link list (LNKLST) concatenation, and the operations SYSLOG.',
+            'Read-only information about the z/OS system itself — APF-authorized data sets, the PROCLIB concatenation, the PARMLIB concatenation, the link list (LNKLST) concatenation, the operations SYSLOG, and operator DISPLAY command output.',
           toolNames: [
             'listApfLibraries',
             'listProclib',
             'listParmlib',
             'listLinklist',
             'viewSyslog',
+            'display',
           ],
         },
         {

@@ -12,8 +12,8 @@
 /**
  * Routes incoming SSH `exec` commands. Four classes of command are recognized:
  *
- *   1. `<path>/zowex server [args]`   →  start the JSON-RPC dispatcher on this channel
- *   1b. `<path>/zowex -v|--version`   →  post-deploy smoke test (verifyZowexBinary /
+ *   1. `<path>/zo server [args]`      →  start the JSON-RPC dispatcher on this channel
+ *   1b. `<path>/zo -v|--version`      →  post-deploy smoke test (verifyZowexBinary /
  *      ZSshUtils.verifyServerBinary): report a fake version line and exit 0
  *      (SDK 1.0 renamed the binary to `zo`, so 1 and 1b accept `zo` as well as `zowex`)
  *   2. `cat > /tmp/zrs-pipe-*`        →  client is uploading bytes for a PUT streaming RPC

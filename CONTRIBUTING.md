@@ -33,19 +33,24 @@ that documents how AI was used:
 
 - **Tool**: Which AI assistant was used (e.g. Cursor, GitHub Copilot, Claude
   Code, Cline)
-- **Model**: Which model(s) were used (e.g. Claude Sonnet 4, GPT-4.1)
+- **Model**: Exact model ID(s) used (e.g. `claude-sonnet-4-5`, `gpt-4.1`), not
+  just the vendor name
 - **Scope**: What parts of the PR were AI-assisted vs. manually written
 - **Review**: How the AI-generated code was reviewed and validated
+- **Verified**: What was tested or run, and what was not
+
+Rules for AI agents working in this repository are in [AGENTS.md](AGENTS.md).
 
 Example:
 
 ```markdown
 ## AI Usage
 - **Tool**: Cursor (Agent mode)
-- **Model**: Claude Sonnet 4
+- **Model**: claude-sonnet-4-5
 - **Scope**: All code changes were AI-generated; test cases were reviewed
   and adjusted manually
 - **Review**: Ran full test suite, verified with evals, manual code review
+- **Verified**: `npm test` and `npm run lint` pass; not run against real z/OS
 ```
 
 ## Sign All of Your Git Commits

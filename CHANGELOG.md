@@ -43,6 +43,12 @@ don't warrant an entry (CI, chores, internal refactors, docs-only) can carry the
   Windows. The `@zowe/mcp-server` release tarball gets the same pruning
   (minus `.mjs` files, which its unbundled ESM build still loads), shrinking
   it from ~19,000 to ~10,300 files. ([#54](https://github.com/zowe/zowe-mcp/issues/54))
+- Bundled zowex SDK pin moved to the 1.1.0 nightly (2026-11-16). This build
+  needs `@zowe/zos-uss-for-zowe-sdk` 8.42.0 or later, so the lockfile now
+  resolves 8.43.0, which requires Node.js 22.11.0 or later.
+- The automated zowex SDK pin bump workflow now runs weekly (Monday) instead
+  of daily, which reduces the number of automated pin bump PRs. The workflow
+  file is now `.github/workflows/weekly.yml`.
 
 ### Fixed
 

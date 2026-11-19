@@ -17,7 +17,7 @@
  * Works with both mock and native backends via the ZosBackend interface.
  */
 
-import { randomBytes } from 'node:crypto';
+import { randomInt } from 'node:crypto';
 import type { ZosBackend } from './backend.js';
 import { DsnError, resolvePattern, validateDsn, validateListPattern } from './dsn.js';
 import type { SystemId } from './system.js';
@@ -43,15 +43,14 @@ export const REQUIRED_SAFETY_QUALIFIER = 'TMP';
 
 /**
  * Generate an 8-char DSN-safe qualifier (first char A–Z, rest A–Z0–9).
- * Uses random bytes for uniqueness; no requirement for crypto randomness per plan.
+ * Draws unbiased characters with crypto.randomInt.
  */
 function uniqueQualifier(): string {
   const firstChar = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
   const rest = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-  const bytes = randomBytes(8);
-  let result = firstChar[bytes[0] % 26];
+  let result = firstChar[randomInt(firstChar.length)];
   for (let i = 1; i < 8; i++) {
-    result += rest[bytes[i] % 36];
+    result += rest[randomInt(rest.length)];
   }
   return result;
 }

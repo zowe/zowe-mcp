@@ -213,7 +213,7 @@ Today only `test:server` runs. Add the rest, tiered by infra needs.
 - [ ] **Service-dependent e2e** (`test:keycloak-jwt-e2e`,
   `test:native-stdio-e2e`): **kept off the required PR path** per Decision 3 —
   nightly-only / manual dispatch until the Open Decision is resolved.
-- [x] **Nightly SDK-mode run**: new `nightly.yml` (daily cron + dispatch) runs
+- [x] **Weekly SDK-mode run**: new `weekly.yml` (weekly cron + dispatch; was a daily `nightly.yml`) runs
   `sdk-switch nightly` → build → typecheck → test against the latest upstream
   zowex SDK, catching upstream drift without touching the PR path.
   **Caveat:** GitHub fires `schedule`/`workflow_dispatch` only from the default

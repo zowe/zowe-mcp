@@ -1,12 +1,16 @@
-name: Nightly (zowex SDK)
+name: Weekly (zowex SDK)
 
 # Builds and tests against the latest upstream zowex nightly SDK to catch
 # breakage early (the regular CI pins the committed fallback SDK). Failures
 # here indicate upstream drift, not a broken develop branch.
+#
+# Runs weekly (Monday) to limit the volume of automated pin bump PRs. Upstream
+# prunes nightly snapshots after roughly six weeks, so a weekly cadence still
+# keeps the pin well inside that window.
 
 on:
   schedule:
-    - cron: '0 3 * * *'
+    - cron: '0 3 * * 1'
   workflow_dispatch:
 
 # contents/pull-requests write are for the automated pin bump PR at the end of the job.
@@ -15,7 +19,7 @@ permissions:
   pull-requests: write
 
 concurrency:
-  group: nightly-${{ github.ref }}
+  group: weekly-${{ github.ref }}
   cancel-in-progress: true
 
 # Workflow-level so the build/test job shares the same heap setting as the
@@ -24,7 +28,7 @@ env:
   NODE_OPTIONS: --max_old_space_size=4096
 
 jobs:
-  nightly-sdk:
+  weekly-sdk:
     runs-on: ubuntu-latest
     timeout-minutes: 45
 
@@ -103,10 +107,10 @@ jobs:
 
           gh pr create \
             --title "chore(zowex): bump SDK pin to nightly ${DATESTAMP}" \
-            --body "Automated pin bump. The nightly workflow built and tested \`main\` against the newest upstream zowex nightly and it passed, so this moves \`resources/zowex-pin.json\` to that build.
+            --body "Automated pin bump. The weekly workflow built and tested \`main\` against the newest upstream zowex nightly and it passed, so this moves \`resources/zowex-pin.json\` to that build.
 
           Review notes:
           - Check the \`upstream\` block for which zowex commits are newly included.
-          - The nightly job above already built and tested this exact SDK build; this PR's own CI re-runs the suite only when the \`PIN_BUMP_TOKEN\` secret is configured, since GitHub does not trigger workflow runs for PRs opened with the default token.
+          - The weekly job above already built and tested this exact SDK build; this PR's own CI re-runs the suite only when the \`PIN_BUMP_TOKEN\` secret is configured, since GitHub does not trigger workflow runs for PRs opened with the default token.
           - Nightly snapshots are pruned upstream after roughly six weeks, so letting the pin drift too far will eventually break \`sdk-switch.js pin\`." \
             --label dependencies

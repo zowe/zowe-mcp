@@ -28,6 +28,8 @@ don't warrant an entry (CI, chores, internal refactors, docs-only) can carry the
 - Bundled zowex SDK pin moved to the 0.9.0 nightly (2026-08-25): brings the `consoleCommand` JSON-RPC support and the slimmed APF-authorized `zoweax` companion; hosts running older auto-deployed servers are redeployed on next connect. Also fixed the `sdk-switch.js nightly` resolver picking stale pre-rename artifacts (lexical sort) — it now filters to the current package name and sorts by datestamp.
 - Bundled zowex SDK pin moved to the 0.9.0 nightly (2026-09-04). Also fixed `sdk-switch.js` recording the wrong version in `resources/zowex-pin.json`: it read the tarball's `package.json` with `tar --include=`, a bsdtar-only flag that GNU tar rejects outright, and the failure was swallowed so the function silently returned its fallback. Pins generated on CI therefore recorded `"version": "nightly"` and derived the doubled filename `zowe-zowex-for-zowe-sdk-nightly-nightly-<datestamp>.tgz`, while pins written on macOS were correct. It now extracts to stdout (`tar -xzOf`), which works on both, and warns instead of falling back silently. Also cleared the three CodeQL findings standing against `scripts/sdk-switch.js`: the tarball is read via `execFileSync` with an argument list so the path never reaches a shell, command-line arguments (version, PR number, branch name) are validated against an allow-list before being interpolated into any shell command, and `removeSdkIntegrityFromLockfile` no longer checks the lockfile's existence before reading it (a check-then-use file-system race) — it reads and treats `ENOENT` as "nothing to do".
 - Console command elicitation (dormant tool) brought to parity with TSO: client-capability pre-check, form mode, and a required boolean confirmation.
+- **The `@zowe/mcp-server` npm package is now bundled with esbuild.** Its production dependencies are compiled into `dist/` instead of being shipped as a full `node_modules` tree, so the published package drops from 26.6 MB to 8.2 MB packed (76.6 MB to 25.1 MB unpacked, 10,456 to 4,846 files). Installing offline takes 3.8 s instead of 13.5 s and the server reaches `tools/list` in ~210 ms instead of ~340 ms. `main`, `types`, and `bin` still point at `dist/index.js`, and the package remains self-contained for airgapped installs (`bundledDependencies`); only packages that cannot be bundled — `ssh2`, `hardstop-patterns`, `@zowe/zowex-for-zowe-sdk`, and the two packages zowex itself requires at runtime (`@zowe/imperative`, `@zowe/zos-uss-for-zowe-sdk`) — remain as real dependencies.
+- Optional native dependencies are no longer shipped in the npm package (`npm install --omit=optional` at pack time). This drops `russh` (33 MB of prebuilt binaries for seven platforms, reachable only through zowex's `useNativeSsh` transport, which Zowe MCP never enables) and ssh2's optional `cpu-features`/`nan` accelerator. The default ssh2 transport is unaffected; enabling `useNativeSsh` in a future release would require restoring `russh`.
 - Console authorization failures now distinguish the security-product cases instead of only matching "not authorized": an ESM profile denial (IEE345I `AUTHORITY INVALID, FAILED BY SECURITY PRODUCT`) asks for a permit on the matching `MVS.*` OPERCMDS profile, a no-profile-matched denial (`FAILED BY MVS`) asks for the profile to be defined, and a SAF console-activation denial (`service_rc 12`) points at `MVS.MCSOPER.<console-name>`. Each says not to retry until access is granted.
 - Hardened the console command safety patterns (dormant tool): official abbreviations (`V`, `C`, `E`, `RO`, `K`, `T`, `M`, `U`, `G`, `I`), `DUMP`, `SLIP`, `CONFIG`/`CF`, dump/page management (`CHNGDUMP`/`CD`, `DUMPDS`/`DD`, `PAGEADD`/`PA`, `PAGEDEL`/`PD`, `IOACTION`/`IO`), and WTOR replies elicit confirmation; the SET pattern now also covers `SETPROG`/`SETXCF`/`SETSMF` and friends; system-stopping commands smuggled through `ROUTE` are blocked — including a routed `VARY XCF,...,OFFLINE` (sysplex partitioning) and the `RO T=nnn,...` and `RO (SYS1,SYS2),...` operand forms, which previously downgraded to a confirmation prompt.
 - **Much faster installs: esbuild-bundled VSIX and slimmer npm tarball.** The
@@ -41,9 +43,44 @@ don't warrant an entry (CI, chores, internal refactors, docs-only) can carry the
   Windows. The `@zowe/mcp-server` release tarball gets the same pruning
   (minus `.mjs` files, which its unbundled ESM build still loads), shrinking
   it from ~19,000 to ~10,300 files. ([#54](https://github.com/zowe/zowe-mcp/issues/54))
+- Bundled zowex SDK pin moved to the 1.1.0 nightly (2026-11-16). This build
+  needs `@zowe/zos-uss-for-zowe-sdk` 8.42.0 or later, so the lockfile now
+  resolves 8.43.0, which requires Node.js 22.11.0 or later.
+- The automated zowex SDK pin bump workflow now runs weekly (Monday) instead
+  of daily, which reduces the number of automated pin bump PRs. The workflow
+  file is now `.github/workflows/weekly.yml`.
 
 ### Fixed
 
+- **Unauthenticated crash on the HTTP transport.** `startHttp` kept its active
+  sessions in a plain object indexed by the client-supplied `mcp-session-id`
+  header, so a request carrying `mcp-session-id: __proto__` (or `constructor`,
+  `toString`) matched an inherited property, took the known-session branch, and
+  crashed the request on an `undefined` transport. All three `/mcp` endpoints
+  (POST, GET, DELETE) were affected, and no valid token was needed to trigger
+  it. This was a denial of service, not an authentication bypass — an inherited
+  entry can never resolve to a real transport, and JWT verification was
+  unaffected. Sessions are now held in a `Map`.
+- **Data set patterns containing `$` never matched** in the mock backend's
+  `matchPattern`. Pattern qualifiers were interpolated into a regular expression
+  with only `*` translated, leaving every other metacharacter live, so the `$`
+  in a perfectly legal qualifier such as `SYS1.A$B` compiled to an
+  end-of-string anchor. Qualifiers are now escaped before the wildcard is
+  translated, which also stops qualifiers containing `(`, `[`, or `+` from
+  throwing or silently changing the match.
+- Generated temp data set qualifiers were drawn with a biased modulo (`% 26` /
+  `% 36` over a random byte), skewing them toward earlier letters and slightly
+  raising the collision rate. They are now sampled uniformly.
+- Connection profiles written by the evals harness, which can contain
+  credentials, were written to a predictably named file directly under a
+  world-readable temp directory. They now go into a per-run private (0700)
+  directory with 0600 permissions.
+- Hardened three smaller paths flagged by CodeQL: keys arriving from the MCP
+  server are validated before indexing the VS Code settings objects they are
+  merged into, the mock host's `Authorization: Basic` parser no longer uses a
+  regular expression with ambiguous backtracking, and the docs generator now
+  escapes backslashes as well as quotes when quoting YAML strings.
+  ([#109](https://github.com/zowe/zowe-mcp/issues/109))
 - **Cleared three production dependency advisories** published on 2026-10-20
   that fail the `audit` gate on `main`: `hono` 4.13.7 → 4.13.13 (moderate:
   `serveStatic` decodes the request path twice, letting static paths bypass
@@ -86,6 +123,23 @@ don't warrant an entry (CI, chores, internal refactors, docs-only) can carry the
   was loaded through an undeclared (phantom) dependency that only resolved via
   monorepo hoisting; it is now a declared dependency and statically bundled, so
   the `generate-docs` subcommand works from the installed VSIX and tarball.
+- **The Zowe MCP slides deck (`presentations/zowe-mcp/zowe-mcp-slides.pdf`) is
+  built in CI instead of being a committed binary.** It previously depended on
+  the releaser exporting it locally with Slidev, which fails off the corporate
+  VPN because `playwright-chromium`'s postinstall download 403s through a
+  Broadcom Artifactory mirror, and nothing validated the deck before release.
+  A new `scripts/build-slides.sh` (`npm run build:slides`) is now the single
+  build path for both a new CI `slides` job (runs on changes under
+  `presentations/` and on every release PR, so a broken deck fails a PR rather
+  than a release) and `scripts/package-release.sh`, which builds the PDF on
+  demand when packaging a release.
+  (zowe-mcp#66, finding 4 — [#66](https://github.com/zowe/zowe-mcp/issues/66))
+- **A prerelease run now says what it leaves behind.** The post-release
+  development-version bump PR is deliberately skipped for prereleases, which
+  left `main` parked on `-rc.N` with nothing prompting the follow-up. The
+  release job now writes both owed follow-ups (move `main` off the rc; delete
+  the rc tag/release if it was a rehearsal) to its job summary.
+  (zowe-mcp#66, finding 3 — [#66](https://github.com/zowe/zowe-mcp/issues/66))
 
 ## [0.10.0] - 2026-08-13
 

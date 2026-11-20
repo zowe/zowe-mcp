@@ -187,8 +187,10 @@ export async function startHttp(
     logOidcRegistrationDiscovery(jwtAuth.issuer, log);
   }
 
-  /** Map of active session ID → transport and optional JWT subject. */
-  const sessions: Record<string, SessionEntry> = {};
+  // Map of active session ID → transport and optional JWT subject. A Map (rather than a plain
+  // object) is used because the key is the client-controlled `mcp-session-id` header — an object
+  // would let values like `__proto__` resolve through the prototype chain instead of missing.
+  const sessions = new Map<string, SessionEntry>();
 
   function handleVerifiedRequest(
     transport: StreamableHTTPServerTransport,
@@ -247,6 +249,16 @@ export async function startHttp(
     }
   }
 
+  /** Finds the session named by the `mcp-session-id` header, or answers 400 and returns undefined. */
+  const lookupSessionOrRespond = (req: Request, res: Response): SessionEntry | undefined => {
+    const sessionId = req.headers['mcp-session-id'] as string | undefined;
+    const entry = sessionId ? sessions.get(sessionId) : undefined;
+    if (!entry) {
+      res.status(400).send('Invalid or missing session ID');
+    }
+    return entry;
+  };
+
   // -----------------------------------------------------------------------
   // POST /mcp — initialization + regular JSON-RPC requests
   // -----------------------------------------------------------------------
@@ -259,8 +271,8 @@ export async function startHttp(
       let transport: StreamableHTTPServerTransport;
       let verifiedClaims: TenantJwtClaims | null = null;
 
-      if (sessionId && sessions[sessionId]) {
-        const entry = sessions[sessionId];
+      const entry = sessionId ? sessions.get(sessionId) : undefined;
+      if (entry) {
         const claims = await verifyBearerOrRespond(req, res, entry.sub);
         if (jwtAuth && claims === null) {
           return;
@@ -277,7 +289,7 @@ export async function startHttp(
         transport = new StreamableHTTPServerTransport({
           sessionIdGenerator: () => randomUUID(),
           onsessioninitialized: (sid: string) => {
-            sessions[sid] = { transport, sub: boundSub };
+            sessions.set(sid, { transport, sub: boundSub });
             log.info('MCP session initialized', { mcpSessionId: sid, tenantSub: boundSub });
           },
           ...(dnsRebindingGuard
@@ -293,8 +305,8 @@ export async function startHttp(
 
         transport.onclose = () => {
           const sid = transport.sessionId;
-          if (sid && sessions[sid]) {
-            delete sessions[sid];
+          if (sid) {
+            sessions.delete(sid);
           }
         };
 
@@ -331,12 +343,8 @@ export async function startHttp(
   // GET /mcp — SSE streams for server-initiated messages
   // -----------------------------------------------------------------------
   app.get('/mcp', async (req: Request, res: Response) => {
-    const sessionId = req.headers['mcp-session-id'] as string | undefined;
-    if (!sessionId || !sessions[sessionId]) {
-      res.status(400).send('Invalid or missing session ID');
-      return;
-    }
-    const entry = sessions[sessionId];
+    const entry = lookupSessionOrRespond(req, res);
+    if (!entry) return;
     const claims = await verifyBearerOrRespond(req, res, entry.sub);
     if (jwtAuth && claims === null) {
       return;
@@ -348,12 +356,8 @@ export async function startHttp(
   // DELETE /mcp — session termination
   // -----------------------------------------------------------------------
   app.delete('/mcp', async (req: Request, res: Response) => {
-    const sessionId = req.headers['mcp-session-id'] as string | undefined;
-    if (!sessionId || !sessions[sessionId]) {
-      res.status(400).send('Invalid or missing session ID');
-      return;
-    }
-    const entry = sessions[sessionId];
+    const entry = lookupSessionOrRespond(req, res);
+    if (!entry) return;
     try {
       const claims = await verifyBearerOrRespond(req, res, entry.sub);
       if (jwtAuth && claims === null) {

@@ -28,16 +28,16 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { ElicitRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { posix, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { getBackendStatusOutputSchema } from '../src/tools/context/context-output-schemas.js';
 import type { JobEntry, JobFileEntry } from '../src/zos/backend.js';
 import { parseDsnAndMember, resolveDsn } from '../src/zos/dsn.js';
 import { isEnvFlagSet, toPasswordEnvVarName } from '../src/zos/native/connection-spec.js';
 import { loadRestConfig, type RestConnection } from '../src/zos/rest/connection.js';
+import { resolveE2eServerPath } from './helpers/e2e-server-path.js';
 
 const enabled = isEnvFlagSet(process.env.ZOWE_MCP_RUN_ZO_REST_E2E);
-const serverPath = fileURLToPath(new URL('../dist/index.js', import.meta.url));
+const serverPath = resolveE2eServerPath();
 
 interface Envelope<T> {
   data: T;

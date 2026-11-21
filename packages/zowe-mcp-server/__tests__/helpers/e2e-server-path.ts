@@ -18,9 +18,9 @@ import { fileURLToPath } from 'node:url';
  * Defaults to the repo build (`dist/index.js`). Set `ZOWE_MCP_E2E_SERVER_PATH`
  * to point a suite at another build instead — for example
  * `node_modules/@zowe/mcp-server/dist/index.js` from an install of the
- * npm-pack tarball, to check the shipped bundle. This is a manual knob:
- * nothing in CI sets it (`npm run test:airgap` has its own, dependency-free
- * stdio check). Empty or whitespace-only values are ignored.
+ * npm-pack tarball, to check the shipped bundle. `npm run test:airgap`
+ * sets this override in CI for the native mock-z/OS stdio suite after its
+ * isolated install. Empty or whitespace-only values are ignored.
  */
 export function resolveE2eServerPath(): string {
   const override = process.env.ZOWE_MCP_E2E_SERVER_PATH?.trim();

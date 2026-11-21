@@ -56,12 +56,14 @@
           "type": "string",
           "enum": [
             "zowex",
+            "zo-rest",
             "mock"
           ],
           "default": "zowex",
           "enumDescriptions": [
-            "Connect to z/OS via SSH (Zowe Remote SSH / zowex). Configure connections under Zowe Remote SSH.",
-            "Use local mock data for development and testing. A mock data directory will be configured automatically."
+            "Connect to z/OS via SSH (Zowe Remote SSH / zowex). Configure SSH connections below.",
+            "Connect to zo-over-REST over HTTPS, directly or through API Mediation Layer. Configure zo REST Connections below.",
+            "Use local mock data for development and testing."
           ],
           "description": "Backend to use for z/OS operations. Changes require running 'Developer: Reload Window' command. If an older settings file still has the legacy value native, it is treated as zowex and updated when the extension reads settings.",
           "markdownDescription": "Backend to use for z/OS operations. Changes require running **Developer: Reload Window** command.",
@@ -99,6 +101,147 @@
           "description": "SSH connection specs (user@host or user@host:port) for Zowe Remote SSH / zowex. Each entry is one connection. Passwords use the shared Zowe secret namespace (zowe.ssh.password.*).",
           "markdownDescription": "SSH connection specs (`user@host` or `user@host:port`) for **Zowe Remote SSH / zowex**. Each entry is one connection. Passwords use the shared Zowe secret namespace (`zowe.ssh.password.*`).",
           "order": 2
+        },
+        "zoweMCP.zoRestConnections": {
+          "type": "array",
+          "default": [],
+          "order": 3,
+          "markdownDescription": "Connections for **Backend: zo-rest**. Add one object per system with `url` (the HTTPS gateway or standalone server URL) and `user`. APIML discovery and route detection run automatically. Passwords are prompted for securely and kept only in memory. APIML login exchanges them for a session token when available; keep credentials out of settings. Reload the window after changes. See [zo REST setup](https://github.com/zowe/zowe-mcp/blob/main/docs/zo-rest-backend.md).",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "url",
+              "user"
+            ],
+            "properties": {
+              "url": {
+                "type": "string",
+                "pattern": "^https://",
+                "description": "HTTPS gateway or standalone server URL, optionally including the zo native API base path."
+              },
+              "user": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9@#$]{1,8}$",
+                "description": "Your z/OS user ID."
+              },
+              "deployment": {
+                "type": "string",
+                "enum": [
+                  "auto",
+                  "direct",
+                  "apiml"
+                ],
+                "default": "auto",
+                "description": "auto discovers APIML and detects the content API route. Override for known standalone or gateway deployments."
+              },
+              "serviceId": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9_-]+$",
+                "default": "zo",
+                "description": "APIML service ID used for discovery; normally zo."
+              },
+              "caFile": {
+                "type": "string",
+                "description": "Absolute local PEM file containing the site CA certificates. Uses system/Node trust when omitted."
+              },
+              "rejectUnauthorized": {
+                "type": "boolean",
+                "default": true,
+                "description": "Verify TLS certificates. Disable only for development with an internal test certificate."
+              },
+              "timeoutSeconds": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 3600,
+                "default": 60,
+                "description": "Deadline for each REST request in seconds."
+              },
+              "sessionLogin": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "url"
+                ],
+                "description": "Optional standalone credential-to-session exchange. APIML login is detected automatically.",
+                "properties": {
+                  "url": {
+                    "type": "string",
+                    "description": "HTTPS session login URL, or path relative to the service URL."
+                  },
+                  "method": {
+                    "type": "string",
+                    "enum": [
+                      "basic",
+                      "json"
+                    ],
+                    "default": "json",
+                    "description": "How credentials are supplied to the login endpoint."
+                  },
+                  "cookieName": {
+                    "type": "string",
+                    "description": "Session cookie returned by login; omit to use a JSON Bearer token."
+                  },
+                  "tokenField": {
+                    "type": "string",
+                    "description": "Top-level JSON token property; defaults to access_token, token, or jwtToken."
+                  }
+                }
+              },
+              "oidcTokenExchange": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "url"
+                ],
+                "anyOf": [
+                  {
+                    "required": [
+                      "audience"
+                    ]
+                  },
+                  {
+                    "required": [
+                      "resource"
+                    ]
+                  }
+                ],
+                "description": "Opt-in proof of concept: exchange the verified frontend OIDC token for a separate backend access token using OAuth RFC 8693. Requires a site-provided token endpoint and trust policy; leaves the default OIDC flow unchanged when omitted.",
+                "properties": {
+                  "url": {
+                    "type": "string",
+                    "pattern": "^https://",
+                    "description": "Explicit trusted HTTPS OAuth token endpoint. It is not discovered automatically."
+                  },
+                  "audience": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Audience identifying the downstream API."
+                  },
+                  "resource": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Resource URI identifying the downstream API."
+                  },
+                  "scope": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Optional space-delimited scopes for the exchanged token."
+                  },
+                  "clientId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "OAuth client registered for token exchange."
+                  },
+                  "clientSecretEnv": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "description": "Name of an environment variable containing the OAuth client secret. Keep the secret itself out of settings."
+                  }
+                }
+              }
+            }
+          }
         },
         "zoweMCP.logLevel": {
           "type": "string",
@@ -225,7 +368,7 @@
             ]
           },
           "default": {},
-          "description": "JCL job cards per connection spec (key: user@host or user@host:port). Prefer array of lines, e.g. [\"//{jobname}  JOB (ACCT),'{programmer}',CLASS=A,...\", \"/*JOBPARM S=*\"]. Use placeholders {jobname} and {programmer}; submitJob substitutes them. Changes are sent to the server and take effect immediately.",
+          "description": "JCL job cards per connection spec (key: user@host or user@host:port; zo-rest uses the HTTPS port). Prefer array of lines, e.g. [\"//{jobname}  JOB (ACCT),'{programmer}',CLASS=A,...\", \"/*JOBPARM S=*\"]. Use placeholders {jobname} and {programmer}; submitJob substitutes them. Changes are sent to the server and take effect immediately.",
           "markdownDescription": "JCL job cards per connection spec. Key is `user@host` or `user@host:port`. **Prefer an array of lines** (one string per line), for example:\n\n```json\n\"USER@zos.example.com\": [\n  \"//{jobname}  JOB (ACCT),'{programmer}',CLASS=A,MSGCLASS=X,NOTIFY=&SYSUID\",\n  \"/*JOBPARM S=*\"\n]\n```\n\nUse placeholders `{jobname}` and `{programmer}`; `submitJob` substitutes them. You can also use a single string with `\\n` for newlines. Changes are sent to the server and take effect immediately.",
           "order": 9
         },

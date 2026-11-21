@@ -16,10 +16,13 @@
  * that the extension activates and registers the MCP server correctly.
  */
 
+import type { ExtensionToServerEvent } from '@zowe/mcp-server/dist/events.js';
 import * as assert from 'assert';
 import * as fs from 'fs';
+import { tmpdir } from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
+import { handleServerEvent } from '../event-handler';
 import {
   buildServerConfig,
   pickConfigTarget,
@@ -27,6 +30,7 @@ import {
   showNoConnectionsNotificationIfNeeded,
 } from '../extension';
 import { getDisplayName, getLog } from '../log';
+import { getRestConnections } from '../rest-settings';
 
 /**
  * Finds the Zowe MCP extension from the installed extensions list.
@@ -236,6 +240,24 @@ suite('Zowe MCP VS Code Extension', () => {
 
       assert.strictEqual(showCalls, 0, 'Should not show notification when backend is mock');
     });
+
+    test('Recognizes REST connections when no SSH connections exist', () => {
+      installMockZoweMcpConfig(
+        makeMockConfig({
+          backend: 'zo-rest',
+          zoRestConnections: [{ url: 'https://gateway.example.com:7554', user: 'USER1' }],
+        })
+      );
+      let showCalls = 0;
+      (
+        vscode.window as { showInformationMessage: typeof originalShowInformationMessage }
+      ).showInformationMessage = () => {
+        showCalls++;
+        return Promise.resolve(undefined);
+      };
+      showNoConnectionsNotificationIfNeeded();
+      assert.strictEqual(showCalls, 0);
+    });
   });
 
   suite('Fresh config server startup', () => {
@@ -252,6 +274,129 @@ suite('Zowe MCP VS Code Extension', () => {
       (
         vscode.workspace as { getConfiguration: typeof originalGetConfiguration }
       ).getConfiguration = originalGetConfiguration;
+    });
+
+    test('REST backend writes a secret-free config and selects HTTPS without SSH flags', async () => {
+      const connections = [
+        { url: 'https://gateway.example.com:7554', user: 'USER1', caFile: '/site/ca.pem' },
+      ];
+      installMockZoweMcpConfig(
+        makeMockConfig({
+          backend: 'zo-rest',
+          zoRestConnections: connections,
+          zowexConnections: ['OTHER@ssh.example.com'],
+        })
+      );
+      const storageDir = fs.mkdtempSync(path.join(tmpdir(), 'zowe-mcp-rest-settings-'));
+      try {
+        const context = {
+          globalStorageUri: vscode.Uri.file(storageDir),
+        } as vscode.ExtensionContext;
+        const built = await buildServerConfig(
+          context,
+          '/server/index.js',
+          '/discovery',
+          'test',
+          getLog()
+        );
+        assert.ok(built.args.includes('--zo-rest'));
+        assert.ok(!built.args.includes('--native'));
+        assert.ok(!built.args.includes('--system'));
+        const configPath = built.args[built.args.indexOf('--config') + 1];
+        assert.deepStrictEqual(JSON.parse(fs.readFileSync(configPath, 'utf8')), {
+          systems: connections,
+        });
+        assert.strictEqual(built.env.WORKSPACE_ID, 'test');
+      } finally {
+        fs.rmSync(storageDir, { recursive: true, force: true });
+      }
+    });
+
+    test('REST settings reject embedded secrets before writing a config snapshot', async () => {
+      installMockZoweMcpConfig(
+        makeMockConfig({
+          backend: 'zo-rest',
+          zoRestConnections: [
+            { url: 'https://gateway.example.com', user: 'USER1', password: 'must-not-be-written' },
+          ],
+        })
+      );
+      const storageDir = fs.mkdtempSync(path.join(tmpdir(), 'zowe-mcp-rest-invalid-'));
+      try {
+        const context = {
+          globalStorageUri: vscode.Uri.file(storageDir),
+        } as vscode.ExtensionContext;
+        await assert.rejects(
+          buildServerConfig(context, '/server/index.js', '/discovery', 'test', getLog()),
+          /Passwords are collected securely/
+        );
+        assert.deepStrictEqual(fs.readdirSync(storageDir), []);
+      } finally {
+        fs.rmSync(storageDir, { recursive: true, force: true });
+      }
+    });
+
+    test('REST settings require absolute CA paths with no process-directory dependency', () => {
+      for (const caFile of ['site-ca.pem', '', null, 42]) {
+        assert.throws(
+          () =>
+            getRestConnections(
+              makeMockConfig({
+                zoRestConnections: [{ url: 'https://zos.example.com', user: 'USER1', caFile }],
+              })
+            ),
+          /caFile must be an absolute path/
+        );
+      }
+      const caFile = path.resolve(tmpdir(), 'site-ca.pem');
+      assert.strictEqual(
+        getRestConnections(
+          makeMockConfig({
+            zoRestConnections: [{ url: 'https://zos.example.com', user: 'USER1', caFile }],
+          })
+        )[0].caFile,
+        caFile
+      );
+    });
+
+    test('REST settings accept secret references for the token-exchange proof of concept', () => {
+      const oidcTokenExchange = {
+        url: 'https://idp.example.com/token',
+        audience: 'zo-backend',
+        clientId: 'mcp-client',
+        clientSecretEnv: 'ZOWE_MCP_EXCHANGE_CLIENT_SECRET',
+      };
+      const config = (exchange: object) =>
+        makeMockConfig({
+          zoRestConnections: [
+            { url: 'https://zos.example.com', user: 'USER1', oidcTokenExchange: exchange },
+          ],
+        });
+      assert.deepStrictEqual(
+        getRestConnections(config(oidcTokenExchange))[0].oidcTokenExchange,
+        oidcTokenExchange
+      );
+      assert.throws(
+        () =>
+          getRestConnections(
+            config({ ...oidcTokenExchange, clientSecret: 'must-not-be-written' })
+          ),
+        /must not contain credentials/
+      );
+      for (const url of ['http://idp.example.com/token', 'https://secret@idp.example.com/token'])
+        assert.throws(
+          () => getRestConnections(config({ ...oidcTokenExchange, url })),
+          /must use HTTPS without credentials/
+        );
+      assert.throws(
+        () => getRestConnections(config({ ...oidcTokenExchange, audience: '   ' })),
+        /must be nonblank/
+      );
+      for (const resource of ['relative', 'https://zos.example.com/#fragment'])
+        assert.throws(
+          () => getRestConnections(config({ ...oidcTokenExchange, resource })),
+          /resource must be an absolute URI/
+        );
     });
 
     test('With fresh config (backend=native default, no connections), server gets native backend and zero systems', async () => {
@@ -335,6 +480,70 @@ suite('Zowe MCP VS Code Extension', () => {
         'Mock dir should be passed after --mock'
       );
     });
+  });
+
+  suite('Credential prompt persistence', () => {
+    for (const transient of [true, false]) {
+      test(
+        transient
+          ? 'REST prompts bypass SecretStorage entirely'
+          : 'SSH prompts retain existing SecretStorage persistence',
+        async () => {
+          const originalInput = vscode.window.showInputBox;
+          let reads = 0;
+          let stores = 0;
+          const password = 'test-only-transient-password';
+          const context = {
+            secrets: {
+              get: () => {
+                reads++;
+                return Promise.resolve(undefined);
+              },
+              store: () => {
+                stores++;
+                return Promise.resolve();
+              },
+            },
+          } as unknown as vscode.ExtensionContext;
+          vscode.window.showInputBox = () => Promise.resolve(password);
+          try {
+            const event = await new Promise<ExtensionToServerEvent>((resolve, reject) => {
+              const timeout = setTimeout(
+                () => reject(new Error('Password event not delivered')),
+                1000
+              );
+              handleServerEvent(
+                getLog(),
+                {
+                  type: 'request-password',
+                  data: {
+                    user: 'USER1',
+                    host: 'example.com',
+                    port: 443,
+                    ...(transient ? { transient: true } : {}),
+                  },
+                  timestamp: Date.now(),
+                },
+                {
+                  context,
+                  sendEventToServers: delivered => {
+                    clearTimeout(timeout);
+                    resolve(delivered);
+                  },
+                }
+              );
+            });
+            if (event.type !== 'password') throw new Error('Expected a password delivery event');
+            assert.strictEqual(event.data.password, password);
+            assert.strictEqual(event.data.transient, transient ? true : undefined);
+            assert.strictEqual(reads, transient ? 0 : 1);
+            assert.strictEqual(stores, transient ? 0 : 1);
+          } finally {
+            vscode.window.showInputBox = originalInput;
+          }
+        }
+      );
+    }
   });
 
   suite('Registered commands', () => {

@@ -61,7 +61,7 @@ export function getZowexBackendWithMigration(
   config: vscode.WorkspaceConfiguration,
   zowexConnections: string[],
   log?: { info: (m: string) => void }
-): 'zowex' | 'mock' {
+): 'zowex' | 'zo-rest' | 'mock' {
   const inspection = config.inspect<string>('backend');
   const hasUserBackend =
     inspection?.globalValue !== undefined ||
@@ -70,7 +70,11 @@ export function getZowexBackendWithMigration(
 
   if (!hasUserBackend) {
     const mockDataDirectory = config.get<string>('mockDataDirectory', '').trim();
-    if (mockDataDirectory && zowexConnections.length === 0) {
+    if (
+      mockDataDirectory &&
+      zowexConnections.length === 0 &&
+      (config.get<unknown[]>('zoRestConnections', []) ?? []).length === 0
+    ) {
       log?.info(
         'Auto-migrating backend setting to "mock" (mockDataDirectory is set, no zowex connections)'
       );
@@ -94,6 +98,7 @@ export function getZowexBackendWithMigration(
     b = 'zowex';
   }
   if (b === 'mock') return 'mock';
+  if (b === 'zo-rest') return 'zo-rest';
   return 'zowex';
 }
 

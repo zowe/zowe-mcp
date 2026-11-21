@@ -10,6 +10,7 @@
  */
 
 import type { CredentialProvider } from '../zos/credentials.js';
+import { resolveCredentialIdentity } from '../zos/credentials.js';
 import type { SessionState } from '../zos/session.js';
 
 /**
@@ -22,7 +23,7 @@ export async function ensureContext(
   userId?: string
 ): Promise<void> {
   if (deps.sessionState.getContext(systemId)) return;
-  const credentials = await deps.credentialProvider.getCredentials(systemId, userId);
+  const credentials = await resolveCredentialIdentity(deps.credentialProvider, systemId, userId);
   deps.sessionState.setActiveSystem(systemId, credentials.user);
 }
 

@@ -351,10 +351,10 @@ async function handleRequestPassword(
   options: NativeSecretsOptions
 ): Promise<void> {
   if (event.type !== 'request-password') return;
-  const { user, host, port } = event.data;
+  const { user, host, port, transient } = event.data;
   const portNum = port ?? 22;
   const key = getNativePasswordKey(user, host);
-  let password = await options.context.secrets.get(key);
+  let password = transient ? undefined : await options.context.secrets.get(key);
   const hadStoredSecret = !!password;
   log.debug(
     `SSH password requested: user=${user} host=${host} port=${portNum} key=${key} hadStoredSecret=${hadStoredSecret}`
@@ -370,14 +370,16 @@ async function handleRequestPassword(
       log.warn(`User cancelled password input for ${user}@${host}`);
       return;
     }
-    await options.context.secrets.store(key, password);
+    if (!transient) await options.context.secrets.store(key, password);
   }
   log.debug(
-    `SSH password sending to server: user=${user} host=${host} port=${portNum} passwordHash=${passwordHash(password)}`
+    transient
+      ? `Transient REST credentials delivered for user=${user} host=${host} port=${portNum}`
+      : `SSH password sending to server: user=${user} host=${host} port=${portNum} passwordHash=${passwordHash(password)}`
   );
   options.sendEventToServers({
     type: 'password',
-    data: { user, host, port, password },
+    data: { user, host, port, password, ...(transient ? { transient: true } : {}) },
     timestamp: Date.now(),
   });
 }

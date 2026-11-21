@@ -64,6 +64,8 @@ export interface WaitablePasswordStoreLike {
 }
 
 export interface NativeCredentialProviderOptions {
+  /** REST uses editor prompts without platform persistence. */
+  transientPasswords?: boolean;
   /** Parsed connection specs (user@host:port). Used to resolve users per system and to read env. */
   connectionSpecs: ParsedConnectionSpec[];
   /**
@@ -92,6 +94,7 @@ export interface NativeCredentialProviderOptions {
  * listUsers(systemId) returns users that have a connection spec for that host.
  */
 export class NativeCredentialProvider implements CredentialProvider {
+  private readonly credentialSources = new Map<string, 'configured' | 'elicited' | 'editor'>();
   private readonly specsByHost = new Map<string, ParsedConnectionSpec[]>();
   private readonly invalidKeys = new Set<string>();
   /**
@@ -100,6 +103,8 @@ export class NativeCredentialProvider implements CredentialProvider {
    * until {@link markInvalid} or process exit. Not persisted across restarts — use Vault KV or env for that.
    */
   private readonly elicitedStandaloneByKey = new Map<string, string>();
+  /** Fresh elicitation replaces a rejected configured password until explicitly forgotten. */
+  private readonly elicitedStandaloneOverrides = new Set<string>();
   /** In-flight password requests by key so concurrent getCredentials() for the same connection wait for the first request. */
   private readonly _passwordRequestByKey = new Map<string, Promise<string>>();
   /**
@@ -118,6 +123,16 @@ export class NativeCredentialProvider implements CredentialProvider {
     this._applySpecs(specs);
   }
 
+  /** Drop in-process password references, used after REST credentials become a session token. */
+  forgetPassword(spec: ParsedConnectionSpec): void {
+    const key = cacheKey(spec);
+    this.elicitedStandaloneByKey.delete(key);
+    this.elicitedStandaloneOverrides.delete(key);
+    this.credentialSources.delete(key);
+    this.invalidKeys.delete(key);
+    this.options.passwordStore?.delete?.(key);
+  }
+
   private _applySpecs(specs: ParsedConnectionSpec[]): void {
     this.specsByHost.clear();
     for (const spec of specs) {
@@ -130,7 +145,9 @@ export class NativeCredentialProvider implements CredentialProvider {
   /** Mark a credential as invalid so it is not used again (standalone: env; VS Code: that key). */
   markInvalid(spec: ParsedConnectionSpec): void {
     const key = cacheKey(spec);
+    this.credentialSources.delete(key);
     this.invalidKeys.add(key);
+    this.elicitedStandaloneOverrides.delete(key);
     log.info('Credentials marked invalid (auth failed); disabled for this session', {
       key,
       host: spec.host,
@@ -237,7 +254,7 @@ export class NativeCredentialProvider implements CredentialProvider {
             host: spec.host,
             port: spec.port,
             user: spec.user,
-            passwordHash: passwordHash(password),
+            ...(!this.options.transientPasswords ? { passwordHash: passwordHash(password) } : {}),
           });
           return password;
         }
@@ -273,7 +290,7 @@ export class NativeCredentialProvider implements CredentialProvider {
             host: spec.host,
             port: spec.port,
             user: spec.user,
-            passwordHash: passwordHash(password),
+            ...(!this.options.transientPasswords ? { passwordHash: passwordHash(password) } : {}),
           });
           return password;
         }
@@ -314,6 +331,20 @@ export class NativeCredentialProvider implements CredentialProvider {
 
     const key = cacheKey(spec);
 
+    if (options?.forceElicitation) {
+      this.forgetPassword(spec);
+      const password = await this._requestPasswordOnce(key, spec, options.progress);
+      if (this.options.useEnvForPassword) {
+        this.elicitedStandaloneByKey.set(key, password);
+        this.elicitedStandaloneOverrides.add(key);
+      } else this.options.passwordStore?.set(key, password);
+      this.credentialSources.set(
+        key,
+        this.options.useEnvForPassword || this.options.transientPasswords ? 'elicited' : 'editor'
+      );
+      return { user: spec.user, password, authMethod: 'password' };
+    }
+
     // Prefer SSH key authentication (most secure, zero-config) over passwords. Skip when disabled
     // or when key auth already failed for this connection this session. Falls through to the
     // password flow when no usable key is found.
@@ -339,11 +370,19 @@ export class NativeCredentialProvider implements CredentialProvider {
     }
 
     let password: string | undefined;
+    let source: 'configured' | 'elicited' | 'editor' = this.options.useEnvForPassword
+      ? 'configured'
+      : this.options.transientPasswords
+        ? 'elicited'
+        : 'editor';
 
     if (this.options.useEnvForPassword) {
       const envVar = toPasswordEnvVarName(spec.user, spec.host);
-      password = await resolveStandalonePassword(spec);
-      let fromElicitationCache = false;
+      const elicitedOverride = this.elicitedStandaloneOverrides.has(key)
+        ? this.elicitedStandaloneByKey.get(key)
+        : undefined;
+      password = elicitedOverride ?? (await resolveStandalonePassword(spec));
+      let fromElicitationCache = elicitedOverride !== undefined;
       if (password === undefined || password === '') {
         const cached = this.elicitedStandaloneByKey.get(key);
         if (cached !== undefined) {
@@ -385,20 +424,22 @@ export class NativeCredentialProvider implements CredentialProvider {
           );
         }
         this.elicitedStandaloneByKey.set(key, password);
+        source = 'elicited';
         log.debug('Credentials obtained via elicitation (standalone)', {
           key,
           host: spec.host,
           port: spec.port,
           user: spec.user,
-          passwordHash: passwordHash(password),
+          ...(!this.options.transientPasswords ? { passwordHash: passwordHash(password) } : {}),
         });
       } else if (fromElicitationCache) {
+        source = 'elicited';
         log.debug('Credentials obtained from elicitation cache (standalone, process lifetime)', {
           key,
           host: spec.host,
           port: spec.port,
           user: spec.user,
-          passwordHash: passwordHash(password),
+          ...(!this.options.transientPasswords ? { passwordHash: passwordHash(password) } : {}),
         });
       } else {
         log.debug('Credentials obtained from environment', {
@@ -406,7 +447,7 @@ export class NativeCredentialProvider implements CredentialProvider {
           host: spec.host,
           port: spec.port,
           user: spec.user,
-          passwordHash: passwordHash(password),
+          ...(!this.options.transientPasswords ? { passwordHash: passwordHash(password) } : {}),
         });
       }
     } else {
@@ -455,12 +496,25 @@ export class NativeCredentialProvider implements CredentialProvider {
           host: spec.host,
           port: spec.port,
           user: spec.user,
-          passwordHash: passwordHash(password),
+          ...(!this.options.transientPasswords ? { passwordHash: passwordHash(password) } : {}),
         });
       }
     }
 
+    this.credentialSources.set(key, source);
     return { user: spec.user, password: password, authMethod: 'password' };
+  }
+
+  /** Source only, for diagnostics; this never returns credential values. */
+  getCredentialSource(
+    systemId: string,
+    userId?: string
+  ): 'configured' | 'elicited' | 'editor' | undefined {
+    const specs = this.specsByHost.get(systemId) ?? [];
+    const spec = userId
+      ? specs.find(item => item.user.toUpperCase() === userId.toUpperCase())
+      : specs[0];
+    return spec ? this.credentialSources.get(cacheKey(spec)) : undefined;
   }
 
   async listUsers(systemId: SystemId): Promise<string[]> {

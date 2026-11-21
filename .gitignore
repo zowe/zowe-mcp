@@ -59,6 +59,7 @@ zowe-ceedump*
 .env.*
 # Local native systems (copy from native-config.example.json)
 native-config.json
+zo-rest-config.json
 
 # mkcert TLS files for docker/remote-https-dev (see docker/remote-https-dev/certs/README.md)
 docker/remote-https-dev/certs/*.pem

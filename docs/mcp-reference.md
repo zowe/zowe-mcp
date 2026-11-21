@@ -8,16 +8,18 @@ This document describes all [Context](#context), [Data Sets](#data-sets), [USS](
 
 ## Context
 
-The server provides **4** tools.
+The server provides **6** tools.
 
 Server information and session management — set the active z/OS system and query the current session state (systems, active connection, active user).
 
-| # | Tool                                    | Description                                                                                                                                                                                                                                                                 |
-|---|-----------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| 1 | [`getContext`](#getcontext)             | Return the Zowe MCP server info (version, backend, components) and the current session context: active system, active connection (user@host), user ID, all known systems (with their connections when multiple exist), and recently used systems (those with saved context) |
-| 2 | [`listSystems`](#listsystems)           | List all z/OS systems you have access to                                                                                                                                                                                                                                    |
-| 3 | [`setSystem`](#setsystem)               | Set the active z/OS system                                                                                                                                                                                                                                                  |
-| 4 | [`addZosConnection`](#addzosconnection) | Add a z/OS SSH connection (user@host or user@host:port) for the current signed-in user only                                                                                                                                                                                 |
+| # | Tool                                          | Description                                                                                                                                                                                                                                                                 |
+|---|-----------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| 1 | [`getContext`](#getcontext)                   | Return the Zowe MCP server info (version, backend, components) and the current session context: active system, active connection (user@host), user ID, all known systems (with their connections when multiple exist), and recently used systems (those with saved context) |
+| 2 | [`getBackendStatus`](#getbackendstatus)       | Report configured mainframe connections and their observed authentication state                                                                                                                                                                                             |
+| 3 | [`listSystems`](#listsystems)                 | List all z/OS systems you have access to                                                                                                                                                                                                                                    |
+| 4 | [`setSystem`](#setsystem)                     | Set the active z/OS system                                                                                                                                                                                                                                                  |
+| 5 | [`addZosConnection`](#addzosconnection)       | Add a z/OS SSH connection (user@host or user@host:port) for the current signed-in user only                                                                                                                                                                                 |
+| 6 | [`removeZosConnection`](#removezosconnection) | Remove a z/OS SSH connection (user@host or user@host:port) from your per-user saved list (OIDC subject)                                                                                                                                                                     |
 
 ## Data Sets
 
@@ -152,12 +154,11 @@ Transfer files between z/OS (data sets and USS paths) and the local workspace.
 
 ## Other
 
-The server provides **2** tools.
+The server provides **1** tool.
 
-| # | Tool                                          | Description                                                                                             |
-|---|-----------------------------------------------|---------------------------------------------------------------------------------------------------------|
-| 1 | [`removeZosConnection`](#removezosconnection) | Remove a z/OS SSH connection (user@host or user@host:port) from your per-user saved list (OIDC subject) |
-| 2 | [`runConsoleCommand`](#runconsolecommand)     | Run a z/OS operator console command (e.g. DISPLAY T, DISPLAY A)                                         |
+| # | Tool                                      | Description                                                     |
+|---|-------------------------------------------|-----------------------------------------------------------------|
+| 1 | [`runConsoleCommand`](#runconsolecommand) | Run a z/OS operator console command (e.g. DISPLAY T, DISPLAY A) |
 
 ## db2 CLI Plugin Tools
 
@@ -199,7 +200,7 @@ Return the Zowe MCP server info (version, backend, components) and the current s
 | &ensp;├─ `version`              | `string`           | Yes      | Semantic version.                                                                                                                                    |
 | &ensp;├─ `description`          | `string`           | Yes      | Short server description.                                                                                                                            |
 | &ensp;├─ `components`           | `string`[]         | Yes      | Registered component names (e.g. context, datasets, uss).                                                                                            |
-| &ensp;├─ `backend`              | `string` \| `null` | Yes      | Active backend: mock, zowex, or null.                                                                                                                |
+| &ensp;├─ `backend`              | `string` \| `null` | Yes      | Active backend: mock, zowex, zo-rest, or null.                                                                                                       |
 | &ensp;└─ `maxEffectLevel`       | `string`           | No       | Maximum resource effect level allowed by the active capability tier (none, read, update, delete, or execute). Determines which tools are registered. |
 | `activeSystem`                  | `object` \| `null` | Yes      | Currently selected system and user; null if no system has been set yet.                                                                              |
 | &ensp;├─ `system`               | `string`           | Yes      | Hostname of the active z/OS system.                                                                                                                  |
@@ -273,6 +274,37 @@ Return the Zowe MCP server info (version, backend, components) and the current s
   ]
 }
 ```
+
+---
+
+### `getBackendStatus`
+
+> Read-only
+
+Report configured mainframe connections and their observed authentication state. Shows whether frontend OIDC worked, was rejected, or fell back to configured, editor, or elicited credentials. Status inspection never prompts for credentials or contacts z/OS. Unknown or untested is distinct from unsupported; perform the intended read operation to verify a connection. Tokens and passwords are never returned.
+
+#### Parameters
+
+| Parameter | Type     | Required | Description                                                                               |
+|-----------|----------|----------|-------------------------------------------------------------------------------------------|
+| `system`  | `string` | No       | Optional hostname or unqualified system name; omit to inspect all configured connections. |
+
+<a id="getbackendstatus-output-schema"></a>
+
+#### Output Schema
+
+| Field                           | Type                                            | Required | Description                                                                                           |
+|---------------------------------|-------------------------------------------------|----------|-------------------------------------------------------------------------------------------------------|
+| `connections`                   | `object`[]                                      | Yes      |                                                                                                       |
+| &ensp;├─ `system`               | `string`                                        | Yes      |                                                                                                       |
+| &ensp;├─ `backend`              | `string`                                        | Yes      |                                                                                                       |
+| &ensp;├─ `endpoint`             | `string`                                        | Yes      |                                                                                                       |
+| &ensp;├─ `configuredUser`       | `string`                                        | Yes      | Configured password fallback user. APIML/ESM controls the actual mapped SAF identity when using OIDC. |
+| &ensp;├─ `configuredDeployment` | `auto` \| `direct` \| `apiml`                   | Yes      |                                                                                                       |
+| &ensp;├─ `detectedDeployment`   | `unknown` \| `direct` \| `apiml`                | Yes      |                                                                                                       |
+| &ensp;├─ `discovery`            | `not-attempted` \| `available` \| `unavailable` | Yes      |                                                                                                       |
+| &ensp;├─ `unsupportedTools`     | `string`[]                                      | Yes      |                                                                                                       |
+| &ensp;└─ `authentication`       | `object`                                        | Yes      |                                                                                                       |
 
 ---
 
@@ -412,6 +444,30 @@ Output:
   "persisted": true
 }
 ```
+
+---
+
+### `removeZosConnection`
+
+> Read-only
+
+Remove a z/OS SSH connection (user@host or user@host:port) from your per-user saved list (OIDC subject). Only connections previously added with addZosConnection or stored in the tenant file can be removed here. Connections supplied only via server startup (--config/--system) must be changed in server configuration. After removal, pick another system with setSystem if needed.
+
+#### Parameters
+
+| Parameter        | Type     | Required | Description                                                                                 |
+|------------------|----------|----------|---------------------------------------------------------------------------------------------|
+| `connectionSpec` | `string` | Yes      | Connection string to remove: user@host or user@host:port (same format as addZosConnection). |
+
+<a id="removezosconnection-output-schema"></a>
+
+#### Output Schema
+
+| Field            | Type       | Required | Description                                                                             |
+|------------------|------------|----------|-----------------------------------------------------------------------------------------|
+| `messages`       | `string`[] | No       |                                                                                         |
+| `connectionSpec` | `string`   | Yes      | Normalized connection spec that was removed (user@host or user@host:port).              |
+| `persisted`      | `boolean`  | Yes      | True when updated in the tenant store on disk (HTTP + JWT + ZOWE_MCP_TENANT_STORE_DIR). |
 
 ---
 
@@ -1973,7 +2029,7 @@ Set the z/OS file tag (encoding/type) for a USS file or directory.
 ### `copyUssFile`
 
 
-Copy a USS file or directory within the same z/OS system. For directories, set recursive to true. Paths can be absolute (starting with /) or relative to the current working directory (see getContext.ussCwd).
+Copy a USS file or directory within the same z/OS system. For directories, set recursive to true. On SSH and REST, an existing writable target is replaced even when force is false. Paths can be absolute (starting with /) or relative to the current working directory (see getContext.ussCwd).
 
 #### Parameters
 
@@ -3950,30 +4006,6 @@ Download one job spool file from z/OS to a local workspace file as UTF-8 text. U
 
 ---
 
-### `removeZosConnection`
-
-> Read-only
-
-Remove a z/OS SSH connection (user@host or user@host:port) from your per-user saved list (OIDC subject). Only connections previously added with addZosConnection or stored in the tenant file can be removed here. Connections supplied only via server startup (--config/--system) must be changed in server configuration. After removal, pick another system with setSystem if needed.
-
-#### Parameters
-
-| Parameter        | Type     | Required | Description                                                                                 |
-|------------------|----------|----------|---------------------------------------------------------------------------------------------|
-| `connectionSpec` | `string` | Yes      | Connection string to remove: user@host or user@host:port (same format as addZosConnection). |
-
-<a id="removezosconnection-output-schema"></a>
-
-#### Output Schema
-
-| Field            | Type       | Required | Description                                                                             |
-|------------------|------------|----------|-----------------------------------------------------------------------------------------|
-| `messages`       | `string`[] | No       |                                                                                         |
-| `connectionSpec` | `string`   | Yes      | Normalized connection spec that was removed (user@host or user@host:port).              |
-| `persisted`      | `boolean`  | Yes      | True when updated in the tenant store on disk (HTTP + JWT + ZOWE_MCP_TENANT_STORE_DIR). |
-
----
-
 ### `runConsoleCommand`
 
 > Destructive
@@ -4145,14 +4177,16 @@ See [Safety and security principles](mcp-safety-security-principles.md) for deta
 
 Read-only with client confirmation prompts for every read operation. Safest tier for exploration.
 
-**39** tools available.
+**40** tools available.
 
 | Tool                                              | Effect Level |
 |---------------------------------------------------|--------------|
 | [`getContext`](#getcontext)                       | none         |
+| [`getBackendStatus`](#getbackendstatus)           | none         |
 | [`listSystems`](#listsystems)                     | none         |
 | [`setSystem`](#setsystem)                         | none         |
 | [`addZosConnection`](#addzosconnection)           | none         |
+| [`removeZosConnection`](#removezosconnection)     | none         |
 | [`listDatasets`](#listdatasets)                   | read         |
 | [`listMembers`](#listmembers)                     | read         |
 | [`searchInDataset`](#searchindataset)             | read         |
@@ -4184,7 +4218,6 @@ Read-only with client confirmation prompts for every read operation. Safest tier
 | [`downloadDatasetToFile`](#downloaddatasettofile) | read         |
 | [`downloadUssFileToFile`](#downloadussfiletofile) | read         |
 | [`downloadJobFileToFile`](#downloadjobfiletofile) | read         |
-| [`removeZosConnection`](#removezosconnection)     | none         |
 | [`db2ListConnections`](#db2listconnections)       | none         |
 | [`db2SetConnection`](#db2setconnection)           | none         |
 | [`db2ExportTable`](#db2exporttable)               | read         |
@@ -4193,13 +4226,13 @@ Read-only with client confirmation prompts for every read operation. Safest tier
 
 Read-only with auto-approved reads. No confirmation prompts for read operations.
 
-**39** tools available.
+**40** tools available.
 
 ### `update`
 
 Adds tools that create, write, copy, rename, and modify resources.
 
-**64** tools available (25 new at this tier).
+**65** tools available (25 new at this tier).
 
 | Tool                                                  | Effect Level |
 |-------------------------------------------------------|--------------|
@@ -4233,7 +4266,7 @@ Adds tools that create, write, copy, rename, and modify resources.
 
 Adds tools that delete or cancel resources.
 
-**71** tools available (7 new at this tier).
+**72** tools available (7 new at this tier).
 
 | Tool                                                      | Effect Level |
 |-----------------------------------------------------------|--------------|
@@ -4249,7 +4282,7 @@ Adds tools that delete or cancel resources.
 
 Adds tools that execute commands and submit jobs. Full access to all operations.
 
-**79** tools available (8 new at this tier).
+**80** tools available (8 new at this tier).
 
 | Tool                                            | Effect Level |
 |-------------------------------------------------|--------------|

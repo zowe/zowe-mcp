@@ -63,18 +63,18 @@ mkdir test-install
 cd test-install
 
 echo "Installing with:"
-echo "  - Empty cache: --cache /tmp/no-cache"
+echo "  - Empty cache: --cache $TEST_DIR/npm-cache"
 echo "  - Invalid registry: --registry http://localhost"
 echo "  - Timeout: 5ms (--fetch-timeout 5) - fails fast if network is accessed"
 echo "  - Verbose logging: --loglevel verbose"
 echo ""
 
 # Create empty cache directory
-mkdir -p /tmp/no-cache
+mkdir -p "$TEST_DIR/npm-cache"
 
 # Install with empty cache and invalid registry
 if npm install \
-  --cache /tmp/no-cache \
+  --cache "$TEST_DIR/npm-cache" \
   --registry http://localhost \
   --fetch-timeout 5 \
   --loglevel verbose \
@@ -368,7 +368,18 @@ else
 fi
 
 echo ""
-echo "Offline airgap test passed."
+# The mock-only session above never loads the native SDK. Run the existing
+# native RPC-over-SSH suite against this same isolated installation so missing
+# bundled native dependencies fail CI. Only the test driver and loopback mock
+# host come from the repo; the MCP server runs from the installed tarball.
+echo "Testing installed native backend against mock z/OS (stdio E2E)..."
+(
+  cd "$SERVER_DIR"
+  ZOWE_MCP_E2E_SERVER_PATH="$ENTRY_POINT" \
+    npm exec --offline -- vitest run __tests__/native-mock-zos-stdio.e2e.test.ts
+)
+
+echo "Offline airgap test passed (mock and native stdio)."
 
 # ---------------------------------------------------------------------------
 # Optional native z/OS smoke test

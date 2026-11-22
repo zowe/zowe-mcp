@@ -81,6 +81,9 @@ don't warrant an entry (CI, chores, internal refactors, docs-only) can carry the
   regular expression with ambiguous backtracking, and the docs generator now
   escapes backslashes as well as quotes when quoting YAML strings.
   ([#109](https://github.com/zowe/zowe-mcp/issues/109))
+- The `mock-zos` subcommands no longer also start the stdio MCP server, so
+  their output has no MCP startup notifications.
+  ([#161](https://github.com/zowe/zowe-mcp/issues/161))
 - Opening data sets, USS files, and jobs in Zowe Explorer now uses Explorer's
   configured profiles without requiring the Zowe CLI. Profiles matching the
   target system take precedence over Explorer's default.

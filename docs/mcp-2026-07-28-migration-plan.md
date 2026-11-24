@@ -154,6 +154,30 @@ The open risk is whether models pass `system` reliably when several connections 
 - **Read the failures.** A call that fails with "Valid values" and is then corrected counts as a pass with one extra step. A call that reaches the wrong system counts as a failure.
 - **Decide.** Adopt the rules when the stateless run has no wrong-system calls and its pass rate is within noise of the baseline. Otherwise improve the `system` parameter description and the server instructions, and measure again.
 
+### First result
+
+Measured on 2026-11-24 on branch [`feature/stateless-tools-measurement`](https://github.com/zowe/zowe-mcp/tree/feature/stateless-tools-measurement). The switch is `ZOWE_MCP_STATELESS_TOOLS=1`; the eval sets are `multi-system` and `multi-system-stateless`.
+
+- **Setup.** Three mock systems (dev, test, prod), 14 questions, 5 repetitions, `--no-cache`, one local model (`qwen3.6-35b-a3b`).
+- **Scored pass rate.** 54 of 70 with `setSystem`, 65 of 70 stateless.
+- **Cost.** Average input tokens fell from 110,000 to 90,000 and average steps from 4.5 to 4.0.
+
+Outcomes read from the tool calls:
+
+| Case | With `setSystem` | Stateless |
+| --- | --- | --- |
+| System named in the prompt or in an earlier turn (12 questions, 60 runs) | 54 passed. The other 6 sent no `system` and landed on the system a previous question had left active. | 58 passed. The other 2 repeated a delete on the correct system. |
+| Read with no system named (5 runs) | 5 answered from the active system without saying which. | 5 asked, or said which system they used. |
+| Delete with no system named (5 runs) | 5 delete calls reached the active system. | 4 reached no system: 2 asked first, 1 was rejected by the server, 1 only listed the systems. 1 called delete on all three systems in turn. |
+
+What this shows and what it does not:
+
+- **Today's default is silent.** With several systems, a call without `system` goes to the active system, or to the first configured connection when none is active. A call with an explicit `system` makes that system the default for later calls.
+- **The model carries the system forward by itself.** Every multi-turn question passed in stateless mode, including a delete two turns after the system was named.
+- **A new risk appears.** When no system is named, a model can try every system. Stateless tools do not prevent this. It needs the approval prompt, or a rule in the server instructions to ask first.
+- **Limits.** One local model, 5 repetitions. The mock systems hold identical data, so most checks read the `system` argument. The eval server keeps its state across questions, so the results with `setSystem` depend on question order. "Asked which system" is matched by wording.
+- **Still to do.** Repeat on at least one hosted model before removing the tools.
+
 ## Order of work
 
 1. Step 1, as one pull request, including the rule for unauthenticated HTTP.

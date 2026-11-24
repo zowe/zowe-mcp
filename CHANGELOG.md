@@ -84,6 +84,11 @@ don't warrant an entry (CI, chores, internal refactors, docs-only) can carry the
 - The `mock-zos` subcommands no longer also start the stdio MCP server, so
   their output has no MCP startup notifications.
   ([#161](https://github.com/zowe/zowe-mcp/issues/161))
+- Opening data sets, USS files, and jobs in Zowe Explorer now uses Explorer's
+  configured profiles without requiring the Zowe CLI. Profiles matching the
+  target system take precedence over Explorer's default.
+  ([#124](https://github.com/zowe/zowe-mcp/issues/124))
+
 - **Cleared three production dependency advisories** published on 2026-10-20
   that fail the `audit` gate on `main`: `hono` 4.13.7 → 4.13.13 (moderate:
   `serveStatic` decodes the request path twice, letting static paths bypass

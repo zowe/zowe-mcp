@@ -7,8 +7,8 @@ This plan moves Zowe MCP from `@modelcontextprotocol/sdk` 1.x to the v2 SDK pack
 ## Summary
 
 - **Step 1** replaces the SDK packages and keeps the wire protocol at 2025-11-25. It is mostly mechanical. Target: merged before 2027-01-27.
-- **Step 2** makes the server speak 2026-07-28. It changes how tools ask the user for input and how HTTP keeps state. It has no fixed date.
-- **One decision is open:** how HTTP keeps per-user state once sessions are gone. See [Open decisions](#open-decisions).
+- **Step 2** makes the server speak 2026-07-28. It changes how tools ask the user for input and removes state that is carried between calls. It has no fixed date.
+- **Direction for state:** every call names its target, on stdio and on HTTP. An eval measurement confirms it before the tools change. See [Stateless tools](#stateless-tools).
 
 ## Timing
 
@@ -32,6 +32,15 @@ This plan moves Zowe MCP from `@modelcontextprotocol/sdk` 1.x to the v2 SDK pack
 - **Move the HTTP transport** to `NodeStreamableHTTPServerTransport` from `@modelcontextprotocol/node`. The session map in `transports/http.ts` stays as it is.
 - **Re-check the bundle.** `@modelcontextprotocol/node` brings in `hono` and `@hono/node-server`. Run `npm run test:airgap:build` and compare the tarball and VSIX sizes.
 - **Resolve every `@mcp-codemod-error` marker** the codemod leaves behind.
+
+### Unauthenticated HTTP serves the mock backend only
+
+Today `--http --native --http-allow-no-auth` serves real z/OS systems to any client that can reach the port. Step 1 closes this.
+
+- **Rule.** Without `ZOWE_MCP_JWT_ISSUER` and `ZOWE_MCP_JWKS_URI`, the HTTP transport starts only with the mock backend and without CLI plugin connections. With `--native` or a CLI plugin connection the server refuses to start and names the two variables.
+- **Flag.** `--http-allow-no-auth` stays, for the mock backend, tests and demos.
+- **Release note.** This is a breaking change and goes in `CHANGELOG.md`. Update `docs/remote-http-mcp-registry.md`, `docs/mcp-authentication-oauth.md` and any example that starts native HTTP without a token.
+- **Effect on step 2.** Every HTTP request that reaches a real system then carries a verified token subject.
 
 ### Guards to add in step 1
 
@@ -100,7 +109,7 @@ The SDK serves handlers written this way to 2025 clients too, on stdio and on HT
 
 - **stdio.** Switch to `serveStdio`. Keep a reference to the pinned server so the Zowe Explorer tools can still be registered at runtime; the SDK forwards the resulting change notifications to clients that subscribed.
 - **HTTP.** Switch to `createMcpHandler` behind the existing [JSON Web Token (JWT)](https://datatracker.ietf.org/doc/html/rfc7519) check and the DNS-rebinding guard. Per-tenant backends, credentials and job cards are already keyed by the token subject and need no change.
-- **Session state.** `SessionState` holds the active system, the user per system, the encoding overrides and the z/OS UNIX working directory. It is created once per MCP session today. With a server per request it must live somewhere else. This is the open decision below.
+- **Session state.** `SessionState` holds the active system, the user per system, the encoding overrides and the z/OS UNIX working directory. It is created once per MCP session today, and a server per request cannot keep it. It is removed as described in [Stateless tools](#stateless-tools).
 - **Cache hints.** Every cacheable 2026-07-28 result carries `ttlMs` and `cacheScope`. Keep `cacheScope: 'private'`, because the tool list depends on the tenant and the capability tier, and set a short `ttlMs` for `tools/list`.
 
 ### 2d. Tests
@@ -115,25 +124,48 @@ The SDK serves handlers written this way to 2025 clients too, on stdio and on HT
 - **Test with a real older client before switching.** The specification does not say what a 2025 client sees from a 2026-07-28 server, so the SDK's behavior is the only definition. Before a release that switches an entry point, run the stdio and HTTP smoke tests with a released client that speaks 2025-11-25, including one password prompt and one command approval.
 - **Record the result of the client probe** from [Timing](#timing) in the pull request.
 
-## Open decisions
+## Stateless tools
 
-### HTTP state without sessions
+Decided on 2026-11-24, subject to the measurement below.
 
-Deferred on 2026-11-24. It blocks 2c for HTTP and nothing else.
+### Why
 
-| Option | Effect |
-| --- | --- |
-| Key the state by token subject | `setSystem` and `changeUssDirectory` keep working. Two chat windows of one user share an active system. HTTP without authentication gets one shared state. |
-| Stateless HTTP tools | Callers pass `system` on every call and paths are absolute. Tool behavior and descriptions differ between stdio and HTTP. |
-| Keep both paths | Today's transport with sessions serves 2025 clients, routed with `isLegacyRequest`. A second path serves 2026-07-28 with state keyed by subject. Two HTTP code paths to maintain. |
+State that is carried between calls and shared by one user's sessions causes wrong-target actions:
+
+- **Wrong system.** One window calls `setSystem` for production. Another window, working on test, deletes a data set without `system` and reaches production.
+- **Hidden target.** The client's approval prompt shows the tool arguments. With an active system, the prompt for `deleteDataset` shows the data set name and no system.
+- **One agent steers another.** An agent that read untrusted content can change the active system or directory that a later call from another agent relies on.
+
+### Rules
+
+- **One tool set on stdio and HTTP.** `setSystem` and `changeUssDirectory` are removed on both transports. This is a breaking change for today's stdio users.
+- **Every call names its system.** With one connection, that connection is the target. With several, a call without `system` fails with the existing "Valid values" error. No default is stored.
+- **z/OS UNIX paths are absolute.** Responses return absolute paths.
+- **Encoding.** The per-call `encoding` parameter and the server defaults remain. The per-system override set through `setSystem` moves to the saved connection.
+- **CLI plugin profiles.** Over HTTP the `<plugin>SetConnection` and `<plugin>SetLocation` tools are not offered, and a call names its profile when more than one exists. The active profile is already shared across one user's HTTP sessions today.
+- **`getContext`** lists the connections and no longer reports an active system or working directory.
+
+### Measurement before the change
+
+The open risk is whether models pass `system` reliably when several connections exist.
+
+- **Setup.** Add an eval set on mock data with several systems. Add a server switch that hides `setSystem` and `changeUssDirectory`, used only for this comparison.
+- **Compare.** Run the same questions with the switch off and on: same model, same repetitions, `--no-cache`, clean tree. Record tool-argument correctness, wrong-system calls, steps and tokens.
+- **Read the failures.** A call that fails with "Valid values" and is then corrected counts as a pass with one extra step. A call that reaches the wrong system counts as a failure.
+- **Decide.** Adopt the rules when the stateless run has no wrong-system calls and its pass rate is within noise of the baseline. Otherwise improve the `system` parameter description and the server instructions, and measure again.
+
+### Open
+
+- Whether the CLI plugin `Set*` tools are also removed on stdio, to match the one-tool-set rule.
 
 ## Order of work
 
-1. Step 1, as one pull request.
-2. Step 2a, still on the 2025-11-25 wire protocol.
-3. Step 2b.
-4. Decide the HTTP state model.
-5. Step 2c and 2d.
+1. Step 1, as one pull request, including the rule for unauthenticated HTTP.
+2. The stateless-tools measurement. It needs no SDK change and can run beside step 1.
+3. Step 2a, still on the 2025-11-25 wire protocol.
+4. Step 2b.
+5. The stateless tool set, as its own breaking-change pull request.
+6. Step 2c and 2d.
 
 ## Out of scope
 

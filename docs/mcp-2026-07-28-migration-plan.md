@@ -15,7 +15,7 @@ This plan moves Zowe MCP from `@modelcontextprotocol/sdk` 1.x to the v2 SDK pack
 - **SDK 1.x support.** The [v2 SDK README](https://github.com/modelcontextprotocol/typescript-sdk/blob/v2.4.0/README.md) promises fixes for 1.x "for at least six months after the v2 release (2026-07-27)". The guarantee ends on 2027-01-27. Zowe MCP is on `^1.32.1`.
 - **Wire protocol.** A v2 server built the way Zowe MCP builds it today keeps speaking 2025-11-25. The 2026-07-28 revision is an explicit opt-in through new entry points.
 - **Deprecations.** Logging, Roots and Sampling are deprecated by [SEP-2577](https://github.com/modelcontextprotocol/modelcontextprotocol/issues/2577) and stay in the specification for at least twelve months from 2026-07-28.
-- **Clients.** Whether VS Code Copilot and Claude Code already speak 2026-07-28 is unconfirmed. Step 2 does not depend on it, because the v2 entry points serve both protocol generations.
+- **Clients.** Which protocol generation VS Code Copilot and Claude Code negotiate is unconfirmed. Settle it by measurement before step 2c: probe a live session with `server/discover`, or connect the v2 client SDK and read `getProtocolEra()`. Record the client versions tested.
 
 ## Step 1: SDK v1 to v2 on the same wire protocol
 
@@ -32,6 +32,12 @@ This plan moves Zowe MCP from `@modelcontextprotocol/sdk` 1.x to the v2 SDK pack
 - **Move the HTTP transport** to `NodeStreamableHTTPServerTransport` from `@modelcontextprotocol/node`. The session map in `transports/http.ts` stays as it is.
 - **Re-check the bundle.** `@modelcontextprotocol/node` brings in `hono` and `@hono/node-server`. Run `npm run test:airgap:build` and compare the tarball and VSIX sizes.
 - **Resolve every `@mcp-codemod-error` marker** the codemod leaves behind.
+
+### Guards to add in step 1
+
+- **Tools registered after connect.** The Zowe Explorer tools register at runtime on stdio. The SDK throws `Cannot register capabilities after connecting to transport` when the first tool, prompt or resource of a kind is registered after connect, because that is when it declares the capability. Zowe MCP always registers `getContext` before connect, so `tools` with `listChanged: true` is already declared and later tools register normally. Add a stdio test that registers a tool after connect and expects the list-changed notification, so the upgrade proves it. A server that registers nothing before connect needs a placeholder tool that it removes before connecting.
+- **Response size on stdio.** The client's `ReadBuffer` closes the connection when one message passes 10 MB. This is the client's default in SDK 1.x and v2, and the server cannot raise it. `wrapResponse()` sends the payload twice, in `content` and in `structuredContent`, so the wire size is about twice the visible size. Measure the serialized result in one place and return an `isError` result that asks for a smaller window when it passes 8 MB. Check `getJobOutput`, `readJobFile`, `runSafeTsoCommand` and the CLI bridge results first.
+- **Zod floor.** v2 needs Zod 4.2 or later. With Zod 4.0 or 4.1 the server still starts, and the `.describe()` text of every parameter is dropped from `tools/list` with only a one-time console warning. Zowe MCP is on `^4.6.2`. Add a test that reads `tools/list` and expects a known parameter description, so a lockfile regression fails CI.
 
 ### Behavior changes to expect in tests and evals
 
@@ -81,6 +87,8 @@ Plan:
 - **URL-mode password prompts** move to `inputRequired.elicitUrl(...)`. The browser page at `/zowe-mcp/password-elicit/:id` stays. `createElicitationCompletionNotifier` is used only for 2025 clients.
 - **Workspace roots** in `tools/local-files/local-file-tools.ts` use `inputRequired.listRoots()`, with `ZOWE_MCP_WORKSPACE_DIR` and `--local-files-root` as the path that lasts, because Roots is deprecated.
 
+- **A decline is not always a person saying no.** Claude Code declares the elicitation capability and answers every request with `decline` in some sessions ([anthropics/claude-code#79174](https://github.com/anthropics/claude-code/issues/79174), closed as not planned). The server cannot tell that from a user's refusal. This affects the command-approval prompts and is tracked in [#155](https://github.com/zowe/zowe-mcp/issues/155). The rewrite keeps one code path for "declined" and words the tool error so that it is correct in both cases.
+
 The SDK serves handlers written this way to 2025 clients too, on stdio and on HTTP with sessions. This part can therefore ship and be tested with today's clients, before 2b and 2c.
 
 ### 2b. Client identity and logging
@@ -100,6 +108,12 @@ The SDK serves handlers written this way to 2025 clients too, on stdio and on HT
 - `InMemoryTransport` connects 2025-era instances only. It is used in 12 test files and stays for them.
 - Add two providers to `__tests__/transport-providers.ts`: `createMcpHandler` driven through its `fetch` function, and a spawned `serveStdio` process. `common.test.ts` then runs on both protocol generations.
 - Add a round-trip test for each prompt in 2a: first call returns `input_required`, second call completes, and the z/OS action runs once.
+- Add the decline cases for each prompt: a client that declines at once without showing anything, and a user who cancels. The z/OS action must not run in either.
+
+### Release gate
+
+- **Test with a real older client before switching.** The specification does not say what a 2025 client sees from a 2026-07-28 server, so the SDK's behavior is the only definition. Before a release that switches an entry point, run the stdio and HTTP smoke tests with a released client that speaks 2025-11-25, including one password prompt and one command approval.
+- **Record the result of the client probe** from [Timing](#timing) in the pull request.
 
 ## Open decisions
 

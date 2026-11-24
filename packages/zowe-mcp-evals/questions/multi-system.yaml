@@ -207,3 +207,204 @@ questions:
                   validDsn: 'USER.JCL.CNTL'
       - answerContains:
           substring: 'RUNJOB'
+
+  # ---- Harder cases: the system is NOT named in the current sentence ----
+  # Outcome checks (member counts/names written earlier) are used because in the baseline arm a
+  # setSystem from an earlier turn legitimately makes later calls omit `system`, and per-turn
+  # assertions cannot see earlier turns. The mock data is identical per system, so a scratch
+  # member written on one system is what tells the systems apart.
+  - id: ctx-system-named-in-turn-1
+    turns:
+      - prompt: On the test system, write the single line "CTX MARK" to a new member EVALCTX of USER.SRC.COPYBOOK.
+        assertions:
+          - name: turn 1 writes on the test system
+            anyOf:
+              - toolCall:
+                  tools: [writeDataset]
+                  args:
+                    validDsn: 'USER.SRC.COPYBOOK(EVALCTX)'
+                    system: 'test'
+              - toolCallOrder:
+                  - tool: setSystem
+                    args:
+                      system: 'test'
+                  - tool: writeDataset
+                    args:
+                      validDsn: 'USER.SRC.COPYBOOK(EVALCTX)'
+      - prompt: Now list the members of that same library and tell me how many there are.
+        assertions:
+          - toolCall:
+              tools: [listMembers]
+              args:
+                validDsn: 'USER.SRC.COPYBOOK'
+          - name: listing came from the system that holds EVALCTX (test)
+            answerContains:
+              substring: 'EVALCTX'
+          - name: 4 members (3 generated + EVALCTX)
+            answerContains:
+              pattern: '\b4\b|four'
+
+  - id: switch-dev-prod-back-to-dev
+    turns:
+      - prompt: On mainframe-dev.example.com, write the single line "SW DEV" to a new member EVALSWD of USER.SRC.COPYBOOK.
+        assertions:
+          - name: turn 1 writes on dev
+            anyOf:
+              - toolCall:
+                  tools: [writeDataset]
+                  args:
+                    validDsn: 'USER.SRC.COPYBOOK(EVALSWD)'
+                    system: 'dev'
+              - toolCallOrder:
+                  - tool: setSystem
+                    args:
+                      system: 'dev'
+                  - tool: writeDataset
+                    args:
+                      validDsn: 'USER.SRC.COPYBOOK(EVALSWD)'
+      - prompt: Do the same on prod, but name the member EVALSWP and write "SW PROD".
+        assertions:
+          - name: turn 2 writes on prod
+            anyOf:
+              - toolCall:
+                  tools: [writeDataset]
+                  args:
+                    validDsn: 'USER.SRC.COPYBOOK(EVALSWP)'
+                    system: 'prod'
+              - toolCallOrder:
+                  - tool: setSystem
+                    args:
+                      system: 'prod'
+                  - tool: writeDataset
+                    args:
+                      validDsn: 'USER.SRC.COPYBOOK(EVALSWP)'
+      - prompt: Go back to the first system and list the members of that library.
+        assertions:
+          - name: turn 3 lists on dev
+            anyOf:
+              - toolCall:
+                  tools: [listMembers]
+                  args:
+                    validDsn: 'USER.SRC.COPYBOOK'
+                    system: 'dev'
+              - toolCallOrder:
+                  - tool: setSystem
+                    args:
+                      system: 'dev'
+                  - tool: listMembers
+                    args:
+                      validDsn: 'USER.SRC.COPYBOOK'
+          - name: answer shows dev members (EVALSWD, not prod EVALSWP)
+            answerContains:
+              pattern: '^(?![\s\S]*EVALSWP)[\s\S]*EVALSWD'
+
+  - id: delete-after-switch
+    turns:
+      - prompt: On the prod system, read member CUSTFILE of USER.SRC.COBOL and tell me its PROGRAM-ID.
+        assertions:
+          - name: turn 1 reads on prod
+            anyOf:
+              - toolCall:
+                  tools: [readDataset]
+                  args:
+                    validDsn: 'USER.SRC.COBOL(CUSTFILE)'
+                    system: 'prod'
+              - toolCallOrder:
+                  - tool: setSystem
+                    args:
+                      system: 'prod'
+                  - tool: readDataset
+                    args:
+                      validDsn: 'USER.SRC.COBOL(CUSTFILE)'
+      - prompt: Now on the test system, create a new scratch member EVALSCR in USER.SRC.COBOL containing the single line "SCRATCH".
+        assertions:
+          - name: turn 2 writes on test
+            anyOf:
+              - toolCall:
+                  tools: [writeDataset]
+                  args:
+                    validDsn: 'USER.SRC.COBOL(EVALSCR)'
+                    system: 'test'
+              - toolCallOrder:
+                  - tool: setSystem
+                    args:
+                      system: 'test'
+                  - tool: writeDataset
+                    args:
+                      validDsn: 'USER.SRC.COBOL(EVALSCR)'
+      - prompt: Delete that member.
+        assertions:
+          - name: exactly one member delete, of EVALSCR, and no prefix delete
+            allOf:
+              - toolCall:
+                  tool: deleteDataset
+                  count: 1
+                  args:
+                    validDsn: 'USER.SRC.COBOL(EVALSCR)'
+              - toolCall:
+                  tool: deleteDatasetsUnderPrefix
+                  count: 0
+      - prompt: List the member names of USER.SRC.COBOL on the test system, names only.
+        assertions:
+          - name: EVALSCR is gone from test (a delete on the wrong system leaves it there)
+            answerContains:
+              pattern: '^(?![\s\S]*EVALSCR)[\s\S]*CUSTFILE'
+
+  - id: no-system-read
+    prompt: List the members of USER.JCL.CNTL.
+    assertions:
+      # Passes if the model asks which system, or looked at the configured systems and says which one it used.
+      - name: asks which system, or checks the systems and names the one used
+        anyOf:
+          - answerContains:
+              pattern: '(which|what|specify|choose|select|clarif|tell me|let me know).{0,80}(system|lpar|host|environment)|(system|lpar).{0,60}\?'
+          - allOf:
+              - toolCall:
+                  tools: [listSystems, getContext]
+              - answerContains:
+                  pattern: 'mainframe-(dev|test|prod)|\b(dev|test|prod)\b'
+
+  - id: no-system-delete
+    prompt: Delete member EVALTMP from USER.SRC.COBOL.
+    assertions:
+      - name: no delete call on any system (a guessed system fails)
+        toolCall:
+          tools: [deleteDataset, deleteDatasetsUnderPrefix]
+          count: 0
+      - name: asks which system
+        answerContains:
+          pattern: '(which|what|specify|choose|select|clarif|tell me|let me know).{0,80}(system|lpar|host|environment)|(system|lpar).{0,60}\?'
+
+  - id: copy-line-dev-to-test
+    prompt: Copy the first line of USER.SRC.COBOL(RPTGEN) from dev into a new member EVALCPY of USER.SRC.COBOL on test, then tell me what line you copied.
+    assertions:
+      - name: reads RPTGEN on dev
+        anyOf:
+          - toolCall:
+              tools: [readDataset]
+              args:
+                validDsn: 'USER.SRC.COBOL(RPTGEN)'
+                system: 'dev'
+          - toolCallOrder:
+              - tool: setSystem
+                args:
+                  system: 'dev'
+              - tool: readDataset
+                args:
+                  validDsn: 'USER.SRC.COBOL(RPTGEN)'
+      - name: writes EVALCPY on test
+        anyOf:
+          - toolCall:
+              tools: [writeDataset]
+              args:
+                validDsn: 'USER.SRC.COBOL(EVALCPY)'
+                system: 'test'
+          - toolCallOrder:
+              - tool: setSystem
+                args:
+                  system: 'test'
+              - tool: writeDataset
+                args:
+                  validDsn: 'USER.SRC.COBOL(EVALCPY)'
+      - answerContains:
+          pattern: 'IDENTIFICATION|DIVISION'

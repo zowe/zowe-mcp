@@ -44,6 +44,10 @@
               "type": "string",
               "enum": ["read-strict", "read", "update", "delete", "full"],
               "description": "Capability tier the mock server registers tools at (--capability-tier). Defaults to 'full'. Set to 'read' to exclude mutating/destructive tools (used by injection variants that verify the deterministic least-privilege control)."
+            },
+            "statelessTools": {
+              "type": "boolean",
+              "description": "Sets ZOWE_MCP_STATELESS_TOOLS on the spawned server. true: setSystem and changeUssDirectory are not registered and every call must pass system. false: forces the default behaviour even if the parent environment enables it. Omit to leave the server default."
             }
           },
           "required": ["initArgs"],

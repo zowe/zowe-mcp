@@ -37,7 +37,7 @@ import { resolveSystemForTool, type SessionState } from '../../zos/session.js';
 import type { SystemRegistry } from '../../zos/system.js';
 import { createToolProgress } from '../progress.js';
 import type { MutationResultMeta } from '../response.js';
-import { buildContext, SYSTEM_PARAM_DESCRIPTION, wrapResponse } from '../response.js';
+import { buildContext, systemParamDescription, wrapResponse } from '../response.js';
 import { ensureContext, errorResult } from '../tool-utils.js';
 import {
   connectCertificateOutputSchema,
@@ -122,7 +122,7 @@ export function registerCertificateTools(
         owner: ownerParam,
         keyring: keyringParam,
         label: labelParam,
-        system: z.string().optional().describe(SYSTEM_PARAM_DESCRIPTION),
+        system: z.string().optional().describe(systemParamDescription()),
       },
     },
     async ({ owner, keyring, label, system }, extra) => {
@@ -186,7 +186,7 @@ export function registerCertificateTools(
           .boolean()
           .optional()
           .describe("Set this certificate as the target ring's default."),
-        system: z.string().optional().describe(SYSTEM_PARAM_DESCRIPTION),
+        system: z.string().optional().describe(systemParamDescription()),
       },
     },
     async (
@@ -269,7 +269,7 @@ export function registerCertificateTools(
           .describe(
             'Do not automatically refresh the DIGTCERT class if the security product reports it is required.'
           ),
-        system: z.string().optional().describe(SYSTEM_PARAM_DESCRIPTION),
+        system: z.string().optional().describe(systemParamDescription()),
       },
     },
     async ({ owner, label, keyring, database, skipRefresh, system }, extra) => {
@@ -347,7 +347,7 @@ export function registerCertificateTools(
           .string()
           .optional()
           .describe('PKCS#12 passphrase. Required when format is "p12".'),
-        system: z.string().optional().describe(SYSTEM_PARAM_DESCRIPTION),
+        system: z.string().optional().describe(systemParamDescription()),
       },
     },
     async ({ owner, keyring, label, format, file, password, system }, extra) => {
@@ -427,7 +427,7 @@ export function registerCertificateTools(
           .describe(
             'Do not automatically refresh the DIGTCERT class if the security product reports it is required.'
           ),
-        system: z.string().optional().describe(SYSTEM_PARAM_DESCRIPTION),
+        system: z.string().optional().describe(systemParamDescription()),
       },
     },
     async ({ owner, keyring, label, usage, file, password, skipRefresh, system }, extra) => {
@@ -487,7 +487,7 @@ export function registerCertificateTools(
         owner: ownerParam,
         keyring: keyringParam,
         label: labelParam,
-        system: z.string().optional().describe(SYSTEM_PARAM_DESCRIPTION),
+        system: z.string().optional().describe(systemParamDescription()),
       },
     },
     async ({ owner, keyring, label, system }, extra) => {
@@ -536,7 +536,7 @@ export function registerCertificateTools(
         owner: ownerParam,
         label: labelParam,
         status: z.enum(['TRUST', 'HIGHTRUST', 'NOTRUST']).describe('The new trust status.'),
-        system: z.string().optional().describe(SYSTEM_PARAM_DESCRIPTION),
+        system: z.string().optional().describe(systemParamDescription()),
       },
     },
     async ({ owner, label, status, system }, extra) => {
@@ -585,7 +585,7 @@ export function registerCertificateTools(
         owner: ownerParam,
         label: z.string().describe('The current certificate label.'),
         newLabel: z.string().describe('The new certificate label.'),
-        system: z.string().optional().describe(SYSTEM_PARAM_DESCRIPTION),
+        system: z.string().optional().describe(systemParamDescription()),
       },
     },
     async ({ owner, label, newLabel, system }, extra) => {
@@ -630,7 +630,7 @@ export function registerCertificateTools(
         'Refresh the DIGTCERT class so that certificate and key ring changes take effect.',
       _meta: { resourceEffectLevel: ResourceEffect.UPDATE },
       inputSchema: {
-        system: z.string().optional().describe(SYSTEM_PARAM_DESCRIPTION),
+        system: z.string().optional().describe(systemParamDescription()),
       },
     },
     async ({ system }, extra) => {

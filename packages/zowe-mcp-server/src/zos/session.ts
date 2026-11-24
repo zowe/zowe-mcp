@@ -81,6 +81,9 @@ export function resolveSystemForTool(
   system?: string
 ): ResolvedSystem {
   if (system === undefined || system === '') {
+    if (sessionState.statelessTools) {
+      return resolveOmittedSystemStateless(systemRegistry, sessionState);
+    }
     const active = sessionState.getActiveSystem();
     if (active !== undefined) {
       const ctx = sessionState.getContext(active);
@@ -181,6 +184,31 @@ export function resolveSystemForTool(
   );
 }
 
+/**
+ * Stateless mode: an omitted `system` is accepted only when exactly one connection is
+ * configured. The active system is deliberately ignored: dataset/USS tools activate a
+ * system as a side effect of an explicit call, which must not leak into later calls.
+ */
+function resolveOmittedSystemStateless(
+  systemRegistry: SystemRegistry,
+  sessionState: SessionState
+): ResolvedSystem {
+  const candidates = systemRegistry.list().flatMap(host => {
+    const specs = systemRegistry.getOrResolve(host)?.connectionSpecs;
+    return specs && specs.length > 1 ? specs : [host];
+  });
+  if (candidates.length === 1) {
+    return resolveSystemForTool(systemRegistry, sessionState, candidates[0]);
+  }
+  if (candidates.length === 0) {
+    throw new Error(`No z/OS system is configured. ${systemNotFoundHint(systemRegistry)}`);
+  }
+  throw new Error(
+    'The "system" parameter is required because several z/OS systems are configured; pass it on every call. ' +
+      `Valid values: ${candidates.join(', ')}`
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Per-system context
 // ---------------------------------------------------------------------------
@@ -224,6 +252,13 @@ export interface SystemContextSummary {
  * working contexts.
  */
 export class SessionState {
+  /** Stateless-tools mode: an omitted `system` never falls back to the active or first system. */
+  readonly statelessTools: boolean;
+
+  constructor(options?: { statelessTools?: boolean }) {
+    this.statelessTools = options?.statelessTools ?? false;
+  }
+
   /** Which system is currently active (`undefined` if none set). */
   private activeSystemId: SystemId | undefined;
 
@@ -284,7 +319,11 @@ export class SessionState {
    */
   getActiveContext(): SystemContext {
     if (this.activeSystemId === undefined) {
-      throw new Error('No active z/OS system. Use setSystem to select a system first.');
+      throw new Error(
+        this.statelessTools
+          ? 'No active z/OS system. Pass the "system" parameter explicitly.'
+          : 'No active z/OS system. Use setSystem to select a system first.'
+      );
     }
     const ctx = this.contexts.get(this.activeSystemId);
     if (!ctx) {
@@ -307,7 +346,9 @@ export class SessionState {
     if (systemId) return systemId;
     if (this.activeSystemId) return this.activeSystemId;
     throw new Error(
-      'No active z/OS system. Use setSystem to select a system, or pass the "system" parameter explicitly.'
+      this.statelessTools
+        ? 'No active z/OS system. Pass the "system" parameter explicitly.'
+        : 'No active z/OS system. Use setSystem to select a system, or pass the "system" parameter explicitly.'
     );
   }
 

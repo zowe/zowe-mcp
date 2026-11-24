@@ -46,7 +46,7 @@ import {
   PAGINATION_NOTE_LINES,
   PAGINATION_NOTE_LIST,
   sanitizeTextForDisplay,
-  SYSTEM_PARAM_DESCRIPTION,
+  systemParamDescription,
   textToLines,
   windowContent,
   withPaginationNote,
@@ -143,7 +143,7 @@ export function registerSystemTools(
       ),
       _meta: { resourceEffectLevel: ResourceEffect.READ },
       inputSchema: {
-        system: z.string().optional().describe(SYSTEM_PARAM_DESCRIPTION),
+        system: z.string().optional().describe(systemParamDescription()),
         offset: offsetParam,
         limit: limitParam,
       },
@@ -194,7 +194,7 @@ export function registerSystemTools(
       ),
       _meta: { resourceEffectLevel: ResourceEffect.READ },
       inputSchema: {
-        system: z.string().optional().describe(SYSTEM_PARAM_DESCRIPTION),
+        system: z.string().optional().describe(systemParamDescription()),
         offset: offsetParam,
         limit: limitParam,
       },
@@ -245,7 +245,7 @@ export function registerSystemTools(
       ),
       _meta: { resourceEffectLevel: ResourceEffect.READ },
       inputSchema: {
-        system: z.string().optional().describe(SYSTEM_PARAM_DESCRIPTION),
+        system: z.string().optional().describe(systemParamDescription()),
         offset: offsetParam,
         limit: limitParam,
       },
@@ -296,7 +296,7 @@ export function registerSystemTools(
       ),
       _meta: { resourceEffectLevel: ResourceEffect.READ },
       inputSchema: {
-        system: z.string().optional().describe(SYSTEM_PARAM_DESCRIPTION),
+        system: z.string().optional().describe(systemParamDescription()),
         offset: offsetParam,
         limit: limitParam,
       },
@@ -348,7 +348,7 @@ export function registerSystemTools(
       ),
       _meta: { resourceEffectLevel: ResourceEffect.READ },
       inputSchema: {
-        system: z.string().optional().describe(SYSTEM_PARAM_DESCRIPTION),
+        system: z.string().optional().describe(systemParamDescription()),
         date: z
           .string()
           .optional()

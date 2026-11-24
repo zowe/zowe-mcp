@@ -34,7 +34,7 @@ import { createToolProgress } from '../progress.js';
 import {
   buildContext,
   sanitizeTextForDisplay,
-  SYSTEM_PARAM_DESCRIPTION,
+  systemParamDescription,
   wrapResponse,
   type ResponseContext,
 } from '../response.js';
@@ -219,7 +219,7 @@ export function registerLocalFileTools(
             'Destination file path: absolute, or relative to the first workspace root when using roots/fallback. ' +
               'Parent directories are created automatically if missing.'
           ),
-        system: z.string().optional().describe(SYSTEM_PARAM_DESCRIPTION),
+        system: z.string().optional().describe(systemParamDescription()),
         encoding: z.string().optional().describe('Mainframe (EBCDIC) encoding for the read.'),
         overwrite: z
           .boolean()
@@ -296,7 +296,7 @@ export function registerLocalFileTools(
           .describe('Source file path under an MCP root or configured workspace directory.'),
         dsn: z.string().describe('Fully qualified data set name.'),
         member: z.string().optional().describe('Member name for PDS or PDS/E data sets.'),
-        system: z.string().optional().describe(SYSTEM_PARAM_DESCRIPTION),
+        system: z.string().optional().describe(systemParamDescription()),
         etag: z.string().optional().describe('ETag from a previous read for optimistic locking.'),
         encoding: z.string().optional().describe('Mainframe (EBCDIC) encoding for the write.'),
       },
@@ -386,7 +386,7 @@ export function registerLocalFileTools(
             'Destination path under workspace roots or fallback directory. ' +
               'Parent directories are created automatically if missing.'
           ),
-        system: z.string().optional().describe(SYSTEM_PARAM_DESCRIPTION),
+        system: z.string().optional().describe(systemParamDescription()),
         encoding: z.string().optional().describe('Mainframe encoding for the file read.'),
         overwrite: z
           .boolean()
@@ -457,7 +457,7 @@ export function registerLocalFileTools(
       inputSchema: {
         localPath: z.string().describe('Source file under workspace roots or fallback directory.'),
         path: z.string().describe('Target USS path on z/OS.'),
-        system: z.string().optional().describe(SYSTEM_PARAM_DESCRIPTION),
+        system: z.string().optional().describe(systemParamDescription()),
         etag: z.string().optional().describe('ETag for optimistic locking.'),
         encoding: z.string().optional().describe('Mainframe encoding for the write.'),
       },
@@ -525,7 +525,7 @@ export function registerLocalFileTools(
             'Destination path under workspace roots or fallback directory. ' +
               'Parent directories are created automatically if missing.'
           ),
-        system: z.string().optional().describe(SYSTEM_PARAM_DESCRIPTION),
+        system: z.string().optional().describe(systemParamDescription()),
         overwrite: z
           .boolean()
           .optional()

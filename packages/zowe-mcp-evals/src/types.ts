@@ -24,6 +24,12 @@ export interface SetMockConfig {
    * because it was never registered).
    */
   capabilityTier?: string;
+  /**
+   * Sets ZOWE_MCP_STATELESS_TOOLS on the spawned server: true hides setSystem and
+   * changeUssDirectory so each call must name its system; false forces them on even if the
+   * parent environment sets the variable. Omit to leave the server default (off).
+   */
+  statelessTools?: boolean;
 }
 
 /**

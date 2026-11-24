@@ -1,0 +1,14 @@
+# yaml-language-server: $schema=../schemas/evals-question-set.schema.json
+# Multi-system targeting (stateless arm): the same questions and assertions as `multi-system`
+# (questionsFrom), but the server runs with ZOWE_MCP_STATELESS_TOOLS=1: setSystem and
+# changeUssDirectory are not registered and a call without `system` fails with the list of
+# valid values. Compare the pass rate with `multi-system`. Use --no-cache for both runs.
+config:
+  name: multi-system-stateless
+  description: Same multi-system questions with setSystem and changeUssDirectory removed (every call must pass system)
+  repetitions: 3
+  minSuccessRate: 0.5
+  mock:
+    initArgs: --preset default --systems 3 --users-per-system 1
+    statelessTools: true
+  questionsFrom: multi-system

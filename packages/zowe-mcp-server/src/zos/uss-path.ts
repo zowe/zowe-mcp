@@ -9,6 +9,8 @@
  *
  */
 
+import { isStatelessToolsActive } from '../stateless-tools.js';
+
 /**
  * USS path normalization and validation.
  *
@@ -66,7 +68,9 @@ export function resolveUssPath(input: string, cwd?: string): string {
   }
   if (!cwd || cwd.trim() === '') {
     throw new Error(
-      'Relative USS path requires a current working directory. Call getUssHome or changeUssDirectory first.'
+      isStatelessToolsActive()
+        ? 'Relative USS path requires a current working directory. Use an absolute path or call getUssHome first.'
+        : 'Relative USS path requires a current working directory. Call getUssHome or changeUssDirectory first.'
     );
   }
   const cwdNorm = cwd.replace(/\/+$/, '');

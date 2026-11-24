@@ -135,6 +135,26 @@ questions:
     expect(result.config.mock?.capabilityTier).toBe('read');
   });
 
+  it('parses mock.statelessTools into the set config', () => {
+    const yamlContent = `
+config:
+  name: stateless
+  mock:
+    initArgs: --preset default
+    statelessTools: true
+questions:
+  - id: test
+    prompt: Hello
+    assertions:
+      - toolCall:
+          tool: readDataset
+`;
+    const path = join(tmpDir, 'stateless.yaml');
+    writeFileSync(path, yamlContent, 'utf-8');
+    const result = loadSetYaml(path);
+    expect(result.config.mock?.statelessTools).toBe(true);
+  });
+
   it('parses a multi-turn question with per-turn assertions', () => {
     const yamlContent = `
 questions:

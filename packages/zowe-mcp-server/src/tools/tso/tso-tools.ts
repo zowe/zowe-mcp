@@ -34,7 +34,7 @@ import {
   MAX_READ_LINES,
   PAGINATION_NOTE_LINES,
   sanitizeTextForDisplay,
-  SYSTEM_PARAM_DESCRIPTION,
+  systemParamDescription,
   textToLines,
   windowContent,
   withPaginationNote,
@@ -74,7 +74,7 @@ export function registerTsoTools(server: McpServer, deps: TsoToolDeps, logger: L
           .describe(
             "The TSO command to execute (e.g. LISTDS 'USER.DATA', LISTALC, LISTCAT, STATUS)."
           ),
-        system: z.string().optional().describe(SYSTEM_PARAM_DESCRIPTION),
+        system: z.string().optional().describe(systemParamDescription()),
         startLine: z
           .number()
           .int()

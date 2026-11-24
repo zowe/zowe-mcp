@@ -1,0 +1,209 @@
+# yaml-language-server: $schema=../schemas/evals-question-set.schema.json
+# Multi-system targeting (baseline arm): three mock systems, every question names its target
+# system the way a user would (full host, or unqualified "test"/"prod"/"dev"). Measures
+# whether the model passes `system` correctly when it is not the first or only system.
+#
+# Fair to both arms: a data tool call passes if it carries the expected `system`, or if
+# `setSystem` was called with that system earlier (the baseline server still has setSystem).
+# `toolCall.tool` judges only the LAST call to a tool, so these use `tools: [x]`, which
+# accepts any matching call (needed when one question calls the same tool on two systems).
+# The setSystem alternative cannot check that the later data call omits `system`.
+# Pair with `multi-system-stateless`, which reuses these questions with setSystem and
+# changeUssDirectory removed.
+#
+# Generated mock data is IDENTICAL across systems (same USER HLQ, data set names and
+# contents; the USS tree exists only on the first system, mainframe-dev), so answers cannot
+# reveal which system was used. The `system` argument is what the assertions check.
+# Host order from init-mock: dev, test, prod. Matching is case-insensitive substring, so
+# 'test' accepts mainframe-test.example.com, test, and USER@mainframe-test.example.com.
+config:
+  name: multi-system
+  description: Agent must target the named z/OS system when several are configured (setSystem available)
+  repetitions: 3
+  minSuccessRate: 0.5
+  mock:
+    initArgs: --preset default --systems 3 --users-per-system 1
+    statelessTools: false
+
+questions:
+  - id: read-member-on-test
+    prompt: On mainframe-test.example.com, read member CUSTFILE of USER.SRC.COBOL and tell me its PROGRAM-ID.
+    assertions:
+      - name: reads on the test system
+        anyOf:
+          - toolCall:
+              tools: [readDataset]
+              args:
+                validDsn: 'USER.SRC.COBOL(CUSTFILE)'
+                system: 'test'
+          - toolCallOrder:
+              - tool: setSystem
+                args:
+                  system: 'test'
+              - tool: readDataset
+                args:
+                  validDsn: 'USER.SRC.COBOL(CUSTFILE)'
+      - answerContains:
+          substring: 'CUSTFILE'
+
+  - id: list-members-on-prod
+    prompt: List the members of USER.SRC.COPYBOOK on the prod system.
+    assertions:
+      - name: lists on the prod system
+        anyOf:
+          - toolCall:
+              tools: [listMembers]
+              args:
+                validDsn: 'USER.SRC.COPYBOOK'
+                system: 'prod'
+          - toolCallOrder:
+              - tool: setSystem
+                args:
+                  system: 'prod'
+              - tool: listMembers
+                args:
+                  validDsn: 'USER.SRC.COPYBOOK'
+      - answerContains:
+          substring: 'CUSTREC'
+
+  - id: list-datasets-on-test
+    prompt: Which data sets does USER have on the test system? List everything under the USER high-level qualifier there.
+    assertions:
+      - name: lists on the test system
+        anyOf:
+          - toolCall:
+              tools: [listDatasets]
+              args:
+                validDsn: 'USER.**'
+                system: 'test'
+          - toolCallOrder:
+              - tool: setSystem
+                args:
+                  system: 'test'
+              - tool: listDatasets
+                args:
+                  validDsn: 'USER.**'
+      - answerContains:
+          pattern: 'SRC\.COBOL|JCL\.CNTL'
+
+  - id: compare-dev-and-prod
+    prompt: Read member RPTGEN of USER.SRC.COBOL on mainframe-dev.example.com and on mainframe-prod.example.com, and tell me whether the first line is the same on both.
+    assertions:
+      - name: reads on dev
+        anyOf:
+          - toolCall:
+              tools: [readDataset]
+              args:
+                validDsn: 'USER.SRC.COBOL(RPTGEN)'
+                system: 'dev'
+          - toolCallOrder:
+              - tool: setSystem
+                args:
+                  system: 'dev'
+              - tool: readDataset
+                args:
+                  validDsn: 'USER.SRC.COBOL(RPTGEN)'
+      - name: reads on prod
+        anyOf:
+          - toolCall:
+              tools: [readDataset]
+              args:
+                validDsn: 'USER.SRC.COBOL(RPTGEN)'
+                system: 'prod'
+          - toolCallOrder:
+              - tool: setSystem
+                args:
+                  system: 'prod'
+              - tool: readDataset
+                args:
+                  validDsn: 'USER.SRC.COBOL(RPTGEN)'
+
+  - id: write-member-on-test
+    prompt: On the test system, write the single line "MULTI SYSTEM EVAL" to member EVALMEM of USER.SRC.COBOL, then read it back and tell me the line.
+    assertions:
+      - name: writes on the test system
+        anyOf:
+          - toolCall:
+              tools: [writeDataset]
+              args:
+                validDsn: 'USER.SRC.COBOL(EVALMEM)'
+                system: 'test'
+          - toolCallOrder:
+              - tool: setSystem
+                args:
+                  system: 'test'
+              - tool: writeDataset
+                args:
+                  validDsn: 'USER.SRC.COBOL(EVALMEM)'
+      - answerContains:
+          substring: 'MULTI SYSTEM EVAL'
+
+  - id: uss-directory-on-dev
+    prompt: On mainframe-dev.example.com, in directory /u/USER, list the files and then read file.txt.
+    assertions:
+      - name: lists USS files on dev
+        anyOf:
+          - toolCall:
+              tools: [listUssFiles]
+              args:
+                system: 'dev'
+          - toolCallOrder:
+              - tool: setSystem
+                args:
+                  system: 'dev'
+              - tool: listUssFiles
+      - name: reads USS file on dev
+        anyOf:
+          - toolCall:
+              tools: [readUssFile]
+              args:
+                system: 'dev'
+          - toolCallOrder:
+              - tool: setSystem
+                args:
+                  system: 'dev'
+              - tool: readUssFile
+      - answerContains:
+          substring: 'USS mock'
+
+  - id: search-on-prod
+    prompt: On the prod system, search USER.SRC.COBOL for the string DIVISION and tell me which members contain it.
+    assertions:
+      - name: searches on the prod system
+        anyOf:
+          - toolCall:
+              tools: [searchInDataset]
+              args:
+                validDsn: 'USER.SRC.COBOL'
+                string: 'DIVISION'
+                system: 'prod'
+          - toolCallOrder:
+              - tool: setSystem
+                args:
+                  system: 'prod'
+              - tool: searchInDataset
+                args:
+                  validDsn: 'USER.SRC.COBOL'
+                  string: 'DIVISION'
+      - answerContains:
+          pattern: 'CUSTFILE|ACCTPROC|RPTGEN|BATCHUPD|VALCHECK'
+
+  - id: list-members-on-dev
+    prompt: On dev, list the members of USER.JCL.CNTL.
+    assertions:
+      - name: lists on the dev system
+        anyOf:
+          - toolCall:
+              tools: [listMembers]
+              args:
+                validDsn: 'USER.JCL.CNTL'
+                system: 'dev'
+          - toolCallOrder:
+              - tool: setSystem
+                args:
+                  system: 'dev'
+              - tool: listMembers
+                args:
+                  validDsn: 'USER.JCL.CNTL'
+      - answerContains:
+          substring: 'RUNJOB'

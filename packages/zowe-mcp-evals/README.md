@@ -139,7 +139,7 @@ Question sets are YAML files in `questions/`. Each file has:
 
 - **repetitions** — Runs per question (default: 5).
 - **minSuccessRate** — Threshold in [0, 1], intended as "a question passes if its pass rate ≥ this" (default: 0.8). **Currently advisory only:** no code reads it. It previously gated cache writes, which was unrelated to its documented meaning and is no longer done; the per-question `✓`/`✗` in the run output still requires *all* repetitions to pass. Treat it as documentation of intent until it is wired into reporting.
-- **mock** — Use mock backend. One string `initArgs` passed to init-mock (after `--output <dir>`). Example: `initArgs: --preset default` or one line per option in YAML.
+- **mock** — Use mock backend. One string `initArgs` passed to init-mock (after `--output <dir>`). Example: `initArgs: --preset default` or one line per option in YAML. Optional `capabilityTier` selects the tool tier (default `full`). Optional `statelessTools` (boolean) sets `ZOWE_MCP_STATELESS_TOOLS` on the spawned server: `true` removes `setSystem` and `changeUssDirectory` so every call must pass `system`; `false` forces the default even if the parent environment enables it. See `multi-system` and `multi-system-stateless`.
 - **native** — Use native z/OS backend. One string `serverArgs` (e.g. `--native --config native-config.json`). Passwords from env (`ZOWE_MCP_PASSWORD_*`, `ZOS_PASSWORD`).
 - **systemPrompt** — Full system prompt for the agent (replaces default).
 - **systemPromptAddition** — Appended to the default system prompt.

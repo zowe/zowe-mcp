@@ -22,31 +22,42 @@ import { z } from 'zod';
 // listSystems
 // ---------------------------------------------------------------------------
 
-const listSystemsEntrySchema = z.object({
-  host: z.string().describe('z/OS system hostname (e.g. sys1.example.com).'),
-  description: z.string().optional().describe('Optional human-readable label for the system.'),
-  connections: z
-    .array(z.string())
-    .optional()
-    .describe(
-      'Connection specs (user@host or user@host:port) when multiple connections exist for this host. Use setSystem with one of these when disambiguating.'
-    ),
-  active: z.boolean().describe('True if this system is the currently active one.'),
-});
-
-export const listSystemsOutputSchema = z
-  .object({
-    systems: z
-      .array(listSystemsEntrySchema)
-      .describe('All configured z/OS systems you have access to.'),
-    messages: z
+function makeListSystemsEntrySchema(stateless: boolean) {
+  return z.object({
+    host: z.string().describe('z/OS system hostname (e.g. sys1.example.com).'),
+    description: z.string().optional().describe('Optional human-readable label for the system.'),
+    connections: z
       .array(z.string())
       .optional()
-      .describe('Informational messages (e.g. resolution notes). Omitted when empty.'),
-  })
-  .describe(
-    'List of configured z/OS systems. Each entry has host, optional description and connections, and active flag. Use setSystem to select the active system.'
-  );
+      .describe(
+        stateless
+          ? 'Connection specs (user@host or user@host:port) when multiple connections exist for this host. Pass one of these as system when disambiguating.'
+          : 'Connection specs (user@host or user@host:port) when multiple connections exist for this host. Use setSystem with one of these when disambiguating.'
+      ),
+    active: z.boolean().describe('True if this system is the currently active one.'),
+  });
+}
+
+/** Stateless mode has no setSystem, so its wording differs. */
+export function makeListSystemsOutputSchema(stateless: boolean) {
+  return z
+    .object({
+      systems: z
+        .array(makeListSystemsEntrySchema(stateless))
+        .describe('All configured z/OS systems you have access to.'),
+      messages: z
+        .array(z.string())
+        .optional()
+        .describe('Informational messages (e.g. resolution notes). Omitted when empty.'),
+    })
+    .describe(
+      stateless
+        ? 'List of configured z/OS systems. Each entry has host, optional description and connections, and active flag. Pass the host (or connection spec) as the system parameter of other tools.'
+        : 'List of configured z/OS systems. Each entry has host, optional description and connections, and active flag. Use setSystem to select the active system.'
+    );
+}
+
+export const listSystemsOutputSchema = makeListSystemsOutputSchema(false);
 
 // ---------------------------------------------------------------------------
 // setSystem
@@ -119,40 +130,46 @@ export const setSystemOutputSchema = z
 // getContext
 // ---------------------------------------------------------------------------
 
-const getContextActiveSystemSchema = z.object({
-  system: z.string().describe('Hostname of the active z/OS system.'),
-  userId: z.string().describe('User ID on that system.'),
-  activeConnection: z
-    .string()
-    .optional()
-    .describe('Connection spec (user@host) for the active system.'),
-  ussHome: z
-    .string()
-    .optional()
-    .describe('USS home directory path for this system/user (when known).'),
-  ussCwd: z
-    .string()
-    .optional()
-    .describe('Current USS working directory (when set via changeUssDirectory).'),
-  mainframeMvsEncoding: z
-    .string()
-    .optional()
-    .describe(
-      'Effective MVS/data set encoding for this system (e.g. IBM-037). Resolved from per-system override or server default.'
-    ),
-  mainframeUssEncoding: z
-    .string()
-    .optional()
-    .describe(
-      'Effective USS encoding for this system (e.g. IBM-1047). Resolved from per-system override or server default.'
-    ),
-  jobCard: z
-    .string()
-    .optional()
-    .describe(
-      'Job card for this connection when configured. Used by submitJob when JCL has no job card.'
-    ),
-});
+function makeGetContextActiveSystemSchema(stateless: boolean) {
+  return z.object({
+    system: z.string().describe('Hostname of the active z/OS system.'),
+    userId: z.string().describe('User ID on that system.'),
+    activeConnection: z
+      .string()
+      .optional()
+      .describe('Connection spec (user@host) for the active system.'),
+    ussHome: z
+      .string()
+      .optional()
+      .describe('USS home directory path for this system/user (when known).'),
+    ussCwd: z
+      .string()
+      .optional()
+      .describe(
+        stateless
+          ? 'Effective USS working directory (the USS home).'
+          : 'Current USS working directory (when set via changeUssDirectory).'
+      ),
+    mainframeMvsEncoding: z
+      .string()
+      .optional()
+      .describe(
+        'Effective MVS/data set encoding for this system (e.g. IBM-037). Resolved from per-system override or server default.'
+      ),
+    mainframeUssEncoding: z
+      .string()
+      .optional()
+      .describe(
+        'Effective USS encoding for this system (e.g. IBM-1047). Resolved from per-system override or server default.'
+      ),
+    jobCard: z
+      .string()
+      .optional()
+      .describe(
+        'Job card for this connection when configured. Used by submitJob when JCL has no job card.'
+      ),
+  });
+}
 
 const getContextSystemEntrySchema = z.object({
   host: z.string().describe('System hostname.'),
@@ -195,29 +212,33 @@ const getContextServerSchema = z.object({
     ),
 });
 
-export const getContextOutputSchema = z
-  .object({
-    server: getContextServerSchema.describe(
-      'Zowe MCP server metadata: name, version, registered components, and backend status.'
-    ),
-    activeSystem: z
-      .union([getContextActiveSystemSchema, z.null()])
-      .describe('Currently selected system and user; null if no system has been set yet.'),
-    allSystems: z
-      .array(getContextSystemEntrySchema)
-      .describe(
-        'All configured z/OS systems with host, optional description/connections, and active flag.'
+export function makeGetContextOutputSchema(stateless: boolean) {
+  return z
+    .object({
+      server: getContextServerSchema.describe(
+        'Zowe MCP server metadata: name, version, registered components, and backend status.'
       ),
-    recentlyUsedSystems: z
-      .array(getContextRecentlyUsedEntrySchema)
-      .describe(
-        'Systems that have been used in this session (have saved context: userId, optional ussHome/encodings).'
-      ),
-    messages: z
-      .array(z.string())
-      .optional()
-      .describe('Informational messages. Omitted when empty.'),
-  })
-  .describe(
-    'Current session context: server info, active system (or null), all configured systems, recently used systems, and messages.'
-  );
+      activeSystem: z
+        .union([makeGetContextActiveSystemSchema(stateless), z.null()])
+        .describe('Currently selected system and user; null if no system has been set yet.'),
+      allSystems: z
+        .array(getContextSystemEntrySchema)
+        .describe(
+          'All configured z/OS systems with host, optional description/connections, and active flag.'
+        ),
+      recentlyUsedSystems: z
+        .array(getContextRecentlyUsedEntrySchema)
+        .describe(
+          'Systems that have been used in this session (have saved context: userId, optional ussHome/encodings).'
+        ),
+      messages: z
+        .array(z.string())
+        .optional()
+        .describe('Informational messages. Omitted when empty.'),
+    })
+    .describe(
+      'Current session context: server info, active system (or null), all configured systems, recently used systems, and messages.'
+    );
+}
+
+export const getContextOutputSchema = makeGetContextOutputSchema(false);

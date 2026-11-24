@@ -256,6 +256,7 @@ function parseSetConfig(raw: unknown): SetConfig {
     if (typeof m.initArgs === 'string') {
       config.mock = { initArgs: m.initArgs };
       if (typeof m.capabilityTier === 'string') config.mock.capabilityTier = m.capabilityTier;
+      if (typeof m.statelessTools === 'boolean') config.mock.statelessTools = m.statelessTools;
     }
   }
   if (o.native && typeof o.native === 'object') {

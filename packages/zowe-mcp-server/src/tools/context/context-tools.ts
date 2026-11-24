@@ -25,6 +25,7 @@ import {
   TIER_TO_MAX_EFFECT,
 } from '../../capability-level.js';
 import type { Logger } from '../../log.js';
+import { isStatelessToolsActive } from '../../stateless-tools.js';
 import type { CredentialProvider } from '../../zos/credentials.js';
 import type { EncodingOptions } from '../../zos/encoding.js';
 import type { JobCardStore } from '../../zos/job-cards.js';
@@ -34,8 +35,8 @@ import type { SystemRegistry } from '../../zos/system.js';
 import { createToolProgress } from '../progress.js';
 import {
   addZosConnectionOutputSchema,
-  getContextOutputSchema,
-  listSystemsOutputSchema,
+  makeGetContextOutputSchema,
+  makeListSystemsOutputSchema,
   removeZosConnectionOutputSchema,
   setSystemOutputSchema,
 } from './context-output-schemas.js';
@@ -79,6 +80,7 @@ export function registerContextTools(
   logger: Logger
 ): void {
   const log = logger.child('context');
+  const stateless = isStatelessToolsActive();
   const {
     serverVersion,
     backendKind,
@@ -175,7 +177,11 @@ export function registerContextTools(
           connectionSpec: normalized,
           persisted: true,
           messages: [
-            'Connection added for your user only. Use setSystem with this host or connection spec. Password (SSH, Db2, etc.): elicitation when the client supports it, else set ZOWE_MCP_PASSWORD_* or ZOWE_MCP_CREDENTIALS.',
+            'Connection added for your user only. ' +
+              (stateless
+                ? 'Pass this host or connection spec as the system parameter. '
+                : 'Use setSystem with this host or connection spec. ') +
+              'Password (SSH, Db2, etc.): elicitation when the client supports it, else set ZOWE_MCP_PASSWORD_* or ZOWE_MCP_CREDENTIALS.',
           ],
         };
         await progress.complete('ok');
@@ -227,7 +233,9 @@ export function registerContextTools(
           connectionSpec: normalized,
           persisted: true,
           messages: [
-            'Connection removed from your saved list. If it was the active connection, call setSystem to switch to another host or connection.',
+            stateless
+              ? 'Connection removed from your saved list.'
+              : 'Connection removed from your saved list. If it was the active connection, call setSystem to switch to another host or connection.',
           ],
         };
         await progress.complete('ok');
@@ -248,9 +256,11 @@ export function registerContextTools(
       {
         description:
           'List all z/OS systems you have access to. Each system is a host; multiple configured connections (user@host) to the same host appear as one system with a connections list. ' +
-          'Use setSystem to select which system (and optionally which connection) to use.',
+          (stateless
+            ? 'Pass the host (or connection spec) as the system parameter of other tools.'
+            : 'Use setSystem to select which system (and optionally which connection) to use.'),
         _meta: { resourceEffectLevel: ResourceEffect.NONE },
-        outputSchema: listSystemsOutputSchema,
+        outputSchema: makeListSystemsOutputSchema(stateless),
       },
       async extra => {
         const progress = createToolProgress(extra, 'List configured systems');
@@ -281,7 +291,7 @@ export function registerContextTools(
   // -----------------------------------------------------------------------
   // setSystem (only when z/OS backend is configured)
   // -----------------------------------------------------------------------
-  if (hasBackend)
+  if (hasBackend && !stateless)
     server.registerTool(
       'setSystem',
       {
@@ -401,7 +411,7 @@ export function registerContextTools(
         'all known systems (with their connections when multiple exist), and recently used systems (those with saved context). ' +
         backendDescription,
       _meta: { resourceEffectLevel: ResourceEffect.NONE },
-      outputSchema: getContextOutputSchema,
+      outputSchema: makeGetContextOutputSchema(stateless),
     },
     async extra => {
       const progress = createToolProgress(extra, 'Get current session context');

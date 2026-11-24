@@ -31,7 +31,7 @@ import {
   buildContext,
   getReadMessages,
   PAGINATION_NOTE_LINES,
-  SYSTEM_PARAM_DESCRIPTION,
+  systemParamDescription,
   textToLines,
   windowContent,
   withPaginationNote,
@@ -90,7 +90,7 @@ export function registerConsoleTools(
           .string()
           .describe('Console command to execute (e.g. "D T", "D A,L", "DISPLAY IPLINFO").'),
         consoleName: z.string().optional().describe(CONSOLE_NAME_DESCRIPTION),
-        system: z.string().optional().describe(SYSTEM_PARAM_DESCRIPTION),
+        system: z.string().optional().describe(systemParamDescription()),
         startLine: z
           .number()
           .int()
@@ -201,7 +201,7 @@ export function registerConsoleTools(
               'Full syntax: z/OS MVS System Commands, DISPLAY command.'
           ),
         consoleName: z.string().optional().describe(CONSOLE_NAME_DESCRIPTION),
-        system: z.string().optional().describe(SYSTEM_PARAM_DESCRIPTION),
+        system: z.string().optional().describe(systemParamDescription()),
         startLine: z
           .number()
           .int()

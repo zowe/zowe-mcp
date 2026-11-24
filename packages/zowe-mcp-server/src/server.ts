@@ -36,6 +36,7 @@ import { registerDatasetPrompts } from './prompts/dataset-prompts.js';
 import { registerImprovementPrompts } from './prompts/improvement-prompts.js';
 import { registerDatasetResources } from './resources/dataset-resources.js';
 import { getServerPackageJson } from './runtime/asset-root.js';
+import { resolveStatelessTools, setStatelessToolsActive } from './stateless-tools.js';
 import { registerCertificateTools } from './tools/certificates/certificate-tools.js';
 import { registerConsoleTools } from './tools/console/console-tools.js';
 import { registerContextTools } from './tools/context/context-tools.js';
@@ -110,6 +111,11 @@ CRITICAL — Non-retryable errors
 When ANY tool response contains "stop": true, a fatal configuration error has occurred.
 MANDATORY: Do NOT call any more tools. Do NOT retry. Do NOT attempt workarounds.
 Show the exact text of the "suggestion" field to the user and wait for them to fix the configuration.`;
+
+/** Appended to the server instructions in stateless-tools mode. */
+export const STATELESS_TOOLS_INSTRUCTIONS = `Target system
+
+There is no "current system". Pass the \`system\` parameter (a host, or user@host when a host has several connections) on every tool call. It may be omitted only when exactly one connection is configured. Use listSystems to see the valid values. USS paths should be absolute (starting with /); relative paths resolve against the USS home directory.`;
 
 /**
  * Data-trust-boundary directive appended to the server instructions. It marks all
@@ -209,6 +215,12 @@ export interface CreateServerOptions {
    * When false or omitted, no tool-call logging. Can be overridden by env ZOWE_MCP_LOG_TOOL_CALLS=1 or true.
    */
   logToolCalls?: boolean;
+  /**
+   * Stateless-tools mode: `setSystem` and `changeUssDirectory` are not registered and every tool
+   * call must pass `system` unless exactly one connection is configured. Default off; can be
+   * enabled with env ZOWE_MCP_STATELESS_TOOLS=1 or true.
+   */
+  statelessTools?: boolean;
   /**
    * When provided (and Zowe Explorer is available), registers open-in-editor tools
    * that send events to the VS Code extension (data set, USS file, job/spool).
@@ -325,6 +337,9 @@ export function createServer(options?: CreateServerOptions): CreateServerResult 
     mockMode: !!options?.backend,
   });
 
+  const statelessTools = resolveStatelessTools(options?.statelessTools);
+  setStatelessToolsActive(statelessTools);
+
   const capabilityTier = resolveCapabilityTier({
     option: options?.capabilityTier,
     env: process.env.ZOWE_MCP_CAPABILITY_TIER,
@@ -343,7 +358,8 @@ export function createServer(options?: CreateServerOptions): CreateServerResult 
         SERVER_INSTRUCTIONS +
         (isDataMarkingEnabled() ? '\n\n' + DATA_TRUST_BOUNDARY_INSTRUCTIONS : '') +
         '\n\n' +
-        buildCapabilityInstructions(capabilityTier, getMcpDeploymentMode()),
+        buildCapabilityInstructions(capabilityTier, getMcpDeploymentMode()) +
+        (statelessTools ? '\n\n' + STATELESS_TOOLS_INSTRUCTIONS : ''),
     }
   );
 
@@ -410,7 +426,7 @@ export function createServer(options?: CreateServerOptions): CreateServerResult 
     const backend = options.backend!;
     const systemRegistry = options.systemRegistry ?? new SystemRegistry();
     const credentialProvider = options.credentialProvider!;
-    const sessionState = new SessionState();
+    const sessionState = new SessionState({ statelessTools });
     sessionStateForZe = sessionState;
     backendKindForZe = getBackendKind(backend);
     const encodingOpt = options.encodingOptions;

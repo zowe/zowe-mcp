@@ -20,6 +20,7 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { ResourceEffect } from '../../capability-level.js';
 import type { Logger } from '../../log.js';
+import { isStatelessToolsActive } from '../../stateless-tools.js';
 import type { ZosBackend } from '../../zos/backend.js';
 import type { CredentialProvider } from '../../zos/credentials.js';
 import type { EncodingOptions } from '../../zos/encoding.js';
@@ -40,7 +41,7 @@ import {
   PAGINATION_NOTE_LINES,
   PAGINATION_NOTE_LIST,
   sanitizeTextForDisplay,
-  SYSTEM_PARAM_DESCRIPTION,
+  systemParamDescription,
   textToLines,
   windowContent,
   withPaginationNote,
@@ -112,7 +113,7 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
       _meta: { resourceEffectLevel: ResourceEffect.READ },
       outputSchema: getUssHomeOutputSchema,
       inputSchema: {
-        system: z.string().optional().describe(SYSTEM_PARAM_DESCRIPTION),
+        system: z.string().optional().describe(systemParamDescription()),
       },
     },
     async ({ system }, extra) => {
@@ -159,68 +160,70 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
   // -----------------------------------------------------------------------
   // changeUssDirectory
   // -----------------------------------------------------------------------
-  server.registerTool(
-    'changeUssDirectory',
-    {
-      description:
-        'Set the USS current working directory for the active (or specified) system. ' +
-        'Path can be absolute (starts with /) or relative to the current working directory. ' +
-        'The new cwd is used to resolve relative paths in other USS tools and is shown in getContext as ussCwd.',
-      _meta: { resourceEffectLevel: ResourceEffect.READ },
-      outputSchema: changeUssDirectoryOutputSchema,
-      inputSchema: {
-        path: z
-          .string()
-          .describe(
-            'Directory path to set as current working directory (absolute or relative to current cwd).'
-          ),
-        system: z.string().optional().describe(SYSTEM_PARAM_DESCRIPTION),
+  if (!isStatelessToolsActive()) {
+    server.registerTool(
+      'changeUssDirectory',
+      {
+        description:
+          'Set the USS current working directory for the active (or specified) system. ' +
+          'Path can be absolute (starts with /) or relative to the current working directory. ' +
+          'The new cwd is used to resolve relative paths in other USS tools and is shown in getContext as ussCwd.',
+        _meta: { resourceEffectLevel: ResourceEffect.READ },
+        outputSchema: changeUssDirectoryOutputSchema,
+        inputSchema: {
+          path: z
+            .string()
+            .describe(
+              'Directory path to set as current working directory (absolute or relative to current cwd).'
+            ),
+          system: z.string().optional().describe(systemParamDescription()),
+        },
       },
-    },
-    async ({ path: pathArg, system }, extra) => {
-      const progress = createToolProgress(extra, 'Change USS directory');
-      await progress.start();
-      log.info('changeUssDirectory called', { path: pathArg, system });
+      async ({ path: pathArg, system }, extra) => {
+        const progress = createToolProgress(extra, 'Change USS directory');
+        await progress.start();
+        log.info('changeUssDirectory called', { path: pathArg, system });
 
-      try {
-        const { systemId, userId: resolvedUserId } = resolveSystemForTool(
-          deps.systemRegistry,
-          deps.sessionState,
-          system
-        );
-        await ensureContext(deps, systemId, resolvedUserId);
+        try {
+          const { systemId, userId: resolvedUserId } = resolveSystemForTool(
+            deps.systemRegistry,
+            deps.sessionState,
+            system
+          );
+          await ensureContext(deps, systemId, resolvedUserId);
 
-        const ctx = deps.sessionState.getContext(systemId);
-        const effectiveCwd = ctx?.ussCwd ?? ctx?.ussHome;
-        const resolvedPath = resolveUssPath(pathArg, effectiveCwd);
+          const ctx = deps.sessionState.getContext(systemId);
+          const effectiveCwd = ctx?.ussCwd ?? ctx?.ussHome;
+          const resolvedPath = resolveUssPath(pathArg, effectiveCwd);
 
-        await deps.backend.listUssFiles(
-          systemId,
-          resolvedPath,
-          { includeHidden: true },
-          ctx?.userId
-        );
-        if (ctx) {
-          ctx.ussCwd = resolvedPath;
+          await deps.backend.listUssFiles(
+            systemId,
+            resolvedPath,
+            { includeHidden: true },
+            ctx?.userId
+          );
+          if (ctx) {
+            ctx.ussCwd = resolvedPath;
+          }
+          const displayPath = relativizeForDisplay(resolvedPath, effectiveCwd);
+          await progress.complete('done');
+          return wrapResponse(
+            buildContext(systemId, { currentDirectory: displayPath }),
+            { success: true },
+            { path: resolvedPath }
+          );
+        } catch (err) {
+          log.warning('changeUssDirectory failed', {
+            path: pathArg,
+            system: system,
+            error: (err as Error).message,
+          });
+          await progress.complete((err as Error).message);
+          return errorResult((err as Error).message);
         }
-        const displayPath = relativizeForDisplay(resolvedPath, effectiveCwd);
-        await progress.complete('done');
-        return wrapResponse(
-          buildContext(systemId, { currentDirectory: displayPath }),
-          { success: true },
-          { path: resolvedPath }
-        );
-      } catch (err) {
-        log.warning('changeUssDirectory failed', {
-          path: pathArg,
-          system: system,
-          error: (err as Error).message,
-        });
-        await progress.complete((err as Error).message);
-        return errorResult((err as Error).message);
       }
-    }
-  );
+    );
+  }
 
   // -----------------------------------------------------------------------
   // listUssFiles
@@ -242,7 +245,7 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
           .describe(
             'USS directory path: absolute (starts with /) or relative to current working directory (see getContext.ussCwd).'
           ),
-        system: z.string().optional().describe(SYSTEM_PARAM_DESCRIPTION),
+        system: z.string().optional().describe(systemParamDescription()),
         includeHidden: z
           .boolean()
           .optional()
@@ -353,7 +356,7 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
           .describe(
             'USS file path: absolute (starts with /) or relative to current working directory (see getContext.ussCwd).'
           ),
-        system: z.string().optional().describe(SYSTEM_PARAM_DESCRIPTION),
+        system: z.string().optional().describe(systemParamDescription()),
         encoding: z
           .string()
           .optional()
@@ -547,7 +550,7 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
         commandText: z
           .string()
           .describe('The Unix command line to execute (e.g. ls -la /tmp, whoami, pwd).'),
-        system: z.string().optional().describe(SYSTEM_PARAM_DESCRIPTION),
+        system: z.string().optional().describe(systemParamDescription()),
         startLine: z
           .number()
           .int()
@@ -693,7 +696,7 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
           .describe(
             'UTF-8 content to write as an array of lines (one string per line). Required unless binary is true.'
           ),
-        system: z.string().optional().describe(SYSTEM_PARAM_DESCRIPTION),
+        system: z.string().optional().describe(systemParamDescription()),
         etag: z.string().optional().describe('ETag for optimistic locking.'),
         encoding: z.string().optional().describe('Mainframe encoding. Omit for default.'),
         binary: z
@@ -787,7 +790,7 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
             'USS path to create: absolute or relative to current working directory (see getContext.ussCwd).'
           ),
         isDirectory: z.boolean().describe('True to create a directory, false for a regular file.'),
-        system: z.string().optional().describe(SYSTEM_PARAM_DESCRIPTION),
+        system: z.string().optional().describe(systemParamDescription()),
         permissions: z.string().optional().describe('Octal permissions (e.g. 755).'),
       },
     },
@@ -843,7 +846,7 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
           .describe(
             'USS path to delete: absolute or relative to current working directory (see getContext.ussCwd).'
           ),
-        system: z.string().optional().describe(SYSTEM_PARAM_DESCRIPTION),
+        system: z.string().optional().describe(systemParamDescription()),
         recursive: z
           .boolean()
           .optional()
@@ -896,7 +899,7 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
             'USS path: absolute or relative to current working directory (see getContext.ussCwd).'
           ),
         mode: z.string().describe('Octal mode (e.g. 755).'),
-        system: z.string().optional().describe(SYSTEM_PARAM_DESCRIPTION),
+        system: z.string().optional().describe(systemParamDescription()),
         recursive: z.boolean().optional().default(false).describe('Apply recursively.'),
       },
     },
@@ -945,7 +948,7 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
             'USS path: absolute or relative to current working directory (see getContext.ussCwd).'
           ),
         owner: z.string().describe('New owner.'),
-        system: z.string().optional().describe(SYSTEM_PARAM_DESCRIPTION),
+        system: z.string().optional().describe(systemParamDescription()),
         recursive: z.boolean().optional().default(false).describe('Apply recursively.'),
       },
     },
@@ -998,7 +1001,7 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
           .describe(
             'File tag value: a coded character set identifier (CCSID) name or number. Common values: ISO8859-1, IBM-1047 (EBCDIC), UTF-8, binary. Use "binary" for non-text files.'
           ),
-        system: z.string().optional().describe(SYSTEM_PARAM_DESCRIPTION),
+        system: z.string().optional().describe(systemParamDescription()),
         recursive: z.boolean().optional().default(false).describe('Apply recursively.'),
       },
     },
@@ -1073,7 +1076,7 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
           .optional()
           .default(false)
           .describe('Replace files that cannot be opened (like cp -f).'),
-        system: z.string().optional().describe(SYSTEM_PARAM_DESCRIPTION),
+        system: z.string().optional().describe(systemParamDescription()),
       },
     },
     async (
@@ -1144,7 +1147,7 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
           .describe(
             'Base directory: absolute or relative to current working directory (see getContext.ussCwd).'
           ),
-        system: z.string().optional().describe(SYSTEM_PARAM_DESCRIPTION),
+        system: z.string().optional().describe(systemParamDescription()),
       },
     },
     async ({ basePath, system }, extra) => {
@@ -1193,7 +1196,7 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
             'Parent directory: absolute or relative to current working directory (see getContext.ussCwd).'
           ),
         prefix: z.string().optional().describe('Optional filename prefix.'),
-        system: z.string().optional().describe(SYSTEM_PARAM_DESCRIPTION),
+        system: z.string().optional().describe(systemParamDescription()),
       },
     },
     async ({ dirPath, prefix, system }, extra) => {
@@ -1241,7 +1244,7 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
           .describe(
             'USS directory path: absolute or relative to current working directory (see getContext.ussCwd).'
           ),
-        system: z.string().optional().describe(SYSTEM_PARAM_DESCRIPTION),
+        system: z.string().optional().describe(systemParamDescription()),
         permissions: z.string().optional().describe('Octal permissions (e.g. 755).'),
       },
     },
@@ -1295,7 +1298,7 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
           .describe(
             'USS file path: absolute or relative to current working directory (see getContext.ussCwd).'
           ),
-        system: z.string().optional().describe(SYSTEM_PARAM_DESCRIPTION),
+        system: z.string().optional().describe(systemParamDescription()),
       },
     },
     async ({ path: pathArg, system }, extra) => {
@@ -1344,7 +1347,7 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
           .describe(
             'USS path to delete recursively: absolute or relative to current working directory (see getContext.ussCwd); must contain "tmp" and min depth.'
           ),
-        system: z.string().optional().describe(SYSTEM_PARAM_DESCRIPTION),
+        system: z.string().optional().describe(systemParamDescription()),
       },
     },
     async ({ path: pathArg, system }, extra) => {

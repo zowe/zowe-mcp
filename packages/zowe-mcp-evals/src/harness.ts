@@ -372,6 +372,9 @@ export class McpEvalHarness {
     }
 
     const env = { ...process.env, ...passwordEnvVarsForServer } as Record<string, string>;
+    if (setConfig.mock?.statelessTools !== undefined) {
+      env.ZOWE_MCP_STATELESS_TOOLS = setConfig.mock.statelessTools ? '1' : '0';
+    }
     if (this.options.workspaceDir) {
       env.ZOWE_MCP_WORKSPACE_DIR = this.options.workspaceDir;
     }

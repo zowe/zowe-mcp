@@ -34,6 +34,7 @@ import {
   DEFAULT_LIST_LIMIT,
   getListMessages,
   getReadMessages,
+  jobsSystemParamDescription,
   linesToText,
   MAX_LIST_LIMIT,
   paginateList,
@@ -304,12 +305,7 @@ export function registerJobTools(server: McpServer, deps: JobToolDeps, logger: L
           .describe(
             'JCL to submit as array of lines. Omit the job card to use the one configured for this connection; include it only when your JCL already has a full JOB statement.'
           ),
-        system: z
-          .string()
-          .optional()
-          .describe(
-            'Optional z/OS system (hostname). If omitted, the active system from setSystem is used.'
-          ),
+        system: z.string().optional().describe(jobsSystemParamDescription()),
         jobName: z
           .string()
           .optional()
@@ -543,12 +539,7 @@ export function registerJobTools(server: McpServer, deps: JobToolDeps, logger: L
       _meta: { resourceEffectLevel: ResourceEffect.READ },
       inputSchema: {
         jobId: z.string().describe('Job ID (e.g. JOB00123 or J0nnnnnn).'),
-        system: z
-          .string()
-          .optional()
-          .describe(
-            'Optional z/OS system (hostname). If omitted, the active system from setSystem is used.'
-          ),
+        system: z.string().optional().describe(jobsSystemParamDescription()),
       },
     },
     async (args, extra) => {
@@ -607,12 +598,7 @@ export function registerJobTools(server: McpServer, deps: JobToolDeps, logger: L
       _meta: { resourceEffectLevel: ResourceEffect.READ },
       inputSchema: {
         jobId: z.string().describe('Job ID (e.g. JOB00123 or J0nnnnnn).'),
-        system: z
-          .string()
-          .optional()
-          .describe(
-            'Optional z/OS system (hostname). If omitted, the active system from setSystem is used.'
-          ),
+        system: z.string().optional().describe(jobsSystemParamDescription()),
         offset: z
           .number()
           .int()
@@ -698,12 +684,7 @@ export function registerJobTools(server: McpServer, deps: JobToolDeps, logger: L
       inputSchema: {
         jobId: z.string().describe('Job ID (e.g. JOB00123 or J0nnnnnn).'),
         jobFileId: z.number().int().describe('Job file (spool) ID from listJobFiles.'),
-        system: z
-          .string()
-          .optional()
-          .describe(
-            'Optional z/OS system (hostname). If omitted, the active system from setSystem is used.'
-          ),
+        system: z.string().optional().describe(jobsSystemParamDescription()),
         startLine: z
           .number()
           .int()
@@ -797,12 +778,7 @@ export function registerJobTools(server: McpServer, deps: JobToolDeps, logger: L
       _meta: { resourceEffectLevel: ResourceEffect.READ },
       inputSchema: {
         jobId: z.string().describe('Job ID (e.g. JOB00123 or J0nnnnnn).'),
-        system: z
-          .string()
-          .optional()
-          .describe(
-            'Optional z/OS system (hostname). If omitted, the active system from setSystem is used.'
-          ),
+        system: z.string().optional().describe(jobsSystemParamDescription()),
         failedStepsOnly: z
           .boolean()
           .optional()
@@ -964,12 +940,7 @@ export function registerJobTools(server: McpServer, deps: JobToolDeps, logger: L
       inputSchema: {
         jobId: z.string().describe('Job ID (e.g. JOB00123 or J0nnnnnn).'),
         searchString: z.string().min(1).describe('Substring to search for (literal, not regex).'),
-        system: z
-          .string()
-          .optional()
-          .describe(
-            'Optional z/OS system (hostname). If omitted, the active system from setSystem is used.'
-          ),
+        system: z.string().optional().describe(jobsSystemParamDescription()),
         jobFileId: z
           .number()
           .int()
@@ -1111,12 +1082,7 @@ export function registerJobTools(server: McpServer, deps: JobToolDeps, logger: L
         'List jobs on the z/OS system with optional filters (owner, prefix, status). Use offset/limit to page results.',
       _meta: { resourceEffectLevel: ResourceEffect.READ },
       inputSchema: {
-        system: z
-          .string()
-          .optional()
-          .describe(
-            'Optional z/OS system (hostname). If omitted, the active system from setSystem is used.'
-          ),
+        system: z.string().optional().describe(jobsSystemParamDescription()),
         owner: z.string().optional().describe('Filter by job owner.'),
         prefix: z.string().optional().describe('Filter by job name prefix.'),
         status: z.string().optional().describe('Filter by status: INPUT, ACTIVE, or OUTPUT.'),
@@ -1200,12 +1166,7 @@ export function registerJobTools(server: McpServer, deps: JobToolDeps, logger: L
       _meta: { resourceEffectLevel: ResourceEffect.READ },
       inputSchema: {
         jobId: z.string().describe('Job ID (e.g. JOB00123 or J0nnnnnn).'),
-        system: z
-          .string()
-          .optional()
-          .describe(
-            'Optional z/OS system (hostname). If omitted, the active system from setSystem is used.'
-          ),
+        system: z.string().optional().describe(jobsSystemParamDescription()),
       },
     },
     async (args, extra) => {
@@ -1258,12 +1219,7 @@ export function registerJobTools(server: McpServer, deps: JobToolDeps, logger: L
         _meta: { resourceEffectLevel: level },
         inputSchema: {
           jobId: z.string().describe('Job ID (e.g. JOB00123 or J0nnnnnn).'),
-          system: z
-            .string()
-            .optional()
-            .describe(
-              'Optional z/OS system (hostname). If omitted, the active system from setSystem is used.'
-            ),
+          system: z.string().optional().describe(jobsSystemParamDescription()),
         },
       },
       async (args, extra) => {
@@ -1347,12 +1303,7 @@ export function registerJobTools(server: McpServer, deps: JobToolDeps, logger: L
           .describe(
             'Fully-qualified data set name, optionally with member in parentheses (e.g. USER.JCL.CNTL(MYJOB)).'
           ),
-        system: z
-          .string()
-          .optional()
-          .describe(
-            'Optional z/OS system (hostname). If omitted, the active system from setSystem is used.'
-          ),
+        system: z.string().optional().describe(jobsSystemParamDescription()),
         wait: z
           .boolean()
           .optional()
@@ -1454,12 +1405,7 @@ export function registerJobTools(server: McpServer, deps: JobToolDeps, logger: L
       _meta: { resourceEffectLevel: ResourceEffect.EXECUTE },
       inputSchema: {
         path: z.string().describe('USS path to the JCL file (e.g. /u/myuser/job.jcl).'),
-        system: z
-          .string()
-          .optional()
-          .describe(
-            'Optional z/OS system (hostname). If omitted, the active system from setSystem is used.'
-          ),
+        system: z.string().optional().describe(jobsSystemParamDescription()),
         wait: z
           .boolean()
           .optional()

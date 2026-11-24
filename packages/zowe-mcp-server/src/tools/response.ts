@@ -23,6 +23,7 @@
  */
 
 import { createRequire } from 'node:module';
+import { isStatelessToolsActive } from '../stateless-tools.js';
 import { inferMimeType } from '../zos/dsn.js';
 
 // Named `loadCjsModule` (not `require`) so it can't collide with the
@@ -65,6 +66,25 @@ export const SYSTEM_PARAM_DESCRIPTION =
   'Omit it to use the active/default connection — you do not need to select or set a system first, ' +
   'and you should still call the tool when no system has been chosen yet. ' +
   'Specify it only to target a different configured system.';
+
+const STATELESS_SYSTEM_PARAM_DESCRIPTION =
+  'Target z/OS system (a host, or user@host when several connections exist). ' +
+  'Pass it on every call. It may be omitted only when exactly one connection is configured.';
+
+/**
+ * The \`system\` parameter description for the current mode: {@link SYSTEM_PARAM_DESCRIPTION}
+ * by default, stateless wording when stateless-tools mode is active.
+ */
+export function systemParamDescription(): string {
+  return isStatelessToolsActive() ? STATELESS_SYSTEM_PARAM_DESCRIPTION : SYSTEM_PARAM_DESCRIPTION;
+}
+
+/** The job tools' system parameter description for the current mode. */
+export function jobsSystemParamDescription(): string {
+  return isStatelessToolsActive()
+    ? 'Target z/OS system (hostname). Pass it on every call; it may be omitted only when exactly one connection is configured.'
+    : 'Optional z/OS system (hostname). If omitted, the active system from setSystem is used.';
+}
 
 /**
  * Insert a pagination note after the first sentence of a tool description

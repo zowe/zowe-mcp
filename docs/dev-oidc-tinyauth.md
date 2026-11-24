@@ -10,7 +10,7 @@ The server validates **RS256** JWTs against **`ZOWE_MCP_JWKS_URI`** and checks *
 | --- | --- |
 | `iss` | Must match `ZOWE_MCP_JWT_ISSUER` exactly. |
 | `sub` | Required; used to scope per-tenant caches and CLI plugin state in shared HTTP mode. |
-| `aud` | Optional; if `ZOWE_MCP_JWT_AUDIENCE` is set, the token must match. |
+| `aud` | Required; must match `ZOWE_MCP_JWT_AUDIENCE` (always validated — a token minted for another relying party is rejected). |
 | Signature | RS256; public key resolved from JWKS (`kid` match). |
 
 Tokens are sent by clients as `Authorization: Bearer <access_token>` on every Streamable HTTP request to `/mcp`.
@@ -22,8 +22,8 @@ Set these when starting the server with `--http` (alongside your usual `--native
 ```bash
 export ZOWE_MCP_JWT_ISSUER="http://localhost:8080/realms/<realm>"
 export ZOWE_MCP_JWKS_URI="http://localhost:8080/realms/<realm>/protocol/openid-connect/certs"
-# Optional:
-# export ZOWE_MCP_JWT_AUDIENCE="account"
+# Required — Keycloak puts `account` in `aud` of password-grant access tokens by default:
+export ZOWE_MCP_JWT_AUDIENCE="account"
 ```
 
 Use the **same** issuer string your IdP puts in the `iss` claim (trailing slashes matter—keep them consistent).

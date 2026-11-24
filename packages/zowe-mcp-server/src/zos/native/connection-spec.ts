@@ -21,6 +21,21 @@ export interface ParsedConnectionSpec {
   user: string;
   host: string;
   port: number;
+  /**
+   * True for the `local` system (same-system zowex execution, see
+   * local-system.ts): `user` is the authenticated JWT sub, `host` is the
+   * literal "local", `port` is meaningless (kept at 22 so cacheKey and
+   * formatting yield plain `USERID@local`). Local specs never reach the
+   * credential provider or the SSH client cache.
+   */
+  local?: true;
+  /**
+   * With `local`: stdio same-user execution (deployment shape 2) — `user` is
+   * the invoking process's own userid and the transport spawns zowex directly,
+   * with no launcher and no identity switch. Absent: the HTTP shape, where
+   * `user` is the JWT sub and the SURROGAT launcher performs the switch.
+   */
+  sameUser?: true;
 }
 
 const DEFAULT_SSH_PORT = 22;

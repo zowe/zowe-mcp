@@ -24,8 +24,10 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
-import express, { type Request, type Response } from 'express';
+import express, { type NextFunction, type Request, type Response } from 'express';
 import { randomUUID } from 'node:crypto';
+import type { AtTlsGate } from 'zos-attls';
+import { atTlsAwareJsonGet } from '../auth/attls-client-http.js';
 import type { JwtAuthConfig, TenantJwtClaims } from '../auth/bearer-jwt.js';
 import { extractBearerToken, verifyBearerJwt } from '../auth/bearer-jwt.js';
 import type { Logger } from '../log.js';
@@ -39,16 +41,21 @@ interface OidcDiscoveryDocument {
 /**
  * Best-effort fetch of `{issuer}/.well-known/openid-configuration`. Logs at notice level only
  * when the document includes `registration_endpoint` (the only registration URL defined by OIDC discovery).
+ *
+ * When ZOWE_MCP_JWKS_URI declares a separate transport to the IdP (plain http
+ * over an outbound AT-TLS rule — docs/zos-attls-client-mode.md § 6.2), the
+ * issuer's https origin is not reachable from this host in-process (the
+ * outbound rule would double-wrap Node TLS), so the fetch uses the JWKS
+ * origin as its base and rides the gated AT-TLS client path.
  */
-function logOidcRegistrationDiscovery(issuer: string, log: Logger): void {
-  const base = issuer.replace(/\/$/, '');
-  const discoveryUrl = `${base}/.well-known/openid-configuration`;
+function logOidcRegistrationDiscovery(jwtAuth: JwtAuthConfig, log: Logger): void {
+  const transportBase = process.env.ZOWE_MCP_JWKS_URI?.trim()
+    ? new URL(jwtAuth.jwksUri).origin
+    : jwtAuth.issuer.replace(/\/$/, '');
+  const discoveryUrl = `${transportBase}/.well-known/openid-configuration`;
   void (async () => {
     try {
-      const res = await fetch(discoveryUrl, {
-        headers: { Accept: 'application/json' },
-        signal: AbortSignal.timeout(5000),
-      });
+      const res = await atTlsAwareJsonGet(discoveryUrl, { Accept: 'application/json' }, 5000);
       if (!res.ok) {
         log.debug('OIDC discovery HTTP status', { discoveryUrl, status: res.status });
         return;
@@ -88,6 +95,13 @@ export interface StartHttpOptions {
    * derived from `host` and the actual port). Only used when `jwtAuth` is not set.
    */
   extraAllowedHosts?: string[];
+  /**
+   * AT-TLS aware-mode gate (z/OS, docs/zos-attls-aware-mode.md). Installed as
+   * the FIRST middleware so no request is parsed and no bearer token is read
+   * off a connection AT-TLS did not secure; also guards upgrades and runs a
+   * startup policy self-probe against the live port.
+   */
+  atTlsGate?: AtTlsGate;
 }
 
 /** Handle returned by {@link startHttp} so tests (or embedding) can shut down the listener. */
@@ -135,8 +149,54 @@ export async function startHttp(
   const dnsRebindingGuard = !jwtAuth;
   const allowedHosts: string[] = [];
   const allowedOrigins: string[] = [];
+
+  /**
+   * Base URL as the client sees it (honors X-Forwarded-Proto behind a proxy).
+   * Behind AT-TLS the TLS layer is invisible to Express — no forwarded header,
+   * `req.protocol` is `http` — so when the operator declares the external URL
+   * through `ZOWE_MCP_OAUTH_RESOURCE` its origin wins. Without this, the 401
+   * challenge points clients at a cleartext URL on a TLS-only port, and a
+   * spec-following client's discovery fetch is reset by the TLS layer.
+   */
+  const deriveBaseUrl = (req: Request): string => {
+    const explicit = process.env.ZOWE_MCP_OAUTH_RESOURCE?.trim();
+    if (explicit) {
+      try {
+        return new URL(explicit).origin;
+      } catch {
+        // unparsable override: fall back to the request-derived URL
+      }
+    }
+    const host = req.get('host') ?? `127.0.0.1:${String(req.socket.localPort ?? port)}`;
+    const xfProto = req.headers['x-forwarded-proto'];
+    const proto =
+      typeof xfProto === 'string' ? xfProto.split(',')[0]?.trim() || 'http' : req.protocol;
+    return `${proto}://${host}`;
+  };
+  /** RFC 9728 §5.1: where the WWW-Authenticate challenge points clients for discovery. */
+  const protectedResourceMetadataUrl = (req: Request): string =>
+    `${deriveBaseUrl(req)}/.well-known/oauth-protected-resource/mcp`;
+
+  const atTlsGate = options?.atTlsGate;
+
   const app = express();
-  app.use(express.json());
+  if (atTlsGate) {
+    app.use(atTlsGate.middleware);
+  }
+  // Express's default JSON body limit is 100kb, which rejects legitimate MCP
+  // requests carrying data set / USS file content (e.g. writeDataset of a few
+  // hundred lines) with PayloadTooLargeError. Default sized for the documented
+  // workloads; override via ZOWE_MCP_HTTP_BODY_LIMIT (any express byte string).
+  const bodyLimit = process.env.ZOWE_MCP_HTTP_BODY_LIMIT?.trim() ?? '16mb';
+  logger.info('HTTP JSON body limit', { limit: bodyLimit });
+  // Bearer-JWT gate BEFORE the body parser: the large body limit exists for
+  // authenticated MCP payloads (writeDataset etc.) — an unauthenticated
+  // request must be rejected from the headers alone, not after buffering and
+  // parsing up to `bodyLimit` of JSON.
+  app.use('/mcp', (req: Request, res: Response, next: NextFunction) => {
+    void mcpAuthGate(req, res, next);
+  });
+  app.use(express.json({ limit: bodyLimit }));
   app.use(express.urlencoded({ extended: false }));
   registerPasswordUrlElicitRoutes(app, logger);
 
@@ -160,11 +220,7 @@ export async function startHttp(
       if (explicit) {
         return explicit;
       }
-      const host = req.get('host') ?? `127.0.0.1:${String(req.socket.localPort ?? port)}`;
-      const xfProto = req.headers['x-forwarded-proto'];
-      const proto =
-        typeof xfProto === 'string' ? xfProto.split(',')[0]?.trim() || 'http' : req.protocol;
-      return `${proto}://${host}/mcp`;
+      return `${deriveBaseUrl(req)}/mcp`;
     };
     const sendProtectedResourceMetadata = (req: Request, res: Response): void => {
       setDiscoveryCors(res);
@@ -183,13 +239,46 @@ export async function startHttp(
     log.info('OAuth protected resource metadata routes enabled (JWT HTTP)', {
       paths: oauthDiscoveryPaths,
     });
-    logOidcRegistrationDiscovery(jwtAuth.issuer, log);
+    logOidcRegistrationDiscovery(jwtAuth, log);
   }
 
   // Map of active session ID → transport and optional JWT subject. A Map (rather than a plain
   // object) is used because the key is the client-controlled `mcp-session-id` header — an object
   // would let values like `__proto__` resolve through the prototype chain instead of missing.
   const sessions = new Map<string, SessionEntry>();
+
+  /**
+   * /mcp auth gate, registered BEFORE the JSON body parser (hoisted function
+   * declaration — see the app.use('/mcp', ...) above). On success the claims
+   * are stashed in `res.locals.tenantClaims` for the route handlers; on
+   * failure the 401/403 has already been sent and the chain stops here.
+   */
+  async function mcpAuthGate(req: Request, res: Response, next: NextFunction): Promise<void> {
+    if (!jwtAuth) {
+      next();
+      return;
+    }
+    const sessionId = req.headers['mcp-session-id'] as string | undefined;
+    const entry = sessionId ? sessions.get(sessionId) : undefined;
+    try {
+      const claims = await verifyBearerOrRespond(req, res, entry?.sub);
+      if (claims === null) {
+        return;
+      }
+      res.locals.tenantClaims = claims;
+      next();
+    } catch (error) {
+      // verifyBearerOrRespond answers its own failures; this is a backstop.
+      log.error('Error in Bearer auth gate', error);
+      if (!res.headersSent) {
+        res.status(500).json({
+          jsonrpc: '2.0',
+          error: { code: -32603, message: 'Internal server error' },
+          id: null,
+        });
+      }
+    }
+  }
 
   async function verifyBearerOrRespond(
     req: Request,
@@ -201,6 +290,13 @@ export async function startHttp(
     }
     const token = extractBearerToken(req.headers.authorization);
     if (!token) {
+      // MCP authorization spec / RFC 9728 §5.1: point the client at the
+      // protected-resource metadata so it can discover the authorization
+      // server. RFC 6750 §3: no `error` attribute when credentials are absent.
+      res.setHeader(
+        'WWW-Authenticate',
+        `Bearer resource_metadata="${protectedResourceMetadataUrl(req)}"`
+      );
       res.status(401).json({
         jsonrpc: '2.0',
         error: { code: -32001, message: 'Unauthorized: missing Bearer token' },
@@ -224,6 +320,14 @@ export async function startHttp(
       return claims;
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
+      // error_description is a quoted-string: strip characters that would
+      // break the header syntax.
+      const description = msg.replace(/["\\\r\n]/g, "'");
+      res.setHeader(
+        'WWW-Authenticate',
+        `Bearer error="invalid_token", error_description="${description}", ` +
+          `resource_metadata="${protectedResourceMetadataUrl(req)}"`
+      );
       res.status(401).json({
         jsonrpc: '2.0',
         error: { code: -32002, message: `Unauthorized: ${msg}` },
@@ -256,17 +360,10 @@ export async function startHttp(
 
       const entry = sessionId ? sessions.get(sessionId) : undefined;
       if (entry) {
-        const claims = await verifyBearerOrRespond(req, res, entry.sub);
-        if (jwtAuth && claims === null) {
-          return;
-        }
+        // Auth (incl. the session-sub binding) ran in mcpAuthGate.
         transport = entry.transport;
       } else if (!sessionId && isInitializeRequest(req.body)) {
-        const claims = await verifyBearerOrRespond(req, res, undefined);
-        if (jwtAuth && claims === null) {
-          return;
-        }
-        const tenant = claims ?? undefined;
+        const tenant = jwtAuth ? (res.locals.tenantClaims as TenantJwtClaims) : undefined;
         const boundSub = tenant?.sub;
         transport = new StreamableHTTPServerTransport({
           sessionIdGenerator: () => randomUUID(),
@@ -327,10 +424,7 @@ export async function startHttp(
   app.get('/mcp', async (req: Request, res: Response) => {
     const entry = lookupSessionOrRespond(req, res);
     if (!entry) return;
-    const claims = await verifyBearerOrRespond(req, res, entry.sub);
-    if (jwtAuth && claims === null) {
-      return;
-    }
+    // Auth (incl. the session-sub binding) ran in mcpAuthGate.
     await entry.transport.handleRequest(req, res);
   });
 
@@ -341,10 +435,7 @@ export async function startHttp(
     const entry = lookupSessionOrRespond(req, res);
     if (!entry) return;
     try {
-      const claims = await verifyBearerOrRespond(req, res, entry.sub);
-      if (jwtAuth && claims === null) {
-        return;
-      }
+      // Auth (incl. the session-sub binding) ran in mcpAuthGate.
       await entry.transport.handleRequest(req, res);
     } catch (error) {
       log.error('Error handling session termination', error);
@@ -379,6 +470,13 @@ export async function startHttp(
       log.info(
         `Zowe MCP Server (HTTP) listening on ${bindHost ?? 'all interfaces'}:${String(actualPort)}`
       );
+      if (atTlsGate) {
+        atTlsGate.attachUpgradeGuard(httpServer);
+        log.info(`AT-TLS aware mode: ${atTlsGate.mode}`);
+        // Log-only policy check at the real port; the service keeps running
+        // either way (remote traffic is already fail-closed in required mode).
+        void atTlsGate.startupSelfProbe(httpServer, actualPort);
+      }
       resolve({
         port: actualPort,
         close: () =>

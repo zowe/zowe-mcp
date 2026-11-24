@@ -179,7 +179,8 @@ export function installCapabilityFilter(
   server: McpServer,
   tier: CapabilityTier,
   logger: Logger,
-  effectLevelMap?: Map<string, EffectLevel>
+  effectLevelMap?: Map<string, EffectLevel>,
+  unsupportedTools: readonly string[] = []
 ): void {
   const maxLevel = maxEffectLevel(tier);
   const log = logger.child('capability');
@@ -190,6 +191,10 @@ export function installCapabilityFilter(
     config: Parameters<McpServer['registerTool']>[1],
     cb: Parameters<McpServer['registerTool']>[2]
   ) {
+    if (unsupportedTools.includes(name)) {
+      log.debug('Tool skipped (backend does not support operation)', { tool: name });
+      return;
+    }
     const configObj = config as Record<string, unknown>;
     const meta = configObj._meta as Record<string, unknown> | undefined;
     const level: EffectLevel = (meta?.resourceEffectLevel as EffectLevel) ?? ResourceEffect.NONE;
@@ -315,6 +320,8 @@ export function buildCapabilityInstructions(
 
 /** Options for {@link installServerMiddleware}. */
 export interface ServerMiddlewareOptions {
+  /** Operations unavailable through the configured backend. */
+  unsupportedTools?: readonly string[];
   /** Capability tier controlling which tools register and how MCP hints are derived. */
   tier: CapabilityTier;
   /**
@@ -347,5 +354,5 @@ export function installServerMiddleware(
   if (opts.logToolCalls) {
     installToolCallLogging(server, logger, opts.backendKind ?? null);
   }
-  installCapabilityFilter(server, opts.tier, logger, opts.effectLevelMap);
+  installCapabilityFilter(server, opts.tier, logger, opts.effectLevelMap, opts.unsupportedTools);
 }

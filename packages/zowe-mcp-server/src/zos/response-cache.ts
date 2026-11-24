@@ -69,6 +69,19 @@ export interface ResponseCache {
   invalidateScope(scopeKey: string): void;
 }
 
+/** Scope keys dynamically without weakening invalidation across authentication changes. */
+export function withIdentityScopedCache(
+  cache: ResponseCache,
+  getIdentity: () => string
+): ResponseCache {
+  const scoped = (key: string): string => JSON.stringify([getIdentity(), key]);
+  return {
+    getOrFetch: (key, fetch, scopes) => cache.getOrFetch(scoped(key), fetch, scopes),
+    set: (key, value, scopes) => cache.set(scoped(key), value, scopes),
+    invalidateScope: scope => cache.invalidateScope(scope),
+  };
+}
+
 /**
  * Creates a generic response cache with the given options.
  * Callers build the key and pass a fetch function; the cache only handles get/set, TTL, and size.

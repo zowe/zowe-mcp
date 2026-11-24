@@ -18,6 +18,61 @@
 
 import { z } from 'zod';
 
+// Backend connection and authentication status
+
+const connectionStatusSchema = z.object({
+  system: z.string(),
+  backend: z.string(),
+  endpoint: z.string(),
+  configuredUser: z
+    .string()
+    .describe(
+      'Configured password fallback user. APIML/ESM controls the actual mapped SAF identity when using OIDC.'
+    ),
+  configuredDeployment: z.enum(['auto', 'direct', 'apiml']),
+  detectedDeployment: z.enum(['unknown', 'direct', 'apiml']),
+  discovery: z.enum(['not-attempted', 'available', 'unavailable']),
+  unsupportedTools: z.array(z.string()),
+  authentication: z.object({
+    preferred: z.literal('oidc'),
+    active: z.enum(['not-tested', 'oidc', 'password', 'session-token']),
+    oidcAvailable: z.boolean(),
+    oidcStatus: z.enum(['not-available', 'not-tested', 'accepted', 'rejected', 'forbidden']),
+    oidcFlow: z.enum(['passthrough', 'token-exchange-poc']).optional(),
+    tokenExchange: z
+      .object({
+        stage: z.literal('proof-of-concept'),
+        state: z.enum(['not-tested', 'valid', 'expired', 'rejected', 'unavailable']),
+        expiresAt: z.number().optional(),
+        lastHttpStatus: z.number().optional(),
+      })
+      .optional(),
+    passwordSource: z.enum(['configured', 'elicited', 'editor']).optional(),
+    fallbackReason: z
+      .enum(['no-frontend-token', 'oidc-rejected', 'oidc-exchange-unavailable'])
+      .optional(),
+    verified: z
+      .boolean()
+      .describe(
+        'A protected operation succeeded with the current authentication path; metadata probes alone do not verify credentials.'
+      ),
+    lastHttpStatus: z.number().optional(),
+    session: z
+      .object({
+        exchange: z.enum(['unknown', 'available', 'unavailable']),
+        token: z.enum(['none', 'valid', 'expired', 'rejected']),
+        expiresAt: z.number().optional(),
+        credentialStorage: z.enum(['none', 'memory', 'configured']),
+      })
+      .optional(),
+    message: z.string(),
+  }),
+});
+
+export const getBackendStatusOutputSchema = z.object({
+  connections: z.array(connectionStatusSchema),
+});
+
 // ---------------------------------------------------------------------------
 // listSystems
 // ---------------------------------------------------------------------------
@@ -186,7 +241,7 @@ const getContextServerSchema = z.object({
   components: z
     .array(z.string())
     .describe('Registered component names (e.g. context, datasets, uss).'),
-  backend: z.string().nullable().describe('Active backend: mock, zowex, or null.'),
+  backend: z.string().nullable().describe('Active backend: mock, zowex, zo-rest, or null.'),
   maxEffectLevel: z
     .string()
     .optional()

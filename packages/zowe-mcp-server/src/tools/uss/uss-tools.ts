@@ -22,6 +22,7 @@ import { ResourceEffect } from '../../capability-level.js';
 import type { Logger } from '../../log.js';
 import type { ZosBackend } from '../../zos/backend.js';
 import type { CredentialProvider } from '../../zos/credentials.js';
+import { resolveCredentialIdentity } from '../../zos/credentials.js';
 import type { EncodingOptions } from '../../zos/encoding.js';
 import { resolveDatasetEncoding } from '../../zos/encoding.js';
 import type { ResponseCache } from '../../zos/response-cache.js';
@@ -73,7 +74,7 @@ async function ensureContext(
   userId?: string
 ): Promise<void> {
   if (deps.sessionState.getContext(systemId)) return;
-  const credentials = await deps.credentialProvider.getCredentials(systemId, userId);
+  const credentials = await resolveCredentialIdentity(deps.credentialProvider, systemId, userId);
   deps.sessionState.setActiveSystem(systemId, credentials.user);
 }
 
@@ -1044,6 +1045,7 @@ export function registerUssTools(server: McpServer, deps: UssToolDeps, logger: L
       description:
         'Copy a USS file or directory within the same z/OS system. ' +
         'For directories, set recursive to true. ' +
+        'On SSH and REST, an existing writable target is replaced even when force is false. ' +
         'Paths can be absolute (starting with /) or relative to the current working directory (see getContext.ussCwd).',
       outputSchema: copyUssFileOutputSchema,
       inputSchema: {

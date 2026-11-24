@@ -39,6 +39,7 @@ import {
   sendZowexOptionsUpdateEvent,
   startPipeServer,
 } from './pipe-server';
+import { getRestConnections } from './rest-settings';
 import { getNativePasswordKey } from './secrets';
 import { logLanguageModels, logStartupInfo } from './startup-log';
 import { initZoweMcpStatusBar, updateZoweMcpStatusBar } from './status-bar';
@@ -151,6 +152,7 @@ export function activate(context: vscode.ExtensionContext): void {
       const jobCardsChanged = e.affectsConfiguration('zoweMCP.jobCards');
       const cliPluginChanged = e.affectsConfiguration('zoweMCP.cliPluginConfiguration');
       const backendChanged = e.affectsConfiguration('zoweMCP.backend');
+      const restConnectionsChanged = e.affectsConfiguration('zoweMCP.zoRestConnections');
       const mockDataDirectoryChanged = e.affectsConfiguration('zoweMCP.mockDataDirectory');
       const enabledCliPluginsChanged = e.affectsConfiguration('zoweMCP.enabledCliPlugins');
       const capabilityTierChanged = e.affectsConfiguration('zoweMCP.capabilityTier');
@@ -207,6 +209,17 @@ export function activate(context: vscode.ExtensionContext): void {
               if (choice === reload) {
                 void vscode.commands.executeCommand('workbench.action.reloadWindow');
               }
+            });
+        }
+        if (restConnectionsChanged && !backendChanged) {
+          void vscode.window
+            .showInformationMessage(
+              'Zowe MCP: zo REST connections changed. Reload the window to apply.',
+              'Reload Window'
+            )
+            .then(choice => {
+              if (choice === 'Reload Window')
+                void vscode.commands.executeCommand('workbench.action.reloadWindow');
             });
         }
 
@@ -281,6 +294,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
         const affectsServerStartup =
           backendChanged ||
+          restConnectionsChanged ||
           mockDataDirectoryChanged ||
           connectionsChanged ||
           zowexOptionsChanged ||
@@ -334,7 +348,9 @@ export function showNoConnectionsNotificationIfNeeded(): void {
   if (backend === 'mock') {
     return;
   }
-  if (zowexConnections.length > 0) {
+  if (
+    backend === 'zo-rest' ? getRestConnections(config).length > 0 : zowexConnections.length > 0
+  ) {
     return;
   }
   const openSettings = 'Open Settings';
@@ -435,6 +451,16 @@ export async function buildServerConfig(
     } else {
       log.warn('Backend is set to "mock" but no mock data directory is configured');
     }
+  } else if (backend === 'zo-rest') {
+    const connections = getRestConnections(config);
+    const storageDir = context.globalStorageUri.fsPath;
+    fs.mkdirSync(storageDir, { recursive: true });
+    const configFile = path.join(storageDir, 'zo-rest-config.json');
+    fs.writeFileSync(configFile, JSON.stringify({ systems: connections }), { mode: 0o600 });
+    args.push('--zo-rest', '--config', configFile);
+    log.info(
+      `zo REST mode enabled: ${connections.length} ${plural(connections.length, 'connection', 'connections')}`
+    );
   } else {
     args.push('--native');
     for (const spec of zowexConnections) {
@@ -872,6 +898,7 @@ async function clearStoredPassword(context: vscode.ExtensionContext): Promise<vo
 const ZOWE_MCP_CONFIG_KEYS = [
   'backend',
   'zowexConnections',
+  'zoRestConnections',
   'logLevel',
   'zowexServerAutoInstall',
   'preferSshKey',

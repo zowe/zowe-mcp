@@ -26,6 +26,7 @@ import {
 } from '../../capability-level.js';
 import type { Logger } from '../../log.js';
 import type { CredentialProvider } from '../../zos/credentials.js';
+import { resolveCredentialIdentity } from '../../zos/credentials.js';
 import type { EncodingOptions } from '../../zos/encoding.js';
 import type { JobCardStore } from '../../zos/job-cards.js';
 import { parseConnectionSpec } from '../../zos/native/connection-spec.js';
@@ -341,7 +342,8 @@ export function registerContextTools(
           ? [`System resolved from unqualified name '${system}'.`]
           : [];
 
-        const credentials = await credentialProvider.getCredentials(
+        const credentials = await resolveCredentialIdentity(
+          credentialProvider,
           resolvedSystemId,
           resolvedUserId,
           { progress: msg => void progress.step(msg) }

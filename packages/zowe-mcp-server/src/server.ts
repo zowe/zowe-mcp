@@ -38,6 +38,7 @@ import { registerDatasetResources } from './resources/dataset-resources.js';
 import { getServerPackageJson } from './runtime/asset-root.js';
 import { registerCertificateTools } from './tools/certificates/certificate-tools.js';
 import { registerConsoleTools } from './tools/console/console-tools.js';
+import { registerBackendStatusTools } from './tools/context/backend-status-tools.js';
 import { registerContextTools } from './tools/context/context-tools.js';
 import { registerDatasetTools } from './tools/datasets/dataset-tools.js';
 import { registerJobTools } from './tools/jobs/jobs-tools.js';
@@ -48,6 +49,7 @@ import { registerUssTools } from './tools/uss/uss-tools.js';
 import { registerZoweExplorerTools } from './tools/zowe-explorer/open-in-editor.js';
 import type { ZosBackend } from './zos/backend.js';
 import type { CredentialProvider } from './zos/credentials.js';
+import { resolveCredentialIdentity } from './zos/credentials.js';
 import {
   DEFAULT_MAINFRAME_MVS_ENCODING,
   DEFAULT_MAINFRAME_USS_ENCODING,
@@ -58,6 +60,7 @@ import {
   createResponseCache,
   type ResponseCache,
   type ResponseCacheOptions,
+  withIdentityScopedCache,
 } from './zos/response-cache.js';
 import { SessionState } from './zos/session.js';
 import { SystemRegistry } from './zos/system.js';
@@ -292,6 +295,7 @@ export function getServer(result: CreateServerResult): McpServer {
 const BACKEND_KIND_NAMES: Record<string, string> = {
   FilesystemMockBackend: 'mock',
   NativeBackend: 'zowex',
+  ZoRestBackend: 'zo-rest',
 };
 
 function getBackendKind(backend: ZosBackend): string {
@@ -348,6 +352,7 @@ export function createServer(options?: CreateServerOptions): CreateServerResult 
       },
       instructions:
         SERVER_INSTRUCTIONS +
+        (options?.backend?.instructions ? '\n\n' + options.backend.instructions : '') +
         (isDataMarkingEnabled() ? '\n\n' + DATA_TRUST_BOUNDARY_INSTRUCTIONS : '') +
         '\n\n' +
         buildCapabilityInstructions(capabilityTier, getMcpDeploymentMode()),
@@ -407,6 +412,7 @@ export function createServer(options?: CreateServerOptions): CreateServerResult 
     logToolCalls,
     backendKind,
     effectLevelMap: options?.toolEffectLevels,
+    unsupportedTools: options?.backend?.unsupportedTools,
   });
 
   // Register improvement prompts (for repos that use Zowe MCP) — always available
@@ -416,6 +422,7 @@ export function createServer(options?: CreateServerOptions): CreateServerResult 
   if (hasBackend) {
     const backend = options.backend!;
     const systemRegistry = options.systemRegistry ?? new SystemRegistry();
+    registerBackendStatusTools(server, backend, systemRegistry);
     const credentialProvider = options.credentialProvider!;
     const sessionState = new SessionState();
     sessionStateForZe = sessionState;
@@ -438,7 +445,7 @@ export function createServer(options?: CreateServerOptions): CreateServerResult 
         ? responseCacheOpt
         : undefined;
     const tenantSub = options.tenantSub?.trim();
-    const responseCache: ResponseCache | undefined =
+    let responseCache: ResponseCache | undefined =
       responseCacheOpt === false
         ? undefined
         : typeof responseCacheOpt === 'object' &&
@@ -448,6 +455,9 @@ export function createServer(options?: CreateServerOptions): CreateServerResult 
           : tenantSub
             ? getOrCreateTenantResponseCache(tenantKeyFromSub(tenantSub), cacheOpts)
             : createResponseCache(cacheOpts);
+    if (responseCache && backend.getCacheIdentity) {
+      responseCache = withIdentityScopedCache(responseCache, () => backend.getCacheIdentity!());
+    }
 
     const jobCardStore = options.jobCardStore ?? createJobCardStore();
 
@@ -579,8 +589,7 @@ export function createServer(options?: CreateServerOptions): CreateServerResult 
     if (systems.length === 1) {
       const singleSystem = systems[0];
       const onActiveConnectionChanged = options.onActiveConnectionChanged;
-      void credentialProvider
-        .getCredentials(singleSystem)
+      void resolveCredentialIdentity(credentialProvider, singleSystem)
         .then(credentials => {
           sessionState.setActiveSystem(singleSystem, credentials.user);
           logger.info('Auto-activated single system', {

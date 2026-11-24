@@ -45,6 +45,8 @@ export interface Credentials {
 
 /** Optional options for getCredentials (e.g. progress reporting while waiting for password). */
 export interface GetCredentialsOptions {
+  /** Require a fresh interactive password, ignoring configured sources and cached passwords. */
+  forceElicitation?: boolean;
   /** Called when the provider is waiting for user input (e.g. password prompt). */
   progress?: (message: string) => void;
 }
@@ -60,6 +62,12 @@ export interface GetCredentialsOptions {
  * system's default user.
  */
 export interface CredentialProvider {
+  /** Select a configured identity without collecting a secret. Optional for lazy-auth backends. */
+  getIdentity?(
+    systemId: SystemId,
+    userId?: string,
+    options?: GetCredentialsOptions
+  ): Promise<Pick<Credentials, 'user'>>;
   /** Get credentials for a system, optionally for a specific user. */
   getCredentials(
     systemId: SystemId,
@@ -69,4 +77,16 @@ export interface CredentialProvider {
 
   /** List all user IDs available for a system. */
   listUsers(systemId: SystemId): Promise<string[]>;
+}
+
+/** Tool context needs an identity; a backend may defer collecting credentials until the actual operation. */
+export function resolveCredentialIdentity(
+  provider: CredentialProvider,
+  systemId: SystemId,
+  userId?: string,
+  options?: GetCredentialsOptions
+): Promise<Pick<Credentials, 'user'>> {
+  return provider.getIdentity
+    ? provider.getIdentity(systemId, userId, options)
+    : provider.getCredentials(systemId, userId, options);
 }

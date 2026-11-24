@@ -68,6 +68,8 @@ export type NotificationEvent = McpEvent<'notification', NotificationEventData>;
 
 /** Payload for a `request-password` event (server → extension). */
 export interface RequestPasswordEventData {
+  /** REST session login: prompt without reading or writing platform SecretStorage. */
+  transient?: boolean;
   user: string;
   host: string;
   port?: number;
@@ -198,6 +200,8 @@ export type LogLevelEvent = McpEvent<'log-level', LogLevelEventData>;
 
 /** Payload for a `password` event (extension → server). */
 export interface PasswordEventData {
+  /** Do not copy this elicited secret into other credential stores. */
+  transient?: boolean;
   user: string;
   host: string;
   port?: number;

@@ -71,6 +71,13 @@ export interface ContextToolDeps {
   removeTenantNativeConnection?: (spec: string) => Promise<void>;
 }
 
+/** Stateless mode: true when exactly one connection is configured, so an omitted system is unambiguous. */
+function hasSingleTarget(systemRegistry: SystemRegistry): boolean {
+  const hosts = systemRegistry.list();
+  if (hosts.length !== 1) return false;
+  return (systemRegistry.getOrResolve(hosts[0])?.connectionSpecs?.length ?? 0) <= 1;
+}
+
 /**
  * Registers context management tools on the given MCP server.
  */
@@ -268,11 +275,11 @@ export function registerContextTools(
         log.debug('listSystems called');
         const systems = systemRegistry.listInfo();
         const activeSystem = sessionState.getActiveSystem();
+        const reportActive = !stateless || hasSingleTarget(systemRegistry);
 
-        const result = systems.map(s => ({
-          ...s,
-          active: s.host === activeSystem,
-        }));
+        const result = systems.map(s =>
+          reportActive ? { ...s, active: s.host === activeSystem } : { ...s }
+        );
 
         const payload: Record<string, unknown> = { systems: result };
         await progress.complete(`${result.length} systems`);
@@ -407,8 +414,11 @@ export function registerContextTools(
     'getContext',
     {
       description:
-        'Return the Zowe MCP server info (version, backend, components) and the current session context: active system, active connection (user@host), user ID, ' +
-        'all known systems (with their connections when multiple exist), and recently used systems (those with saved context). ' +
+        (stateless
+          ? 'Return the Zowe MCP server info (version, backend, components) and all known systems (with their connections when multiple exist). ' +
+            'There is no current system: pass system on every call (it may be omitted only when exactly one connection is configured, in which case that system is reported as active). '
+          : 'Return the Zowe MCP server info (version, backend, components) and the current session context: active system, active connection (user@host), user ID, ' +
+            'all known systems (with their connections when multiple exist), and recently used systems (those with saved context). ') +
         backendDescription,
       _meta: { resourceEffectLevel: ResourceEffect.NONE },
       outputSchema: makeGetContextOutputSchema(stateless),
@@ -441,7 +451,7 @@ export function registerContextTools(
         ];
         const payload: Record<string, unknown> = {
           server: serverInfo,
-          activeSystem: null,
+          ...(stateless ? {} : { activeSystem: null }),
           allSystems: [],
           recentlyUsedSystems: [],
           messages,
@@ -458,9 +468,12 @@ export function registerContextTools(
         };
       }
 
-      const activeSystemId = sessionState.getActiveSystem();
+      // Stateless mode reports no active system, recently used systems or ussCwd when several
+      // systems are configured: they would act as a hidden default.
+      const reportActive = !stateless || hasSingleTarget(systemRegistry);
+      const activeSystemId = reportActive ? sessionState.getActiveSystem() : undefined;
       const allConfigured = systemRegistry.listInfo();
-      const recentlyUsed = sessionState.getAllContexts();
+      const recentlyUsed = stateless ? [] : sessionState.getAllContexts();
 
       let activeSystem: {
         system: string;
@@ -495,7 +508,7 @@ export function registerContextTools(
           if (ctx.ussHome !== undefined) {
             activeSystem.ussHome = ctx.ussHome;
           }
-          activeSystem.ussCwd = ctx.ussCwd ?? ctx.ussHome ?? undefined;
+          if (!stateless) activeSystem.ussCwd = ctx.ussCwd ?? ctx.ussHome ?? undefined;
           if (jobCardStore) {
             const connectionSpec = `${ctx.userId}@${activeSystemId}`;
             const card = jobCardStore.get(connectionSpec);
@@ -510,12 +523,12 @@ export function registerContextTools(
         host: s.host,
         description: s.description,
         ...(s.connections && s.connections.length > 0 ? { connections: s.connections } : {}),
-        active: s.host === activeSystemId,
+        ...(reportActive ? { active: s.host === activeSystemId } : {}),
       }));
 
       const payload: Record<string, unknown> = {
         server: serverInfo,
-        activeSystem,
+        ...(reportActive ? { activeSystem } : {}),
         allSystems,
         recentlyUsedSystems: recentlyUsed,
       };

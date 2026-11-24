@@ -186,4 +186,48 @@ describe('stateless tools mode', () => {
     expect(result.isError).not.toBe(true);
     expect(text(result)).toContain('FROM SYSTEM ONE');
   });
+
+  describe('active system reporting', () => {
+    async function callAfterExplicitCall(statelessTools: boolean) {
+      conn = await connect(dir, config, statelessTools);
+      await conn.client.callTool({
+        name: 'readDataset',
+        arguments: { dsn: 'USER2.DATA.INPUT', system: 'sys2.example.com' },
+      });
+      const context = text(await conn.client.callTool({ name: 'getContext', arguments: {} }));
+      const systems = text(await conn.client.callTool({ name: 'listSystems', arguments: {} }));
+      return { context, systems };
+    }
+
+    it('omits activeSystem, active flags and recently used systems with several systems', async () => {
+      const { context, systems } = await callAfterExplicitCall(true);
+      for (const json of [context, systems]) {
+        expect(json).not.toContain('"active"');
+        expect(json).not.toContain('activeSystem');
+        expect(json).not.toContain('ussCwd');
+      }
+      expect(JSON.parse(context)).toMatchObject({ recentlyUsedSystems: [] });
+      expect((JSON.parse(systems) as { systems: unknown[] }).systems).toHaveLength(2);
+    });
+
+    it('still reports the active system and flags when the switch is off', async () => {
+      const { context, systems } = await callAfterExplicitCall(false);
+      expect(context).toContain('"activeSystem"');
+      expect(context).toContain('"active": true');
+      expect(systems).toContain('"active": true');
+    });
+
+    it('reports the implicit system when exactly one is configured', async () => {
+      conn = await connect(dir, { systems: [config.systems[0]] }, true);
+      const context = JSON.parse(
+        text(await conn.client.callTool({ name: 'getContext', arguments: {} }))
+      ) as {
+        activeSystem: { system: string; ussCwd?: string };
+        allSystems: { active: boolean }[];
+      };
+      expect(context.activeSystem.system).toBe('sys1.example.com');
+      expect(context.activeSystem.ussCwd).toBeUndefined();
+      expect(context.allSystems[0].active).toBe(true);
+    });
+  });
 });

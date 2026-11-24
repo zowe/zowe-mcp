@@ -34,7 +34,14 @@ function makeListSystemsEntrySchema(stateless: boolean) {
           ? 'Connection specs (user@host or user@host:port) when multiple connections exist for this host. Pass one of these as system when disambiguating.'
           : 'Connection specs (user@host or user@host:port) when multiple connections exist for this host. Use setSystem with one of these when disambiguating.'
       ),
-    active: z.boolean().describe('True if this system is the currently active one.'),
+    ...(stateless
+      ? {
+          active: z
+            .boolean()
+            .optional()
+            .describe('Present only when exactly one system is configured (the implicit target).'),
+        }
+      : { active: z.boolean().describe('True if this system is the currently active one.') }),
   });
 }
 
@@ -52,7 +59,7 @@ export function makeListSystemsOutputSchema(stateless: boolean) {
     })
     .describe(
       stateless
-        ? 'List of configured z/OS systems. Each entry has host, optional description and connections, and active flag. Pass the host (or connection spec) as the system parameter of other tools.'
+        ? 'List of configured z/OS systems. Each entry has host, optional description and connections. Pass the host (or connection spec) as the system parameter of other tools.'
         : 'List of configured z/OS systems. Each entry has host, optional description and connections, and active flag. Use setSystem to select the active system.'
     );
 }
@@ -171,15 +178,24 @@ function makeGetContextActiveSystemSchema(stateless: boolean) {
   });
 }
 
-const getContextSystemEntrySchema = z.object({
-  host: z.string().describe('System hostname.'),
-  description: z.string().optional().describe('Optional label.'),
-  connections: z
-    .array(z.string())
-    .optional()
-    .describe('Connection specs when multiple connections exist for this host.'),
-  active: z.boolean().describe('True if this system is the active one.'),
-});
+function makeGetContextSystemEntrySchema(stateless: boolean) {
+  return z.object({
+    host: z.string().describe('System hostname.'),
+    description: z.string().optional().describe('Optional label.'),
+    connections: z
+      .array(z.string())
+      .optional()
+      .describe('Connection specs when multiple connections exist for this host.'),
+    ...(stateless
+      ? {
+          active: z
+            .boolean()
+            .optional()
+            .describe('Present only when exactly one system is configured (the implicit target).'),
+        }
+      : { active: z.boolean().describe('True if this system is the active one.') }),
+  });
+}
 
 const getContextRecentlyUsedEntrySchema = z.object({
   system: z.string().describe('System hostname.'),
@@ -218,11 +234,18 @@ export function makeGetContextOutputSchema(stateless: boolean) {
       server: getContextServerSchema.describe(
         'Zowe MCP server metadata: name, version, registered components, and backend status.'
       ),
-      activeSystem: z
-        .union([makeGetContextActiveSystemSchema(stateless), z.null()])
-        .describe('Currently selected system and user; null if no system has been set yet.'),
+      activeSystem: stateless
+        ? z
+            .union([makeGetContextActiveSystemSchema(stateless), z.null()])
+            .optional()
+            .describe(
+              'Present only when exactly one system is configured (the implicit target). Omitted when several are configured: pass system on every call.'
+            )
+        : z
+            .union([makeGetContextActiveSystemSchema(stateless), z.null()])
+            .describe('Currently selected system and user; null if no system has been set yet.'),
       allSystems: z
-        .array(getContextSystemEntrySchema)
+        .array(makeGetContextSystemEntrySchema(stateless))
         .describe(
           'All configured z/OS systems with host, optional description/connections, and active flag.'
         ),
@@ -237,7 +260,9 @@ export function makeGetContextOutputSchema(stateless: boolean) {
         .describe('Informational messages. Omitted when empty.'),
     })
     .describe(
-      'Current session context: server info, active system (or null), all configured systems, recently used systems, and messages.'
+      stateless
+        ? 'Server info, all configured systems, and messages. There is no current system: pass system on every call.'
+        : 'Current session context: server info, active system (or null), all configured systems, recently used systems, and messages.'
     );
 }
 

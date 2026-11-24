@@ -317,8 +317,10 @@ export async function startHttp(
     logOidcRegistrationDiscovery(jwtAuth, log);
   }
 
-  /** Map of active session ID → transport and optional JWT subject. */
-  const sessions: Record<string, SessionEntry> = {};
+  // Map of active session ID → transport and optional JWT subject. A Map (rather than a plain
+  // object) is used because the key is the client-controlled `mcp-session-id` header — an object
+  // would let values like `__proto__` resolve through the prototype chain instead of missing.
+  const sessions = new Map<string, SessionEntry>();
 
   /**
    * /mcp auth gate, registered BEFORE the JSON body parser (hoisted function
@@ -332,7 +334,7 @@ export async function startHttp(
       return;
     }
     const sessionId = req.headers['mcp-session-id'] as string | undefined;
-    const entry = sessionId ? sessions[sessionId] : undefined;
+    const entry = sessionId ? sessions.get(sessionId) : undefined;
     try {
       const claims = await verifyBearerOrRespond(req, res, entry?.sub);
       if (claims === null) {
@@ -410,6 +412,16 @@ export async function startHttp(
     }
   }
 
+  /** Finds the session named by the `mcp-session-id` header, or answers 400 and returns undefined. */
+  const lookupSessionOrRespond = (req: Request, res: Response): SessionEntry | undefined => {
+    const sessionId = req.headers['mcp-session-id'] as string | undefined;
+    const entry = sessionId ? sessions.get(sessionId) : undefined;
+    if (!entry) {
+      res.status(400).send('Invalid or missing session ID');
+    }
+    return entry;
+  };
+
   // -----------------------------------------------------------------------
   // POST /mcp — initialization + regular JSON-RPC requests
   // -----------------------------------------------------------------------
@@ -421,16 +433,17 @@ export async function startHttp(
       }
       let transport: StreamableHTTPServerTransport;
 
-      if (sessionId && sessions[sessionId]) {
+      const entry = sessionId ? sessions.get(sessionId) : undefined;
+      if (entry) {
         // Auth (incl. the session-sub binding) ran in mcpAuthGate.
-        transport = sessions[sessionId].transport;
+        transport = entry.transport;
       } else if (!sessionId && isInitializeRequest(req.body)) {
         const tenant = jwtAuth ? (res.locals.tenantClaims as TenantJwtClaims) : undefined;
         const boundSub = tenant?.sub;
         transport = new StreamableHTTPServerTransport({
           sessionIdGenerator: () => randomUUID(),
           onsessioninitialized: (sid: string) => {
-            sessions[sid] = { transport, sub: boundSub };
+            sessions.set(sid, { transport, sub: boundSub });
             log.info('MCP session initialized', { mcpSessionId: sid, tenantSub: boundSub });
           },
           ...(dnsRebindingGuard
@@ -446,8 +459,8 @@ export async function startHttp(
 
         transport.onclose = () => {
           const sid = transport.sessionId;
-          if (sid && sessions[sid]) {
-            delete sessions[sid];
+          if (sid) {
+            sessions.delete(sid);
           }
         };
 
@@ -484,27 +497,21 @@ export async function startHttp(
   // GET /mcp — SSE streams for server-initiated messages
   // -----------------------------------------------------------------------
   app.get('/mcp', async (req: Request, res: Response) => {
-    const sessionId = req.headers['mcp-session-id'] as string | undefined;
-    if (!sessionId || !sessions[sessionId]) {
-      res.status(400).send('Invalid or missing session ID');
-      return;
-    }
+    const entry = lookupSessionOrRespond(req, res);
+    if (!entry) return;
     // Auth (incl. the session-sub binding) ran in mcpAuthGate.
-    await sessions[sessionId].transport.handleRequest(req, res);
+    await entry.transport.handleRequest(req, res);
   });
 
   // -----------------------------------------------------------------------
   // DELETE /mcp — session termination
   // -----------------------------------------------------------------------
   app.delete('/mcp', async (req: Request, res: Response) => {
-    const sessionId = req.headers['mcp-session-id'] as string | undefined;
-    if (!sessionId || !sessions[sessionId]) {
-      res.status(400).send('Invalid or missing session ID');
-      return;
-    }
+    const entry = lookupSessionOrRespond(req, res);
+    if (!entry) return;
     try {
       // Auth (incl. the session-sub binding) ran in mcpAuthGate.
-      await sessions[sessionId].transport.handleRequest(req, res);
+      await entry.transport.handleRequest(req, res);
     } catch (error) {
       log.error('Error handling session termination', error);
       if (!res.headersSent) {

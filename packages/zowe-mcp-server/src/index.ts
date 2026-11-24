@@ -164,7 +164,7 @@ interface ParsedArgs {
   transport: 'stdio' | 'http';
   port: number;
   mockDir?: string;
-  /** Zowe Remote SSH (zowex-sdk) backend; set by `--native` or `--zowex`. */
+  /** Zowe Remote SSH backend; set by `--native` or `--zowex`. */
   zowex?: boolean;
   configPath?: string;
   systemSpecs: string[];
@@ -175,7 +175,7 @@ interface ParsedArgs {
   zowexServerAutoInstall?: boolean;
   /** Override remote path for the zowex z/OS server. Default ~/.zowe-server. */
   zowexServerPath?: string;
-  /** Response timeout in seconds for zowex-sdk requests. Default 60. */
+  /** Response timeout in seconds for Zowe Remote SSH requests. Default 60. */
   zowexResponseTimeout?: number;
   /** Default mainframe encoding for MVS data sets (e.g. IBM-037). */
   defaultMvsEncoding?: string;
@@ -335,7 +335,7 @@ function applyEnvOverrides(parsed: ParsedArgs): void {
   }
 }
 
-function parseArgs(): ParsedArgs {
+function parseArgs(): ParsedArgs | undefined {
   const parser = yargs(hideBin(process.argv))
     .scriptName('zowe-mcp-server')
     .version(SERVER_VERSION)
@@ -524,7 +524,7 @@ function parseArgs(): ParsedArgs {
         type: 'boolean',
         default: false,
         alias: 'zowex',
-        describe: 'Zowe Remote SSH backend (SSH to z/OS; zowex-sdk). Same as --zowex.',
+        describe: 'Zowe Remote SSH backend (SSH to z/OS). Same as --zowex.',
       },
       config: {
         type: 'string',
@@ -654,7 +654,11 @@ function parseArgs(): ParsedArgs {
     .alias('h', 'help')
     .help();
 
-  const argv = parser.parseSync() as Record<string, unknown>;
+  const result = parser.parseSync();
+  if (result._[0] === 'mock-zos') {
+    return undefined;
+  }
+  const argv = result as Record<string, unknown>;
 
   let responseCache: ResponseCacheConfig | false | undefined = argv['response-cache-disable']
     ? false
@@ -1233,7 +1237,11 @@ async function main(): Promise<void> {
     process.exit(result.status ?? 0);
   }
 
-  const parsed = parseArgs();
+  const args = parseArgs();
+  if (!args) {
+    return;
+  }
+  const parsed = args;
 
   if (parsed.transport === 'http') {
     process.env.ZOWE_MCP_TRANSPORT = 'http';

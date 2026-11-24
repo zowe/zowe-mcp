@@ -45,7 +45,7 @@
     "@modelcontextprotocol/sdk": "^1.32.1",
     "@zowe/imperative": "^8.37.0",
     "@zowe/zos-uss-for-zowe-sdk": "^8.37.0",
-    "@zowe/zowex-for-zowe-sdk": "file:../../resources/zowe-zowex-for-zowe-sdk-1.1.0-nightly-2026-11-05-012032.tgz",
+    "@zowe/zowex-for-zowe-sdk": "file:../../resources/zowe-zowex-for-zowe-sdk-1.1.0-nightly-2026-11-16-012131.tgz",
     "express": "^5.1.0",
     "express-rate-limit": "^8.7.1",
     "hardstop-patterns": "^1.0.0",
@@ -67,6 +67,7 @@
     "@types/ssh2": "^1.15.5",
     "@vitest/coverage-v8": "4.1.11",
     "ajv": "^8.20.0",
+    "esbuild": "^0.28.2",
     "vitest": "^4.1.11"
   }
 }

@@ -338,8 +338,9 @@ jobs:
 
       # Airgapped-install test: installs the freshly packed tarball with an
       # empty npm cache, an invalid registry, and a 5ms network timeout, then
-      # smoke-runs the binary — proves the tarball is fully self-contained.
-      - name: Test airgapped install (packed tarball)
+      # smoke-runs the binary, then exercises its native backend over SSH
+      # against the loopback mock z/OS host using the same isolated install.
+      - name: Test airgapped install and native stdio (packed tarball)
         run: npm run test:airgap
 
       - name: Upload npm package tarball

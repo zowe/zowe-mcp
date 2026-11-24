@@ -32,8 +32,8 @@ import { resolveE2eServerPath } from './helpers/e2e-server-path.js';
 import { disposeMockZos, spawnMockZos, type SpawnedMockZos } from './helpers/spawn-mock-zos.js';
 
 // Server under test: repo build by default; set ZOWE_MCP_E2E_SERVER_PATH to use
-// another build (see helpers/e2e-server-path.ts), e.g. to run this suite by hand against
-// an installed npm-pack tarball. Nothing in CI sets the override.
+// another build (see helpers/e2e-server-path.ts). The airgap check sets this
+// override to exercise the installed npm-pack tarball in CI.
 const serverPath = resolveE2eServerPath();
 
 /** Parsed tool result content. */

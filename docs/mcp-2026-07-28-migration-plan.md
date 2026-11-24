@@ -141,8 +141,8 @@ State that is carried between calls and shared by one user's sessions causes wro
 - **One tool set on stdio and HTTP.** `setSystem` and `changeUssDirectory` are removed on both transports. This is a breaking change for today's stdio users.
 - **Every call names its system.** With one connection, that connection is the target. With several, a call without `system` fails with the existing "Valid values" error. No default is stored.
 - **z/OS UNIX paths are absolute.** Responses return absolute paths.
-- **Encoding.** The per-call `encoding` parameter and the server defaults remain. The per-system override set through `setSystem` moves to the saved connection.
-- **CLI plugin profiles.** Over HTTP the `<plugin>SetConnection` and `<plugin>SetLocation` tools are not offered, and a call names its profile when more than one exists. The active profile is already shared across one user's HTTP sessions today.
+- **Encoding.** A per-system override is set on the saved connection: in `--config`, in the VS Code setting, or in the tenant store. The per-call `encoding` parameter and the server defaults remain.
+- **CLI plugin profiles.** The `<plugin>SetConnection` and `<plugin>SetLocation` tools are removed on both transports, and a call names its profile when more than one exists. The active profile is already shared across one user's HTTP sessions today.
 - **`getContext`** lists the connections and no longer reports an active system or working directory.
 
 ### Measurement before the change
@@ -153,10 +153,6 @@ The open risk is whether models pass `system` reliably when several connections 
 - **Compare.** Run the same questions with the switch off and on: same model, same repetitions, `--no-cache`, clean tree. Record tool-argument correctness, wrong-system calls, steps and tokens.
 - **Read the failures.** A call that fails with "Valid values" and is then corrected counts as a pass with one extra step. A call that reaches the wrong system counts as a failure.
 - **Decide.** Adopt the rules when the stateless run has no wrong-system calls and its pass rate is within noise of the baseline. Otherwise improve the `system` parameter description and the server instructions, and measure again.
-
-### Open
-
-- Whether the CLI plugin `Set*` tools are also removed on stdio, to match the one-tool-set rule.
 
 ## Order of work
 
